@@ -51,19 +51,22 @@ obey.
 
 Resolute was a rail-gun frigate of the Emergency generation, two hundred and
 sixty metres, laid up at Fleet's Callisto yard with a caretaker crew of twelve,
-awaiting sale as surplus. The intended buyer was a company. Seven weeks before
-Season 1, a salvage contractor's crew arrived at the yard with papers in order,
-boarded Resolute for survey, and left with it. The caretakers were put in the
-frigate's own boat with a beacon and were found four days later, unharmed. The
-papers had been bought. The contractor did not exist.
+awaiting sale as surplus. The intended buyer was EarthWorks Industrial, whose
+Saturn desk had asked for a second security ship for Scavenger interdiction.
+Fleet told the buyer only that the sale was on administrative hold. Seven weeks
+before Season 1, a salvage contractor's crew arrived at the yard with papers in
+order, boarded Resolute for survey, and left with it. The caretakers were put in
+the frigate's own boat with a beacon and were found four days later, unharmed.
+The papers had been bought. The contractor did not exist.
 
 Fleet told nobody. The public would have asked why a warship was for sale to a
 company at all, and why twelve sailors were left in a boat by scavengers, and
 the answers to both questions cost budgets. So the hunt is quiet: a challenge on
 the guard channel repeated across the outer system, any vessel with contact with
 Fleet hull Resolute report, and Vigilant working the lanes by ear. Nobody at
-Saturn was told a warship was loose. Meridian had no warning because Fleet's
-embarrassment reached the plate before its warning did.
+Saturn was told a warship was loose, not even the desk that had bought it.
+Meridian had no warning because Fleet's embarrassment reached the plate before
+its warning did.
 
 ## Vigilant and the hunt
 

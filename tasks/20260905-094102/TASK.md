@@ -334,5 +334,27 @@ Y0 and the book names no other calendar; gravity follows The Expanse, weight
 comes from the drive and stations spin; sectors stay K and M until a page
 needs another.
 
+Owner decisions from `REVIEW03.md`, folded into the spine and the world pages:
+
+- The company has hunted the Kites since the Shelter and files the dead as
+  interdiction. No recent trigger. The means and the opportunity are what is
+  new in Y0.
+- The village votes to take the ship, not the roster. Pell gives Meridian its
+  boats' time on guard; the desk orders Meridian to hold its posts; Pell
+  fires. The crew learn of the exchange only when the record plays at the
+  Roost.
+- Meridian was alone because a carrier's pickets outgun any skiff and Fleet
+  told nobody a frigate was loose, not even the desk that had bought it.
+  Severance was going to be Calloway's second ship.
+- Parallax is Calloway's own ship. He is the desk, he commands Parallax in
+  person, he rides its hunts, and he speaks to Datum on the station speakers.
+- Calloway's greed is the yes in Y-4 for the desk it bought him. He does not
+  know Pell is alive until Datum.
+- The recorder is signed, not secret. Playing it needs a certified reader;
+  the Roost has Osprey's seat. No encryption cracking, so the record stays
+  unimpeachable.
+- The crew and Pell work together because they must. No friendship, and
+  Pell's death is a payment, not a redemption.
+
 Next: the owner reviews the world pages. Batch two writes the five deep people
 two at a time, each with a voice test.

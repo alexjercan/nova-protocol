@@ -58,13 +58,13 @@ collects and the ice is thickest. Meridian works the junk site under one.
 
 Down is where the drive pushes. A ship under way has weight along its thrust
 line, with its decks stacked toward the engines, and a ship that is coasting,
-holding station or docked has none. A work boat burns for minutes and drifts
-for hours, so its crew works in free fall and straps in for the burns. A
-carrier working a site holds station and is weightless until it moves. Its
-people live in free fall for the weeks of a job and get their weight back on
-the lane. Stations spin: the Shelter's ring turned, the Roost's ring turns, and
-Datum turns its habitat ring on the rock. Nothing at Saturn has weight for
-free, and everyone aboard knows what the ship is doing by which way is down.
+holding station or docked has none. A work boat burns for minutes and drifts for
+hours, so its crew works in free fall and straps in for the burns. A carrier
+working a site holds station and is weightless until it moves. Its people live
+in free fall for the weeks of a job and get their weight back on the lane.
+Stations spin: the Shelter's ring turned, the Roost's ring turns, and Datum
+turns its habitat ring on the rock. Nothing at Saturn has weight for free, and
+everyone aboard knows what the ship is doing by which way is down.
 
 ## Distances and time
 

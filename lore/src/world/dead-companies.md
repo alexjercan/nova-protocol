@@ -27,7 +27,7 @@ made of at its edges. A company, at Saturn, is a plaque, and then it is junk.
 | Brightwater | Y-20 to Y-12 | A refinery barge that bought other companies' slabs | Bankrupt when EWI's carrier undercut the water price | The barge, in the junk site |
 | Tessera Mining | Y-19 to Y-11 | A station on a rock in sector L | Bought. The station was stripped and the rock cleared. | Nothing |
 | Lantern Salvage | Y-17 to Y-9 | Skiffs that picked the other companies' junk | Bankrupt. Its skiffs went into the junk and came out again as Kite skiffs. | The skiffs |
-| Oriel Water | Y-16 to Y-10 | Two cutters and two owners | Both owners took EWI contracts | The cutters. One owner is a deck hand on Meridian today. |
+| Oriel Water | Y-16 to Y-10 | Two cutters and two owners | Sold to EWI. Both owners took EWI contracts. | The cutters. One owner is a deck hand on Meridian today. |
 | Ninefold Ice | Y-15 to Y-8 | A nine-share partnership | Bought, share by share, over two years | A tender in the junk site, its owner disputed to the end |
 | Sable Point | Y-14 to Y-9 | One hauler | Lost the hauler to ice and folded | The hauler, somewhere off-plate |
 | Kestrel | Y-18 to Y-4 | A cooperative of 1,400 | A demolition charge, reported as a reactor failure | Words, stations, people |

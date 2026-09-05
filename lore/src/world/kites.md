@@ -47,14 +47,22 @@ Air and water from ice cut quietly off-plate, where no survey looks. Power from
 salvaged cells. Food from the Roost's ring, which Kestrel built to grow it.
 Parts from the junk, which is inexhaustible. Money from salvage sold through
 brokers at the transit stations who do not ask where a Brightwater pump came
-from. And, from the second year, from company caches: sealed modules at worked
-sites, taken before the tugs came for them. That is the Scavenger in the
-company's word for them.
+from. Osprey, Kestrel's hauler, came to the Roost in Y-4 and has been stripped
+for parts since. Its certified seat is bolted into the Roost's control room, and
+nobody has had a reason to use it. The Roost was built for two hundred and holds
+three hundred, in modules hauled from the junk and bolted to the ring. And, from
+the second year, from company caches: sealed modules at worked sites, taken
+before the tugs came for them. That is the Scavenger in the company's word for
+them.
 
 Until Y0 the Kites had one rule that everyone kept: take cargo, never crews. In
-four years of raiding, nobody died at a Kite's hand. The company lost modules
-and filed them. The Kites were a cost, not an enemy, and the company treated
-them the way it treats every cost, by not spending anything on them.
+four years of raiding, nobody died at a Kite's hand. The company did not keep
+the rule back. Its pickets fire on any skiff they catch at a cache, Parallax
+rides out from Datum when the desk has a fix worth its head's time, and the desk
+files every dead Kite under Scavenger interdiction, a line item, because no Kite
+is on a roster and so no Kite death is a death on paper. The Roost keeps the
+names on a wall in its ring: thirty-eight in four years. The Kites kept their
+rule under fire. What broke it is on the timeline.
 
 The village decides by council, with Solberg as its voice, in Kestrel's way. The
 ship is Pell's. The sixty who crew it chose to, and the choice is the fault line
@@ -72,12 +80,13 @@ a joke, and it is bookkeeping, and it says in one word that the thing was owed.
 ## Taking Resolute
 
 The Kites learned from the brokers that Fleet was selling a laid-up frigate at
-the Callisto yard, and who the buyer was. Papers for a salvage contractor cost
-four years of pump money. A skiff crew flew to Callisto as surveyors, boarded
-Resolute, put its twelve caretakers in its own boat with a beacon, and brought
-the frigate to Saturn dark over four weeks. Fleet told nobody. The joke had a
-warship, and the man who had watched Meridian for four years had the company in
-front of his guns.
+the Callisto yard, and who the buyer was: the Saturn desk, which had asked for a
+second security ship for Scavenger interdiction. Papers for a salvage contractor
+cost four years of pump money. A skiff crew flew to Callisto as surveyors,
+boarded Resolute, put its twelve caretakers in its own boat with a beacon, and
+brought the frigate to Saturn dark over four weeks. Fleet told nobody, the buyer
+included. The joke had a warship, the desk did not, and the man who had watched
+Meridian for four years had the company in front of his guns.
 
 ## How the Kites speak
 
@@ -97,8 +106,13 @@ and older.
 
 ## Hooks
 
-- Nobody died before Meridian. The strike is the Kites' first blood, and the
-  sixty knew it would be. That is the split waiting to happen.
+- No Kite killed before Meridian, while the company killed Kites every year
+  and filed it. The strike is the Kites' first blood, and the sixty knew it
+  would be. That is the split waiting to happen.
+- The wall of names in the Roost's ring is the Kites' answer to the company's
+  plaque.
+- Severance was going to be Calloway's ship. Fleet's challenge on guard tells
+  him whose frigate killed Meridian.
 - The receipt names. Anything the Kites take from the company can be named on
   the page in one word.
 - The skiffs do the small work and talk in the clear, so the reader hears the

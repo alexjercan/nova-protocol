@@ -1,5 +1,8 @@
 # Review 03: the book as ground truth
 
+Folded on 2026-09-05. The owner's decisions are in `TASK.md`; the spine in the
+book's introduction is the result.
+
 Read at `59b83b49`, as a stranger with only the book: the introduction and
 the nine world pages. The people, places, paper and timeline pages are drafts.
 The question is whether the spine holds on the rules the world pages set, and

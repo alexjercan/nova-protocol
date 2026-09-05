@@ -31,7 +31,8 @@ Datum, and the company kept the habit after it stopped keeping him. It came to
 Saturn in Y-14 with one idea, the carrier: a refinery that moves to the ice
 instead of a station the ice is hauled to. Meridian was the first, built in Y-15
 for the trip. Azimuth followed in Y-9. Parallax, a Fleet security ship bought
-surplus in Y-7, gave the company guns.
+surplus in Y-3 at the new desk's request, gave the company guns and its desk a
+ship of his own.
 
 The Board took the company from Vell in Y-12, and the squeeze began: buy the
 claims that would sell, undercut the rest, buy the people, clear the sites. By
@@ -46,7 +47,10 @@ The Board on Earth orders outcomes. The Earth desk passes them to regional
 desks. The Saturn desk at Datum allocates: it owns the roster, the relay, the
 registry office, the contracts and the guns, and it tells carriers where to go.
 Captains run their ships. Each carrier has a Control, a boat deck and boats, and
-a Control operator is the ship's voice to every boat it flies.
+a Control operator is the ship's voice to every boat it flies. A carrier flies
+with two pickets, which outgun anything the Kites had until Y0, so a carrier
+works a site alone. Parallax stays with the desk, whose head commands it in
+person and rides its bridge when a hunt is worth his time.
 
 The desk is the company at Saturn. When people say the company, they mean the
 desk, and when the desk speaks, it speaks in the warm second person of someone
@@ -93,7 +97,9 @@ code on it stays valid.
 The company is warm. It uses first names on the radio, says thank you, and never
 says no: it says "not at this time", "costs against", "recovery in nine days".
 It puts its slogan on every bay wall and a plaque beside it for every hero it
-has had to have. It memorialises cheaply and prominently.
+has had to have. It memorialises cheaply and prominently. Meridian's plaque
+names Dorian Pell, boat-deck officer, lost leading the rescue at K-7. The order
+he refused to get there is not on it.
 
 Its people know all of this and joke about it, which is the story's tone. The
 jokes are old and shared.
@@ -122,8 +128,14 @@ Nobody makes the jokes angrily. Anger costs.
 > Thank you.
 
 > <span class="who">A deck chief to a boat crew, on the deck</span>
-> That's not a fit, that's a wish. Pull it and do it again. Somebody has to
-> fit the next one too.
+> > That's not a fit, that's a wish. Pull it and do it again. Somebody has to
+> fit
+> the next one too.
+
+> <span class="who">The desk to Datum, on the station speakers</span>
+> Datum, this is the desk. Good morning. Azimuth is on the lane and ten days
+> out, which means the yards have ten days. Rotation lists post on the fifth.
+> Read section nine before you read the list. Thank you.
 
 ## How it deals with a competitor
 
@@ -138,6 +150,15 @@ was written off under section nine. This is the single act of cruelty in the
 company's history, and the company does not think of it as one. It thinks of it
 as the cheapest way the Shelter could have been consolidated.
 
+## How it deals with Scavengers
+
+Cheaply. Scavenger interdiction is a line item under Datum's security budget:
+the pickets' fuel and rounds, Parallax's hours, and nothing for the dead,
+because no Kite is on a roster. A dead skiff is logged as a cache secured. The
+desk's head attends the hunts he thinks worth his time from Parallax's bridge,
+and his voice is on the channel to the end, warm. In four years the Kites have
+never fired back, and the desk has read that as the natural order of things.
+
 ## Hooks
 
 - The company appears on the page only as habits and paperwork: the banner,
@@ -145,6 +166,9 @@ as the cheapest way the Shelter could have been consolidated.
 - The procedure names give the desk a vocabulary that sounds like weather.
 - The open-roster lag is a mechanism, not a detail.
 - "Thank you" at the end of the worst sentences.
+- The desk is a voice on the station speakers as well as on the relay. Datum's
+  eleven hundred hear their boss when something happens, and so does whoever
+  holds the speakers.
 
 ## Open questions
 

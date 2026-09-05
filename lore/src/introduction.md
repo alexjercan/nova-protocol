@@ -9,22 +9,50 @@ below and builds outward until each actor can be heard talking.
 
 ## The spine
 
-Season 1, as its owner stated it, in one paragraph. The timeline page refines it
-once the people are written.
+Season 1, as its owner stated it and refined it in Review 03. The timeline page
+breaks it into beats once the people are written.
 
-The EWI carrier Meridian comes to a junk site to clear it for new company
-stations. Dorian Pell, who ran Meridian's boat deck four years ago and is
-believed dead, knows the schedule and strikes the carrier with a stolen Fleet
-warship. The three-person crew of the cutter Cutter One survive by luck. They
-are chased, and learn that the recorder they carry out of the wreck holds
-something Ines Calloway, the company's Saturn desk, wants erased, and that he
-means to kill them for it. They ally with the Scavengers, who call themselves
-the Kites, and persuade Pell not to strike the next company ships but to expose
-Calloway and the company. Pell and Calloway both die, and not the same way: Pell
-gives his life, Calloway is killed by his own greed. Fleet arrives late and
-takes the victory as its own. The company is exposed and answers with a
-scapegoat, Calloway. The crew flee and go on working with the Kites. That is the
-finale of the first season.
+Since the Shelter, the company has hunted the Kites cheaply and without a word.
+Pickets fire on skiffs at the caches, the desk files each one as interdiction,
+and the Kites keep their rule, cargo and never crews, and bury their dead. In Y0
+they have the means at last, a Fleet frigate stolen from the yard where it was
+waiting to be sold to the Saturn desk, and the opportunity: the carrier Meridian
+comes alone to the junk site, with the sector's stores aboard, to clear the
+field the Kites live on. Meridian is alone because a carrier's pickets outgun
+any skiff, and nobody at Saturn has been told a warship is loose. The village
+votes to take the ship. Dorian Pell, who ran Meridian's boat deck four years ago
+and is believed dead, keeps the rule at carrier scale: over the guard channel he
+gives Meridian time to put its people in the boats. The desk answers that
+Scavengers do not fire on crews and orders Meridian to hold its posts. Pell
+fires. Meridian dies with 412 aboard and the stores with it. Cutter One, out on
+shift on the work channel, hears none of the exchange.
+
+The three-person crew of Cutter One survive by luck. The desk writes them off
+kindly. They pull Meridian's certified recorder out of the wreck so that its
+dead will have names. The recorder beacons when unseated, and the desk hears the
+beacon because Cutter One is still on the open roster. Ines Calloway, who
+commanded Meridian the week the Shelter died and said yes by voice, knows what
+that record holds. He hunts them from the bridge of Parallax, his own ship,
+without knowing who flies the frigate. Only a certified reader can play the
+record, and boats do not carry one. The Kites' skiffs hunt the crew too, and the
+crew reach the Roost, where Kestrel's old reader is, with the skiffs behind
+them. The record plays in Pell's village: the Shelter was ordered from Earth,
+and Meridian's people were ordered to hold their posts. The village turns on the
+sixty. The crew and Pell have to work together whether they like it or not, and
+the crew's price is that he never does it again. Pell, who never knew the charge
+was aimed, turns from the next carrier to the man who said yes.
+
+The crew enter Datum on Cutter One's still-open roster while Calloway is out
+hunting, and put the record on the relay and on the station's own speakers.
+Calloway brings Parallax against his own tower to stop it, and learns from a
+voice on the boat-deck channel who has been flying the frigate. Pell puts
+Severance between Parallax and the tower. Both ships die with both men aboard.
+Pell pays. Calloway's greed has killed him in three steps: the yes in Y-4, the
+order to hold posts, and the fire on his own station. Fleet arrives late to two
+wrecks and a broadcast and calls the frigate its kill. The company is exposed
+and answers with a scapegoat, Calloway, alone. It offers the crew rotation home,
+by name, in the warm voice. The crew fly with the Kites. That is the finale of
+the first season.
 
 ## How to read a page
 

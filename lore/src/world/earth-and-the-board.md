@@ -90,13 +90,15 @@ says kill, destroy or lie, and it never needs to.
 
 ### The one exception
 
-The Board never speaks in its own voice, so the only way a Board order enters a
-certified recorder is if the desk acknowledges it aloud. The Board asks for a
-voice back on orders it does not want questioned later, because a voice on the
-desk's own recorder binds the desk. Once, in Y-4, that habit put the Board's
-order and a regional commander's acknowledgement on the same record. The Board
-did not think of the recorder as a risk, because nobody at Saturn had ever read
-one.
+Relay text is signed by the desk that sends it, and a receiving recorder keeps
+it like everything else aboard, so a Board order is attributable. What it is not
+is specific. The Board never speaks in its own voice, so the only way the means
+behind a Board order enter a certified recorder is if the desk acknowledges it
+aloud. The Board asks for a voice back on orders it does not want questioned
+later, because a voice on the desk's own recorder binds the desk. Once, in Y-4,
+that habit put the Board's order and a regional commander's acknowledgement on
+the same record. The Board did not think of the recorder as a risk, because
+nobody at Saturn had ever read one.
 
 ### How the Board speaks
 

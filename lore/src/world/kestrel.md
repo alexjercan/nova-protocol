@@ -90,11 +90,11 @@ The company reported a Kestrel reactor failure. Kestrel's insurer refused the
 claim, because a reactor failure is operator fault, and the shares were
 worthless within a week.
 
-Six hundred and ten were aboard. Thirty-one came out, on a company tender whose
-officer had refused an order. About four hundred of Kestrel's people signed with
-EWI in the weeks after, with settlements and silence clauses, because there was
-nothing else at Saturn to sign with. About a hundred vanished. The rest went
-home, or died.
+Kestrel had about 1,100 members in Y-4. Six hundred and ten were aboard the
+Shelter. Thirty-one came out, on a company tender whose officer had refused an
+order. About four hundred of Kestrel's people signed with EWI in the weeks
+after, with settlements and silence clauses, because there was nothing else at
+Saturn to sign with. About a hundred vanished. The rest went home, or died.
 
 ## What survives
 
@@ -116,5 +116,4 @@ Control is not listening, and one who does it when Control is.
 ## Open questions
 
 - The founder's name and fate.
-- Osprey's fate: sold, junked, or flying for someone.
 - How many of the six hundred and ten are on the plaque nobody made for them.

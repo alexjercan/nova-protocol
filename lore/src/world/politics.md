@@ -48,9 +48,10 @@ and so, on paper, do not exist.
   purge, which beacons when unseated, and whose signed entries any other
   recorder accepts and keeps when they are relayed. It is evidence and nothing
   else. It opens no doors.
-- **The guns.** Parallax, a Fleet-surplus security ship, its pickets, and
-  Datum's turrets, which are the only fixed guns at Saturn and answer to the
-  desk. Until seven weeks before Season 1, these were the only guns at Saturn.
+- **The guns.** Parallax, a Fleet-surplus security ship that the desk's head
+  commands in person, its pickets, and Datum's turrets, which are the only
+  fixed guns at Saturn and answer to the desk. Until three weeks before Season
+  1, these were the only guns at Saturn.
 - **The press.** On Earth. It is the only thing the Board and Fleet both fear,
   and it is ninety light-minutes away and reads what the relay sends.
 
@@ -64,7 +65,7 @@ and so, on paper, do not exist.
 | A crew | Fly the shift. Call the desk. Joke. Walk off at the junk. | Be heard by anyone else. Go home on their own terms. |
 | Earth | Write the Act. Read the record afterwards. Print the story. | Be there. |
 | Fleet | Challenge on guard. Sell surplus. Arrive late and write the account. | Be at Saturn in time. Keep a loss quiet forever. |
-| The Kites | Take cargo. Hide where nobody registered anything. Fly a warship, if sixty agree to. | Be heard past their own radios. Be counted. |
+| The Kites | Take cargo. Hide where nobody registered anything. Fly a warship, if sixty agree to. | Be heard past their own radios. Be counted. Be left alone. |
 
 ## Why nobody does anything
 
