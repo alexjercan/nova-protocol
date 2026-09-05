@@ -16,8 +16,8 @@
 
 # People
 
-- [The captain]()
-- [Nadia Halloran]()
+- [The captain](people/captain.md)
+- [Nadia Halloran](people/halloran.md)
 - [Bastian Okoro]()
 - [Dorian Pell]()
 - [Ines Calloway]()

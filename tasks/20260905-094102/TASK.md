@@ -358,3 +358,29 @@ Owner decisions from `REVIEW03.md`, folded into the spine and the world pages:
 
 Next: the owner reviews the world pages. Batch two writes the five deep people
 two at a time, each with a voice test.
+
+### 2026-09-05: Batch two, the captain and Halloran
+
+The first two people pages. The voice test is now defined in the
+introduction: three fixed prompts, a company voice asking for something small
+and wrong, a stranger in the clear, and "one more term and I'm home", answered
+in each person's words. The captain has no name, face or pronoun, by
+convention: the reader takes the seat.
+
+The captain: from Earth in Y-4, holds Cutter One's ticket, believes in the
+deal rather than in the company, speaks in readbacks and numbers, and goes
+quiet under pressure. The end of the season follows from the belief: the
+company breaks the bargain three times, the captain keeps the crew's side of
+it, and leaves with the account square.
+
+Halloran: Kestrel's Harrier pilot, away on a run when the Shelter died, went to
+the Roost that winter and left it in the spring rather than live under Pell,
+signed under settlement, and has sat four years in the right seat without a
+company rating. She knows the way to the Roost. She keeps the names of
+Kestrel's dead, which is why she goes into the wreck for Meridian's recorder.
+Her sarcasm is the contract quoted back at Control.
+
+New facts for the owner to strike or keep: Halloran's winter at the Roost and
+her dislike of Pell, the four hundred Kestrel hands who know where the Roost
+was and have never said, the company's unscheduled rating course for Kestrel
+pilots, and Halloran flying off the record with the captain's word.

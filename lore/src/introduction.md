@@ -78,8 +78,14 @@ sections. Two sections close every page.
   comic's panels, by `lore/sketches.py` on the vocabulary in
   `art/comics/crt.py`.
 - Radio lines are set as quotations. A group's page carries samples of how
-  that group sounds on the air; a person's page carries a voice test, the same
-  situation answered in that person's words.
+  that group sounds on the air. A person's page carries a voice test: the same
+  three things said to every person, in their own seat, on a day before the
+  season. A company voice asks for something small and wrong. A voice in the
+  clear, on no roster, asks who they are. Somebody says "one more term and I'm
+  home." The page gives the prompts as they reach that person and the answers
+  in that person's words.
+- The captain has no name, face or pronoun in the book. The reader takes that
+  seat. What the crew call the captain is on the captain's page.
 - The book is prose. It does not know about tutorials, missions or engine
   features. The game takes events, names and facts from it, never lines.
 

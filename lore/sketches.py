@@ -19,8 +19,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "art" / "comics"))
 
 from crt import (EMBER, EWI, FLEET, GOLD, INK, KESTREL, LIME, PALE, PHOS, PHOS_BRIGHT, PHOS_DIM, PHOS_TEXT, SIL,  # noqa: E402
-                 Panel, console, derelict, g, harrier, ice, junk, mark, meridian, mono, orbit_ring, plot_text, rings,
-                 rock, skiff, station, tag, warship)
+                 Panel, cabin, console, derelict, face, g, harrier, helmet, ice, junk, mark, meridian, mono, orbit_ring,
+                 plot_text, rings, rock, skiff, station, tag, warship)
 
 OUT = ROOT / "lore" / "src" / "sketches"
 W, H = 1200, 800
@@ -28,6 +28,9 @@ DEAD = dict(SIL, hull="#101e16", dark="#0b1610", light="#1c3024", edge="#2f5240"
 ROOST = dict(KESTREL, win=EMBER, glow=GOLD)
 BLUE = "#36a3ff"
 GREY = "#7b8f8a"
+BONE = "#d8d2b8"
+HALLORAN = dict(skin="#8f7048", shadow="#4d3a24", light="#b8966c", hair="#1c1a16", style="swept", headset="slim",
+                uniform="#2f5a4a", uniform_dark="#1a3a2e", collar="deck", jaw="narrow", age=.45, mouth="flat")
 
 
 def box(x: float, y: float, w: float, h: float, title: str, sub1: str, sub2: str = "", color: str = PHOS, dashed: bool = False) -> str:
@@ -170,6 +173,27 @@ def politics() -> Panel:
     return p
 
 
+def captain() -> Panel:
+    p = Panel(W, H, grid=True)
+    p.add(cabin(W, H, seed=31))
+    p.add(g(600, 600, 1.5, inner=helmet()))
+    p.add(mono(180, H - 40, "CUTTER ONE // LEFT SEAT // 31:00 IN THE BOTTLES", 15, PHOS_TEXT))
+    p.add(mono(1020, H - 40, "RECEIVED.", 15, PHOS_BRIGHT, anchor="end", spacing=3))
+    return p
+
+
+def halloran() -> Panel:
+    p = Panel(W, H, grid=True)
+    p.add(cabin(W, H, seed=46))
+    words = ["CAST", "MEWS", "JESSES", "STOOP", "PERCH", "HOODED", "ON THE WING", "MANTLE", "YARAK"]
+    for i, w in enumerate(words):
+        p.add(mono(1010, 150 + i * 46, w, 17, BONE, spacing=4, extra=' opacity=".28"'))
+    p.add(g(520, 430, 1.0, inner=face(**HALLORAN)))
+    p.add(mono(180, H - 40, "CUTTER ONE // RIGHT SEAT // NO RATING ON FILE", 15, PHOS_TEXT))
+    p.add(mono(1020, H - 40, "THE SHELTER.", 15, BONE, anchor="end", spacing=3))
+    return p
+
+
 SKETCHES = {
     "saturn.svg": saturn,
     "ice.svg": ice_share,
@@ -180,6 +204,8 @@ SKETCHES = {
     "dead-companies.svg": dead_companies,
     "kites.svg": kites,
     "politics.svg": politics,
+    "captain.svg": captain,
+    "halloran.svg": halloran,
 }
 
 
