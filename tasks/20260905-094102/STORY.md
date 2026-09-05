@@ -42,13 +42,13 @@ Open decisions).
 | The captain (you) | Pilot of Cutter One | EWI | Came from Earth four years ago, weeks after the Shelter. Two renewals signed. No rank on Meridian. The one of the three with no Saturn history. |
 | Nadia Halloran | Copilot, Cutter One | EWI, was Kestrel | Says what everyone thinks and does nothing about it, because nobody does. Kestrel pilot, away on a run the day the Shelter died. Signed with EWI because there was nothing else. Believes Pell died a hero. |
 | Bastian Okoro | Engineer, Cutter One | EWI lifer | Junior engineer on Meridian four years ago, saw nothing, did as told. Knew Pell and mourned him. Loyal to people, not the company. |
-| Dorian Pell | Leader of the Scavengers | Scavengers | Ran Meridian's boat deck. Refused the no-rescue order, took a tender and volunteers, went dark. Alive. Right about the company, wrong about the carrier. Not sorry. |
-| Ines Calloway | EWI regional desk at Saturn | EWI | Commanded Meridian four years ago and carried out the order. Promoted to the desk as the reward. The warm voice on the radio. |
+| Dorian Pell | Leader of the Scavengers | Scavengers | Ran Meridian's boat deck. Refused the no-rescue order, took a tender and volunteers, went dark. Alive. Right about the company, wrong about the carrier. Not sorry. Dies with Severance at Datum. |
+| Ines Calloway | EWI regional desk at Saturn | EWI | Commanded Meridian four years ago and carried out the order. Promoted to the desk as the reward. The warm voice on the radio. Dies with Parallax at Datum. |
 | Solberg | Pell's second | Scavengers | Runs the Roost while Pell flies. |
 | Yusra Demir | Meridian Control | EWI | The voice on the radio. Dies in the strike. |
 | Aurelio Brandt | Meridian deck chief | EWI | Taught Pell to fit boats. Dies in the strike. |
 | Captain Vance | Commander of Meridian today | EWI | Not the commander of four years ago. Dies in the strike. |
-| Commander Marsh | Earth Fleet, hunting the stolen ship | Earth Fleet | A competent officer in an incompetent service. Hunts a ship Fleet never admitted losing. Arrives late. |
+| Commander Marsh | Earth Fleet, hunting the stolen ship | Earth Fleet | A competent officer in an incompetent service. Hunts a ship Fleet never admitted losing. Arrives when it is over and takes the credit. |
 | The Board | EWI leadership on Earth | EWI | Ordered the Shelter. Named at the end, untouched. |
 
 ## Ships and places
@@ -67,13 +67,13 @@ Naming scheme, so a name tells its group at once:
 | --- | --- | --- |
 | Meridian | EWI's Saturn carrier. 412 aboard. Carried the charge four years ago. Dies in beat 2. | EWI |
 | Azimuth | EWI's second carrier, arriving in days with 400 workers and the replacement stations. Pell's intended second target. | EWI |
-| Parallax | EWI's own security ship, bought when Fleet was cut. Calloway's ship. | EWI |
+| Parallax | EWI's own security ship, bought when Fleet was cut. Calloway's ship. Destroyed at Datum with Severance. | EWI |
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
 | Kettle (tbd) | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 5 on. | Scrap, then the crew |
-| Resolute, renamed Severance | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
+| Resolute, renamed Severance | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. Destroyed at Datum with Parallax. | Scavengers |
 | Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it. | Scavengers |
 | Scavenger skiffs | Small scrap-built pirate ships. Sweep, pick, herd. | Scavengers |
-| Vigilant | Marsh's ship, hunting Resolute. A heavier ship than Resolute: Severance can outrun it, not fight it. | Earth Fleet |
+| Vigilant | Marsh's ship, hunting Resolute. A heavier ship than Resolute: Severance can outrun it, not fight it. Arrives when it is over and takes the credit. | Earth Fleet |
 | Datum, the Shelter | Kestrel's largest station was the Shelter. It died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay, and named it Datum in the survey scheme. Policy bans the old name. Kestrel hands still say the Shelter off the radio. | Kestrel, now EWI |
 | The Roost | One of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Scavengers |
 | The junk site | The opening location. A ring moonlet under dead hulls and scrap nobody can name, left by the small miners EWI finished over the years. Meridian arrives to clear it for the new stations. | EWI |
@@ -179,17 +179,22 @@ reader believes the hero is dead, the same as the crew.
    there and every carrier crew, every bought survivor and every Fleet picket
    hears it. Calloway will be there: it is headquarters, and he is the one
    man who cannot let it play.
-10. **The climax.** The Kettle and Severance against Datum's turrets
-    and Parallax. The duel. The crew reaches the relay and the module plays
-    from the rock it is about: the order, Calloway's voice, the no-rescue,
-    Pell's refusal, this morning's shot. The sixty hear their officer's voice
-    from four years ago. Azimuth's crew hears why. Calloway's fate: open.
-11. **Minute zero.** Fleet arrives late, to a system that now knows what it
-    hid. Pell cannot hold Severance forever;
-    what he does with it is open. The crew's contracts are voided for breach
-    and Earth is a story. The Scavengers have proof and witnesses, a village
-    becomes a cause, and the Board is named and untouched. The captain, two
-    renewals in, off the roster with people who will never be renewed again.
+10. **The climax.** Severance against Parallax under Datum's turrets. The duel
+    Pell has wanted for four years. The Kettle is too small for it and stays
+    out of it: while the two ships tear at each other, the crew slips through
+    the debris and docks at the relay. The module plays: the order, Calloway's
+    voice, the no-rescue, Pell's refusal, this morning's shot. The sixty hear
+    their officer from four years ago. Azimuth's crew hears why. Outside,
+    Parallax and Severance finish each other. Calloway and Pell die in the same
+    minute, in the light of the rock they both wanted.
+11. **Minute zero.** Vigilant arrives when it is over and takes the victory:
+    two hostile vessels destroyed, the pirate leader dead, the relay secured,
+    law and order at Saturn. The official account has no civilians at the
+    relay. EWI plays dumb: Calloway acted alone, the Board knew nothing, the
+    company thanks Fleet. The press prints both. Every worker who heard the
+    module knows better. The Scavengers have lost their ship and their leader
+    and gained proof and a cause. The Board is named and untouched. The crew's
+    ending is the owner's call; the recommended line is under Open decisions.
 
 ## Branches
 
@@ -199,7 +204,7 @@ reader believes the hero is dead, the same as the crew.
 - **The argument (no fork).** Comic and game both go with Pell against
   Parallax. EWI's deal and Fleet's protection are arguments in the scene, not
   branches.
-- **Calloway and Pell** at the end are the owner's calls, not yet made.
+- **Calloway and Pell** die with their ships at Datum. Neither fate is open.
 
 ## How the company reads on the page
 
@@ -242,8 +247,11 @@ Never a speech. Only habits and paperwork:
 
 ## Open decisions
 
-- Calloway's fate in the duel.
-- Pell's fate with Severance when Fleet arrives.
+- The crew's ending. Recommended: EWI offers them what it offered the Kestrel
+  survivors, a settlement with a silence clause, and the comic has them refuse
+  and fly the Kettle to the Roost, off the roster. Alternatives: Fleet
+  processes them for a salvage violation and the account never mentions them,
+  or one of the three signs.
 - The Scavengers' name for themselves: keep "Scavengers" and take the insult
   back, or a name of their own.
 - Final names for every (tbd) entry above.
