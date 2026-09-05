@@ -795,6 +795,15 @@ impl ActionChoiceExt for ActionChoice {
             // and the caller adds a first step beside it.
             ActionChoice::Sequence => return ActionKind::Sequence(SequenceHead::default()),
             ActionChoice::Cinematic => return ActionKind::Cinematic(CinematicHead::default()),
+            ActionChoice::CinematicTitle => {
+                EventActionConfig::CinematicTitle(CinematicTitleActionConfig {
+                    corner: ScreenCornerConfig::default(),
+                    location: String::new(),
+                    date: String::new(),
+                    note: String::new(),
+                    seconds: 8.0,
+                })
+            }
             ActionChoice::CancelCinematic => {
                 EventActionConfig::CancelCinematic(CancelCinematicActionConfig {
                     key: String::new(),

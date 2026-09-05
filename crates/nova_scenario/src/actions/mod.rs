@@ -347,6 +347,13 @@ registry::scenario_actions! {
         effect: Nested,
         inspect: Opaque,
     },
+    /// Post the shot's title card: where, when, and one line about it.
+    CinematicTitle(CinematicTitleActionConfig) {
+        label: "Cinematic Title",
+        stem: "title",
+        effect: Bookkeeping,
+        inspect: Reflect,
+    },
     /// End a running cinematic from the scenario.
     CancelCinematic(CancelCinematicActionConfig) {
         label: "Cancel Cinematic",

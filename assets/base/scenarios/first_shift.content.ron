@@ -3704,6 +3704,13 @@
                                         frame: World,
                                         look_at: Object("warship"),
                                     )),
+                                    CinematicTitle((
+                                        corner: TopLeft,
+                                        location: "MERIDIAN, OUTER HOLD",
+                                        date: "END OF SHIFT - THREE KILOMETRES OFF THE CARRIER",
+                                        note: "Earthworks survey carrier. Unarmed, and due under way.",
+                                        seconds: 9.0,
+                                    )),
                                     NarrativeCue((
                                         channel: Comms,
                                         speaker: "Demir",

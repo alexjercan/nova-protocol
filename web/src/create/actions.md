@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 45 at a glance:
+never panics a scenario). All 46 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -23,6 +23,7 @@ never panics a scenario). All 45 at a glance:
 | [`Sequence`](#sequence) | [pacing](#pacing) | run an ordered list of beats, each behind its own delay or gate |
 | [`Cinematic`](#cinematic) | [pacing](#pacing) | run the same chain as a SCENE the player is allowed to leave |
 | [`CancelCinematic`](#cancelcinematic) | [pacing](#pacing) | end a running scene from the scenario rather than the player |
+| [`CinematicTitle`](#cinematictitle) | [pacing](#pacing) | post the shot's title card: where, when, and one line about it |
 | [`Outcome`](#outcome) | [flow](#flow-outcomes-transitions) | show the VICTORY / DEFEAT banner and freeze the sim behind it |
 | [`NextScenario`](#nextscenario) | [flow](#flow-outcomes-transitions) | queue a switch to another scenario by id |
 | [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
@@ -619,6 +620,52 @@ CancelCinematic((key: "strike_approach")),
 The scene still reports [`OnCinematicFinished`](../events/#cinematic-endings),
 so whatever it took is given back. It does NOT report a skip: nobody asked to
 leave. Cancelling a key that is not running is a quiet no-op.
+
+</details>
+
+### CinematicTitle
+
+The shot's title card: where this is, when it is, and one line about it. Fades
+in top-left, holds, fades out.
+
+```ron
+CinematicTitle((
+    corner: TopLeft,
+    location: "MERIDIAN, OUTER HOLD",
+    date: "END OF SHIFT - THREE KILOMETRES OFF THE CARRIER",
+    note: "Earthworks survey carrier. Unarmed, and due under way.",
+    seconds: 9.0,
+)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `corner` | `TopLeft` \| `TopRight` \| `BottomLeft` \| `BottomRight` | required | which corner the card sits in |
+| `location` | string | required | the place, drawn largest |
+| `date` | string | required | the stamp under it - a date, a time, a bearing |
+| `note` | string | required | one line of context; empty draws no line |
+| `seconds` | float | required | how long the card holds, fades included |
+
+**Nothing takes the card down.** It expires on its own clock, so a scene that
+is skipped, cancelled, deadlined or torn down leaves a card that simply
+finishes. There is no handler to write and no `ClearCinematicTitle` to forget.
+
+**One card at a time.** Posting a second replaces the first at its own age -
+two cards on screen are two answers to "where am I".
+
+**The corner is authored because only the shot knows which one is free.**
+`BottomLeft` is the comms stack's corner, so a scene with dialogue in it wants
+a top corner; the top strip carries the status bar, which the card clears.
+A right-hand card mirrors a left-hand one: the accent rule stays on the outer
+edge and the lines stack against it.
+
+**The clock is the scenario's, not the frame's.** A card holds through a pause
+rather than bleeding away behind the menu. A `seconds` shorter than the two
+fades together peaks lower instead of snapping on and off, which is the honest
+reading of "show this for half a second".
 
 </details>
 

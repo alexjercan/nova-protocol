@@ -15,8 +15,8 @@ pub mod prelude {
         cue, despawn_object, detach_objective_marker, entity, entity_pair, guard,
         increment_variable, number, number_equals, number_greater_than, number_less_than,
         play_sound, post_objective, scenario_elapsed_watch, scene, sequence, set_number,
-        set_variable, show_hint_emphasis, spawn_object, start_timer, step, timer, until_step,
-        variable,
+        set_variable, show_hint_emphasis, spawn_object, start_timer, step, timer, title,
+        until_step, variable,
     };
 }
 
@@ -210,6 +210,26 @@ pub fn cinematic(
         key: key.into(),
         skippable,
         steps,
+    })
+}
+
+/// The shot's title card: where this is, when it is, and one line about it.
+///
+/// An empty `note` draws no third line. Pick the corner against the shot, not
+/// out of habit: `BottomLeft` is the comms stack's.
+pub fn title(
+    corner: ScreenCornerConfig,
+    location: impl Into<String>,
+    date: impl Into<String>,
+    note: impl Into<String>,
+    seconds: f32,
+) -> EventActionConfig {
+    EventActionConfig::CinematicTitle(CinematicTitleActionConfig {
+        corner,
+        location: location.into(),
+        date: date.into(),
+        note: note.into(),
+        seconds,
     })
 }
 

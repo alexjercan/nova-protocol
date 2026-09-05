@@ -216,6 +216,16 @@ pub(super) const OBJ_TEXT_HOME: &str = "Lock and GOTO to the Meridian outer hold
 
 // --- the strike --------------------------------------------------------------
 
+/// The card the strike opens on, over the first shot.
+///
+/// It says only what the shift has already established - where the cutter is
+/// parked, that the carrier is unarmed survey plant, and that it is due to
+/// leave - so it sets the frame without spending Demir's challenge, which is
+/// where the number four hundred and twelve is meant to land.
+pub(super) const ATTACK_CARD_PLACE: &str = "MERIDIAN, OUTER HOLD";
+pub(super) const ATTACK_CARD_WHEN: &str = "END OF SHIFT - THREE KILOMETRES OFF THE CARRIER";
+pub(super) const ATTACK_CARD_NOTE: &str = "Earthworks survey carrier. Unarmed, and due under way.";
+
 pub(super) const ATTACK_CONTROL_PLUME: &str =
     "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and \
      no transponder.";

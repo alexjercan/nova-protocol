@@ -192,6 +192,11 @@ pub struct NovaEventWorld {
     /// scene can end from three places (the last beat, the skip binding, a
     /// cancel action) that must all announce it the same way.
     cinematic_endings: Vec<CinematicEnding>,
+    /// The title card on screen, and the scenario time it was posted. One at a
+    /// time: a second card replaces the first rather than stacking, because two
+    /// cards are two answers to "where am I". Dropped when its hold runs out,
+    /// so no handler has to take it down.
+    cinematic_title: Option<(CinematicTitleActionConfig, f64)>,
     /// Every position a `ScatterObjects` action has placed this scenario, in
     /// placement order. Separation is a property of the FIELD, not of one
     /// action: a belt is authored as sibling scatters whose regions abut, and a
@@ -284,6 +289,28 @@ impl EventWorld for NovaEventWorld {
         if let Some(mut prompt) = world.get_resource_mut::<CinematicPrompt>() {
             if prompt.skip_action != skippable {
                 prompt.skip_action = skippable;
+            }
+        }
+
+        // Hand the HUD the live title card, with its age on the scenario's own
+        // pause-frozen clock: the card holds through a pause rather than
+        // bleeding away behind the menu. Write-on-diff like the objectives, but
+        // the age changes every frame, so in practice this writes while a card
+        // is up and stops when it expires.
+        let card = world
+            .resource_mut::<Self>()
+            .cinematic_title()
+            .map(|(config, age)| TitleCard {
+                corner: config.corner.into(),
+                location: config.location.clone(),
+                date: config.date.clone(),
+                note: config.note.clone(),
+                age,
+                seconds: config.seconds,
+            });
+        if let Some(mut title) = world.get_resource_mut::<CinematicTitle>() {
+            if title.card != card {
+                title.card = card;
             }
         }
 
@@ -486,6 +513,7 @@ impl NovaEventWorld {
         self.timers.clear();
         self.sequences.clear();
         self.cinematic_endings.clear();
+        self.cinematic_title = None;
         self.scatter_placements.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
@@ -713,6 +741,33 @@ impl NovaEventWorld {
         run.step = run.steps.len();
         let ending = run.end_cinematic(false);
         self.cinematic_endings.extend(ending);
+    }
+
+    /// Show a title card, replacing whatever card is up (see
+    /// [`CinematicTitleActionConfig`]).
+    pub fn post_cinematic_title(&mut self, config: CinematicTitleActionConfig) {
+        let now = self.scenario_elapsed;
+        self.cinematic_title = Some((config, now));
+    }
+
+    /// The card on screen right now with its age, or `None` once its hold has
+    /// run out. Reading is what expires it: the card is presentation, and a
+    /// scenario that is not being synced has no screen to be on.
+    pub fn cinematic_title(&mut self) -> Option<(&CinematicTitleActionConfig, f32)> {
+        let now = self.scenario_elapsed;
+        let (config, posted_at) = self.cinematic_title.as_ref()?;
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "an age in seconds, for a fade"
+        )]
+        let age = (now - posted_at) as f32;
+        if age >= config.seconds {
+            self.cinematic_title = None;
+            return None;
+        }
+        self.cinematic_title
+            .as_ref()
+            .map(|(config, _)| (config, age))
     }
 
     /// The key of the scene the player may leave right now, for the HUD prompt.

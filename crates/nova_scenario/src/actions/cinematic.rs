@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_hud::prelude::ScreenCorner;
 use nova_input::prelude::*;
 
 use crate::prelude::*;
@@ -94,6 +95,79 @@ pub struct CancelCinematicActionConfig {
 impl EventAction<NovaEventWorld> for CancelCinematicActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
         world.cancel_cinematic(&self.key);
+    }
+}
+
+/// Which corner of the screen a title card sits in.
+///
+/// Mirrors nova_hud's [`ScreenCorner`], the same split
+/// `NarrativeChannelConfig` makes with `NarrativeChannel`: the HUD cannot
+/// depend on this crate. The `Config` suffix is what keeps the two halves
+/// distinguishable when nova_core globs both preludes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScreenCornerConfig {
+    /// Under the status bar. The corner most often free.
+    #[default]
+    TopLeft,
+    /// Opposite the status bar's version stamp.
+    TopRight,
+    /// Where the comms stack lives - free only in a scene with no dialogue.
+    BottomLeft,
+    /// Free unless a scene has put something there.
+    BottomRight,
+}
+
+impl From<ScreenCornerConfig> for ScreenCorner {
+    fn from(value: ScreenCornerConfig) -> Self {
+        match value {
+            ScreenCornerConfig::TopLeft => ScreenCorner::TopLeft,
+            ScreenCornerConfig::TopRight => ScreenCorner::TopRight,
+            ScreenCornerConfig::BottomLeft => ScreenCorner::BottomLeft,
+            ScreenCornerConfig::BottomRight => ScreenCorner::BottomRight,
+        }
+    }
+}
+
+/// Post the shot's title card: where this is, when it is, and one line that
+/// makes it matter.
+///
+/// The card fades in, holds for `seconds` (fades included), and goes. Nothing
+/// takes it down, which is the point: a scene that is skipped, cancelled,
+/// deadlined or torn down leaves a card that finishes its own hold, so the
+/// card needs no cleanup on any handler.
+///
+/// Posting a second card REPLACES the first, at its own age. Two cards on
+/// screen at once would be two answers to "where am I".
+///
+/// RON: `CinematicTitle((corner: TopLeft, location: "Meridian", date: "2481.114",
+/// note: "412 aboard.", seconds: 8.0))`.
+///
+/// The corner is authored because only the shot knows which corner is free:
+/// `BottomLeft` is the comms stack's, and the top strip carries the status bar.
+/// An empty `note` draws no third line.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CinematicTitleActionConfig {
+    /// Where on screen the card sits.
+    pub corner: ScreenCornerConfig,
+    /// The place, drawn largest.
+    pub location: String,
+    /// The stamp under it - a date, a time, a bearing, whatever the shot needs.
+    pub date: String,
+    /// One line of context. Empty draws no line.
+    pub note: String,
+    /// How long the card holds, fades included.
+    pub seconds: f32,
+}
+
+impl EventAction<NovaEventWorld> for CinematicTitleActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        debug!(
+            "CinematicTitle: '{}' in {:?} for {}s",
+            self.location, self.corner, self.seconds
+        );
+        world.post_cinematic_title(self.clone());
     }
 }
 
@@ -192,10 +266,75 @@ mod tests {
         }
     }
 
+    /// A card that holds for `seconds`.
+    fn card(seconds: f32) -> CinematicTitleActionConfig {
+        CinematicTitleActionConfig {
+            corner: ScreenCornerConfig::TopLeft,
+            location: "MERIDIAN, OUTER HOLD".to_string(),
+            date: "END OF SHIFT".to_string(),
+            note: "Unarmed, and due under way.".to_string(),
+            seconds,
+        }
+    }
+
     /// Move the scenario clock, which is what the hold-off is measured on.
     fn advance(world: &mut NovaEventWorld, to: f64) {
         let delta = to - world.scenario_elapsed();
         world.advance_scenario_elapsed(delta);
+    }
+
+    /// A card holds for its authored seconds on the SCENARIO clock and then
+    /// goes, with no handler taking it down. That is what lets a scene end any
+    /// way it likes without stranding a card on screen.
+    #[test]
+    fn a_title_card_expires_on_its_own() {
+        let mut world = NovaEventWorld::default();
+        world.post_cinematic_title(card(4.0));
+        let (config, age) = world.cinematic_title().expect("the card is up");
+        assert_eq!(config.location, "MERIDIAN, OUTER HOLD");
+        assert!((age - 0.0).abs() < f32::EPSILON, "posted this instant");
+
+        advance(&mut world, 3.9);
+        let (_, age) = world.cinematic_title().expect("still inside its hold");
+        assert!((age - 3.9).abs() < 1e-4, "the age is scenario time: {age}");
+
+        advance(&mut world, 4.0);
+        assert!(world.cinematic_title().is_none(), "the hold ran out");
+        advance(&mut world, 100.0);
+        assert!(world.cinematic_title().is_none(), "and it stays down");
+    }
+
+    /// Two cards are two answers to "where am I". The second replaces the
+    /// first, and starts its own hold rather than inheriting the age.
+    #[test]
+    fn a_second_card_replaces_the_first() {
+        let mut world = NovaEventWorld::default();
+        world.post_cinematic_title(card(4.0));
+        advance(&mut world, 3.0);
+
+        let mut second = card(4.0);
+        second.location = "PLATE SEVEN".to_string();
+        world.post_cinematic_title(second);
+
+        let (config, age) = world.cinematic_title().expect("the second card is up");
+        assert_eq!(config.location, "PLATE SEVEN");
+        assert!((age - 0.0).abs() < f32::EPSILON, "the hold restarted");
+
+        advance(&mut world, 6.0);
+        assert!(
+            world.cinematic_title().is_some(),
+            "the replacement outlives the card it replaced"
+        );
+    }
+
+    /// The card is scenario state like everything else: it cannot survive into
+    /// the next scenario or the menu.
+    #[test]
+    fn teardown_takes_the_card_with_it() {
+        let mut world = NovaEventWorld::default();
+        world.post_cinematic_title(card(30.0));
+        world.clear();
+        assert!(world.cinematic_title().is_none());
     }
 
     /// The patient path: the scene plays out and reports ONE finish, not a
