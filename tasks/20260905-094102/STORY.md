@@ -66,7 +66,7 @@ Naming scheme, so a name tells its group at once:
 | --- | --- | --- |
 | Meridian | EWI's Saturn carrier. 412 aboard. Carried the charge four years ago. Dies in beat 2. | EWI |
 | Azimuth | EWI's second carrier, arriving in days with 400 workers and the replacement stations. Pell's intended second target. | EWI |
-| Parallax (tbd) | EWI's own security ship, bought when Fleet was cut. Calloway's ship. | EWI |
+| Parallax | EWI's own security ship, bought when Fleet was cut. Calloway's ship. | EWI |
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
 | Kettle (tbd) | A dead Brightwater tender in the junk. The crew revives it: drive, two debris PDCs. The crew's ship from beat 5 on. | Brightwater, then the crew |
 | Resolute, renamed Severance (tbd) | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
