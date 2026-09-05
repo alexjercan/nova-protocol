@@ -1,8 +1,8 @@
 # Move the planetoids onto the planet surface
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 64
-- TAGS: v0.13.0,art,content,scenario
+- TAGS: v0.13.0, art, content, scenario
 
 ## Goal
 
@@ -143,23 +143,34 @@ Named so they are not re-litigated. Each is a later round, not an omission.
 
 ## Verification debt
 
-Still open. Each was carried in from the prototype round and is not paid.
+Carried in from the prototype round. The Nova Review of the v0.13.0 range
+(`20260905-001635`) paid part of it; the task closes with the rest named, so a
+later round starts from a true list rather than this one.
+
+Paid:
+
+- Barren rock and the dust world have real-scene captures at gameplay framing,
+  and the menu world has one at the shipped menu pose.
+- Clippy is clean workspace-wide with `--all-targets --features debug -D
+  warnings`, and every crate this work touched passes `--lib`. The full
+  workspace suite still cannot run on this box.
+- `web/` builds, and its tests, format check and lint are clean.
+- Batch 2 of the review read this commit end to end. Its findings are fixed;
+  what it chose to leave is in that task's `Left, with reasons`, including the
+  editor rebuilding the surface on every radius scrub (`preview.rs:317`) and
+  the ~50 ms spawn mesh build (`planet.rs:77`).
+
+Still open, and not scheduled:
 
 - No WASM or WebGL2 build. The uniform is laid out entirely in `vec4`s
   specifically so its 16-byte alignment holds there with no padding fields,
   but that is reasoning, not a build.
-- No frame-cost measurement of any kind. Another lane shared the GPU
-  throughout both rounds, so any number taken would have been measuring that
-  lane too. The editor now meshes a planet on every edit of a body field, at
+- No frame-cost measurement of any kind. The probe runs over the shipped maps
+  are `--correctness-only`, so they prove the planets load and behave, not what
+  they cost. The editor meshes a planet on every edit of a body field, at
   `PLANET_EDITOR_SUBDIVISIONS`, and that cost is unmeasured.
-- No clippy run, and no workspace test run.
 - Greenhouse and volcanic are still judged at lineup and focus range in the
   example only; neither is used by any shipped scenario.
-- `web/` was not built: its node modules are not installed in the worktree.
-  The changes there are Markdown only.
-
-Paid this round: barren rock and the dust world now have real-scene captures
-at gameplay framing, and the menu world has one at the shipped menu pose.
 
 ## Watch for
 

@@ -1,8 +1,8 @@
 # Nova Review of the unpushed v0.13.0 range
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
-- TAGS: v0.13.0,review
+- TAGS: v0.13.0, review
 
 ## Goal
 
