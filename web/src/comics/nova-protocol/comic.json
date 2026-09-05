@@ -1,0 +1,39 @@
+{
+    "title": "Nova Protocol",
+    "summary": "EarthWorks Industrial's Saturn carrier Meridian, the crew of Cutter One, and the clause that closes a lost site's roster. The prologue, The Shelter, is drawn. The campaign follows it.",
+    "status": "Prologue",
+    "cover": "cover.svg",
+    "coverAlt": "Kestrel's Shelter station on its ring rock, bone white with amber windows, and EWI's carrier Meridian on the claim beside it.",
+    "chapters": [
+        {
+            "id": "cover",
+            "title": "Cover",
+            "state": "frame",
+            "pages": [
+                { "id": "cover", "title": "The Shelter", "source": "pages/cover" }
+            ]
+        },
+        {
+            "id": "the-shelter",
+            "title": "Prologue: The Shelter",
+            "state": "planned",
+            "pages": [
+                { "id": "for-the-ice", "title": "For the ice", "source": "pages/for-the-ice" },
+                { "id": "the-charge", "title": "The charge", "source": "pages/the-charge" },
+                { "id": "for-the-shelter", "title": "For the Shelter", "source": "pages/for-the-shelter" },
+                { "id": "roster-closed", "title": "Roster closed", "source": "pages/roster-closed" },
+                { "id": "nobody-searched", "title": "Nobody searched", "source": "pages/nobody-searched" },
+                { "id": "tenders-away", "title": "Tenders away", "source": "pages/tenders-away" },
+                { "id": "the-plaque", "title": "The plaque", "source": "pages/the-plaque" }
+            ]
+        },
+        {
+            "id": "four-years-later",
+            "title": "Four years later",
+            "state": "frame",
+            "pages": [
+                { "id": "four-years-later", "title": "Four years later", "source": "pages/four-years-later" }
+            ]
+        }
+    ]
+}

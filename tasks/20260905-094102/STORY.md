@@ -285,6 +285,13 @@ Meridian's deck chief. Taught Pell to fit boats, and Okoro after him. Dies in
 the strike. 412 includes Brandt: that is the number that lands on Okoro when
 Pell says it.
 
+### Ruiz and Tamm
+
+Survey Three: the EWI tender crew that placed the charge four years ago and
+held at the site because Control told them to. They talked about the ice. The
+first two of the Shelter's dead the reader meets, and the two the company
+never counted.
+
 ### Captain Vance
 
 Commander of Meridian today. Not the commander of four years ago and no part of
@@ -497,37 +504,75 @@ A name tells its group at once:
 
 ## The prologue comic: The Shelter
 
-A separate comic in the archive, so "four years ago" and "now" never mix. It
-shows the staged order and Calloway's face. The reader knows the crime the crew
-shrugs at. It does not show Pell surviving: the tender goes dark and the reader
-believes the hero is dead, the same as the crew. Three pages.
+The first chapter block of the campaign comic at `/story/nova-protocol/`,
+drawn in the CRT panel style: a cover, seven pages, and a closing frame that
+jumps four years. "Four years ago" and "now" never share a page. It shows the
+staged order and Calloway's face. The reader knows the crime the crew shrugs
+at. It does not show Pell surviving: the tender goes dark and the reader
+believes the hero is dead, the same as the crew. The pages live in
+`web/src/comics/nova-protocol/pages/`; `art/comics/nova_protocol.py` draws
+their art.
 
-### Page 1: For the ice
+### For the ice
 
 The Shelter on its rock, bone white, amber windows, Kestrel's largest station.
-A supply boat leaves it on a run; the reader does not learn until the main
-comic that Halloran was flying it. Meridian on station over the adjacent claim,
-phosphor green, the banner in its bay. A charge marked on the survey plot:
-DEMOLITION, FOR THE ICE. An EWI tender crew placing it, talking about the ice.
-Everyone at working level believes it. The page ends with the charge in place
-and the Shelter in the background of every panel.
+Harrier leaves it on a run and Control clears it out of the survey lane; the
+reader does not learn until the main comic that Halloran was flying it.
+Meridian on station over the adjacent claim, its bay open on the banner.
+Control clears Survey Three to the ice. The survey plot: DEMOLITION, FOR THE
+ICE, 240 m from the Shelter, inside a blast radius that covers the station.
+Everyone at working level reads the plot the same way.
 
-### Page 2: For the Shelter
+### The charge
 
-The order from the Board, on Calloway's screen: text, no face. Calloway's face,
-and the acknowledgement in his voice, the words the recorder keeps for four
-years. The blast. The Shelter opens. The tender crew placing the charge is
-still beside it and dies with it. The reader sees them and understands that
-nobody meant to bring them back.
+Survey Three, Ruiz and Tamm, set a Fleet-surplus demolition charge on the ice
+with the Shelter filling the sky across the line, and talk about the ice: who
+buys a demolition charge to crack ice? Somebody with a budget line. They arm
+it and request pickup. Control tells them to hold at the site. They hold.
 
-### Page 3: Nobody searched
+### For the Shelter
 
-The desk, in Calloway's voice: no rescue, no witnesses, a reactor failure at
-Kestrel. Section nine applies. On the boat deck Pell hears it and refuses:
-"All hands, tenders away." Brandt fits the boat. Pell takes a tender and
-volunteers toward the Shelter. The tender goes dark. Nobody searches. Press:
-hero. Files: a line. Kestrel folds in weeks. Last panel: the plaque for Pell
-going up in Meridian's boat bay, next to WE ARE EXPANDING.
+The Board's order on Calloway's screen: text, no face. Finish the Shelter,
+ice accident, no witnesses at working level, section nine applies to the
+placement crew, acknowledge by voice. Calloway's face, and the
+acknowledgement: Survey Three holds at the site. The recorder keeps the
+bridge channel. "Detonation on my mark. Log the event as ice." Control says
+Survey Three is still at the site. "I know where Survey Three is. Mark."
+
+### Roster closed
+
+One full-page panel: the flash on the line, the Shelter opening along its
+ring, the tender dark in the light. Survey Three is still beside the charge.
+Nobody had meant to bring them back.
+
+### Nobody searched
+
+Calloway to all stations: Kestrel reactor failure, Survey Three lost with the
+site, section nine, no recovery, hold your posts. The boat deck hears it under
+the banner. Pell refuses on the open channel: "All hands. Tenders away."
+Brandt fits Tender Four and Pell tells him to stay on the deck, somebody has
+to fit the next one.
+
+### Tenders away
+
+Tender Four crosses to the wreck. Pell: we are going to the Shelter, log it
+however you like. Calloway: you are off the roster, Meridian will not follow.
+At forty-one minutes the tender goes dark and Meridian holds position. The
+recorder keeps the desk closing the file: Tender Four under section nine, no
+search, Kestrel reactor failure, "my voice".
+
+### The plaque
+
+The boat bay wall: WE ARE EXPANDING and, beside it, the plaque for Pell going
+up. The press: a hero lost in a rescue attempt, no EWI casualties. The file:
+lost, section nine, roster closed, line 1 of 1. Kestrel folded in weeks. EWI
+bought the survivors. Calloway took the desk.
+
+### Four years later
+
+The closing frame: Datum on the Shelter's rock, Calloway at the desk,
+Meridian still working the rings, the crew of Cutter One reporting under the
+banner and the plaque every shift. The campaign starts there.
 
 ## The main comic: Nova Protocol
 
@@ -869,6 +914,6 @@ None. Every call above is taken.
 
 ## Next steps
 
-1. Split the story into cutscene scenarios and gameplay scenarios.
-2. Write the prologue comic, then the main comic, with the typed comic engine.
-3. Bring `design.html` in line with this file when the owner asks.
+1. Write and draw the main comic, one act at a time, in the same page
+   language and panel style as the prologue.
+2. Bring `design.html` in line with the reviewed story when the owner asks.

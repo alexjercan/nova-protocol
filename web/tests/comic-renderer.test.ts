@@ -404,3 +404,16 @@ assert.throws(
 
 // eslint-disable-next-line no-console
 console.log("comic-renderer.test.ts: all assertions passed");
+
+// A CRT panel is dressed by its variant class; the frame tone still applies.
+{
+    const article = render(
+        comicPage(grid({}, panel({ variant: "crt", frame: "danger" })))
+    );
+    const screen = one(article, byClass("comic-panel"));
+    assert.deepEqual(screen.classes(), [
+        "comic-panel",
+        "comic-panel--crt",
+        "comic-panel--frame-danger",
+    ]);
+}

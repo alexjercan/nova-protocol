@@ -17,16 +17,20 @@
   `STORY.md` on 2026-09-05.
 - `GAMEPLAY_PLAN.md`: what the game needs to play the story, scenario by
   scenario, with the consolidated vocabulary inventory and the release cadence.
-- `art/`: HD panel candidates for The Strike and their generator.
+- `art/`: HD panel candidates for The Strike and their generator. The
+  production art moved to `art/comics/`.
+- The comic: `web/src/comics/nova-protocol/` (manifest, cast, nine pages),
+  read at `/story/nova-protocol/`. Its panel art is drawn by
+  `art/comics/nova_protocol.py` on the shared vocabulary in `art/comics/crt.py`.
 
 ## Log
 
 ### 2026-09-05: Story backbone and design document
 
-The first draft (branch `campaign-story-draft`, commit `eeb1ccd2`) was
-rejected as dull. The owner and the agent rebuilt the story in discussion.
-Only the comic engine from that draft lands on master. None of its story
-or notes do.
+The first draft was rejected as dull and its branch deleted on 2026-09-05.
+The owner and the agent rebuilt the story in discussion. Only the comic
+engine from that draft landed on master, and only its story-craft research
+survives, in task `20260815-231945`. None of its story or notes do.
 
 Owner decisions taken into `STORY.md`:
 
@@ -150,3 +154,26 @@ decisions stay, the engine's vocabulary was verified against
 the inventory tags each event, filter, action, query, object, HUD widget and
 catalog item with the scenario that first needs it. The cadence keeps v0.13.0
 as publish-and-prove and re-cuts increments A to E to the reviewed beats.
+
+### 2026-09-05: The prologue drawn as a comic
+
+The story ships as one comic per campaign in the site's archive, so the
+prologue is the first chapter block of the Nova Protocol comic, with its own
+cover and a closing frame that jumps four years, instead of a separate comic.
+"Four years ago" and "now" still never share a page.
+
+Nine pages: cover, For the ice, The charge, For the Shelter, Roster closed,
+Nobody searched, Tenders away, The plaque, Four years later. The chapter is
+`planned`: the comic tells it, the game does not yet play it.
+
+The panels are drawn in the CRT style the owner accepted for The Strike. The
+generator moved out of this task into `art/comics/`: `crt.py` holds the
+palette, the screen ground, the ships, the Shelter and its wreck, the faces,
+consoles and the boat bay; `nova_protocol.py` composes the fifteen panels and
+writes them into `web/src/assets/story/nova-protocol/`. The comic engine gained
+one thing for it: a `crt` panel variant that draws the panel as a screen in a
+bezel with status bars, so the art stops at the screen and survives the
+reader's crop.
+
+Verified with `npm run ci` and headless screenshots of every page at 1400x900
+and four pages at 420x820.

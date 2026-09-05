@@ -46,6 +46,9 @@ adds to the download whether or not the game loads it.
   `examples/screenshots/screenshot_thruster_gallery.rs` (task 20260817-013639). Not
   shipped; anything promoted into the game moves to `assets/` through the
   content builders.
+- `comics/` - generators for the story comics' panel art: `crt.py` is the
+  shared phosphor vocabulary, one script per comic composes its panels and
+  writes them into `web/src/assets/story/<comic>/`.
 - `portraits/` - generated SVG sources for the base campaign's green CRT comms
   portraits. Regenerate the shipped `assets/base/portraits/*.png` files with
   `scripts/generate-campaign-portraits.py`.

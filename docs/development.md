@@ -1057,6 +1057,14 @@ and input. Adding a comic therefore needs only its directory, manifest,
 TypeScript page modules, and `web/src/assets/story/<path>/` art. Keep shared
 speaker names and portraits in one `cast.ts` beside the pages.
 
+Panel art is an SVG asset drawn by a generator, not by hand. `art/comics/crt.py`
+holds the phosphor palette, the screen ground, ships, stations, faces and
+consoles; `art/comics/<comic>.py` composes one comic's panels and writes them
+into `web/src/assets/story/<path>/`. Give a panel `variant: "crt"` to draw it as
+a screen in a bezel with status bars; the art then stops at the screen. Author
+wide panels at 1920x900 and half panels at 1440x1000 and keep the subject in the
+central band, because the reader crops each image to its panel.
+
 Run `cd web && npm run ci`, then inspect the generated archive and reader at a
 desktop and narrow viewport. A reader displays exactly one complete page; wheel,
 touch, arrow/Page keys, controls, and contents links replace that page rather

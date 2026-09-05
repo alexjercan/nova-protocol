@@ -3237,6 +3237,37 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     background: #020805;
     border: 3px solid #b9ffc9;
 }
+.comic-panel--crt {
+    padding: 6px;
+    border-width: 5px;
+    border-color: #55d68b;
+    border-radius: 16px;
+    box-shadow:
+        inset 0 0 0 6px #082117,
+        0 0 22px rgba(85, 214, 139, 0.16);
+}
+.comic-panel--crt > img {
+    border-radius: 8px;
+}
+.comic-panel--crt::before,
+.comic-panel--crt::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    width: clamp(48px, 9%, 96px);
+    height: 5px;
+    pointer-events: none;
+}
+.comic-panel--crt::before {
+    left: 6px;
+    top: 6px;
+    background: #b8da5d;
+}
+.comic-panel--crt::after {
+    right: 6px;
+    bottom: 6px;
+    background: #55d68b;
+}
 .comic-panel--frame-amber {
     border-color: var(--amber);
 }
@@ -4077,5 +4108,26 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     }
     .comic-reader__pager button {
         font-size: 0.66rem;
+    }
+    .comic-panel--crt {
+        padding: 3px;
+        border-width: 3px;
+        border-radius: 9px;
+        box-shadow: inset 0 0 0 3px #082117;
+    }
+    .comic-panel--crt > img {
+        border-radius: 5px;
+    }
+    .comic-panel--crt::before,
+    .comic-panel--crt::after {
+        height: 3px;
+    }
+    .comic-panel--crt::before {
+        left: 3px;
+        top: 3px;
+    }
+    .comic-panel--crt::after {
+        right: 3px;
+        bottom: 3px;
     }
 }

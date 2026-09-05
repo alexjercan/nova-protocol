@@ -12,8 +12,10 @@ export type ChapterState = "playable" | "planned" | "frame";
 export type Corner = "bottom-right" | "bottom-left" | "top-left" | "top-right";
 export type Channel = "open" | "cabin" | "rec" | "feed" | "guard";
 export type Focus = "left" | "center" | "right";
+/** How a panel is dressed. "crt" draws the panel as a phosphor screen in a bezel. */
 export type PanelVariant =
     | "default"
+    | "crt"
     | "work"
     | "orbit"
     | "impact"

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="900" viewBox="0 0 1920 900">
+
+  <defs>
+    <radialGradient id="screen" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#07190f"/><stop offset="1" stop-color="#030d08"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset=".55" stop-color="#030d08" stop-opacity="0"/><stop offset="1" stop-color="#030d08" stop-opacity=".7"/>
+    </radialGradient>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1" fill="#001008" opacity=".5"/>
+    </pattern>
+    <pattern id="grid" width="120" height="120" patternUnits="userSpaceOnUse">
+      <path d="M120 0H0V120" fill="none" stroke="#164c31" stroke-opacity=".28"/>
+    </pattern>
+    <radialGradient id="moon" cx="40%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#1e4431"/><stop offset=".55" stop-color="#0d2418"/><stop offset="1" stop-color="#040f09"/>
+    </radialGradient>
+    <radialGradient id="flash">
+      <stop offset="0" stop-color="#e8fff0"/><stop offset=".18" stop-color="#c0ffd4"/><stop offset=".45" stop-color="#4ed184" stop-opacity=".85"/><stop offset="1" stop-color="#4ed184" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ember">
+      <stop offset="0" stop-color="#ffd67a"/><stop offset=".4" stop-color="#c2a23b" stop-opacity=".8"/><stop offset="1" stop-color="#c2a23b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lamp">
+      <stop offset="0" stop-color="#c2a23b" stop-opacity=".55"/><stop offset="1" stop-color="#c2a23b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="screenlight">
+      <stop offset="0" stop-color="#4ed184" stop-opacity=".45"/><stop offset="1" stop-color="#4ed184" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+  <rect width="1920" height="900" fill="#030d08"/>
+  <rect width="1920" height="900" fill="#020a06"/>
+  <rect width="1920" height="900" fill="#0a1710"/>
+  <line x1="0" y1="0" x2="0" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="190" y1="0" x2="190" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="380" y1="0" x2="380" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="570" y1="0" x2="570" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="760" y1="0" x2="760" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="950" y1="0" x2="950" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1140" y1="0" x2="1140" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1330" y1="0" x2="1330" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1520" y1="0" x2="1520" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1710" y1="0" x2="1710" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1900" y1="0" x2="1900" y2="900" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/>
+  <rect y="760" width="1920" height="140" fill="#0d1a12"/><rect y="750" width="1920" height="14" fill="#3e4130"/>
+  <circle cx="600" cy="40" r="700" fill="url(#lamp)"/>
+  <circle cx="1400" cy="40" r="700" fill="url(#lamp)"/>
+  <rect x="180" y="250" width="860" height="180" fill="#c2a23b" stroke="#796424" stroke-width="6"/><rect x="194" y="264" width="832" height="152" fill="none" stroke="#06170f" stroke-width="3" opacity=".6"/><rect x="219.6" y="304.0" width="72.0" height="72.0" fill="#06170f"/><text x="255.6" y="355.3" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="36.0" font-weight="700" letter-spacing="0" text-anchor="middle" fill="#c2a23b">EWI</text><text x="324.0" y="362.4357142857143" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="62.32142857142858" font-weight="700" letter-spacing="6.232142857142858" text-anchor="start" fill="#06170f">WE ARE EXPANDING</text>
+  <rect x="1180" y="250" width="560" height="300" rx="6" fill="#8f8656" stroke="#3e4130" stroke-width="5"/><rect x="1190" y="260" width="540" height="280" rx="3" fill="none" stroke="#3e4130" stroke-width="2" opacity=".7"/><circle cx="1202" cy="272" r="7" fill="#3e4130"/><circle cx="1202" cy="528" r="7" fill="#3e4130"/><circle cx="1718" cy="272" r="7" fill="#3e4130"/><circle cx="1718" cy="528" r="7" fill="#3e4130"/><text x="1460.0" y="326.0" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="40" font-weight="700" letter-spacing="7.199999999999999" text-anchor="middle" fill="#06170f">DORIAN PELL</text><text x="1460.0" y="367.0" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="20" font-weight="400" letter-spacing="3.5999999999999996" text-anchor="middle" fill="#06170f">BOAT DECK, EWI MERIDIAN</text><text x="1460.0" y="401.3" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="700" letter-spacing="3.96" text-anchor="middle" fill="#06170f">LOST IN RESCUE</text><text x="1460.0" y="434.2" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="20" font-weight="400" letter-spacing="3.5999999999999996" text-anchor="middle" fill="#06170f">"ALL HANDS, TENDERS AWAY"</text><text x="1460.0" y="461.59999999999997" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="16" font-weight="400" letter-spacing="2.88" text-anchor="middle" fill="#06170f">WE REMEMBER OUR OWN</text>
+  <g transform="translate(1800 780) rotate(0) scale(1.3 1.3)">
+      <path d="M-22,-110 L-26,-8 M22,-110 L28,-8" stroke="#5d603e" stroke-width="26" stroke-linecap="round"/>
+      <rect x="-40" y="-14" width="30" height="14" rx="4" fill="#3e4130"/><rect x="12" y="-14" width="32" height="14" rx="4" fill="#3e4130"/>
+      <path d="M-56,-200 L-56,-100 L56,-100 L56,-200 Z" fill="#6d6845" stroke="#3e4130" stroke-width="3"/>
+      <path d="M-56,-196 L-84,-120 M56,-196 L84,-120" stroke="#6d6845" stroke-width="22" stroke-linecap="round"/>
+      <rect x="-40" y="-190" width="80" height="12" fill="#5d603e"/>
+      <path d="M40,-150 L96,-120" stroke="#3b4a3a" stroke-width="10" stroke-linecap="round"/><rect x="90" y="-134" width="34" height="22" rx="4" fill="#3b4a3a" stroke="#1d2b1f" stroke-width="2"/>
+      <circle cx="0" cy="-230" r="24" fill="#5a4c34"/><path d="M-24,-236 A24,24 0 0 1 24,-236 L24,-226 L-24,-226 Z" fill="#2e2c22"/></g>
+  <rect width="1920" height="900" fill="url(#scan)"/>
+  <rect width="1920" height="900" fill="url(#vignette)"/>
+</svg>
