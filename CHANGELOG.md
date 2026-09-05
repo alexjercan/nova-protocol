@@ -281,9 +281,9 @@ does NOT get an entry - and it is the only place they are written down.
 ### Web & Platform
 - The site gets a spoiler-marked Story archive. Campaigns open as full-screen
   digital HUD comics with fitted pages, contents, progress, and snapped page controls.
-- The Story archive opens with Nova Protocol: its prologue, The Shelter, and a
-  proof-of-concept act one, drawn as CRT screen pages, with a bezel panel variant
-  and a Python generator for the panel art.
+- The Story archive opens on a one-page reader demo poster that holds the
+  story's place while it is written. Panels can be CRT screens in a bezel, and a
+  Python vocabulary draws the art.
 - The wiki gets a Railgun page - the commit and its one way out, what a slug
   rakes through, the recoil and the tempo - and the dev book gets the railgun's
   charge cycle, its sight and its AI envelope.

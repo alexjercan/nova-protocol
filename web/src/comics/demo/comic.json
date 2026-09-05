@@ -1,0 +1,17 @@
+{
+    "title": "Reader demo",
+    "summary": "One poster page that shows how a story reads on this site. The story itself is being rewritten and will replace this demo.",
+    "status": "Demo",
+    "cover": "cover.svg",
+    "coverAlt": "A phosphor-green CRT screen: a ringed planet's rings cross the sky, a station stands on a rock at the right, and a small cutter flies at the left.",
+    "chapters": [
+        {
+            "id": "poster",
+            "title": "Poster",
+            "state": "frame",
+            "pages": [
+                { "id": "poster", "title": "Reader demo", "source": "pages/poster" }
+            ]
+        }
+    ]
+}

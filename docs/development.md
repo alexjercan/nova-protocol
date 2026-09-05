@@ -1038,7 +1038,9 @@ an unknown state, invalid or duplicate ids, a missing page module, a missing
 cover, and any `.svg`, `.png` or `.webp` name a module mentions that is not
 under `web/src/assets/story/<path>/`. The engine modules beside the comic
 directories are not comics; with no comic directory at all the archive builds
-an empty notice at `/story/` and no reader routes.
+an empty notice at `/story/` and no reader routes. The shipped comic,
+`web/src/comics/demo/`, is one poster page that shows the archive and the reader
+working while the story is written; `art/comics/demo.py` draws its cover.
 
 A page module exports one `ComicPage` built from the typed helpers in
 `web/src/comics/comic-page.ts`: `comicPage`, `bleedPage`, `coverPage`,
