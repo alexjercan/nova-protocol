@@ -2,7 +2,7 @@
 
 Working notes for the campaign story, agreed in pairing on 2026-09-05. This
 file is the source of truth. `design.html` carries the same material with a
-storyboard. Names marked (tbd) are placeholders the owner may replace.
+storyboard. 
 
 ## Premise
 
@@ -30,10 +30,10 @@ notices for them.
 | Earth Fleet | Earth's military. Owns the armoured ships. Lost one to pirates weeks ago and never announced it, for fear of public opinion. The hunt is quiet, slow, and far. Its silence is why Meridian had no warning. | blue |
 | EarthWorks Industrial (EWI) | Monopoly on space mining and ice. Buys or bankrupts every competitor. People are a line item. Slogan on every bay wall: WE ARE EXPANDING. | phosphor green |
 | Kestrel | Small honest ice miner. A few stations around Saturn, the Shelter the largest. Finished by EWI four years ago. Its people were bought, scattered, or joined Pell. | bone white |
-| The Scavengers | Pell's people: the volunteers who "died", Kestrel survivors, renewed workers, off-roster drifters. Years of scraping weapons and parts. Weeks ago they stole a Fleet warship. Mocked until then. | amber |
+| The Kites | Pell's people: the volunteers who "died", Kestrel survivors, renewed workers, off-roster drifters. Years of scraping weapons and parts. Weeks ago they stole a Fleet warship. Mocked until then. Scavengers to EWI, Fleet and the press. | amber |
 
-Earth people call them Scavengers. What they call themselves is open (see
-Open decisions).
+A kite is a hawk that lives on what it finds. The name is Kestrel's way, a
+bird, and the insult taken back on their own terms.
 
 ## Cast
 
@@ -42,9 +42,9 @@ Open decisions).
 | The captain (you) | Pilot of Cutter One | EWI | Came from Earth four years ago, weeks after the Shelter. Two renewals signed. No rank on Meridian. The one of the three with no Saturn history. |
 | Nadia Halloran | Copilot, Cutter One | EWI, was Kestrel | Says what everyone thinks and does nothing about it, because nobody does. Kestrel pilot, away on a run the day the Shelter died. Signed with EWI because there was nothing else. Believes Pell died a hero. |
 | Bastian Okoro | Engineer, Cutter One | EWI lifer | Junior engineer on Meridian four years ago, saw nothing, did as told. Knew Pell and mourned him. Loyal to people, not the company. |
-| Dorian Pell | Leader of the Scavengers | Scavengers | Ran Meridian's boat deck. Refused the no-rescue order, took a tender and volunteers, went dark. Alive. Right about the company, wrong about the carrier. Not sorry. Dies with Severance at Datum. |
+| Dorian Pell | Leader of the Kites | Kites | Ran Meridian's boat deck. Refused the no-rescue order, took a tender and volunteers, went dark. Alive. Right about the company, wrong about the carrier. Not sorry. Dies with Severance at Datum. |
 | Ines Calloway | EWI regional desk at Saturn | EWI | Commanded Meridian four years ago and carried out the order. Promoted to the desk as the reward. The warm voice on the radio. Dies with Parallax at Datum. |
-| Solberg | Pell's second | Scavengers | Runs the Roost while Pell flies. |
+| Solberg | Pell's second | Kites | Runs the Roost while Pell flies. |
 | Yusra Demir | Meridian Control | EWI | The voice on the radio. Dies in the strike. |
 | Aurelio Brandt | Meridian deck chief | EWI | Taught Pell to fit boats. Dies in the strike. |
 | Captain Vance | Commander of Meridian today | EWI | Not the commander of four years ago. Dies in the strike. |
@@ -60,8 +60,10 @@ Naming scheme, so a name tells its group at once:
 - Kestrel named ships after birds: Osprey, Harrier. Its stations carried the
   words for where birds live: the Shelter, the Roost, the Nest.
 - Earth Fleet ships carry virtues: Resolute, Vigilant.
-- The Scavengers rename what they take with the company's own words:
-  Severance.
+- The Kites keep Kestrel's way for themselves and their homes: the Kites, the
+  Roost. What they take from a company keeps a company word: Severance.
+- The crew names its ship the Kites' way before it has met a Kite: Nova
+  Protocol, section nine of the EWI contract.
 
 | Name | What it is | Group |
 | --- | --- | --- |
@@ -69,13 +71,13 @@ Naming scheme, so a name tells its group at once:
 | Azimuth | EWI's second carrier, arriving in days with 400 workers and the replacement stations. Pell's intended second target. | EWI |
 | Parallax | EWI's own security ship, bought when Fleet was cut. Calloway's ship. Destroyed at Datum with Severance. | EWI |
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
-| Kettle (tbd) | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 5 on. | Scrap, then the crew |
-| Resolute, renamed Severance | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. Destroyed at Datum with Parallax. | Scavengers |
-| Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it. | Scavengers |
-| Scavenger skiffs | Small scrap-built pirate ships. Sweep, pick, herd. | Scavengers |
+| Nova Protocol | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 3 on. The name is section nine of the EWI contract, the clause that closes a lost site's roster. | Scrap, then the crew |
+| Resolute, renamed Severance | The Fleet warship the Kites stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. Destroyed at Datum with Parallax. | Kites |
+| Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it. | Kites |
+
 | Vigilant | Marsh's ship, hunting Resolute. A heavier ship than Resolute: Severance can outrun it, not fight it. Arrives when it is over and takes the credit. | Earth Fleet |
 | Datum, the Shelter | Kestrel's largest station was the Shelter. It died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay, and named it Datum in the survey scheme. Policy bans the old name. Kestrel hands still say the Shelter off the radio. | Kestrel, now EWI |
-| The Roost | One of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Scavengers |
+| The Roost | One of a dozen small dead Kestrel stations scattered around Saturn. The Kites' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Kites |
 | The junk site | The opening location. A ring moonlet under dead hulls and scrap nobody can name, left by the small miners EWI finished over the years. Meridian arrives to clear it for the new stations. | EWI |
 | Saturn | The system. Rings and shepherd moonlets are the plate and the shadows. Water ice is the monopoly's product: whoever owns the ice owns outer-system traffic. | |
 
@@ -85,8 +87,8 @@ Naming scheme, so a name tells its group at once:
 | --- | --- |
 | Four years ago | EWI's Board orders the Shelter finished. Calloway, commanding Meridian, sets a Fleet-surplus demolition charge on the adjacent claim, "for the ice". It kills the Shelter and EWI's own tender crew placing it. The desk orders no rescue and reports a Kestrel reactor failure. Pell refuses, takes a tender and volunteers, goes dark. Nobody searches. |
 | Weeks later | Kestrel folds. Survivors are bought (EWI contracts, settlements, silence clauses) or vanish. Halloran signs with EWI. The captain arrives from Earth into Cutter One's seat. The crew forms. |
-| The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there, named Datum. Calloway is promoted to the desk. The Scavengers scrape. |
-| Weeks ago | The Scavengers steal Resolute from Fleet. Fleet keeps the loss secret and begins a quiet hunt. EWI is not told. |
+| The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there, named Datum. Calloway is promoted to the desk. The Kites scrape. |
+| Weeks ago | The Kites steal Resolute from Fleet. Fleet keeps the loss secret and begins a quiet hunt. EWI is not told. |
 | Today, T+0 | Meridian arrives at the junk site. Routine shift. The strike. |
 | T+0 to T+40h | Air. Survival in the junk, the module, the run, the midpoint. |
 | T+2 to T+5 days | The Roost. The argument. Azimuth's arrival. The climax at Datum. |
@@ -106,16 +108,17 @@ reader believes the hero is dead, the same as the crew.
    refuses, takes a tender and volunteers. The tender goes dark. Nobody
    searches. Press: hero. Files: a line. Kestrel folds in weeks.
 
-## Main comic (title tbd)
+## Main comic: Nova Protocol
 
 ### Act one: the job
 
-1. **An ordinary shift.** Meridian at the junk site. Dead hulls, scrap,
-   the banner. Cutter One: the captain, Halloran, Okoro, four years together.
-   The plaque for Pell in the boat bay, walked past for two years. The
-   renewal clause as a joke about section nine. Re-qualification card after
-   yard work (the GOTO tutorial), tag the hulls, pull a cache. Demir on the
-   radio, Brandt on the deck.
+1. **An ordinary shift.** Meridian at the junk site. Dead hulls, scrap, the
+   banner. Cutter One: the captain, Halloran, Okoro, four years together. The
+   plaque for Pell in the boat bay, walked past for two years. Section nine as
+   the standing joke: the renewal clause, and under it the Nova Protocol, which
+   closes the roster of a lost site. Re-qualification card after yard work (the
+   GOTO tutorial), tag the hulls, pull a cache. Demir on the radio, Brandt on
+   the deck.
 2. **The strike.** A voice on Control's guard channel that the cutter, on a
    work channel out in the junk, hears only in fragments. A hull with no
    fleet code comes out of the moonlet's shadow, kills Meridian, and leaves
@@ -124,23 +127,26 @@ reader believes the hero is dead, the same as the crew.
 
 ### Act two, first half: forty hours
 
-3. **Shelter in the junk.** The Kettle, a dead tender hull in the junk, owner
-   unknown. Okoro pressurises it and grafts Cutter One's cockpit and drive onto
-   its frame. Over the next shifts the crew feeds it piece by piece from the
-   field: a cell bank, then two debris PDCs off a wrecked tug. Salvage runs
-   into the wreck for air, cells, and the recorder module, which also holds
-   Meridian's log archive. Distress to the desk. Calloway, warm: recovery in
-   nine days, hold position, costs against remaining term. Air is forty hours.
-   Nobody on the crew is surprised.
+3. **Shelter in the junk.** A dead tender hull in the junk, owner unknown.
+   Okoro pressurises it, grafts Cutter One's cockpit and drive onto its frame,
+   and paints the name on before the seal holds: Nova Protocol, the clause
+   about to be applied to them. Over the next shifts the crew feeds it piece by
+   piece from the field: a cell bank, then two debris PDCs off a wrecked tug.
+   Salvage runs into the wreck for air, cells, and the recorder module, which
+   also holds Meridian's log archive. Distress to the desk. Calloway, warm:
+   recovery in nine days, hold position, costs against remaining term. Air is
+   forty hours. Hold position is section nine said kindly. Nobody on the crew
+   is surprised.
 4. **The module.** Okoro plugs it in for the beacon log and gets the archive.
-   Four years ago: the Board's order, Calloway's acknowledgement in a voice
-   the crew hears every week, the no-rescue, Pell refusing. This morning: the
-   transmission before the shot, same man. Okoro: "That is... it can't be."
-   Halloran said once, four years ago, to nobody, that it was planned.
+   Four years ago: the Board's order, Calloway's acknowledgement in a voice the
+   crew hears every week, the no-rescue under section nine, Pell refusing. This
+   morning: the transmission before the shot, same man. Okoro: "That is... it
+   can't be." Halloran said once, four years ago, to nobody, that it was
+   planned.
 5. **The run.** Scavengers scavenge. The skiffs return to strip the carcass and
    find a live tender. The crew runs for EWI's nearest safe harbour, Datum, the
    company's name for the rock where Halloran used to live. Calloway's channel
-   says Datum. Halloran says the Shelter. The Kettle's PDCs against skiffs
+   says Datum. Halloran says the Shelter. Nova Protocol's PDCs against skiffs
    through the ring junk. First fight.
 
 ### Midpoint
@@ -180,7 +186,7 @@ reader believes the hero is dead, the same as the crew.
    hears it. Calloway will be there: it is headquarters, and he is the one
    man who cannot let it play.
 10. **The climax.** Severance against Parallax under Datum's turrets. The duel
-    Pell has wanted for four years. The Kettle is too small for it and stays
+    Pell has wanted for four years. Nova Protocol is too small for it and stays
     out of it: while the two ships tear at each other, the crew slips through
     the debris and docks at the relay. The module plays: the order, Calloway's
     voice, the no-rescue, Pell's refusal, this morning's shot. The sixty hear
@@ -191,10 +197,12 @@ reader believes the hero is dead, the same as the crew.
     two hostile vessels destroyed, the pirate leader dead, the relay secured,
     law and order at Saturn. The official account has no civilians at the
     relay. EWI plays dumb: Calloway acted alone, the Board knew nothing, the
-    company thanks Fleet. The press prints both. Every worker who heard the
-    module knows better. The Scavengers have lost their ship and their leader
-    and gained proof and a cause. The Board is named and untouched. The crew's
-    ending is the owner's call; the recommended line is under Open decisions.
+    company thanks Fleet, and the three who exposed a rogue officer are heroes,
+    with the rotation home to prove it. The press prints all of it. Every
+    worker who heard the module knows better. The Kites have lost their ship
+    and their leader and gained proof and a cause. The Board is named and
+    untouched. The crew's answer to the praise is the owner's call, with a
+    recommended line under Open decisions.
 
 ## Branches
 
@@ -224,11 +232,11 @@ Never a speech. Only habits and paperwork:
 
 - Small-ship radio is local. A carrier or a station relay reaches the system.
   This is why Datum matters and why nobody hears the crew.
-- The crew's ship is built from what they find. The Kettle starts as Cutter
+- The crew's ship is built from what they find. Nova Protocol starts as Cutter
   One grafted onto a scrap hull and grows piece by piece: cells, PDCs, drive.
   Every upgrade is scavenged. This is the game's progression and the story's
   texture.
-- Cutter One is unarmed. The Kettle has two debris PDCs. Severance is a
+- Cutter One is unarmed. Nova Protocol has two debris PDCs. Severance is a
   warship. Parallax is a security ship: less than a warship, more than a
   tender.
 - Severance strikes once and moves. It cannot hold position or wait for
@@ -239,7 +247,7 @@ Never a speech. Only habits and paperwork:
 - Vigilant outguns Severance. Pell can run from Fleet, not fight it. This is
   his clock.
 - Kestrel's dead stations are scattered and unregistered. Nobody knows which
-  one the Scavengers live in.
+  one the Kites live in.
 - Forty hours of air for three people sets the clock of act two.
 - The recorder module holds the last hours and the ship's long archive.
 - Consumables, PDC ammunition, docking and the fuel clock are scenario
@@ -247,15 +255,12 @@ Never a speech. Only habits and paperwork:
 
 ## Open decisions
 
-- The crew's ending. Recommended: EWI offers them what it offered the Kestrel
-  survivors, a settlement with a silence clause, and the comic has them refuse
-  and fly the Kettle to the Roost, off the roster. Alternatives: Fleet
-  processes them for a salvage violation and the account never mentions them,
-  or one of the three signs.
-- The Scavengers' name for themselves: keep "Scavengers" and take the insult
-  back, or a name of their own.
-- Final names for every (tbd) entry above.
-- The main comic's title.
+- The crew's answer to EWI's praise. Recommended: the comic has them refuse the
+  rotation home and fly Nova Protocol to the Roost, off the roster. The praise
+  is what EWI gave the Kestrel survivors, a medal in place of the money and the
+  same silence expected. Alternatives: they take the rotation home and the last
+  page is Earth with the module's words unsaid, or one of the three signs and
+  two fly.
 
 ## Next steps
 

@@ -23,8 +23,8 @@ or notes do.
 
 Owner decisions taken into `STORY.md`:
 
-- Saturn system. EWI is greed with a monopoly. Groups: Earth, Earth Fleet,
-  EWI, Kestrel, the Scavengers.
+- Saturn system. EWI is greed with a monopoly. Groups: Earth, Earth Fleet, EWI,
+  Kestrel, the Kites (Scavengers to everyone else).
 - The Shelter was Kestrel's largest station. The charge was aimed at it and
   staged as an ice accident. Only the Board and Meridian's commander of that
   day knew. That commander is Calloway, now the regional desk.
@@ -45,13 +45,16 @@ Owner decisions taken into `STORY.md`:
 - A bad ending at the midpoint: trust Calloway, hand over the module, fly the
   GOTO, get blasted. Comic and game follow Pell's side. No fork at the
   argument.
-- Names: EWI survey words, Kestrel birds, Fleet virtues, Scavengers rename
-  with company words. Azimuth is the second carrier.
+- Names: EWI survey words, Kestrel birds, Fleet virtues, Kites rename what they
+  take with company words. Azimuth is the second carrier. The main comic and
+  the crew's ship are both Nova Protocol: section nine of the EWI contract, the
+  clause that closes a lost site's roster, named at beat 3.
+- Finale: Parallax and Severance destroy each other, the crew plays the module,
+  Vigilant arrives late and takes the credit, EWI blames Calloway alone and
+  praises the crew.
 
-Open: the crew's ending (recommended: refuse EWI's settlement and fly the
-Kettle to the Roost), the Scavengers' own name, the Kettle's final name, the
-main comic title. Calloway and Pell die with their ships at Datum. No chapter
-split yet.
+Open: the crew's answer to EWI's praise (recommended: refuse the rotation home
+and fly Nova Protocol to the Roost). No chapter split yet.
 
 Next: owner review of `design.html` and `STORY.md`, then split into cutscene
 scenarios and gameplay scenarios, then write the prologue and main comics.
