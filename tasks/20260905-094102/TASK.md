@@ -13,6 +13,11 @@
   map, the timeline, and the storyboard draft of both comics. Published as
   the artifact "Off the Roster":
   https://claude.ai/code/artifact/4af44c85-e778-494d-80f7-5933e640add3
+- `REVIEW01.md`: the owner's review of the first story version. Folded into
+  `STORY.md` on 2026-09-05.
+- `GAMEPLAY_PLAN.md`: what the game needs to play the story, scenario by
+  scenario, with the consolidated vocabulary inventory and the release cadence.
+- `art/`: HD panel candidates for The Strike and their generator.
 
 ## Log
 
@@ -79,3 +84,57 @@ give feedback on. The design page keeps its line-art boards for now.
 
 Next: owner review of `design.html` and `STORY.md`, then split into cutscene
 scenarios and gameplay scenarios, then write the prologue and main comics.
+
+### 2026-09-05: Gameplay scope and feature cadence
+
+[`GAMEPLAY_PLAN.md`](GAMEPLAY_PLAN.md) records the owner review of the first
+campaign-system assessment. v0.13.0 publishes the story on the website and
+ships First Shift and Second Shift as proofs of concept. It does not add saves,
+docking, fitting, radio simulation, custom factions, or an open world.
+
+Later campaign work proceeds one scenario and one enabling feature slice at a
+time. Ship upgrades use authored hull stages and scripted installation. Story
+resources remain variables with safe data-driven HUD meters. Campaign
+continuity starts with a Wesnoth-style scenario-boundary journal, not a saved
+ECS world. The plan also inventories the events, filters, actions, queries,
+objects, narration changes, and skip-safe cinematic contract expected by the
+story.
+
+### 2026-09-05: Review 01 folded into the story
+
+`REVIEW01.md` found the backbone sound and the joints stated, not caused. Three
+rounds of annotated messages settled the answers, now in `STORY.md`:
+
+- Pell is revenge, not theory. He reads section nine over the guard channel
+  before he fires and knows it was wrong. He learns of the archive at the
+  Roost, when Okoro plays it in his village.
+- The skiffs chase for real. They learn who the crew are when Parallax fires
+  on the tender they were chasing. Rotation then follows, holds fire, and
+  gives the heading.
+- The captain believes in rotation. Calloway offers it by name at the
+  midpoint. The company offers it again at the end to a channel nobody
+  answers.
+- Halloran speaks to the sixty, not to Pell. Solberg names her signing and
+  answers for the sixty: no Azimuth. Pell cannot fly Severance alone and takes
+  Datum because it still gives him Calloway.
+- Datum: Nova goes in first under Meridian's still-open code, kills turret
+  control, docks. The captain holds the dock while Halloran plays the module
+  inside. Calloway turns Parallax on his own relay tower. Okoro gives the
+  boat-deck call, Pell tells his deck to obey and drives Severance in. Most
+  of the sixty leave in the boats.
+- Recorder rules: append-only, certification-bound, beacons when unseated.
+  Every recorder at Saturn keeps the broadcast. Azimuth holds station.
+- Scale: a full-length first campaign that ends at Datum. Three game-only
+  Roost missions and a two-part Datum join the beats-to-scenarios table.
+
+The design page still shows the pre-review story. It is updated when the
+owner asks.
+
+### 2026-09-05: Gameplay plan revised per scenario
+
+`GAMEPLAY_PLAN.md` was rewritten around the reviewed story: the scope
+decisions stay, the engine's vocabulary was verified against
+`crates/nova_scenario`, every scenario lists what exists and what is new, and
+the inventory tags each event, filter, action, query, object, HUD widget and
+catalog item with the scenario that first needs it. The cadence keeps v0.13.0
+as publish-and-prove and re-cuts increments A to E to the reviewed beats.
