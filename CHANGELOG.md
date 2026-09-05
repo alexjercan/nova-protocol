@@ -80,8 +80,8 @@ does NOT get an entry - and it is the only place they are written down.
   skipped. The chapter closes on the wreck rather than handing the camera back.
 - The skip prompt rides above the keybind dock instead of printing through the
   verb chips, and drops back to the floor when the dock has nothing to show.
-- The strike opens on a title card: where the cutter is parked, when in the
-  shift it is, and what the carrier is.
+- The campaign opens on a title card over the carrier: the sector, the year,
+  and one line naming the Meridian and saying what a carrier is.
 - `CinematicTitle` posts a shot's title card in an authored screen corner -
   location, stamp and one line - and expires on the scenario clock, so no
   handler has to take it down.

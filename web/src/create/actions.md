@@ -631,9 +631,9 @@ in top-left, holds, fades out.
 ```ron
 CinematicTitle((
     corner: TopLeft,
-    location: "MERIDIAN, OUTER HOLD",
-    date: "END OF SHIFT - THREE KILOMETRES OFF THE CARRIER",
-    note: "Earthworks survey carrier. Unarmed, and due under way.",
+    location: "SECTOR M, THE RINGS OF SATURN",
+    date: "Y0",
+    note: "The EWI carrier Meridian: a refinery that moves to the ice.",
     seconds: 9.0,
 )),
 ```
@@ -644,8 +644,8 @@ CinematicTitle((
 | field | type | default | meaning |
 |---|---|---|---|
 | `corner` | `TopLeft` \| `TopRight` \| `BottomLeft` \| `BottomRight` | required | which corner the card sits in |
-| `location` | string | required | the place, drawn largest |
-| `date` | string | required | the stamp under it - a date, a time, a bearing |
+| `location` | string | required | where this is, drawn largest |
+| `date` | string | required | when this is - a year, a date, a time of shift |
 | `note` | string | required | one line of context; empty draws no line |
 | `seconds` | float | required | how long the card holds, fades included |
 

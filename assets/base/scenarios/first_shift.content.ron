@@ -1658,6 +1658,13 @@
                         frame: World,
                         look_at: Object("carrier"),
                     )),
+                    CinematicTitle((
+                        corner: TopLeft,
+                        location: "SECTOR M, THE RINGS OF SATURN",
+                        date: "Y0",
+                        note: "The EWI carrier Meridian: a refinery that moves to the ice.",
+                        seconds: 9.0,
+                    )),
                     Sequence((
                         key: "opening",
                         steps: [
@@ -3703,13 +3710,6 @@
                                         ),
                                         frame: World,
                                         look_at: Object("warship"),
-                                    )),
-                                    CinematicTitle((
-                                        corner: TopLeft,
-                                        location: "MERIDIAN, OUTER HOLD",
-                                        date: "END OF SHIFT - THREE KILOMETRES OFF THE CARRIER",
-                                        note: "Earthworks survey carrier. Unarmed, and due under way.",
-                                        seconds: 9.0,
                                     )),
                                     NarrativeCue((
                                         channel: Comms,

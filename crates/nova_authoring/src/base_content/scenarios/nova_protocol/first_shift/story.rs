@@ -18,6 +18,16 @@
 
 // --- the launch --------------------------------------------------------------
 
+/// The card the campaign opens on, over the shot of the carrier.
+///
+/// The one card in the scenario: where, then when, then the ship the shot is
+/// already showing. A carrier is a strange enough object to want one line of
+/// explanation, and that line is what the raid takes away.
+pub(super) const OPEN_CARD_PLACE: &str = "SECTOR M, THE RINGS OF SATURN";
+pub(super) const OPEN_CARD_WHEN: &str = "Y0";
+pub(super) const OPEN_CARD_NOTE: &str =
+    "The EWI carrier Meridian: a refinery that moves to the ice.";
+
 pub(super) const OPEN_CONTROL_CLEAR: &str =
     "Cutter One, Meridian Control. Boat bay is clear. You are released.";
 pub(super) const OPEN_COPILOT_GREEN: &str = "Clamps are open. Drive and thrusters read green.";
@@ -215,16 +225,6 @@ pub(super) const HOME_PLAYER_NOT_OURS: &str = "Not our net. Take us home.";
 pub(super) const OBJ_TEXT_HOME: &str = "Lock and GOTO to the Meridian outer hold.";
 
 // --- the strike --------------------------------------------------------------
-
-/// The card the strike opens on, over the first shot.
-///
-/// It says only what the shift has already established - where the cutter is
-/// parked, that the carrier is unarmed survey plant, and that it is due to
-/// leave - so it sets the frame without spending Demir's challenge, which is
-/// where the number four hundred and twelve is meant to land.
-pub(super) const ATTACK_CARD_PLACE: &str = "MERIDIAN, OUTER HOLD";
-pub(super) const ATTACK_CARD_WHEN: &str = "END OF SHIFT - THREE KILOMETRES OFF THE CARRIER";
-pub(super) const ATTACK_CARD_NOTE: &str = "Earthworks survey carrier. Unarmed, and due under way.";
 
 pub(super) const ATTACK_CONTROL_PLUME: &str =
     "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and \

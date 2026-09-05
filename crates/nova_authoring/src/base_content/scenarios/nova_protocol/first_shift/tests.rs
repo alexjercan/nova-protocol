@@ -1502,3 +1502,62 @@ fn every_preview_scene_passes_the_content_lint() {
         errors.join("\n")
     );
 }
+
+/// The shift shows one title card, over the opening shot, and takes it back
+/// down before the player has the helm.
+///
+/// One card, because a second is a second answer to "where am I". Gone before
+/// `release_camera`, because a card standing over playable space reads as HUD
+/// rather than as a caption.
+#[test]
+fn the_only_title_card_is_the_one_the_campaign_opens_on() {
+    let config = config();
+
+    let cards: Vec<_> = all_actions(&config)
+        .into_iter()
+        .filter_map(|action| match action {
+            EventActionConfig::CinematicTitle(card) => Some(card),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(cards.len(), 1, "the shift posts more than one title card");
+    assert_eq!(cards[0].location, story::OPEN_CARD_PLACE);
+
+    let opening = config
+        .events
+        .iter()
+        .find(|event| event.name == EventConfig::OnStart)
+        .expect("the shift opens on OnStart");
+    assert!(
+        actions_of(std::iter::once(opening))
+            .iter()
+            .any(|action| matches!(action, EventActionConfig::CinematicTitle(_))),
+        "the card is not posted by the opening handler"
+    );
+
+    let steps = opening
+        .actions
+        .iter()
+        .find_map(|action| match action {
+            EventActionConfig::Sequence(sequence) if sequence.key == SEQ_OPENING => {
+                Some(&sequence.steps)
+            }
+            _ => None,
+        })
+        .expect("the opening runs a sequence");
+    let mut elapsed = 0.0;
+    for step in steps {
+        elapsed += step.after.unwrap_or_default();
+        if step
+            .actions
+            .iter()
+            .any(|action| matches!(action, EventActionConfig::ReleaseCamera(_)))
+        {
+            break;
+        }
+    }
+    assert!(
+        f64::from(OPEN_CARD_SECONDS) < elapsed,
+        "the card ({OPEN_CARD_SECONDS}s) is still up when the camera returns at {elapsed}s"
+    );
+}

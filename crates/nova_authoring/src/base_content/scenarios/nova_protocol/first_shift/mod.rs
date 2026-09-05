@@ -247,6 +247,10 @@ const BEAT_WON: f64 = 17.0;
 /// Conversational timing for the opening. Briefing lines get room to land;
 /// ordinary exchanges move faster, and terse replies answer almost at once.
 const OPEN_FIRST_AT: f64 = 2.0;
+/// How long the opening title card holds. Long enough to read three lines
+/// twice, and gone before the crew stop talking about the bay and start
+/// talking about the work.
+const OPEN_CARD_SECONDS: f32 = 9.0;
 const OPEN_LONG_GAP: f64 = 6.0;
 const OPEN_NORMAL_GAP: f64 = 4.0;
 const OPEN_SHORT_GAP: f64 = 2.0;
@@ -334,10 +338,6 @@ const SEQ_ORBIT_TALK: &str = "orbit_talk";
 const SEQ_RETURN_CALL: &str = "return_call";
 const SEQ_HOME_CALL: &str = "home_call";
 const SEQ_AFTER_VOICES: &str = "after_voices";
-/// How long the strike's title card holds. Long enough to read three lines
-/// twice, and gone well before the challenge that owes the number.
-const STRIKE_CARD_SECONDS: f32 = 9.0;
-
 /// The two halves of the strike, as cinematic keys. They are separate scenes
 /// so the guns hang off the approach's real ending rather than a guessed
 /// delay, and so the scene preview can enter either half on its own. Neither
@@ -663,6 +663,16 @@ pub(crate) fn first_shift(
                         set_variable(VAR_BEAT, number(BEAT_LAUNCH)),
                         suspend_player_control(),
                         film(ID_CUTTER, CINEMA_OPEN_OFFSET, at(ID_CARRIER)),
+                        // Top-left, in the same frame as the camera: the shot
+                        // holds the carrier centre-right, and the comms stack
+                        // owns the bottom-left corner from the first line on.
+                        title(
+                            ScreenCornerConfig::TopLeft,
+                            story::OPEN_CARD_PLACE,
+                            story::OPEN_CARD_WHEN,
+                            story::OPEN_CARD_NOTE,
+                            OPEN_CARD_SECONDS,
+                        ),
                         sequence(
                             SEQ_OPENING,
                             vec![
@@ -1720,16 +1730,6 @@ fn approach_scene() -> EventActionConfig {
                 0.0,
                 vec![
                     film(ID_CUTTER, CINEMA_ENTRY_OFFSET, at(ID_WARSHIP)),
-                    // Top-left because the shot's own subject is centre-frame
-                    // and the comms stack owns the bottom-left corner for the
-                    // whole scene.
-                    title(
-                        ScreenCornerConfig::TopLeft,
-                        story::ATTACK_CARD_PLACE,
-                        story::ATTACK_CARD_WHEN,
-                        story::ATTACK_CARD_NOTE,
-                        STRIKE_CARD_SECONDS,
-                    ),
                     comms(DEMIR, story::ATTACK_CONTROL_PLUME),
                     move_warship(ORDER_EMERGE, WARSHIP_EMERGE_POS),
                 ],
