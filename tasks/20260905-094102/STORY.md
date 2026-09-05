@@ -55,7 +55,8 @@ Open decisions).
 
 Naming scheme, so a name tells its group at once:
 
-- EWI carriers carry survey words: Meridian, Azimuth, Parallax.
+- EWI carriers and stations carry survey words: Meridian, Azimuth, Parallax,
+  Datum.
 - Kestrel named ships after birds: Osprey, Harrier. Its stations carried the
   words for where birds live: the Shelter, the Roost, the Nest.
 - Earth Fleet ships carry virtues: Resolute, Vigilant.
@@ -70,9 +71,10 @@ Naming scheme, so a name tells its group at once:
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
 | Kettle (tbd) | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 5 on. | Scrap, then the crew |
 | Resolute, renamed Severance | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
+| Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it. | Scavengers |
 | Scavenger skiffs | Small scrap-built pirate ships. Sweep, pick, herd. | Scavengers |
-| Vigilant (tbd) | Marsh's ship, hunting Resolute. | Earth Fleet |
-| The Shelter | Kestrel's largest station. Died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay. Workers still call it the Shelter. | Kestrel, now EWI |
+| Vigilant | Marsh's ship, hunting Resolute. A heavier ship than Resolute: Severance can outrun it, not fight it. | Earth Fleet |
+| Datum, the Shelter | Kestrel's largest station was the Shelter. It died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay, and named it Datum in the survey scheme. Policy bans the old name. Kestrel hands still say the Shelter off the radio. | Kestrel, now EWI |
 | The Roost | One of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Scavengers |
 | The junk site | The opening location. A ring moonlet under dead hulls and scrap nobody can name, left by the small miners EWI finished over the years. Meridian arrives to clear it for the new stations. | EWI |
 | Saturn | The system. Rings and shepherd moonlets are the plate and the shadows. Water ice is the monopoly's product: whoever owns the ice owns outer-system traffic. | |
@@ -83,11 +85,11 @@ Naming scheme, so a name tells its group at once:
 | --- | --- |
 | Four years ago | EWI's Board orders the Shelter finished. Calloway, commanding Meridian, sets a Fleet-surplus demolition charge on the adjacent claim, "for the ice". It kills the Shelter and EWI's own tender crew placing it. The desk orders no rescue and reports a Kestrel reactor failure. Pell refuses, takes a tender and volunteers, goes dark. Nobody searches. |
 | Weeks later | Kestrel folds. Survivors are bought (EWI contracts, settlements, silence clauses) or vanish. Halloran signs with EWI. The captain arrives from Earth into Cutter One's seat. The crew forms. |
-| The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there. Calloway is promoted to the desk. The Scavengers scrape. |
+| The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there, named Datum. Calloway is promoted to the desk. The Scavengers scrape. |
 | Weeks ago | The Scavengers steal Resolute from Fleet. Fleet keeps the loss secret and begins a quiet hunt. EWI is not told. |
 | Today, T+0 | Meridian arrives at the junk site. Routine shift. The strike. |
 | T+0 to T+40h | Air. Survival in the junk, the module, the run, the midpoint. |
-| T+2 to T+5 days | The Roost. The argument. Azimuth's arrival. The climax at the Shelter. |
+| T+2 to T+5 days | The Roost. The argument. Azimuth's arrival. The climax at Datum. |
 
 ## Prologue comic: The Shelter (four years ago)
 
@@ -135,13 +137,14 @@ reader believes the hero is dead, the same as the crew.
    transmission before the shot, same man. Okoro: "That is... it can't be."
    Halloran said once, four years ago, to nobody, that it was planned.
 5. **The run.** Scavengers scavenge. The skiffs return to strip the carcass
-   and find a live tender. The crew runs for EWI's nearest safe harbour, the
-   Shelter, on the rock where Halloran used to live. The Kettle's PDCs
+   and find a live tender. The crew runs for EWI's nearest safe harbour, Datum, the
+   company's name for the rock where Halloran used to live. Calloway's
+   channel says Datum. Halloran says the Shelter. The Kettle's PDCs
    against skiffs through the ring junk. First fight.
 
 ### Midpoint
 
-6. **Recovery.** Calloway's security ship meets them on the Shelter approach,
+6. **Recovery.** Calloway's security ship meets them on the Datum approach,
    early after all, and asks for the module first and the crew second.
    Halloran does the math out loud: the man on the archive has come for the
    only copy, and three witnesses are a cost. The captain's call.
@@ -168,13 +171,13 @@ reader believes the hero is dead, the same as the crew.
    captain decides. The comic goes with Pell, on the crew's terms: Calloway
    and the truth, not the carrier.
 
-### Act three: the Shelter
+### Act three: Datum
 
-9. **The plan.** The Shelter holds the system relay. Play the module from
+9. **The plan.** Datum holds the system relay. Play the module from
    there and every carrier crew, every bought survivor and every Fleet picket
    hears it. Calloway will be there: it is headquarters, and he is the one
    man who cannot let it play.
-10. **The climax.** The Kettle and Severance against the Shelter's turrets
+10. **The climax.** The Kettle and Severance against Datum's turrets
     and Parallax. The duel. The crew reaches the relay and the module plays
     from the rock it is about: the order, Calloway's voice, the no-rescue,
     Pell's refusal, this morning's shot. The sixty hear their officer's voice
@@ -202,6 +205,8 @@ reader believes the hero is dead, the same as the crew.
 Never a speech. Only habits and paperwork:
 
 - The plaque for Pell next to the WE ARE EXPANDING banner.
+- Datum on the radio, the Shelter in the galley. The old name is a policy
+  violation.
 - Section nine, the renewal clause, as a crew joke.
 - Recovery in nine days for a crew with forty hours, with costs against
   remaining term, delivered kindly.
@@ -212,7 +217,7 @@ Never a speech. Only habits and paperwork:
 ## Rules of the world
 
 - Small-ship radio is local. A carrier or a station relay reaches the system.
-  This is why the Shelter matters and why nobody hears the crew.
+  This is why Datum matters and why nobody hears the crew.
 - The crew's ship is built from what they find. The Kettle starts as Cutter
   One grafted onto a scrap hull and grows piece by piece: cells, PDCs, drive.
   Every upgrade is scavenged. This is the game's progression and the story's
@@ -225,6 +230,8 @@ Never a speech. Only habits and paperwork:
 - Fleet lost a warship to pirates and kept it secret, for fear of public
   opinion. Nobody at Saturn knew a warship was loose, so Meridian had no
   warning. Fleet is slow, far, and embarrassed.
+- Vigilant outguns Severance. Pell can run from Fleet, not fight it. This is
+  his clock.
 - Kestrel's dead stations are scattered and unregistered. Nobody knows which
   one the Scavengers live in.
 - Forty hours of air for three people sets the clock of act two.

@@ -364,7 +364,7 @@
   <section class="prose">
     <h2>Ships and places <small>a name tells its group</small></h2>
     <ul>
-      <li><span class="ewi">EWI</span> carriers carry survey words: Meridian, Azimuth, Parallax.</li>
+      <li><span class="ewi">EWI</span> carriers and stations carry survey words: Meridian, Azimuth, Parallax, Datum.</li>
       <li><span class="kestrel">Kestrel</span> named ships after birds: Osprey, Harrier. Its stations carried the words for where birds live: the Shelter, the Roost, the Nest.</li>
       <li><span class="fleet">Fleet</span> ships carry virtues: Resolute, Vigilant.</li>
       <li><span class="scav">Scavengers</span> rename what they take with the company's own words: Severance.</li>
@@ -379,9 +379,9 @@
           <tr><td>Cutter One</td><td>The crew's unarmed cutter. The tutorial ship.</td><td><span class="chip ewi">EWI</span></td></tr>
           <tr><td>Kettle (tbd)</td><td>A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 5 on.</td><td><span class="chip kestrel">scrap, then ours</span></td></tr>
           <tr><td>Severance</td><td>Fleet's Resolute, stolen weeks ago and renamed. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it.</td><td><span class="chip scav">Scavengers</span></td></tr>
-          <tr><td>Skiffs</td><td>Small scrap-built pirate ships. Sweep, pick, herd.</td><td><span class="chip scav">Scavengers</span></td></tr>
-          <tr><td>Vigilant (tbd)</td><td>Marsh's ship, hunting Resolute.</td><td><span class="chip fleet">Fleet</span></td></tr>
-          <tr><td>The Shelter</td><td>Kestrel's largest station. Died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay. Workers still call it the Shelter.</td><td><span class="chip ewi">EWI, was Kestrel</span></td></tr>
+          <tr><td>Skiffs</td><td>Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it.</td><td><span class="chip scav">Scavengers</span></td></tr>
+          <tr><td>Vigilant</td><td>Marsh's ship, hunting Resolute. A heavier ship than Resolute: Severance can outrun it, not fight it.</td><td><span class="chip fleet">Fleet</span></td></tr>
+          <tr><td>Datum, the Shelter</td><td>Kestrel's largest station was the Shelter. It died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay, and named it Datum in the survey scheme. Policy bans the old name. Kestrel hands still say the Shelter off the radio.</td><td><span class="chip ewi">EWI, was Kestrel</span></td></tr>
           <tr><td>The Roost</td><td>One of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which; Fleet cannot find it.</td><td><span class="chip scav">Scavengers</span></td></tr>
           <tr><td>The junk site</td><td>The opening location. A ring moonlet under dead hulls and scrap nobody can name, left by the small miners EWI finished over the years. Meridian arrives to clear it for the new stations.</td><td><span class="chip ewi">EWI</span></td></tr>
           <tr><td>Saturn</td><td>Rings and shepherd moonlets are the plate and the shadows. Water ice is the monopoly's product: whoever owns the ice owns outer-system traffic.</td><td><span class="chip none">setting</span></td></tr>
@@ -393,7 +393,7 @@
   <section>
     <h2>The map <small>schematic, not to scale</small></h2>
     <figure class="fig">
-      <svg class="wide" viewBox="0 0 960 380" role="img" aria-label="Schematic map of the Saturn system with the junk site, the Shelter, the Roost, scattered dead Kestrel stations, and a Fleet picket at the edge.">
+      <svg class="wide" viewBox="0 0 960 380" role="img" aria-label="Schematic map of the Saturn system with the junk site, Datum, the Roost, scattered dead Kestrel stations, and a Fleet picket at the edge.">
         <rect width="960" height="380" fill="url(#grid)"/>
         <g fill="none" stroke="#19a64f" stroke-opacity=".35" stroke-width="1.5">
           <ellipse cx="-60" cy="200" rx="620" ry="150"/>
@@ -411,7 +411,7 @@
         <use href="#rock" transform="translate(560 262) scale(.9)"/>
         <use href="#station" transform="translate(560 212) scale(1.1)" color="#36ff79"/>
         <use href="#mast" transform="translate(560 198) scale(.6)" color="#36ff79"/>
-        <text x="560" y="330" text-anchor="middle" class="lbl lbl-ewi">the Shelter // EWI Saturn HQ // system relay</text>
+        <text x="560" y="330" text-anchor="middle" class="lbl lbl-ewi">Datum // EWI Saturn HQ // system relay</text>
         <use href="#rock" transform="translate(740 120) scale(.7)"/>
         <use href="#station" transform="translate(740 78) scale(.9)" color="#dfe9e2"/>
         <g fill="#ffb84a"><circle cx="716" cy="98" r="2"/><circle cx="760" cy="104" r="2"/><circle cx="748" cy="140" r="2"/><circle cx="722" cy="136" r="2"/></g>
@@ -470,7 +470,7 @@
           <text x="830" y="166">the midpoint</text>
           <text x="910" y="72">days</text>
           <text x="910" y="204" class="lbl-ewi">Azimuth</text>
-          <text x="910" y="220">the Shelter</text>
+          <text x="910" y="220">Datum</text>
         </g>
         <text x="40" y="242" class="lbl">prologue comic covers the first two marks; the main comic starts at today</text>
       </svg>
@@ -647,7 +647,7 @@
     </div>
 
     <div class="beat">
-      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Kettle firing PDC lines at skiffs through ring junk, heading right toward the Shelter.">
+      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Kettle firing PDC lines at skiffs through ring junk, heading right toward Datum.">
         <rect width="480" height="270" fill="url(#grid)"/>
         <g color="#5b7a66">
           <use href="#junk" transform="translate(60 60) rotate(20) scale(1.5)"/><use href="#junk" transform="translate(110 240) rotate(-40)"/><use href="#junk" transform="translate(300 250) rotate(65) scale(1.4)"/><use href="#junk" transform="translate(420 60) rotate(5) scale(1.2)"/><use href="#junk" transform="translate(240 40) rotate(30)"/>
@@ -659,13 +659,13 @@
         <use href="#skiff" transform="translate(110 200) rotate(-20)" color="#ffb84a"/>
         <path d="M120 196 L172 162" stroke="#ff4e42" stroke-width="1.5"/>
         <path d="M430 140 L452 150 L430 160" fill="none" stroke="#36ff79" stroke-width="2"/>
-        <text x="464" y="128" text-anchor="end" class="lbl lbl-ewi">to the Shelter // safe harbour</text>
+        <text x="464" y="128" text-anchor="end" class="lbl lbl-ewi">to Datum // safe harbour</text>
         <text x="20" y="254" class="lbl lbl-scav">skiffs came back for the carcass</text>
       </svg>
       <div>
         <p class="num">Beat 5</p>
         <h3>The run</h3>
-        <p>Scavengers scavenge. The skiffs return to strip the carcass and find a live tender. The crew runs for EWI's nearest safe harbour, the Shelter, on the rock where Halloran used to live.</p>
+        <p>Scavengers scavenge. The skiffs return to strip the carcass and find a live tender. The crew runs for EWI's nearest safe harbour, Datum, the company's name for the rock where Halloran used to live. Calloway's channel says Datum. Halloran says the Shelter.</p>
         <p>The Kettle's PDCs against skiffs through the ring junk. First fight.</p>
       </div>
     </div>
@@ -673,11 +673,11 @@
     <p class="act">Midpoint</p>
 
     <div class="beat">
-      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="Calloway's red security ship between the Kettle and the Shelter; Severance rising out of a dark ring shadow at the bottom.">
+      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="Calloway's red security ship between the Kettle and Datum; Severance rising out of a dark ring shadow at the bottom.">
         <rect width="480" height="270" fill="url(#grid)"/>
         <use href="#rock" transform="translate(420 130)"/>
         <use href="#station" transform="translate(420 74) scale(1.2)" color="#36ff79"/>
-        <text x="420" y="196" text-anchor="middle" class="lbl lbl-ewi">the Shelter // EWI HQ</text>
+        <text x="420" y="196" text-anchor="middle" class="lbl lbl-ewi">Datum // EWI HQ</text>
         <use href="#warship" transform="translate(300 140) rotate(180) scale(.8)" color="#ff4e42"/>
         <text x="300" y="100" text-anchor="middle" class="lbl lbl-danger">Parallax // Calloway</text>
         <path d="M250 150 L180 150" stroke="#ff4e42" stroke-dasharray="3 4"/>
@@ -690,14 +690,14 @@
       <div>
         <p class="num">Beat 6</p>
         <h3>Recovery</h3>
-        <p>Calloway's security ship meets them on the Shelter approach, early after all, and asks for the module first and the crew second. Halloran does the math out loud: the man on the archive has come for the only copy, and three witnesses are a cost. The captain's call.</p>
+        <p>Calloway's security ship meets them on the Datum approach, early after all, and asks for the module first and the crew second. Halloran does the math out loud: the man on the archive has come for the only copy, and three witnesses are a cost. The captain's call.</p>
         <p>Refuse, and Calloway fires. Severance comes out of the ring shadow. Pell has wanted Calloway for four years and this is his ground. The crew spent the morning fighting pirates to reach the company, and the pirates save them from it.</p>
       </div>
     </div>
 
     <div class="branch">
       <div class="beat" style="border-top:0;padding:0">
-        <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Kettle following a dashed approach path toward the Shelter while Calloway's ship fires from behind.">
+        <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Kettle following a dashed approach path toward Datum while Calloway's ship fires from behind.">
           <rect width="480" height="270" fill="url(#grid)"/>
           <use href="#rock" transform="translate(420 130)"/>
           <use href="#station" transform="translate(420 74) scale(1.2)" color="#36ff79"/>
@@ -762,27 +762,27 @@
       </div>
     </div>
 
-    <p class="act">Act three // the Shelter</p>
+    <p class="act">Act three // Datum</p>
 
     <div class="beat">
-      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Shelter with its tall relay mast and broadcast rings spreading from the top.">
+      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="Datum with its tall relay mast and broadcast rings spreading from the top.">
         <rect width="480" height="270" fill="url(#grid)"/>
         <use href="#waves" transform="translate(240 40)" color="#36ff79"/>
         <use href="#rock" transform="translate(240 210) scale(1.2)"/>
         <use href="#station" transform="translate(240 148) scale(1.4)" color="#36ff79"/>
         <use href="#mast" transform="translate(240 130)" color="#36ff79"/>
-        <text x="20" y="254" class="lbl lbl-ewi">the Shelter // system relay</text>
+        <text x="20" y="254" class="lbl lbl-ewi">Datum // system relay</text>
         <text x="464" y="254" text-anchor="end" class="lbl">every carrier. every picket. every bought survivor.</text>
       </svg>
       <div>
         <p class="num">Beat 9</p>
         <h3>The plan</h3>
-        <p>The Shelter holds the system relay. Play the module from there and every carrier crew, every bought survivor and every Fleet picket hears it. Calloway will be there: it is headquarters, and he is the one man who cannot let it play.</p>
+        <p>Datum holds the system relay. Play the module from there and every carrier crew, every bought survivor and every Fleet picket hears it. Calloway will be there: it is headquarters, and he is the one man who cannot let it play.</p>
       </div>
     </div>
 
     <div class="beat">
-      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Kettle and Severance fighting Calloway's ship under the Shelter's turrets while amber broadcast rings spread from the mast.">
+      <svg class="board" viewBox="0 0 480 270" role="img" aria-label="The Kettle and Severance fighting Calloway's ship under Datum's turrets while amber broadcast rings spread from the mast.">
         <rect width="480" height="270" fill="url(#grid)"/>
         <use href="#waves" transform="translate(90 34)" color="#ffb84a"/>
         <use href="#rock" transform="translate(90 200)"/>
@@ -800,7 +800,7 @@
       <div>
         <p class="num">Beat 10</p>
         <h3>The climax</h3>
-        <p>The Kettle and Severance against the Shelter's turrets and Parallax. The duel. The crew reaches the relay and the module plays: the order, Calloway's voice, the no-rescue, Pell's refusal, this morning's shot. The sixty hear their officer's voice from four years ago. Azimuth's crew hears why.</p>
+        <p>The Kettle and Severance against Datum's turrets and Parallax. The duel. The crew reaches the relay and the module plays: the order, Calloway's voice, the no-rescue, Pell's refusal, this morning's shot. The sixty hear their officer's voice from four years ago. Azimuth's crew hears why.</p>
         <p>Calloway's fate: open.</p>
       </div>
     </div>
@@ -832,6 +832,7 @@
     <p>Never a speech. Only habits and paperwork.</p>
     <ul>
       <li>The plaque for Pell next to the WE ARE EXPANDING banner.</li>
+      <li>Datum on the radio, the Shelter in the galley. The old name is a policy violation.</li>
       <li>Section nine, the renewal clause, as a crew joke.</li>
       <li>Recovery in nine days for a crew with forty hours, costs against remaining term, delivered kindly.</li>
       <li>Survivors "bought": contracts, settlements, silence.</li>
@@ -843,11 +844,12 @@
   <section class="prose">
     <h2>Rules of the world</h2>
     <ul>
-      <li>Small-ship radio is local. A carrier or a station relay reaches the system. This is why the Shelter matters and why nobody hears the crew.</li>
+      <li>Small-ship radio is local. A carrier or a station relay reaches the system. This is why Datum matters and why nobody hears the crew.</li>
       <li>The crew's ship is built from what they find. The Kettle starts as Cutter One grafted onto a scrap hull and grows piece by piece: cells, PDCs, drive. Every upgrade is scavenged. This is the game's progression and the story's texture.</li>
       <li>Cutter One is unarmed. The Kettle has two debris PDCs. Severance is a warship. Parallax is a security ship: less than a warship, more than a tender.</li>
       <li>Severance strikes once and moves. It cannot hold position or wait for small craft, because Fleet is hunting it. Skiffs do the small work.</li>
       <li>Fleet lost a warship to pirates and kept it secret, for fear of public opinion. Nobody at Saturn knew a warship was loose, so Meridian had no warning. Fleet is slow, far, and embarrassed.</li>
+      <li>Vigilant outguns Severance. Pell can run from Fleet, not fight it. This is his clock.</li>
       <li>Kestrel's dead stations are scattered and unregistered. Nobody knows which one the Scavengers live in.</li>
       <li>Forty hours of air for three people sets the clock of act two.</li>
       <li>The recorder module holds the last hours and the ship's long archive.</li>
@@ -861,7 +863,7 @@
       <li>Calloway's fate in the duel.</li>
       <li>Pell's fate with Severance when Fleet arrives.</li>
       <li>The Scavengers' name for themselves: keep "Scavengers" and take the insult back, or a name of their own.</li>
-      <li>Final names for every (tbd) entry: Kettle, Vigilant.</li>
+      <li>Final name for the Kettle.</li>
       <li>The main comic's title.</li>
     </ul>
     <h2>Next</h2>
