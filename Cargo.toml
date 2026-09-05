@@ -320,6 +320,10 @@ name = "system_hud_indicators"
 path = "examples/systems/system_hud_indicators.rs"
 
 [[example]]
+name = "system_lock_line_of_sight"
+path = "examples/systems/system_lock_line_of_sight.rs"
+
+[[example]]
 name = "system_menu_boot"
 path = "examples/systems/system_menu_boot.rs"
 

@@ -251,6 +251,10 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
             Transform::from_scale(Vec3::splat(radius)),
             AsteroidRenderMesh(mesh),
             collider,
+            // Rock stops radio. A lock is a radio link, so this hull is what
+            // takes the lock scanner's line of sight away - on the COLLIDER,
+            // because that is what the scanner's ray meets.
+            RadarOccluder,
             ConnectedTo::default(),
             ColliderDensity(1.0),
             Visibility::Inherited,

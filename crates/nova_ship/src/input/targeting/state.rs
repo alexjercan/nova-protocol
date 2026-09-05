@@ -17,6 +17,17 @@ use crate::prelude::*;
 #[reflect(Component)]
 pub struct LockSignature(pub f32);
 
+/// Marks a collider that STOPS the radar: a lock is a radio link, and a body
+/// wearing this is opaque to it.
+///
+/// It rides the COLLIDER, not the body root, because the occlusion test is a
+/// ray cast and a ray hits colliders. A body whose collider lives on a child
+/// node - an asteroid, whose root carries the rigid body and whose child
+/// carries the hull - wears it on that child.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct RadarOccluder;
+
 /// Lock-acquisition tunables, reflected for the inspector.
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
@@ -277,6 +288,9 @@ pub enum CombatLockDrop {
     AllegianceFlip,
     /// The idle decay (D4): `COMBAT_DECAY_SECS` without combat activity.
     IdleDecay,
+    /// A body that stops radar came between the ship and the target - the
+    /// lock is a radio link, and the link was broken. See [`RadarOccluder`].
+    Occluded,
 }
 
 /// The combat lock was dropped by the upkeep, with the branch that dropped

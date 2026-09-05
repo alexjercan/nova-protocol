@@ -9,6 +9,7 @@ use nova_gameplay::prelude::*;
 use super::{
     contacts::{collect_lockable, Lockable, LockableQuery},
     gesture::RadarHoldInput,
+    occlusion::RadarScan,
 };
 use crate::prelude::*;
 
@@ -45,6 +46,7 @@ pub(super) fn update_radar_search(
     look_ray: ActiveLookRay,
     time: Res<Time>,
     settings: Res<TargetingSettings>,
+    scan: RadarScan,
     q_candidates: LockableQuery,
     q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
     mut acquired_cue: MessageWriter<RadarLockAcquired>,
@@ -83,6 +85,7 @@ pub(super) fn update_radar_search(
         let origin = live_structure_anchor(transform, com);
         let aim = (aim_rotation * Vec3::NEG_Z).normalize();
         let candidates = collect_lockable(
+            &scan,
             &q_candidates,
             &settings,
             origin,
@@ -360,6 +363,10 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.init_resource::<TargetingSettings>();
+        // The lock scanner's line-of-sight ray reads avian's collider trees.
+        // Empty here, which is the point: these rigs are about the RANGE
+        // model, and nothing in them stands between the ship and a candidate.
+        world.init_resource::<avian3d::collider_tree::ColliderTrees>();
         world.init_resource::<Messages<RadarLockAcquired>>();
         world.init_resource::<Messages<RadarRetargeted>>();
         world.spawn((

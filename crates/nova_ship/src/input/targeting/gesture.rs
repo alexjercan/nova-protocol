@@ -221,6 +221,10 @@ mod tests {
             Duration::from_millis(50),
         ));
         app.init_resource::<TargetingSettings>();
+        // The lock scanner's line-of-sight ray reads avian's collider trees.
+        // Empty here: these tests are about the gesture, and nothing in them
+        // stands between the ship and a candidate.
+        app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         // These gesture tests exercise the LATCH / keep-last / tap-clear
         // axis, which is orthogonal to the acquisition dwell. Neutralize the
         // dwell to zero here so a candidate commits the moment it settles

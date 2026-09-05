@@ -7,6 +7,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
+use super::occlusion::RadarScan;
 use crate::prelude::*;
 
 /// Maximum distance at which the aim-assist will lock a target - the ceiling
@@ -99,7 +100,16 @@ pub(super) type LockableQuery<'w, 's> = Query<
 /// - `incumbents` (current locks / the radar candidate) hold a little beyond
 ///   their gate ([`TargetingSettings::range_hysteresis`]) so a body at the
 ///   boundary cannot strobe its lock as the ship drifts.
+/// - Line of sight: a lock is a radio link, so a body that stops radar
+///   ([`RadarOccluder`] - an asteroid) standing between the scanner and the
+///   candidate takes the candidate out of the set. Cover is cover, for the
+///   pick, for lock validity and for the threat arrows alike.
+///
+/// The occlusion ray is cast LAST, after the cheap component and range
+/// rejects, so the frame pays for one ray per body it could otherwise lock
+/// rather than one per body in the world.
 pub(super) fn collect_lockable(
+    scan: &RadarScan,
     q_candidates: &LockableQuery,
     settings: &TargetingSettings,
     origin: Vec3,
@@ -151,6 +161,9 @@ pub(super) fn collect_lockable(
                 if position.distance_squared(origin) > max_range * max_range {
                     return None;
                 }
+                if scan.is_occluded(origin, position, entity) {
+                    return None;
+                }
                 let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
                 let is_combat_target = is_ship || is_torpedo.is_some();
                 Some((entity, position, is_hostile, is_combat_target))
@@ -173,6 +186,7 @@ pub(super) fn update_contacts_and_locks(
     time: Res<Time>,
     look_ray: ActiveLookRay,
     settings: Res<TargetingSettings>,
+    scan: RadarScan,
     q_candidates: LockableQuery,
     q_flipped: Query<(), Changed<Allegiance>>,
     q_allegiances: Query<&Allegiance>,
@@ -227,6 +241,7 @@ pub(super) fn update_contacts_and_locks(
         // sections.
         let origin = live_structure_anchor(transform, com);
         let candidates = collect_lockable(
+            &scan,
             &q_candidates,
             &settings,
             origin,
@@ -245,15 +260,17 @@ pub(super) fn update_contacts_and_locks(
         }
         let mut combat_now = still(combat.0);
         // Name the branch that let go, rather than leaving the owner (and any
-        // future investigation) to infer it from the wreckage. A target
-        // that vanished from the candidate set is either GONE (despawned, or
-        // no longer a lockable body at all) or merely OUT OF RANGE, and the
-        // query tells the two apart.
+        // future investigation) to infer it from the wreckage. A target that
+        // vanished from the candidate set is GONE (despawned, or no longer a
+        // lockable body at all), BEHIND COVER, or merely OUT OF RANGE, and the
+        // query with one more ray tells the three apart.
         if let (Some(target), None) = (combat.0, combat_now) {
-            let reason = if q_candidates.get(target).is_ok() {
-                CombatLockDrop::OutOfRange
-            } else {
-                CombatLockDrop::TargetGone
+            let reason = match q_candidates.get(target) {
+                Err(_) => CombatLockDrop::TargetGone,
+                Ok((_, at, ..)) if scan.is_occluded(origin, at.translation(), target) => {
+                    CombatLockDrop::Occluded
+                }
+                Ok(_) => CombatLockDrop::OutOfRange,
             };
             report_combat_lock_drop(&mut dropped, target, reason, decay.0);
         }
@@ -508,6 +525,10 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.init_resource::<TargetingSettings>();
+        // The lock scanner's line-of-sight ray reads avian's collider trees.
+        // Empty here, which is the point: this rig is about validity and
+        // decay, and nothing in it stands between the ship and a target.
+        world.init_resource::<avian3d::collider_tree::ColliderTrees>();
         world.init_resource::<Messages<CombatLockDropped>>();
         let travel_target = world
             .spawn((

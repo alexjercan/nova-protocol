@@ -315,6 +315,7 @@ fn a_dropped_combat_lock_says_why_in_the_flight_log() {
         (CombatLockDrop::OutOfRange, 1.0),
         (CombatLockDrop::AllegianceFlip, 2.0),
         (CombatLockDrop::IdleDecay, 30.0),
+        (CombatLockDrop::Occluded, 0.0),
     ] {
         app.world_mut().write_message(CombatLockDropped {
             target,
@@ -325,7 +326,7 @@ fn a_dropped_combat_lock_says_why_in_the_flight_log() {
     app.update();
 
     let lines = flight_log_entry_texts(&app);
-    assert_eq!(lines.len(), 4, "one line per drop: {lines:?}");
+    assert_eq!(lines.len(), 5, "one line per drop: {lines:?}");
     assert!(
         lines.iter().all(|line| line.starts_with("SYS ! ")),
         "the ship reports these, nobody says them: {lines:?}"
@@ -338,11 +339,12 @@ fn a_dropped_combat_lock_says_why_in_the_flight_log() {
         "the decay names the clock that ran out: {}",
         lines[3]
     );
+    assert!(lines[4].contains("behind cover"), "{}", lines[4]);
 
     app.update();
     assert_eq!(
         flight_log_entry_texts(&app).len(),
-        4,
+        5,
         "a drained message does not log again"
     );
 }

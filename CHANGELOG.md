@@ -56,6 +56,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A fired slug leaves an ionized wake: cyan haze along its path, violet
   filaments through it, gone in half a second. A blue light rides the slug and
   lights the hulls it passes; Low draws neither.
+- Radar lock is a radio link, and rock stops radio: an asteroid between the
+  ship and a contact takes it off the lockable list, and one drifting across
+  a held lock breaks it. AI targeting is unchanged.
 
 ### Scenarios & Objectives
 - Nav beacons are radar-acquirable within 12 km by default, up from 6 km.

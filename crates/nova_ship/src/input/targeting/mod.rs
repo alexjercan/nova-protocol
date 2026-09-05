@@ -41,6 +41,7 @@ use nova_gameplay::prelude::*;
 mod component_lock;
 mod contacts;
 mod gesture;
+mod occlusion;
 pub mod radar;
 pub mod safety;
 mod state;
@@ -63,8 +64,9 @@ pub use self::{
     gesture::RADAR_TAP_SECS,
     state::{
         targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped,
-        LockClearedToast, LockSignature, RadarDenied, RadarLockAcquired, RadarRetargeted,
-        RadarSlot, RadarState, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
+        LockClearedToast, LockSignature, RadarDenied, RadarLockAcquired, RadarOccluder,
+        RadarRetargeted, RadarSlot, RadarState, TargetingSettings, ThreatContacts, TravelLock,
+        WeaponsHot,
     },
 };
 
@@ -74,9 +76,9 @@ pub mod prelude {
     pub use super::{
         targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped, ComponentLock,
         ComponentLockMode, LockClearedToast, LockFocus, LockSignature, RadarDenied,
-        RadarLockAcquired, RadarRetargeted, RadarSlot, RadarState, SpaceshipTargetingPlugin,
-        SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
-        COMBAT_DECAY_SECS, RADAR_TAP_SECS,
+        RadarLockAcquired, RadarOccluder, RadarRetargeted, RadarSlot, RadarState,
+        SpaceshipTargetingPlugin, SpaceshipTargetingSystems, TargetingSettings, ThreatContacts,
+        TravelLock, WeaponsHot, COMBAT_DECAY_SECS, RADAR_TAP_SECS,
     };
 }
 
@@ -96,6 +98,7 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.init_resource::<TargetingSettings>();
         app.register_type::<TargetingSettings>();
         app.register_type::<LockSignature>();
+        app.register_type::<RadarOccluder>();
         app.register_type::<TravelLock>();
         app.register_type::<CombatLock>();
         app.register_type::<RadarState>();

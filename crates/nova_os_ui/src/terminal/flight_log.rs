@@ -129,6 +129,7 @@ fn combat_lock_drop_line(drop: &CombatLockDropped) -> String {
             "Combat lock released: {COMBAT_DECAY_SECS:.0} s without combat (idle {:.0} s).",
             drop.idle_secs
         ),
+        CombatLockDrop::Occluded => "Combat lock lost: target behind cover.".to_string(),
     }
 }
 

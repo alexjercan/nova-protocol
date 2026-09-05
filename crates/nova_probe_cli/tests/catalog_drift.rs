@@ -409,6 +409,15 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_lock_line_of_sight",
+        &[
+            "a clear line takes the lock",
+            "cover breaks a held lock",
+            "cover keeps a lock from being taken",
+            "a cleared line gives the lock back",
+        ],
+    ),
+    (
         "system_menu_boot",
         &[
             "F5 restarts the game onto the content on disk",
@@ -555,7 +564,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 230;
+const SYSTEMS_INVARIANTS: usize = 234;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
