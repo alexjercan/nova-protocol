@@ -191,10 +191,9 @@ reader believes the hero is dead, the same as the crew.
 
 ## Branches
 
-- **Midpoint bad ending (game and comic).** Trust Calloway, hand over the
+- **Midpoint bad ending (game only).** Trust Calloway, hand over the
   module, fly the GOTO, get blasted on the approach. Short, early, and it
-  teaches the player what the company is. The comic shows it as a single
-  "the other choice" page.
+  teaches the player what the company is. The comic does not show it.
 - **Argument fork (game only).** The game may offer EWI's deal or Fleet's
   protection as branches from beat 8. The comic follows one line: Pell's side
   on the crew's terms.
