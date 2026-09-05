@@ -6,6 +6,22 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
+/// How long a ship may be off the ring before its partial lap is written off.
+///
+/// ORBIT is a maneuver the autopilot FLIES, not a pose the ship holds. Leaving
+/// `Hold` only means the velocity error grew past the hold band, and `Align`
+/// and `Burn` are the correction that puts the ship back on the ring - so
+/// dropping lap progress the moment `Hold` ends drops it for the autopilot
+/// doing its job. Three quarters of a lap could go to one nudge, with nothing
+/// on screen to say why, and the player would fly the same ring again and
+/// again wondering what they were doing wrong.
+///
+/// The honest line between "correcting" and "gone" is TIME, not phase: long
+/// enough to cover any correction the autopilot makes on the ring, short
+/// enough that a ship knocked off it, or flown off it deliberately, starts its
+/// lap again.
+pub const ORBIT_LAP_GRACE_SECS: f32 = 5.0;
+
 /// Last reported ORBIT state for one ship.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
@@ -16,9 +32,19 @@ pub(super) struct OrbitEcho {
     pub well_id: String,
     /// Whether stable station-keeping was last reported.
     pub stable: bool,
+    /// Whether the ship has reached its ring and is banking lap progress.
+    ///
+    /// Raised by the first `Hold` and cleared only by a departure longer than
+    /// [`ORBIT_LAP_GRACE_SECS`]. Counting has to start at the RING rather than
+    /// at the verb: the insertion approach curves around the well and can
+    /// sweep most of a revolution before the ship is on any ring at all.
+    pub inserted: bool,
+    /// Seconds the ship has been continuously outside `Hold`, zero while it
+    /// holds. Measured against [`ORBIT_LAP_GRACE_SECS`].
+    pub off_ring: f32,
     /// Previous unit direction from the well to the ship.
     pub previous_radial: Option<Vec3>,
-    /// Net angular travel since stability began or the last reported lap.
+    /// Net angular travel since the ring was reached or the last reported lap.
     pub angular_travel: f32,
 }
 
@@ -48,12 +74,18 @@ fn orbit_info(
 /// leaving `Hold` while ORBIT remains engaged is unstable. A surviving ship
 /// that leaves ORBIT emits only end, not unstable followed by end. Despawned
 /// ships use `OnDestroyed` and intentionally emit no orbit-end event.
+///
+/// Lap progress is tracked on a longer fuse than the stability label: it
+/// starts at the ring, accumulates through every phase the autopilot flies
+/// there, and is written off only by a departure outlasting
+/// [`ORBIT_LAP_GRACE_SECS`].
 #[expect(
     clippy::type_complexity,
     reason = "one query snapshots the complete orbit transition"
 )]
 pub(super) fn track_orbit_transitions(
     mut commands: Commands,
+    time: Res<Time>,
     mut q_ships: Query<
         (
             Entity,
@@ -110,6 +142,8 @@ pub(super) fn track_orbit_transitions(
                     well,
                     well_id: well_id.0.clone(),
                     stable,
+                    inserted: stable,
+                    off_ring: 0.0,
                     previous_radial: orbit_radial(ship, well, &q_transforms),
                     angular_travel: 0.0,
                 });
@@ -132,23 +166,39 @@ pub(super) fn track_orbit_transitions(
                 echo.well = well;
                 echo.well_id = well_id.0.clone();
                 echo.stable = stable;
-                echo.previous_radial = orbit_radial(ship, well, &q_transforms);
-                echo.angular_travel = 0.0;
-            }
-            Some(mut echo) if echo.stable != stable => {
-                let info = orbit_info(&echo.well_id, ship_id, ship_type_name);
-                if stable {
-                    commands.fire::<OnOrbitStableEvent>(info);
-                } else {
-                    commands.fire::<OnOrbitUnstableEvent>(info);
-                }
-                echo.stable = stable;
+                echo.inserted = stable;
+                echo.off_ring = 0.0;
                 echo.previous_radial = orbit_radial(ship, well, &q_transforms);
                 echo.angular_travel = 0.0;
             }
             Some(mut echo) => {
-                let radial = orbit_radial(ship, well, &q_transforms);
+                if echo.stable != stable {
+                    let info = orbit_info(&echo.well_id, ship_id, ship_type_name);
+                    if stable {
+                        commands.fire::<OnOrbitStableEvent>(info);
+                    } else {
+                        commands.fire::<OnOrbitUnstableEvent>(info);
+                    }
+                    echo.stable = stable;
+                }
+
+                // The stability LABEL is an edge; lap progress is not. Holding
+                // puts the ship on the ring and keeps it there, and any other
+                // phase is the autopilot flying it back, so the clock - not the
+                // phase - decides when the ring was abandoned.
                 if stable {
+                    echo.off_ring = 0.0;
+                    echo.inserted = true;
+                } else {
+                    echo.off_ring += time.delta_secs();
+                    if echo.off_ring > ORBIT_LAP_GRACE_SECS {
+                        echo.inserted = false;
+                        echo.angular_travel = 0.0;
+                    }
+                }
+
+                let radial = orbit_radial(ship, well, &q_transforms);
+                if echo.inserted {
                     if let (Some(previous), Some(current), Some(plan)) =
                         (echo.previous_radial, radial, plan)
                     {
@@ -882,6 +932,209 @@ mod tests {
         assert_eq!(
             app.world().resource::<NovaEventWorld>().get_variable("lap"),
             Some(&VariableLiteral::Number(1.0))
+        );
+    }
+
+    /// Seconds of tracker clock one [`LapRig`] tick advances.
+    const TICK_SECS: f32 = 0.1;
+    /// Ticks per revolution. A lap therefore takes 36 s, so
+    /// [`ORBIT_LAP_GRACE_SECS`] is a seventh of one - roughly the proportion a
+    /// real orbit has, and the reason the grace can be generous about a
+    /// correction without ever covering a whole lap.
+    const TICKS_PER_LAP: u32 = 360;
+    /// Enough ticks to pass TAU from a standing start. One more than
+    /// [`TICKS_PER_LAP`] because the tick that creates the echo has no
+    /// previous radial to measure an arc against, plus slack that is nowhere
+    /// near a second lap.
+    const TICKS_TO_CLOSE_A_LAP: u32 = TICKS_PER_LAP + 10;
+
+    /// One ship flying one ring around one well, on a clock the TEST owns:
+    /// every tick advances the tracker by exactly [`TICK_SECS`] and the ship
+    /// by one step of arc, whatever the wall clock did.
+    struct LapRig {
+        app: App,
+        ship: Entity,
+        flown: u32,
+    }
+
+    impl LapRig {
+        fn new() -> Self {
+            use nova_events::prelude::{EventHandler, GameEventsPlugin};
+            use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
+            use nova_ship::prelude::{Autopilot, AutopilotAction, AutopilotPhase, OrbitPlan};
+
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+            app.init_resource::<NovaEventWorld>();
+            app.init_resource::<GameObjectives>();
+            // A test measured in seconds off the ring cannot read the wall
+            // clock. `ManualDuration` is the only lever that survives the
+            // frame: writing the generic `Time` directly is undone when
+            // `RunFixedMainLoop` restores it between `PreUpdate` and `Update`.
+            app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::from_secs_f32(TICK_SECS),
+            ));
+            app.add_systems(Update, track_orbit_transitions);
+
+            let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbitLap);
+            handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: "lap".to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name("lap")),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                ),
+            }));
+            app.world_mut().spawn(handler);
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable("lap".to_string(), VariableLiteral::Number(0.0));
+
+            let well = app
+                .world_mut()
+                .spawn((
+                    EntityId::new("well"),
+                    GlobalTransform::from_translation(Vec3::ZERO),
+                ))
+                .id();
+            let ship = app
+                .world_mut()
+                .spawn((
+                    SpaceshipRootMarker,
+                    EntityId::new("ship"),
+                    EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                    GlobalTransform::from_translation(Vec3::X),
+                    Autopilot {
+                        action: AutopilotAction::Orbit {
+                            well,
+                            plan: Some(OrbitPlan {
+                                radius: 1.0,
+                                normal: Vec3::Y,
+                            }),
+                        },
+                        phase: AutopilotPhase::Align,
+                    },
+                ))
+                .id();
+            // The first update carries a zero delta and only opens the echo;
+            // the ring is flown from the second onward.
+            app.update();
+            Self {
+                app,
+                ship,
+                flown: 0,
+            }
+        }
+
+        /// Fly `ticks` more of the ring in `phase`, in the plan's travel
+        /// direction. The ship keeps going round whatever the phase says -
+        /// that is the point: `Align` and `Burn` here are the autopilot
+        /// correcting ON the ring, not the ship leaving it.
+        fn fly(&mut self, phase: nova_ship::prelude::AutopilotPhase, ticks: u32) {
+            use nova_ship::prelude::Autopilot;
+
+            for _ in 0..ticks {
+                self.app
+                    .world_mut()
+                    .get_mut::<Autopilot>(self.ship)
+                    .unwrap()
+                    .phase = phase;
+                self.flown += 1;
+                let theta = std::f32::consts::TAU * f32::from(u16::try_from(self.flown).unwrap())
+                    / f32::from(u16::try_from(TICKS_PER_LAP).unwrap());
+                self.app.world_mut().entity_mut(self.ship).insert(
+                    GlobalTransform::from_translation(Vec3::new(theta.cos(), 0.0, -theta.sin())),
+                );
+                self.app.update();
+            }
+        }
+
+        /// Laps reported so far. Settles the two frames the event queue needs
+        /// to hand the last tick's fire to its handler.
+        fn laps(&mut self) -> f64 {
+            self.app.update();
+            self.app.update();
+            match self
+                .app
+                .world()
+                .resource::<NovaEventWorld>()
+                .get_variable("lap")
+            {
+                Some(VariableLiteral::Number(laps)) => *laps,
+                other => panic!("lap count missing: {other:?}"),
+            }
+        }
+    }
+
+    /// A correction does not cost the lap. Leaving `Hold` only means the
+    /// velocity error grew past the hold band; the autopilot is still flying
+    /// the ring, and it is back inside the band well within
+    /// [`ORBIT_LAP_GRACE_SECS`]. Zeroing progress there loses three quarters of
+    /// a revolution to one nudge, with nothing on screen to say why, and the
+    /// player flies the same ring again wondering what they did wrong.
+    #[test]
+    fn a_correction_burn_on_the_ring_does_not_erase_the_lap() {
+        use nova_ship::prelude::AutopilotPhase;
+
+        let mut rig = LapRig::new();
+        rig.fly(AutopilotPhase::Hold, 270);
+        // Two seconds off the band, comfortably inside the grace.
+        rig.fly(AutopilotPhase::Burn, 20);
+        rig.fly(AutopilotPhase::Hold, TICKS_TO_CLOSE_A_LAP - 290);
+        assert_eq!(
+            rig.laps(),
+            1.0,
+            "the ring was flown once; a mid-lap correction is not a new lap"
+        );
+    }
+
+    /// A ship that actually leaves the ring starts again. The grace is a
+    /// correction budget, not an amnesty: past [`ORBIT_LAP_GRACE_SECS`] the
+    /// partial lap is written off and only a return to `Hold` starts banking
+    /// again, so `OnOrbitLap` keeps meaning a lap OF THE ORBIT.
+    ///
+    /// Reads as a real assertion only because
+    /// `a_correction_burn_on_the_ring_does_not_erase_the_lap` proves this rig
+    /// can report a lap at all.
+    #[test]
+    fn a_ship_that_leaves_the_ring_for_longer_than_the_grace_starts_its_lap_again() {
+        use nova_ship::prelude::AutopilotPhase;
+
+        let mut rig = LapRig::new();
+        rig.fly(AutopilotPhase::Hold, 270);
+        // Ten seconds away: twice the grace, so the ring counts as abandoned.
+        rig.fly(AutopilotPhase::Align, 100);
+        assert_eq!(rig.laps(), 0.0, "the departure landed inside the lap");
+        rig.fly(AutopilotPhase::Hold, 300);
+        assert_eq!(
+            rig.laps(),
+            0.0,
+            "progress restarted at the ring, so five sixths of a lap is not one"
+        );
+    }
+
+    /// Counting starts at the RING, not at the verb. An insertion curves
+    /// around the well and can sweep a whole revolution before the ship is on
+    /// any ring at all; banking that would complete a lap objective for flying
+    /// TO the planetoid.
+    #[test]
+    fn the_approach_to_the_ring_banks_no_lap_progress() {
+        use nova_ship::prelude::AutopilotPhase;
+
+        let mut rig = LapRig::new();
+        rig.fly(AutopilotPhase::Align, TICKS_TO_CLOSE_A_LAP);
+        assert_eq!(
+            rig.laps(),
+            0.0,
+            "a full revolution flown while still reaching for the ring is not a lap"
+        );
+        rig.fly(AutopilotPhase::Hold, TICKS_TO_CLOSE_A_LAP);
+        assert_eq!(
+            rig.laps(),
+            1.0,
+            "the first lap is the first one on the ring"
         );
     }
 

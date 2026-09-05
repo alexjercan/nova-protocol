@@ -2981,8 +2981,6 @@ Deliberate, and each is a change the owner should choose:
   render observer, which is a bigger move than a review fix.
 - **`area.rs:181`** - `AreaOccupancy` is keyed on the body avian stamps once. A
   re-key needs a `ColliderOf` observer.
-- **`trackers.rs:130,141`** - one tick out of `Hold` zeroes lap progress. That
-  is an authoring decision (forgiving vs strict laps), not a defect to patch.
 - **`scripts/generate-campaign-portraits.py`** has no `--check` and no docs.
 - **`nova_info/build.rs`** does not watch the packed ref, so a debug build can
   stamp a stale commit after a `git gc`.
@@ -3032,3 +3030,40 @@ Run at the end of the pass, on the whole tree:
 The full workspace test suite was not run - it OOMs this box. Every crate the
 pass touched was tested by `--lib` or by the specific integration target,
 and the red groups the review named were re-run by name.
+
+## Follow-up: the lap-progress reset (2026-09-05)
+
+Taken off the "left" list at the owner's call: anything the computer does
+during ORBIT should count.
+
+`trackers.rs` zeroed `angular_travel` on every stability edge, so one tick out
+of `Hold` cost the whole partial lap. But leaving `Hold` only means the
+velocity error grew past the hold band - `Align` and `Burn` during ORBIT are
+the autopilot putting the ship BACK on the ring. Discarding progress there
+discards it for the autopilot doing its job.
+
+Lap progress now:
+
+- **starts at the ring, not at the verb.** An `inserted` flag is raised by the
+  first `Hold`. The insertion approach curves around the well and could sweep
+  most of a revolution before the ship is on any ring, so counting from
+  engagement would complete a lap objective for flying TO the planetoid.
+- **survives every phase flown on the ring.** `Align` and `Burn` accumulate
+  exactly like `Hold`.
+- **is written off by TIME, not phase.** `ORBIT_LAP_GRACE_SECS` (5 s) is the
+  correction budget; past it the ring counts as abandoned, progress resets and
+  only a return to `Hold` starts banking again.
+
+`Burn` was NOT excluded, which was the other option on the table: during ORBIT
+the only burn is the correction, so excluding it would lose the lap for the
+very act of fixing a wobble - the same defect one level down. Time is the
+honest discriminator between "correcting" and "gone".
+
+The stability LABEL is unchanged: `OnOrbitStable` and `OnOrbitUnstable` still
+fire on the `Hold` edge, and `orbit_lifecycle_events_are_edge_triggered` still
+passes untouched. Only lap progress runs on the longer fuse.
+
+Three pins, in `trackers.rs`: a correction keeps the lap, a departure past the
+grace restarts it, and the approach banks nothing. The first was proven
+non-vacuous by setting the grace to 0 - the old behaviour - and watching it go
+red.

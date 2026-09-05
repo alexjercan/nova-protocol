@@ -300,7 +300,7 @@ pub struct OnOrbitStartEvent;
 #[event_info(OrbitEventInfo)]
 pub struct OnOrbitStableEvent;
 
-/// A ship completed one net revolution in stable ORBIT around a well.
+/// A ship completed one net revolution of its ORBIT ring around a well.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onorbitlap")]
 #[event_info(OrbitEventInfo)]

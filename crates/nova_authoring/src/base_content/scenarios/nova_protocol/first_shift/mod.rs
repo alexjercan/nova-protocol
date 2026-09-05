@@ -1023,9 +1023,9 @@ pub(crate) fn first_shift(
             // Stable station-keeping opens the crew's one unguarded
             // conversation. Progress itself comes from physical angular travel.
             orbit_conversation(),
-            // One complete stable revolution arms a near-side gate. Because the
-            // lap began behind the body, Cutter must continue another half-turn
-            // before Meridian has direct sight again.
+            // One complete revolution of the ring arms a near-side gate.
+            // Because the lap began behind the body, Cutter must continue
+            // another half-turn before Meridian has direct sight again.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnOrbitLap,

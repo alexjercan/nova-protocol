@@ -30,7 +30,7 @@ The whole vocabulary at a glance:
 | [`OnStopComplete`](#player-maneuver-completion) | `id`, `type_name` | the player's STOP comes to rest |
 | [`OnOrbitStart`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | an ORBIT maneuver starts |
 | [`OnOrbitStable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | ORBIT enters stable station-keeping |
-| [`OnOrbitLap`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | one net stable revolution completes |
+| [`OnOrbitLap`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | one net revolution of the ring completes |
 | [`OnOrbitUnstable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | stable station-keeping is lost |
 | [`OnOrbitEnd`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | a surviving ship ends ORBIT |
 | [`OnTravelLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock lands |
@@ -521,8 +521,15 @@ Five events describe ORBIT without hidden timing: `OnOrbitStart`,
 - `OnOrbitStable`: velocity error enters the autopilot's stable Hold band. It
   can fire again after stability is recovered.
 - `OnOrbitLap`: the ship accumulates one net revolution in the planned travel
-  direction while stable. Losing stability resets partial-lap progress. It
-  fires again for each later complete lap.
+  direction. It fires again for each later complete lap.
+
+  Counting starts when the ship first reaches the ring, not when the verb
+  engages: the approach curves around the well and would otherwise bank most of
+  a lap before the orbit began. From there it survives everything the autopilot
+  does on the ring - an ORBIT that drops out of the stable band is correcting,
+  not leaving - and only an absence of five seconds or more writes the partial
+  lap off and starts it again at the ring. A lap objective therefore does not
+  punish a player for one nudge.
 - `OnOrbitUnstable`: velocity error leaves Hold while ORBIT stays engaged.
 - `OnOrbitEnd`: a surviving ship cancels ORBIT, changes verb, loses flight
   capability, loses the well, or switches wells. Ship destruction emits only

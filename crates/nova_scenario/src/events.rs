@@ -47,7 +47,8 @@ pub enum EventConfig {
     OnOrbitStart,
     /// An ORBIT maneuver entered stable station-keeping.
     OnOrbitStable,
-    /// One net revolution completed while ORBIT remained stable.
+    /// One net revolution of the ORBIT ring completed. Corrections on the
+    /// ring keep counting; only a sustained departure restarts the lap.
     OnOrbitLap,
     /// Stable station-keeping was lost while ORBIT remained engaged.
     OnOrbitUnstable,

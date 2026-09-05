@@ -761,10 +761,16 @@ the committed `assets/base/scenarios/*.content.ron`, `base.bundle.ron` lists
 them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 `GameScenarios` like any mod's. `content_ron_parity` pins builders == RON.
 
-The orbit tracker derives lifecycle edges from live autopilot state. While the
-maneuver is stable, it also sums signed radial-angle changes around the sticky
-orbit plane. Each net revolution fires `OnOrbitLap`; losing stability resets a
-partial lap, so authored lap objectives need no guessed timer.
+The orbit tracker derives lifecycle edges from live autopilot state. Once the
+ship first reaches `Hold` it also sums signed radial-angle changes around the
+sticky orbit plane, and each net revolution fires `OnOrbitLap`. Counting starts
+at the RING, not at the verb, because the insertion approach curves around the
+well and would otherwise bank most of a lap for free. It then survives every
+phase the autopilot flies there - `Align` and `Burn` during ORBIT are the
+correction that puts the ship back on the ring, not a departure from it - and
+is written off only by an absence from `Hold` longer than
+`ORBIT_LAP_GRACE_SECS`. So authored lap objectives need no guessed timer, and
+one nudge does not silently cost the player three quarters of a revolution.
 
 ## Adding new pieces
 

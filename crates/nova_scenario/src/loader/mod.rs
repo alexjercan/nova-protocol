@@ -44,6 +44,7 @@ use lifecycle::{
     scenario_bindings, unload_scenario, ScenarioInputMarker,
 };
 use preload::register_scenario_preload;
+pub use trackers::ORBIT_LAP_GRACE_SECS;
 use trackers::{
     track_orbit_transitions, track_player_autopilot_completions, track_player_locks,
     track_ship_order_reports, LockEcho, OrbitEcho,
@@ -60,6 +61,7 @@ pub mod prelude {
         ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker,
         ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
         ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
+        ORBIT_LAP_GRACE_SECS,
     };
 }
 

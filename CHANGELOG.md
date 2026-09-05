@@ -159,8 +159,9 @@ does NOT get an entry - and it is the only place they are written down.
   teardown-safe authority without coupling control to camera actions.
 - `OnGotoComplete` and `OnStopComplete` let scenarios react when the player's
   real autopilot reaches its target or comes to rest.
-- `OnOrbitLap` fires on each net revolution a ship holds around a well, so a
-  scenario can gate on angular travel rather than on elapsed time.
+- `OnOrbitLap` fires on each net revolution of an ORBIT ring, so a scenario
+  gates on angular travel, not time. Counting starts at the ring and survives a
+  correction; five seconds off it restarts.
 - **(breaking)** Content is authored in meters: a 300 m blast is
   `blast_radius: 300`, so every world distance and speed is x10. Build-grid
   geometry - colliders, links, mounts, poses - stays in cells.
