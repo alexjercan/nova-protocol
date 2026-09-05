@@ -1,8 +1,8 @@
 # Write the story of Nova Protocol
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 68
-- TAGS: v0.13.0,content,scenario
+- TAGS: v0.13.0,content,scenario,wontdo
 
 ## Workspace
 
