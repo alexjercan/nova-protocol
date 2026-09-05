@@ -27,7 +27,7 @@ notices for them.
 | Group | What they are | Colour on the page |
 | --- | --- | --- |
 | Earth | Home. Where rights apply. Absent from the campaign. | none |
-| Earth Fleet | Earth's military. Owns the armoured ships. Lost one to pirates and is hunting it, slowly. | blue |
+| Earth Fleet | Earth's military. Owns the armoured ships. Lost one to pirates weeks ago and never announced it, for fear of public opinion. The hunt is quiet, slow, and far. Its silence is why Meridian had no warning. | blue |
 | EarthWorks Industrial (EWI) | Monopoly on space mining and ice. Buys or bankrupts every competitor. People are a line item. Slogan on every bay wall: WE ARE EXPANDING. | phosphor green |
 | Kestrel | Small honest ice miner. A few stations around Saturn, the Shelter the largest. Finished by EWI four years ago. Its people were bought, scattered, or joined Pell. | bone white |
 | The Scavengers | Pell's people: the volunteers who "died", Kestrel survivors, renewed workers, off-roster drifters. Years of scraping weapons and parts. Weeks ago they stole a Fleet warship. Mocked until then. | amber |
@@ -48,7 +48,7 @@ Open decisions).
 | Yusra Demir | Meridian Control | EWI | The voice on the radio. Dies in the strike. |
 | Aurelio Brandt | Meridian deck chief | EWI | Taught Pell to fit boats. Dies in the strike. |
 | Captain Vance (tbd) | Commander of Meridian today | EWI | Not the commander of four years ago. Dies in the strike. |
-| Commander Marsh | Earth Fleet, hunting the stolen ship | Earth Fleet | A competent officer in an incompetent service. Arrives late. |
+| Commander Marsh | Earth Fleet, hunting the stolen ship | Earth Fleet | A competent officer in an incompetent service. Hunts a ship Fleet never admitted losing. Arrives late. |
 | The Board | EWI leadership on Earth | EWI | Ordered the Shelter. Named at the end, untouched. |
 
 ## Ships and places
@@ -69,7 +69,7 @@ Naming scheme, so a name tells its group at once:
 | Parallax (tbd) | EWI's own security ship, bought when Fleet was cut. Calloway's ship. | EWI |
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
 | Kettle (tbd) | A dead Brightwater tender in the junk. The crew revives it: drive, two debris PDCs. The crew's ship from beat 5 on. | Brightwater, then the crew |
-| Resolute, renamed Severance (tbd) | The Fleet warship the Scavengers stole weeks ago. Strikes once and moves, because Fleet is hunting it. | Scavengers |
+| Resolute, renamed Severance (tbd) | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
 | Scavenger skiffs | Small scrap-built pirate ships. Sweep, pick, herd. | Scavengers |
 | Vigilant (tbd) | Marsh's ship, hunting Resolute. | Earth Fleet |
 | The Shelter | Kestrel Osprey Station, the largest. Died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay. Workers still call it the Shelter. | Kestrel, now EWI |
@@ -85,7 +85,7 @@ Naming scheme, so a name tells its group at once:
 | Weeks later | Kestrel folds. Survivors are bought (EWI contracts, settlements, silence clauses) or vanish. Halloran signs with EWI. The captain arrives from Earth into Cutter One's seat. The crew forms. |
 | The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there. Calloway is promoted to the desk. The Scavengers scrape. |
 | Last quarter | EWI finishes Brightwater. |
-| Weeks ago | The Scavengers steal Resolute from Fleet. Fleet begins to hunt. |
+| Weeks ago | The Scavengers steal Resolute from Fleet. Fleet keeps the loss secret and begins a quiet hunt. EWI is not told. |
 | Today, T+0 | Meridian arrives at the Brightwater site. Routine shift. The strike. |
 | T+0 to T+40h | Air. Survival in the junk, the module, the run, the midpoint. |
 | T+2 to T+5 days | The Roost. The argument. Azimuth's arrival. The climax at the Shelter. |
@@ -118,7 +118,8 @@ reader believes the hero is dead, the same as the crew.
 2. **The strike.** A voice on Control's guard channel that the cutter, on a
    work channel out in the junk, hears only in fragments. A hull with no
    fleet code comes out of the moonlet's shadow, kills Meridian, and leaves
-   at once. Skiffs sweep the field. The cutter hides in the junk. 412 dead.
+   at once. Nobody at Saturn was told a warship was missing. Skiffs sweep
+   the field. The cutter hides in the junk. 412 dead.
 
 ### Act two, first half: forty hours
 
@@ -178,7 +179,8 @@ reader believes the hero is dead, the same as the crew.
     from the rock it is about: the order, Calloway's voice, the no-rescue,
     Pell's refusal, this morning's shot. The sixty hear their officer's voice
     from four years ago. Azimuth's crew hears why. Calloway's fate: open.
-11. **Minute zero.** Fleet arrives late. Pell cannot hold Severance forever;
+11. **Minute zero.** Fleet arrives late, to a system that now knows what it
+    hid. Pell cannot hold Severance forever;
     what he does with it is open. The crew's contracts are voided for breach
     and Earth is a story. The Scavengers have proof and witnesses, a village
     becomes a cause, and the Board is named and untouched. The captain, two
@@ -216,7 +218,9 @@ Never a speech. Only habits and paperwork:
   tender.
 - Severance strikes once and moves. It cannot hold position or wait for
   small craft, because Fleet is hunting it. Skiffs do the small work.
-- Fleet lost a warship to pirates. It is slow, far, and embarrassed.
+- Fleet lost a warship to pirates and kept it secret, for fear of public
+  opinion. Nobody at Saturn knew a warship was loose, so Meridian had no
+  warning. Fleet is slow, far, and embarrassed.
 - Kestrel's dead stations are scattered and unregistered. Nobody knows which
   one the Scavengers live in.
 - Forty hours of air for three people sets the clock of act two.
