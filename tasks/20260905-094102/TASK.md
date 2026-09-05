@@ -6,7 +6,9 @@
 
 ## Workspace
 
-- `STORY.md`: the story backbone. Source of truth.
+- `STORY.md`: the full story document. Source of truth. World, characters,
+  locations, ships, names, timeline, both comics written out, the game
+  mapping, and the rules of the world.
 - `design.html`: the design document with the who-is-who tables, the system
   map, the timeline, and the storyboard draft of both comics. Published as
   the artifact "Off the Roster":
@@ -58,6 +60,12 @@ Owner decisions taken into `STORY.md`:
   Pell first appears at the Roost, on his own ground.
 
 Open: none. No chapter split yet.
+
+`STORY.md` was then expanded from the beat outline into the full document,
+with sections for the world, characters, locations and ships. The character
+and location sections add texture that the outline did not carry (Halloran
+flew Kestrel's Harrier, Brandt taught Okoro after Pell, Solberg came out of
+the Shelter on Pell's tender). The owner may strike any of it.
 
 Next: owner review of `design.html` and `STORY.md`, then split into cutscene
 scenarios and gameplay scenarios, then write the prologue and main comics.
