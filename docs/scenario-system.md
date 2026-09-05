@@ -127,7 +127,8 @@ A config is held together by STRINGS, and to the type system every one of them
 is a `String`: `SetAllegiance` names a ship, `TimerCancel` names a timer,
 `NextScenario` names a scenario. `Names` (`names.rs`) puts the difference on the
 field as a reflect attribute - `#[reflect(@Names::Object)]` and its
-`NewObject` / `Variable` / `Timer` / `Objective` / `Scenario` siblings - so
+`NewObject` / `Variable` / `Timer` / `Objective` / `Scenario` / `Order` /
+`Section` siblings - so
 anything walking a config by reflection can offer the ids in scope and mark one
 that resolves against nothing. The editor's inspector is the reader that exists;
 a surface keeping its own list of which field names what goes stale the day an
@@ -170,7 +171,7 @@ twice.
 
 ### What an action does that its RON cannot show
 
-Most actions are a straight write into `NovaEventWorld`. Five are not, and the
+Most actions are a straight write into `NovaEventWorld`. Six are not, and the
 difference is engine behaviour rather than authored syntax:
 
 - **`Outcome`** is not just an overlay. Setting one puts the app into

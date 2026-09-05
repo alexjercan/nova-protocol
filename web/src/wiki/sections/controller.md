@@ -32,7 +32,7 @@ The computer does not decide it on its own. A ship turns as hard as the lower of
 - **Its structure.** Hull metal takes 8 G and no more. The further the ship's furthest section sits from its balance point, the gentler the hardest turn that metal survives.
 
 <div class="widget" data-widget="controller-arm">
-<p>The shipped corvette carries its mass over a 27.6 m arm - balance point to the outer face of its furthest section, which is one of its drives. Hull metal takes 8 G, so that arm allows 2.84 rad/s^2 and no more, while the one flight computer in its fuselage could push 41.9 - fifteen times as hard. Shoot the nose off and the balance point slides aft: the arm drops to 24.3 m, the ceiling climbs to 3.23 rad/s^2, and the wreck flips 180 degrees in 1.97 s where the whole ship took 2.10 s. Both guns hang off that nose, so they sever away with it.</p>
+<p>The Ledger's corvette carries its mass over a 27.6 m arm - balance point to the outer face of its furthest section, which is one of its drives. Hull metal takes 8 G, so that arm allows 2.84 rad/s^2 and no more, while the one flight computer in its fuselage could push 41.9 - fifteen times as hard. Shoot the nose off and the balance point slides aft: the arm drops to 24.3 m, the ceiling climbs to 3.23 rad/s^2, and the wreck flips 180 degrees in 1.97 s where the whole ship took 2.10 s. Both guns hang off that nose, so they sever away with it.</p>
 </div>
 
 Every ship in the game today is held by the second one, with a wide margin on the first. Nothing authors the result - it falls out of the shape you built. A short craft swings on a short arm and whips around. A long hauler swings on a long arm and handles like the freighter it is.

@@ -147,7 +147,7 @@ impl AttitudeEnvelope {
 /// `parts` yields each live section as its translation and rotation in the
 /// hull's local frame plus its collider half extents - the same frame avian
 /// reports the centre of mass in. The convention is the section's FACE along
-/// the radial ray, not its centre and not its corner; on the shipped corvette
+/// the radial ray, not its centre and not its corner; on The Ledger's corvette
 /// those three read 2.76 u, 2.25 u and 2.88 u, so the choice is worth 28 % of
 /// the arm and has to be stated.
 ///

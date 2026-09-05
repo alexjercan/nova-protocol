@@ -1403,14 +1403,16 @@ mod tests {
     /// gauge would tell you a shell is back before it is.
     #[test]
     fn the_reload_column_sits_between_the_pulse_and_a_live_round() {
-        assert!(
-            RELOAD_ALPHA_END.1 < RELOAD_FILL_ALPHA,
-            "the column must read against the pulse it fills"
-        );
-        assert!(
-            RELOAD_FILL_ALPHA < LIT_ALPHA,
-            "a full column must still not read as a loaded round"
-        );
+        const {
+            assert!(
+                RELOAD_ALPHA_END.1 < RELOAD_FILL_ALPHA,
+                "the column must read against the pulse it fills"
+            );
+            assert!(
+                RELOAD_FILL_ALPHA < LIT_ALPHA,
+                "a full column must still not read as a loaded round"
+            );
+        }
     }
 
     /// A ring segment previews a batch of two hundred rounds, not a moment

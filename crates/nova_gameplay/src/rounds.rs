@@ -291,10 +291,6 @@ impl Plugin for NovaRoundPlugin {
 ///
 /// A round wearing [`RoundRake`] takes the wider path, which resolves the same
 /// contacts the same way and then also pays for what its trailing sphere swept.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one system owning the whole sweep beats splitting the round's step across two"
-)]
 fn advance_rounds(
     mut commands: Commands,
     time: Res<Time>,
@@ -1396,16 +1392,18 @@ mod tests {
         /// rather than clearing it inside one.
         const CRAWL_SPEED: f32 = 50.0;
 
-        assert!(
-            OVERLAPPING_LAYERS <= BITE_MEMORY,
-            "the ring must remember every layer a round can be resting inside \
-             at once; below {OVERLAPPING_LAYERS} the oldest is re-bitten"
-        );
-        assert!(
-            BITE_MEMORY <= MAX_BITES_PER_STEP,
-            "a round may resolve more layers in a step than it remembers - \
-             the forgotten ones are behind it - but never fewer"
-        );
+        const {
+            assert!(
+                OVERLAPPING_LAYERS <= BITE_MEMORY,
+                "the ring must remember every layer a round can be resting \
+                 inside at once; below that the oldest is re-bitten"
+            );
+            assert!(
+                BITE_MEMORY <= MAX_BITES_PER_STEP,
+                "a round may resolve more layers in a step than it remembers - \
+                 the forgotten ones are behind it - but never fewer"
+            );
+        }
 
         // STATIC, unlike `spawn_plate`'s free-floating slabs: eight dynamic
         // bodies born inside one another are eight bodies the solver throws

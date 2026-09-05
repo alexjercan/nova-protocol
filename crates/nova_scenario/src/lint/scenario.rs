@@ -813,6 +813,21 @@ fn check_action(
         EventActionConfig::SetAllegiance(config) => {
             check_target(&config.id, "SetAllegiance", scenario, satisfiable, issues);
         }
+        EventActionConfig::SetCameraAnchor(config) => {
+            check_target(
+                &config.anchor,
+                "SetCameraAnchor",
+                scenario,
+                satisfiable,
+                issues,
+            );
+            // The look-at target is a second scoped id, and it fails the same
+            // way: the shot silently falls back to the anchor and a cinematic
+            // frames the wrong thing.
+            if let CameraLookAtConfig::Object(id) = &config.look_at {
+                check_target(id, "SetCameraAnchor look_at", scenario, satisfiable, issues);
+            }
+        }
         EventActionConfig::MoveShipTo(config) => {
             check_orderable_ship(
                 &config.ship,
@@ -1101,8 +1116,8 @@ fn check_scripted_ship(
         scenario,
         format!(
             "{what} targets ship '{ship}', which is {driver}; a scripted action only \
-             drives a `SpaceshipController::None` ship (use `non_combatant` for an \
-             armed ship that flies itself and never shoots)"
+             drives a `SpaceshipController::None` ship. `non_combatant` does NOT \
+             help here - it holds an AI ship's fire, and the ship is still AI-driven"
         ),
     ));
 }
@@ -1274,6 +1289,16 @@ fn check_planet(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<
             format!(
                 "planet '{id}' needs a positive finite mean radius in meters, got {}",
                 planet.radius.0
+            ),
+        ));
+    }
+    if !planet.invulnerable {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "planet '{id}' authors `invulnerable: false`, and there is no destructible \
+                 planet: the body would take no damage marks, emit no collision events and \
+                 never fire OnDestroyed. Author `invulnerable: true`"
             ),
         ));
     }
@@ -2064,6 +2089,16 @@ mod tests {
                         ..sound()
                     },
                 ),
+                // There is no destructible planet. `false` builds a body with
+                // no damage marks and no collision events, so a mission
+                // authored around destroying it can never finish.
+                planet(
+                    "destructible",
+                    PlanetConfig {
+                        invulnerable: false,
+                        ..sound()
+                    },
+                ),
                 planet("sound", sound()),
             ],
             vec![],
@@ -2075,6 +2110,7 @@ mod tests {
             "relief_past_the_radius",
             "sea_above_the_peaks",
             "weightless_well",
+            "destructible",
         ] {
             assert!(
                 errs.iter()

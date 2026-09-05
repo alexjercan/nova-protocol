@@ -6,6 +6,44 @@ use nova_gameplay::{prelude::*, test_support::settle};
 
 use super::support::*;
 use crate::{flight::RcsReference, prelude::*};
+
+/// `Hold` is not a cosmetic label: `nova_scenario`'s `track_orbit_transitions`
+/// reads it as the definition of a stable orbit, and every scenario orbit event
+/// (stable, lap, and so the whole First Shift orbit beat) is gated on it. A
+/// flight retune that leaves the ring flown but never flips the phase would
+/// stall a chapter with nothing on screen to say why. This pins the phase in
+/// the geometry the campaign uses: a planetoid-strength well, where the trim
+/// runs on the main drive rather than RCS.
+#[test]
+fn a_strong_well_orbit_reaches_the_hold_phase_the_scenario_layer_reads() {
+    let mut app = orbit_app();
+    let well = spawn_strong_well(&mut app);
+    let (ship, _, _) = spawn_ship(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Transform::from_xyz(140.0, 0.0, 0.0));
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Orbit {
+            well,
+            plan: None,
+        }));
+
+    let mut held = false;
+    for _ in 0..8000 {
+        app.update();
+        if app.world().get::<Autopilot>(ship).map(|ap| ap.phase) == Some(AutopilotPhase::Hold) {
+            held = true;
+            break;
+        }
+    }
+    assert!(
+        held,
+        "station-keeping in a strong well must reach Hold - scenario orbit progress is gated on it"
+    );
+}
+
 /// Regression: the two menu ambience ships crashed the asteroid and could not
 /// hold orbit. In a STRONG well - local gravity accel above the RCS accel - the
 /// error-relative ORBIT trim must NOT take over station-keeping: a 1.5 u/s^2

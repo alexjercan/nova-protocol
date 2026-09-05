@@ -2,8 +2,8 @@
 //!
 //! Every built-in prototype is a generic mountable module: the base fleet is
 //! block-built, so no prototype here is a body part cut off one named craft.
-//! A mod that brings modelled craft brings their prototypes with them (The
-//! Ledger, task 20260824-125959).
+//! A mod that brings modelled craft brings their prototypes with them, as
+//! The Ledger does.
 //!
 //! CLADDING is not here and is not a prototype at all. A ship's skin is DERIVED
 //! from the structure it wraps - see `nova_ship`'s `shell_skin` - so no id names

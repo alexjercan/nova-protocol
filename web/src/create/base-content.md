@@ -115,13 +115,15 @@ modification on the mount.
 
 ## Impact rows
 
-The four rows of the [impact table](../impacts/), re-declarable by id to
-re-voice a hit for the whole game: `impact_kinetic` (the Kinetic default),
-`impact_kinetic_rock` (a slug on `"rock"`), `impact_pierce`, and
-`impact_explosive`.
+The rows of the [impact table](../impacts/), re-declarable by id to re-voice a
+hit for the whole game: `impact_kinetic`, `impact_pierce` and
+`impact_explosive` are the three damage-type defaults, and
+`impact_kinetic_rock`, `impact_kinetic_metal`, `impact_kinetic_ice`,
+`impact_kinetic_carbon` and `impact_kinetic_plain` are the stone rows, one per
+asteroid kind.
 
-The two materials the base game names are `"hull"` (every section) and
-`"rock"` (every asteroid).
+The materials the base game names are `"hull"` (every section) and the five
+asteroid kinds, which are the same ids an asteroid's `material` field takes.
 
 ## Scenario ids
 
@@ -224,8 +226,10 @@ base bundle resources, and are NOT dep-referenceable.)
 
 ### Images (6)
 
-- `textures/cubemap.png` - the stock skybox (chapter 1)
-- `textures/cubemap_alt.png` - the alternate skybox (chapter 2)
+- `textures/cubemap.png` - the stock skybox, and the sky both campaign chapters
+  are flown under
+- `textures/cubemap_alt.png` - the alternate skybox: a `SetSkybox` swap target
+  and what the editor sandbox loads
 - `textures/asteroid.png` - the asteroid surface texture
 - `thumbnails/first_shift.png`, `thumbnails/second_shift.png` - the picker plates
 - `banner.png` - the base mod's banner

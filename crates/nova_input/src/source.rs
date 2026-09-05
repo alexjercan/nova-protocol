@@ -410,7 +410,7 @@ impl InputSource {
                 ],
                 InputSource::Gamepad(button) => pad_names(*button),
             };
-            names.iter().any(|name| *name == wanted)
+            names.contains(&wanted)
         })
     }
 }

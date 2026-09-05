@@ -102,7 +102,7 @@ made of fails to load, and one that names a kind nobody ships is a `content
 lint` error and a refusal to render. A body this big in the frame does not get
 to be a shrug.
 
-**Migrating a file written before 0.12.0:** every `Asteroid((..))` needs a
+**Migrating a file written for 0.12.0 or earlier:** every `Asteroid((..))` needs a
 `material:` line. `material: "rock"` is what the old files were drawn as, so it
 is the mechanical migration; picking a kind per rock is the point of the field.
 A field scattered by [`ScatterObjects`](../actions/#scatterobjects) states its
@@ -149,7 +149,7 @@ with a big radius is a rock the size of a planet, and it looks like one.
 | `planet_type` | type name | required | `BarrenRock`, `DustWorld`, `IceWorld`, `Volcanic`, `Greenhouse` or `Temperate`. A name outside that list is a LOAD ERROR, not a fallback |
 | `radius` | number | required | MEAN radius in meters, and the body's real size. Unlike a rock's nominal radius, the surface stands only `1 + relief` off this - a few percent - so this is very nearly what everything measures from |
 | `seed` | number | required | which world of that type: the biome in every band, the cap latitude, the palette tint and the terrain itself. Required on purpose - a landmark cannot be a body the engine picked for you |
-| `invulnerable` | bool | required | `true` = weapons fire leaves it alone, and its gravity well survives the whole scenario |
+| `invulnerable` | bool | required | must be `true`: weapons fire leaves it alone and its gravity well survives the whole scenario. There is no destructible planet yet, so `false` is a `content lint` error and a load refusal rather than a body that silently cannot be destroyed |
 | `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = the global rule |
 | `relief` | `Option` number | `None` | how far the highest ground stands above the mean radius, in meters. `None` = the type's own (2% of the radius on a hazy greenhouse, 6% on a volcanic world). Must be positive and smaller than the radius |
 | `sea_level` | `Option` number | `None` | where the surface flattens into sea, as a fraction 0-1 of the height range. `Some(0.0)` drains a sea; `None` = the type's own (only `IceWorld` and `Temperate` have one) |

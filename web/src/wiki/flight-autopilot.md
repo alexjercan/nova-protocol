@@ -36,7 +36,7 @@ The autopilot verbs are the assist. Each writes to the _same_ actuators you use 
 - **STOP** - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.
 
 <div class="widget" data-widget="goto-verb">
-<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies the shipped corvette, so the resolved distance counts its hull as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
+<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies The Ledger's corvette, so the resolved distance counts its hull as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
 </div>
 
 <details class="explain">

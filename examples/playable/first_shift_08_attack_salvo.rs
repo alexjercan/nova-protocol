@@ -150,6 +150,7 @@ fn load(mut commands: Commands, assets: Res<GameAssets>, cli: Res<Cli>) {
         FirstShiftScene::AttackSalvo,
         assets.cubemap.clone().into(),
         assets.asteroid_texture.clone().into(),
+        &CampaignPortraits::from_game_assets(&assets),
     );
     place_ship(
         &mut scene,

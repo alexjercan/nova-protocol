@@ -55,26 +55,37 @@ default, because the round is what the player is listening to.
 Materials are open strings. A thing is made of one by saying so:
 
 - a [section](../sections/) sets `base.material`; omitted means `"hull"`.
-- an [asteroid](../objects/#asteroid) sets `material`; omitted means `"rock"`.
+- an [asteroid](../objects/#asteroid) sets `material`, which is also its KIND -
+  what it is made of and how it is drawn are one field. It is required, and an
+  id the kind table does not know is an error rather than a grey rock.
 
 Adding a material to the game is naming it on your objects and authoring the
 rows to hear it. Nothing else changes.
 
 ## Base rows
 
-The base game ships four rows - three defaults and one material:
+The base game ships eight rows - three defaults, then one Kinetic row per
+asteroid kind:
 
 | id | damage | material | sound |
 |---|---|---|---|
 | `impact_kinetic` | `Kinetic` | (default) | `dep://base/sounds/impact.wav` |
-| `impact_kinetic_rock` | `Kinetic` | `"rock"` | `dep://base/sounds/impact_rock.wav` |
 | `impact_pierce` | `Pierce` | (default) | `dep://base/sounds/impact_pierce.wav` |
 | `impact_explosive` | `Explosive` | (default) | `dep://base/sounds/impact_explosive.wav` |
+| `impact_kinetic_rock` | `Kinetic` | `"rock"` | `dep://base/sounds/impact_rock.wav` |
+| `impact_kinetic_metal` | `Kinetic` | `"metal"` | `dep://base/sounds/impact_rock.wav` |
+| `impact_kinetic_ice` | `Kinetic` | `"ice"` | `dep://base/sounds/impact_rock.wav` |
+| `impact_kinetic_carbon` | `Kinetic` | `"carbon"` | `dep://base/sounds/impact_rock.wav` |
+| `impact_kinetic_plain` | `Kinetic` | `"plain"` | `dep://base/sounds/impact_rock.wav` |
 
-Re-declaring one of those four ids re-voices it for the whole game, base content
-included. Everything the table does not name falls to its damage type's default,
-so a mod that adds ten materials and no rows is still audible - it just sounds
-like ship plate.
+The four rock kinds share one sample on purpose: the base game records two
+impacts, plate and stone, and nickel-iron is stone as far as this library goes.
+Re-declaring `impact_kinetic_metal` is how you make it ring.
+
+Re-declaring an id re-voices it for the whole game, base content included.
+Everything the table does not name falls to its damage type's default, so a mod
+that adds ten materials and no rows is still audible - it just sounds like ship
+plate.
 
 ## Destruction is not here
 

@@ -54,6 +54,22 @@ pub struct SequenceStepConfig {
     pub actions: Vec<EventActionConfig>,
 }
 
+impl SequenceStepConfig {
+    /// Whether this step runs in the SAME frame as the step before it.
+    ///
+    /// [`advance_scenario_sequences`] drains ready steps in a `while` loop at
+    /// one timestamp, and handing a step back stamps `since` with that same
+    /// timestamp - so a step that waits for nothing is already ready on the
+    /// next turn of the loop. Only a real delay, or a gate that has to wait
+    /// for an event, puts a frame between two steps.
+    ///
+    /// Read by [`ScenarioEventConfig::action_groups`](crate::prelude::ScenarioEventConfig::action_groups),
+    /// which is what every "in the same frame" lint and pacing rule counts.
+    pub fn runs_with_the_step_before(&self) -> bool {
+        self.until.is_none() && self.after.is_none_or(|after| after <= 0.0)
+    }
+}
+
 /// The event a step waits for: the same event + filter vocabulary a handler
 /// uses, moved inside the step.
 #[derive(Clone, Debug)]

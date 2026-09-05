@@ -23,7 +23,26 @@ mod base_content;
 pub mod balance;
 /// Narrow runtime-neutral access to reusable built-in scenario scenes.
 pub mod built_in_scenarios {
-    pub use crate::base_content::scenarios::nova_protocol::{first_shift_scene, FirstShiftScene};
+    pub use crate::base_content::{
+        assets::CampaignPortraits,
+        scenarios::nova_protocol::{first_shift_scene, FirstShiftScene},
+    };
+}
+/// Narrow runtime-neutral access to the shipped fleet: the ids a scenario
+/// spawns each craft by, and the section ids its weapons answer to.
+///
+/// The visual benches under `examples/playable/` pose the SHIPPED ships. They
+/// reach them through these ids rather than re-authoring the hulls, so a
+/// silhouette or a mount that moves in `base_content` moves in the bench too.
+pub mod built_in_ships {
+    pub use crate::base_content::ships::{
+        hull, BLOCK_CARRIER_SHIP_ID, BLOCK_CLAW_SHIP_ID, BLOCK_CLEANUP_LEADER_SHIP_ID,
+        BLOCK_CUTTER_SHIP_ID, BLOCK_GUNSHIP_SHIP_ID, BLOCK_HAULER_SHIP_ID, BLOCK_PICKET_SHIP_ID,
+        BLOCK_RAIDER_SHIP_ID, BLOCK_SKIFF_SHIP_ID, BLOCK_TUG_SHIP_ID, BLOCK_WARSHIP_BAY_IDS,
+        BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_SHIP_ID, BLOCK_WARSHIP_TURRET_IDS,
+        BLOCK_WRECK_BRIDGE_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID, BLOCK_WRECK_SHOULDER_SHIP_ID,
+        BLOCK_WRECK_SPINE_SHIP_ID,
+    };
 }
 /// Generic constructors for Rust-authored scenario configuration.
 pub mod scenario_helpers;
@@ -43,7 +62,7 @@ pub mod lint_walk;
 /// surface into scope.
 pub mod prelude {
     pub use super::{
-        balance::prelude::*, built_in_scenarios::*, content_report::prelude::*,
+        balance::prelude::*, built_in_scenarios::*, built_in_ships::*, content_report::prelude::*,
         generation::prelude::*, lint_walk::prelude::*, scenario_helpers::prelude::*,
     };
 }

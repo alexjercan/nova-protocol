@@ -329,6 +329,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the inspector writes a placed object's config",
             "a number under its floor is refused where it is typed",
             "one axis box writes one number",
+            "the kind is picked from a list, not typed",
+            "the picked kind is the rock on the stage",
             "Delete removes a world object",
             "a floating picker edits the colour of a scenario object",
             "pointing at a ship lights its row in the tree",
@@ -553,7 +555,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 228;
+const SYSTEMS_INVARIANTS: usize = 230;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

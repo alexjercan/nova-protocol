@@ -75,6 +75,7 @@ pub enum CameraLookAtConfig {
     Point(Meters3),
     /// Another scenario object by id, tracked while it lives; the shot falls
     /// back to the anchor if it goes away.
+    #[reflect(@Names::Object)]
     Object(String),
 }
 

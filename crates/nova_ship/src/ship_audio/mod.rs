@@ -108,10 +108,10 @@ const STOW_CLOSE_VOLUME: f32 = 0.14;
 /// is nearer than the mount, and it is the half of the pair that says WHY.
 const AMMO_DRY_VOLUME: f32 = 0.17;
 
-/// The threat alarm. Louder than the ship's own lock chirp ([`LOCK_ON_VOLUME`])
-/// - about 4 dB - because acquiring a target is a thing the pilot chose and
-/// being acquired is not. Still under the guns: it has to cut through a fight
-/// without being the fight.
+/// The threat alarm. Louder than the ship's own lock chirp
+/// ([`LOCK_ON_VOLUME`]) by about 4 dB, because acquiring a target is a thing
+/// the pilot chose and being acquired is not. Still under the guns: it has to
+/// cut through a fight without being the fight.
 const WARN_LOCK_VOLUME: f32 = 0.37;
 
 /// The hull alarm - the gravest thing the cockpit says, and about 4 dB over the

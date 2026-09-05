@@ -68,7 +68,7 @@ You open on the flank of the industrial carrier **Meridian**, held in an exterio
     <figcaption class="figure__caption">Radar locking is deliberate: hold CTRL and the radar locks whatever you look at.</figcaption>
 </figure>
 
-4. **Lock the transit mark.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the mark out west until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
+4. **Lock the transit mark.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the mark below and to the west - look DOWN, it sits well under the horizontal - until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
 5. **Press GOTO.** With the mark locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the mark. The temporary mark remains until the maneuver has settled. The crew checks turnaround, braking, and arrival against Cutter One's maintenance release, then repeats the complete lock-and-GOTO operation at TRANSIT 2 before signing off its guidance.
 
 ### Part 4 - The detour

@@ -141,6 +141,13 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
     GameAssets {
         cubemap: Handle::default(),
         asteroid_texture: Handle::default(),
+        portrait_meridian_control: Handle::default(),
+        portrait_deck_chief: Handle::default(),
+        portrait_copilot: Handle::default(),
+        portrait_engineer: Handle::default(),
+        portrait_player: Handle::default(),
+        portrait_automated_beacon: Handle::default(),
+        portrait_unknown_channel: Handle::default(),
         hull_01: Handle::default(),
         turret_yaw_01: Handle::default(),
         turret_pitch_01: Handle::default(),

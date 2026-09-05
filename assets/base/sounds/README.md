@@ -84,14 +84,14 @@ this directory is reachable from shipped content.
 | `torpedo_launch.wav` | torpedo bay `launch_sound` |
 | `torpedo_detonate.wav` | the warhead's `detonation_sound` |
 | `impact.wav` | impact table `impact_kinetic` - the Kinetic default, so anything with no material row of its own |
-| `impact_rock.wav` | impact table `impact_kinetic_rock` - a slug on stone |
+| `impact_rock.wav` | impact table `impact_kinetic_<kind>` - a slug on stone, one row per asteroid kind |
 | `impact_pierce.wav` | impact table `impact_pierce` - the Pierce default |
 | `impact_explosive.wav` | impact table `impact_explosive` - the Explosive default, a warhead's pressure on a surface |
 
-The four impact rows live in `assets/base/impacts/base.content.ron`. A hit
-looks up `(damage type, material)` and falls back once to the damage type's
-default row; a section is `hull` and an asteroid is `rock` unless it says
-otherwise.
+The impact rows live in `assets/base/impacts/base.content.ron`. A hit looks up
+`(damage type, material)` and falls back once to the damage type's default row.
+A section names its own material and an asteroid's material IS its kind, so the
+table carries one Kinetic row per shipped kind and every rock rings like stone.
 
 ### Destruction
 

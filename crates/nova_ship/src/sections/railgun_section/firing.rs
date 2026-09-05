@@ -46,10 +46,6 @@ pub(super) fn insert_railgun_section(
 /// Ordering against the trigger: the section reads the input written by the
 /// player rig, the AI, or a test, and never clears it. A held trigger is
 /// therefore a gun cycling at its own cadence rather than a second mechanic.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the whole cycle is one system so the shot and its recoil share a tick"
-)]
 pub(super) fn charge_and_fire_railgun(
     mut commands: Commands,
     time: Res<Time>,

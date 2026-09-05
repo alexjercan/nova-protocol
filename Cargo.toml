@@ -105,9 +105,11 @@ path = "examples/playable/shape_bench.rs"
 name = "block_bench"
 path = "examples/playable/block_bench.rs"
 
-# The three fixed candidate ships for Nova Protocol's replacement opening:
-# maintenance cutter, industrial carrier, and stolen military warship, posed
-# side by side for free-fly visual review before promotion into base content.
+# The eight ships of Nova Protocol's first two chapters: maintenance cutter,
+# industrial carrier and stolen military warship, plus the five cleanup
+# searchers of the wreck field. All eight are shipped base content; the example
+# poses them side by side so a silhouette change is reviewed against the row it
+# has to read apart from.
 [[example]]
 name = "first_shift_ships"
 path = "examples/playable/first_shift_ships.rs"

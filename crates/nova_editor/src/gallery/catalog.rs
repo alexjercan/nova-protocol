@@ -72,9 +72,10 @@ impl GalleryCategory {
 ///
 /// `hide_in_editor` is honoured exactly as the drawer honours it, so a
 /// prototype hidden from one picker is hidden from both. The text filter is a
-/// case-insensitive substring of the display name or the catalog id - the id
-/// is what carries a part's ship family (`hauler_nose`), so typing "hauler"
-/// narrows to one craft.
+/// case-insensitive substring of the display name or the catalog id. A mod
+/// whose ids carry a ship family (The Ledger's `cargoa_nose`) therefore
+/// narrows to one craft by typing the family; base's block prototypes are
+/// generic and carry none.
 pub(crate) fn browsable(
     sections: &GameSections,
     category: GalleryCategory,

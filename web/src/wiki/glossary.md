@@ -14,7 +14,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Newtonian** - momentum persists and nothing dampens you: a burn adds speed, only an opposite burn takes it away, and turning the nose does not turn your velocity. There is no flight-assist toggle - see [Flight & autopilot](../flight-autopilot/).
 - **Prograde / retrograde** - prograde is the direction you are moving; retrograde is the opposite. STOP flips you to retrograde and burns to kill your speed.
 - **Burn** - a held main-drive throttle. The main drive is the sum of every thruster that points forward, spooled smoothly up and down rather than snapped. See [Manual flight](../flight-autopilot/#manual-flight).
-- **Speed cap** - a soft ceiling a scenario can put on a hull, like First Shift's 250 m/s governor. It limits your TOTAL speed, whatever heading you point: the burn tapers to zero over the last stretch, and turning to a fresh heading buys no fresh allowance. A burn that slows you down is never capped.
+- **Speed cap** - a soft ceiling a scenario can put on a hull, like First Shift's 150 m/s governor. It limits your TOTAL speed, whatever heading you point: the burn tapers to zero over the last stretch, and turning to a fresh heading buys no fresh allowance. A burn that slows you down is never capped.
 - **GOTO / ORBIT / STOP** - the autopilot verbs. Each flies a whole maneuver on the real controller and thrusters and hands the ship back, and any manual input disengages it. GOTO burns to the nav lock and settles at the standoff, ORBIT holds a ring around the dominant well until you break away, STOP flips retrograde and burns to rest. See [The autopilot flies the hull](../flight-autopilot/#the-autopilot-flies-the-hull).
 - **Arrival envelope** - the autopilot's one rule: at any distance it caps closing speed at what a flip-and-brake from there can still cancel, so the braking ramp always lands on the standoff.
 - **Flip** - the swing to retrograde that puts the drive against your velocity before a braking burn. The autopilot schedules it a swing early, because the swing itself takes time.
@@ -99,5 +99,5 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Raider** - an enemy gunship. It flies the same catalog guns as you on scavenger-grade mounts, closes to about a kilometer and fights there. See [Turret](../sections/turret/#variants).
 - **Scenario** - a placed world and the events, filters and actions wired over it: the same machinery for a five-minute tutorial and a combat sandbox. See [Scenarios](../scenarios/).
 - **Objective** - what a scenario asks of you, listed on the comms panel and advanced by the scenario's events.
-- **First Shift** - the first campaign leg, the flight [Your first flight](../getting-started/) walks through beat by beat under a 250 m/s governor.
+- **First Shift** - the first campaign leg, the flight [Your first flight](../getting-started/) walks through beat by beat under a 150 m/s governor.
 - **Rock** - an asteroid: solid, carvable cover that eats rounds, and a gravity well if it is big enough to carry one. See [Shooting rock](../combat-weapons/#shooting-rock).

@@ -406,10 +406,6 @@ fn aim_has_settled(angular_velocity: Vec3, tolerance: f32) -> bool {
 /// removes itself for both, so a disengage is read against the hull's
 /// remaining capability. A ship that still has a flight computer and an
 /// engine finished its leg; one that has lost either could not have.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one system owns the whole order lifecycle; splitting it would split the latch"
-)]
 pub(super) fn drive_ship_orders(
     mut commands: Commands,
     mut q_ships: Query<

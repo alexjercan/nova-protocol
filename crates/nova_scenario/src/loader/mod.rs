@@ -431,20 +431,37 @@ impl ScenarioEventConfig {
         sequence_gate_handlers(&self.actions)
     }
 
-    /// Every list of actions this handler can run in ONE frame: its own, plus
-    /// one per `Sequence` step it starts, however deeply nested.
+    /// Every list of actions this handler can run in ONE frame: its own, then
+    /// one per RUN of `Sequence` steps that land together, however deeply
+    /// nested.
     ///
-    /// A step is a frame of its own - it lands seconds after the handler that
-    /// queued it - so every rule phrased "in the same frame" (an objective
-    /// beside a comms line, an attach before its spawn) has to read groups
-    /// rather than the handler's own list.
-    pub fn action_groups(&self) -> Vec<&[EventActionConfig]> {
-        let mut groups: Vec<&[EventActionConfig]> = vec![&self.actions];
+    /// The handler's own actions are always a group of their own: a sequence
+    /// step lands at least a frame after the handler that queued it, because
+    /// the driver sits ahead of the pulse in the scenario chain.
+    ///
+    /// Steps are NOT one group each. The driver drains every ready step in one
+    /// `while` loop at one timestamp, so a step that waits for nothing runs in
+    /// the SAME frame as the step before it - see
+    /// [`SequenceStepConfig::runs_with_the_step_before`]. Those steps join
+    /// their predecessor's group, and only a delay or a gate opens a new one.
+    ///
+    /// Every rule phrased "in the same frame" (an objective beside a comms
+    /// line, an attach before its spawn) has to read groups rather than the
+    /// handler's own list.
+    pub fn action_groups(&self) -> Vec<Vec<&EventActionConfig>> {
+        let mut groups: Vec<Vec<&EventActionConfig>> = vec![self.actions.iter().collect()];
         for action in &self.actions {
             action.walk(&mut |action| {
                 if let EventActionConfig::Sequence(config) = action {
-                    for step in &config.steps {
-                        groups.push(&step.actions);
+                    for (index, step) in config.steps.iter().enumerate() {
+                        // The FIRST step always opens a group: it is a frame
+                        // after the handler however short its delay.
+                        match groups.last_mut() {
+                            Some(open) if index > 0 && step.runs_with_the_step_before() => {
+                                open.extend(step.actions.iter());
+                            }
+                            _ => groups.push(step.actions.iter().collect()),
+                        }
                     }
                 }
             });

@@ -118,9 +118,10 @@ impl Clocks<'_> {
     /// Drop every hold. The escape hatch for leaving `GameStates::Playing`,
     /// where no surface is left to release its own.
     pub fn release_all(&mut self) {
-        let changed = FreezeOwner::ALL.into_iter().fold(false, |changed, owner| {
-            self.freeze.set(owner, false) || changed
-        });
+        let mut changed = false;
+        for owner in FreezeOwner::ALL {
+            changed |= self.freeze.set(owner, false);
+        }
         if changed {
             self.apply();
         }

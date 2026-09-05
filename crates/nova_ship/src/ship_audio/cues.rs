@@ -144,10 +144,6 @@ pub(super) fn play_safety_engaged_cue(
 /// [`TurretSectionDryFireSound`], resolved here); a turret that authors none
 /// runs dry silently. The edge latch still advances for every turret so an
 /// authored sound added later (live edit) does not replay a stale edge.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one dead trigger is two cues, and the gauge needs the computer the gun does not"
-)]
 pub(super) fn play_dry_fire_cue(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

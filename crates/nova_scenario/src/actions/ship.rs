@@ -486,9 +486,10 @@ impl EventAction<NovaEventWorld> for ClearShipOrderActionConfig {
 /// A territorial tether for one AI ship, or its removal.
 ///
 /// A CONSTRAINT, not a mission: it says where the ship may fight, and it
-/// coexists with whatever helm order the ship is under. A mission outranks it
-/// - a scenario that orders an AI ship across the map gets the move it asked
-/// for, and the tether applies again once the order is interrupted or done.
+/// coexists with whatever helm order the ship is under. A mission outranks
+/// it, so a scenario that orders an AI ship across the map gets the move it
+/// asked for, and the tether applies again once the order is interrupted or
+/// done.
 ///
 /// `Some` installs or replaces the tether; `None` removes it and lets the
 /// ship chase freely, the same `Option` shape `SetSpeedCap` uses.
@@ -779,9 +780,9 @@ fn scripted_ship(world: &mut World, id: &str, what: &str) -> Option<Entity> {
     }
     if entity.contains::<AISpaceshipMarker>() {
         error!(
-            "{what}: ship '{id}' is AI-driven; a scripted action cannot take its helm \
-             (author `SpaceshipController::None`, or `non_combatant` for an armed \
-             ship that flies itself and never shoots)"
+            "{what}: ship '{id}' is AI-driven; a scripted action cannot take its helm - \
+             author `SpaceshipController::None`. `non_combatant` holds an AI ship's \
+             fire and leaves it AI-driven, so it does not answer this"
         );
         return None;
     }

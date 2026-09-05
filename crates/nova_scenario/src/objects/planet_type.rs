@@ -307,10 +307,11 @@ impl PlanetType {
 /// The scenario surface for a planet: what kind of world it is, which one of
 /// that kind, how big it is, and the gameplay it carries.
 ///
-/// Deliberately shaped like [`AsteroidConfig`](super::asteroid::AsteroidConfig)
-/// - radius in meters, an optional seed that pins the body across loads, a
-/// mass, an invulnerable flag and a lock signature - so an author who can
-/// place a rock can place a planet.
+/// Deliberately shaped like
+/// [`AsteroidConfig`](super::asteroid::AsteroidConfig): radius in meters, an
+/// optional seed that pins the body across loads, a mass, an invulnerable flag
+/// and a lock signature, so an author who can place a rock can place a
+/// planet.
 ///
 /// The one field that does NOT carry over is `texture`: a planet samples no
 /// texture at all. Its whole surface comes from the type and the seed.
@@ -361,11 +362,19 @@ pub struct PlanetConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub mass: Option<f32>,
-    /// Whether weapons fire leaves this body alone.
+    /// Whether weapons fire leaves this body alone. It must be `true`.
     ///
     /// A planet a chapter is authored around must still be there at the end of
-    /// it, so every authored planet today sets this. An invulnerable body also
-    /// keeps its well for the whole scenario, because nothing can carve it.
+    /// it, and an invulnerable body keeps its well for the whole scenario
+    /// because nothing can carve it. There is no destructible planet yet: the
+    /// collider child is never given `DamageMarks` or `CollisionEventsEnabled`
+    /// the way [`AsteroidConfig::invulnerable`](super::asteroid::AsteroidConfig::invulnerable)
+    /// arranges, so `false` would be a body that quietly cannot be destroyed
+    /// while its author builds a mission around destroying it.
+    ///
+    /// The field stays authored rather than assumed, and `false` is a `content
+    /// lint` error and a load refusal. When a destructible planet exists it
+    /// becomes a real choice with no file to migrate.
     pub invulnerable: bool,
     /// Override how loud this body reads to the lock scanner. `None` is the
     /// mean radius, so a planet locks from proportionally far out.
@@ -379,6 +388,10 @@ pub struct PlanetConfig {
 impl PlanetConfig {
     /// The simplest planet an author can write: a type, a radius and a seed.
     /// Everything else is an override with a per-type default behind it.
+    ///
+    /// [`Self::invulnerable`] is `true` here because it is the only value that
+    /// loads: there is no destructible planet, and a builder that produced a
+    /// config the lint refuses would be a trap.
     pub fn new(planet_type: PlanetType, radius: Meters, seed: u32) -> Self {
         Self {
             radius,
@@ -387,16 +400,15 @@ impl PlanetConfig {
             relief: None,
             sea_level: None,
             mass: None,
-            invulnerable: false,
+            invulnerable: true,
             lock_signature: None,
         }
     }
 
-    /// This config as a fixed body: a gravity well of `mass` that weapons fire
-    /// leaves alone. The shape every authored planetoid takes today.
+    /// This config as a gravity well of `mass`. The shape every authored
+    /// planetoid takes today.
     pub fn anchored(mut self, mass: f32) -> Self {
         self.mass = Some(mass);
-        self.invulnerable = true;
         self
     }
 

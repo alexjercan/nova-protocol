@@ -366,3 +366,66 @@ fn stop_accepts_a_crumb_without_pirouetting() {
         "the crumb is accepted as-is, got {v}"
     );
 }
+
+/// Regression: a STOP inside a well must brake on the drive, not settle on the
+/// RCS. `desired` is exactly zero for the whole descent, so an RCS settle with
+/// no gravity gate latches the moment the ship is under the speed cap and then
+/// parks at the equilibrium where its proportional push equals the pull - the
+/// drive cooled, the ship falling at a steady rate, and `done` never firing.
+/// The gate is on the LOCAL pull, so this is the same rule the ORBIT trim
+/// obeys.
+///
+/// The well is the strongest a 40u body may carry (5 u/s^2 at the surface);
+/// at the 100u release point its 0.8 u/s^2 is above the authority threshold,
+/// so the drive owns the brake. The hull grants RCS - withholding it would
+/// exclude the very path under test.
+#[test]
+fn stop_inside_a_well_brakes_on_the_drive_and_reaches_rest() {
+    let mut app = orbit_app();
+    let gravity = GravitySettings::default();
+    app.world_mut().spawn((
+        RigidBody::Static,
+        Transform::default(),
+        nova_gameplay::gravity::GravityWell::from_mass(8000.0, 40.0, &gravity),
+    ));
+    let (ship, _, _) = spawn_ship(&mut app);
+    // The marker production puts on player and AI hulls; the bare test root
+    // does not carry it, and without it the ship feels no well at all.
+    app.world_mut()
+        .entity_mut(ship)
+        .insert((Transform::from_xyz(0.0, 0.0, 150.0), GravityAffected));
+    settle(&mut app);
+    // Fall in from rest, so the ship is genuinely inbound when STOP engages
+    // and the brake has something to null.
+    run(&mut app, 300);
+    let entry_speed = velocity_of(&app, ship).length();
+    assert!(
+        entry_speed > 1.0,
+        "the well should have the ship moving before STOP engages, got {entry_speed}"
+    );
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Stop));
+
+    let mut rested = false;
+    let mut r_min = f32::MAX;
+    for _ in 0..3000 {
+        app.update();
+        r_min = r_min.min(position_of(&app, ship).length());
+        if app.world().get::<Autopilot>(ship).is_none() {
+            rested = true;
+            break;
+        }
+    }
+
+    assert!(
+        rested,
+        "STOP must reach rest and disengage inside a well, not park on a falling RCS equilibrium"
+    );
+    let speed = velocity_of(&app, ship).length();
+    assert!(speed < 1.0, "STOP should null the velocity, got {speed}");
+    assert!(
+        r_min > 40.0,
+        "the brake must hold the ship off the body, got r_min {r_min}"
+    );
+}

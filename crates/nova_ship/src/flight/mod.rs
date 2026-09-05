@@ -56,11 +56,8 @@ use self::{
     order::{drive_scripted_align, drive_ship_orders},
     state::remove_maneuver_telemetry,
 };
-pub(crate) use self::{
-    guidance::{ship_turn_rate, slew_rotation},
-    manual::accumulate_rcs_axis,
-};
 pub use self::{
+    guidance::orbit_radius_band,
     order::{
         cancel_ship_order, interrupt_ship_order, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective,
@@ -73,16 +70,20 @@ pub use self::{
         OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
     },
 };
+pub(crate) use self::{
+    guidance::{ship_turn_rate, slew_rotation},
+    manual::accumulate_rcs_axis,
+};
 
 /// The flight intent, settings and speed caps, the autopilot and orbit plan, RCS state, maneuver
 /// telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        cancel_ship_order, interrupt_ship_order, resolved_arrival_standoff, resume_ship_order,
-        retire_ship_order_execution, AIOrderInterrupted, Autopilot, AutopilotAction,
-        AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent, FlightSettings,
-        FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
-        PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
+        cancel_ship_order, interrupt_ship_order, orbit_radius_band, resolved_arrival_standoff,
+        resume_ship_order, retire_ship_order_execution, AIOrderInterrupted, Autopilot,
+        AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent,
+        FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems,
+        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
         ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
         ShipOrderReports, SuspendedArrivalStandoff,

@@ -15,12 +15,6 @@
 //! cargo run --example first_shift_map --features debug -- --pilot camera
 //! ```
 
-#[expect(
-    dead_code,
-    reason = "the shared visual-bench module also exports scenario-two ships"
-)]
-#[path = "shared/first_shift.rs"]
-mod first_shift;
 #[path = "shared/first_shift_stage.rs"]
 mod stage;
 
@@ -28,6 +22,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use bevy::prelude::*;
 use clap::{Parser, ValueEnum};
+use nova_authoring::prelude::*;
 use nova_protocol::prelude::*;
 
 const PLAYER_START_POS: Meters3 = Meters3::new(-1_100.0, 0.0, 2_500.0);
@@ -38,34 +33,6 @@ const SALVAGE_CENTER: Meters3 = Meters3::new(1_400.0, 0.0, -2_800.0);
 const APPROACH_POS: Meters3 = Meters3::new(-2_500.0, 700.0, -5_700.0);
 const WARSHIP_POS: Meters3 = Meters3::new(7_900.0, 250.0, -6_500.0);
 const EMERGENCE_BEACON_POS: Meters3 = Meters3::new(7_900.0, 650.0, -6_500.0);
-
-const WARSHIP_RAILGUN_POWER_MULTIPLIER: f32 = 200.0;
-const WARSHIP_RAILGUN_DAMAGE: f32 = 500.0;
-const WARSHIP_RAILGUN_RAKE_RADIUS: Meters = Meters(30.0);
-
-const WARSHIP_RAILGUN_IDS: [&str; 2] = ["railgun_port", "railgun_starboard"];
-
-const WARSHIP_PDC_IDS: [&str; 10] = [
-    "pdc_forward_port",
-    "pdc_forward_starboard",
-    "pdc_aft_port",
-    "pdc_aft_starboard",
-    "pdc_dorsal_port",
-    "pdc_dorsal_starboard",
-    "pdc_ventral_forward_port",
-    "pdc_ventral_forward_starboard",
-    "pdc_ventral_aft_port",
-    "pdc_ventral_aft_starboard",
-];
-
-const WARSHIP_TORPEDO_IDS: [&str; 6] = [
-    "bastion_bay_port_forward",
-    "bastion_bay_port_midships",
-    "bastion_bay_port_aft",
-    "bastion_bay_starboard_forward",
-    "bastion_bay_starboard_midships",
-    "bastion_bay_starboard_aft",
-];
 
 const CRATE_POSITIONS: [Meters3; 3] = [
     Meters3::new(2_800.0, 20.0, -3_800.0),
@@ -89,13 +56,39 @@ struct Cli {
     pilot: Pilot,
 }
 
+/// Frames the loaded map is held before its shot. Sized to outlast the
+/// frame-time window below: the capture has to open and close inside one step.
+#[cfg(feature = "debug")]
+const HOLD_FRAMES: u32 = 460;
+/// Warmup and measured frames of the frame-time window. This is the most
+/// populated authored scene in the game, and nothing else measures it.
+#[cfg(feature = "debug")]
+const FRAMETIME_WINDOW: (u32, u32) = (60, 300);
+/// The still a harnessed run writes.
+#[cfg(feature = "debug")]
+const SHOT_NAME: &str = "first-shift-map.png";
+
 fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(map_plugin).build();
     app.insert_resource(cli.pilot);
 
     #[cfg(feature = "debug")]
-    app.add_systems(Update, freeze_bodies.run_if(camera_pilot));
+    {
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants, so `probe run` grades this
+        // example instead of hanging on an app with nothing to end it.
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // The frame-time claim is declared only when a measured run asks for
+        // it, so `probe run` stays a correctness walk and the sweep still gets
+        // its artifact.
+        if nova_probe::probe_armed() {
+            let (warmup, frames) = FRAMETIME_WINDOW;
+            app.add_plugins(nova_probe::nova_frametime().window(warmup, frames));
+        }
+        app.add_plugins(map_script());
+        app.add_systems(Update, freeze_bodies.run_if(camera_pilot));
+    }
 
     app.run()
 }
@@ -103,6 +96,31 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 fn camera_pilot(pilot: Res<Pilot>) -> bool {
     *pilot == Pilot::Camera
+}
+
+/// The probe script every harnessed run walks: reach the loaded map, hold it
+/// long enough for an ARMED frame-time window to close inside one step, then
+/// shoot it and exit. An unarmed run walks the identical steps and measures
+/// nothing, so this is also the smoke path.
+#[cfg(feature = "debug")]
+fn map_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        .step("wait for the map")
+        .enter(GameStates::Loading)
+        .until(and(
+            state_is(GameStates::Playing),
+            scenario_camera_present(),
+        ))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("hold the loaded map")
+        .until(frames(HOLD_FRAMES))
+        .add()
+        .step("shoot the map")
+        .on_enter(|world: &mut World| shoot(world, SHOT_NAME))
+        .until(shot_written(SHOT_NAME))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
 }
 
 fn map_plugin(app: &mut App) {
@@ -114,14 +132,15 @@ fn load_map(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    ships: Res<GameShips>,
     pilot: Res<Pilot>,
 ) {
-    let scenario = map_scenario(&game_assets, &sections, *pilot);
-    refuse_broken(&scenario, &sections);
+    let scenario = map_scenario(&game_assets, *pilot);
+    refuse_broken(&scenario, &sections, &ships);
     commands.trigger(LoadScenario(scenario));
 }
 
-fn map_scenario(game_assets: &GameAssets, sections: &GameSections, pilot: Pilot) -> ScenarioConfig {
+fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
     assert_crates_clear_rocks();
     let mut actions = vec![
         spawn(ship_object(
@@ -130,7 +149,7 @@ fn map_scenario(game_assets: &GameAssets, sections: &GameSections, pilot: Pilot)
             PLAYER_START_POS,
             Quat::IDENTITY,
             controller_for(pilot, Pilot::Cutter),
-            first_shift::maintenance_cutter(),
+            BLOCK_CUTTER_SHIP_ID,
         )),
         spawn(ship_object(
             "industrial_carrier",
@@ -138,7 +157,7 @@ fn map_scenario(game_assets: &GameAssets, sections: &GameSections, pilot: Pilot)
             stage::CARRIER_POS,
             Quat::IDENTITY,
             SpaceshipController::None,
-            first_shift::industrial_carrier(),
+            BLOCK_CARRIER_SHIP_ID,
         )),
         spawn(ship_object(
             "stolen_warship",
@@ -146,7 +165,7 @@ fn map_scenario(game_assets: &GameAssets, sections: &GameSections, pilot: Pilot)
             WARSHIP_POS,
             facing(WARSHIP_POS, stage::CARRIER_POS),
             controller_for(pilot, Pilot::Warship),
-            tuned_warship(sections),
+            BLOCK_WARSHIP_SHIP_ID,
         )),
         spawn(beacon(
             "start_marker",
@@ -317,13 +336,15 @@ fn beacon(id: &str, label: &str, position: Meters3, color: Color) -> ScenarioObj
     }
 }
 
+/// One placed catalog ship. `ship` is the CATALOG id, so the layout is flown
+/// with the hulls the campaign ships rather than copies of them.
 fn ship_object(
     id: &str,
     name: &str,
     position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
-    hull: ShipHull,
+    ship: &str,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -334,7 +355,7 @@ fn ship_object(
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
-            hull: ShipSource::Inline(hull),
+            hull: hull(ship),
             ..default()
         }),
     }
@@ -347,13 +368,13 @@ fn controller_for(pilot: Pilot, ship: Pilot) -> SpaceshipController {
 
     let input_mapping = if ship == Pilot::Warship {
         let mut bindings = BTreeMap::new();
-        for id in WARSHIP_PDC_IDS {
+        for id in BLOCK_WARSHIP_TURRET_IDS {
             bindings.insert(id.to_string(), vec![MouseButton::Left.into()]);
         }
-        for id in WARSHIP_RAILGUN_IDS {
+        for id in BLOCK_WARSHIP_RAILGUN_IDS {
             bindings.insert(id.to_string(), vec![KeyCode::KeyR.into()]);
         }
-        for id in WARSHIP_TORPEDO_IDS {
+        for id in BLOCK_WARSHIP_BAY_IDS {
             bindings.insert(id.to_string(), vec![KeyCode::KeyF.into()]);
         }
         bindings
@@ -365,28 +386,6 @@ fn controller_for(pilot: Pilot, ship: Pilot) -> SpaceshipController {
         input_mapping,
         speed_cap: None,
     })
-}
-
-fn tuned_warship(sections: &GameSections) -> ShipHull {
-    let mut railgun = sections
-        .iter()
-        .find(|section| section.base.id == "railgun_lance_section")
-        .cloned()
-        .expect("first_shift_map: railgun prototype is loaded");
-    let SectionKind::Railgun(config) = &mut railgun.kind else {
-        panic!("first_shift_map: railgun prototype has the wrong section kind");
-    };
-    config.slug_damage = WARSHIP_RAILGUN_DAMAGE;
-    config.slug_power *= WARSHIP_RAILGUN_POWER_MULTIPLIER;
-    config.rake_radius = Some(WARSHIP_RAILGUN_RAKE_RADIUS);
-
-    let mut hull = first_shift::stolen_warship();
-    for section in &mut hull.sections {
-        if WARSHIP_RAILGUN_IDS.contains(&section.id.as_str()) {
-            section.source = SectionSource::Inline(railgun.clone());
-        }
-    }
-    hull
 }
 
 fn facing(from: Meters3, target: Meters3) -> Quat {
@@ -411,12 +410,12 @@ fn crate_object(index: usize, position: Meters3) -> ScenarioObjectConfig {
     }
 }
 
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShips) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::default(),
+        &KnownShips::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
     );
     let errors: Vec<_> = issues

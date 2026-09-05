@@ -241,17 +241,30 @@ pub(super) fn orbit_target_radius(
     gravity: &GravitySettings,
     settings: &FlightSettings,
 ) -> Option<f32> {
+    let (min, max) = orbit_radius_band(well, gravity, settings)?;
+    Some(current_radius.clamp(min, max))
+}
+
+/// Every ring radius ORBIT can plan around `well`, world units: no closer than
+/// [`orbit_band_floor`], no farther than `orbit_band_safety * fade_start`.
+/// `None` when the well has no stable band at all - the clearance already sits
+/// past the trusted core, so a ring out there would be a permanently powered
+/// fake orbit with no gravity assisting, and the verb refuses to plan rather
+/// than flying an incoherent circle.
+///
+/// Public because CONTENT is sized against it: a scenario that gates progress
+/// on the player reaching a ring has to cover every ring the verb will hand
+/// them, and re-deriving this arithmetic in a campaign is how a gate ends up
+/// covering a third of the band.
+pub fn orbit_radius_band(
+    well: &GravityWell,
+    gravity: &GravitySettings,
+    settings: &FlightSettings,
+) -> Option<(f32, f32)> {
     let min = orbit_band_floor(well, gravity, settings);
     let fade_start = well.soi_radius * (1.0 - gravity.fade_fraction.clamp(0.0, 1.0));
     let max = settings.orbit_band_safety.clamp(0.0, 1.0) * fade_start;
-    // No stable band (the clearance already sits past the trusted core):
-    // the well is unorbitable - a ring out there would be a permanently
-    // powered fake orbit with no gravity assisting. The verb refuses to
-    // plan rather than flying an incoherent circle.
-    if min > max {
-        return None;
-    }
-    Some(current_radius.clamp(min, max))
+    (min <= max).then_some((min, max))
 }
 
 /// The velocity the ORBIT verb wants right now: tangential circular-orbit

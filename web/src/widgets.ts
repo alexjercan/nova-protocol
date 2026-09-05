@@ -108,8 +108,8 @@ const STOP_SPEED_EPSILON = 0.2; // FlightSettings::stop_speed_epsilon (u/s)
 const TURN_RATE_SCALE = 0.9; // FlightSettings::turn_rate_scale
 const TURN_RATE_MIN_DEG = 10; // FlightSettings::turn_rate_min_deg
 const TURN_RATE_MAX_DEG = 240; // FlightSettings::turn_rate_max_deg
-const RCS_ACCEL = 1.5; // FlightSettings::rcs_accel (world units/s^2)
-const RCS_SPEED_CAP = 2.0; // FlightSettings::rcs_speed_cap (world units/s)
+const RCS_ACCEL = 4.905; // FlightSettings::rcs_accel (world units/s^2)
+const RCS_SPEED_CAP = 10.0; // FlightSettings::rcs_speed_cap (world units/s)
 
 // ---- units -----------------------------------------------------------------
 //
@@ -179,7 +179,7 @@ export function engineMetersPerSec2(
     return metersPerSec2(unitsPerSec2 * METERS_PER_UNIT, decimals);
 }
 
-// The attitude envelope (crates/nova_ship/src/physics/attitude.rs:69-91): a
+// The attitude envelope (crates/nova_ship/src/physics/attitude.rs, `AttitudeEnvelope::new`): a
 // hull's turn ceiling is the lower of its computers' torque over its inertia
 // and the structural load limit over its arm. Nothing authors the ceiling.
 // The load limit is SI (`MetersPerSecondSquared`); the arm arrives from
@@ -189,7 +189,7 @@ export function engineMetersPerSec2(
 const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:17 (MetersPerSecondSquared)
 const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:718
 // The Ledger's corvette: its structural arm, centre of mass to the outer FACE of
-// its furthest section (attitude.rs:136-149). WORLD UNITS - it is measured off
+// its furthest section (attitude.rs, `structural_arm`). WORLD UNITS - it is measured off
 // avian collider boxes, and the ship part tables below are the same geometry.
 // The GOTO widget flies this hull. `hullState(CARGOA_PARTS)` re-derives it from
 // the craft's own boxes and agrees, which is the check that the assembly model
@@ -207,19 +207,23 @@ const THRUSTER_MAGNITUDE = 1.0; // standard.rs:642, and the ledger's own drives
 // Catalog fixtures (crates/nova_authoring/src/base_content/sections/standard.rs).
 // Authored content is METERS now, so the blast radius is the metric number.
 const LIGHT_HULL_HP = 60; // standard.rs:750 (light_hull_section)
-const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:1196 (Serpent/Lance warhead)
-const TORPEDO_BLAST_RADIUS = 300; // standard.rs:1188 (Meters)
+const TORPEDO_BLAST_DAMAGE = 750; // the tube bay's `blast_damage` (Serpent/Lance warhead)
+const TORPEDO_BLAST_RADIUS = 300; // the tube bay's `blast_radius` (Meters)
 
-// The shared turret mount (standard.rs `turret_joint_tree` :204-310). Traverse
-// is unbounded (:280-281) and elevation runs from the depression floor to
-// straight up (:296-297), so what a mount cannot see is a cone under its own
-// keel and nothing else. Every hinge slews at the same rate (:279,:283).
-const TURRET_DEPRESSION_DEG = -10; // standard.rs:102,296 (PI / 18)
-const TURRET_ELEVATION_DEG = 90; // standard.rs:297 (FRAC_PI_2)
-const TURRET_SLEW_DEG_S = 180; // standard.rs:279,283 (PI rad/s)
+// The shared turret mount (standard.rs `turret_joint_tree`). Traverse is
+// unbounded (the yaw joint's `min`/`max` are None) and elevation runs from the
+// depression floor to straight up (the pitch joint's `min`/`max`), so what a
+// mount cannot see is a cone under its own keel and nothing else. Every hinge
+// slews at the same rate (every joint's `speed`).
+//
+// Cited by FIELD, not by line: the six line numbers this block used to carry
+// had all drifted off their values.
+const TURRET_DEPRESSION_DEG = -10; // standard.rs `TURRET_DEPRESSION_LIMIT` (PI / 18)
+const TURRET_ELEVATION_DEG = 90; // the pitch joint's `max` (FRAC_PI_2)
+const TURRET_SLEW_DEG_S = 180; // every joint's `speed` (PI rad/s)
 // A turret has no range field: muzzle speed times projectile lifetime IS its
 // reach (config.rs:135-144), 1 000 m/s over 2.0 s.
-const PDC_REACH = 2000; // meters; standard.rs:478,493
+const PDC_REACH = 2000; // meters; the PDC's `muzzle_speed` x `projectile_lifetime`
 
 // Magazines and the quiet interval that refills them
 // (crates/nova_ship/src/sections/ammo.rs). One reload rule serves every
@@ -232,10 +236,10 @@ const PDC_CAPACITY = 500; // standard.rs:495
 const PDC_RELOAD_DELAY = 3.0; // standard.rs:497
 const PDC_RELOAD_AMOUNT = 200; // standard.rs:498
 const PDC_FIRE_RATE = 100; // standard.rs:74 (rounds per second)
-const BAY_CAPACITY = 6; // standard.rs:1215
-const BAY_RELOAD_DELAY = 10.0; // standard.rs:1227
-const BAY_RELOAD_AMOUNT = 1; // standard.rs:1228
-const BAY_FIRE_RATE = 1.0; // standard.rs:1178 (launches per second)
+const BAY_CAPACITY = 6; // the tube bay's `ammo_capacity`
+const BAY_RELOAD_DELAY = 10.0; // the tube bay's `reload.delay`
+const BAY_RELOAD_AMOUNT = 1; // the tube bay's `reload.amount`
+const BAY_FIRE_RATE = 1.0; // the tube bay's `fire_rate` (launches per second)
 
 // The terminal weave (crates/nova_ship/src/sections/torpedo_section/). The
 // corkscrew rides at full amplitude beyond three blast radii and tapers to
@@ -283,8 +287,8 @@ const LANCE_TORPEDO_CRUISE = 350; // ordnance.rs:49 (MetersPerSecond)
 const ROUNDS_PER_LANCE_TORPEDO = 116;
 const ROUNDS_PER_SERPENT = 390;
 // The starter ship's soft manual-speed cap: what a torpedo has to catch when
-// the target is running (first_shift.rs:93, `MetersPerSecond`).
-const PLAYER_SPEED_CAP = 250;
+// the target is running (first_shift's `CUTTER_SPEED_CAP`, `MetersPerSecond`).
+const PLAYER_SPEED_CAP = 150;
 
 // ---- pure models (mirror the Rust rules) ----------------------------------
 
@@ -452,7 +456,7 @@ export function blastFront(
     };
 }
 
-// The two ceilings and the lower one (attitude.rs:69-91). Inertia is the
+// The two ceilings and the lower one (attitude.rs, `AttitudeEnvelope::new`). Inertia is the
 // hull's largest principal moment; the arm runs from the centre of mass to the
 // outer face of the furthest live section, in world units.
 export function torqueCeiling(torque: number, inertia: number): number {
@@ -479,7 +483,7 @@ export function attitudeCeiling(
 }
 
 // The rate at which the centripetal load alone spends the whole structural
-// budget: hold it and nothing is left to turn harder with (attitude.rs:108-113).
+// budget: hold it and nothing is left to turn harder with (attitude.rs, `AttitudeEnvelope::sustained_turn_rate`).
 export function sustainedTurnRate(armUnits: number): number {
     return Math.sqrt(structuralCeiling(armUnits));
 }
@@ -2822,7 +2826,7 @@ const CARGOB_PARTS: ShipPart[] = [
 
 // The largest eigenvalue of a symmetric 3x3, closed form. This is the
 // "conservative axis" the attitude budget is taken against
-// (attitude.rs:69-71): one scalar has to cover a hull that rolls far more
+// (attitude.rs, `AttitudeEnvelope::torque_ceiling`): one scalar has to cover a hull that rolls far more
 // easily than it yaws, so it is the WORST of the three.
 function largestPrincipal(m: number[][]): number {
     const offDiagonal = m[0][1] ** 2 + m[0][2] ** 2 + m[1][2] ** 2;
@@ -2852,7 +2856,7 @@ interface HullState {
 }
 
 // What avian would measure for a hull assembled from these sections, plus the
-// structural arm derived off it (attitude.rs:146-186). Density is 1 and not
+// structural arm derived off it (attitude.rs, `structural_arm`). Density is 1 and not
 // authorable, so a section's mass is exactly its box volume
 // (base_section.rs:376) - which is why NOTHING in this function reads an
 // authored number. Every section on these craft is mounted axis-aligned except the
@@ -2909,7 +2913,7 @@ export function hullState(parts: ShipPart[]): HullState {
         const distance = Math.hypot(d[0], d[1], d[2]);
         const half = part.size.map((s) => s * 0.5);
         // A section sitting ON the balance point has no radial ray of its own:
-        // its own furthest face is the whole arm it offers (attitude.rs:155-159).
+        // its own furthest face is the whole arm it offers (attitude.rs, `structural_arm`).
         const reach =
             distance <= 1e-6
                 ? Math.max(half[0], half[1], half[2])
@@ -3381,7 +3385,7 @@ function initControllerArm(host: HTMLElement): void {
 
 // The 8 G budget as ONE acceleration at the hull's furthest point, split
 // between the sideways load a turn already carries and what is left to turn
-// harder with. The two add as a vector (attitude.rs:112-130), so authority
+// harder with. The two add as a vector (attitude.rs, `AttitudeEnvelope::available`), so authority
 // does not fall off gently - it holds, then collapses.
 function initControllerMargin(host: HTMLElement): void {
     header(
@@ -3407,7 +3411,7 @@ function initControllerMargin(host: HTMLElement): void {
         X0 + (clamp(deg, 0, MAX_DEG) / MAX_DEG) * (X1 - X0);
     const y = (a: number): number =>
         Y0 - (clamp(a, 0, structural) / structural) * (Y0 - Y1);
-    // attitude.rs:121-130, in the widget's units: the two loads are
+    // attitude.rs `AttitudeEnvelope::available`, in the widget's units: the two loads are
     // perpendicular components of one acceleration, so the tangential half is
     // what is left of the budget after the centripetal half. Past the corner
     // the hull is already over the limit and the whole budget comes back, to

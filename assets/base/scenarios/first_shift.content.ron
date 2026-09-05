@@ -42,6 +42,7 @@
                                 (
                                     section: "bridge",
                                     modifications: [
+                                        DisableVerb(Stop),
                                         DisableVerb(Rcs),
                                         DisableVerb(Lock),
                                         DisableVerb(Goto),
@@ -1803,16 +1804,21 @@
                             (
                                 after: Some(4.0),
                                 actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Mark ahead, seventeen hundred metres. Easy on the drive - we\'re still inside Meridian\'s paint budget.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
                                     ReleaseCamera(()),
                                     ResumePlayerControl(()),
                                     Objective((
                                         id: "burn",
                                         message: "Burn to the work mark.",
-                                    )),
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Mark ahead, seventeen hundred metres. Easy on the drive - we\'re still inside Meridian\'s paint budget.",
-                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                     SpawnScenarioObject((
                                         base: (
@@ -1890,6 +1896,11 @@
                             (
                                 after: Some(4.0),
                                 actions: [
+                                    SetControllerVerb((
+                                        id: "cutter",
+                                        verb: Stop,
+                                        enabled: true,
+                                    )),
                                     Objective((
                                         id: "stop",
                                         message: "Press [X] and let STOP bring Cutter One to rest.",
@@ -2139,6 +2150,16 @@
                             (
                                 after: Some(5.5),
                                 actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Let\'s move toward A. When the velocity marker turns violet, we\'re running on RCS.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
                                     SetControllerVerb((
                                         id: "cutter",
                                         verb: Rcs,
@@ -2150,13 +2171,24 @@
                                         id: "trim_lateral",
                                         message: "Hold [SHIFT], move the mouse, and translate across to TRIM A.",
                                     )),
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Let\'s move toward A. When the velocity marker turns violet, we\'re running on RCS.",
-                                        icon: Some("self://portraits/copilot.png"),
-                                    )),
                                     HintEmphasisSet((
                                         verb: "RCS",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "trim_mark_lateral_gate",
+                                        name: "TRIM A Gate",
+                                        position: (
+                                            -200.0,
+                                            80.0,
+                                            900.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 100.0,
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_lateral",
@@ -2173,7 +2205,7 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("trim_mark_lateral"),
+                        id: Some("trim_mark_lateral_gate"),
                         other_id: Some("cutter"),
                     )),
                     Expression((Equal(
@@ -2200,6 +2232,9 @@
                     DespawnScenarioObject((
                         id: "trim_mark_lateral",
                     )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_lateral_gate",
+                    )),
                     Sequence((
                         key: "beat_3",
                         steps: [
@@ -2209,6 +2244,22 @@
                                     Objective((
                                         id: "trim_vertical",
                                         message: "Hold [SHIFT] and move the mouse up toward TRIM B.",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "trim_mark_vertical_gate",
+                                        name: "TRIM B Gate",
+                                        position: (
+                                            -200.0,
+                                            300.0,
+                                            900.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 100.0,
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_vertical",
@@ -2225,7 +2276,7 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("trim_mark_vertical"),
+                        id: Some("trim_mark_vertical_gate"),
                         other_id: Some("cutter"),
                     )),
                     Expression((Equal(
@@ -2252,6 +2303,9 @@
                     DespawnScenarioObject((
                         id: "trim_mark_vertical",
                     )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_vertical_gate",
+                    )),
                     Sequence((
                         key: "beat_3.25",
                         steps: [
@@ -2261,6 +2315,22 @@
                                     Objective((
                                         id: "trim_return_lateral",
                                         message: "Use [SHIFT] and the mouse to cross toward TRIM C.",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "trim_mark_return_lateral_gate",
+                                        name: "TRIM C Gate",
+                                        position: (
+                                            -500.0,
+                                            300.0,
+                                            900.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 100.0,
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_return_lateral",
@@ -2277,7 +2347,7 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("trim_mark_return_lateral"),
+                        id: Some("trim_mark_return_lateral_gate"),
                         other_id: Some("cutter"),
                     )),
                     Expression((Equal(
@@ -2304,6 +2374,9 @@
                     DespawnScenarioObject((
                         id: "trim_mark_return_lateral",
                     )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_return_lateral_gate",
+                    )),
                     Sequence((
                         key: "beat_3.5",
                         steps: [
@@ -2313,6 +2386,22 @@
                                     Objective((
                                         id: "trim_return_vertical",
                                         message: "Use [SHIFT] and the mouse to descend toward TRIM D.",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "trim_mark_return_vertical_gate",
+                                        name: "TRIM D Gate",
+                                        position: (
+                                            -500.0,
+                                            80.0,
+                                            900.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 100.0,
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_return_vertical",
@@ -2329,7 +2418,7 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("trim_mark_return_vertical"),
+                        id: Some("trim_mark_return_vertical_gate"),
                         other_id: Some("cutter"),
                     )),
                     Expression((Equal(
@@ -2355,6 +2444,9 @@
                     )),
                     DespawnScenarioObject((
                         id: "trim_mark_return_vertical",
+                    )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_return_vertical_gate",
                     )),
                     Sequence((
                         key: "trim_complete",
@@ -3002,9 +3094,9 @@
                         id: "orbit_return_gate",
                         name: "Orbit Return Gate",
                         position: (
-                            -3922.0,
-                            -334.0,
-                            -5014.0,
+                            -3771.0,
+                            -317.0,
+                            -4626.0,
                         ),
                         rotation: (
                             0.0,
@@ -3012,7 +3104,7 @@
                             0.0,
                             1.0,
                         ),
-                        radius: 300.0,
+                        radius: 540.0,
                     )),
                 ],
             ),

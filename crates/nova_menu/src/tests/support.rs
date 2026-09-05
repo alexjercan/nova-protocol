@@ -125,7 +125,7 @@ pub(crate) fn press_escape(app: &mut App) {
 }
 
 pub(crate) fn pause_state(app: &App) -> PauseStates {
-    app.world().resource::<State<PauseStates>>().get().clone()
+    *app.world().resource::<State<PauseStates>>().get()
 }
 
 pub(crate) fn clocks_paused(app: &App) -> (bool, bool) {

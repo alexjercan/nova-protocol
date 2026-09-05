@@ -98,8 +98,11 @@ struct AsteroidSurfaceMaterialData {
     roughness_high: f32,
     // Metallic response.
     metallic: f32,
-    // This body's own 0..1 draw from its silhouette seed.
+    // This body's own 0..1 draw from its silhouette seed, already scaled by the
+    // kind's own jitter knob.
     jitter: f32,
+    // 1 when this kind spends the macro field, 0 when it does not.
+    detail: f32,
 }
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> material: AsteroidSurfaceMaterialData;
@@ -315,33 +318,47 @@ fn fragment(
     var weight = pow(abs(normal), vec3<f32>(material.sharpness));
     weight = weight / max(weight.x + weight.y + weight.z, 1e-4);
 
-    // Layer 2: the macro field. Warping the domain before reading it is what
-    // turns fBm's soap bubbles into stretched, tangled strata - one extra read
-    // for most of the character.
-    let warp_at = local * 0.7;
-    let warped = local + material.warp * vec3<f32>(
-        value_noise(warp_at),
-        value_noise(warp_at + vec3<f32>(19.3, 5.1, 31.7)),
-        value_noise(warp_at + vec3<f32>(7.9, 23.5, 11.2)),
-    );
-    let raw = fbm(warped * material.macro_scale);
-    let mottle = clamp((raw - 0.5) * material.contrast + 0.5, 0.0, 1.0);
-
-    // Layer 4 (computed before 3, which needs nothing from it): the texture at
-    // two incommensurate scales, blended by the macro field. Neither scale's
-    // period survives the blend, so the grain stops arriving on a grid.
     let tiled = local * material.tiling;
     let near = triplanar(tiled, weight);
-    let far = triplanar(tiled * SECOND_SCALE + vec3<f32>(SECOND_OFFSET, SECOND_OFFSET.x), weight);
-    // A HARD choice with a narrow crossfade, not an average. Blending two
-    // decorrelated samples at even weight halves their variance, and the
-    // variance is the crevice detail the texture is kept for - a first pass
-    // that mixed them linearly came back visibly softer than the control it was
-    // meant to beat. Choosing one scale over most of the surface and crossing
-    // over in a narrow band keeps the grain and still leaves neither scale's
-    // period intact.
-    let choose = smoothstep(BLEND_EDGE_LOW, BLEND_EDGE_HIGH, mottle) * material.break_up;
-    let texture_rgb = mix(near, far, choose);
+
+    // Layers 2 and 4, behind ONE uniform branch. The domain warp, the fBm and
+    // the second triplanar read all feed the palette, the tile break-up and the
+    // roughness sweep, so a kind that spends none of the three - `plain`, the
+    // control - pays for none of them instead of multiplying them by zero.
+    var warped = local;
+    var mottle = 0.0;
+    var texture_rgb = near;
+    if material.detail > 0.0 {
+        // Layer 2: the macro field. Warping the domain before reading it is
+        // what turns fBm's soap bubbles into stretched, tangled strata - one
+        // extra read for most of the character.
+        let warp_at = local * 0.7;
+        warped = local + material.warp * vec3<f32>(
+            value_noise(warp_at),
+            value_noise(warp_at + vec3<f32>(19.3, 5.1, 31.7)),
+            value_noise(warp_at + vec3<f32>(7.9, 23.5, 11.2)),
+        );
+        let raw = fbm(warped * material.macro_scale);
+        mottle = clamp((raw - 0.5) * material.contrast + 0.5, 0.0, 1.0);
+
+        // Layer 4 (computed before 3, which needs nothing from it): the texture
+        // at two incommensurate scales, blended by the macro field. Neither
+        // scale's period survives the blend, so the grain stops arriving on a
+        // grid.
+        let far = triplanar(
+            tiled * SECOND_SCALE + vec3<f32>(SECOND_OFFSET, SECOND_OFFSET.x),
+            weight,
+        );
+        // A HARD choice with a narrow crossfade, not an average. Blending two
+        // decorrelated samples at even weight halves their variance, and the
+        // variance is the crevice detail the texture is kept for - a first pass
+        // that mixed them linearly came back visibly softer than the control it
+        // was meant to beat. Choosing one scale over most of the surface and
+        // crossing over in a narrow band keeps the grain and still leaves
+        // neither scale's period intact.
+        let choose = smoothstep(BLEND_EDGE_LOW, BLEND_EDGE_HIGH, mottle) * material.break_up;
+        texture_rgb = mix(near, far, choose);
+    }
 
     // The texture's brightness as a RATIO against its own mean, so it lands as
     // relief on the palette instead of dragging the palette down to its level.

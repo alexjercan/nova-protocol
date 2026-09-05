@@ -21,9 +21,9 @@
 //! | reach at the bay's 100 s lifetime | 31.3 km | 29.1 km |
 //!
 //! So the Lance is the torpedo you fire at something that will not shoot back:
-//! it arrives ~7% sooner, and against a target RUNNING at the player's 250 m/s
-//! speed cap it closes at 63 m/s where a Serpent manages 41 - half again as
-//! fast, which is where "long range at something that cannot answer" actually
+//! it arrives ~7% sooner, and against a target RUNNING at the player's 150 m/s
+//! speed cap it closes at 163 m/s where a Serpent manages 141 - ~16% faster,
+//! which is where "long range at something that cannot answer" actually
 //! bites. And a defender meeting Lances is a defender whose point defense
 //! WORKS, which is what makes the type the campaign's difficulty lever.
 //!

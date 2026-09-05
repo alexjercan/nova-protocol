@@ -79,6 +79,46 @@ pub(super) fn speed_budget_scale(residual: Vec3, push: Vec3, cap: f32, taper_ban
     gate.min(step_inside_sphere(residual, push, speed.max(cap)))
 }
 
+/// The delta-v an RCS push actually delivers: the tapered step with its RESULT
+/// clamped back onto the budget sphere, rather than the step itself shrunk to
+/// stay inside it.
+///
+/// Both bound the same quantity - `|residual|` never grows past its radius -
+/// and they agree everywhere below the cap. They differ on the sphere, and the
+/// difference is the whole point. Shrinking the step solves a TANGENTIAL push
+/// at the cap to exactly zero, so a hull holding the cap on one axis finds
+/// every perpendicular axis dead until it first brakes back down the axis it
+/// came in on. First Shift's RCS lesson is a box of four mutually
+/// perpendicular legs, each flown at the cap, so that is the shipped case.
+/// Clamping the result instead spends the growth and lets the push TURN the
+/// velocity vector - which is the "reshuffle inside one sphere, never
+/// accumulate" the verb is documented as.
+///
+/// Pure for unit testing.
+pub(super) fn budgeted_rcs_delta_v(residual: Vec3, push: Vec3, cap: f32, taper_band: f32) -> Vec3 {
+    let step = push.length();
+    if step <= 0.0 {
+        return Vec3::ZERO;
+    }
+    let speed = residual.length();
+    let grown = (residual + push).length();
+    // Anything that slows the hull is free, at the cap and well past it.
+    if grown <= speed {
+        return push;
+    }
+    let growth = ((grown - speed) / step).clamp(0.0, 1.0);
+    let taper = ((cap - speed) / taper_band.max(f32::EPSILON)).clamp(0.0, 1.0);
+    let tapered = push * (1.0 - growth * (1.0 - taper));
+    // The sphere never shrinks below where the ship already is: an overspeed
+    // hull is held at its speed - it may still turn, never accelerate.
+    let radius = speed.max(cap);
+    let result = residual + tapered;
+    if result.length() <= radius {
+        return tapered;
+    }
+    result.clamp_length_max(radius) - residual
+}
+
 /// The largest `s` in `0..=1` with `|residual + s * push| <= radius`: the
 /// positive root of the quadratic, which exists because `radius` is never
 /// below `|residual|`.
@@ -231,12 +271,12 @@ pub(super) fn manual_burn_system(
 ///   needs no physical side/vertical thrusters - the `Rcs` verb is the fiction
 ///   that the flight computer has cold-gas quads. The impulse is scaled by mass
 ///   so `rcs_accel` is a true acceleration and the feel is mass-independent.
-/// - **Capped, never free propulsion.** One [`speed_budget_scale`] budget
-///   limits the MAGNITUDE of `velocity - reference`, the same rule the manual
-///   burn flies: a push that would carry the hull past the cap yields nothing
+/// - **Capped, never free propulsion.** One [`budgeted_rcs_delta_v`] budget
+///   limits the MAGNITUDE of `velocity - reference`: a push that would carry
+///   the hull past the cap is spent turning the velocity instead of growing it,
 ///   however many axes it is spread over, while anything that slows the hull
-///   still acts. So RCS can only reshuffle velocity inside one sphere of radius
-///   `cap`, never accumulate speed by spamming it diagonally.
+///   acts in full. So RCS can only reshuffle velocity inside one sphere of
+///   radius `cap`, never accumulate speed by spamming it diagonally.
 ///
 /// Gated on the ship granting the `Rcs` verb (same rule as `ship_grants_verb`
 /// in the input layer). Deliberately NOT gated on `Without<Autopilot>`: the
@@ -313,7 +353,7 @@ pub(super) fn rcs_burn_system(
             .clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
             .clamp_length_max(1.0);
         let step = rotation.mul_vec3(command) * settings.rcs_accel * dt;
-        let delta_v = step * speed_budget_scale(velocity - reference, step, cap, taper_band);
+        let delta_v = budgeted_rcs_delta_v(velocity - reference, step, cap, taper_band);
         if delta_v != Vec3::ZERO {
             // Scale by mass so the 1/mass inside apply_linear_impulse yields
             // exactly `delta_v`, independent of hull mass.
@@ -407,10 +447,58 @@ mod tests {
         assert_eq!(speed_budget_scale(Vec3::X * 40.0, oblique, CAP, BAND), 1.0);
     }
 
+    /// At the cap, RCS may still TURN the velocity - it just cannot grow it.
+    /// The main drive's scalar budget solves a tangential push to zero, which
+    /// on a hull holding the cap kills every perpendicular axis; First Shift's
+    /// RCS lesson is a box of four mutually perpendicular legs flown at the
+    /// cap, so RCS clamps the RESULT onto the sphere instead.
+    #[test]
+    fn rcs_at_the_cap_turns_the_velocity_without_growing_it() {
+        let across = Vec3::Y * STEP;
+        let at_cap = Vec3::X * CAP;
+        let delta = budgeted_rcs_delta_v(at_cap, across, CAP, BAND);
+        assert!(
+            delta.length() > 0.5 * STEP,
+            "a perpendicular axis must stay alive at the cap, got {delta:?}"
+        );
+        let turned = at_cap + delta;
+        assert!(
+            (turned.length() - CAP).abs() < 1e-3,
+            "the result rides the sphere, not past it: {}",
+            turned.length()
+        );
+        assert!(turned.y > 0.0, "the push went the way it was asked to");
+
+        // Overspeed: held at the speed it arrived with, still free to turn.
+        let fast = Vec3::X * 40.0;
+        let held = fast + budgeted_rcs_delta_v(fast, across, CAP, BAND);
+        assert!(
+            (held.length() - 40.0).abs() < 1e-3,
+            "an overspeed hull is held, never shoved: {}",
+            held.length()
+        );
+
+        // Below the cap nothing changed: the push lands whole.
+        let free = budgeted_rcs_delta_v(Vec3::X * 5.0, across, CAP, BAND);
+        assert!((free - across).length() < 1e-4, "{free:?}");
+
+        // A straight push at the cap still yields nothing.
+        let ahead = Vec3::X * STEP;
+        assert!(
+            budgeted_rcs_delta_v(at_cap, ahead, CAP, BAND).length() < 1e-4,
+            "the cap is still a cap"
+        );
+
+        // Braking is free at and past the cap, exactly as before.
+        let brake = Vec3::NEG_X * STEP;
+        assert_eq!(budgeted_rcs_delta_v(fast, brake, CAP, BAND), brake);
+    }
+
     /// A push across the velocity grows the speed only to second order, which
     /// the per-tick sphere limit is what catches: at the cap a tangential push
     /// is spent, and an overspeed ship is held where it is rather than shoved
-    /// further out.
+    /// further out. This is the MAIN DRIVE's scalar budget - RCS clamps the
+    /// result instead, pinned above.
     #[test]
     fn a_tangential_push_cannot_carry_the_residual_past_the_budget() {
         let across = Vec3::Y * STEP;

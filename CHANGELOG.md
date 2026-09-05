@@ -44,9 +44,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A spinal railgun joins the catalog: no traverse, so the ship aims it.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
-- A railgun slug rakes a corridor about three cells wide through everything in
-  line, gutting hull sections and crippling the big drives. Power, not a
-  layer count or the bore, bounds what one shot takes.
+- A railgun slug rakes a corridor three cells wide through everything in line,
+  gutting hull sections and crippling the big drives. Power, not a layer count
+  or the bore, bounds what one shot takes.
 - Firing a railgun shoves the ship that fired. The impulse lands at the muzzle,
   so a railgun mounted off the ship's axis yaws it as well as pushing it back.
 - A railgun holds one shell and gets it back on a twelve-second idle reload.
@@ -59,24 +59,18 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Scenarios & Objectives
 - Nav beacons are radar-acquirable within 12 km by default, up from 6 km.
-- First Shift moves WORK SITE and the third crate fully clear of Belt Rock 6's
-  gravity well, so the return GOTO can settle and complete.
 - **(breaking)** A scenario places a `Planet`: a type and a seed draw a world
   with terrain, biomes and a cap. A planetoid authored as a big `Asteroid` is
   now a rock - re-author it at its true radius.
-- First Shift keeps control suspended from the warship reveal through teardown.
-  Its silent kill cuts through launch and rail hits, then holds Cutter through torpedo impacts and aftermath.
-- First Shift makes physical STOP, four framed RCS marks and two completed GOTO
-  legs Cutter One's post-maintenance release for its replaced manifold and
-  guidance, under a persistent 150 m/s manual limit.
-- First Shift salvage crates collect only at visible contact: their pickup
-  radius shrank from 80 m to the 15 m crate envelope.
-- **(breaking)** The campaign is two new chapters, First Shift and Second
-  Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
+- A `Planet` must author `invulnerable: true`. A destructible one is a lint
+  error and refuses to load: nothing carves a planet, so it would sit there
+  taking hits and never break.
+- **(breaking)** The campaign is First Shift and Second Shift;
+  `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
-- First Shift opens New Game: an experienced Earthworks crew briefs three
-  recoveries, sneaks a full planetoid lap out of Meridian's sight, and watches
-  an unidentified Earth Navy warship kill the carrier.
+- First Shift opens New Game: an Earthworks crew flies three recoveries under
+  a 150 m/s limit, sneaks a planetoid lap out of Meridian's sight, and watches
+  an Earth Navy warship kill the carrier.
 - Second Shift returns to the same belt an hour later. Recover three recorders
   out of the wreck while a five-ship cleanup group sweeps it; being seen costs
   you the quiet route home, not the run.
@@ -101,9 +95,9 @@ does NOT get an entry - and it is the only place they are written down.
 ### Interface & HUD
 - Nova Protocol's campaign comms now give each recurring voice a distinct green
   CRT portrait, including Cutter One's crew, Meridian and unknown channels.
-- Comms use screen-relative cards with 20 px message text and distinct speaker
-  headers. New lines fade in without growing across the screen edge or earlier
-  transcript. Objective guidance is larger and clearer over clutter.
+- Comms use screen-relative cards with 20 px text and distinct speaker headers.
+  A new line fades in without growing across the screen edge or the transcript,
+  and objective guidance reads over clutter.
 - A completed objective no longer ghosts green down the right of the screen.
   Its chip leaving the top of the stack, under the completion chime, is the
   whole cue.
@@ -165,9 +159,11 @@ does NOT get an entry - and it is the only place they are written down.
   teardown-safe authority without coupling control to camera actions.
 - `OnGotoComplete` and `OnStopComplete` let scenarios react when the player's
   real autopilot reaches its target or comes to rest.
+- `OnOrbitLap` fires on each net revolution a ship holds around a well, so a
+  scenario can gate on angular travel rather than on elapsed time.
 - **(breaking)** Content is authored in meters: a 300 m blast is
-  `blast_radius: 300`. Every world distance and speed is x10. Build-grid
-  geometry - colliders, links, mounts, part poses - stays in cells.
+  `blast_radius: 300`, so every world distance and speed is x10. Build-grid
+  geometry - colliders, links, mounts, poses - stays in cells.
 - An AI ship's `arrival_standoff: Some(0.0)` is honored - its hull's face on
   the mark - instead of being dropped, and is linted like the `MoveShipTo`
   field it mirrors.
@@ -216,7 +212,7 @@ does NOT get an entry - and it is the only place they are written down.
 - `content lint` reports each scenario's creative map - the world-injecting
   actions it runs. It is context on the report, never a finding, and never
   changes the exit code.
-- The Ledger (1.27.0) and Gauntlet Run (1.11.0) are republished in meters.
+- The Ledger (1.28.0) and Gauntlet Run (1.12.0) are republished in meters.
   Update both: a portal mod installed on 0.12.0 carries the old numbers, and
   this build reads them as meters.
 
@@ -328,7 +324,7 @@ does NOT get an entry - and it is the only place they are written down.
   counter of its own.
 - The five headless spike ranges run on the scripted driver: 56 numbered step
   arms become named beats waiting on the pointer, the widget and the registry,
-  so a stall names the beat instead of a number.
+  so a stall names the beat, not a number.
 - An autopilot deadline counts real seconds, so a beat behind the pause overlay
   or the ship computer - where the game clock stops - aborts named instead of
   holding the run open forever.

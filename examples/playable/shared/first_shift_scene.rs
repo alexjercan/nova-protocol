@@ -41,6 +41,7 @@ fn load(mut commands: Commands, assets: Res<GameAssets>, preview: Res<Preview>) 
         preview.scene,
         assets.cubemap.clone().into(),
         assets.asteroid_texture.clone().into(),
+        &CampaignPortraits::from_game_assets(&assets),
     );
     for pose in preview.poses {
         place_ship(&mut scenario, *pose);

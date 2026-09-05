@@ -30,9 +30,16 @@ function discoverComics() {
 }
 
 function validateComic(comicPath, comic, root) {
-    const pathPattern = /^[a-z0-9][a-z0-9/-]*$/;
+    // Must stay in step with `comic-catalog.ts`'s require.context, which
+    // matches `<comic>/pages/<name>.ts` and nothing deeper: a source the
+    // build accepts but the loader cannot resolve ships an empty reader.
+    const pathPattern = /^pages\/[a-z0-9][a-z0-9-]*$/;
     const idPattern = /^[a-z0-9][a-z0-9-]*$/;
-    for (const field of ["title", "summary", "status", "cover"]) {
+    const isId = (value) => typeof value === "string" && idPattern.test(value);
+    if (!isId(comicPath)) {
+        throw new Error(`comic directory '${comicPath}' is not a valid id`);
+    }
+    for (const field of ["title", "summary", "status", "cover", "coverAlt"]) {
         if (typeof comic[field] !== "string" || !comic[field].trim()) {
             throw new Error(`comic '${comicPath}' has no ${field}`);
         }
@@ -43,7 +50,7 @@ function validateComic(comicPath, comic, root) {
     const chapterIds = new Set();
     const pageIds = new Set();
     for (const chapter of comic.chapters) {
-        if (!idPattern.test(chapter.id) || chapterIds.has(chapter.id)) {
+        if (!isId(chapter.id) || chapterIds.has(chapter.id)) {
             throw new Error(
                 `comic '${comicPath}' has an invalid/duplicate chapter id`
             );
@@ -59,7 +66,7 @@ function validateComic(comicPath, comic, root) {
             );
         }
         for (const page of chapter.pages) {
-            if (!idPattern.test(page.id) || pageIds.has(page.id)) {
+            if (!isId(page.id) || pageIds.has(page.id)) {
                 throw new Error(
                     `comic '${comicPath}' has an invalid/duplicate page id`
                 );
@@ -98,11 +105,11 @@ function comicIndexPage(comics, publicPath) {
             return `<li class="post-card story-record">
                 <a class="post-card__link" href="${publicPath}story/${escapeHtml(comic.path)}/">
                     <div class="post-card__media">
-                        <img class="post-card__thumb" src="${publicPath}assets/story/${escapeHtml(comic.path)}/${escapeHtml(comic.cover)}" alt="${escapeHtml(comic.coverAlt || comic.title)}" />
+                        <img class="post-card__thumb" src="${publicPath}assets/story/${escapeHtml(comic.path)}/${escapeHtml(comic.cover)}" alt="${escapeHtml(comic.coverAlt)}" />
                         <span class="story-record__status">${escapeHtml(comic.status)}</span>
                     </div>
                     <div class="post-card__body">
-                        <span class="post-card__meta">${comic.chapters.length} chapters // ${pages.length} pages</span>
+                        <span class="post-card__meta">${comic.chapters.length} ${comic.chapters.length === 1 ? "chapter" : "chapters"} // ${pages.length} pages</span>
                         <h2 class="post-card__title">${escapeHtml(comic.title)}</h2>
                         <p class="post-card__excerpt">${escapeHtml(comic.summary)}</p>
                         <span class="story-record__open">Open comic [ENTER]</span>
@@ -191,7 +198,7 @@ function comicReaderPage(comic, publicPath) {
             <aside class="comic-reader__contents" id="comic-contents" aria-label="Comic contents">
                 <p class="comic-reader__contents-title">Contents</p>
                 <nav>${contents}</nav>
-                <div class="comic-reader__legend"><span>Campaign status</span><strong>${escapeHtml(comic.status)}</strong><span>Current release</span><strong>${comic.chapters.length} playable chapters</strong></div>
+                <div class="comic-reader__legend"><span>Campaign status</span><strong>${escapeHtml(comic.status)}</strong><span>Chapters</span><strong>${comic.chapters.length}</strong></div>
             </aside>
             <div class="comic-reader__viewport" data-page-viewport tabindex="0" aria-label="${escapeHtml(comic.title)} comic pages"></div>
         </div>
@@ -207,4 +214,10 @@ function comicReaderPage(comic, publicPath) {
     });
 }
 
-module.exports = { discoverComics, comicIndexPage, comicReaderPage, pagesOf };
+module.exports = {
+    discoverComics,
+    comicIndexPage,
+    comicReaderPage,
+    pagesOf,
+    validateComic,
+};

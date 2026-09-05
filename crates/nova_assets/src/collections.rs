@@ -189,6 +189,30 @@ pub struct GameAssets {
     /// The asteroid surface texture.
     #[asset(path = "base/textures/asteroid.png")]
     pub asteroid_texture: Handle<Image>,
+    /// The carrier's duty channel, and the first of the base campaign's comms
+    /// portraits. The set is preloaded rather than reached for lazily because
+    /// the campaign builders take `AssetRef`s: an in-process caller hands over
+    /// these handles, and only the RON generator writes `self://` paths.
+    #[asset(path = "base/portraits/meridian-control.png")]
+    pub portrait_meridian_control: Handle<Image>,
+    /// The player's supervisor on the maintenance deck.
+    #[asset(path = "base/portraits/deck-chief.png")]
+    pub portrait_deck_chief: Handle<Image>,
+    /// The seat beside the player's, on both crew channels.
+    #[asset(path = "base/portraits/copilot.png")]
+    pub portrait_copilot: Handle<Image>,
+    /// The crew member down the back with the crates.
+    #[asset(path = "base/portraits/engineer.png")]
+    pub portrait_engineer: Handle<Image>,
+    /// The player's own comms face.
+    #[asset(path = "base/portraits/player.png")]
+    pub portrait_player: Handle<Image>,
+    /// The wreck's automatic beacon.
+    #[asset(path = "base/portraits/automated-beacon.png")]
+    pub portrait_automated_beacon: Handle<Image>,
+    /// The cleanup group's leader in chapter two.
+    #[asset(path = "base/portraits/unknown-channel.png")]
+    pub portrait_unknown_channel: Handle<Image>,
     /// The base hull section mesh.
     #[asset(path = "base/gltf/hull-01.glb#Scene0")]
     pub hull_01: Handle<WorldAsset>,
@@ -603,6 +627,13 @@ mod tests {
             GameAssets {
                 cubemap,
                 asteroid_texture: default(),
+                portrait_meridian_control: default(),
+                portrait_deck_chief: default(),
+                portrait_copilot: default(),
+                portrait_engineer: default(),
+                portrait_player: default(),
+                portrait_automated_beacon: default(),
+                portrait_unknown_channel: default(),
                 hull_01: default(),
                 turret_yaw_01: default(),
                 turret_pitch_01: default(),

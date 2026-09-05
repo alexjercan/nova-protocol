@@ -3223,19 +3223,11 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     height: 100%;
     object-fit: cover;
 }
-.comic-panel--wide,
-.comic-panel--attack-main,
-.comic-panel--wreck {
+.comic-panel--wide {
     grid-column: 1 / -1;
 }
 .comic-panel--wide img {
     object-position: 30% center;
-}
-.comic-panel--attack-main img {
-    object-position: 80% center;
-}
-.comic-panel--wreck img {
-    object-position: center;
 }
 .speech {
     position: absolute;
@@ -3357,6 +3349,9 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 }
 .comic-panel img[data-focus="warship"] {
     object-position: 80% center;
+}
+.comic-panel img[data-focus="wreck"] {
+    object-position: 50% center;
 }
 .comic-end {
     display: flex;

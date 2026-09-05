@@ -1,11 +1,11 @@
 //! The Command shell's dispatcher: the executor behind the CRT prompt and the
 //! process channel.
 //!
-//! `nova_os` owns the LANGUAGE - the catalog, the parser, the structured result
-//! - and stays a leaf, so the terminal model can be tested without a game. This
-//! crate owns the EXECUTION, and therefore sits above gameplay, scenario,
-//! settings and menu. That split is the whole reason a command can read a live
-//! ship without `nova_os` learning what a ship is.
+//! `nova_os` owns the LANGUAGE (the catalog, the parser, the structured
+//! result) and stays a leaf, so the terminal model can be tested without a
+//! game. This crate owns the EXECUTION, and therefore sits above gameplay,
+//! scenario, settings and menu. That split is the whole reason a command can
+//! read a live ship without `nova_os` learning what a ship is.
 //!
 //! Two front ends arrive here and neither can drift from the other:
 //!

@@ -1,7 +1,62 @@
 //! Asset references consumed by built-in content builders.
 
 use bevy::prelude::{AudioSource, Image, WorldAsset};
+use nova_assets::prelude::GameAssets;
 use nova_gameplay::prelude::AssetRef;
+
+/// The base campaign's comms portraits, one per speaker.
+///
+/// Grouped rather than passed loose because every campaign builder needs the
+/// whole set, and because the set is what a caller has to source: the RON
+/// generator supplies `self://` paths, an in-process caller supplies the live
+/// [`GameAssets`] handles. A portrait reference that reaches the asset server
+/// still holding its `self://` sentinel loads nothing.
+#[derive(Clone)]
+pub struct CampaignPortraits {
+    /// The carrier's duty channel.
+    pub meridian_control: AssetRef<Image>,
+    /// The player's supervisor on the maintenance deck.
+    pub deck_chief: AssetRef<Image>,
+    /// The seat beside the player's, on both the work and cabin channels.
+    pub copilot: AssetRef<Image>,
+    /// Down the back with the crates.
+    pub engineer: AssetRef<Image>,
+    /// The player's own comms label.
+    pub player: AssetRef<Image>,
+    /// The wreck's automatic beacon.
+    pub automated_beacon: AssetRef<Image>,
+    /// The cleanup group's leader in chapter two.
+    pub unknown_channel: AssetRef<Image>,
+}
+
+impl CampaignPortraits {
+    /// The live handles a running app has already loaded.
+    pub fn from_game_assets(assets: &GameAssets) -> Self {
+        Self {
+            meridian_control: assets.portrait_meridian_control.clone().into(),
+            deck_chief: assets.portrait_deck_chief.clone().into(),
+            copilot: assets.portrait_copilot.clone().into(),
+            engineer: assets.portrait_engineer.clone().into(),
+            player: assets.portrait_player.clone().into(),
+            automated_beacon: assets.portrait_automated_beacon.clone().into(),
+            unknown_channel: assets.portrait_unknown_channel.clone().into(),
+        }
+    }
+
+    /// Generation source: the paths [`BaseContentAssets::from_paths`] writes.
+    fn from_paths() -> Self {
+        let portrait = |name: &str| AssetRef::from(format!("self://portraits/{name}.png"));
+        Self {
+            meridian_control: portrait("meridian-control"),
+            deck_chief: portrait("deck-chief"),
+            copilot: portrait("copilot"),
+            engineer: portrait("engineer"),
+            player: portrait("player"),
+            automated_beacon: portrait("automated-beacon"),
+            unknown_channel: portrait("unknown-channel"),
+        }
+    }
+}
 
 /// The render-mesh asset references the section catalog needs, as `AssetRef`s.
 ///
@@ -16,6 +71,8 @@ pub struct BaseContentAssets {
     pub cubemap: AssetRef<Image>,
     /// Default procedural-asteroid surface texture.
     pub asteroid_texture: AssetRef<Image>,
+    /// The base campaign's comms portraits.
+    pub portraits: CampaignPortraits,
     /// Standard hull mesh: the crew cell, a hatch on every face.
     pub hull: AssetRef<WorldAsset>,
     /// Cargo hull variant: caged freight bags, every face alike.
@@ -210,6 +267,7 @@ impl BaseContentAssets {
         Self {
             cubemap: AssetRef::from("self://textures/cubemap.png".to_string()),
             asteroid_texture: AssetRef::from("self://textures/asteroid.png".to_string()),
+            portraits: CampaignPortraits::from_paths(),
             hull: AssetRef::from("self://gltf/hull_personnel.glb#Scene0".to_string()),
             hull_cargo: AssetRef::from("self://gltf/hull_cargo.glb#Scene0".to_string()),
             hull_tank: AssetRef::from("self://gltf/hull_tank.glb#Scene0".to_string()),

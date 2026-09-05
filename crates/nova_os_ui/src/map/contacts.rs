@@ -248,7 +248,6 @@ impl MapContacts<'_, '_> {
     /// Every contact entity with its kind + stable sort key, for the code-minting
     /// pass. Uses the SAME classification as [`Self::collect`] (via
     /// [`ship_contact_kind`]) so labels never disagree with the rendered list.
-
     pub(crate) fn classified(&self) -> Vec<(Entity, MapContactKind, String)> {
         let mut out = Vec::new();
         if let Some((player, _, _)) = self.player_frame() {

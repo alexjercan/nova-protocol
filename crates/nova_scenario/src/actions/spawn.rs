@@ -395,19 +395,36 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 self.id_prefix, self.count
             );
         }
-        // An asteroid field says what it is made of or it does not spawn. The
-        // lint catches this in shipped content; a mod's content can reach the
-        // runtime without ever meeting the lint, and a field of forty rocks is
-        // exactly the wrong place to invent a default.
-        if matches!(self.template.kind, ScenarioObjectKind::Asteroid(_))
-            && self.asteroid_kinds.iter().all(|(_, weight)| *weight == 0)
-        {
-            error!(
-                "ScatterObjects: '{}' scatters asteroids with no kind mix; nothing spawned. \
-                 Author `asteroid_kinds` with at least one of {:?} at a nonzero weight.",
-                self.id_prefix, ASTEROID_KINDS
-            );
-            return;
+        // An asteroid field says what it is made of, in ids this build knows,
+        // or it does not spawn. The lint catches both in shipped content; a
+        // mod's content can reach the runtime without ever meeting the lint,
+        // and a field of forty rocks is exactly the wrong place to invent a
+        // default. Weights alone are not the check: a mix of one UNKNOWN id at
+        // weight 1 clears a weight test, spawns the full count, and every body
+        // then refuses to render - a field of invisible colliders.
+        if matches!(self.template.kind, ScenarioObjectKind::Asteroid(_)) {
+            let drawn: Vec<&str> = self
+                .asteroid_kinds
+                .iter()
+                .filter(|(_, weight)| *weight > 0)
+                .map(|(kind, _)| kind.as_str())
+                .collect();
+            let unknown: Vec<&str> = drawn
+                .iter()
+                .copied()
+                .filter(|kind| !is_asteroid_kind(kind))
+                .collect();
+            if drawn.is_empty() || !unknown.is_empty() {
+                error!(
+                    "ScatterObjects: '{}' scatters asteroids with no usable kind mix ({} drawable, \
+                     unknown ids {unknown:?}); nothing spawned. Author `asteroid_kinds` with at \
+                     least one of {:?} at a nonzero weight.",
+                    self.id_prefix,
+                    drawn.len() - unknown.len(),
+                    ASTEROID_KINDS
+                );
+                return;
+            }
         }
 
         // Seeded with what earlier scatters placed, so abutting sibling fields
@@ -1334,6 +1351,18 @@ mod tests {
         assert!(
             zeroed.is_empty(),
             "a mix that is all zero weight is no mix: {zeroed:?}"
+        );
+        // Weights are not the check - IDS are. A typo at a nonzero weight
+        // clears any weight test and then loses the draw for a share of the
+        // field, and those rocks reach the render path with no kind to shade
+        // them: colliders, gravity and lock signatures, no mesh.
+        let typo = run(&config(vec![
+            (KIND_ROCK.to_string(), 6),
+            ("granit".to_string(), 4),
+        ]));
+        assert!(
+            typo.is_empty(),
+            "a mix naming a kind nobody ships spawns nothing: {typo:?}"
         );
     }
 

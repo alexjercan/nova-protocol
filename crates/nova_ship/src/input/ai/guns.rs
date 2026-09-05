@@ -52,8 +52,8 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 ///   constant to derive each ship's audited threat envelope. A lifetime
 ///   change is a balance-audit change; re-run `balance_audit_gate`.
 ///
-/// The factor stays at 0.9 rather than tightening to the ~0.75 that would be
-/// strictly safe against a target fleeing at the player's authored 250 m/s
+/// The factor stays at 0.9 rather than tightening to the ~0.85 that would be
+/// strictly safe against a target fleeing at the player's authored 150 m/s
 /// speed cap.
 /// The gate is computed in the SHOOTER's frame while true reach is
 /// `closing_speed * lifetime`, so it over-reads against a runner and

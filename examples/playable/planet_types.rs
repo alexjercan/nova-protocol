@@ -136,10 +136,6 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn planet_plugin(app: &mut App) {
-    // The planet material's pipeline. Added HERE and not by
-    // `ScenarioObjectsPlugin`: this round adds a look, not a scenario object,
-    // so nothing an authored scenario spawns changes.
-    app.add_plugins(PlanetSurfacePlugin);
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
     app.add_systems(
         Update,
@@ -189,7 +185,7 @@ fn planet_stage(game_assets: &GameAssets) -> ScenarioConfig {
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: TODAY_RADIUS,
                 texture: game_assets.asteroid_texture.clone().into(),
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 mass: None,
                 invulnerable: true,

@@ -14,12 +14,6 @@
 //! cargo run --example second_shift_map --features debug -- --pilot camera
 //! ```
 
-#[expect(
-    dead_code,
-    reason = "the shared visual-bench module also exports scenario-one ships"
-)]
-#[path = "shared/first_shift.rs"]
-mod first_shift;
 #[path = "shared/first_shift_stage.rs"]
 mod stage;
 
@@ -27,6 +21,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use clap::{Parser, ValueEnum};
+use nova_authoring::prelude::*;
 use nova_protocol::prelude::*;
 
 // These landmarks and rocks are the exact fixed stage from first_shift_map.
@@ -160,31 +155,39 @@ const WRECK_PLACEMENTS: [(Meters3, Vec3); 28] = [
     ),
 ];
 
-const CLEANUP_PLACEMENTS: [(Meters3, &str, &str); 5] = [
+/// The cleanup group, in the order the campaign introduces it: two unarmed
+/// hulls, two armed escorts, then the leader. The catalog id is part of the
+/// placement so the bench poses the shipped craft.
+const CLEANUP_PLACEMENTS: [(Meters3, &str, &str, &str); 5] = [
     (
         Meters3::new(7_700.0, 450.0, -6_100.0),
         "cleanup_skiff",
         "Cleanup Skiff",
+        BLOCK_SKIFF_SHIP_ID,
     ),
     (
         Meters3::new(8_050.0, -100.0, -6_200.0),
         "cleanup_tug",
         "Cleanup Tug",
+        BLOCK_TUG_SHIP_ID,
     ),
     (
         Meters3::new(7_750.0, -350.0, -6_750.0),
         "cleanup_picket",
         "Cleanup Picket",
+        BLOCK_PICKET_SHIP_ID,
     ),
     (
         Meters3::new(8_250.0, 500.0, -6_850.0),
         "cleanup_claw",
         "Cleanup Claw",
+        BLOCK_CLAW_SHIP_ID,
     ),
     (
         Meters3::new(8_450.0, 100.0, -6_450.0),
         "cleanup_leader",
         "Cleanup Leader",
+        BLOCK_CLEANUP_LEADER_SHIP_ID,
     ),
 ];
 
@@ -203,13 +206,39 @@ struct Cli {
     pilot: Pilot,
 }
 
+/// Frames the loaded map is held before its shot. Sized to outlast the
+/// frame-time window below: the capture has to open and close inside one step.
+#[cfg(feature = "debug")]
+const HOLD_FRAMES: u32 = 460;
+/// Warmup and measured frames of the frame-time window. This is the most
+/// populated authored scene in the game, and nothing else measures it.
+#[cfg(feature = "debug")]
+const FRAMETIME_WINDOW: (u32, u32) = (60, 300);
+/// The still a harnessed run writes.
+#[cfg(feature = "debug")]
+const SHOT_NAME: &str = "second-shift-map.png";
+
 fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(map_plugin).build();
     app.insert_resource(cli.pilot);
 
     #[cfg(feature = "debug")]
-    app.add_systems(Update, freeze_bodies.run_if(camera_pilot));
+    {
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants, so `probe run` grades this
+        // example instead of hanging on an app with nothing to end it.
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // The frame-time claim is declared only when a measured run asks for
+        // it, so `probe run` stays a correctness walk and the sweep still gets
+        // its artifact.
+        if nova_probe::probe_armed() {
+            let (warmup, frames) = FRAMETIME_WINDOW;
+            app.add_plugins(nova_probe::nova_frametime().window(warmup, frames));
+        }
+        app.add_plugins(map_script());
+        app.add_systems(Update, freeze_bodies.run_if(camera_pilot));
+    }
 
     app.run()
 }
@@ -217,6 +246,31 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 fn camera_pilot(pilot: Res<Pilot>) -> bool {
     *pilot == Pilot::Camera
+}
+
+/// The probe script every harnessed run walks: reach the loaded map, hold it
+/// long enough for an ARMED frame-time window to close inside one step, then
+/// shoot it and exit. An unarmed run walks the identical steps and measures
+/// nothing, so this is also the smoke path.
+#[cfg(feature = "debug")]
+fn map_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        .step("wait for the map")
+        .enter(GameStates::Loading)
+        .until(and(
+            state_is(GameStates::Playing),
+            scenario_camera_present(),
+        ))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("hold the loaded map")
+        .until(frames(HOLD_FRAMES))
+        .add()
+        .step("shoot the map")
+        .on_enter(|world: &mut World| shoot(world, SHOT_NAME))
+        .until(shot_written(SHOT_NAME))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
 }
 
 fn map_plugin(app: &mut App) {
@@ -228,10 +282,11 @@ fn load_map(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    ships: Res<GameShips>,
     pilot: Res<Pilot>,
 ) {
     let scenario = map_scenario(&game_assets, *pilot);
-    refuse_broken(&scenario, &sections);
+    refuse_broken(&scenario, &sections, &ships);
     commands.trigger(LoadScenario(scenario));
 }
 
@@ -247,7 +302,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             } else {
                 SpaceshipController::None
             },
-            first_shift::maintenance_cutter(),
+            BLOCK_CUTTER_SHIP_ID,
         )),
         spawn(beacon(
             "approach_marker",
@@ -279,24 +334,6 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             RELAY_EVIDENCE_POS,
             Color::srgb(0.2, 0.85, 1.0),
         )),
-        spawn(planetoid(
-            "inspection_planetoid",
-            "Inspection Planetoid",
-            stage::INSPECTION_POS,
-            stage::INSPECTION_RADIUS,
-            27_000.0,
-            stage::INSPECTION_TYPE,
-            stage::INSPECTION_SEED,
-        )),
-        spawn(planetoid(
-            "concealment_planetoid",
-            "Concealment Planetoid",
-            stage::CONCEALMENT_POS,
-            stage::CONCEALMENT_RADIUS,
-            20_000.0,
-            stage::CONCEALMENT_TYPE,
-            stage::CONCEALMENT_SEED,
-        )),
         spawn(beacon(
             "cleanup_entry",
             "CLEANUP GROUP ENTRY",
@@ -317,11 +354,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
         )),
     ];
 
-    for (index, (hull, (_old_position, rotation))) in first_shift::carrier_wreck_fragments()
-        .into_iter()
-        .zip(WRECK_PLACEMENTS)
-        .enumerate()
-    {
+    for (index, (_old_position, rotation)) in WRECK_PLACEMENTS.into_iter().enumerate() {
         let position = if index == 0 {
             stage::CARRIER_POS
         } else {
@@ -333,46 +366,24 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             position,
             Quat::from_euler(EulerRot::XYZ, rotation.x, rotation.y, rotation.z),
             SpaceshipController::None,
-            hull,
+            wreck_piece(index),
         )));
     }
 
-    for (index, (position, radius)) in stage::SALVAGE_ROCKS.into_iter().enumerate() {
-        actions.push(spawn(asteroid(
-            &format!("salvage_rock_{index}"),
-            &format!("Salvage Rock {}", index + 1),
-            position,
-            radius,
-            None,
-            &game_assets.asteroid_texture,
-        )));
-    }
-    for (index, (position, radius)) in stage::AMBIENT_ROCKS.into_iter().enumerate() {
-        actions.push(spawn(asteroid(
-            &format!("ambient_rock_{index}"),
-            &format!("Ambient Rock {}", index + 1),
-            position,
-            radius,
-            None,
-            &game_assets.asteroid_texture,
-        )));
-    }
+    actions.extend(
+        stage::belt(&game_assets.asteroid_texture)
+            .into_iter()
+            .map(spawn),
+    );
 
-    let cleanup_hulls = [
-        first_shift::salvage_skiff(),
-        first_shift::salvage_tug(),
-        first_shift::salvage_picket(),
-        first_shift::salvage_claw(),
-        first_shift::salvage_leader(),
-    ];
-    for (hull, (position, id, name)) in cleanup_hulls.into_iter().zip(CLEANUP_PLACEMENTS) {
+    for (position, id, name, ship) in CLEANUP_PLACEMENTS {
         actions.push(spawn(ship_object(
             id,
             name,
             position,
             facing(position, WRECK_CENTER),
             SpaceshipController::None,
-            hull,
+            ship,
         )));
     }
 
@@ -414,6 +425,20 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
     }
 }
 
+/// Which piece of the Meridian sits at `index`, matching the campaign: the
+/// bridge tower is still where the ship was, and most of a debris field is
+/// small plating.
+fn wreck_piece(index: usize) -> &'static str {
+    if index == 0 {
+        return BLOCK_WRECK_BRIDGE_SHIP_ID;
+    }
+    match index % 4 {
+        0 => BLOCK_WRECK_SPINE_SHIP_ID,
+        1 => BLOCK_WRECK_SHOULDER_SHIP_ID,
+        _ => BLOCK_WRECK_PLATE_SHIP_ID,
+    }
+}
+
 fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(object)
 }
@@ -440,13 +465,15 @@ fn beacon(id: &str, label: &str, position: Meters3, color: Color) -> ScenarioObj
     }
 }
 
+/// One placed catalog ship. `ship` is the CATALOG id, so the field is dressed
+/// with the hulls the campaign ships rather than copies of them.
 fn ship_object(
     id: &str,
     name: &str,
     position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
-    hull: ShipHull,
+    ship: &str,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -457,7 +484,7 @@ fn ship_object(
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
-            hull: ShipSource::Inline(hull),
+            hull: hull(ship),
             ..default()
         }),
     }
@@ -469,62 +496,12 @@ fn facing(from: Meters3, target: Meters3) -> Quat {
         .rotation
 }
 
-fn planetoid(
-    id: &str,
-    name: &str,
-    position: Meters3,
-    radius: Meters,
-    mass: f32,
-    planet_type: PlanetType,
-    seed: u32,
-) -> ScenarioObjectConfig {
-    ScenarioObjectConfig {
-        base: BaseScenarioObjectConfig {
-            id: id.to_string(),
-            name: name.to_string(),
-            position,
-            rotation: Quat::IDENTITY,
-        },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(planet_type, radius, seed).anchored(mass),
-        ),
-    }
-}
-
-fn asteroid(
-    id: &str,
-    name: &str,
-    position: Meters3,
-    radius: Meters,
-    mass: Option<f32>,
-    texture: &Handle<Image>,
-) -> ScenarioObjectConfig {
-    ScenarioObjectConfig {
-        base: BaseScenarioObjectConfig {
-            id: id.to_string(),
-            name: name.to_string(),
-            position,
-            rotation: Quat::IDENTITY,
-        },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: KIND_ROCK.to_string(),
-            destroy_sound: None,
-            radius,
-            texture: texture.clone().into(),
-            mass,
-            invulnerable: true,
-            seed: None,
-            lock_signature: None,
-        }),
-    }
-}
-
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShips) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::default(),
+        &KnownShips::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
     );
     let errors: Vec<_> = issues

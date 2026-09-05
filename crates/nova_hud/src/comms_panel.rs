@@ -419,6 +419,11 @@ mod tests {
             )
                 .chain(),
         );
+        // The one system that writes `UiTransform::scale` on a HUD node, in
+        // PostUpdate so it sees the cards `sync_comms_cards` queued this
+        // frame. Without it a card could carry an emphasis and no test here
+        // would ever read the scale that emphasis asks for.
+        app.add_systems(PostUpdate, crate::emphasis::drive_hud_emphasis);
         app
     }
 
@@ -730,11 +735,22 @@ mod tests {
         app.update();
 
         let world = app.world_mut();
-        let mut cards = world.query_filtered::<Option<&UiTransform>, With<CommsCardMarker>>();
-        let scales: Vec<Vec2> = cards
+        let mut cards = world.query_filtered::<
+            (Option<&UiTransform>, Option<&crate::emphasis::HudEmphasis>),
+            With<CommsCardMarker>,
+        >();
+        let found: Vec<(Vec2, bool)> = cards
             .iter(world)
-            .map(|transform| transform.map_or(Vec2::ONE, |transform| transform.scale))
+            .map(|(transform, emphasis)| {
+                (
+                    transform.map_or(Vec2::ONE, |transform| transform.scale),
+                    emphasis.is_some(),
+                )
+            })
             .collect();
-        assert_eq!(scales, vec![Vec2::ONE, Vec2::ONE]);
+        // Both halves matter: an emphasis is what would scale a card, and the
+        // scale is what would push it over the screen edge. Asserting only the
+        // scale passes on a panel that has no emphasis driver at all.
+        assert_eq!(found, vec![(Vec2::ONE, false), (Vec2::ONE, false)]);
     }
 }

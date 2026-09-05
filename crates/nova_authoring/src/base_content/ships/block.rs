@@ -47,12 +47,12 @@ const TURRET_SEAT: Vec3 = Vec3::new(0.0, -0.25, 0.0);
 
 /// The section id every block ship's main flight computer carries, so content
 /// can harden or disable one bridge without knowing which hull it is on.
-pub(crate) const BLOCK_BRIDGE_SECTION_ID: &str = "bridge";
+pub const BLOCK_BRIDGE_SECTION_ID: &str = "bridge";
 
 /// The gunship's point-defense mounts, in the order they are placed. Content
 /// that sets a magazine per turret walks this rather than naming six strings
 /// it would have to keep in step with the hull.
-pub(crate) const BLOCK_GUNSHIP_TURRET_IDS: [&str; 6] = [
+pub const BLOCK_GUNSHIP_TURRET_IDS: [&str; 6] = [
     "pdc_forward_port",
     "pdc_forward_starboard",
     "pdc_aft_port",
@@ -63,10 +63,27 @@ pub(crate) const BLOCK_GUNSHIP_TURRET_IDS: [&str; 6] = [
 
 /// The stolen warship's two spinal lances, port then starboard. The campaign
 /// fires them by name, one deliberate shot at a time.
-pub(crate) const BLOCK_WARSHIP_RAILGUN_IDS: [&str; 2] = ["railgun_port", "railgun_starboard"];
+pub const BLOCK_WARSHIP_RAILGUN_IDS: [&str; 2] = ["railgun_port", "railgun_starboard"];
+
+/// The stolen warship's ten point-defense mounts: dorsal fore, dorsal
+/// midships, dorsal aft, then the four ventral mounts. Content that binds or
+/// disarms the warship's close-in battery walks this rather than naming ten
+/// strings it would have to keep in step with the hull.
+pub const BLOCK_WARSHIP_TURRET_IDS: [&str; 10] = [
+    "pdc_forward_port",
+    "pdc_forward_starboard",
+    "pdc_dorsal_port",
+    "pdc_dorsal_starboard",
+    "pdc_aft_port",
+    "pdc_aft_starboard",
+    "pdc_ventral_forward_port",
+    "pdc_ventral_forward_starboard",
+    "pdc_ventral_aft_port",
+    "pdc_ventral_aft_starboard",
+];
 
 /// The stolen warship's six flank siege bays, port fore-to-aft then starboard.
-pub(crate) const BLOCK_WARSHIP_BAY_IDS: [&str; 6] = [
+pub const BLOCK_WARSHIP_BAY_IDS: [&str; 6] = [
     "bay_port_forward",
     "bay_port_midships",
     "bay_port_aft",
@@ -386,16 +403,16 @@ pub(super) fn stolen_warship() -> BlockShip {
                 Vec3::new(1.0, 0.0, -5.0),
                 Quat::IDENTITY,
             ),
-            turret("pdc_forward_port", IVec3::new(-2, 2, 1)),
-            turret("pdc_forward_starboard", IVec3::new(2, 2, 1)),
-            turret("pdc_dorsal_port", IVec3::new(-1, 3, 4)),
-            turret("pdc_dorsal_starboard", IVec3::new(1, 3, 4)),
-            turret("pdc_aft_port", IVec3::new(-2, 2, 10)),
-            turret("pdc_aft_starboard", IVec3::new(2, 2, 10)),
-            under_turret("pdc_ventral_forward_port", IVec3::new(-2, -2, 2)),
-            under_turret("pdc_ventral_forward_starboard", IVec3::new(2, -2, 2)),
-            under_turret("pdc_ventral_aft_port", IVec3::new(-2, -2, 10)),
-            under_turret("pdc_ventral_aft_starboard", IVec3::new(2, -2, 10)),
+            turret(BLOCK_WARSHIP_TURRET_IDS[0], IVec3::new(-2, 2, 1)),
+            turret(BLOCK_WARSHIP_TURRET_IDS[1], IVec3::new(2, 2, 1)),
+            turret(BLOCK_WARSHIP_TURRET_IDS[2], IVec3::new(-1, 3, 4)),
+            turret(BLOCK_WARSHIP_TURRET_IDS[3], IVec3::new(1, 3, 4)),
+            turret(BLOCK_WARSHIP_TURRET_IDS[4], IVec3::new(-2, 2, 10)),
+            turret(BLOCK_WARSHIP_TURRET_IDS[5], IVec3::new(2, 2, 10)),
+            under_turret(BLOCK_WARSHIP_TURRET_IDS[6], IVec3::new(-2, -2, 2)),
+            under_turret(BLOCK_WARSHIP_TURRET_IDS[7], IVec3::new(2, -2, 2)),
+            under_turret(BLOCK_WARSHIP_TURRET_IDS[8], IVec3::new(-2, -2, 10)),
+            under_turret(BLOCK_WARSHIP_TURRET_IDS[9], IVec3::new(2, -2, 10)),
         ],
         plate: HULL,
         style: ARMOURED_STYLE_ID,
@@ -780,14 +797,16 @@ mod tests {
     }
 
     /// The campaign fires the warship's lances and bays BY ID, one at a time,
-    /// so a rename here would silently turn the opening set piece into a ship
-    /// sitting still with its guns cold.
+    /// and the visual bench binds its turrets by id, so a rename here would
+    /// silently turn the opening set piece into a ship sitting still with its
+    /// guns cold.
     #[test]
     fn the_warship_carries_every_weapon_the_opening_fires_by_name() {
         let sections = stolen_warship().sections();
         for weapon in BLOCK_WARSHIP_RAILGUN_IDS
             .iter()
             .chain(BLOCK_WARSHIP_BAY_IDS.iter())
+            .chain(BLOCK_WARSHIP_TURRET_IDS.iter())
         {
             assert!(
                 sections.iter().any(|section| section.id == *weapon),

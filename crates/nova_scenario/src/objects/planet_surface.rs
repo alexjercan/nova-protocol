@@ -72,10 +72,11 @@ pub const PLANET_SUBDIVISIONS: u32 = 48;
 
 /// The most subdivisions a planet may be meshed at.
 ///
-/// Bevy's icosphere builder refuses past 65,535 vertices, which `10 * (n+1)^2
-/// + 2` crosses at 80 - so this is not a taste limit, it is where the builder
-/// starts returning an error. Clamped rather than reported: a caller asking for
-/// more detail than a mesh can hold wants the most available, not a failure.
+/// Bevy's icosphere builder refuses past 65,535 vertices, which
+/// `10 * (n+1)^2 + 2` crosses at 80, so this is not a taste limit: it is where
+/// the builder starts returning an error. Clamped rather than reported, because
+/// a caller asking for more detail than a mesh can hold wants the most
+/// available, not a failure.
 pub const PLANET_SUBDIVISIONS_MAX: u32 = 79;
 
 /// What an EDITOR preview meshes at.

@@ -42,10 +42,12 @@ pub mod prelude {
     };
 }
 
-/// Ordinary stone: the default, and what an unknown id falls back to.
+/// Ordinary stone, and what most of the belt is made of.
 ///
-/// The same string as [`MATERIAL_ROCK`], deliberately - a rock that authored
-/// nothing keeps the material id it has always had, and gains a look.
+/// The same string as [`MATERIAL_ROCK`], deliberately: the one id names both
+/// what a round sounds like against this rock and what the rock looks like.
+/// It is not a default - every asteroid names its kind, and one that names
+/// nothing does not load.
 pub const KIND_ROCK: &str = MATERIAL_ROCK;
 
 /// Nickel-iron: dark, cold-toned, metallic, with a bright seam network.
@@ -57,12 +59,13 @@ pub const KIND_ICE: &str = "ice";
 /// Carbonaceous: nearly black, matte, almost featureless.
 pub const KIND_CARBON: &str = "carbon";
 
-/// The CONTROL, not a rock: the texture alone, exactly as it was drawn before
-/// kinds existed.
+/// The CONTROL, not a rock: the texture alone, with nothing done to it.
 ///
-/// Every kind knob is off, so a `plain` rock is the before picture in the same
-/// frame as the after. It is also the escape hatch for a mod that ships a
-/// finished texture and wants nothing done to it.
+/// Every kind knob is off - the per-body frame jitter too - so a `plain` rock
+/// is the before picture in the same frame as the after, and the shader
+/// branches around the macro field rather than multiplying it by zero. It is
+/// also the escape hatch for a mod that ships a finished texture and wants
+/// nothing done to it.
 pub const KIND_PLAIN: &str = "plain";
 
 /// The resolved kind id this rock was built with, carried on the asteroid root.
@@ -199,6 +202,15 @@ pub struct AsteroidKindLook {
     /// Metallic response. Nonzero only for [`KIND_METAL`]: a metallic
     /// dielectric is what makes rock read as plastic.
     pub metallic: f32,
+    /// How much of the per-body frame jitter this kind takes: 1 for a kind
+    /// that wants two rocks of it to be different rocks, 0 for
+    /// [`KIND_PLAIN`].
+    ///
+    /// The jitter rotates and offsets the whole sampling frame, so it moves
+    /// the TEXTURE as well as the noise. That is why the control needs a knob
+    /// for it rather than inheriting it: a control that sampled the texture
+    /// from a rotated frame would not be the picture it is the control for.
+    pub jitter: f32,
 }
 
 /// The mean linear luminance of `assets/base/textures/asteroid.png`, measured
@@ -284,6 +296,7 @@ fn rock() -> AsteroidKindLook {
         roughness_low: 0.70,
         roughness_high: 0.96,
         metallic: 0.0,
+        jitter: 1.0,
     }
 }
 
@@ -311,6 +324,7 @@ fn metal() -> AsteroidKindLook {
         roughness_low: 0.28,
         roughness_high: 0.70,
         metallic: 0.85,
+        jitter: 1.0,
     }
 }
 
@@ -334,6 +348,7 @@ fn ice() -> AsteroidKindLook {
         roughness_low: 0.08,
         roughness_high: 0.55,
         metallic: 0.0,
+        jitter: 1.0,
     }
 }
 
@@ -357,12 +372,14 @@ fn carbon() -> AsteroidKindLook {
         roughness_low: 0.88,
         roughness_high: 1.0,
         metallic: 0.0,
+        jitter: 1.0,
     }
 }
 
-/// The control: every knob off, so the shader's output is the texture times the
-/// standard material's own base colour - byte for byte what a rock was drawn as
-/// before kinds existed.
+/// The control: every knob off, [`AsteroidKindLook::jitter`] included, so the
+/// shader's output is the texture times the standard material's own base
+/// colour - what a rock was drawn as before kinds existed, up to the triplanar
+/// projection that replaced the mesh UVs.
 fn plain() -> AsteroidKindLook {
     AsteroidKindLook {
         shade: LinearRgba::WHITE,
@@ -382,6 +399,7 @@ fn plain() -> AsteroidKindLook {
         roughness_low: 0.5,
         roughness_high: 0.5,
         metallic: 0.0,
+        jitter: 0.0,
     }
 }
 
@@ -447,6 +465,7 @@ mod tests {
         assert_eq!(control.break_up, 0.0);
         assert_eq!(control.vein_strength, 0.0);
         assert_eq!(control.metallic, 0.0);
+        assert_eq!(control.jitter, 0.0);
         assert_eq!(control.roughness_low, control.roughness_high);
     }
 
@@ -464,6 +483,10 @@ mod tests {
                 "{kind}: roughness runs {} to {}",
                 look.roughness_low,
                 look.roughness_high
+            );
+            assert_eq!(
+                look.jitter, 1.0,
+                "{kind}: a rock that takes no frame jitter is the same rock twice"
             );
             assert!(
                 (0.0..=1.0).contains(&look.roughness_low)

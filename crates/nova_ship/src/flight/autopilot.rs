@@ -27,12 +27,19 @@ use super::{
 use crate::prelude::*;
 
 /// Fraction of `rcs_accel` the local gravity accel must stay under for the
-/// autopilot to hand ORBIT station-keeping to the RCS trim. At 0.5 the RCS push
-/// has 2x authority over the inward pull, enough headroom to correct a
-/// perturbation; above it the main drive (full authority) keeps the orbit. The
-/// menu planetoid's ~2.2 u/s^2 pull far exceeds `rcs_accel * 0.5 = 0.75`, so
-/// its orbits stay on the main drive.
-const RCS_ORBIT_GRAVITY_AUTHORITY: f32 = 0.5;
+/// autopilot to hand a goal to the RCS - the ORBIT trim or the STOP settle.
+/// Below it the RCS push has better than 6x authority over the inward pull,
+/// enough headroom to correct a perturbation; above it the main drive (full
+/// authority) keeps the goal.
+///
+/// The number is a fraction, but the threshold it has to reproduce is
+/// absolute: ~0.75 u/s^2, the value the "menu ambience ships crashed the
+/// asteroid" regression was validated at. It is written as a fraction of
+/// `rcs_accel` so a hull with a weaker RCS gets a proportionally stricter
+/// gate - which means a retune of `rcs_accel` MOVES this threshold, and the
+/// fraction has to move with it. The menu planetoid's ~2.2 u/s^2 pull far
+/// exceeds `rcs_accel * 0.15 = 0.74`, so its orbits stay on the main drive.
+const RCS_GRAVITY_AUTHORITY: f32 = 0.15;
 
 /// The autopilot. One rule flies every maneuver: compute the desired velocity
 /// for the goal, rotate the *cheapest engine group* onto the velocity error
@@ -424,10 +431,26 @@ pub(super) fn autopilot_system(
         // applies while station-keeping - the desired is a fast orbital
         // velocity, not a rest goal.
         let mut is_orbit = false;
-        // The local gravitational acceleration at the orbiting ship, `mu/r^2`,
-        // set by the Orbit arm. The RCS trim may only take the orbit when it
-        // has clear authority over this pull.
-        let mut orbit_gravity_accel = 0.0f32;
+        // The strongest pull the ship feels right now - the same shaped
+        // `well_accel` the physics applies, not a raw `mu/r^2`, so the SOI fade
+        // and the surface clamp are already in it. Both RCS branches are gated
+        // on it: an RCS that cannot out-push the local well must not be handed
+        // a goal it will lose. Scanning every well (they are few) rather than
+        // reading `DominantWell` keeps this correct for a ship that has not
+        // been assigned one yet.
+        let local_gravity_accel = q_wells
+            .iter()
+            .map(|(well_position, well)| {
+                well_accel(
+                    well.mu,
+                    (well_position.0 - position.0).length(),
+                    well.body_radius,
+                    well.soi_radius,
+                    gravity_settings.fade_fraction,
+                    gravity_settings.surface_margin,
+                )
+            })
+            .fold(0.0f32, f32::max);
         let desired = match autopilot.action {
             AutopilotAction::Stop => {
                 // STOP has a spatial goal too: the predicted rest point.
@@ -546,9 +569,6 @@ pub(super) fn autopilot_system(
                 let Some(plan) = plan else { continue };
                 is_orbit = true;
                 let r_vec = position.0 - well_position.0;
-                // Local gravity accel `mu/r^2` - the inward pull the RCS trim
-                // would have to counter if it took the orbit.
-                orbit_gravity_accel = well_data.mu / r_vec.length_squared().max(1e-3);
                 let to_ring = orbit_ring_offset(r_vec, &plan);
                 let brake_dir = -to_ring
                     .try_normalize()
@@ -618,31 +638,52 @@ pub(super) fn autopilot_system(
             parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))
         });
         let rcs_capable = rcs_granted && rcs_cap > 0.0 && error_speed > 1e-3;
+        // The RCS takes a goal only where it has CLEAR authority over the local
+        // gravity: its `rcs_accel` push must comfortably exceed the inward
+        // pull, or a perturbed ship falls faster than RCS can correct - the
+        // menu ambience ships crashing the asteroid. Where it does not, the
+        // main drive (full authority) keeps the goal, exactly as it did before
+        // the RCS branches existed.
+        //
+        // The gate is the SAME on both branches, and for the same reason. A
+        // STOP inside a well is the worse case of the two: `desired` is zero
+        // for the whole descent, so an ungated settle latches the moment the
+        // ship is under the cap and then parks at the equilibrium where the
+        // proportional push equals the pull - a steady fall, with the drive
+        // cooled and `done` never firing.
+        let rcs_has_gravity_authority =
+            local_gravity_accel < settings.rcs_accel * RCS_GRAVITY_AUTHORITY;
         let use_rcs_settle = rcs_capable
+            && rcs_has_gravity_authority
             && desired.length() <= settings.stop_speed_epsilon
             && velocity.length() < rcs_cap;
-        // The RCS trim takes the orbit only where it has CLEAR authority over
-        // the local gravity: its `rcs_accel` push must comfortably exceed the
-        // inward pull `mu/r^2`, or a perturbed ship spirals into the well
-        // faster than RCS can correct - the menu ambience ships crashing the
-        // asteroid. In a strong well the main drive (full authority) keeps the
-        // orbit, exactly as it did before the RCS trim.
-        let rcs_has_orbit_authority =
-            orbit_gravity_accel < settings.rcs_accel * RCS_ORBIT_GRAVITY_AUTHORITY;
         let use_rcs_orbit =
-            rcs_capable && is_orbit && rcs_has_orbit_authority && error_speed < rcs_cap;
+            rcs_capable && is_orbit && rcs_has_gravity_authority && error_speed < rcs_cap;
         let use_rcs = use_rcs_settle || use_rcs_orbit;
         // The reference the cap is measured against: the orbital velocity while
         // trimming an orbit, zero otherwise (absolute cap). Written EVERY tick
         // so a stale orbital reference never lingers into a settle or the
         // player.
         let rcs_reference_v = if use_rcs_orbit { desired } else { Vec3::ZERO };
-        // Proportional command toward `desired`, scaled so a cap-sized residual
-        // is full deflection; fades to zero as the residual does (no
+        // The residual that counts as full deflection. A SETTLE brakes from up
+        // to the cap, so the cap is its scale. An ORBIT trim is a different
+        // job: it holds a band against the well's STANDING inward pull, and a
+        // proportional law parks at an offset proportional to its own scale.
+        // Referenced to the manual cap that offset is wider than the hold band
+        // itself, so the trim keeps the ring and never reports Hold - and it
+        // widens again every time the manual RCS feel is retuned. The band the
+        // orbit must hold to is the scale that answers for it.
+        let rcs_scale = if use_rcs_orbit {
+            settings.orbit_hold_enter
+        } else {
+            rcs_cap
+        };
+        // Proportional command toward `desired`, scaled so a scale-sized
+        // residual is full deflection; fades to zero as the residual does (no
         // overshoot). Clear to zero when not using RCS so a stale nudge never
         // lingers.
         let rcs_command = if use_rcs {
-            (rotation.inverse() * error / rcs_cap).clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
+            (rotation.inverse() * error / rcs_scale).clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
         } else {
             Vec3::ZERO
         };

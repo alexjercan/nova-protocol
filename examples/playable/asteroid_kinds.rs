@@ -8,8 +8,10 @@
 //! rocks OF a kind read as two rocks.
 //!
 //! The `plain` column is the control, not a fifth rock: every kind knob is off,
-//! so it is the surface exactly as it was drawn before kinds existed - the
-//! before picture, standing in the after picture's own lighting.
+//! the per-body frame jitter included, so it is the surface as it was drawn
+//! before kinds existed - the before picture, standing in the after picture's
+//! own lighting. Its three rows differ only in silhouette, which is the point:
+//! that is how much variety a field of rocks used to have.
 //!
 //! Hand-run (WASD + mouse free-fly):
 //! ```text

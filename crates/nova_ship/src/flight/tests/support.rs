@@ -381,9 +381,9 @@ pub(super) fn spawn_orbit_well(app: &mut App) -> Entity {
 }
 
 /// A STRONG well, like the menu planetoid: `mu = 43350` on a ~85u geometric
-/// radius, so at an r=140 orbit the local gravity accel
-/// `mu/r^2 ~= 2.2 u/s^2` EXCEEDS `rcs_accel` (1.5). The RCS fine-adjust
-/// cannot counter that inward pull.
+/// radius, so at an r=140 orbit the local gravity accel `mu/r^2 ~= 2.2 u/s^2`
+/// is well over the RCS authority threshold (`rcs_accel * 0.15 ~= 0.74`). The
+/// RCS fine-adjust cannot counter that inward pull.
 pub(super) fn spawn_strong_well(app: &mut App) -> Entity {
     app.world_mut()
         .spawn((

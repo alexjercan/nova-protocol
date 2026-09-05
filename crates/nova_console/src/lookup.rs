@@ -129,9 +129,9 @@ fn names(candidates: &[(Entity, String)]) -> String {
 mod tests {
     use super::*;
 
-    /// Two hulls carrying the same section id, which is the shape every
-    /// shipped scenario has: `block_gunship` and `block_raider` both carry a
-    /// `pdc_aft_port`.
+    /// Two hulls carrying the same section id, which is the shape a scenario
+    /// with two of one hull has: both spawns below mount a `pdc_aft_port`, so
+    /// the lookup has to be addressed by ship.
     fn two_ships() -> (World, Entity, Entity) {
         let mut world = World::new();
         let mut ship = |id: &str, sections: &[&str]| {

@@ -37,7 +37,7 @@ export default comicPage(
                 focus: "wreck",
             }),
             speech(
-                "control",
+                "captain",
                 "Meridian, Cutter One. I have your beacon. I am coming in."
             )
         ),

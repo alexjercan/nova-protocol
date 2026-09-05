@@ -57,7 +57,7 @@ use super::{
     },
     pacing::{self, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
     second_shift::SECOND_SHIFT_SCENARIO_ID,
-    ships, stage, SCENARIO_ELAPSED_VAR,
+    ships, stage, CampaignPortraits, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
 
@@ -337,6 +337,13 @@ const ORDER_EXIT: &str = "warship_exit";
 /// instant the controller is built and only to this spawn.
 fn cutter() -> ScenarioObjectConfig {
     let controller_gate = vec![
+        // STOP is withheld like the rest, and for the same reason the GOTO
+        // beat withholds GOTO: its lesson is closed by a raw `OnStopComplete`
+        // edge armed the moment the beat opens, while the card that names it
+        // posts a beat later. A verb the player already has can finish the
+        // lesson inside that gap, spend the `once` handler, and leave the card
+        // and the pulsing hint on the panel with nothing left to clear them.
+        SectionModification::DisableVerb(FlightVerb::Stop),
         SectionModification::DisableVerb(FlightVerb::Rcs),
         SectionModification::DisableVerb(FlightVerb::Lock),
         SectionModification::DisableVerb(FlightVerb::Goto),
@@ -568,6 +575,7 @@ fn resume_player_control() -> EventActionConfig {
 pub(crate) fn first_shift(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
+    portraits: &CampaignPortraits,
 ) -> ScenarioConfig {
     let mut start_spawns = vec![cutter(), carrier()];
     start_spawns.extend(stage::belt(&asteroid_texture));
@@ -616,11 +624,14 @@ pub(crate) fn first_shift(
                                 open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_RIG),
                                 step(
                                     INSTRUCTION_GAP,
+                                    vec![story_message(COPILOT, story::OPEN_COPILOT_MARK)],
+                                ),
+                                step(
+                                    INSTRUCTION_GAP,
                                     [
                                         release_camera(),
                                         resume_player_control(),
                                         post_objective(OBJ_BURN, story::OBJ_TEXT_BURN),
-                                        story_message(COPILOT, story::OPEN_COPILOT_MARK),
                                     ]
                                     .into_iter()
                                     .chain(WORK_MARK.raise())
@@ -651,6 +662,11 @@ pub(crate) fn first_shift(
                     BEAT_STOP,
                     INSTRUCTION_GAP,
                     vec![
+                        // The verb arrives WITH its card, the way GOTO's does:
+                        // the completion edge is already armed, so a STOP the
+                        // player could fly before the objective posts would
+                        // strand it.
+                        grant(FlightVerb::Stop),
                         post_objective(OBJ_STOP, story::OBJ_TEXT_STOP),
                         show_hint_emphasis("STOP"),
                     ],
@@ -689,13 +705,17 @@ pub(crate) fn first_shift(
                         open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_BOX),
                         step(
                             TRIM_LONG_GAP,
+                            vec![story_message(COPILOT, story::TRIM_COPILOT_FIRST_MARK)],
+                        ),
+                        step(
+                            INSTRUCTION_GAP,
                             vec![
                                 grant(FlightVerb::Rcs),
                                 release_camera(),
                                 resume_player_control(),
                                 post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
-                                story_message(COPILOT, story::TRIM_COPILOT_FIRST_MARK),
                                 show_hint_emphasis("RCS"),
+                                TRIM_LATERAL.raise_gate(),
                                 TRIM_LATERAL.highlight(),
                             ],
                         ),
@@ -710,7 +730,7 @@ pub(crate) fn first_shift(
                 name: EventConfig::OnEnter,
                 once: true,
                 filters: vec![
-                    TRIM_LATERAL.entered(),
+                    TRIM_LATERAL.gate_entered(),
                     number_equals(VAR_BEAT, BEAT_TRIM_LATERAL),
                 ],
                 actions: [
@@ -719,12 +739,13 @@ pub(crate) fn first_shift(
                     story_message(COPILOT, story::TRIM_COPILOT_SECOND_AXIS),
                 ]
                 .into_iter()
-                .chain(TRIM_LATERAL.clear())
+                .chain(TRIM_LATERAL.clear_gated())
                 .chain([beat_setup(
                     BEAT_TRIM_VERTICAL,
                     INSTRUCTION_GAP,
                     vec![
                         post_objective(OBJ_TRIM_VERTICAL, story::OBJ_TEXT_TRIM_VERTICAL),
+                        TRIM_VERTICAL.raise_gate(),
                         TRIM_VERTICAL.highlight(),
                     ],
                 )])
@@ -736,7 +757,7 @@ pub(crate) fn first_shift(
                 name: EventConfig::OnEnter,
                 once: true,
                 filters: vec![
-                    TRIM_VERTICAL.entered(),
+                    TRIM_VERTICAL.gate_entered(),
                     number_equals(VAR_BEAT, BEAT_TRIM_VERTICAL),
                 ],
                 actions: [
@@ -745,7 +766,7 @@ pub(crate) fn first_shift(
                     story_message(COPILOT, story::TRIM_COPILOT_BACK_ACROSS),
                 ]
                 .into_iter()
-                .chain(TRIM_VERTICAL.clear())
+                .chain(TRIM_VERTICAL.clear_gated())
                 .chain([beat_setup(
                     BEAT_TRIM_RETURN_LATERAL,
                     INSTRUCTION_GAP,
@@ -754,6 +775,7 @@ pub(crate) fn first_shift(
                             OBJ_TRIM_RETURN_LATERAL,
                             story::OBJ_TEXT_TRIM_RETURN_LATERAL,
                         ),
+                        TRIM_RETURN_LATERAL.raise_gate(),
                         TRIM_RETURN_LATERAL.highlight(),
                     ],
                 )])
@@ -765,7 +787,7 @@ pub(crate) fn first_shift(
                 name: EventConfig::OnEnter,
                 once: true,
                 filters: vec![
-                    TRIM_RETURN_LATERAL.entered(),
+                    TRIM_RETURN_LATERAL.gate_entered(),
                     number_equals(VAR_BEAT, BEAT_TRIM_RETURN_LATERAL),
                 ],
                 actions: [
@@ -774,7 +796,7 @@ pub(crate) fn first_shift(
                     story_message(COPILOT, story::TRIM_COPILOT_CLOSE_BOX),
                 ]
                 .into_iter()
-                .chain(TRIM_RETURN_LATERAL.clear())
+                .chain(TRIM_RETURN_LATERAL.clear_gated())
                 .chain([beat_setup(
                     BEAT_TRIM_RETURN_VERTICAL,
                     INSTRUCTION_GAP,
@@ -783,6 +805,7 @@ pub(crate) fn first_shift(
                             OBJ_TRIM_RETURN_VERTICAL,
                             story::OBJ_TEXT_TRIM_RETURN_VERTICAL,
                         ),
+                        TRIM_RETURN_VERTICAL.raise_gate(),
                         TRIM_RETURN_VERTICAL.highlight(),
                     ],
                 )])
@@ -796,7 +819,7 @@ pub(crate) fn first_shift(
                 name: EventConfig::OnEnter,
                 once: true,
                 filters: vec![
-                    TRIM_RETURN_VERTICAL.entered(),
+                    TRIM_RETURN_VERTICAL.gate_entered(),
                     number_equals(VAR_BEAT, BEAT_TRIM_RETURN_VERTICAL),
                 ],
                 actions: [
@@ -805,7 +828,7 @@ pub(crate) fn first_shift(
                     story_message(COPILOT, story::TRIM_COPILOT_CLEAN),
                 ]
                 .into_iter()
-                .chain(TRIM_RETURN_VERTICAL.clear())
+                .chain(TRIM_RETURN_VERTICAL.clear_gated())
                 .chain([sequence(
                     SEQ_TRIM_COMPLETE,
                     vec![
@@ -1100,8 +1123,8 @@ pub(crate) fn first_shift(
                 actions: vec![
                     set_variable(VAR_BEAT, number(BEAT_VANTAGE)),
                     complete_objective(OBJ_SEARCH),
-                    detach_objective_marker(&crate_id(3)),
-                    despawn_object(&crate_id(3)),
+                    detach_objective_marker(crate_id(3)),
+                    despawn_object(crate_id(3)),
                     story_message(ENGINEER, story::HOME_ENGINEER_SECURE),
                     sequence(
                         SEQ_HOME_CALL,
@@ -1245,7 +1268,7 @@ pub(crate) fn first_shift(
         ],
     };
     let mut events = scenes.into_campaign();
-    apply_portraits(&mut events);
+    apply_portraits(portraits, &mut events);
 
     ScenarioConfig {
         description: "A routine shift on the rock plate, out of the carrier Meridian.".to_string(),
@@ -1267,8 +1290,9 @@ pub fn first_shift_scene(
     scene: FirstShiftScene,
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
+    portraits: &CampaignPortraits,
 ) -> ScenarioConfig {
-    let mut full = first_shift(cubemap, asteroid_texture);
+    let mut full = first_shift(cubemap, asteroid_texture, portraits);
     let mut scenes = FirstShiftScenes::from_events(std::mem::take(&mut full.events));
     if scene == FirstShiftScene::Departure {
         full.id = scene_id(scene).to_string();
@@ -1320,7 +1344,7 @@ pub fn first_shift_scene(
             start_actions.extend([
                 spawn_object(crate_object(2)),
                 post_objective(OBJ_CRATE_SECOND, story::OBJ_TEXT_CRATE_SECOND),
-                attach_objective_marker(&crate_id(2), "SALVAGE"),
+                attach_objective_marker(crate_id(2), "SALVAGE"),
             ]);
             (
                 scenes
@@ -1414,7 +1438,11 @@ pub fn first_shift_scene(
 }
 
 fn preview_control_grants(scene: FirstShiftScene) -> Vec<EventActionConfig> {
-    let mut grants = vec![grant(FlightVerb::Rcs), grant(FlightVerb::Lock)];
+    let mut grants = vec![
+        grant(FlightVerb::Stop),
+        grant(FlightVerb::Rcs),
+        grant(FlightVerb::Lock),
+    ];
     if matches!(
         scene,
         FirstShiftScene::Orbit
@@ -1533,7 +1561,7 @@ fn reveal_crate(nth: usize, objective: &str, text: &str) -> Vec<EventActionConfi
     vec![
         spawn_object(crate_object(nth)),
         post_objective(objective, text),
-        attach_objective_marker(&crate_id(nth), "CRATE"),
+        attach_objective_marker(crate_id(nth), "CRATE"),
     ]
 }
 
@@ -1542,11 +1570,6 @@ fn reveal_crate(nth: usize, objective: &str, text: &str) -> Vec<EventActionConfi
 /// The pickup owns the despawn (the crate goes, not just its chip) and carries
 /// the whole transition, so the reveal of the NEXT crate is one delayed step
 /// behind the line that asks for it.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one call per crate, and every argument is the beat's own text or id: \
-              folding them into a struct would move the same list one line up"
-)]
 fn crate_pickup(
     nth: usize,
     beat: f64,

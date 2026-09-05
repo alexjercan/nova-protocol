@@ -579,9 +579,9 @@ pub fn audit_scenario(
                     }
                     ScenarioObjectKind::Asteroid(_) => cover.destructible += 1,
                     // A planet is cover the same way an invulnerable rock is,
-                    // and every authored one is invulnerable today. Counted
-                    // here so the audit does not silently stop seeing the
-                    // biggest bodies in the scene.
+                    // and EVERY planet is invulnerable - `false` is refused at
+                    // lint and at load. The match arm stays shaped for the day
+                    // a destructible one exists.
                     ScenarioObjectKind::Planet(planet) if planet.invulnerable => {
                         cover.invulnerable += 1;
                     }

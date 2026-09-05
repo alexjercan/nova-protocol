@@ -1,4 +1,11 @@
 export type ComicTone = "default" | "amber" | "danger" | "muted";
+/// Who is talking. Closed, because the renderer and the stylesheet both
+/// switch on it: an unrecognized speaker would draw a default bubble and
+/// say nothing about being wrong.
+export type ComicSpeaker = "captain" | "copilot" | "control";
+/// The part of a shared panel image a page is pointing at. Closed for the
+/// same reason: the stylesheet has a rule per value.
+export type PanelFocus = "carrier" | "warship" | "wreck";
 export type PanelSize = "half" | "wide";
 export type PanelVariant =
     | "default"
@@ -46,8 +53,8 @@ export type ComicNode =
           label?: string;
           children: ComicNode[];
       }
-    | { kind: "svgAsset"; source: string; alt: string; focus?: string }
-    | { kind: "speech"; speaker: string; text: string; tone: ComicTone }
+    | { kind: "svgAsset"; source: string; alt: string; focus?: PanelFocus }
+    | { kind: "speech"; speaker: ComicSpeaker; text: string; tone: ComicTone }
     | { kind: "caption"; text: string; tone: ComicTone }
     | { kind: "readout"; lines: string[]; tone: ComicTone }
     | {
@@ -123,13 +130,13 @@ export function panel(
 
 export function svgAsset(
     source: string,
-    options: { alt: string; focus?: string }
+    options: { alt: string; focus?: PanelFocus }
 ): ComicNode {
     return { kind: "svgAsset", source, ...options };
 }
 
 export function speech(
-    speaker: string,
+    speaker: ComicSpeaker,
     text: string,
     tone: ComicTone = "default"
 ): ComicNode {

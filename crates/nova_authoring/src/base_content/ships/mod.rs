@@ -3,8 +3,8 @@
 //!
 //! Every one of them is BLOCK-BUILT: cells on a grid wearing a derived skin,
 //! with no modelled part anywhere in the fleet. That is the base game's
-//! identity, and it is why a mod bringing its own GLB craft (The Ledger, task
-//! 20260824-125959) reads as a different game rather than as more of this one.
+//! identity, and it is why a mod bringing its own GLB craft (The Ledger)
+//! reads as a different game rather than as more of this one.
 //!
 //! A grade is a build-time knob, not a spawn-time one: the salvage raider
 //! carries thinner plating and mounts that are quicker to shoot off, which is a
@@ -21,50 +21,50 @@ use super::assets::BaseContentAssets;
 
 mod block;
 
-pub(crate) use block::{
+pub use block::{
     BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_WARSHIP_BAY_IDS,
-    BLOCK_WARSHIP_RAILGUN_IDS,
+    BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_TURRET_IDS,
 };
 
 /// The id the block-built utility cutter is spawned by: the small unarmed
 /// workboat, and the base game's plainest craft.
-pub(crate) const BLOCK_CUTTER_SHIP_ID: &str = "block_cutter";
+pub const BLOCK_CUTTER_SHIP_ID: &str = "block_cutter";
 /// The id the block-built bulk hauler is spawned by: unarmed freight on one
 /// vectoring drive.
-pub(crate) const BLOCK_HAULER_SHIP_ID: &str = "block_hauler";
+pub const BLOCK_HAULER_SHIP_ID: &str = "block_hauler";
 /// The id the block-built patrol gunship is spawned by: armoured, six point
 /// defense mounts, the fleet's warship.
-pub(crate) const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
+pub const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
 /// The id the block-built salvage raider is spawned by: the same tonnage worn
 /// down to two guns and a scrap boom, in the scavenger look.
-pub(crate) const BLOCK_RAIDER_SHIP_ID: &str = "block_raider";
+pub const BLOCK_RAIDER_SHIP_ID: &str = "block_raider";
 
 /// The id the industrial carrier is spawned by: the campaign's home, and the
 /// largest hull the base game ships.
-pub(crate) const BLOCK_CARRIER_SHIP_ID: &str = "block_carrier";
+pub const BLOCK_CARRIER_SHIP_ID: &str = "block_carrier";
 /// The id the stolen Earth warship is spawned by: two spinal lances, six siege
 /// bays, ten point-defense mounts. The opening's antagonist.
-pub(crate) const BLOCK_WARSHIP_SHIP_ID: &str = "block_warship";
+pub const BLOCK_WARSHIP_SHIP_ID: &str = "block_warship";
 
 /// The unarmed needle of the cleanup group.
-pub(crate) const BLOCK_SKIFF_SHIP_ID: &str = "block_skiff";
+pub const BLOCK_SKIFF_SHIP_ID: &str = "block_skiff";
 /// The unarmed fork tug of the cleanup group.
-pub(crate) const BLOCK_TUG_SHIP_ID: &str = "block_tug";
+pub const BLOCK_TUG_SHIP_ID: &str = "block_tug";
 /// The cleanup group's balanced armed picket: one nose gun.
-pub(crate) const BLOCK_PICKET_SHIP_ID: &str = "block_picket";
+pub const BLOCK_PICKET_SHIP_ID: &str = "block_picket";
 /// The cleanup group's asymmetric armed claw: one gun on the grapple arm.
-pub(crate) const BLOCK_CLAW_SHIP_ID: &str = "block_claw";
+pub const BLOCK_CLAW_SHIP_ID: &str = "block_claw";
 /// The cleanup group's leader: one gun and the group's only torpedo bay.
-pub(crate) const BLOCK_CLEANUP_LEADER_SHIP_ID: &str = "block_cleanup_leader";
+pub const BLOCK_CLEANUP_LEADER_SHIP_ID: &str = "block_cleanup_leader";
 
 /// The carrier's severed bridge tower.
-pub(crate) const BLOCK_WRECK_BRIDGE_SHIP_ID: &str = "block_wreck_bridge";
+pub const BLOCK_WRECK_BRIDGE_SHIP_ID: &str = "block_wreck_bridge";
 /// A length of the carrier's refinery spine.
-pub(crate) const BLOCK_WRECK_SPINE_SHIP_ID: &str = "block_wreck_spine";
+pub const BLOCK_WRECK_SPINE_SHIP_ID: &str = "block_wreck_spine";
 /// A torn-off carrier cargo shoulder.
-pub(crate) const BLOCK_WRECK_SHOULDER_SHIP_ID: &str = "block_wreck_shoulder";
+pub const BLOCK_WRECK_SHOULDER_SHIP_ID: &str = "block_wreck_shoulder";
 /// Loose carrier plating - the small pieces a debris field is mostly made of.
-pub(crate) const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
+pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// Every shipped ship, in stable generated-content order.
 pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
@@ -163,7 +163,7 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
 }
 
 /// A spawn of one CATALOG ship, by id.
-pub(crate) fn hull(id: &str) -> ShipSource {
+pub fn hull(id: &str) -> ShipSource {
     ShipSource::Prototype(id.to_string())
 }
 

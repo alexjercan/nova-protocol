@@ -167,7 +167,7 @@ fn terminal_scrollback_texts(app: &App) -> Vec<String> {
 }
 
 fn pause_state(app: &App) -> PauseStates {
-    app.world().resource::<State<PauseStates>>().get().clone()
+    *app.world().resource::<State<PauseStates>>().get()
 }
 
 // --- NOVA OS sound ---

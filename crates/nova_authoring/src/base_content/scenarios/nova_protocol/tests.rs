@@ -10,14 +10,15 @@ use super::*;
 /// refs do not affect the event script, so defaults suffice).
 fn mainline_scenarios() -> Vec<(&'static str, ScenarioConfig)> {
     let tex = || AssetRef::<Image>::default();
+    let portraits = crate::base_content::assets::BaseContentAssets::from_paths().portraits;
     vec![
         (
             first_shift::FIRST_SHIFT_SCENARIO_ID,
-            first_shift::first_shift(tex(), tex()),
+            first_shift::first_shift(tex(), tex(), &portraits),
         ),
         (
             second_shift::SECOND_SHIFT_SCENARIO_ID,
-            second_shift::second_shift(tex(), tex()),
+            second_shift::second_shift(tex(), tex(), &portraits),
         ),
     ]
 }
@@ -196,8 +197,15 @@ fn no_onstart_handler_reads_the_scenario_clock() {
 /// A trigger volume that already contains the player on frame one fires
 /// straight away, so the beat it gates runs BEFORE the opening that posts it -
 /// the objective is completed, and then posted, and can never be completed
-/// again. Every volume a scenario spawns in its own OnStart frame must
-/// therefore be somewhere the player has to fly to.
+/// again. Every volume a scenario's OPENING raises must therefore be somewhere
+/// the player has to fly to.
+///
+/// The whole opening, not its first frame: OnStart's own list is only the
+/// outermost layer, and the marks the opening puts up are spawned from steps of
+/// the sequence it starts, several levels down. The player is usually under
+/// `SuspendPlayerControl` for that whole chain and has not moved a metre, so a
+/// volume raised at step six is exactly as dangerous as one raised at frame
+/// one. Both passes therefore WALK the handler.
 #[test]
 fn no_scenario_starts_the_player_inside_one_of_its_own_trigger_volumes() {
     for (name, config) in mainline_scenarios() {
@@ -206,8 +214,11 @@ fn no_scenario_starts_the_player_inside_one_of_its_own_trigger_volumes() {
             .iter()
             .filter(|event| matches!(event.name, EventConfig::OnStart))
         {
-            let spawns: Vec<&ScenarioObjectConfig> = event
-                .actions
+            let mut opening: Vec<&EventActionConfig> = Vec::new();
+            for action in &event.actions {
+                action.walk(&mut |action| opening.push(action));
+            }
+            let spawns: Vec<&ScenarioObjectConfig> = opening
                 .iter()
                 .filter_map(|action| match action {
                     EventActionConfig::SpawnScenarioObject(object) => Some(object),
@@ -236,13 +247,22 @@ fn no_scenario_starts_the_player_inside_one_of_its_own_trigger_volumes() {
                     )),
                     _ => None,
                 })
-                .chain(event.actions.iter().filter_map(|action| match action {
+                .chain(opening.iter().filter_map(|action| match action {
                     EventActionConfig::CreateScenarioArea(area) => {
                         Some((&area.id, area.position, area.radius))
                     }
                     _ => None,
                 }));
 
+            // Non-vacuity: every mainline opening raises at least one volume,
+            // and every one of them is nested inside the opening sequence. A
+            // pass that reads the top level alone finds none of them and
+            // reports success.
+            let volumes: Vec<_> = volumes.collect();
+            assert!(
+                !volumes.is_empty(),
+                "{name}: this pass found no trigger volume in the opening at all"
+            );
             for (id, position, radius) in volumes {
                 let range = (position - start).length().0;
                 assert!(

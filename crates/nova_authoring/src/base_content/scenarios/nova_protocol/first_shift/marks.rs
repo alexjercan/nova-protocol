@@ -100,6 +100,45 @@ impl TempMark {
     pub(super) fn entered(&self) -> EventFilterConfig {
         entity_pair(self.id, ID_CUTTER)
     }
+
+    /// The id of this mark's separate ARRIVAL GATE.
+    pub(super) fn gate_id(&self) -> String {
+        format!("{}_gate", self.id)
+    }
+
+    /// Raise the arrival gate: a trigger volume on the mark's own place, put up
+    /// SEPARATELY from the beacon.
+    ///
+    /// A route whose marks are all visible from the start cannot arm its
+    /// beacons' own triggers from the start: a beat is closed by a `once`
+    /// handler, and a player who reaches the next mark inside the beat's
+    /// pacing gap would spend that handler before the card naming it exists -
+    /// the completion no-ops and the card lands with nothing left to clear it.
+    /// So the beacon shows the route and the GATE, raised in the same step as
+    /// the card, decides the beat. Creating a sensor around a body already
+    /// inside it still produces an enter edge, so arriving early is early
+    /// rather than fatal.
+    pub(super) fn raise_gate(&self) -> EventActionConfig {
+        EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+            id: self.gate_id(),
+            name: format!("{} Gate", self.label),
+            position: self.position,
+            rotation: Quat::IDENTITY,
+            radius: self.area,
+        })
+    }
+
+    /// OnEnter of this mark's arrival gate by the cutter.
+    pub(super) fn gate_entered(&self) -> EventFilterConfig {
+        entity_pair(self.gate_id(), ID_CUTTER)
+    }
+
+    /// Take the mark AND its arrival gate down together.
+    pub(super) fn clear_gated(&self) -> Vec<EventActionConfig> {
+        let mut actions = self.clear();
+        actions.push(despawn_object(self.gate_id()));
+        actions
+    }
 }
 
 /// The launch leg's mark: a short hop out of the carrier's shadow, in open
@@ -119,6 +158,14 @@ pub(super) const WORK_MARK: TempMark = TempMark {
 /// is a real maneuver at the 100 m/s RCS cap, close enough that it is a nudge
 /// rather than a leg. The trigger is tight on purpose - the lesson is placing
 /// the hull, and a wide sphere would pass a player who merely drifted past.
+///
+/// All four beacons go up together so the player can see the shape of the
+/// lesson, but a beacon does not close its own beat: each corner is decided by
+/// a separate arrival gate raised with the card that names it
+/// ([`TempMark::raise_gate`]). Boundary to boundary the shortest leg is 20 m,
+/// which is a fifth of a second at the cap - far inside any pacing gap - so
+/// arming the corners up front would let a player flying the route continuously
+/// spend each beat before its objective existed.
 pub(super) const TRIM_LATERAL: TempMark = TempMark {
     id: "trim_mark_lateral",
     label: "TRIM A",
@@ -167,10 +214,11 @@ pub(super) const TRIM_ROUTE_CENTRE: Meters3 = Meters3::new(-350.0, 190.0, 900.0)
 /// Wide rear-quarter briefing pose: Cutter and the complete box remain in view.
 pub(super) const CINEMA_TRIM_OFFSET: Meters3 = Meters3::new(450.0, 300.0, 650.0);
 
-/// The first transit mark takes the mandatory route around the inspection
-/// body's western flank. It stands well beyond the gravity well with its whole
-/// 700 m beacon volume outside, rather than using the well boundary as a
-/// waypoint.
+/// The first transit mark takes the mandatory route UNDER the inspection
+/// body's western flank: 2.3 km west and 5.4 km down from its centre, so the
+/// leg is a dive rather than a swing around the equator. It stands well beyond
+/// the gravity well with its whole 700 m beacon volume outside, rather than
+/// using the well boundary as a waypoint.
 pub(super) const TRANSIT_ONE: TempMark = TempMark {
     id: "transit_mark_one",
     label: "TRANSIT 1",
@@ -278,16 +326,28 @@ pub(super) fn crate_object(number: usize) -> ScenarioObjectConfig {
 
 // --- the inspection round ----------------------------------------------------
 
-/// The detour's arrival gate: an invisible sphere on the small planetoid. GOTO
-/// parks 500 m outside the geometric body (700-1 200 m), so the ring contains
-/// every park point on every mesh seed; the widest orbit ring (1.82 km) is
-/// inside it too, so holding the orbit cannot fall out of the gate.
+/// The detour's ARRIVAL trigger: an invisible sphere on the small planetoid,
+/// crossed on the way in. GOTO parks 500 m outside the geometric body
+/// (700-1 200 m), so the ring contains every park point on every mesh seed.
+/// It is entered once and nothing watches the exit - the orbit band reaches
+/// 2.51 km and rings above this radius are legal, which is fine because only
+/// [`ORBIT_RETURN_GATE_POS`] has to intercept them.
 pub(super) const APPROACH_RING_RADIUS: Meters = Meters(2_400.0);
 
-/// Point on the Meridian-facing side crossed after a lap that starts in cover.
-/// Its 300 m gate spans the inspection body's 1.36-1.82 km stable orbit band.
-pub(super) const ORBIT_RETURN_GATE_POS: Meters3 = Meters3::new(-3_922.0, -334.0, -5_014.0);
-pub(super) const ORBIT_RETURN_GATE_RADIUS: Meters = Meters(300.0);
+/// Point on the Meridian-facing side crossed after a lap that starts in cover:
+/// it sits on the planetoid-to-Meridian line, so Meridian has direct sight of
+/// the cutter the moment it is reached.
+///
+/// Its stand-off and radius are sized to intercept EVERY ring the ORBIT verb
+/// can plan around this body, which `orbit_radius_band` puts at
+/// 1 511-2 514 m: the stand-off is the band's midpoint and the radius half its
+/// width plus margin, so the gate spans 1 473-2 553 m of orbital radius.
+/// A gate narrower than the band is invisible to a player flying a legal
+/// higher ring - they orbit correctly forever with nothing on screen to
+/// correct them - which is what
+/// `the_orbit_return_gate_intercepts_every_ring_the_verb_can_plan` pins.
+pub(super) const ORBIT_RETURN_GATE_POS: Meters3 = Meters3::new(-3_771.0, -317.0, -4_626.0);
+pub(super) const ORBIT_RETURN_GATE_RADIUS: Meters = Meters(540.0);
 
 // --- the warship -------------------------------------------------------------
 

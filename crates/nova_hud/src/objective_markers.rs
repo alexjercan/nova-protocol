@@ -327,7 +327,7 @@ fn breath_alpha(elapsed_secs: f32) -> f32 {
 
 /// Breathe every chip's gold GLYPHS - the diamond border and the chevron
 /// strokes - with the shared wave. The label text deliberately does NOT
-/// breathe: thinning 12 px text to 0.7 alpha broke readability over
+/// breathe: thinning the label to 0.7 alpha broke readability over
 /// bright scene content; the
 /// glyphs carry all the motion.
 fn breathe_objective_markers(
@@ -454,7 +454,7 @@ mod tests {
     }
 
     /// The label text does NOT breathe and carries a contrast shadow;
-    /// the diamond glyph carries the motion - 12 px gold at 0.7 alpha over a
+    /// the diamond glyph carries the motion - translucent gold over a
     /// bright planetoid was unreadable.
     #[test]
     fn label_stays_full_alpha_while_glyphs_breathe() {

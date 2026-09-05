@@ -62,7 +62,7 @@ alpha_max = min( sum(max_torque) / I ,  LOAD_LIMIT / (r * METERS_PER_UNIT) )
   colliders, so its answer is in engine world units and the caller crosses it
   with `Meters::from_engine` before `AttitudeEnvelope` divides by it - which is
   why `METERS_PER_UNIT` appears in the formula above and not in the code. The
-  shipped corvette reads 2.76 u, i.e. 27.6 m. `BodyRadius` is a
+  Ledger corvette reads 2.76 u, i.e. 27.6 m. `BodyRadius` is a
   scenario-obstacle radius and is not it.
 - `LOAD_LIMIT` is `crates/nova_events/src/scale.rs` and `METERS_PER_UNIT` is
   `crates/nova_events/src/units.rs` - one definition each, shared by the
@@ -541,8 +541,8 @@ The other half is the normals themselves. An authoring tool that derives a
 socket from part GEOMETRY gets whatever angle the neighbour happened to sit at,
 so `cardinal_axis` snaps the derived normal to the nearest axis. It is
 antisymmetric (`cardinal_axis(-d) == -cardinal_axis(d)`), so both ends of one
-authored edge stay exactly opposed and no existing mate is lost. Without it the
-a modelled pod faced its fuselage 36 degrees off -X and anything mated onto that
+authored edge stay exactly opposed and no existing mate is lost. Without it a
+modelled pod faced its fuselage 36 degrees off -X and anything mated onto that
 socket arrived tilted by exactly that much - which is what made parts look like
 they only fit the craft they were cut from.
 

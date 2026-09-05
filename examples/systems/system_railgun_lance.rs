@@ -344,7 +344,7 @@ fn drive_range(world: &mut World) {
 
     if !world.resource::<LanceProbe>().verified {
         let frames = world.resource::<LanceProbe>().frames;
-        if frames % STATUS_EVERY == 0 {
+        if frames.is_multiple_of(STATUS_EVERY) {
             let plates = plate_health(world);
             let probe = world.resource::<LanceProbe>();
             info!(
@@ -467,12 +467,13 @@ fn drive_range(world: &mut World) {
             .get::<LinearVelocity>(ship)
             .map(|velocity| velocity.0)
             .unwrap_or_default();
-        let mut probe = world.resource_mut::<LanceProbe>();
-        probe.shot_frame = Some(frame);
-        probe.bore_velocity_after_shot = Some(MetersPerSecond::from_engine(velocity.dot(bore)));
+        {
+            let mut probe = world.resource_mut::<LanceProbe>();
+            probe.shot_frame = Some(frame);
+            probe.bore_velocity_after_shot = Some(MetersPerSecond::from_engine(velocity.dot(bore)));
+        }
         // Hold the trigger DOWN from here: invariant 5 wants a lance that
         // refuses a second commit while it is asked for one.
-        drop(probe);
         if let Some(mut input) = world.get_mut::<RailgunSectionInput>(lance) {
             input.0 = true;
         }
@@ -745,10 +746,10 @@ fn rake_matches(fired: Option<f32>, authored: Option<f32>) -> bool {
 // --- the measurement bank ---------------------------------------------------
 
 /// A stand cell's edge, and the lattice pitch, in ENGINE world units - these are
-/// build-grid cells, not authored distances. One unit cell on a one unit lattice
-/// - the spacing shipped hulls are built on - so a face neighbour's nearest
-/// point lies 0.5 from the bore, a diagonal's 0.707, and a second-ring cell's
-/// 1.5.
+/// build-grid cells, not authored distances. One unit cell on a one unit
+/// lattice, the spacing shipped hulls are built on, so a face neighbour's
+/// nearest point lies 0.5 from the bore, a diagonal's 0.707, and a second-ring
+/// cell's 1.5.
 const STAND_CELL: f32 = 1.0;
 
 /// A stand cell's health: the reinforced hull section's authored pool, so the

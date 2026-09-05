@@ -19,9 +19,13 @@ use crate::physics::prelude::rigid_body_point_velocity;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TurretSectionAimSystems;
 
-/// Half the beam of a shipped corvette, in world units: the gunship's spine
-/// spans x -1.5..1.5, a 30 m core hull, with sponsons reaching 50 m across at
-/// midships. What a round has to land inside to hit a ship at all.
+/// What a round has to land inside to count as hitting a ship at all, in world
+/// units: 16 m, roughly the half-beam of a small warship's CORE hull.
+///
+/// Between the block gunship's 15 m spine half-width and the 25 m its sponsons
+/// reach at midships, so a round threading the gaps in a spread hull is not
+/// scored as a hit while one down the middle is. It is a firing-discipline
+/// figure, not a collider: it only decides how long a turret holds fire.
 pub const HULL_HIT_RADIUS: f32 = 1.6;
 
 /// The CLOSE edge of a gunfight, in world units: 100 u is 1 km, and gunfights

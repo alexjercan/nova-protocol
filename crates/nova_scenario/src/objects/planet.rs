@@ -74,6 +74,19 @@ pub struct PlanetRenderBody(pub PlanetVisual);
 /// does: the collider child has to land in the same command batch as the
 /// root's `RigidBody`, or avian computes the mass twice.
 pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig) {
+    // The lint says this first and this says it again at load, because a mod's
+    // content can reach the runtime without ever meeting the lint. There is no
+    // destructible planet: `false` would build a body that takes no damage
+    // marks, emits no collision events and never fires OnDestroyed, which is
+    // exactly the silent shrug an authored field exists to prevent.
+    if !config.invulnerable {
+        error!(
+            "planet: `invulnerable: false` is not a destructible planet, it is a planet \
+             that quietly cannot be destroyed; nothing spawned"
+        );
+        return;
+    }
+
     let visual = PlanetVisual::build(&config, PLANET_SUBDIVISIONS);
 
     let radius = config.radius.to_engine();

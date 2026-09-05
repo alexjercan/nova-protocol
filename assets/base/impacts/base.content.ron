@@ -5,12 +5,6 @@
         sound: "self://sounds/impact.wav",
     )),
     Impact((
-        id: "impact_kinetic_rock",
-        damage: Kinetic,
-        material: Some("rock"),
-        sound: "self://sounds/impact_rock.wav",
-    )),
-    Impact((
         id: "impact_pierce",
         damage: Pierce,
         sound: "self://sounds/impact_pierce.wav",
@@ -19,5 +13,35 @@
         id: "impact_explosive",
         damage: Explosive,
         sound: "self://sounds/impact_explosive.wav",
+    )),
+    Impact((
+        id: "impact_kinetic_rock",
+        damage: Kinetic,
+        material: Some("rock"),
+        sound: "self://sounds/impact_rock.wav",
+    )),
+    Impact((
+        id: "impact_kinetic_metal",
+        damage: Kinetic,
+        material: Some("metal"),
+        sound: "self://sounds/impact_rock.wav",
+    )),
+    Impact((
+        id: "impact_kinetic_ice",
+        damage: Kinetic,
+        material: Some("ice"),
+        sound: "self://sounds/impact_rock.wav",
+    )),
+    Impact((
+        id: "impact_kinetic_carbon",
+        damage: Kinetic,
+        material: Some("carbon"),
+        sound: "self://sounds/impact_rock.wav",
+    )),
+    Impact((
+        id: "impact_kinetic_plain",
+        damage: Kinetic,
+        material: Some("plain"),
+        sound: "self://sounds/impact_rock.wav",
     )),
 ]

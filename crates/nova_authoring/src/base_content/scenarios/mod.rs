@@ -22,7 +22,7 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
         main_menu::gauntlet(cubemap(), texture()),
         main_menu::weave(cubemap(), texture()),
         main_menu::duel(cubemap(), texture()),
-        nova_protocol::first_shift(cubemap(), texture()),
-        nova_protocol::second_shift(cubemap(), texture()),
+        nova_protocol::first_shift(cubemap(), texture(), &assets.portraits),
+        nova_protocol::second_shift(cubemap(), texture(), &assets.portraits),
     ]
 }

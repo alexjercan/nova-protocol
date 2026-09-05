@@ -4,25 +4,25 @@
 //! The front row holds the engineer's maintenance cutter, the industrial
 //! carrier, and the stolen military warship. The rear row holds five cleanup
 //! searchers for the wreck-field sequel: two unarmed salvage hulls, two
-//! PDC-armed escorts, and a PDC escort carrying one Serpent torpedo bay. These
-//! are candidate structures, not promoted base-content ships. Iterate here
-//! before the campaign depends on their silhouettes.
+//! PDC-armed escorts, and a PDC escort carrying one Serpent torpedo bay. All
+//! eight are shipped base content and the campaign flies them, so this row is
+//! where a silhouette change is reviewed against the ships it has to read
+//! apart from - not a place to iterate before promotion.
 //!
-//! The ships are hand-authored and reproducible. Their cladding is still
-//! derived by the game from the structure: industrial on the cutter and
-//! carrier, armoured on the warship. Nothing in the example flies or fights.
+//! Every hull is spawned by its CATALOG id, so the row poses the shipped ships
+//! themselves: a silhouette that moves in `base_content` moves here. Cladding
+//! is still derived by the game from the structure - industrial on the cutter
+//! and carrier, armoured on the warship. Nothing here flies or fights.
 //!
 //! Hand-run with the free WASD camera:
 //! ```text
 //! cargo run --example first_shift_ships --features debug
 //! ```
 
-#[path = "shared/first_shift.rs"]
-mod first_shift;
-
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use nova_authoring::prelude::*;
 use nova_protocol::prelude::*;
 
 const CUTTER_POSITION: Meters3 = Meters3::new(-100.0, 0.0, 0.0);
@@ -38,7 +38,18 @@ fn main() -> bevy::app::AppExit {
     let mut app = AppBuilder::new().with_game_plugins(showcase_plugin).build();
 
     #[cfg(feature = "debug")]
-    app.add_systems(Update, freeze_bodies);
+    {
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants, so `probe run` grades this
+        // example instead of hanging on an app with nothing to end it. No
+        // frame-time claim - a posed row holds no steady-state load worth
+        // grading.
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(nova_protocol::nova_debug::harness::nova_screenshot(
+            nova_protocol::nova_debug::harness::nova_autopilot(),
+        ));
+        app.add_systems(Update, freeze_bodies);
+    }
 
     app.run()
 }
@@ -52,9 +63,10 @@ fn load_showcase(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    ships: Res<GameShips>,
 ) {
     let scenario = showcase(&game_assets);
-    refuse_broken(&scenario, &sections);
+    refuse_broken(&scenario, &sections, &ships);
     commands.trigger(LoadScenario(scenario));
 }
 
@@ -64,54 +76,54 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
             "maintenance_cutter",
             "Maintenance Cutter",
             CUTTER_POSITION,
-            first_shift::maintenance_cutter(),
+            BLOCK_CUTTER_SHIP_ID,
         ),
         ship_object(
             "industrial_carrier",
             "Industrial Carrier",
             CARRIER_POSITION,
-            first_shift::industrial_carrier(),
+            BLOCK_CARRIER_SHIP_ID,
         ),
         ship_object(
             "stolen_warship",
             "Stolen Military Warship",
             WARSHIP_POSITION,
-            first_shift::stolen_warship(),
+            BLOCK_WARSHIP_SHIP_ID,
         ),
         ship_object(
             "searcher_skiff",
             "Searcher 1 - Unarmed Skiff",
             SEARCHER_SKIFF_POSITION,
-            first_shift::salvage_skiff(),
+            BLOCK_SKIFF_SHIP_ID,
         ),
         ship_object(
             "searcher_tug",
             "Searcher 2 - Unarmed Tug",
             SEARCHER_TUG_POSITION,
-            first_shift::salvage_tug(),
+            BLOCK_TUG_SHIP_ID,
         ),
         ship_object(
             "searcher_picket",
             "Searcher 3 - PDC Picket",
             SEARCHER_PICKET_POSITION,
-            first_shift::salvage_picket(),
+            BLOCK_PICKET_SHIP_ID,
         ),
         ship_object(
             "searcher_claw",
             "Searcher 4 - PDC Claw",
             SEARCHER_CLAW_POSITION,
-            first_shift::salvage_claw(),
+            BLOCK_CLAW_SHIP_ID,
         ),
         ship_object(
             "searcher_leader",
             "Searcher 5 - PDC and Torpedo Leader",
             SEARCHER_LEADER_POSITION,
-            first_shift::salvage_leader(),
+            BLOCK_CLEANUP_LEADER_SHIP_ID,
         ),
     ];
 
     ScenarioConfig {
-        description: "Eight candidate ships for the first two Nova Protocol scenarios".to_string(),
+        description: "The eight ships of the first two Nova Protocol chapters".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -134,7 +146,9 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
     }
 }
 
-fn ship_object(id: &str, name: &str, position: Meters3, hull: ShipHull) -> ScenarioObjectConfig {
+/// One posed catalog ship. `ship` is the CATALOG id, so the row shows the hull
+/// the campaign flies rather than a copy of it.
+fn ship_object(id: &str, name: &str, position: Meters3, ship: &str) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -144,18 +158,18 @@ fn ship_object(id: &str, name: &str, position: Meters3, hull: ShipHull) -> Scena
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(hull),
+            hull: hull(ship),
             ..default()
         }),
     }
 }
 
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShips) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::default(),
+        &KnownShips::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
     );
     let errors: Vec<_> = issues

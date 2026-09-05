@@ -25,7 +25,7 @@ use nova_ship::prelude::*;
 use super::{
     cast::{apply_portraits, CARRIER_NAME, CLEANUP_LEADER, CUTTER_NAME, PLAYER},
     pacing::{self, INSTRUCTION_GAP, REVEAL_GAP},
-    ships, stage, SCENARIO_ELAPSED_VAR,
+    ships, stage, CampaignPortraits, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
 
@@ -122,7 +122,7 @@ struct Searcher {
     /// The lane it sweeps, first mark first. `PatrolShip` flies one loop and
     /// reports, and the handler below sends it round again - so every lap is a
     /// beat the scenario could act on, instead of a route nothing can count.
-    route: [Meters3; 3],
+    route: [Meters3; 5],
 }
 
 /// The group, entering together from behind the large planetoid - the same
@@ -136,8 +136,10 @@ fn cleanup_group() -> [Searcher; 5] {
             armed: false,
             route: [
                 Meters3::new(7_700.0, 450.0, -6_100.0),
-                Meters3::new(2_800.0, 200.0, -3_700.0),
-                Meters3::new(1_500.0, 200.0, -3_100.0),
+                Meters3::new(6_100.0, 450.0, -3_900.0),
+                Meters3::new(2_700.0, 450.0, -3_750.0),
+                Meters3::new(1_400.0, 450.0, -3_150.0),
+                Meters3::new(5_300.0, 450.0, -3_500.0),
             ],
         },
         Searcher {
@@ -147,8 +149,10 @@ fn cleanup_group() -> [Searcher; 5] {
             armed: false,
             route: [
                 Meters3::new(8_050.0, -100.0, -6_200.0),
-                Meters3::new(2_500.0, -200.0, -2_600.0),
-                Meters3::new(900.0, 0.0, -1_500.0),
+                Meters3::new(6_000.0, -100.0, -3_900.0),
+                Meters3::new(2_000.0, -300.0, -2_450.0),
+                Meters3::new(1_250.0, 0.0, -1_050.0),
+                Meters3::new(5_200.0, -100.0, -3_500.0),
             ],
         },
         Searcher {
@@ -158,8 +162,10 @@ fn cleanup_group() -> [Searcher; 5] {
             armed: true,
             route: [
                 Meters3::new(7_750.0, -350.0, -6_750.0),
-                Meters3::new(3_050.0, -200.0, -2_900.0),
-                Meters3::new(1_200.0, 200.0, -4_300.0),
+                Meters3::new(6_200.0, -350.0, -4_000.0),
+                Meters3::new(2_800.0, -300.0, -2_700.0),
+                Meters3::new(1_250.0, -50.0, -4_150.0),
+                Meters3::new(5_400.0, -350.0, -3_400.0),
             ],
         },
         Searcher {
@@ -169,8 +175,10 @@ fn cleanup_group() -> [Searcher; 5] {
             armed: true,
             route: [
                 Meters3::new(8_250.0, 500.0, -6_850.0),
-                Meters3::new(2_150.0, 400.0, -1_200.0),
-                Meters3::new(0.0, 300.0, 0.0),
+                Meters3::new(6_000.0, 500.0, -3_800.0),
+                Meters3::new(1_800.0, 550.0, -1_500.0),
+                Meters3::new(-350.0, 800.0, 500.0),
+                Meters3::new(5_200.0, 500.0, -3_400.0),
             ],
         },
         Searcher {
@@ -183,8 +191,10 @@ fn cleanup_group() -> [Searcher; 5] {
             // with the cutter OUTSIDE it rather than under it.
             route: [
                 Meters3::new(9_400.0, 100.0, -6_450.0),
-                Meters3::new(2_600.0, 250.0, -3_500.0),
-                Meters3::new(200.0, 200.0, -2_000.0),
+                Meters3::new(6_100.0, 100.0, -4_000.0),
+                Meters3::new(1_900.0, 400.0, -3_200.0),
+                Meters3::new(650.0, 550.0, -1_450.0),
+                Meters3::new(5_300.0, 100.0, -3_500.0),
             ],
         },
     ]
@@ -481,6 +491,7 @@ fn defeat(message: &str, event: EventConfig) -> ScenarioEventConfig {
 pub(crate) fn second_shift(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
+    portraits: &CampaignPortraits,
 ) -> ScenarioConfig {
     let mut start_spawns = vec![player_ship()];
     start_spawns.extend(stage::belt(&asteroid_texture));
@@ -533,8 +544,15 @@ pub(crate) fn second_shift(
                                 "...All right. Recorders, then. Bridge, engineering, the \
                                  relay - whatever is left of them.",
                             ),
+                            // A beat of its own, not glued to the line above
+                            // it: a step that waits for nothing runs in the
+                            // SAME frame as its predecessor, and an objective
+                            // arriving under a comms line is the whole
+                            // complaint the pacing rule exists for. The line
+                            // instructs and the objective echoes it, so it
+                            // posts mid-read.
                             step(
-                                0.0,
+                                INSTRUCTION_GAP,
                                 vec![
                                     post_objective(OBJ_APPROACH, "Fly in to the wreck field."),
                                     attach_objective_marker(ID_APPROACH_MARK, "WRECK FIELD"),
@@ -650,7 +668,7 @@ pub(crate) fn second_shift(
     events.push(evidence_tally(1.0));
     events.push(evidence_tally(2.0));
     events.extend(group.iter().map(relap));
-    apply_portraits(&mut events);
+    apply_portraits(portraits, &mut events);
 
     ScenarioConfig {
         description: "Search the Meridian's wreck, and get out before the cleanup group finds you."
@@ -703,7 +721,8 @@ mod tests {
     use super::*;
 
     fn config() -> ScenarioConfig {
-        second_shift(AssetRef::default(), AssetRef::default())
+        let portraits = crate::base_content::assets::BaseContentAssets::from_paths().portraits;
+        second_shift(AssetRef::default(), AssetRef::default(), &portraits)
     }
 
     fn all_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
@@ -851,19 +870,38 @@ mod tests {
         }));
         let bodies: Vec<_> = bodies.collect();
         for searcher in cleanup_group() {
-            for mark in searcher.route {
+            let route = searcher.route;
+            for (index, from) in route.iter().enumerate() {
+                let to = route[(index + 1) % route.len()];
                 for (name, centre, radius) in &bodies {
-                    let clearance = (mark - *centre).length().0;
+                    let clearance = segment_clearance(*from, to, *centre);
                     let required = radius.0 + HULL_PAD;
                     assert!(
                         clearance > required,
-                        "'{}' is sent to {mark:?}, {clearance:.0} m from {name} at \
-                         {centre:?}, inside its {required:.0} m envelope",
+                        "'{}' flies {from:?} -> {to:?}, passing {clearance:.0} m from \
+                         {name} at {centre:?}, inside its {required:.0} m envelope",
                         searcher.id
                     );
                 }
             }
         }
+    }
+
+    /// Closest approach of the SEGMENT `from`..`to` to `point`, in meters.
+    ///
+    /// The whole leg, not its ends: a lane whose marks both sit in open space
+    /// can still be flown straight through a planetoid, which is exactly what
+    /// the endpoint-only version of this check let ship.
+    fn segment_clearance(from: Meters3, to: Meters3, point: Meters3) -> f32 {
+        let leg = to - from;
+        let length_squared = leg.0.length_squared();
+        let closest = if length_squared == 0.0 {
+            from
+        } else {
+            let t = ((point - from).0.dot(leg.0) / length_squared).clamp(0.0, 1.0);
+            from + Meters3(leg.0 * t)
+        };
+        (point - closest).length().0
     }
 
     /// Every evidence mark is reachable. A mark sits deliberately close to the

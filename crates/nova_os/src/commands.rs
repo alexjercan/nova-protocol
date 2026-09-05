@@ -226,7 +226,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<id>"),
         args: &[CommandArg::Live(live::SCENARIO)],
-        examples: &["scenario load shakedown_run"],
+        examples: &["scenario load first_shift"],
     },
     CommandSpec {
         name: "status",
@@ -912,7 +912,7 @@ pub fn command_list_rows(filter: Option<CommandClass>) -> Vec<TerminalRow> {
 /// The Command shell's staged introduction, revealed row-by-row on first entry
 /// and reprinted whole by `clear`.
 ///
-/// `world` describes the live context (`shakedown_run / paused`, `main menu /
+/// `world` describes the live context (`first_shift / paused`, `main menu /
 /// idle`, `ship editor / paused`, `no scenario / idle`); `armed` is whether the
 /// player has run `cheats enable` in this run.
 pub fn command_intro_rows(world: &str, armed: bool) -> Vec<TerminalRow> {
@@ -952,7 +952,7 @@ mod tests {
         let specs = super::command_shell_specs();
         for spec in super::COMMAND_CATALOG {
             for example in spec.examples {
-                let outcome = super::resolve_command_line(example, &specs);
+                let outcome = super::resolve_command_line(example, specs);
                 let bad = match &outcome {
                     super::CommandOutcome::Answer(result) => {
                         result.status == super::CommandStatus::Error
@@ -969,7 +969,7 @@ mod tests {
     fn help_reaches_a_multi_word_command() {
         let specs = super::command_shell_specs();
         let super::CommandOutcome::Answer(result) =
-            super::resolve_command_line("help ammo refill section", &specs)
+            super::resolve_command_line("help ammo refill section", specs)
         else {
             panic!("help is answered by the catalog");
         };
@@ -1043,7 +1043,7 @@ mod tests {
     fn an_arity_miss_reads_as_an_arity_miss_not_a_bad_subcommand() {
         let specs = command_shell_specs();
         let headline = |line: &str| {
-            let CommandOutcome::Answer(result) = resolve_command_line(line, &specs) else {
+            let CommandOutcome::Answer(result) = resolve_command_line(line, specs) else {
                 panic!("{line} is answered by the catalog");
             };
             result.detail
@@ -1063,7 +1063,7 @@ mod tests {
     #[test]
     fn bare_help_lists_the_catalog_and_the_prompt_keys() {
         let specs = command_shell_specs();
-        let CommandOutcome::Answer(result) = resolve_command_line("help", &specs) else {
+        let CommandOutcome::Answer(result) = resolve_command_line("help", specs) else {
             panic!("help is answered by the catalog");
         };
         let text: Vec<&str> = result.rows.iter().map(|row| row.text.as_str()).collect();
@@ -1120,7 +1120,7 @@ mod tests {
             for index in 0..args {
                 line.push_str(&format!(" arg{index}"));
             }
-            match resolve_command_line(&line, &specs) {
+            match resolve_command_line(&line, specs) {
                 CommandOutcome::Invoke(invocation) => {
                     assert_eq!(invocation.name, spec.name);
                     assert_eq!(invocation.class, spec.class, "{}", spec.name);
@@ -1201,7 +1201,7 @@ mod tests {
     #[test]
     fn multiword_commands_resolve_to_the_longest_match() {
         let specs = command_shell_specs();
-        let invoke = |line: &str| match resolve_command_line(line, &specs) {
+        let invoke = |line: &str| match resolve_command_line(line, specs) {
             CommandOutcome::Invoke(invocation) => invocation,
             other => panic!("{line} did not dispatch: {other:?}"),
         };
@@ -1221,7 +1221,7 @@ mod tests {
     #[test]
     fn an_incomplete_command_lists_its_subcommands() {
         let specs = command_shell_specs();
-        let CommandOutcome::Answer(result) = resolve_command_line("ammo", &specs) else {
+        let CommandOutcome::Answer(result) = resolve_command_line("ammo", specs) else {
             panic!("`ammo` is not a runnable command");
         };
         assert_eq!(result.status, CommandStatus::Error);
@@ -1236,7 +1236,7 @@ mod tests {
     #[test]
     fn commands_filters_by_class_and_refuses_an_unknown_one() {
         let specs = command_shell_specs();
-        let CommandOutcome::Answer(cheats) = resolve_command_line("commands cheat", &specs) else {
+        let CommandOutcome::Answer(cheats) = resolve_command_line("commands cheat", specs) else {
             panic!("`commands` answers from the catalog");
         };
         assert_eq!(cheats.status, CommandStatus::Ok);
@@ -1249,7 +1249,7 @@ mod tests {
                 assert_eq!(spec.class, CommandClass::Cheat, "{}", spec.name);
             }
         }
-        let CommandOutcome::Answer(bad) = resolve_command_line("commands nonsense", &specs) else {
+        let CommandOutcome::Answer(bad) = resolve_command_line("commands nonsense", specs) else {
             panic!("an unknown class is answered, not dispatched");
         };
         assert_eq!(bad.status, CommandStatus::Error);
@@ -1260,7 +1260,7 @@ mod tests {
     /// mark rather than a written-down number.
     #[test]
     fn the_intro_reports_the_computed_registry_and_cheat_state() {
-        let clean = command_intro_rows("shakedown_run / paused", false);
+        let clean = command_intro_rows("first_shift / paused", false);
         let text = |rows: &[TerminalRow]| {
             rows.iter()
                 .map(|row| row.text.clone())
@@ -1272,7 +1272,7 @@ mod tests {
             "REGISTRY ..... {} commands / ready",
             COMMAND_CATALOG.len()
         )));
-        assert!(clean_text.contains("WORLD ........ shakedown_run / paused"));
+        assert!(clean_text.contains("WORLD ........ first_shift / paused"));
         assert!(clean_text.contains("CHEATS ....... disabled / run clean"));
         assert!(
             clean_text.contains(&format!("NOVA OS v{}", nova_info::APP_VERSION)),

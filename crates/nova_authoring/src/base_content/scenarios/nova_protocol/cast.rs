@@ -9,6 +9,8 @@ use bevy::prelude::Image;
 use nova_gameplay::prelude::AssetRef;
 use nova_scenario::prelude::*;
 
+use crate::base_content::assets::CampaignPortraits;
+
 /// The carrier's own name, used in objective and banner text. The ship is a
 /// character in chapter one and a grave in chapter two, so it is named in one
 /// place.
@@ -53,29 +55,29 @@ pub(crate) const BEACON: &str = "Automated Beacon";
 /// explains itself - the campaign's antagonists are, for now, a channel.
 pub(crate) const CLEANUP_LEADER: &str = "Unknown Channel";
 
-fn portrait(speaker: &str) -> Option<AssetRef<Image>> {
-    let path = match speaker {
-        CONTROL => "self://portraits/meridian-control.png",
-        DECK_CHIEF => "self://portraits/deck-chief.png",
-        COPILOT | COPILOT_CABIN => "self://portraits/copilot.png",
-        ENGINEER => "self://portraits/engineer.png",
-        PLAYER => "self://portraits/player.png",
-        BEACON => "self://portraits/automated-beacon.png",
-        CLEANUP_LEADER => "self://portraits/unknown-channel.png",
+fn portrait(portraits: &CampaignPortraits, speaker: &str) -> Option<AssetRef<Image>> {
+    let found = match speaker {
+        CONTROL => &portraits.meridian_control,
+        DECK_CHIEF => &portraits.deck_chief,
+        COPILOT | COPILOT_CABIN => &portraits.copilot,
+        ENGINEER => &portraits.engineer,
+        PLAYER => &portraits.player,
+        BEACON => &portraits.automated_beacon,
+        CLEANUP_LEADER => &portraits.unknown_channel,
         _ => return None,
     };
-    Some(AssetRef::from(path))
+    Some(found.clone())
 }
 
-fn apply_portrait(action: &mut EventActionConfig) {
+fn apply_portrait(portraits: &CampaignPortraits, action: &mut EventActionConfig) {
     match action {
         EventActionConfig::StoryMessage(message) if message.icon.is_none() => {
-            message.icon = portrait(&message.speaker);
+            message.icon = portrait(portraits, &message.speaker);
         }
         EventActionConfig::Sequence(sequence) => {
             for step in &mut sequence.steps {
                 for action in &mut step.actions {
-                    apply_portrait(action);
+                    apply_portrait(portraits, action);
                 }
             }
         }
@@ -85,10 +87,10 @@ fn apply_portrait(action: &mut EventActionConfig) {
 
 /// Attach the base campaign's shared speaker portraits to every nested story
 /// action while leaving unknown and preview-only speakers on the HUD fallback.
-pub(crate) fn apply_portraits(events: &mut [ScenarioEventConfig]) {
+pub(crate) fn apply_portraits(portraits: &CampaignPortraits, events: &mut [ScenarioEventConfig]) {
     for event in events {
         for action in &mut event.actions {
-            apply_portrait(action);
+            apply_portrait(portraits, action);
         }
     }
 }
@@ -96,10 +98,23 @@ pub(crate) fn apply_portraits(events: &mut [ScenarioEventConfig]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::base_content::assets::BaseContentAssets;
 
+    /// Every voice the campaign speaks with resolves to a distinct portrait,
+    /// and the two copilot channels share one face. A `self://` reference only
+    /// resolves inside a mod bundle, so this also pins that the generated set
+    /// is the one place those sentinels are written.
     #[test]
     fn every_campaign_voice_has_a_portrait() {
-        for speaker in [
+        let portraits = BaseContentAssets::from_paths().portraits;
+        let path = |speaker| {
+            portrait(&portraits, speaker)
+                .unwrap_or_else(|| panic!("'{speaker}' has no portrait"))
+                .path()
+                .expect("the generated set is authored as paths")
+                .to_string()
+        };
+        let faces = [
             CONTROL,
             DECK_CHIEF,
             COPILOT,
@@ -108,11 +123,18 @@ mod tests {
             PLAYER,
             BEACON,
             CLEANUP_LEADER,
-        ] {
-            assert!(portrait(speaker).is_some(), "'{speaker}' has no portrait");
-        }
+        ]
+        .map(path);
+        assert_eq!(
+            faces[2], faces[3],
+            "both copilot channels are the same person"
+        );
+        let mut distinct: Vec<&String> = faces.iter().collect();
+        distinct.sort();
+        distinct.dedup();
+        assert_eq!(distinct.len(), 7, "each other voice has its own face");
         assert!(
-            portrait("PREVIEW").is_none(),
+            portrait(&portraits, "PREVIEW").is_none(),
             "preview scaffolding must retain the HUD fallback"
         );
     }

@@ -545,7 +545,7 @@ fn drive_range(world: &mut World) {
 
     if !world.resource::<CollapseProbe>().verified {
         let frames = world.resource::<CollapseProbe>().frames;
-        if frames % STATUS_EVERY == 0 {
+        if frames.is_multiple_of(STATUS_EVERY) {
             let cells = live_count::<HullCell>(world);
             let shards = live_count::<CarveShardMarker>(world);
             let pieces = live_count::<DetachedPieceMarker>(world);

@@ -88,6 +88,12 @@ pub(super) fn track_orbit_transitions(
             }
             continue;
         };
+        // Mission progress is gated on this one phase: every orbit event, and
+        // so the whole First Shift orbit beat, hangs off it. A flight retune
+        // that leaves the ring flown but never flips the phase stalls a chapter
+        // with nothing on screen to say why, so nova_ship pins the phase as
+        // reachable in planetoid-strength gravity
+        // (`a_strong_well_orbit_reaches_the_hold_phase_the_scenario_layer_reads`).
         let stable = autopilot.phase == AutopilotPhase::Hold;
 
         match echo {

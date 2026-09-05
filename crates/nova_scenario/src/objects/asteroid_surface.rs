@@ -60,8 +60,8 @@ use super::asteroid_kind::prelude::AsteroidKindLook;
 /// `AsteroidSurfaceMaterialExt` and `AsteroidSurfaceUniform`.
 pub mod prelude {
     pub use super::{
-        AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, AsteroidSurfaceUniform, RockHeight,
-        RockHeightNoise,
+        spends_macro_field, AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt,
+        AsteroidSurfaceUniform, RockHeight, RockHeightNoise,
     };
 }
 
@@ -131,15 +131,19 @@ pub struct AsteroidSurfaceUniform {
     pub roughness_high: f32,
     /// Metallic response.
     pub metallic: f32,
-    /// This body's own 0..1 draw from its silhouette seed. Rotates and offsets
-    /// the whole sampling frame, so two rocks of the same kind wearing the same
-    /// texture are not the same rock. See [`seed_jitter`].
+    /// This body's own 0..1 draw from its silhouette seed, scaled by the kind's
+    /// own [`AsteroidKindLook::jitter`]. Rotates and offsets the whole sampling
+    /// frame, so two rocks of the same kind wearing the same texture are not
+    /// the same rock. See [`seed_jitter`].
     pub jitter: f32,
+    /// 1 when this kind spends the macro field, 0 when it does not. See
+    /// [`spends_macro_field`].
+    pub detail: f32,
 }
 
 impl AsteroidSurfaceUniform {
-    /// The uniform a body of this kind wants, at the shared tiling.
-    pub fn new(look: &AsteroidKindLook) -> Self {
+    /// The uniform a body of this kind, with this silhouette seed, wants.
+    pub fn new(look: &AsteroidKindLook, seed: u32) -> Self {
         Self {
             shade: look.shade,
             tint: look.tint,
@@ -158,15 +162,30 @@ impl AsteroidSurfaceUniform {
             roughness_low: look.roughness_low,
             roughness_high: look.roughness_high,
             metallic: look.metallic,
-            jitter: 0.0,
+            jitter: look.jitter * seed_jitter(seed),
+            detail: f32::from(spends_macro_field(look)),
         }
     }
+}
 
-    /// These parameters jittered for the body with this silhouette seed.
-    pub fn with_seed(mut self, seed: u32) -> Self {
-        self.jitter = seed_jitter(seed);
-        self
-    }
+/// Whether the macro field is worth computing for a body of this kind.
+///
+/// The domain warp, the four-octave fBm and the second triplanar read at the
+/// top of the fragment shader exist to feed four consumers: the palette
+/// ([`AsteroidKindLook::kind_mix`]), the tile break-up
+/// ([`AsteroidKindLook::break_up`]), the roughness sweep between
+/// `roughness_low` and `roughness_high`, and the vein layer, which reads the
+/// WARPED coordinate. A kind that spends none of the four multiplies the whole
+/// chain by zero, so the shader branches around it instead - a UNIFORM branch,
+/// coherent across the draw, the same idiom the vein layer itself uses.
+///
+/// Decided here rather than compared in WGSL because the rule is about which
+/// knobs consume the field, and a rule is worth a test.
+pub fn spends_macro_field(look: &AsteroidKindLook) -> bool {
+    look.kind_mix > 0.0
+        || look.break_up > 0.0
+        || look.vein_strength > 0.0
+        || look.roughness_low != look.roughness_high
 }
 
 /// The triplanar extension's own bindings.
@@ -188,7 +207,7 @@ impl AsteroidSurfaceMaterialExt {
     /// silhouette seed, wants.
     pub fn new(texture: Handle<Image>, look: &AsteroidKindLook, seed: u32) -> Self {
         Self {
-            look: AsteroidSurfaceUniform::new(look).with_seed(seed),
+            look: AsteroidSurfaceUniform::new(look, seed),
             texture: Some(texture),
         }
     }
@@ -468,7 +487,40 @@ fn seed_jitter(seed: u32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        super::asteroid_kind::prelude::{asteroid_kind_look, ASTEROID_KINDS, KIND_PLAIN},
+        *,
+    };
+
+    /// The control has to cost what it claims to cost. `plain` spends no
+    /// palette, no break-up, no veins and no roughness range, so the shader
+    /// must skip the macro field entirely rather than compute it and multiply
+    /// it out - and every kind that is a look must still pay for it.
+    #[test]
+    fn only_the_control_skips_the_macro_field() {
+        for kind in ASTEROID_KINDS {
+            let look = asteroid_kind_look(kind).expect("a shipped kind resolves");
+            assert_eq!(
+                spends_macro_field(&look),
+                kind != KIND_PLAIN,
+                "{kind}: the macro-field branch is the wrong way round"
+            );
+        }
+    }
+
+    /// The control is the BEFORE picture, so the frame it samples the texture
+    /// in must not move either. Every other kind draws its own frame from its
+    /// silhouette seed, or a field of one kind is a field of one rock.
+    #[test]
+    fn the_control_takes_no_frame_jitter_and_every_other_kind_does() {
+        for kind in ASTEROID_KINDS {
+            let look = asteroid_kind_look(kind).expect("a shipped kind resolves");
+            let jittered = (1..64u32)
+                .map(|seed| AsteroidSurfaceUniform::new(&look, seed).jitter)
+                .any(|jitter| jitter > 0.0);
+            assert_eq!(jittered, kind != KIND_PLAIN, "{kind}: frame jitter");
+        }
+    }
 
     /// THE fix: the surface has to be cut INTO the sphere as well as grown out
     /// of it. A generator that only ever adds leaves the base sphere showing

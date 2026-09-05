@@ -11,7 +11,7 @@ pub use first_shift::{first_shift_scene, FirstShiftScene};
 pub(crate) use second_shift::{second_shift, SECOND_SHIFT_SCENARIO_ID};
 
 pub(crate) use super::SCENARIO_ELAPSED_VAR;
-pub(crate) use crate::base_content::ships;
+pub(crate) use crate::base_content::{assets::CampaignPortraits, ships};
 
 #[cfg(test)]
 mod tests;

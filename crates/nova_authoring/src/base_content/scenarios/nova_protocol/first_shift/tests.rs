@@ -12,8 +12,12 @@ use nova_scenario::prelude::ASTEROID_GEOMETRIC_FACTOR_MAX;
 
 use super::*;
 
+fn portraits() -> CampaignPortraits {
+    crate::base_content::assets::BaseContentAssets::from_paths().portraits
+}
+
 fn config() -> ScenarioConfig {
-    first_shift(AssetRef::default(), AssetRef::default())
+    first_shift(AssetRef::default(), AssetRef::default(), &portraits())
 }
 
 #[test]
@@ -30,7 +34,12 @@ fn reusable_scenes_keep_preview_positions_out_of_production_code() {
         FirstShiftScene::Aftermath,
     ];
     for scene in scenes {
-        let preview = first_shift_scene(scene, AssetRef::default(), AssetRef::default());
+        let preview = first_shift_scene(
+            scene,
+            AssetRef::default(),
+            AssetRef::default(),
+            &portraits(),
+        );
         let cutter = spawned_ship(&preview, ID_CUTTER)
             .unwrap_or_else(|| panic!("{scene:?} preview does not spawn Cutter"));
         assert_eq!(
@@ -248,6 +257,77 @@ fn every_temporary_mark_the_shift_raises_is_taken_back_down_again() {
     );
 }
 
+/// A beat is never armed before the card it clears exists.
+///
+/// This is the orphaned-objective failure, stated structurally. A beat is
+/// closed by a `once` handler on an arrival gate; if that gate is live before
+/// the objective the handler completes has been posted, a player who arrives
+/// early spends the handler on a `complete_objective` for an id that is not
+/// there. The completion warns and no-ops, and the card lands afterwards with
+/// nothing left to clear it - a dead objective riding the panel to the end of
+/// the chapter.
+///
+/// So: walk the shift in beat order, and by the frame a gate is RAISED, every
+/// objective the handlers it arms complete must already have been posted -
+/// including in that same frame, which is the idiom the RCS box uses.
+#[test]
+fn no_arrival_gate_is_raised_before_the_objective_it_clears() {
+    use std::collections::HashSet;
+
+    let config = config();
+    assert_eq!(
+        objectives_completed_on_entering(&config, &TRIM_VERTICAL.gate_id()),
+        vec![OBJ_TRIM_VERTICAL.to_string()],
+        "the walk below reads nothing if a gate's completion handler cannot be found"
+    );
+
+    let mut posted: HashSet<String> = HashSet::new();
+    for event in handlers_in_beat_order(&config) {
+        for group in event.action_groups() {
+            for action in &group {
+                if let EventActionConfig::Objective(objective) = action {
+                    posted.insert(objective.id.clone());
+                }
+            }
+            for action in &group {
+                let EventActionConfig::CreateScenarioArea(area) = action else {
+                    continue;
+                };
+                for closed in objectives_completed_on_entering(&config, &area.id) {
+                    assert!(
+                        posted.contains(&closed),
+                        "{:?} raises '{}' before '{closed}' is posted - a player who \
+                         reaches it early spends the beat on an objective that does \
+                         not exist yet",
+                        event.name,
+                        area.id,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Every objective completed by a handler that fires on ENTERING `area`.
+fn objectives_completed_on_entering(config: &ScenarioConfig, area: &str) -> Vec<String> {
+    config
+        .events
+        .iter()
+        .filter(|event| matches!(event.name, EventConfig::OnEnter))
+        .filter(|event| {
+            event.filters.iter().any(|filter| match filter {
+                EventFilterConfig::Entity(entity) => entity.id.as_deref() == Some(area),
+                _ => false,
+            })
+        })
+        .flat_map(|event| event.actions.iter())
+        .filter_map(|action| match action {
+            EventActionConfig::ObjectiveComplete(complete) => Some(complete.id.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
 /// ONE thing on the panel at a time. The old script put three crate chips up
 /// together, which turns a lesson in flying the plate into a shopping list;
 /// walking the graph in beat order proves no two work markers are ever lit at
@@ -303,13 +383,15 @@ fn the_thrusters_are_taught_in_open_space_before_the_plate() {
             );
         }
     }
-    assert!(
-        BEAT_TRIM_LATERAL < BEAT_CRATE_FIRST
-            && BEAT_TRIM_VERTICAL < BEAT_CRATE_FIRST
-            && BEAT_TRIM_RETURN_LATERAL < BEAT_CRATE_FIRST
-            && BEAT_TRIM_RETURN_VERTICAL < BEAT_CRATE_FIRST,
-        "the plate opens before the thrusters are taught"
-    );
+    const {
+        assert!(
+            BEAT_TRIM_LATERAL < BEAT_CRATE_FIRST
+                && BEAT_TRIM_VERTICAL < BEAT_CRATE_FIRST
+                && BEAT_TRIM_RETURN_LATERAL < BEAT_CRATE_FIRST
+                && BEAT_TRIM_RETURN_VERTICAL < BEAT_CRATE_FIRST,
+            "the plate opens before the thrusters are taught"
+        );
+    }
 
     // ...and the control itself is handed over before the field work, not
     // with it: the grant lands on a beat below the first crate.
@@ -485,17 +567,19 @@ fn the_field_work_runs_from_the_plate_edge_inward() {
 /// reason the Meridian's answer to it lands.
 #[test]
 fn the_orbit_is_a_detour_the_crew_comes_back_from() {
-    assert!(
-        BEAT_ORBIT < BEAT_ORBIT_RETURN_VIEW
-            && BEAT_ORBIT_RETURN_VIEW < BEAT_RETURN
-            && BEAT_RETURN < BEAT_SEARCH,
-        "the orbit does not sit before the return to the field work"
-    );
-    assert!(
-        BEAT_CRATE_SECOND < BEAT_DETOUR,
-        "the detour is proposed before any of the field work is done - it has \
-         to be time the crew is stealing from a job in progress"
-    );
+    const {
+        assert!(
+            BEAT_ORBIT < BEAT_ORBIT_RETURN_VIEW
+                && BEAT_ORBIT_RETURN_VIEW < BEAT_RETURN
+                && BEAT_RETURN < BEAT_SEARCH,
+            "the orbit does not sit before the return to the field work"
+        );
+        assert!(
+            BEAT_CRATE_SECOND < BEAT_DETOUR,
+            "the detour is proposed before any of the field work is done - it has \
+             to be time the crew is stealing from a job in progress"
+        );
+    }
 
     let config = config();
     let lap = config
@@ -597,10 +681,12 @@ fn the_attack_waits_for_the_cutter_to_reach_the_hold() {
             .any(|filter| format!("{filter:?}") == gate),
         "the warship comes out after GOTO settles at something other than the hold"
     );
-    assert!(
-        BEAT_SEARCH < BEAT_VANTAGE && BEAT_VANTAGE < BEAT_ATTACK,
-        "the run home does not sit between the last crate and the attack"
-    );
+    const {
+        assert!(
+            BEAT_SEARCH < BEAT_VANTAGE && BEAT_VANTAGE < BEAT_ATTACK,
+            "the run home does not sit between the last crate and the attack"
+        );
+    }
 }
 
 /// The hold IS the composition. Every number that decides whether the set piece
@@ -830,7 +916,7 @@ fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
         salvo
             .steps
             .iter()
-            .position(|step| step.actions.iter().any(|action| pred(action)))
+            .position(|step| step.actions.iter().any(pred))
     };
     let on_warship = step_with(&|action| {
         matches!(action, EventActionConfig::SetCameraAnchor(shot) if shot.anchor == ID_WARSHIP)
@@ -1202,4 +1288,40 @@ fn the_kill_is_filmed_at_a_point_that_outlives_the_carrier() {
             "the destruction and aftermath stay on the player's own hull"
         );
     }
+}
+
+/// The orbit beat completes by crossing a gate, and the ring the player is on
+/// is whatever the ORBIT verb clamped their approach radius into. A gate
+/// narrower than that band is invisible to anyone flying a legal higher ring:
+/// they orbit exactly as instructed, forever, with nothing on screen to
+/// correct them. Derived from the engine's own band rather than restated, so
+/// a gravity or flight retune fails here instead of in a playtest.
+#[test]
+fn the_orbit_return_gate_intercepts_every_ring_the_verb_can_plan() {
+    use nova_gameplay::prelude::{GravitySettings, GravityWell};
+    use nova_ship::prelude::{orbit_radius_band, FlightSettings};
+
+    let gravity = GravitySettings::default();
+    let well = GravityWell::from_mass(
+        stage::INSPECTION_MASS,
+        stage::inspection_body_radius().to_engine(),
+        &gravity,
+    );
+    let (floor, ceiling) = orbit_radius_band(&well, &gravity, &FlightSettings::default())
+        .expect("the inspection planetoid is orbitable");
+    let (floor, ceiling) = (Meters::from_engine(floor), Meters::from_engine(ceiling));
+
+    // A ring of radius R centred on the body reaches the gate sphere exactly
+    // when |R - stand_off| <= gate radius.
+    let stand_off = (ORBIT_RETURN_GATE_POS - stage::INSPECTION_POS).length();
+    let reached = |ring: Meters| (ring.0 - stand_off.0).abs() <= ORBIT_RETURN_GATE_RADIUS.0;
+    assert!(
+        reached(floor) && reached(ceiling),
+        "the gate spans {:.0}-{:.0} m of orbital radius but the verb plans rings from \
+         {:.0} m to {:.0} m - a ring outside it can never complete the beat",
+        stand_off.0 - ORBIT_RETURN_GATE_RADIUS.0,
+        stand_off.0 + ORBIT_RETURN_GATE_RADIUS.0,
+        floor.0,
+        ceiling.0,
+    );
 }

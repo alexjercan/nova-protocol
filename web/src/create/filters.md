@@ -38,7 +38,7 @@ Entity(())
 | field | type | default | matches |
 |---|---|---|---|
 | `id` | `Option` string | `None` | the event subject's id |
-| `type_name` | `Option` string | `None` | the subject's object kind (`"anchor"`, `"asteroid"`, `"spaceship"`, `"beacon"`, `"salvage_crate"`, `"light"`) |
+| `type_name` | `Option` string | `None` | the subject's object kind (`"anchor"`, `"asteroid"`, `"planet"`, `"spaceship"`, `"beacon"`, `"salvage_crate"`, `"light"`) |
 | `other_id` | `Option` string | `None` | the other party's id |
 | `other_type_name` | `Option` string | `None` | the other party's object kind |
 

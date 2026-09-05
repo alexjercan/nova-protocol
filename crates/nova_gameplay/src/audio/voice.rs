@@ -412,7 +412,7 @@ fn hold_sink(sink: &impl AudioSinkPlayback, held: bool) {
 /// state. The cap itself is exact either way: the count that sounds is the
 /// same, only which voices they are is sticky.
 fn exterior_loops_over_the_cap(
-    levels: &mut Vec<(f32, Entity)>,
+    levels: &mut [(f32, Entity)],
     sounding: &HashSet<Entity>,
 ) -> HashSet<Entity> {
     if levels.len() <= MAX_EXTERIOR_LOOP_VOICES {
