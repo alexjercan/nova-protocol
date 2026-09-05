@@ -12,6 +12,8 @@
   from 2026-09-05.
 - `REVIEW01.md`, `REVIEW02.md`: the owner's reviews of the first story
   document. Their answers fold into the book's pages as the book grows.
+- `REVIEW03.md`: the out-of-context review of the book as ground truth, beat
+  by beat against the spine, with proposals.
 - `VOCABULARY.md`: the scenario engine's action and capability inventory,
   taken at `3af5d051` for the scenario-one rebuild.
 - The tech demo: the comic at `web/src/comics/nova-protocol/` (the prologue
