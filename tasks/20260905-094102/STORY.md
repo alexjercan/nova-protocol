@@ -56,8 +56,8 @@ Open decisions).
 Naming scheme, so a name tells its group at once:
 
 - EWI carriers carry survey words: Meridian, Azimuth, Parallax.
-- Kestrel named its stations after birds: Osprey, Harrier. People used
-  nicknames: the Shelter, the Roost.
+- Kestrel named ships after birds: Osprey, Harrier. Its stations carried the
+  words for where birds live: the Shelter, the Roost, the Nest.
 - Earth Fleet ships carry virtues: Resolute, Vigilant.
 - The Scavengers rename what they take with the company's own words:
   Severance.
@@ -72,8 +72,8 @@ Naming scheme, so a name tells its group at once:
 | Resolute, renamed Severance (tbd) | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
 | Scavenger skiffs | Small scrap-built pirate ships. Sweep, pick, herd. | Scavengers |
 | Vigilant (tbd) | Marsh's ship, hunting Resolute. | Earth Fleet |
-| The Shelter | Kestrel Osprey Station, the largest. Died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay. Workers still call it the Shelter. | Kestrel, now EWI |
-| The Roost | Kestrel Harrier Station, one of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Scavengers |
+| The Shelter | Kestrel's largest station. Died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay. Workers still call it the Shelter. | Kestrel, now EWI |
+| The Roost | One of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Scavengers |
 | The Brightwater site (tbd) | The opening location. Brightwater was a small ice miner EWI finished last quarter, the Kestrel way minus the bomb. Dead hulls and junk on a ring moonlet. Meridian arrives to clear it. | EWI |
 | Saturn | The system. Rings and shepherd moonlets are the plate and the shadows. Water ice is the monopoly's product: whoever owns the ice owns outer-system traffic. | |
 
