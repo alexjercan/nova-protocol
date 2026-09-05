@@ -46,6 +46,9 @@ art generator. Research that informs it is the most valuable.
   triage, ordered from bounded corrections through interaction architecture.
 - `polish-review-2.html` - round 6 presentation: the remaining implementation
   queue and recommended cutoffs.
+- `STORY-CRAFT.md` - round 7: story craft research for the campaign. Eleven
+  sources reviewed for one craft problem each, and the cross-source findings.
+  Feeds the story task `20260905-094102`.
 
 ## Round 2: hull plating shape and greeble placement
 
@@ -249,3 +252,26 @@ Recommended order:
 Routes remain explicit: vacuum hit/wreck/velocity effects to `20260822-204201`,
 settings controls to `20260824-120527`, docking to `20260824-125943`, audio to
 `20260824-125955`, and the out-of-fiction console to `20260827-120347`.
+
+## Round 7: story craft research for the campaign
+
+Ran 2026-09-04 for the campaign story. `STORY-CRAFT.md` is the record. It
+reviews Leviathan Wakes, Alien, Planetes, Outland, the Battlestar Galactica
+miniseries, Chernobyl, Hardspace: Shipbreaker, Return of the Obra Dinn,
+Deepwater Horizon, Spotlight and Das Boot, one craft problem each, and cites
+URLs only. Nothing is quoted.
+
+Findings the story keeps using:
+
+1. Attachment comes from shift-scale work and one small documented
+   disagreement before the loss.
+2. The loss arrives as absence on instruments. Obligation, not choice, pulls
+   the crew back in.
+3. Evidence is a chain in which each item revises the last. The "why" comes
+   last, after the count of names.
+4. Institutional silence is locally rational. Administrative words against
+   the names of the dead is the cheapest moral contrast.
+5. The final choice is about target and control, not volume.
+
+The first story outline written on these findings was rejected and its branch
+deleted on 2026-09-05. The story that replaced it is task `20260905-094102`.
