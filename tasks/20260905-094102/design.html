@@ -224,6 +224,7 @@
   .lbl-fleet { fill: var(--blue); }
   .lbl-kestrel { fill: var(--bone); }
   .lbl-danger { fill: var(--red); }
+  .lbl-s { font-size: 10px; letter-spacing: 0.08em; }
   .term {
     font-family: var(--font-mono);
     font-size: 12px;
@@ -418,15 +419,15 @@
         <g stroke="#dfe9e2" stroke-opacity=".45" stroke-width="1.5">
           <path d="M646 302l8 8m0-8l-8 8"/><path d="M816 236l8 8m0-8l-8 8"/><path d="M444 58l8 8m0-8l-8 8"/><path d="M866 132l8 8m0-8l-8 8"/><path d="M690 340l8 8m0-8l-8 8"/><path d="M520 40l8 8m0-8l-8 8"/>
         </g>
-        <text x="646" y="332" class="lbl lbl-kestrel">dead Kestrel stations // a dozen // unregistered</text>
+        <text x="944" y="366" text-anchor="end" class="lbl lbl-kestrel">dead Kestrel stations // a dozen // unregistered</text>
         <g fill="none" stroke="#36a3ff" stroke-width="2">
           <path d="M900 40l14 10-14 10M920 40l14 10-14 10"/>
         </g>
         <text x="944" y="86" text-anchor="end" class="lbl lbl-fleet">Fleet picket // outer moons // Vigilant</text>
         <path d="M940 150 L860 190" fill="none" stroke="#36ff79" stroke-dasharray="5 6"/>
         <text x="944" y="140" text-anchor="end" class="lbl lbl-ewi">Azimuth inbound // days</text>
-        <path d="M600 300 L470 330" fill="none" stroke="#ffb84a" stroke-dasharray="5 6"/>
-        <text x="380" y="366" class="lbl lbl-scav">Severance moves after every strike</text>
+        <path d="M520 300 L330 350" fill="none" stroke="#ffb84a" stroke-dasharray="5 6"/>
+        <text x="20" y="366" class="lbl lbl-scav">Severance moves after every strike</text>
       </svg>
       <figcaption>Where things are. Distances are days of flight for a tender, minutes for a broadcast.</figcaption>
     </figure>
@@ -438,39 +439,42 @@
   <section>
     <h2>The clock <small>schematic, not to scale</small></h2>
     <figure class="fig">
-      <svg class="wide" viewBox="0 0 960 190" role="img" aria-label="Timeline from the Shelter four years ago to the climax days after the strike.">
-        <rect width="960" height="190" fill="url(#grid)"/>
-        <path d="M40 100 H920" stroke="#164c31" stroke-width="2"/>
+      <svg class="wide" viewBox="0 0 960 250" role="img" aria-label="Timeline from the Shelter four years ago to the climax days after the strike.">
+        <rect width="960" height="250" fill="url(#grid)"/>
+        <path d="M40 120 H920" stroke="#164c31" stroke-width="2"/>
         <g stroke="#6ea985" stroke-width="2">
-          <path d="M70 92v16M180 92v16M330 92v16M500 92v16M610 92v16M830 92v16M910 92v16"/>
+          <path d="M70 112v16M330 112v16M610 112v16M830 112v16"/>
         </g>
-        <circle cx="720" cy="100" r="6" fill="#ffb84a"/>
-        <g class="lbl">
-          <text x="70" y="70" text-anchor="middle">T minus 4 years</text>
-          <text x="70" y="130" text-anchor="middle" class="lbl-kestrel">the Shelter dies</text>
-          <text x="70" y="146" text-anchor="middle">Pell goes dark</text>
-          <text x="180" y="70" text-anchor="middle">weeks later</text>
-          <text x="180" y="130" text-anchor="middle">Kestrel folds</text>
-          <text x="180" y="146" text-anchor="middle">crew forms</text>
-          <text x="330" y="70" text-anchor="middle">three years</text>
-          <text x="330" y="130" text-anchor="middle" class="lbl-ewi">EWI builds on the rock</text>
-          <text x="330" y="146" text-anchor="middle">Calloway to the desk</text>
-          <text x="500" y="70" text-anchor="middle">last quarter</text>
-          <text x="500" y="130" text-anchor="middle">Brightwater finished</text>
-          <text x="610" y="70" text-anchor="middle">weeks ago</text>
-          <text x="610" y="130" text-anchor="middle" class="lbl-scav">Resolute stolen</text>
-          <text x="610" y="146" text-anchor="middle" class="lbl-fleet">Fleet hunts</text>
-          <text x="720" y="70" text-anchor="middle" class="lbl-scav">today</text>
-          <text x="720" y="130" text-anchor="middle" class="lbl-scav">Meridian dies</text>
-          <text x="720" y="146" text-anchor="middle">the game begins</text>
-          <text x="830" y="70" text-anchor="middle">40 hours</text>
-          <text x="830" y="130" text-anchor="middle">air runs out</text>
-          <text x="830" y="146" text-anchor="middle">the midpoint</text>
-          <text x="910" y="70" text-anchor="middle">days</text>
-          <text x="910" y="130" text-anchor="middle" class="lbl-ewi">Azimuth</text>
-          <text x="910" y="146" text-anchor="middle">the Shelter</text>
+        <g stroke="#6ea985" stroke-width="1" stroke-dasharray="2 3">
+          <path d="M180 80v104M500 80v104M720 80v104M910 80v104"/>
         </g>
-        <text x="40" y="180" class="lbl">prologue comic covers the first two marks; the main comic starts at today</text>
+        <circle cx="720" cy="120" r="6" fill="#ffb84a"/>
+        <g class="lbl lbl-s" text-anchor="middle">
+          <text x="70" y="98">T minus 4 years</text>
+          <text x="70" y="150" class="lbl-kestrel">the Shelter dies</text>
+          <text x="70" y="166">Pell goes dark</text>
+          <text x="180" y="72">weeks later</text>
+          <text x="180" y="204">Kestrel folds</text>
+          <text x="180" y="220">the crew forms</text>
+          <text x="330" y="98">three years</text>
+          <text x="330" y="150" class="lbl-ewi">EWI builds on the rock</text>
+          <text x="330" y="166">Calloway to the desk</text>
+          <text x="500" y="72">last quarter</text>
+          <text x="500" y="204">Brightwater finished</text>
+          <text x="610" y="98">weeks ago</text>
+          <text x="610" y="150" class="lbl-scav">Resolute stolen</text>
+          <text x="610" y="166" class="lbl-fleet">Fleet hunts</text>
+          <text x="720" y="72" class="lbl-scav">today</text>
+          <text x="720" y="204" class="lbl-scav">Meridian dies</text>
+          <text x="720" y="220">the game begins</text>
+          <text x="830" y="98">40 hours</text>
+          <text x="830" y="150">air runs out</text>
+          <text x="830" y="166">the midpoint</text>
+          <text x="910" y="72">days</text>
+          <text x="910" y="204" class="lbl-ewi">Azimuth</text>
+          <text x="910" y="220">the Shelter</text>
+        </g>
+        <text x="40" y="242" class="lbl">prologue comic covers the first two marks; the main comic starts at today</text>
       </svg>
       <figcaption>Four years of paperwork, then five days of story.</figcaption>
     </figure>
