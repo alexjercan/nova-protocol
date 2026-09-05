@@ -73,7 +73,7 @@ Naming scheme, so a name tells its group at once:
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
 | Nova Protocol | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 3 on. The name is section nine of the EWI contract, the clause that closes a lost site's roster. Ends at the Roost, off the roster. | Scrap, then the crew |
 | Resolute, renamed Severance | The Fleet warship the Kites stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. Destroyed at Datum with Parallax. | Kites |
-| Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it. | Kites |
+| Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own. Rotation finds the crew at the midpoint; the rest are named as the comic needs them. | Kites |
 
 | Vigilant | Marsh's ship, hunting Resolute. A heavier ship than Resolute: Severance can outrun it, not fight it. Arrives when it is over and takes the credit. | Earth Fleet |
 | Datum, the Shelter | Kestrel's largest station was the Shelter. It died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay, and named it Datum in the survey scheme. Policy bans the old name. Kestrel hands still say the Shelter off the radio. | Kestrel, now EWI |
@@ -147,7 +147,8 @@ reader believes the hero is dead, the same as the crew.
    find a live tender. The crew runs for EWI's nearest safe harbour, Datum, the
    company's name for the rock where Halloran used to live. Calloway's channel
    says Datum. Halloran says the Shelter. Nova Protocol's PDCs against skiffs
-   through the ring junk. First fight.
+   through the ring junk. First fight. The skiffs herd more than they hit, and
+   the crew, who have never been shot at, cannot tell herding from hunting.
 
 ### Midpoint
 
@@ -157,15 +158,21 @@ reader believes the hero is dead, the same as the crew.
    only copy, and three witnesses are a cost. The captain's call.
    - Hand it over and fly the GOTO to the station: the bad ending. Parallax
      fires on the approach. Game over, the record buried.
-   - Refuse: Calloway fires. Severance comes out of the ring shadow. Pell has
-     wanted Calloway for four years and this is his ground. The crew spent
-     the morning fighting pirates to reach the company, and the pirates save
-     them from it.
+   - Refuse, and Calloway fires to disable, not to kill: the module is aboard.
+     Nova Protocol dives back into the ring junk, where a security ship's hull
+     and sensors do not go, and loses him. A skiff finds them there, holds
+     fire, and speaks on a work channel with a Kestrel word nobody alive uses
+     on the radio: the Roost, and a heading. The skiffs were herding them away
+     from Datum all morning. The crew fought the people trying to warn them, to
+     reach the man trying to kill them. The skiff's name, in company letters on
+     scrap: Rotation.
 
 ### Act two, second half: the other side
 
-7. **The Roost.** One of a dozen dead Kestrel stations. A village: Kestrel
-   survivors, renewed workers, the volunteers who died. Pell alive. Okoro's
+7. **The Roost.** One of a dozen dead Kestrel stations, two days behind
+   Rotation. A village: Kestrel survivors, renewed workers, the volunteers who
+   died. Severance at the dock, the first time the crew sees the ship that
+   killed Meridian. Pell alive, on his own ground, his first page. Okoro's
    reunion. Pell says what he did and why and is not sorry, and 412 includes
    Brandt. Okoro says nothing. A thought bubble only the reader gets: so he was
    willing to kill me too. His clock: Fleet will take the ship back within
@@ -242,8 +249,9 @@ Never a speech. Only habits and paperwork:
   Every upgrade is scavenged. This is the game's progression and the story's
   texture.
 - Cutter One is unarmed. Nova Protocol has two debris PDCs. Severance is a
-  warship. Parallax is a security ship: less than a warship, more than a
-  tender.
+  warship. Parallax is a security ship: less than a warship, more than a tender.
+- Parallax fires to disable while the module is aboard: Calloway wants the only
+  copy intact. Ring junk is the crew's cover from anything bigger than a skiff.
 - Severance strikes once and moves. It cannot hold position or wait for
   small craft, because Fleet is hunting it. Skiffs do the small work.
 - Fleet lost a warship to pirates and kept it secret, for fear of public

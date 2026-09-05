@@ -53,6 +53,9 @@ Owner decisions taken into `STORY.md`:
   Vigilant arrives late and takes the credit, EWI blames Calloway alone and
   praises the crew. The crew flees before the account is written and flies Nova
   Protocol to the Roost. No choice in the comic or the game.
+- Midpoint: Severance does not appear. Parallax fires to disable, the crew
+  loses him in the junk, and the skiff Rotation brings the word to the Roost.
+  Pell first appears at the Roost, on his own ground.
 
 Open: none. No chapter split yet.
 
