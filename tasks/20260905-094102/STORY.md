@@ -47,7 +47,7 @@ Open decisions).
 | Solberg | Pell's second | Scavengers | Runs the Roost while Pell flies. |
 | Yusra Demir | Meridian Control | EWI | The voice on the radio. Dies in the strike. |
 | Aurelio Brandt | Meridian deck chief | EWI | Taught Pell to fit boats. Dies in the strike. |
-| Captain Vance (tbd) | Commander of Meridian today | EWI | Not the commander of four years ago. Dies in the strike. |
+| Captain Vance | Commander of Meridian today | EWI | Not the commander of four years ago. Dies in the strike. |
 | Commander Marsh | Earth Fleet, hunting the stolen ship | Earth Fleet | A competent officer in an incompetent service. Hunts a ship Fleet never admitted losing. Arrives late. |
 | The Board | EWI leadership on Earth | EWI | Ordered the Shelter. Named at the end, untouched. |
 
