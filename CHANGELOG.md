@@ -62,6 +62,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Scenarios & Objectives
 - Nav beacons are radar-acquirable within 12 km by default, up from 6 km.
+- A scenario's spawn queue may take a fifth of each frame, so a machine drawing
+  slow frames lands its scatter in a few frames instead of one object a frame.
 - **(breaking)** A scenario places a `Planet`: a type and a seed draw a world
   with terrain, biomes and a cap. A planetoid authored as a big `Asteroid` is
   now a rock - re-author it at its true radius.

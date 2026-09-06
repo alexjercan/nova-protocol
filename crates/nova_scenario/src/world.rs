@@ -36,7 +36,8 @@ use crate::{loader::WakeProfile, prelude::*};
 /// that whole queue in one go cost a ~300 ms frame - a frame nothing can be
 /// drawn on, so the loading panel froze on the exact frames it exists to cover.
 /// The drain is chunked under this wall-clock budget instead: a slower machine
-/// takes MORE FRAMES, never a longer frame.
+/// takes MORE FRAMES, and a frame never gives the drain more than a fifth of
+/// itself.
 ///
 /// A time budget rather than a command count because the commands are wildly
 /// uneven - one clad ship is worth hundreds of rocks. One command is ALWAYS
@@ -45,8 +46,15 @@ use crate::{loader::WakeProfile, prelude::*};
 ///
 /// 3 ms is about a fifth of a 60 Hz frame, which leaves the rest of the
 /// schedule its budget while still emptying a chapter's queue in a handful of
-/// frames.
+/// frames. That fifth is the rule, and this is its floor: a frame that is
+/// already slow gets the same share of ITSELF (see [`SPAWN_DRAIN_FRAME_SHARE`]),
+/// or a machine drawing a frame a second would land one rock per second and
+/// keep a chapter's ships waiting a wall-clock minute behind its scatter.
 const SPAWN_DRAIN_BUDGET: Duration = Duration::from_millis(3);
+
+/// The fraction of the previous frame's wall time the drain may take when
+/// that is more than [`SPAWN_DRAIN_BUDGET`].
+const SPAWN_DRAIN_FRAME_SHARE: u32 = 5;
 
 /// Run condition: the live scenario has finished spawning AND its art is in
 /// memory.
@@ -467,6 +475,11 @@ impl EventWorld for NovaEventWorld {
         // ATOMIC: a ship's sections all land inside one `apply`, so the
         // `Added<SectionLinkPoints>` batch the integrity graph and the derived
         // skin key off is still complete the first time they see it.
+        let last_frame = world
+            .get_resource::<Time<Real>>()
+            .map(Time::delta)
+            .unwrap_or_default();
+        let budget = SPAWN_DRAIN_BUDGET.max(last_frame / SPAWN_DRAIN_FRAME_SHARE);
         let started = Instant::now();
         while let Some(command) = world
             .resource_mut::<NovaEventWorld>()
@@ -478,7 +491,7 @@ impl EventWorld for NovaEventWorld {
             command(&mut commands);
             queue.apply(world);
 
-            if started.elapsed() >= SPAWN_DRAIN_BUDGET {
+            if started.elapsed() >= budget {
                 break;
             }
         }
@@ -1114,6 +1127,42 @@ mod tests {
 
         NovaEventWorld::state_to_world_system(&mut world);
         assert!(*applied.lock().unwrap(), "the over-budget command applied");
+        assert!(!world.resource::<NovaEventWorld>().is_settling());
+    }
+
+    /// A slow frame widens the budget to a share of itself: behind a
+    /// one-second frame, a queue that would take several fast frames lands in
+    /// one run.
+    #[test]
+    fn a_slow_frame_drains_a_share_of_itself() {
+        use std::sync::{Arc, Mutex};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let mut clock = Time::<Real>::default();
+        clock.advance_by(Duration::from_secs(1));
+        world.insert_resource(clock);
+
+        let landed: Arc<Mutex<u32>> = Arc::default();
+        for _ in 0..10 {
+            let count = landed.clone();
+            world
+                .resource_mut::<NovaEventWorld>()
+                .push_command(move |commands| {
+                    commands.queue(move |_: &mut World| {
+                        std::thread::sleep(SPAWN_DRAIN_BUDGET);
+                        *count.lock().unwrap() += 1;
+                    });
+                });
+        }
+
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert_eq!(
+            *landed.lock().unwrap(),
+            10,
+            "a fifth of a one-second frame lands ten budget-sized commands in one run"
+        );
         assert!(!world.resource::<NovaEventWorld>().is_settling());
     }
 

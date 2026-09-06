@@ -292,9 +292,13 @@ objectives into `GameObjectives` (write-on-diff), runs a queued non-lingering
 The drain is CHUNKED, not one flush. A chapter's `OnStart` queues a closure per
 object, and applying them together cost one ~300 ms frame - a frame nothing can
 be drawn on, so the LOADING panel froze on the exact frames it exists to cover.
-Commands are applied one at a time until `SPAWN_DRAIN_BUDGET` (3 ms) of the
-frame is spent, so a big scene arrives over several frames and a slower machine
-takes MORE FRAMES rather than a longer one. One command per apply is also what
+Commands are applied one at a time until the frame's budget is spent:
+`SPAWN_DRAIN_BUDGET` (3 ms), or a fifth of the previous frame's wall time when
+that is more (`SPAWN_DRAIN_FRAME_SHARE`). A big scene arrives over several
+frames, a slower machine takes MORE FRAMES, and a frame never gives the drain
+more than the fifth of itself a 60 Hz frame does - without the share, a machine
+drawing a frame a second landed one object a frame and kept a chapter's ships a
+wall-clock minute behind its scatter. One command per apply is also what
 keeps each object atomic: a ship's sections all land inside one apply, so the
 `Added<SectionLinkPoints>` batch the integrity graph and the derived skin key
 off is complete the first time they see it.
