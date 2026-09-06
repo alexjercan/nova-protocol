@@ -63,8 +63,7 @@ HEIGHT = 180
 # bundle's `resources`). No scenario points at another mod's art any more.
 SCENARIOS = [
     # --- base (the built-in scenarios; builders in nova_assets) ---
-    ("first_shift", "First Shift", "assets/base/thumbnails/first_shift.png"),
-    ("second_shift", "Second Shift", "assets/base/thumbnails/second_shift.png"),
+    ("first_shift", "An Ordinary Shift", "assets/base/thumbnails/first_shift.png"),
     # --- webmods/gauntlet ---
     ("gauntlet_run", "Gauntlet Run", "webmods/gauntlet/thumbnails/gauntlet_run.png"),
     # --- webmods/the-ledger (chapter 1 visible, 2-5 under the campaign header) ---
