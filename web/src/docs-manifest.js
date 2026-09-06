@@ -665,6 +665,7 @@ const CREATE_PAGES = [
             "The table a procedural hull is drawn from: the grid it is built in, the vacuum weights that give it a silhouette, the seeded keel, and the parts the generator may draw with their weights, aims and zones.",
         related: ["sections", "ships", "mod-files", "base-content"],
         headings: [
+            "Which grammar the generator reads",
             "The Grammar item",
             "The grid",
             "Vacuum: the silhouette",

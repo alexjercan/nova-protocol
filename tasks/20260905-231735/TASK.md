@@ -2561,6 +2561,71 @@ already-recorded `**(breaking)**` rename doing what the changelog says it does,
 on a user-machine artifact - the `webmods/the-ledger` source in this repo is
 current and lints clean.
 
+### Group F - grammar as content, the load half. DONE.
+
+The same authoring rule Group C closed for channels, closed for grammars: a
+grammar is now refused where it is AUTHORED rather than when a generator is
+asked to run it.
+
+**The load half** (`merge.rs:373`). `register_bundles` ran the content gate over
+ships, scenarios and campaigns and did nothing to a grammar but insert it, so
+"an error at lint, then at load" had no load half - and `content lint` walks
+`assets/` offline, where a cross-mod reference cannot be decided at all. A
+`for grammar in &outcome.grammars` loop beside the ship loop now files findings
+keyed on the grammar id. `tests/grammar_load_gate.rs` is the review's own
+scenario: mod `parts` ships a drive, mod `hulls` ships a grammar seeding it,
+`parts` goes off, and the grammar's dangling id is an Error. Confirmed to fail
+without the loop (0 errors instead of 1).
+
+The grammar stays REGISTERED. Dropping it would silently restore whatever it
+overlaid, and a hidden fallback is the thing the rule exists to refuse.
+
+**The seeds' own footprints** (`lint/ship.rs:175`). The gate floored each axis at
+3 and stopped, while `nova_wfc::runnable` refused three further shapes it could
+not see: a stern drive that does not fit (`half_width < drive.x + 1`,
+`height < drive.y`, `length < drive.z + 1`), a `bow_gun` that is not 1x1 across,
+and `length < bow.z + drive.z + 2`. The lint had the data all along -
+`KnownSections` keeps `collider` - so it now resolves both seeded roles and runs
+the same three bounds. The old `half_width >= 3 && grid.length < 3` arm went
+with them: it could only ever fire alongside the axis floor that already had.
+
+**The ceiling** (`grid.rs:55`). `Grid::cells()` was a `u32` multiply and every
+bound was a lower one, so `2048x2048x1024` linted clean and multiplied to
+exactly 2^32 - a panic in a dev build, a wrap to zero in a release one.
+`GrammarGrid::cells()` is a `u64` product now, `MAX_GRAMMAR_CELLS` (65,536) is
+the authored ceiling, and `runnable` refuses past it BEFORE anything else,
+because every check under it is about a grid worth measuring. `Grid::cells()`
+widens before multiplying rather than after. The shipped hull is 220 cells.
+
+**The tests** (`lint/ship.rs:134`). 92 lines of gate had none, and that is how
+the dead arm above survived landing. Seven now, one per failure mode, on a
+`grammar()` / `grammar_sections()` fixture pair: the well-formed baseline, the
+unknown id on each of the six roles it can be spelled in, the empty draw and the
+four unpayable weights, the axis floor, the three seed-fit bounds (with the
+"one more cell and it fits" case), the ceiling (2^32 and ceiling +/- 1), and the
+vacuum prices - including that only `base` refuses a zero, since a taper of zero
+is an evenly sparse hull, which is taste. `nova_wfc`'s own
+`a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run` asserted only
+`is_err()` across eight bent grammars; each row now carries the line it must be
+refused WITH, and the ninth row is the oversized grid.
+
+**Selection: NOT fixed, and now said so.** `get_grammar(id)`'s parameter is
+answered with `STANDARD_HULL_GRAMMAR_ID` by every caller in the tree; there is
+no picker, no scenario field and no flag. A mod's `Grammar` under a new id
+merges and is reached by nothing. Building the picker is a feature, not a review
+fix, so what changed is the claims: `ShipGrammarConfig` no longer says "a new id
+is a new kind of ship", `name` no longer says a picker shows it,
+`STANDARD_HULL_GRAMMAR_ID` drops "unless told otherwise", `get_grammar` states
+the promise it does not keep, and the two CHANGELOG entries plus
+`web/src/create/grammars.md` and `base-content.md` say plainly that
+`standard_hull` is the only id anything asks for. `grammars.md` gained a
+"Which grammar the generator reads" section ahead of everything else, and its
+worked example declares `standard_hull` rather than teaching an id that cannot
+be reached. The grid section documents the seed-fit bounds and the ceiling.
+
+Still open from this theme: grammar SELECTION (`ship_grammar.rs:222`) - a
+feature, unscheduled.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2568,12 +2633,16 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**24 MAJOR, by theme.**
+**19 MAJOR, by theme.** (Group F closed four: the grammar load gate, the
+seed-fit bounds, the grid ceiling, and the untested gate behind all three. The
+previous count of 24 was one high - it read the three-file docs bullet as
+three.)
 
 Editor and WFC correctness (batches 1-3):
-- `nova_wfc/src/grid.rs:55` - `cells()` is a `u32` multiply and the gate bounds
-  the grid only from below; an authored `2048x2048x1024` lints clean and wraps.
 - `nova_wfc/src/collapse.rs:327,:683` - both documented refusal paths untested.
+  Group F gave the SIBLING test
+  (`a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run`) its message
+  assertions; these two paths still have no test at all.
 - `nova_editor/src/bundle.rs:90` - a save named "Sandbox" derives
   `editor_sandbox` and takes over the editor's own stage range.
 - `nova_editor/src/bundle.rs:63,:488` - the `editor_` prefix is a listing
@@ -2592,16 +2661,10 @@ Editor and WFC correctness (batches 1-3):
 - `examples/playable/wfc_arena/stamps.rs:36` - the surviving stamp hardcodes the
   grid the grammar now authors.
 
-Grammar as content - the load half of the authoring rule:
-- `nova_assets/src/merge.rs:373` - a grammar registers at load with NO lint pass,
-  so "an error at lint, then at load" has no load half. Confirmed:
-  `lint_grammar_config` has zero hits in `merge.rs`. This is the same gap group C
-  closed for channels, still open for grammars.
-- `nova_ship/src/sections/ship_grammar.rs:222` - a mod can only REPLACE
-  `standard_hull`; a new grammar id is unreachable.
-- `nova_scenario/src/lint/ship.rs:175` - the grid check is blind to the
-  footprints of the parts the grammar seeds.
-- `nova_scenario/src/lint/ship.rs:134` - 92 lines of lint gate with no test.
+Grammar as content (the rest closed in Group F):
+- `nova_ship/src/sections/ship_grammar.rs:222` - a mod can only RETUNE
+  `standard_hull`; a new grammar id is still unreachable. The claims that said
+  otherwise are corrected; SELECTION is a feature and is unscheduled.
 
 Coverage:
 - `nova_scenario/src/actions/cinematic.rs` - the Cinematic and its skip path have
@@ -2631,6 +2694,7 @@ Documentation the range left behind:
 recorded where it was found.
 
 Nothing here blocks the range: it builds, it lints, and it plays. The heaviest
-are the `merge.rs:373` grammar load gate (an authoring rule with half its
-enforcement), `scenario.rs:1201` (a save silently rewrites a retry wrong), and
-`grid.rs:55` (an authored grammar can wrap the cell count).
+left are `scenario.rs:1201` (a save silently rewrites a retry wrong),
+`generate.rs:186` (every Generate overwrites the builder's cladding and style),
+and `bundle.rs:90` (a save named "Sandbox" takes over the editor's own stage
+range).

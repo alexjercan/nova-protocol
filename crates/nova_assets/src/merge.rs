@@ -311,6 +311,28 @@ pub fn register_bundles(
                 .extend(found);
         }
     }
+    // Every MERGED grammar, against the merged catalog it draws from. This is
+    // the load half of the authoring rule for a grammar: `content lint` walks
+    // `assets/` offline and never sees an installed mod, so without this a mod
+    // whose grammar names a section another mod was carrying registers clean
+    // and only says so when a generator is asked to run it.
+    for grammar in &outcome.grammars {
+        let found =
+            nova_scenario::prelude::lint_grammar_config(grammar, &merged_sections, &grammar.id);
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] grammar '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(grammar.id.clone())
+                .or_default()
+                .extend(found);
+        }
+    }
     for scenario in outcome.scenarios.values() {
         let found = nova_scenario::prelude::lint_scenario(
             scenario,

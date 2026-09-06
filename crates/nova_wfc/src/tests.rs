@@ -7,7 +7,7 @@
 use bevy::prelude::UVec3;
 use nova_scenario::prelude::{SectionSource, ShipHull, SpaceshipSectionConfig};
 use nova_ship::prelude::{
-    GameGrammars, GameSections, GrammarPart, GrammarZone, ShipGrammarConfig,
+    GameGrammars, GameSections, GrammarGrid, GrammarPart, GrammarZone, ShipGrammarConfig,
     STANDARD_HULL_GRAMMAR_ID,
 };
 
@@ -186,55 +186,73 @@ fn shipped_grammar() -> ShipGrammarConfig {
 #[test]
 fn a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
+    // Each row carries the line it must be refused WITH: an `Err` alone cannot
+    // tell "the gate caught this" from "something further in fell over first",
+    // and the whole point of the gate is that the caller gets a line naming
+    // what to change.
     let bent = [
-        ("half_width", {
+        ("half_width", "across its half-width", {
             let mut grammar = shipped_grammar();
             grammar.grid.half_width = 1;
             grammar
         }),
-        ("height", {
+        ("height", "cell(s) tall", {
             let mut grammar = shipped_grammar();
             grammar.grid.height = 0;
             grammar
         }),
-        ("length", {
+        ("length", "cell(s) long", {
             let mut grammar = shipped_grammar();
             grammar.grid.length = 1;
             grammar
         }),
-        ("a negative weight", {
+        ("a grid too big to hold", "stops at", {
+            let mut grammar = shipped_grammar();
+            // Exactly 2^32 cells, the product that used to wrap to a grid of
+            // nothing rather than be refused.
+            grammar.grid = GrammarGrid {
+                half_width: 2048,
+                height: 2048,
+                length: 1024,
+            };
+            grammar
+        }),
+        ("a negative weight", "which is not a weight", {
             let mut grammar = shipped_grammar();
             grammar.parts[0].weight = -1.0;
             grammar
         }),
-        ("a weight that is not a number", {
+        ("a weight that is not a number", "which is not a weight", {
             let mut grammar = shipped_grammar();
             grammar.parts[0].weight = f32::NAN;
             grammar
         }),
-        ("vacuum priced at infinity", {
+        ("vacuum priced at infinity", "prices vacuum base", {
             let mut grammar = shipped_grammar();
             grammar.vacuum.base = f32::INFINITY;
             grammar
         }),
-        ("nothing drawable", {
+        ("nothing drawable", "draws nothing", {
             let mut grammar = shipped_grammar();
             for part in &mut grammar.parts {
                 part.weight = 0.0;
             }
             grammar
         }),
-        ("no parts at all", {
+        ("no parts at all", "draws nothing", {
             let mut grammar = shipped_grammar();
             grammar.parts.clear();
             grammar
         }),
     ];
-    for (what, grammar) in bent {
+    for (what, expected, grammar) in bent {
         let refused = TileSet::build(&sections, &grammar).and_then(|set| set.hull(0, false, None));
+        let Err(line) = refused else {
+            panic!("a grammar with {what} has to come back as a line, not as a hull");
+        };
         assert!(
-            refused.is_err(),
-            "a grammar with {what} has to come back as a line, not as a hull"
+            line.contains(expected),
+            "a grammar with {what} is refused, but for `{line}` rather than for {expected}"
         );
     }
 }

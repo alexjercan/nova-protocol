@@ -22,17 +22,30 @@ use bevy::prelude::*;
 pub mod prelude {
     pub use super::{
         GameGrammars, GrammarAim, GrammarGrid, GrammarKeel, GrammarPart, GrammarVacuum,
-        GrammarZone, ShipGrammarConfig, STANDARD_HULL_GRAMMAR_ID,
+        GrammarZone, ShipGrammarConfig, MAX_GRAMMAR_CELLS, STANDARD_HULL_GRAMMAR_ID,
     };
 }
 
 /// The id of the base game's shipped grammar: the keeled, mirrored warship the
-/// editor's generator and both `wfc` examples draw from unless told otherwise.
+/// editor's generator and both `wfc` examples draw from.
 ///
 /// Named here rather than beside its builder for the reason the section ids
 /// are: the crates that ASK for it - the editor, the examples - cannot reach
 /// the authoring crate that authors it.
+///
+/// Every consumer in the tree names THIS id, and nothing yet chooses another:
+/// see [`GameGrammars::get_grammar`] for what that means for a mod.
 pub const STANDARD_HULL_GRAMMAR_ID: &str = "standard_hull";
+
+/// The most cells one grammar's grid may hold.
+///
+/// The one number here that is not taste. The collapse lays down a domain per
+/// cell before it can refuse anything, and the count is a product of three
+/// authored numbers, so a slipped digit is an allocation nobody asked for and,
+/// unbounded, a `u32` product that wraps to a grid of nothing. The shipped hull
+/// is 220 cells and the editor grows it to hold a capital drive; this leaves
+/// room for one some three hundred times larger.
+pub const MAX_GRAMMAR_CELLS: u64 = 65_536;
 
 /// The face a part is allowed to point down, in SHIP space.
 ///
@@ -163,6 +176,17 @@ pub struct GrammarGrid {
     pub length: u32,
 }
 
+impl GrammarGrid {
+    /// How many cells the collapse runs in.
+    ///
+    /// In `u64` because the answer is a product of three authored `u32`s: the
+    /// widening is what lets a grid too big to run be REFUSED rather than
+    /// wrap into a grid that looks empty. See [`MAX_GRAMMAR_CELLS`].
+    pub fn cells(self) -> u64 {
+        u64::from(self.half_width) * u64::from(self.height) * u64::from(self.length)
+    }
+}
+
 /// How emptiness is priced against the solid weights, per cell.
 ///
 /// Pure taste: it decides WHERE the collapse may be sparse, never WHAT may sit
@@ -221,13 +245,16 @@ pub struct GrammarKeel {
 ///
 /// Resolved by [`id`](ShipGrammarConfig::id) out of [`GameGrammars`], which the
 /// mod merge fills exactly as it fills the section catalog - so a mod's grammar
-/// with the id of a base one REPLACES it, and a new id is a new kind of ship.
+/// with the id of a base one REPLACES it. A grammar under a NEW id merges and
+/// is then reachable by nothing: see [`GameGrammars::get_grammar`].
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ShipGrammarConfig {
     /// The id a generator names this grammar by.
     pub id: String,
-    /// The name a picker would show.
+    /// The name a picker would show. Nothing shows it yet - there is no
+    /// grammar picker - so this is the label waiting for one, not a string any
+    /// player has read.
     pub name: String,
     /// The block of cells the collapse runs in.
     pub grid: GrammarGrid,
@@ -264,6 +291,15 @@ pub struct GameGrammars(pub Vec<ShipGrammarConfig>);
 
 impl GameGrammars {
     /// The grammar with this id, or `None` if nothing authored it.
+    ///
+    /// The parameter is a promise the game does not yet keep. Every caller in
+    /// the tree passes [`STANDARD_HULL_GRAMMAR_ID`]: there is no picker, no
+    /// scenario field and no flag that names a grammar, so the ONE way a mod
+    /// changes procedural generation is to author `id: "standard_hull"` and
+    /// retune the shipped line - which retunes the editor and both `wfc`
+    /// examples at once, and cannot sit beside the base hull. Selecting
+    /// between grammars is the feature this signature is shaped for and is not
+    /// built.
     pub fn get_grammar(&self, id: &str) -> Option<&ShipGrammarConfig> {
         self.0.iter().find(|grammar| grammar.id == id)
     }

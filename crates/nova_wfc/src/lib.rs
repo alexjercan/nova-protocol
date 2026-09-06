@@ -48,6 +48,7 @@ use bevy::prelude::*;
 use nova_scenario::prelude::{SectionSource, ShipHull, SpaceshipSectionConfig};
 use nova_ship::prelude::{
     GameGrammars, GameSections, GameStyles, GrammarGrid, SectionFootprint, ShipGrammarConfig,
+    MAX_GRAMMAR_CELLS,
 };
 
 use crate::{
@@ -107,6 +108,21 @@ pub(crate) fn bow_gun_span(sections: &GameSections, grammar: &ShipGrammarConfig)
 /// each of these is a line the caller can put on a status bar instead.
 fn runnable(sections: &GameSections, grammar: &ShipGrammarConfig) -> Result<(), String> {
     let grid = grammar.grid;
+    // Bounded from ABOVE before anything else, because every check under this
+    // one is about a grid small enough to be worth measuring. A domain per
+    // cell is laid down before the first contradiction can be found, so an
+    // authored size is an allocation this crate is asked to make on trust.
+    if grid.cells() > MAX_GRAMMAR_CELLS {
+        return Err(format!(
+            "grammar '{}' asks for a {}x{}x{} grid, which is {} cells; the collapse holds one \
+             domain per cell and stops at {MAX_GRAMMAR_CELLS}",
+            grammar.id,
+            grid.half_width,
+            grid.height,
+            grid.length,
+            grid.cells(),
+        ));
+    }
     // The drive is seeded whole, standing one cell off the centreline with its
     // deck plate in front of it, so the grid has to hold the block AND leave
     // the seam column beside it free. A one-cell drive asks for the two

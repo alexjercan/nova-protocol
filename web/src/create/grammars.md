@@ -15,13 +15,30 @@ This page is the field-by-field grammar reference. For general RON spelling rule
 such as double parentheses, `Some(...)`, and asset schemes, see
 [RON spelling rules](../reference/#how-ron-content-is-written).
 
+## Which grammar the generator reads
+
+Read this before you write one. Today there is exactly one grammar id anything
+asks for: `standard_hull`. The editor's Generate block and both `wfc` examples
+name it, and there is no picker, no scenario field and no flag that names a
+different one.
+
+So a `Grammar` under a NEW id merges into the catalog and is then reached by
+nothing. The one way a mod changes procedural generation is to declare
+`id: "standard_hull"` and retune the shipped line - which is a real and complete
+override, but it replaces the base hull rather than sitting beside it, and it
+retunes the editor and both examples at once.
+
+Choosing between grammars is a feature the content type is shaped for and the
+game does not have yet. Everything below is accurate; only the id is not yours
+to pick.
+
 ## The Grammar item
 
 ```ron
 [
     Grammar((
-        id: "my_mod_gunship",
-        name: "Gunship",
+        id: "standard_hull",
+        name: "Gunship Line",
         grid: (
             half_width: 3,
             height: 5,
@@ -38,7 +55,7 @@ such as double parentheses, `Some(...)`, and asset schemes, see
             bridge: "basic_controller_section",
             stern_deck: "reinforced_hull_section",
             stern_drive: "basic_thruster_section",
-            bow_gun: Some("railgun_section"),
+            bow_gun: Some("railgun_lance_section"),
         ),
         parts: [
             (prototype: "reinforced_hull_section", weight: 6.0),
@@ -53,8 +70,8 @@ such as double parentheses, `Some(...)`, and asset schemes, see
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | Stable key, and the overlay key. Re-declare a base id to replace that grammar; a new id is a new line of ship. Prefix new ids with your mod id. |
-| `name` | string | required | What a picker shows. |
+| `id` | string | required | Stable key, and the overlay key. `standard_hull` is the only id a generator asks for, so declaring it retunes the shipped line - see [above](#which-grammar-the-generator-reads). Any other id merges and is never read. |
+| `name` | string | required | The label a picker would show. There is no grammar picker yet, so nothing displays it - write it for the day there is. |
 | `grid` | grid | required | The block of cells the hull is built in - see [below](#the-grid). |
 | `vacuum` | vacuum | required | How emptiness is priced against the parts - see [below](#vacuum-the-silhouette). |
 | `keel` | keel | required | The spine laid down before the generator gets a say - see [below](#the-keel). |
@@ -88,6 +105,21 @@ that in any axis and the hull comes out as all rim: a heap of ramps rather than 
 ship. Length noticeably more than width is most of why a result reads as a craft
 instead of as a box.
 
+The grid also has to hold what the KEEL seeds, and that is a fact about the
+prototypes you named rather than about the numbers here. The stern drive stands
+one column off the centreline with its deck plate in front of it, so a drive
+spanning `(x, y, z)` cells needs `half_width` of at least `x + 1`, `height` of at
+least `y`, and `length` of at least `z + 1`. A `bow_gun` stands IN the keel
+column, so it must be exactly one cell across and one tall, and the two seeded
+ends have to leave a keel between them: `length` of at least
+`bow.z + drive.z + 2`. Seed a 5x5x3 capital drive in a `4 x 5 x 11` grid and
+`content lint` names the axis that is short.
+
+There is a ceiling too: 65,536 cells. The generator lays down one domain per cell
+before it can refuse anything, so the size is an allocation it takes on trust. A
+`16 x 16 x 256` grid is exactly at the limit and a hull two orders of magnitude
+larger than anything wanted so far.
+
 ## Vacuum: the silhouette
 
 ```ron
@@ -117,7 +149,7 @@ keel: (
     bridge: "basic_controller_section",
     stern_deck: "reinforced_hull_section",
     stern_drive: "basic_thruster_section",
-    bow_gun: Some("railgun_section"),
+    bow_gun: Some("railgun_lance_section"),
 ),
 ```
 
@@ -172,7 +204,8 @@ lane turns out to be blocked.
 ## Base grammars
 
 One ships: `standard_hull` ("Standard Hull"), the keeled, mirrored warship the
-editor's generator draws from unless told otherwise. Read
-`assets/base/grammars/base.content.ron` for its exact numbers - it is the tuned
+editor's generator draws from - and, as
+[above](#which-grammar-the-generator-reads), the only id anything asks for. Read
+`assets/base/grammars/base.content.ron` for its exact numbers: it is the tuned
 starting point to copy and push around, and every value in it was arrived at by
 looking at hulls rather than derived from anything.

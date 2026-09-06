@@ -100,10 +100,11 @@ See [Ship skin styles](../styles/).
 
 | id | what it is |
 |---|---|
-| `standard_hull` | the keeled, mirrored warship the editor's generator draws from unless told otherwise: a seeded spine with a bridge a third of the way back, a mirrored pair of stern drives, and hull, controller, thruster, torpedo and PDC prototypes on the draw |
+| `standard_hull` | the keeled, mirrored warship the editor's generator draws from: a seeded spine with a bridge a third of the way back, a mirrored pair of stern drives, and hull, controller, thruster, torpedo and PDC prototypes on the draw |
 
-A generator names one by id. A mod declaring a `Grammar` with the same id
-replaces it; a new id is a new line of ship. See [Ship grammars](../grammars/).
+A generator names one by id, and `standard_hull` is the only id any generator
+asks for. A mod declaring a `Grammar` with that id retunes the shipped line; a
+new id merges and is read by nothing. See [Ship grammars](../grammars/).
 
 ### Modelled ship parts (not base content)
 

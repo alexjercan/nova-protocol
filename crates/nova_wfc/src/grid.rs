@@ -51,8 +51,12 @@ impl Grid {
         }
     }
 
+    /// Widened before multiplying, not after: the three sizes are authored
+    /// content, and a `u32` product of them wraps long before a `usize` one
+    /// does. `runnable` refuses a grid this large, and this is the arithmetic
+    /// that lets it be refused instead of silently becoming a grid of nothing.
     pub(crate) fn cells(&self) -> usize {
-        (self.size.x * self.size.y * self.size.z) as usize
+        self.size.x as usize * self.size.y as usize * self.size.z as usize
     }
 
     pub(crate) fn index(&self, x: usize, y: usize, z: usize) -> usize {

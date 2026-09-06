@@ -5,7 +5,9 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::{AssetRef, CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD};
-use nova_ship::prelude::SectionConfig;
+use nova_ship::prelude::{
+    GrammarGrid, GrammarKeel, GrammarPart, GrammarVacuum, SectionConfig, ShipGrammarConfig,
+};
 
 use crate::{
     lint::{KnownSections, KnownShips},
@@ -43,6 +45,73 @@ pub(crate) fn sections(ids: &[&str]) -> KnownSections {
         })
         .collect();
     KnownSections::from_configs(&configs)
+}
+
+/// A catalog whose prototypes carry an authored CELL SPAN, for the checks that
+/// read a seeded part's footprint rather than just its id.
+pub(crate) fn sized_sections(spans: &[(&str, UVec3)]) -> KnownSections {
+    let configs: Vec<_> = spans
+        .iter()
+        .map(|(id, span)| SectionConfig {
+            base: nova_ship::prelude::BaseSectionConfig {
+                id: (*id).to_string(),
+                collider: Some(nova_ship::prelude::SectionCollider::Cuboid {
+                    size: span.as_vec3(),
+                }),
+                link_points: nova_ship::prelude::unit_cube_link_points(),
+                ..default()
+            },
+            kind: nova_ship::prelude::SectionKind::Hull(default()),
+        })
+        .collect();
+    KnownSections::from_configs(&configs)
+}
+
+/// The catalog [`grammar`] draws from: the four unit-cube roles it seeds, plus
+/// the oversized parts the seed-fit checks need something to name.
+pub(crate) fn grammar_sections() -> KnownSections {
+    sized_sections(&[
+        ("hull", UVec3::ONE),
+        ("bridge", UVec3::ONE),
+        ("deck", UVec3::ONE),
+        ("drive", UVec3::ONE),
+        ("capital_drive", UVec3::new(5, 5, 3)),
+        ("lance", UVec3::new(1, 1, 4)),
+        ("broad_lance", UVec3::new(3, 1, 2)),
+    ])
+}
+
+/// One well-formed grammar over [`grammar_sections`], on the shipped hull's own
+/// grid - the shape each `lint_grammar_config` test bends exactly one field of.
+pub(crate) fn grammar() -> ShipGrammarConfig {
+    ShipGrammarConfig {
+        id: "test_hull".to_string(),
+        name: "Test Hull".to_string(),
+        grid: GrammarGrid {
+            half_width: 4,
+            height: 5,
+            length: 11,
+        },
+        vacuum: GrammarVacuum {
+            base: 1.0,
+            taper: 0.5,
+            stern: 2.0,
+            bow_taper: 1.0,
+        },
+        keel: GrammarKeel {
+            hull: "hull".to_string(),
+            bridge: "bridge".to_string(),
+            stern_deck: "deck".to_string(),
+            stern_drive: "drive".to_string(),
+            bow_gun: None,
+        },
+        parts: vec![GrammarPart {
+            prototype: "hull".to_string(),
+            weight: 1.0,
+            aim: None,
+            zone: None,
+        }],
+    }
 }
 
 /// A catalog of known ships, each one unit-cube hull section named `hull`.

@@ -272,12 +272,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The Ledger (1.28.0) and Gauntlet Run (1.12.0) are republished in meters.
   Update both: a portal mod installed on 0.12.0 carries the old numbers, and
   this build reads them as meters.
-- A `Grammar` the collapse cannot run - a grid too narrow or too short, a
-  negative weight, nothing priced above zero - is refused with the reason on
-  the status line instead of taking the game down.
-- A `Grammar` content item authors the hull generator's draw table - grid,
-  vacuum weights, keel roles and each part's weight and aim - so a mod ships
-  its own procedural hull line.
+- A `Grammar` the collapse cannot run - a grid too big, too thin, or too small
+  for its own seeds, a negative weight, nothing priced above zero - is refused
+  by id at lint AND at load.
+- A `Grammar` authors the hull generator's draw table: grid, vacuum weights,
+  keel roles, each part's weight and aim. A mod retunes the shipped
+  `standard_hull` by that id; no other is selectable.
 
 ### Web & Platform
 - The site gets a spoiler-marked Story archive. Campaigns open as full-screen
