@@ -27,6 +27,10 @@ binary assets it ships).
   `self://` scheme so they resolve against this mod's own folder.
 - **A menu backdrop** - `example_menu` is flagged `menu_backdrop: true`, so mods
   can ship their own main-menu ambience, not just playable levels.
+- **A hull line** - `example_freighter_hull` is a `Grammar` under a new id: a
+  longer, blunt-nosed hauler drawing this mod's own plate and no weapons. The
+  editor's Generate block lists it under HULL LINE beside the base warship and
+  collapses whichever is picked.
 
 ## Layout
 
@@ -34,6 +38,7 @@ binary assets it ships).
 example/
   example.bundle.ron     # manifest: content + resources + meta
   example.content.ron    # section overlay + new section + arena + menu backdrop
+                         #   + hull line
   textures/
     nebula.png           # self:// skybox (stacked 1x6 cube faces)
     nebula.png.meta      # RowCount cube reinterpret sidecar (rides along, not listed)

@@ -81,7 +81,7 @@ use config::{
 use frame::{
     apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, FrameRequest,
 };
-use generate::{read_seed_field, HullSeed};
+use generate::{read_seed_field, HullGrammar, HullSeed};
 use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
 use keybind::{
@@ -120,10 +120,10 @@ use ui::{
     },
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
-    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_editor_mode, sync_hull_plan,
-    sync_key_legend, sync_part_ticks, sync_part_zones, sync_play_button, sync_rail_tabs,
-    sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
-    sync_style_list,
+    retick_draw_for_line, setup_editor_scene, sync_breadcrumb, sync_context_panels,
+    sync_editor_mode, sync_grammar_list, sync_hull_plan, sync_key_legend, sync_part_ticks,
+    sync_part_zones, sync_play_button, sync_rail_tabs, sync_rebind_button, sync_row_trash,
+    sync_scene_list, sync_skin_toggle, sync_status_line, sync_style_list,
     window::{
         close_confirm_window, on_colour_slider, on_destructive_item, sync_choice_windows,
         sync_colour_windows, sync_ref_windows,
@@ -187,6 +187,10 @@ fn editor_plugin(app: &mut App) {
     // Random on init, so the first Generate of a session is a ship nobody
     // else has rather than everyone's seed zero.
     app.init_resource::<HullSeed>();
+    // Which hull LINE the next Generate draws from. `standard_hull` until a
+    // builder picks another off the list, so a session that never opens it
+    // rolls the base game's ship.
+    app.init_resource::<HullGrammar>();
     // The one line the editor speaks through - the placement readout and every
     // verb that has something to say both write it. See `EditorStatus`.
     app.init_resource::<EditorStatus>();
@@ -492,12 +496,25 @@ fn editor_plugin(app: &mut App) {
             // to, grouped so the tuple stays under Bevy's arity limit.
             (
                 sync_style_list,
-                sync_part_ticks,
-                sync_part_zones,
-                // The only one of the four that is gated: it formats a string
-                // off the whole draw list, and its line lives in a block that
-                // is shown only inside a ship.
-                sync_hull_plan.run_if(a_ship_is_entered),
+                // The hull line FIRST, and the re-tick behind it: picking a
+                // line rewrites which parts are ticked, and the three below
+                // draw what is ticked. The re-tick is gated on the resource
+                // changing because it OVERWRITES the builder's ticks - every
+                // frame would make the part list unclickable.
+                (
+                    sync_grammar_list,
+                    retick_draw_for_line.run_if(resource_changed::<HullGrammar>),
+                    (
+                        sync_part_ticks,
+                        sync_part_zones,
+                        // The only one here that is gated on more than a
+                        // change: it formats a string off the whole draw list,
+                        // and its line lives in a block that is shown only
+                        // inside a ship.
+                        sync_hull_plan.run_if(a_ship_is_entered),
+                    ),
+                )
+                    .chain(),
             ),
             // After the field has taken the keystroke, so a seed is judged the
             // frame it is typed rather than the frame after - the widget's own

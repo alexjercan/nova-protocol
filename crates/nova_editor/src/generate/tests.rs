@@ -6,7 +6,7 @@
 
 use bevy::ui_widgets::observe;
 use nova_input::prelude::InputSource;
-use nova_ship::prelude::LinkPoint;
+use nova_ship::prelude::{LinkPoint, LIGHT_HULL_SECTION_ID, REINFORCED_HULL_SECTION_ID};
 use nova_wfc::prelude::GRID_EPSILON;
 
 use super::*;
@@ -20,6 +20,7 @@ fn generate_app() -> (App, Entity) {
     app.init_resource::<crate::config::EditorStatus>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<HullSeed>();
+    app.init_resource::<HullGrammar>();
     app.insert_resource(GameSections(
         nova_authoring::generation::build_section_catalog(),
     ));
@@ -87,6 +88,32 @@ fn drawn(prototype: &str) -> Drawn {
     }
 }
 
+/// A SECOND hull line, the way a mod ships one: a new id beside the base one,
+/// not on top of it.
+///
+/// Built off the shipped grammar and changed only where the test reads it, so
+/// what an assert catches is the LINE being picked rather than a hand-authored
+/// grammar happening to differ everywhere.
+const SECOND_LINE_ID: &str = "freighter_hull";
+
+fn two_lines() -> GameGrammars {
+    let mut catalog = nova_authoring::generation::build_grammars();
+    let mut second = catalog
+        .iter()
+        .find(|grammar| grammar.id == STANDARD_HULL_GRAMMAR_ID)
+        .expect("the base content ships one")
+        .clone();
+    second.id = SECOND_LINE_ID.to_string();
+    second.name = "Freighter Hull".to_string();
+    // The keel is what survives the draw: `drawn_grammar` replaces the parts
+    // with what is ticked and re-seeds the two roles the ticks decide, so the
+    // stern DECK is a fact only the picked line can put there.
+    second.keel.stern_deck = LIGHT_HULL_SECTION_ID.to_string();
+    catalog.push(second);
+    GameGrammars(catalog)
+}
+
+/// The button the builder presses, with the verb on it.
 /// The button the builder presses, with the verb on it.
 fn generate_button(app: &mut App) -> Entity {
     app.world_mut()
@@ -417,6 +444,55 @@ fn generate_outside_a_ship_says_where_to_stand() {
     );
 }
 
+/// The picked line is the BASE of the roll, not a label on the shipped one.
+///
+/// The keel is where that shows: `drawn_grammar` replaces the parts with what
+/// the builder ticked and re-seeds the two roles the ticks decide, so the stern
+/// deck can only have come from the grammar the id named.
+#[test]
+fn the_picked_line_is_the_base_of_the_roll() {
+    let grammars = two_lines();
+    let sections = GameSections(nova_authoring::generation::build_section_catalog());
+    let ticked = [drawn(REINFORCED_HULL_SECTION_ID)];
+
+    let base = drawn_grammar(&sections, &grammars, STANDARD_HULL_GRAMMAR_ID, &ticked)
+        .expect("the shipped line is there");
+    let second =
+        drawn_grammar(&sections, &grammars, SECOND_LINE_ID, &ticked).expect("so is the second");
+
+    assert_eq!(
+        base.keel.stern_deck, REINFORCED_HULL_SECTION_ID,
+        "the shipped line keeps its own keel"
+    );
+    assert_eq!(
+        second.keel.stern_deck, LIGHT_HULL_SECTION_ID,
+        "and the picked one brings its own: a second id is a second hull line, \
+         not a second name for the first"
+    );
+}
+
+/// The verb reads the RESOURCE, not the constant.
+///
+/// Read off the refusal, which names the id it could not find: with the shipped
+/// content loaded and an unknown line picked, a Generate that still asked for
+/// `standard_hull` would build a hull instead of saying anything.
+#[test]
+fn generate_asks_for_the_line_the_builder_picked() {
+    let (mut app, ship) = generate_app();
+    app.insert_resource(HullGrammar("no_such_line".to_string()));
+    let button = generate_button(&mut app);
+    app.world_mut().trigger(Activate { entity: button });
+    app.update();
+
+    assert!(hull_of(&mut app, ship).is_empty(), "nothing was laid");
+    assert!(
+        status_line(&app).contains("no_such_line"),
+        "the refusal names the line the builder picked: {:?}",
+        status_line(&app)
+    );
+}
+
+/// A part the shipped grammar does not price still joins the draw, on the
 /// A part the shipped grammar does not price still joins the draw, on the
 /// terms the block's own note puts on screen. The railgun is the one a builder
 /// reaches for first, and it is not in the base draw.
@@ -427,6 +503,7 @@ fn a_section_the_grammar_does_not_price_joins_the_draw_at_the_stated_weight() {
     let grammar = drawn_grammar(
         &sections,
         &grammars,
+        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("railgun_lance_section"),
@@ -489,6 +566,7 @@ fn ticking_a_capital_drive_builds_the_ship_around_it() {
     let grammar = drawn_grammar(
         &sections,
         &grammars,
+        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
@@ -541,6 +619,7 @@ fn ticking_a_spinal_gun_seats_it_on_the_bow() {
     let grammar = drawn_grammar(
         &sections,
         &grammars,
+        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
@@ -581,6 +660,7 @@ fn ticking_a_spinal_gun_seats_it_on_the_bow() {
     let plain = drawn_grammar(
         &sections,
         &grammars,
+        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
@@ -602,6 +682,7 @@ fn a_zoned_row_carries_its_zone_into_the_grammar() {
     let grammar = drawn_grammar(
         &sections,
         &grammars,
+        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),

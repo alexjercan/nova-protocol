@@ -276,8 +276,11 @@ does NOT get an entry - and it is the only place they are written down.
   for its own seeds, a negative weight, nothing priced above zero - is refused
   by id at lint AND at load.
 - A `Grammar` authors the hull generator's draw table: grid, vacuum weights,
-  keel roles, each part's weight and aim. A mod retunes the shipped
-  `standard_hull` by that id; no other is selectable.
+  keel roles, each part's weight and aim. A new id adds a hull LINE the editor
+  picks; `standard_hull` retunes the shipped one.
+- The editor's Generate block picks a HULL LINE: a row per grammar in the merged
+  content, and the draw list re-ticks to the picked one. The example mod ships a
+  freighter line beside the warship.
 
 ### Web & Platform
 - The site gets a spoiler-marked Story archive. Campaigns open as full-screen

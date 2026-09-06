@@ -17,27 +17,34 @@ such as double parentheses, `Some(...)`, and asset schemes, see
 
 ## Which grammar the generator reads
 
-Read this before you write one. Today there is exactly one grammar id anything
-asks for: `standard_hull`. The editor's Generate block and both `wfc` examples
-name it, and there is no picker, no scenario field and no flag that names a
-different one.
+Read this before you write one, because it decides which id you want.
 
-So a `Grammar` under a NEW id merges into the catalog and is then reached by
-nothing. The one way a mod changes procedural generation is to declare
-`id: "standard_hull"` and retune the shipped line - which is a real and complete
-override, but it replaces the base hull rather than sitting beside it, and it
-retunes the editor and both examples at once.
+The editor's Generate block has a **HULL LINE** list at the top of it, and that
+list is every grammar in the merged content - the base game's and every enabled
+mod's, one row each, named by the grammar's own `name`. Whichever row is marked
+is the line the next Generate collapses: its grid, its vacuum taper, its keel and
+its prices. Picking a row also puts the DRAW FROM list below it back to that
+line's own draw, because a tick is priced by the grammar underneath it.
 
-Choosing between grammars is a feature the content type is shaped for and the
-game does not have yet. Everything below is accurate; only the id is not yours
-to pick.
+So you have two ways to change procedural generation, and they are different
+things:
+
+- A **new id** ADDS a line. It appears in the list beside `standard_hull`, and a
+  builder chooses between them. This is what you want for a hull line of your
+  own. The example mod ships one: see `assets/mods/example/example.content.ron`.
+- The id **`standard_hull`** REPLACES the shipped line, everywhere. That retunes
+  the base game's own hull rather than adding to it, and it also retunes both
+  `wfc` examples, which name that id outright because they are benches for it.
+
+Nothing outside the editor picks a line yet: a scenario cannot name one, and
+there is no command-line flag for one.
 
 ## The Grammar item
 
 ```ron
 [
     Grammar((
-        id: "standard_hull",
+        id: "my_gunship_hull",
         name: "Gunship Line",
         grid: (
             half_width: 3,
@@ -70,8 +77,8 @@ to pick.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | Stable key, and the overlay key. `standard_hull` is the only id a generator asks for, so declaring it retunes the shipped line - see [above](#which-grammar-the-generator-reads). Any other id merges and is never read. |
-| `name` | string | required | The label a picker would show. There is no grammar picker yet, so nothing displays it - write it for the day there is. |
+| `id` | string | required | Stable key, and the overlay key. A NEW id adds a line to the editor's HULL LINE list; `standard_hull` retunes the shipped one - see [above](#which-grammar-the-generator-reads). |
+| `name` | string | required | The label the HULL LINE list shows. A line left nameless is listed by its id instead, which is a key rather than something to read. |
 | `grid` | grid | required | The block of cells the hull is built in - see [below](#the-grid). |
 | `vacuum` | vacuum | required | How emptiness is priced against the parts - see [below](#vacuum-the-silhouette). |
 | `keel` | keel | required | The spine laid down before the generator gets a say - see [below](#the-keel). |
@@ -204,8 +211,12 @@ lane turns out to be blocked.
 ## Base grammars
 
 One ships: `standard_hull` ("Standard Hull"), the keeled, mirrored warship the
-editor's generator draws from - and, as
-[above](#which-grammar-the-generator-reads), the only id anything asks for. Read
-`assets/base/grammars/base.content.ron` for its exact numbers: it is the tuned
-starting point to copy and push around, and every value in it was arrived at by
-looking at hulls rather than derived from anything.
+editor's generator starts on. Read `assets/base/grammars/base.content.ron` for
+its exact numbers: it is the tuned starting point to copy and push around, and
+every value in it was arrived at by looking at hulls rather than derived from
+anything.
+
+The example mod ships a second, `example_freighter_hull` ("Freighter Hull") - a
+longer, blunt-nosed hauler with no weapons in its draw, built out of that mod's
+own plate. It is there to be read beside the base one: two lines in the list,
+picked between in the editor, and the whole difference is data.

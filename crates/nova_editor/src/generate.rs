@@ -56,7 +56,27 @@ impl Default for HullSeed {
     }
 }
 
-/// The rail block that generates a hull, shown only OUTSIDE a ship.
+/// The grammar the next Generate collapses: which hull LINE the ship is drawn
+/// from, as the builder last picked it.
+///
+/// A resource beside [`HullSeed`], and for the same reason: it is an input to
+/// the roll rather than a property of the ship. A ship keeps its sections and
+/// its cladding; the line it was rolled off is a dial the builder can turn and
+/// roll again.
+///
+/// Starts at [`STANDARD_HULL_GRAMMAR_ID`], so a builder who never opens the
+/// list gets the hull the base game draws.
+#[derive(Resource, Debug, Clone)]
+pub(crate) struct HullGrammar(pub(crate) String);
+
+impl Default for HullGrammar {
+    fn default() -> Self {
+        Self(STANDARD_HULL_GRAMMAR_ID.to_string())
+    }
+}
+
+/// The rail block that generates a hull, shown only INSIDE a ship: a hull is
+/// what one ship IS, so the block sits in that ship's own settings.
 #[derive(Component)]
 pub(crate) struct GenerateSettings;
 
@@ -133,6 +153,7 @@ pub(crate) fn generate_ship(
     _activate: On<Activate>,
     mut commands: Commands,
     seed: Res<HullSeed>,
+    line: Res<HullGrammar>,
     sections: Option<Res<GameSections>>,
     grammars: Option<Res<GameGrammars>>,
     styles: Option<Res<GameStyles>>,
@@ -168,7 +189,7 @@ pub(crate) fn generate_ship(
     let (clad, wears) = q_ships
         .get(ship)
         .map_or((true, None), |node| (node.skin, node.style.clone()));
-    let hull = match drawn_grammar(sections, grammars, &drawn).and_then(|grammar| {
+    let hull = match drawn_grammar(sections, grammars, &line.0, &drawn).and_then(|grammar| {
         collapse(
             sections,
             &grammar,
@@ -230,8 +251,8 @@ pub(crate) fn generate_ship(
 /// running an experiment and has to know the terms of it.
 pub(crate) const UNAUTHORED_WEIGHT: f32 = 1.0;
 
-/// The grammar this roll runs: the shipped one, drawing exactly the sections
-/// that are ticked, around the biggest drive among them.
+/// The grammar this roll runs: the LINE the builder picked, drawing exactly the
+/// sections that are ticked, around the biggest drive among them.
 ///
 /// The vacuum taper stays the grammar's own - it is what a standard hull IS,
 /// and it is not a part. What the list decides is the draw, the ship's MAIN
@@ -246,13 +267,12 @@ pub(crate) struct Drawn {
 fn drawn_grammar(
     sections: &GameSections,
     grammars: &GameGrammars,
+    line: &str,
     drawn: &[Drawn],
 ) -> Result<ShipGrammarConfig, String> {
     let base = grammars
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .ok_or_else(|| {
-            format!("no ship grammar '{STANDARD_HULL_GRAMMAR_ID}' in the merged content")
-        })?;
+        .get_grammar(line)
+        .ok_or_else(|| format!("no ship grammar '{line}' in the merged content"))?;
     if drawn.is_empty() {
         return Err("tick at least one section for the collapse to draw".to_string());
     }

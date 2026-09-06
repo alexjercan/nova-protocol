@@ -2498,6 +2498,17 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The hull LINE list: which grammar the collapse below draws from.
+        // The base game ships one line, so what this beat proves is that the
+        // control is REACHABLE - the block spawns a row per grammar in the
+        // merged content, and a mod's line is a row in exactly this list.
+        .step("editor: the hull line list is up with the shipped line on it")
+        .until(and(
+            ui_node_present("Grammar List"),
+            ui_node_present("Line: standard_hull"),
+        ))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // Ticking a spinal gun is how a builder says the ship has one: the
         // block DERIVES the seeded roles from the ticks, so nothing else is
         // pressed and the HULL PLAN line is what says it was heard. Activated

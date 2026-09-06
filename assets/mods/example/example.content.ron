@@ -13,6 +13,10 @@
 //                                  win check, and Victory/Defeat Outcomes)
 //   4. ADD a menu backdrop      - `example_menu` (a menu_backdrop scene: mods
 //                                  can ship main-menu ambience)
+//   5. ADD a hull line          - `example_freighter_hull` (a `Grammar` under a
+//                                  new id: the editor's Generate block lists it
+//                                  beside the base one and collapses whichever
+//                                  is picked)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // grammar behind it see the wiki: "Author a section", "Author a scenario",
@@ -792,6 +796,70 @@
                         )),
                     )),
                 ],
+            ),
+        ],
+    )),
+
+    // -- 5. HULL LINE -------------------------------------------------------
+    // A `Grammar` is a procedural HULL LINE: the grid a collapse runs in, how
+    // it prices emptiness, the spine it lays before it starts, and the parts it
+    // may draw. A NEW id ADDS a line beside the base `standard_hull` rather
+    // than retuning it - the editor's Generate block lists every grammar in the
+    // merged content under HULL LINE, and collapses the one that is picked.
+    //
+    // A freighter rather than a second warship, so the difference is visible in
+    // one look: longer, no weapons in the draw, and built out of this mod's own
+    // plate. Nothing here is engine work - a mod ships a hull line as data.
+    Grammar((
+        id: "example_freighter_hull",
+        name: "Freighter Hull (Example Mod)",
+        // 4 x 5 x 15 = 300 cells, against the base hull's 220. Longer and no
+        // wider: a hauler is a hull with a hold in the middle of it. The cell
+        // count is what the collapse allocates a domain per, and it is capped -
+        // see `MAX_GRAMMAR_CELLS`.
+        grid: (
+            half_width: 4,
+            height: 5,
+            length: 15,
+        ),
+        // Emptiness is priced exactly as the base line prices it, except at the
+        // bow: a freighter has a blunt nose, so vacuum gets far less of a
+        // discount out front than the warship's long taper gives it.
+        vacuum: (
+            base: 0.22,
+            taper: 1.4,
+            stern: 9.0,
+            bow_taper: 6.0,
+        ),
+        // The spine, laid before the collapse gets a say. Built out of the
+        // section this mod ADDS above, which is the whole point of a mod
+        // shipping a line: the parts and the plan are one piece of content.
+        keel: (
+            hull: "example_plated_hull_section",
+            bridge: "basic_controller_section",
+            stern_deck: "example_plated_hull_section",
+            stern_drive: "basic_thruster_section",
+        ),
+        // What the collapse may draw, and how often. No turret and no torpedo:
+        // this is a hauler, and what a line does NOT draw is as much of its
+        // silhouette as what it does.
+        parts: [
+            (
+                prototype: "example_plated_hull_section",
+                weight: 6.0,
+            ),
+            (
+                prototype: "reinforced_hull_section",
+                weight: 2.0,
+            ),
+            (
+                prototype: "basic_controller_section",
+                weight: 0.15,
+            ),
+            (
+                prototype: "basic_thruster_section",
+                weight: 6.4,
+                aim: Some(Aft),
             ),
         ],
     )),

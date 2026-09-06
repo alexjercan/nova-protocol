@@ -16,8 +16,8 @@ use nova_ui::{
 
 use crate::{
     config::{
-        PartChoice, PartTick, PartZoneChip, RailTab, RailTabButton, SceneRow, SkinToggleCheckbox,
-        StyleChoice, StyleSwatch,
+        GrammarChoice, PartChoice, PartTick, PartZoneChip, RailTab, RailTabButton, SceneRow,
+        SkinToggleCheckbox, StyleChoice, StyleSwatch,
     },
     ui::layer,
 };
@@ -130,6 +130,43 @@ pub(crate) fn style_row(
                 TextColor(theme::PHOSPHOR),
             )
         ],
+    )
+}
+
+/// One row of the Generate block's hull-line list: the name a grammar author
+/// gave their line.
+///
+/// The NAME rather than the id, because the name is the half a grammar author
+/// writes for a reader - and the row is the first thing in the tree that has
+/// ever shown it.
+pub(crate) fn grammar_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+    let (background, border) = list_row_colors(selected, false, skin);
+    (
+        ListRow,
+        GrammarChoice(id.to_string()),
+        Button,
+        Hovered::default(),
+        Node {
+            width: percent(100),
+            min_height: px(20),
+            margin: UiRect::bottom(px(1)),
+            padding: UiRect::axes(px(6), px(1)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            align_items: AlignItems::Center,
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![(
+            UiText,
+            Text::new(name.to_string()),
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR),
+        )],
     )
 }
 

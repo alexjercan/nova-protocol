@@ -805,6 +805,8 @@ Fix: take the grammar id from the caller so `get_grammar`'s parameter means
 something, or say plainly in the doc and the changelog that a mod retunes the one
 shipped grammar.
 Not a BLOCKER: override-by-id genuinely works; what is missing is selection.
+FIXED in Group L, the first way: the id comes from the editor's HULL LINE list.
+The claims Group F corrected the other way are corrected back.
 
 **MAJOR - `crates/nova_ui/src/screen/list.rs:93` - the `Hovered` fix has no test that fails without it, and the test that should cover it hand-spawns the component the bundle was missing.**
 `scroll_viewport()` gains `bevy::picking::hover::Hovered::default()`. Without it
@@ -2632,8 +2634,7 @@ the promise it does not keep, and the two CHANGELOG entries plus
 worked example declares `standard_hull` rather than teaching an id that cannot
 be reached. The grid section documents the seed-fit bounds and the ceiling.
 
-Still open from this theme: grammar SELECTION (`ship_grammar.rs:222`) - a
-feature, unscheduled.
+Still open from this theme: nothing. SELECTION was built in Group L.
 
 ### Group G - editor correctness. DONE.
 
@@ -2988,6 +2989,83 @@ it takes the asset load down before any range starts. Point
 Changelog: one Performance entry. The comms fix gets none - the panel it fixes
 is itself unreleased, so this is a bug introduced and fixed inside one cycle.
 
+### Group L - grammar SELECTION. DONE.
+
+The last MAJOR, and the one Group F closed as "a feature, unscheduled". It is
+the same shape as the Comms finding the owner raised: content that is authored
+as data and then reachable only from Rust. `get_grammar(id)` took an id that
+every caller in the tree answered with one constant, so a mod's `Grammar` under
+a new id merged into the catalog and nothing could ever ask for it.
+
+**What the editor gained.** A `HullGrammar(String)` resource beside `HullSeed` -
+an input to the roll, not a property of the ship - and a HULL LINE list at the
+top of the Generate block, one row per grammar in the merged content, above the
+seed because it decides what the seed and the draw mean. Four systems changed
+hands:
+
+| was | now |
+| --- | --- |
+| `drawn_grammar` cloned `standard_hull` | clones the line the resource names, and the refusal names THAT id |
+| `listed_parts` read the constant's draw | reads the picked line's |
+| `sync_hull_plan` read the constant's keel | reads the picked line's |
+| nothing re-ticked the draw | `retick_draw_for_line` puts ticks AND zones back to the picked line's own, gated on the resource changing |
+
+The re-tick is the part that is easy to leave out and wrong to: a tick is priced
+by the grammar under it, so a tick left standing across a line change hands the
+collapse a draw the builder never chose, every unpriced row joining at
+`UNAUTHORED_WEIGHT` with nothing on screen saying so. It is gated on the change
+rather than run every frame because it OVERWRITES what the builder ticked.
+
+A nameless line is listed by its id. `ShipGrammarConfig::name` had no reader in
+the tree until this list, so nothing has ever refused an empty one.
+
+**The dogfood.** `assets/mods/example` gains `example_freighter_hull` - a
+`Grammar` under a NEW id, which is the case the finding said was unreachable. A
+longer, blunt-nosed hauler, no weapons in the draw, keel and draw built out of
+that mod's own `example_plated_hull_section`, so the line and the parts are one
+piece of content. The mod is the copy-me tutorial for what a mod can do, and a
+hull line is now one of those things. Bumped to 1.3.0 with its own changelog
+entry. `content lint` is clean over the whole tree; pointing the keel at a
+prototype nothing holds makes it name the grammar by id, so the clean run is a
+reading.
+
+**Proof.**
+
+| claim | test |
+| --- | --- |
+| the picked line is the BASE of the roll | `the_picked_line_is_the_base_of_the_roll` - two lines differing only in the stern deck, which is the one keel role `drawn_grammar` does not re-seed |
+| the verb reads the RESOURCE | `generate_asks_for_the_line_the_builder_picked` - an unknown line picked against loaded content; the refusal names it, and nothing is laid |
+| every line is listed, nameless included | `every_hull_line_is_listed_and_a_nameless_one_falls_back_to_its_id` |
+| a press picks the line and moves the mark | `a_press_on_a_line_row_picks_that_line` |
+| a pick re-ticks the draw and its zones | `picking_a_line_reticks_the_draw_to_that_lines_own` |
+| the control is REACHABLE in the real UI | `system_ship_editor` beat `the hull line list is up with the shipped line on it` |
+
+Negative checks. Reverting `drawn_grammar` to the constant failed exactly the
+two new generate tests and left the other sixteen green. Emptying
+`listed_grammars` stalled exactly one beat of the range, the new one, after 20s
+and with no earlier failure. 485/485 `nova_editor`, 863/863 `nova_ship`.
+
+What is NOT proved live, and why. The range proves the list is up and marks the
+shipped line; it does not press a second row, because the base game ships one
+line and the example mod is not enabled by default - `seed_enabled_mods` fills
+`EnabledMods` from the catalog's `base` entries only. Enabling it for the range
+would change what the other 665 beats see: the mod overrides
+`reinforced_hull_section`, which most of them touch. The switch is covered in
+unit tests instead, at the two places it can go wrong - the resource the verb
+reads, and the ticks the pick rewrites.
+
+**Claims put back.** Group F corrected four doc sites and two changelog entries
+to say plainly that `standard_hull` was the only id anything asked for. That is
+false again, so all six are corrected in the other direction:
+`ShipGrammarConfig`, `ShipGrammarConfig::name`, `STANDARD_HULL_GRAMMAR_ID` and
+`GameGrammars::get_grammar` in `nova_ship`; `web/src/create/grammars.md` (the
+"Which grammar the generator reads" section now says what the two id choices
+mean, its worked example declares `my_gunship_hull` rather than teaching an
+override, and Base grammars names the example mod's line) and
+`base-content.md`; and the two `[Unreleased]` entries, one rewritten and one
+added. The two `wfc` examples still name the constant outright and are meant to:
+they are benches for the shipped hull, and that is now what their doc says.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2995,18 +3073,10 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**1 MAJOR**, listed in full below - the count is the list, not a running
-subtraction. (The earlier tallies in this run drifted: they were arithmetic on
-a curated set whose bullets merged some findings and split others. The one
-below is what is actually left. Group F closed four, G five, H five, I six,
-J one, K two.)
-
-It is not a defect waiting on a patch. It is a feature nobody has scheduled.
-
-Grammar as content (the rest closed in Group F):
-- `nova_ship/src/sections/ship_grammar.rs:222` - a mod can only RETUNE
-  `standard_hull`; a new grammar id is still unreachable. The claims that said
-  otherwise are corrected; SELECTION is a feature and is unscheduled.
+**No BLOCKER or MAJOR is left.** Group F closed four, G five, H five, I six,
+J one, K two, L one. (The earlier tallies in this run drifted: they were
+arithmetic on a curated set whose bullets merged some findings and split others.
+This line is the list.)
 
 **~85 MINOR**, in the batch blocks above. Not triaged individually; each was
 recorded where it was found.
@@ -3015,4 +3085,5 @@ Nothing here blocks the range: it builds, it lints, and it plays. The three
 heaviest - a save rewriting a retry wrong, every Generate repainting the ship,
 and a save named "Sandbox" taking over the editor's own stage range - closed in
 Group G. Both unmeasured perf notes closed in Group K, in counts rather than
-milliseconds. What is left is one unscheduled feature.
+milliseconds. Grammar selection, the one item that was a feature rather than a
+defect, was built in Group L. What is left is the MINOR list.

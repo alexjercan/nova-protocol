@@ -33,8 +33,9 @@ pub mod prelude {
 /// are: the crates that ASK for it - the editor, the examples - cannot reach
 /// the authoring crate that authors it.
 ///
-/// Every consumer in the tree names THIS id, and nothing yet chooses another:
-/// see [`GameGrammars::get_grammar`] for what that means for a mod.
+/// What the editor's HULL LINE list starts on, and what the two `wfc` examples
+/// name outright - they are benches for the shipped hull. A builder picks
+/// another off that list; see [`GameGrammars::get_grammar`].
 pub const STANDARD_HULL_GRAMMAR_ID: &str = "standard_hull";
 
 /// The most cells one grammar's grid may hold.
@@ -245,16 +246,16 @@ pub struct GrammarKeel {
 ///
 /// Resolved by [`id`](ShipGrammarConfig::id) out of [`GameGrammars`], which the
 /// mod merge fills exactly as it fills the section catalog - so a mod's grammar
-/// with the id of a base one REPLACES it. A grammar under a NEW id merges and
-/// is then reachable by nothing: see [`GameGrammars::get_grammar`].
+/// with the id of a base one REPLACES it, and one under a NEW id is a second
+/// hull line beside it, listed in the editor's Generate block.
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ShipGrammarConfig {
     /// The id a generator names this grammar by.
     pub id: String,
-    /// The name a picker would show. Nothing shows it yet - there is no
-    /// grammar picker - so this is the label waiting for one, not a string any
-    /// player has read.
+    /// The name the editor's HULL LINE list shows. A line left nameless is
+    /// listed by its id, so the row is still something a builder can tell
+    /// apart - but the id is a key, and the name is the half written to read.
     pub name: String,
     /// The block of cells the collapse runs in.
     pub grid: GrammarGrid,
@@ -292,14 +293,11 @@ pub struct GameGrammars(pub Vec<ShipGrammarConfig>);
 impl GameGrammars {
     /// The grammar with this id, or `None` if nothing authored it.
     ///
-    /// The parameter is a promise the game does not yet keep. Every caller in
-    /// the tree passes [`STANDARD_HULL_GRAMMAR_ID`]: there is no picker, no
-    /// scenario field and no flag that names a grammar, so the ONE way a mod
-    /// changes procedural generation is to author `id: "standard_hull"` and
-    /// retune the shipped line - which retunes the editor and both `wfc`
-    /// examples at once, and cannot sit beside the base hull. Selecting
-    /// between grammars is the feature this signature is shaped for and is not
-    /// built.
+    /// The id comes from the editor's HULL LINE list, which lists every grammar
+    /// in the merged content - so a mod that ships one under a NEW id is picked
+    /// beside the base hull rather than instead of it. The two `wfc` examples
+    /// still name [`STANDARD_HULL_GRAMMAR_ID`] outright, because they are
+    /// benches for that hull.
     pub fn get_grammar(&self, id: &str) -> Option<&ShipGrammarConfig> {
         self.0.iter().find(|grammar| grammar.id == id)
     }
