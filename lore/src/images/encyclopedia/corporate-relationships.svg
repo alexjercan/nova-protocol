@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1040" viewBox="0 0 1280 1040" role="img" aria-labelledby="title description">
+  <title id="title">Corporate operators: selected relationships</title>
+  <desc id="description">Earth funds development and retains public authority, including the main military forces. Several competing corporate groups operate facilities, housing, services, and private security. Workers depend on employment-linked housing and services and have recognized unions. Independent contractors depend on contracts, supplies, and facility access. This is a relationship diagram, not a map or a complete chain of command.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#173a29" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1L10 6L1 11" fill="none" stroke="#7fdda4" stroke-width="2"/>
+    </marker>
+    <marker id="pressure-arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1L10 6L1 11" fill="none" stroke="#efb463" stroke-width="2"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="1040" fill="#04100b"/>
+  <rect x="32" y="32" width="1216" height="976" fill="url(#grid)" opacity="0.38"/>
+  <path d="M64 110H1216" fill="none" stroke="#356d4e"/>
+  <g font-family="DejaVu Sans Mono, monospace">
+    <text x="64" y="66" fill="#c0ffd4" font-size="28" letter-spacing="2">CORPORATE OPERATORS</text>
+    <text x="64" y="96" fill="#80b99a" font-size="17">Funding, dependence and public authority</text>
+    <text x="1216" y="66" text-anchor="end" fill="#80b99a" font-size="15">REFERENCE DIAGRAM</text>
+
+    <rect x="240" y="144" width="800" height="152" rx="3" fill="#092116" stroke="#70bd91" stroke-width="2"/>
+    <path d="M240 190H1040" fill="none" stroke="#356d4e"/>
+    <text x="272" y="176" fill="#c0ffd4" font-size="23">EARTH / PUBLIC AUTHORITY</text>
+    <text x="272" y="225" fill="#aad4b9" font-size="19">Development funding and major contracts</text>
+    <text x="272" y="257" fill="#aad4b9" font-size="19">Earth law, public oversight and the main military forces</text>
+
+    <path d="M512 308V378" fill="none" stroke="#7fdda4" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="542" y="332" fill="#aad4b9" font-size="18">Funding and contracts</text>
+    <text x="542" y="358" fill="#aad4b9" font-size="18">Public authority is retained</text>
+
+    <rect x="240" y="392" width="800" height="184" rx="3" fill="#092116" stroke="#70bd91" stroke-width="2"/>
+    <path d="M240 438H1040" fill="none" stroke="#356d4e"/>
+    <text x="272" y="424" fill="#c0ffd4" font-size="23">MAJOR CORPORATE OPERATORS</text>
+    <text x="272" y="473" fill="#aad4b9" font-size="19">Several competing groups, not one permanent bloc</text>
+    <text x="272" y="505" fill="#aad4b9" font-size="19">Housing, services and operational discretion</text>
+    <text x="272" y="537" fill="#aad4b9" font-size="19">Security and escorts, not command of Earth's military</text>
+
+    <path d="M390 588V706" fill="none" stroke="#efb463" stroke-width="2" marker-end="url(#pressure-arrow)"/>
+    <text x="360" y="632" text-anchor="end" fill="#efc58b" font-size="18">Employment-linked</text>
+    <text x="360" y="660" text-anchor="end" fill="#efc58b" font-size="18">housing and services</text>
+    <path d="M888 588V706" fill="none" stroke="#7fdda4" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="918" y="632" fill="#aad4b9" font-size="18">Contracts and access</text>
+    <text x="918" y="660" fill="#aad4b9" font-size="18">to facilities and supplies</text>
+
+    <rect x="64" y="722" width="534" height="182" rx="3" fill="#172016" stroke="#b49156" stroke-width="2"/>
+    <path d="M64 768H598" fill="none" stroke="#705b36"/>
+    <text x="88" y="755" fill="#ffe0ad" font-size="22">WORKERS AND HOUSEHOLDS</text>
+    <text x="88" y="804" fill="#d5ceb4" font-size="18">Work and home remain linked.</text>
+    <text x="88" y="836" fill="#d5ceb4" font-size="18">Debt makes departure harder.</text>
+    <text x="88" y="868" fill="#d5ceb4" font-size="18">Recognized unions represent workers.</text>
+
+    <rect x="682" y="722" width="534" height="182" rx="3" fill="#092116" stroke="#70bd91" stroke-width="2"/>
+    <path d="M682 768H1216" fill="none" stroke="#356d4e"/>
+    <text x="706" y="755" fill="#c0ffd4" font-size="22">INDEPENDENT OPERATORS</text>
+    <text x="706" y="804" fill="#aad4b9" font-size="18">Small firms and crew-owned ships.</text>
+    <text x="706" y="836" fill="#aad4b9" font-size="18">Contract income, credit and access.</text>
+    <text x="706" y="868" fill="#aad4b9" font-size="18">Ownership does not remove dependence.</text>
+
+    <path d="M64 938H1216" fill="none" stroke="#356d4e"/>
+    <text x="64" y="973" fill="#80b99a" font-size="17">Public research and oversight can challenge operators; protection is not guaranteed.</text>
+  </g>
+</svg>
