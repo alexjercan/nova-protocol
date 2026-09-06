@@ -62,6 +62,22 @@ const EDITOR_SKIN_LOOP: &str = "news-0110-editor-skin";
 #[cfg(feature = "debug")]
 const EDITOR_EVENTS_LOOP: &str = "news-0120-editor-events";
 
+/// How long the sandbox range is given to come up and settle.
+///
+/// A frame-counted settle under a real-time deadline: the two only agree at an
+/// assumed frame rate, and CI's software rasterizer is far under it. The
+/// range - sixty-four scattered rocks, three pickets and a skybox - measured
+/// 1.8 frames a second on lavapipe, where the editor scene before it managed
+/// 3.8, so the settle needs about fifty seconds there and the shared
+/// thirty-second deadline killed the walk mid-settle. A deadline is a HANG
+/// detector, not a frame-rate gate, so it is sized to outlast the slowest
+/// healthy settle; a run on a real GPU spends the frames in under two seconds
+/// and never sees it.
+#[cfg(feature = "debug")]
+const SANDBOX_SETTLE_FRAMES: u32 = SETTLE_FRAMES * 3;
+#[cfg(feature = "debug")]
+const SANDBOX_DEADLINE_SECS: f32 = 90.0;
+
 /// What the inspector's Id row is showing.
 ///
 /// The claim the picker beat rests on: `click_named` warns and continues when a
@@ -378,8 +394,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .click("launch the built ship", "Play Button")
         .step("reach the sandbox range")
-        .until(and(player_ship_present(), frames(SETTLE_FRAMES * 3)))
-        .deadline(STEP_DEADLINE_SECS)
+        .until(and(player_ship_present(), frames(SANDBOX_SETTLE_FRAMES)))
+        .deadline(SANDBOX_DEADLINE_SECS)
         .add()
         // Scenario entry synchronizes the debug layer once more. Disable the
         // diagnostic after that synchronization so this player-facing shot is

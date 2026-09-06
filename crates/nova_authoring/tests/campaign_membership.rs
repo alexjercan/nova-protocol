@@ -27,7 +27,7 @@ fn merged_campaign_resolves_members_in_play_order() {
     for (_, content) in generation::build_scenario_contents() {
         base.extend(content);
     }
-    let story = vec![Content::Campaign(CampaignConfig {
+    let story = [Content::Campaign(CampaignConfig {
         id: "campaign_under_test".to_string(),
         name: "Campaign Under Test".to_string(),
         scenarios: vec![MEMBER.to_string()],

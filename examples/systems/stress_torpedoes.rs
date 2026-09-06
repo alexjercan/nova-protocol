@@ -313,9 +313,17 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 /// Commit every fresh torpedo to a point down its own lane.
 ///
 /// A torpedo's target is decided exactly once, right after launch: the player
-/// commits from the crosshair lock and the AI from its own `AITarget`. Neither
-/// runs here (nobody is aiming a thousand torpedoes), so this does that one
-/// write, and the guidance, the weave, the arming and the fuze run themselves.
+/// commits from the crosshair lock and the AI from its own `AITarget`. The rack
+/// IS the player ship, so the player's commit does run here - with no lock, on
+/// every round - and it writes `TorpedoTargetChosen` ALONE. That is a dumb-fire
+/// shot, and a dumb-fire torpedo cannot fuze: it flies its full hundred-second
+/// lifetime instead of detonating at its aim point.
+///
+/// So the query keys on the absence of an AIM POINT, not on the absence of the
+/// decision marker. Both writers are unordered systems in `Update`, and keying
+/// on the marker made this one lose the race for whichever rounds the player
+/// commit reached first - one torpedo in three thousand, enough to leave the
+/// sky un-drained past the step's deadline and fail the sweep.
 ///
 /// The lane is derived from the torpedo's own launch position, so it is a pure
 /// function of where it came from: the same range replays identically, and the
@@ -326,7 +334,7 @@ fn commit_fresh_torpedoes(
         (Entity, &Transform),
         (
             With<TorpedoProjectileMarker>,
-            Without<TorpedoTargetChosen>,
+            Without<TorpedoTargetPosition>,
             Without<TorpedoTargetEntity>,
         ),
     >,

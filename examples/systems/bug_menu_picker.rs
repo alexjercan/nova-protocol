@@ -1,11 +1,12 @@
 //! bug_menu_picker: drive the main menu's Scenarios picker and MEASURE it.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
-//! [`editor_app`]), clicks Scenarios, then selects every scenario row in turn -
-//! including the ones past the fold, which it reaches with the wheel the way a
-//! player does (task 20260804-190142). The run FAILS if fewer than two rows
-//! were reached, because the split it measures is only testable ACROSS
-//! selections. Every gesture is a REAL one: the pointer is moved to the
+//! [`editor_app`]), enables the example mod so the picker lists more than the
+//! base game's single scenario, clicks Scenarios, then selects every scenario
+//! row in turn - including the ones past the fold, which it reaches with the
+//! wheel the way a player does (task 20260804-190142). The run FAILS if fewer
+//! than two rows were reached, because the split it measures is only testable
+//! ACROSS selections. Every gesture is a REAL one: the pointer is moved to the
 //! widget's own screen position, resolved from its `Name`, and pressed and
 //! released there (task 20260804-094021) - nothing is reached by triggering its
 //! observer. After each selection settles it logs the laid-out width of the two
@@ -76,13 +77,33 @@ fn main() -> bevy::app::AppExit {
         // that reports done would never be reached.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                .step("reach the main menu")
+                .enter(GameStates::Loading)
+                .until(state_is(GameStates::MainMenu))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                // The base game lists ONE scenario, and the split this rig
+                // measures is only testable across selections - so the second
+                // row is authored here rather than waited for. The example mod
+                // ships `example_arena`, the same row
+                // `screenshot_scenario_picker` enables it for, and its
+                // description and thumbnail differ from the training range's,
+                // which is exactly the input the pane split must be immune to.
+                .step("enable the example mod")
+                .on_enter(|world: &mut World| {
+                    world
+                        .resource_mut::<EnabledMods>()
+                        .0
+                        .insert("example".to_string());
+                })
+                .until(frames(SETTLE_FRAMES * 2))
+                .add()
                 // SCRIPT-OWNED completion: the step
                 // ends where the walk reports done, and a deadline that
                 // expires first means the script STALLED - which is an error
                 // exit naming this step, not an ordinary "cycle complete" over
                 // an unfinished walk (review R2.1).
                 .step("walk the scenarios picker")
-                .enter(GameStates::Loading)
                 .each(scenarios_autopilot)
                 .until(nova_protocol::nova_debug::harness::script_reports_done())
                 .deadline(SCENARIOS_AUTOPILOT_SECS)
