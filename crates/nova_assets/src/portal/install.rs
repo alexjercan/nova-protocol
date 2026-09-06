@@ -259,6 +259,23 @@ fn validate_entry(entry: &PortalEntry) -> Result<(), String> {
     if !mod_cache::is_safe_id(&entry.id) || !is_url_safe_segment(&entry.id) {
         return Err(format!("unsafe mod id '{}'", entry.id));
     }
+    // The one namespace inside the index that belongs to somebody. The editor
+    // lists its own saves by this prefix and offers to save over what that
+    // list holds, so a downloaded mod carrying it would appear as the
+    // builder's own file and be overwritten as one.
+    //
+    // `is_url_safe_segment` above already refuses it, because the prefix ends
+    // in `_` and an id's charset has no underscore. That is a URL rule that
+    // happens to cover a content rule, and the two are free to drift; this
+    // says the reservation on purpose so the editor's claim is enforced rather
+    // than merely true.
+    if entry.id.starts_with(mod_cache::EDITOR_ID_PREFIX) {
+        return Err(format!(
+            "mod id '{}' takes the '{}' prefix, which the in-game editor reserves for saves",
+            entry.id,
+            mod_cache::EDITOR_ID_PREFIX
+        ));
+    }
     if !mod_cache::is_safe_id(&entry.version) || !is_url_safe_segment(&entry.version) {
         return Err(format!("unsafe version '{}'", entry.version));
     }
@@ -680,6 +697,40 @@ mod tests {
                 .collect(),
             total_size: paths.len() as u64,
         }
+    }
+
+    /// The editor's prefix is RESERVED, not conventional.
+    ///
+    /// `nova_editor` lists a builder's saves by filtering the shared
+    /// installed-mods index on `editor_`, and offers to save over what that
+    /// list holds - so both writers of that index have to honour the prefix or
+    /// the filter is only a naming habit.
+    ///
+    /// The id charset refuses it anyway (no `_` in a portal id), which is why
+    /// no such mod exists. This pins the reservation itself, so relaxing that
+    /// charset cannot quietly hand the editor's namespace away.
+    #[test]
+    fn a_portal_mod_may_not_take_the_editors_reserved_prefix() {
+        let taken = entry(
+            "editor_toolkit",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron"],
+        );
+        let refused = validate_entry(&taken).expect_err("the prefix belongs to the editor");
+        assert!(
+            refused.contains("editor_"),
+            "the line names the prefix: {refused}"
+        );
+
+        // The prefix, not the word. A mod is free to be ABOUT the editor.
+        let fine = entry(
+            "toolkit-editor",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron"],
+        );
+        assert!(validate_entry(&fine).is_ok());
     }
 
     /// The pre-fetch gate over wire data: escaping ids/versions/paths, a

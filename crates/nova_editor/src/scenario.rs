@@ -1192,19 +1192,19 @@ fn following_the_objects(
 /// file would keep the FILE's id, Play would lower it into `editor_sandbox`
 /// beside a retry naming `editor_save`, and the range would refuse to start on
 /// a dangling reference.
+/// Nesting is [`EventActionConfig::walk_mut`]'s to know, not this function's.
+/// A hand-rolled match here would have to be revisited for every arm that ever
+/// nests - and a retry inside a Cinematic scene, missed that way, keeps the
+/// wrong id through a save and the range refuses to start on it.
 pub(crate) fn retarget_retries(actions: &mut [EventActionConfig], from: &str, to: &str) {
     for action in actions {
-        match action {
-            EventActionConfig::NextScenario(next) if next.scenario_id == from => {
-                next.scenario_id = to.to_string();
-            }
-            EventActionConfig::Sequence(sequence) => {
-                for step in &mut sequence.steps {
-                    retarget_retries(&mut step.actions, from, to);
+        action.walk_mut(&mut |action| {
+            if let EventActionConfig::NextScenario(next) = action {
+                if next.scenario_id == from {
+                    next.scenario_id = to.to_string();
                 }
             }
-            _ => {}
-        }
+        });
     }
 }
 

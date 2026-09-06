@@ -5,7 +5,7 @@ use bevy::ecs::system::RunSystemOnce;
 use nova_ui::prelude::TextFieldSubmitted;
 
 use super::*;
-use crate::{node::NextChildOrdinal, ui::window::window_layer};
+use crate::{node::NextChildOrdinal, scenario::SANDBOX_ID, ui::window::window_layer};
 
 /// The layer a window stands on, the resources the file verbs write, and the
 /// two systems that keep the readout in step.
@@ -104,20 +104,20 @@ fn slot(id: &str, name: &str) -> SaveSlot {
 fn a_name_makes_the_slot_it_saves_into() {
     assert_eq!(
         bundle_id("Asteroid Gauntlet").as_deref(),
-        Some("editor_asteroid_gauntlet")
+        Ok("editor_asteroid_gauntlet")
     );
     assert_eq!(
         bundle_id("  Spaced   Out  ").as_deref(),
-        Some("editor_spaced_out"),
+        Ok("editor_spaced_out"),
         "the runs between words collapse, and the edges do not become an id"
     );
-    assert_eq!(bundle_id("Range 2").as_deref(), Some("editor_range_2"));
+    assert_eq!(bundle_id("Range 2").as_deref(), Ok("editor_range_2"));
     assert_eq!(
         bundle_id("   ").as_deref(),
-        None,
+        Err(&NameProblem::Unusable),
         "a name with nothing in it names nothing"
     );
-    assert_eq!(bundle_id("!!!").as_deref(), None);
+    assert_eq!(bundle_id("!!!").as_deref(), Err(&NameProblem::Unusable));
 }
 
 /// Two names one id: the collision the window has to say out loud, because the
@@ -125,6 +125,57 @@ fn a_name_makes_the_slot_it_saves_into() {
 #[test]
 fn two_names_that_differ_only_in_punctuation_land_in_one_slot() {
     assert_eq!(bundle_id("My Range"), bundle_id("My-Range!"));
+}
+
+/// The one id a name may NOT derive. `SANDBOX_ID` is the range the editor
+/// lowers the open document into, so a save written under it stands in for the
+/// editor's own stage on the next load - and the Save As list cannot warn about
+/// it, because the sandbox is a registered scenario rather than a file and so
+/// is in no row to collide with. Every spelling that derives it is refused.
+#[test]
+fn no_name_can_save_over_the_editors_own_range() {
+    for typed in ["Sandbox", "sandbox", "SANDBOX!", "  Sandbox  ", "!!Sandbox"] {
+        assert_eq!(
+            bundle_id(typed).as_deref(),
+            Err(&NameProblem::Reserved),
+            "'{typed}' derives {SANDBOX_ID}"
+        );
+    }
+    // Only the EXACT id is spoken for. A separator between the two words makes
+    // a different id, so these are ordinary names and save like any other.
+    for (typed, derived) in [
+        ("Sandbox 2", "editor_sandbox_2"),
+        ("sand box", "editor_sand_box"),
+        ("sand-box", "editor_sand_box"),
+    ] {
+        assert_eq!(bundle_id(typed).as_deref(), Ok(derived));
+    }
+}
+
+/// The readout says WHICH problem, because they are different things for the
+/// builder to do about it, and Save is greyed either way.
+#[test]
+fn the_readout_names_the_reserved_id_rather_than_calling_it_unusable() {
+    let mut app = files_app();
+    document(&mut app, "Saved Range");
+    put_up(&mut app, FileWindowKind::SaveAs, "Saved Range", vec![]);
+    let save = named(&mut app, "File Save Button").expect("Save As has a Save button");
+
+    type_name(&mut app, "Sandbox");
+
+    assert_eq!(
+        readout(&mut app),
+        "That name is the editor's own. Pick another."
+    );
+    assert!(
+        app.world().entity(save).contains::<InteractionDisabled>(),
+        "a name that cannot be written cannot be pressed"
+    );
+
+    type_name(&mut app, "Sandbox 2");
+
+    assert_eq!(readout(&mut app), "saves as editor_sandbox_2");
+    assert!(!app.world().entity(save).contains::<InteractionDisabled>());
 }
 
 /// Save As opens on the name the range already has, so a first save is one

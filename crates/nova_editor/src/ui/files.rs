@@ -25,7 +25,7 @@ use nova_ui::{
 use crate::{
     bundle::{
         bundle_id, saved_bundles, DocumentSlot, FileRequest, FileWindowKind, FileWindowRequest,
-        SaveSlot,
+        NameProblem, SaveSlot,
     },
     config::EditorSays,
     gallery::GalleryState,
@@ -372,8 +372,15 @@ pub(crate) fn sync_save_name(
     };
     let id = bundle_id(typed.0.trim());
     let (line, colour) = match id.as_deref() {
-        None => ("A name needs a letter or a digit.".to_string(), theme::RED),
-        Some(id) => match bundles.0.iter().find(|slot| slot.id == id) {
+        Err(NameProblem::Unusable) => ("A name needs a letter or a digit.".to_string(), theme::RED),
+        // The one derived id the editor keeps for itself. Said here because
+        // the list below CANNOT say it: the sandbox is a registered scenario
+        // rather than a file, so it is in no row to collide with.
+        Err(NameProblem::Reserved) => (
+            "That name is the editor's own. Pick another.".to_string(),
+            theme::RED,
+        ),
+        Ok(id) => match bundles.0.iter().find(|slot| slot.id == id) {
             // The collision, said before the press rather than after it: two
             // names that differ only in punctuation derive one id, and the
             // second one written silently replaces the first.
@@ -393,7 +400,7 @@ pub(crate) fn sync_save_name(
         }
     }
     for (button, greyed) in &buttons {
-        match (id.is_some(), greyed) {
+        match (id.is_ok(), greyed) {
             (true, true) => {
                 commands.entity(button).remove::<InteractionDisabled>();
             }
@@ -448,9 +455,16 @@ pub(crate) fn on_save(
         return;
     };
     let name = typed.0.trim().to_string();
-    let Some(id) = bundle_id(&name) else {
-        says.refuse("a name needs a letter or a digit");
-        return;
+    let id = match bundle_id(&name) {
+        Ok(id) => id,
+        Err(NameProblem::Unusable) => {
+            says.refuse("a name needs a letter or a digit");
+            return;
+        }
+        Err(NameProblem::Reserved) => {
+            says.refuse("that name is the editor's own - pick another");
+            return;
+        }
     };
     if let Some(mut node) = context
         .scenario()

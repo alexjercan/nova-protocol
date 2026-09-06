@@ -181,7 +181,9 @@ grammar, and they stay with the bench that proves them.
 ### 2. Generate, in the rail (`a8685cc4`)
 
 A Generate block on the scenario context: a seed you can read, type and reroll,
-a style, a cladding toggle, and a button.
+and a button. The look is NOT here - the style picker and the cladding toggle
+are the ship's own, in Ship Settings, and the collapse reads them off the node
+it is building for.
 
 The order is collapse, LINT, then spawn. A hull `lint_scenario` refuses never
 becomes nodes and the refusal goes to the status line, which is the task's

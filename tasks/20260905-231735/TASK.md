@@ -2626,6 +2626,77 @@ be reached. The grid section documents the seed-fit bounds and the ceiling.
 Still open from this theme: grammar SELECTION (`ship_grammar.rs:222`) - a
 feature, unscheduled.
 
+### Group G - editor correctness. DONE.
+
+Five findings, all in the editor's own verbs. Nothing here needs a changelog
+entry: Save As, the `editor_`-prefixed bundles and the Generate block are all
+still inside `[Unreleased]`, so these are bugs introduced and fixed in one
+release cycle.
+
+**A saved range can no longer take the editor's own** (`bundle.rs:90`).
+`bundle_id` returned `Option<String>`, so "Sandbox" derived `editor_sandbox`
+and the next Play lowered the document over the builder's save. It now returns
+`Result<String, NameProblem>` with `Unusable` and `Reserved` told apart, and
+`SANDBOX_ID` is refused. The Save As readout says "That name is the editor's
+own. Pick another." in red rather than greying the button with no reason, and
+`on_save` refuses it the same way.
+
+The review overstated this one: it listed `sand box` among the spellings that
+collide. It does not - the slug puts `_` between runs, so `sand box` derives
+`editor_sand_box`. The test carries the unbroken spellings as reserved and the
+separated ones as the allowed case, which is the actual rule.
+
+**The `editor_` prefix is now a property the editor owns**
+(`bundle.rs:63,:488`). The constant moved to `nova_assets::mod_cache` as
+`EDITOR_ID_PREFIX`, and the portal's `validate_entry` refuses an id that takes
+it. The editor's own constant re-exports it, so there is one string.
+
+The review's premise was wrong here too, and the fix is smaller than it looked:
+`is_url_safe_segment` allows only `[a-z0-9.-]`, so no portal id could ever
+carry an underscore and `editor_toolkit` was never publishable. The explicit
+check is still worth having - a URL charset rule that happens to cover a
+content rule is two rules free to drift - and the comment says exactly that
+rather than pretending it closed a hole.
+
+**A retry inside a scene is renamed like any other** (`scenario.rs:1201`).
+`retarget_retries` hand-rolled a match that recursed into `Sequence` and not
+`Cinematic`, so a retry authored inside a cutscene kept the save slot's id
+through a save and the range refused to start. It now uses
+`EventActionConfig::walk_mut`, which is the one place a nesting arm is
+declared, so no future arm can be missed here. This fixes both legs -
+`bundle::lift_content` calls the same function.
+
+**A reroll no longer repaints the ship** (`generate.rs:186,:379`).
+`generate_ship` wrote `node.skin` and `node.style` back from the hull, so every
+Generate handed the builder's look back at the factory setting. It now reads
+`(clad, wears)` OFF the node and carries them INTO the collapse; `collapse`
+takes them and resolves `None` the way the build view does - the first style
+the content merge loaded, which is what `ShipNode::style: None` means.
+
+**The lint-refusal arm is tested** (`generate.rs:381`). Reaching it needed a
+fault the TILER cannot see. Geometry is not one: `tiles::tile` only builds a
+tile whose body stays inside its own cell, which is what makes the overlap arm
+unreachable by construction - the lever this run first reached for (an
+oversized non-integral collider) is refused earlier, with "cannot stand on the
+grid at all". Sockets are: the tiler reads one face per socket and does not
+count them, so a prototype carrying the same socket twice tiles cleanly and
+then every neighbour mating with that face has two points to mate with. The
+test doubles the keel prototype's sockets, presses Generate, and asserts the
+ship still holds the hull the FIRST press laid and that the status line carries
+both "the collapse built a hull the game refuses" and "ambiguous mates" - so it
+proves the LINT refused, not the collapse.
+
+All three new behaviours were checked against their own absence: restoring the
+write-back fails the reroll test, and restoring the single-arm match fails the
+nested-retry test.
+
+Also corrected: `tasks/20260905-133019/TASK.md:184` claimed the Generate block
+carries "a style, a cladding toggle". It carries neither - both are the ship's
+own, in Ship Settings.
+
+Green: `nova_editor` 479 lib tests, `nova_assets` all suites, workspace
+`cargo check --all-targets`, `cargo fmt --all`.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2633,29 +2704,17 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**19 MAJOR, by theme.** (Group F closed four: the grammar load gate, the
-seed-fit bounds, the grid ceiling, and the untested gate behind all three. The
-previous count of 24 was one high - it read the three-file docs bullet as
-three.)
+**14 MAJOR, by theme.** (Group G closed five, all in the editor. Group F
+closed four before it; the count of 24 quoted earlier in this run was one high
+- it read the three-file docs bullet as three.)
 
 Editor and WFC correctness (batches 1-3):
 - `nova_wfc/src/collapse.rs:327,:683` - both documented refusal paths untested.
   Group F gave the SIBLING test
   (`a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run`) its message
   assertions; these two paths still have no test at all.
-- `nova_editor/src/bundle.rs:90` - a save named "Sandbox" derives
-  `editor_sandbox` and takes over the editor's own stage range.
-- `nova_editor/src/bundle.rs:63,:488` - the `editor_` prefix is a listing
-  convention, not a property the editor owns.
-- `nova_editor/src/generate.rs:186,:379` - every Generate overwrites the ship's
-  cladding and style; the cladding toggle the record claims never landed.
-  Confirmed still `node.style = hull.style.clone();` at `:187`.
-- `nova_editor/src/generate.rs:381` - the lint-refusal arm has no test.
 - `nova_editor/src/node.rs:1310` (unmeasured) - per-frame document walks are
   O(sections) or O(sections^2); a generated hull multiplies the input.
-- `nova_editor/src/scenario.rs:1201` - `retarget_retries` recurses into
-  `Sequence` but not `Cinematic`, so a retry authored inside a scene keeps the
-  wrong scenario id through a save. Confirmed: the match still has one arm.
 - `nova_ui/src/screen/list.rs:93` - the `Hovered` fix has no failing-without-it
   test.
 - `examples/playable/wfc_arena/stamps.rs:36` - the surviving stamp hardcodes the

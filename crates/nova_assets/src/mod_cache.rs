@@ -59,7 +59,7 @@ pub mod prelude {
     pub use super::{install_local, read_mod_file, remove_mod, remove_mod_files, store_mod_files};
     pub use super::{
         read_index, register_mods_source, remove_index_record, upsert_index_record, write_index,
-        IndexRead, InstalledModRecord, MODS_SOURCE, MOD_CACHE_ROOT_ENV,
+        IndexRead, InstalledModRecord, EDITOR_ID_PREFIX, MODS_SOURCE, MOD_CACHE_ROOT_ENV,
     };
 }
 
@@ -231,6 +231,20 @@ pub(crate) fn is_safe_rel_path(s: &str) -> bool {
 pub(crate) fn is_safe_id(id: &str) -> bool {
     is_safe_rel_path(id) && !id.contains('/') && !id.contains('\\')
 }
+
+/// The id prefix the in-game editor writes its saves under.
+///
+/// RESERVED, not merely conventional. `nova_editor` derives every id it saves
+/// from this, and the Open and Save As lists it offers a builder are
+/// [`read_index`] filtered on it - so the filter is a claim about ownership,
+/// and the claim only holds if nothing else can land an id under the prefix.
+/// [`read_index`] is the one installed-mods index the PORTAL writes too, so
+/// the portal refuses the prefix rather than leaving the editor to discover a
+/// downloaded `editor_toolkit` in its own file list and offer to save over it.
+///
+/// Lives here rather than in `nova_editor` because both writers of the index
+/// have to agree on it, and only one of them can see the editor.
+pub const EDITOR_ID_PREFIX: &str = "editor_";
 
 /// The shared public-API gate, applied BEFORE the cfg dispatch below so both
 /// platform backends get identical validation.

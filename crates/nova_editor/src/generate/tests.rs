@@ -6,6 +6,7 @@
 
 use bevy::ui_widgets::observe;
 use nova_input::prelude::InputSource;
+use nova_ship::prelude::LinkPoint;
 use nova_wfc::prelude::GRID_EPSILON;
 
 use super::*;
@@ -631,4 +632,145 @@ fn a_zoned_row_carries_its_zone_into_the_grammar() {
             section.position.y
         );
     }
+}
+
+/// A reroll is a new HULL for this ship, not a new ship. The look is the
+/// builder's: they turned the skin off in Ship Settings, or picked a style
+/// other than the first, and pressing Generate again must not quietly hand
+/// both back at the factory setting.
+#[test]
+fn a_reroll_leaves_the_ships_own_look_alone() {
+    let (mut app, ship) = generate_app();
+    let second = app
+        .world()
+        .resource::<GameStyles>()
+        .get(1)
+        .map(|style| style.id.clone())
+        .expect("the base content ships more than one style");
+    {
+        let mut node = app.world_mut().get_mut::<ShipNode>(ship).expect("a ship");
+        node.skin = false;
+        node.style = Some(second.clone());
+    }
+
+    let button = generate_button(&mut app);
+    app.world_mut().trigger(Activate { entity: button });
+    app.update();
+
+    assert!(
+        !hull_of(&mut app, ship).is_empty(),
+        "the collapse has to have run for the assertions below to mean anything"
+    );
+    let node = app.world().get::<ShipNode>(ship).expect("a ship");
+    assert!(!node.skin, "the reroll turned the builder's skin back on");
+    assert_eq!(
+        node.style.as_deref(),
+        Some(second.as_str()),
+        "the reroll put the ship back in the first style"
+    );
+}
+
+/// The other half of the same rule, read where it is decided: the hull the
+/// collapse returns wears what the SHIP wears. `None` is not "no style" - the
+/// node documents it as the first style the content merge loaded, which is
+/// what the build view already shows.
+#[test]
+fn the_collapse_dresses_the_hull_in_the_ship_it_is_built_for() {
+    let (app, _) = generate_app();
+    let sections = app.world().resource::<GameSections>();
+    let styles = app.world().resource::<GameStyles>();
+    let grammar = app
+        .world()
+        .resource::<GameGrammars>()
+        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+        .expect("the base content ships one")
+        .clone();
+    let second = styles.get(1).expect("more than one style").id.clone();
+
+    let bare = collapse(sections, &grammar, Some(styles), 7, false, None).expect("a hull");
+    assert!(!bare.skin, "a ship with its plating off gets a bare hull");
+    assert_eq!(bare.style, None, "and no style to wear it in");
+
+    let chosen =
+        collapse(sections, &grammar, Some(styles), 7, true, Some(&second)).expect("a hull");
+    assert_eq!(chosen.style.as_deref(), Some(second.as_str()));
+
+    let unchosen = collapse(sections, &grammar, Some(styles), 7, true, None).expect("a hull");
+    assert_eq!(
+        unchosen.style.as_deref(),
+        styles.first().map(|style| style.id.as_str()),
+        "an unchosen style is the first one, which is what the node means by None"
+    );
+
+    assert_eq!(
+        bare.sections.len(),
+        chosen.sections.len(),
+        "cladding is a look, not a hull: the same seed lays the same sections"
+    );
+}
+
+/// The lint is the LAST gate and the one that decides whether a bad collapse
+/// reaches the document. A refusal leaves the ship exactly as it was.
+///
+/// Reaching it needs a fault the TILER cannot see. Geometry is not one: a tile
+/// is only built if its body stays inside its own cell, which is what makes
+/// the overlap arm unreachable by construction. Sockets are - the tiler reads
+/// one face per socket and does not care how many sockets name it, so a
+/// prototype carrying the same socket twice tiles cleanly, and then every
+/// neighbour that mates with that face has two points to mate with.
+#[test]
+fn a_hull_the_lint_refuses_never_enters_the_document() {
+    let (mut app, ship) = generate_app();
+    let button = generate_button(&mut app);
+
+    // A good hull first, so the refusal has something to leave alone.
+    app.world_mut().trigger(Activate { entity: button });
+    app.update();
+    let laid = hull_of(&mut app, ship);
+    assert!(!laid.is_empty(), "the first press is the one that works");
+
+    let keel = app
+        .world()
+        .resource::<GameGrammars>()
+        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+        .expect("the base content ships one")
+        .keel
+        .hull
+        .clone();
+    {
+        let mut sections = app.world_mut().resource_mut::<GameSections>();
+        let block = sections
+            .0
+            .iter_mut()
+            .find(|section| section.base.id == keel)
+            .expect("the keel prototype is in the catalog");
+        let doubled = block
+            .base
+            .link_points
+            .iter()
+            .map(|point| LinkPoint {
+                id: format!("{}_again", point.id),
+                ..point.clone()
+            })
+            .collect::<Vec<_>>();
+        block.base.link_points.extend(doubled);
+    }
+
+    app.world_mut().trigger(Activate { entity: button });
+    app.update();
+
+    assert_eq!(
+        hull_of(&mut app, ship),
+        laid,
+        "a refused hull replaced the one the ship was holding"
+    );
+    let line = status_line(&app);
+    assert!(
+        line.contains("the collapse built a hull the game refuses"),
+        "the status has to say WHY nothing happened, got: {line}"
+    );
+    assert!(
+        line.contains("ambiguous mates"),
+        "and it has to be the LINT that refused, not the collapse: {line}"
+    );
 }

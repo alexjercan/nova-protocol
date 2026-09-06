@@ -140,7 +140,7 @@ pub(crate) fn generate_ship(
     held: Query<&Children>,
     q_sections: Query<(), With<SectionNode>>,
     mut ordinals: Query<&mut NextChildOrdinal>,
-    mut q_ships: Query<&mut ShipNode>,
+    q_ships: Query<&ShipNode>,
     context: Res<EditContext>,
     mut selected: ResMut<SelectedNode>,
     mut says: EditorSays,
@@ -162,9 +162,22 @@ pub(crate) fn generate_ship(
             zone: choice.zone,
         })
         .collect();
-    let hull = match drawn_grammar(sections, grammars, &drawn)
-        .and_then(|grammar| collapse(sections, &grammar, styles.as_deref(), seed.0))
-    {
+    // The look the ship already wears, carried INTO the collapse. A seed is a
+    // dial: rolling it asks for a different hull under the same ship, not for
+    // the ship's cladding back at the factory setting.
+    let (clad, wears) = q_ships
+        .get(ship)
+        .map_or((true, None), |node| (node.skin, node.style.clone()));
+    let hull = match drawn_grammar(sections, grammars, &drawn).and_then(|grammar| {
+        collapse(
+            sections,
+            &grammar,
+            styles.as_deref(),
+            seed.0,
+            clad,
+            wears.as_deref(),
+        )
+    }) {
         Ok(hull) => hull,
         Err(refusal) => {
             says.refuse(refusal);
@@ -178,13 +191,6 @@ pub(crate) fn generate_ship(
         .filter(|node| q_sections.contains(*node))
     {
         commands.entity(child).despawn();
-    }
-
-    // The clad look the collapse chose, onto the node that owns it. The Ship
-    // Settings block above edits both afterwards like any other ship's.
-    if let Ok(mut node) = q_ships.get_mut(ship) {
-        node.skin = hull.skin;
-        node.style = hull.style.clone();
     }
 
     let parts = hull.sections.len();
@@ -366,18 +372,32 @@ fn holding(sections: &GameSections, grammar: &ShipGrammarConfig) -> GrammarGrid 
 ///
 /// `Err` is a line fit for the status: what could not be read, what could not
 /// collapse, or the first thing the lint refused.
+///
+/// `clad` and `wears` are the EDITED SHIP's, not this function's to pick: a
+/// builder who turned the skin off in Ship Settings, or chose the third style,
+/// still has that after a reroll.
 fn collapse(
     sections: &GameSections,
     grammar: &ShipGrammarConfig,
     styles: Option<&GameStyles>,
     seed: u64,
+    clad: bool,
+    wears: Option<&str>,
 ) -> Result<ShipHull, String> {
     let tiles = TileSet::build(sections, grammar)?;
-    // Clad, in the first style the merged content offers. A bare hull is a
-    // hull with its plating off, and the toggle that takes it off again is
-    // already in Ship Settings.
-    let style = styles.and_then(|styles| nova_wfc::prelude::style_at(styles, 0));
-    let hull = tiles.hull(seed, style.is_some(), style)?;
+    // Resolved the way the build view resolves it (`skin::editor_style`): the
+    // ship's own style, or the first the content merge loaded where the ship
+    // has not chosen - which is what `ShipNode::style: None` MEANS, so a hull
+    // built here wears what the stage was already showing.
+    let style = clad
+        .then(|| match wears {
+            Some(id) => styles
+                .and_then(|styles| styles.get_style(id))
+                .map(|style| style.id.as_str()),
+            None => styles.and_then(|styles| nova_wfc::prelude::style_at(styles, 0)),
+        })
+        .flatten();
+    let hull = tiles.hull(seed, clad, style)?;
     let errors = hull_errors(&hull, sections);
     match errors.first() {
         Some(first) => Err(format!(

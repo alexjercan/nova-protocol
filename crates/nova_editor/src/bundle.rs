@@ -26,6 +26,20 @@
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
+/// The prefix on every mod id a save writes.
+///
+/// It makes the read-only rule STRUCTURAL rather than a check: the editor can
+/// only ever name a bundle that starts with this, so a hand-written mod is not
+/// something a save can reach - and the list the builder picks from is exactly
+/// the ids that carry it.
+///
+/// That second half needs the OTHER writer of the installed-mods index to
+/// honour the prefix too, or a downloaded mod could appear in the editor's own
+/// file list and be saved over as if it were a builder's range. The portal
+/// refuses an id under it (`nova_assets::portal`), so the constant lives in
+/// `nova_assets`: both writers have to agree on it, and the portal cannot see
+/// the editor.
+pub(crate) use nova_assets::mod_cache::prelude::EDITOR_ID_PREFIX as EDITOR_BUNDLE_PREFIX;
 use nova_assets::prelude::EnabledMods;
 use nova_gameplay::prelude::Allegiance;
 use nova_input::prelude::InputSource;
@@ -54,14 +68,6 @@ use crate::{
     },
 };
 
-/// The prefix on every mod id a save writes.
-///
-/// It makes the read-only rule STRUCTURAL rather than a check: the editor can
-/// only ever name a bundle that starts with this, so a hand-written or
-/// downloaded mod is not something a save can reach - and the list the builder
-/// picks from is exactly the ids that carry it.
-pub(crate) const EDITOR_BUNDLE_PREFIX: &str = "editor_";
-
 /// Where one document is saved: the mod id it is written under, and the name
 /// the builder typed to get that id.
 ///
@@ -79,15 +85,33 @@ pub(crate) struct SaveSlot {
 #[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct DocumentSlot(pub(crate) Option<SaveSlot>);
 
-/// The mod id a typed name saves under, or `None` when the name holds nothing
-/// an id can be made of.
+/// Why a typed name cannot be saved under.
+///
+/// Two reasons, and the Save As readout says which: they are different things
+/// for the builder to do about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameProblem {
+    /// The name holds nothing an id can be made of - it is blank, or it is all
+    /// punctuation.
+    Unusable,
+    /// The name derives an id the editor has already spoken for.
+    Reserved,
+}
+
+/// The mod id a typed name saves under.
 ///
 /// DERIVED rather than typed: an id is a directory name, an enable key and a
 /// merge namespace at once, and none of those is a thing to make a builder
 /// spell. Every run of characters that is not an ASCII letter or digit becomes
 /// one `_`, so two names that differ only in punctuation land in the same slot
 /// - which the Save As window says out loud before it writes.
-pub(crate) fn bundle_id(name: &str) -> Option<String> {
+///
+/// One derived id is refused rather than written: [`SANDBOX_ID`] is the range
+/// the editor lowers the OPEN document into, so a save that took it would
+/// stand in for the editor's own stage on the next load - and, because the
+/// sandbox is not a file, the Save As list could not even show the collision.
+/// "Sandbox", "sand box" and "SANDBOX!" all derive it.
+pub(crate) fn bundle_id(name: &str) -> Result<String, NameProblem> {
     let mut id = String::from(EDITOR_BUNDLE_PREFIX);
     let mut separated = false;
     for character in name.chars() {
@@ -101,7 +125,13 @@ pub(crate) fn bundle_id(name: &str) -> Option<String> {
         separated = false;
         id.push(character.to_ascii_lowercase());
     }
-    (id.len() > EDITOR_BUNDLE_PREFIX.len()).then_some(id)
+    if id.len() == EDITOR_BUNDLE_PREFIX.len() {
+        return Err(NameProblem::Unusable);
+    }
+    if id == crate::scenario::SANDBOX_ID {
+        return Err(NameProblem::Reserved);
+    }
+    Ok(id)
 }
 
 /// The bundle manifest inside a slot, relative to the mod's own directory.

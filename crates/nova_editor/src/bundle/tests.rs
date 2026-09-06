@@ -6,9 +6,10 @@ use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::serialize_content;
 use nova_scenario::prelude::{
-    AnchorConfig, BaseScenarioObjectConfig, EntityFilterConfig, EventConfig, EventFilterConfig,
-    NextScenarioActionConfig, ObjectiveActionConfig, OutcomeActionConfig, PlayerControllerConfig,
-    ScenarioEventConfig, ScenarioOutcomeKind, SectionSource, ShipHull, SpaceshipConfig,
+    AnchorConfig, BaseScenarioObjectConfig, CinematicActionConfig, EntityFilterConfig, EventConfig,
+    EventFilterConfig, NextScenarioActionConfig, ObjectiveActionConfig, OutcomeActionConfig,
+    PlayerControllerConfig, ScenarioEventConfig, ScenarioOutcomeKind, SectionSource,
+    SequenceStepConfig, ShipHull, SpaceshipConfig,
 };
 
 use super::*;
@@ -809,5 +810,47 @@ fn a_handler_naming_nothing_the_document_spawns_is_dropped() {
         lifted.script.is_empty(),
         "nothing in the document is called ship_9: {:?}",
         lifted.script
+    );
+}
+
+/// And a retry the builder buried inside a scene is still a retry.
+///
+/// The rename walks the action tree with [`EventActionConfig::walk_mut`],
+/// which is the one place a nesting arm is declared. A hand-rolled match over
+/// the top level would leave this id naming a save slot that Play never lowers
+/// into, and the range would refuse to start - on the one document whose
+/// author took the trouble to write a cutscene.
+#[test]
+fn a_retry_inside_a_scene_is_renamed_like_any_other() {
+    let items = vec![scenario(vec![EventActionConfig::Cinematic(
+        CinematicActionConfig {
+            key: "wake".to_string(),
+            skippable: true,
+            steps: vec![SequenceStepConfig {
+                actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: SAVED_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                })],
+                ..default()
+            }],
+        },
+    )])];
+
+    let lifted = lift_content(&items).expect("the file carries a scenario");
+
+    let EventActionConfig::Cinematic(scene) = &lifted.script[0].actions[0] else {
+        panic!(
+            "the scene survives the lift: {:?}",
+            lifted.script[0].actions
+        );
+    };
+    let EventActionConfig::NextScenario(retry) = &scene.steps[0].actions[0] else {
+        panic!("the retry survives the lift: {:?}", scene.steps[0].actions);
+    };
+    assert_eq!(
+        retry.scenario_id,
+        crate::scenario::SANDBOX_ID,
+        "a retry one level down kept the saved id"
     );
 }
