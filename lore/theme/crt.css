@@ -1,5 +1,5 @@
-/* The lore book as a phosphor screen. Overrides mdbook's theme variables
-   for every theme class, so the toggle cannot leave the look. */
+/* Shared CRT presentation. Override every mdBook theme class so a saved
+   theme preference cannot change the palette. */
 
 html,
 html.light,
@@ -17,9 +17,6 @@ html.ayu {
     --lime: #b8da5d;
     --amber: #ffb84a;
     --gold: #c2a23b;
-    --bone: #c4c2ae;
-    --fleet: #36a3ff;
-    --grey: #7b8f8a;
     --rule: rgba(78, 209, 132, 0.45);
     --rule-faint: rgba(78, 209, 132, 0.18);
     --glow: 0 0 6px rgba(78, 209, 132, 0.35);
@@ -74,7 +71,7 @@ body::before {
     z-index: 1000;
     background: repeating-linear-gradient(
         0deg,
-        rgba(0, 16, 8, 0.38) 0 1px,
+        rgba(0, 16, 8, 0.12) 0 1px,
         transparent 1px 3px
     );
 }
@@ -88,12 +85,12 @@ body::after {
     background: radial-gradient(
         ellipse at 50% 45%,
         transparent 58%,
-        rgba(3, 13, 8, 0.7) 100%
+        rgba(3, 13, 8, 0.28) 100%
     );
 }
 
-#theme-toggle,
-#theme-list {
+#mdbook-theme-toggle,
+#mdbook-theme-list {
     display: none;
 }
 
@@ -105,7 +102,7 @@ body::after {
     font-size: 0.95em;
 }
 
-#menu-bar {
+.menu-bar {
     border-bottom: 1px solid var(--rule-faint);
     background: var(--ground);
 }
@@ -128,12 +125,10 @@ body::after {
 }
 
 .chapter li > .chapter-link-wrapper > span {
-    color: var(--sidebar-non-existant);
-}
-
-.chapter li > .chapter-link-wrapper > span::after {
-    content: " (draft)";
-    font-size: 0.85em;
+    color: var(--phos);
+    font-size: 0.9em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
 }
 
 .content main {
@@ -150,6 +145,7 @@ h4 {
     text-shadow: var(--glow);
     letter-spacing: 0.04em;
     text-wrap: balance;
+    scroll-margin-top: 5rem;
 }
 
 h1 {
@@ -182,6 +178,15 @@ a:visited {
 a:hover {
     color: var(--phos-bright);
     border-bottom-style: solid;
+}
+
+h1 a.header,
+h2 a.header,
+h3 a.header,
+.menu-bar a,
+.nav-chapters,
+.mobile-nav-chapters {
+    border-bottom: 0;
 }
 
 .hatnote {
@@ -242,6 +247,7 @@ table.infobox td.image {
 table.infobox td.image img {
     display: block;
     width: 100%;
+    height: auto;
     border-bottom: 1px solid var(--phos-dim);
 }
 
@@ -250,51 +256,6 @@ table.infobox .cap {
     color: var(--phos-text);
     font-style: italic;
     font-size: 0.92em;
-}
-
-table.infobox.ewi,
-table.infobox.ewi caption {
-    border-color: var(--phos);
-}
-
-table.infobox.kestrel,
-table.infobox.kestrel caption {
-    border-color: var(--bone);
-}
-
-table.infobox.kestrel caption {
-    color: var(--bone);
-    text-shadow: 0 0 6px rgba(196, 194, 174, 0.35);
-}
-
-table.infobox.fleet,
-table.infobox.fleet caption {
-    border-color: var(--fleet);
-}
-
-table.infobox.fleet caption {
-    color: var(--fleet);
-    text-shadow: 0 0 6px rgba(54, 163, 255, 0.35);
-}
-
-table.infobox.kites,
-table.infobox.kites caption {
-    border-color: var(--amber);
-}
-
-table.infobox.kites caption {
-    color: var(--amber);
-    text-shadow: 0 0 6px rgba(255, 184, 74, 0.35);
-}
-
-table.infobox.earth,
-table.infobox.earth caption {
-    border-color: var(--grey);
-}
-
-table.infobox.earth caption {
-    color: var(--grey);
-    text-shadow: none;
 }
 
 @media (max-width: 760px) {
@@ -326,7 +287,7 @@ table.infobox.earth caption {
     letter-spacing: 0.04em;
 }
 
-/* radio and paper quotations */
+/* quotations */
 blockquote {
     margin: 1em 0;
     padding: 0.6em 1em;
@@ -370,4 +331,194 @@ strong {
 ::selection {
     background: var(--deep);
     color: var(--phos-bright);
+}
+
+.book-portals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18em), 1fr));
+    gap: 1em;
+    margin: 1.5em 0;
+}
+
+.book-portals > a {
+    display: block;
+    padding: 1em;
+    border: 1px solid var(--phos-dim);
+    background: var(--ink);
+}
+
+.book-portals > a:hover {
+    border-color: var(--phos-bright);
+}
+
+.book-portals strong,
+.book-portals span {
+    display: block;
+}
+
+.book-portals strong {
+    margin-bottom: 0.5em;
+    color: var(--phos-bright);
+}
+
+.book-portals span {
+    color: var(--phos-text);
+    font-size: 0.88em;
+}
+
+.content main > ol > li + li {
+    margin-top: 0.7em;
+}
+
+.article-kicker {
+    color: var(--phos-text);
+    font-size: 0.76em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 1.8em;
+}
+
+.article-toc {
+    display: table;
+    max-width: 100%;
+    padding: 0.85em 1.2em;
+    margin: 1.3em 0;
+    border: 1px solid var(--rule-faint);
+    background: var(--ink);
+    font-size: 0.88em;
+}
+
+.article-toc strong {
+    color: var(--phos);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.85em;
+}
+
+.article-toc ol {
+    margin: 0.5em 0 0;
+    padding-left: 1.7em;
+}
+
+.article-toc li {
+    padding: 0.15em 0;
+}
+
+figure.plate {
+    clear: both;
+    margin: 1.8em 0;
+    border: 1px solid var(--phos-dim);
+    background: var(--ink);
+}
+
+.plate > a {
+    display: block;
+    border: 0;
+}
+
+.plate img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.plate figcaption {
+    padding: 0.7em 1em;
+    border-top: 1px solid var(--rule-faint);
+    color: var(--phos-text);
+    font-size: 0.82em;
+}
+
+.proposal,
+.editorial-note {
+    clear: both;
+    margin: 1.4em 0;
+    padding: 0.9em 1.1em;
+    border-left: 3px solid var(--amber);
+    background: var(--ink);
+    font-size: 0.92em;
+}
+
+.editorial-note {
+    border-left-color: var(--phos-dim);
+}
+
+.proposal > strong,
+.editorial-note > strong {
+    color: var(--amber);
+    font-size: 0.85em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.editorial-note > strong {
+    color: var(--phos);
+}
+
+.proposal p,
+.editorial-note p {
+    margin: 0.45em 0 0;
+}
+
+.content main::after {
+    content: "";
+    display: block;
+    clear: both;
+}
+
+a:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--phos-bright);
+    outline-offset: 4px;
+}
+
+@media (max-width: 760px) {
+    html,
+    body {
+        font-size: 14px;
+    }
+
+    h1 {
+        font-size: 1.65em;
+    }
+
+    table.infobox {
+        width: 100%;
+    }
+
+    .hatnote {
+        padding-left: 0.8em;
+    }
+}
+
+@media print {
+    html,
+    body {
+        background: white;
+        color: black;
+    }
+
+    body::before,
+    body::after {
+        display: none;
+    }
+
+    .content * {
+        color: black !important;
+        text-shadow: none !important;
+    }
+
+    table.infobox,
+    .article-toc,
+    .proposal,
+    .editorial-note,
+    .plate figcaption,
+    .book-portals > a {
+        background: white;
+    }
+
+    figure.plate,
+    table.infobox {
+        break-inside: avoid;
+    }
 }

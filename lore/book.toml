@@ -6,6 +6,7 @@ src = "src"
 
 [build]
 build-dir = "book"
+create-missing = false
 
 [output.html]
 default-theme = "coal"

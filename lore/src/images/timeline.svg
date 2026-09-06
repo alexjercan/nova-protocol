@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600" viewBox="0 0 1600 1600" role="img" aria-labelledby="title description">
+<title id="title">Timeline before Y0</title>
+<desc id="description">Chronology diagram. Filled circles mark fixed Y-4 and Y0 anchors. A boxed interval contains undated aftermath developments. Open diamonds and dashed lines mark proposed years Y-40, Y-24, Y-16, Y-10, Y-3, Y-2, and Y-1. Spacing does not represent elapsed time.</desc>
+<defs><pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><path d="M0 1H4" stroke="#001008" stroke-opacity=".24"/></pattern><radialGradient id="tube"><stop offset="55%" stop-color="#030d08" stop-opacity="0"/><stop offset="100%" stop-color="#030d08" stop-opacity=".48"/></radialGradient></defs>
+<rect x="0" y="0" width="1600" height="1600" fill="#030d08"/>
+<text x="100" y="181" font-family="DejaVu Sans Mono, monospace" font-size="24" fill="#c0ffd4" >ESTABLISHED RECORD</text>
+<text x="858" y="181" font-family="DejaVu Sans Mono, monospace" font-size="24" fill="#b8da5d" >PROPOSED WORKING DATES</text>
+<path d="M797 150V1458" stroke="#267b4d" stroke-width="2" fill="none"/>
+<path d="M157 237V1374" stroke="#4ed184" stroke-width="4" fill="none"/>
+<path d="M904 252V1327" stroke="#c2a23b" stroke-width="3" fill="none" stroke-dasharray="12 10"/>
+<rect x="120" y="234" width="74" height="104" fill="#06170f" stroke-width="3" stroke="#4ed184"/>
+<text x="222" y="258" font-family="DejaVu Sans Mono, monospace" font-size="22" fill="#c0ffd4" >BEFORE Y-4 / DATES OPEN</text>
+<text x="222" y="291" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >EWI expands; Kestrel competes.</text>
+<text x="222" y="319" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >The Shelter is a working base.</text>
+<text x="222" y="347" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >The Roost belongs to Kestrel.</text>
+<circle cx="157" cy="451" r="16" fill="#4ed184"/>
+<text x="222" y="440" font-family="DejaVu Sans Mono, monospace" font-size="24" fill="#c0ffd4" >Y-4 / FIXED</text>
+<text x="222" y="478" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >The Shelter is destroyed.</text>
+<text x="222" y="507" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >Pell disobeys to rescue people.</text>
+<text x="222" y="536" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >He does not know it is deliberate.</text>
+<rect x="111" y="630" width="619" height="474" fill="#06170f" stroke-width="2" stroke="#4ed184"/>
+<text x="140" y="671" font-family="DejaVu Sans Mono, monospace" font-size="22" fill="#c0ffd4" >AFTERMATH / DATES AND ORDER OPEN</text>
+<text x="140" y="727" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >EWI blames Kestrel&#x27;s reactor.</text>
+<text x="140" y="781" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Forced sale and worker contracts.</text>
+<text x="140" y="835" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Flight and Kite community formation.</text>
+<text x="140" y="889" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Calloway is promoted; Datum rebuilt.</text>
+<text x="140" y="943" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >The Roost becomes the Kites&#x27; base.</text>
+<text x="140" y="1042" font-family="DejaVu Sans Mono, monospace" font-size="18" fill="#6ea985" >These developments can overlap.</text>
+<text x="140" y="1071" font-family="DejaVu Sans Mono, monospace" font-size="18" fill="#6ea985" >The box is not a scene sequence.</text>
+<circle cx="157" cy="1270" r="16" fill="#4ed184"/>
+<text x="222" y="1253" font-family="DejaVu Sans Mono, monospace" font-size="24" fill="#c0ffd4" >START OF Y0 / FIXED</text>
+<text x="222" y="1291" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >Four years after the destruction.</text>
+<text x="222" y="1320" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >Datum is the largest ring station</text>
+<text x="222" y="1349" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >and a direct Earth relay.</text>
+<text x="222" y="1378" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >The Kites are the largest</text>
+<text x="222" y="1407" font-family="DejaVu Sans Mono, monospace" font-size="19" fill="#6ea985" >independent community at Saturn.</text>
+<polygon points="904,258 917,271 904,284 891,271" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="276" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-40 / PROPOSED</text>
+<text x="947" y="314" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >EWI begins large-scale</text>
+<text x="947" y="342" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >space mining.</text>
+<polygon points="904,428 917,441 904,454 891,441" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="446" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-24 / PROPOSED</text>
+<text x="947" y="484" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Major EWI mining presence</text>
+<text x="947" y="512" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >at Saturn.</text>
+<polygon points="904,598 917,611 904,624 891,611" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="616" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-16 / PROPOSED</text>
+<text x="947" y="654" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Substantial Kestrel operations</text>
+<text x="947" y="682" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >at Saturn.</text>
+<polygon points="904,768 917,781 904,794 891,781" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="786" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-10 / PROPOSED</text>
+<text x="947" y="824" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >The Shelter becomes</text>
+<text x="947" y="852" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Kestrel&#x27;s main base.</text>
+<polygon points="904,938 917,951 904,964 891,951" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="956" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-3 / PROPOSED</text>
+<text x="947" y="994" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Formal transfer of Kestrel</text>
+<text x="947" y="1022" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >to EWI completed.</text>
+<polygon points="904,1108 917,1121 904,1134 891,1121" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="1126" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-2 / PROPOSED</text>
+<text x="947" y="1164" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >First rebuilt sections</text>
+<text x="947" y="1192" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >of Datum occupied.</text>
+<polygon points="904,1278 917,1291 904,1304 891,1291" fill="#030d08" stroke="#c2a23b" stroke-width="3"/>
+<text x="947" y="1296" font-family="DejaVu Sans Mono, monospace" font-size="23" fill="#b8da5d" >Y-1 / PROPOSED</text>
+<text x="947" y="1334" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >Datum&#x27;s direct Earth relay</text>
+<text x="947" y="1362" font-family="DejaVu Sans Mono, monospace" font-size="21" fill="#6ea985" >enters service.</text>
+<text x="100" y="1463" font-family="DejaVu Sans Mono, monospace" font-size="18" fill="#6ea985" >Filled circle: fixed date    Box: undated interval    Open diamond: proposed date</text>
+<rect x="24" y="24" width="1552" height="1552" fill="none" stroke-width="3" stroke="#4ed184"/>
+<rect x="44" y="44" width="1512" height="1512" fill="none" stroke="#183426"/>
+<rect x="58" y="58" width="8" height="52" fill="#b8da5d"/>
+<text x="84" y="83" font-family="DejaVu Sans Mono, monospace" font-size="28" fill="#c0ffd4" letter-spacing="3">BEFORE Y0 / TIMELINE</text>
+<text x="84" y="110" font-family="DejaVu Sans Mono, monospace" font-size="16" fill="#6ea985" >World history and the fall of Kestrel / order only, not elapsed-time spacing</text>
+<rect x="58" y="1506" width="1484" height="38" fill="#030d08"/>
+<path d="M58 1506H1542" stroke="#267b4d" stroke-width="2" fill="none"/>
+<text x="76" y="1533" font-family="DejaVu Sans Mono, monospace" font-size="16" fill="#6ea985" >NOVA PROTOCOL / WORLD STUDIES</text>
+<text x="1520" y="1533" font-family="DejaVu Sans Mono, monospace" font-size="16" fill="#b8da5d" text-anchor="end">REFERENCE DIAGRAM / DATES LABELLED</text>
+<rect x="45" y="45" width="1510" height="1510" fill="url(#scan)"/>
+<rect x="26" y="26" width="1548" height="1548" fill="url(#tube)"/>
+</svg>
