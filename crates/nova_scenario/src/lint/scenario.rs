@@ -682,6 +682,23 @@ fn check_action(
                 ));
             }
         }
+        EventActionConfig::PlaySound(config) => {
+            // Nothing downstream clamps this: the gain rides `PlaySfx` straight
+            // into the voice, so `Some(40.0)` is a 40x gain in the player's
+            // headphones. An unauthorable value is an error at lint, not a
+            // surprise at play.
+            if let Some(volume) = config.volume {
+                if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "PlaySound '{}' volume {volume} is outside [0, 1]",
+                            config.sound.path().unwrap_or("<unset>")
+                        ),
+                    ));
+                }
+            }
+        }
         EventActionConfig::Outcome(config) => {
             if let Some(secs) = config.auto_advance_secs {
                 // Half-open at zero, as the message says: `Some(0.0)` builds a
@@ -3254,6 +3271,40 @@ mod tests {
             }),
             "a gate with no deadline strands the camera and must error: {issues:?}"
         );
+    }
+
+    /// The gain rides straight into the voice, so a value the author cannot
+    /// have meant has to be caught here rather than in the player's ears.
+    #[test]
+    fn a_sound_gain_outside_zero_to_one_errors_and_a_gain_inside_it_does_not() {
+        let play = |volume: Option<f32>| {
+            let s = scenario(
+                vec![EventActionConfig::PlaySound(PlaySoundActionConfig {
+                    sound: nova_gameplay::prelude::AssetRef::from(
+                        "self://sounds/alarm.wav".to_string(),
+                    ),
+                    route: SoundRouteConfig::Interface,
+                    volume,
+                })],
+                vec![],
+            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+            errors(&issues)
+                .iter()
+                .filter(|issue| issue.message.contains("PlaySound"))
+                .count()
+        };
+        assert_eq!(play(Some(40.0)), 1, "a 40x gain must error");
+        assert_eq!(play(Some(-0.5)), 1, "a negative gain must error");
+        assert_eq!(play(Some(f32::NAN)), 1, "a non-finite gain must error");
+        assert_eq!(play(Some(0.4)), 0, "a cue under a comms line is authorable");
+        assert_eq!(play(Some(0.0)), 0, "silence is a choice");
+        assert_eq!(
+            play(Some(1.0)),
+            0,
+            "full volume is the default, spelled out"
+        );
+        assert_eq!(play(None), 0, "an omitted gain is full volume");
     }
 
     /// An empty scene is two errors, not a scene that ends on the frame it

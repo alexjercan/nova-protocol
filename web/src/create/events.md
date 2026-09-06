@@ -201,7 +201,7 @@ not to watch, so nothing presentational belongs here.
 
 Always filter by key. A scenario with two scenes and an unfiltered handler
 answers whichever one ends first. A `Cinematic` filter naming a key no scene
-plays is a lint Warn.
+plays is a lint Error, so a typo costs the whole scenario, not one handler.
 
 </details>
 

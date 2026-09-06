@@ -105,7 +105,8 @@ Cinematic((key: "strike_approach"))
 Scene keys are scenario-local strings. A scenario that plays two scenes and
 leaves this filter off answers whichever one ends first, so put it on every
 cinematic handler. A key no [`Cinematic`](../actions/#cinematic) action in the
-scenario plays is a lint Warn, and an empty key is a lint Error.
+scenario plays is a lint Error, and so is an empty key: both refuse the scenario
+at load rather than silently dropping the handler.
 
 </details>
 
