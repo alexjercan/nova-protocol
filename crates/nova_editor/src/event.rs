@@ -794,8 +794,8 @@ impl ActionChoiceExt for ActionChoice {
                     delay: None,
                 })
             }
-            // The one arm whose steps are children, so the node holds the head
-            // and the caller adds a first step beside it.
+            // The two arms whose steps are children, so the node holds the
+            // head and the caller adds a first step beside it.
             ActionChoice::Sequence => return ActionKind::Sequence(SequenceHead::default()),
             ActionChoice::Cinematic => return ActionKind::Cinematic(CinematicHead::default()),
             ActionChoice::CinematicTitle => {

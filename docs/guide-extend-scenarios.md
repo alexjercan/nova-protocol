@@ -83,20 +83,22 @@ variant (`nova_scenario`), plus the firing site.
    Export both from the `nova_events` prelude (the `pub use super::{...}` block
    at the top of `lib.rs`).
 
-2. In `crates/nova_scenario/src/events.rs` add the variant to `EventConfig`
-   (grep for `enum EventConfig`) and the arm to
-   `impl From<EventConfig> for EventHandler<NovaEventWorld>` (grep for
-   `impl From<EventConfig>`):
+2. In `crates/nova_scenario/src/events.rs` add a ROW to the
+   `scenario_events!` table near the bottom of the file. The enum, the
+   `From<EventConfig> for EventHandler<NovaEventWorld>` arm, `ALL`, `COUNT`,
+   `name` and `label` are all generated from it - do not hand-edit any of
+   them, and do not edit the macro body above the table:
 
    ```rust
-   pub enum EventConfig {
+   scenario_events! {
        // ...
-       OnDocked,
+       /// Fires once when a ship docks (`id` = the dock, other = the ship).
+       OnDocked => OnDockedEvent { label: "On Docked" },
    }
-
-   // in the From match:
-   EventConfig::OnDocked => EventHandler::new::<OnDockedEvent>(),
    ```
+
+   The doc comment on the row is the one a reader gets; the `label` is the row
+   the editor's trigger menu lists it under.
 
 3. Fire it. Engine-driven events fire from `crates/nova_scenario/src/loader/`
    with `commands.fire::<OnDockedEvent>(OnDockedEventInfo { .. })` (see the
@@ -166,10 +168,16 @@ pass. Everything lives in `crates/nova_scenario/src/filters.rs`.
 ## Recipe 3: add an event action
 
 An action runs when a handler passes, in order. Everything lives in
-`crates/nova_scenario/src/actions/`: the `EventActionConfig` enum and its
-dispatch in `actions/mod.rs`, each action's config and impl in the submodule
-for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `sequence.rs`,
-`ship.rs`, `spawn.rs`, `timer.rs`).
+`crates/nova_scenario/src/actions/`: the TABLE in `actions/mod.rs`, the macro
+that reads it in `actions/registry.rs`, and each action's config and impl in
+the submodule for what it touches (`audio.rs`, `cinematic.rs`, `flow.rs`,
+`mission.rs`, `sequence.rs`, `ship.rs`, `spawn.rs`, `timer.rs`, `view.rs`).
+
+`EventActionConfig` is GENERATED. `scenario_actions!` turns one table row into
+the enum arm, the dispatch, the creative-map class, the reflected payload
+accessor and the whole authoring-menu surface. Four things it cannot generate
+are yours: the payload struct, the editor's stock value, the lint arm if the
+action names anything, and the docs.
 
 1. Define the config struct and its `EventAction<NovaEventWorld>` impl.
    `fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo)` mutates
@@ -193,29 +201,65 @@ for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `sequence.rs`,
    }
    ```
 
-2. Add the variant to `EventActionConfig` (grep for `enum EventActionConfig`)
-   and the arm to `impl EventAction<NovaEventWorld> for EventActionConfig` (grep
-   for `impl EventAction<NovaEventWorld> for EventActionConfig`):
+2. Add a ROW to the `scenario_actions!` table in `actions/mod.rs`. Rows are in
+   the order an authoring menu lists them - mission surface, then the world,
+   then the ships in it, then the run's own flow, authoring aids last - and
+   that order IS `ActionTag::ALL`, so put the row where the action belongs in
+   the menu:
 
    ```rust
-   pub enum EventActionConfig {
+   registry::scenario_actions! {
        // ...
-       VariableClear(VariableClearActionConfig),
-   }
-
-   // in the action match:
-   EventActionConfig::VariableClear(config) => {
-       config.action(world, info);
+       /// Clear a scenario variable back to false.
+       VariableClear(VariableClearActionConfig) {
+           label: "Variable Clear",
+           stem: "clear",
+           effect: Bookkeeping,
+           inspect: Reflect,
+       },
    }
    ```
 
+   The two fields worth thinking about:
+
+   - `effect` is the creative-map class. `Bookkeeping` touches only scenario
+     state and presentation; `Injection` reaches into the simulation in a way
+     playing could not have produced, and the badge reports it by name;
+     `Nested` means the class is whatever the actions it schedules are worth.
+   - `inspect` is `Reflect` for every action but one: the editor draws the
+     payload's fields from the reflection. `Opaque` is for a payload the editor
+     lifts into its own tree and draws itself, which today is only a beat chain.
+
+   If the action NESTS other actions, it also needs an arm in
+   `EventActionConfig::step_chain` and `step_chain_mut` (`actions/mod.rs`).
+   That is the one place a nesting arm is declared, and every walker in the
+   tree - the lint, the frame grouping, `walk`, `walk_mut` - reads it. Adding
+   the arm is the whole job; missing it is a bug that only shows up in the
+   walker nobody thought about.
+
 3. Export the config struct from the `actions/mod.rs` `prelude` block.
 
-4. Make it authorable in the editor, as in recipe 2: derive `Reflect`, tag the
-   naming strings, and add the `ActionChoice` variant in
-   `crates/nova_editor/src/event.rs` - `ALL`, `label`, `stem`, `stock`, plus the
-   `action_choice`, `leaf_config` and `leaf_config_mut` arms. Only `Sequence`
-   holds children; a new leaf action needs nothing from the tree.
+4. Make it authorable in the editor: derive `Reflect` and tag the naming
+   strings, as in recipe 2. The editor's list is not its own -
+   `ActionChoice` is a type alias for the scenario crate's `ActionTag`
+   (`crates/nova_editor/src/event.rs`), so `ALL`, `label` and `stem` come off
+   the table row you just wrote and there is no second list to keep in step.
+   What the editor still owes you is one arm in `ActionChoiceExt::stock`: the
+   value a freshly added action starts life as, with every id field EMPTY.
+   The match is exhaustive, so the compiler asks for it.
+
+   A leaf action needs nothing else from the tree. An action the editor holds
+   as more than a leaf - because its steps are child NODES, or because its
+   panel shows a head rather than the whole payload - is an `ActionKind`
+   variant of its own, and owes arms in `action_config`, `action_config_mut`
+   and `action_choice` beside it. `Sequence` and `Cinematic` are there because
+   their steps are children; `VariableSet` because its panel is a head. All
+   three matches are exhaustive.
+
+5. Lint it, if it names anything. An action that carries an id, a channel or a
+   file reference needs an arm in `crates/nova_scenario/src/lint/` so an
+   unresolvable name is an error at lint rather than a surprise at load. This
+   is the fourth thing the table cannot generate.
 
 Templates: the tests at the bottom of the `actions/` submodules are the
 pattern to copy -
@@ -378,9 +422,9 @@ What each of the four recipes owes the editor:
 
 | Recipe | What the editor needs |
 | --- | --- |
-| Event kind | Nothing. `EventConfig` is a `Reflect` enum of unit variants and the handler's trigger row is walked off it, so a new event appears in the list. |
+| Event kind | Nothing. `EventConfig` is a `Reflect` enum of unit variants generated from the `scenario_events!` table, and the handler's trigger row is walked off it, so a new event appears in the list. |
 | Filter | `Reflect` + `Names` on the config, and a `FilterChoice` variant with its `stock` value. |
-| Action | `Reflect` + `Names` on the config, and an `ActionChoice` variant with its `stock` value. |
+| Action | `Reflect` + `Names` on the config, and a `stock` arm. The choice list itself is the scenario crate's `ActionTag`, so there is no variant to add - just the value a new action starts as. |
 | Object kind | `Reflect` + `Names` on the config, an `ObjectChoice` variant in `crates/nova_editor/src/node.rs` to place it with, and the arms the compiler then asks for (`glyph`, `preview`, `stage`, `inspect`). |
 
 `stock` is what the kind switch puts on a node the moment it is switched TO -
@@ -393,24 +437,27 @@ Whichever recipe you follow, the change is done when: the config struct derives
 `Clone`, `Debug`, `Reflect` and the serde pair; every field says what it is for
 in a doc comment; every string that names something carries its `Names`
 attribute; every file a builder may change is an `AssetRef<A>` the reflection
-can see; the dispatch enum has the variant; the
-trait impl has the delegating arm; the type is exported from its module prelude;
-the editor has the choice variant (events excepted); and (for an event)
-something fires it. Then it is reachable from code-built scenarios, from a RON
+can see; the table has its row (and, for a nesting action, its `step_chain`
+arm); the type is exported from its module prelude; the editor has its `stock`
+value (events excepted); the lint refuses a name that cannot resolve; and (for
+an event) something fires it. Then it is reachable from code-built scenarios, from a RON
 data file, and from the editor.
 
 ## Find it in the code
 
-- Events: `EventConfig` - `crates/nova_scenario/src/events.rs`; event types and
-  the `EventKind` derive - `crates/nova_events/src/lib.rs`.
+- Events: the `scenario_events!` table - `crates/nova_scenario/src/events.rs`;
+  event types and the `EventKind` derive - `crates/nova_events/src/lib.rs`.
 - Filters: `EventFilterConfig` - `crates/nova_scenario/src/filters.rs`.
-- Actions: `EventActionConfig` - `crates/nova_scenario/src/actions/mod.rs`
-  (submodules: flow, mission, ship, spawn, timer, view).
+- Actions: the `scenario_actions!` table -
+  `crates/nova_scenario/src/actions/mod.rs`; the macro that reads it -
+  `actions/registry.rs` (submodules: audio, cinematic, flow, mission, sequence,
+  ship, spawn, timer, view).
 - Objects: `ScenarioObjectKind` - `crates/nova_scenario/src/actions/spawn.rs`;
   kind modules under `crates/nova_scenario/src/objects/`.
 - The seam: `NovaEventWorld` - `crates/nova_scenario/src/world.rs`.
 - What a string names: `Names` - `crates/nova_scenario/src/names.rs`; the
-  editor's choices: `FilterChoice`, `ActionChoice` -
+  editor's choices: `FilterChoice`, and `ActionChoice` (an alias for
+  `nova_scenario`'s `ActionTag`) with `ActionChoiceExt::stock` -
   `crates/nova_editor/src/event.rs`.
 - API detail: `cargo doc --open -p nova_scenario` (event engine:
   `-p nova_events`).

@@ -12,10 +12,11 @@ There is a second way in. Sandbox, on the main menu, opens the editor. SCENE and
 EVENTS are two MODES of it: SCENE lays out the range beside the Inspector, and
 EVENTS gives the whole window to the same script this page writes by hand - a
 row per handler, its filters and actions under it, and a condition as the
-operator with its two sides hanging beneath. Save writes it as an ordinary mod. The editor owns one
-save slot (the `editor_save` mod) and never writes a hand-authored mod like the
-one below, so the two paths do not fight over a file. Read on for what the rows
-mean either way.
+operator with its two sides hanging beneath. Save writes it as an ordinary mod: one bundle
+per range you name, under an `editor_`-prefixed id derived from the name. The
+editor opens and overwrites nothing without that prefix, so a hand-authored mod
+like the one below is out of its reach and the two paths never fight over a
+file. Read on for what the rows mean either way.
 
 ## 1. Start with the working example
 

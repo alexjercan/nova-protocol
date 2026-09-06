@@ -2757,6 +2757,94 @@ not. 172 characters.
 Green: `nova_wfc` 14, `nova_ui` 57, `wfc_arena` 14, workspace
 `cargo check --all-targets`, `cargo fmt --all`.
 
+### Group I - the documentation the range left behind. DONE.
+
+Six findings, eight files. Nothing here is a code change except one stale
+comment fixed in passing.
+
+**`nova_wfc` exists in the docs now** (`concept-index.md:82`,
+`project-tour.md:30`, `architecture.md:12`). The concept index's WFC row named
+`examples/playable/shared/wfc.rs` with entry symbol `wfc_hull` - a deleted file
+and a symbol with zero hits in the tree. It has a proper row under **The ship**
+(`TileSet`, the three crate files, the grammar as content), and the Tooling row
+is now about the ARENA: what it adds on top, and a pointer to the crate for the
+collapse itself. Both crate maps gained a `nova_wfc` row and the dependency
+graph gained `editor --> wfc`, `wfc --> ship` and `wfc --> scenario`.
+`keeping-docs-in-sync.md` gained the row key the finding asked for, and
+`project-tour.md` a change-X row. `nova_events_macros` was missing from
+project-tour's map too - the table claims to be exhaustive - so it went in with
+them.
+
+**The design note is re-derived, not retired** (`ship-layout-sense.md:3`). Its
+reasoning is still the best account of why a binary mating rule cannot carry a
+global fact, and its "what I would NOT do" section is live guidance. What was
+dead was every citation: `HULL_GRID`, `KEEL_ROW`, `VACUUM_BOW_TAPER`,
+`hull_vacuum_weight`, `keel_prototype`, `hull_domains`. All eight table rows now
+name the authored `Grammar` field that replaced the constant, and section 4
+opens with a then/now ledger: items 1 and 2 shipped, item 5's MECHANISM shipped
+as `GrammarPart::zone` while `standard_hull` authors none, items 3, 4 and 6 have
+not landed, and the seeded spinal gun shipped without being on the list at all.
+
+Two claims were corrected rather than restated. "The rest is a proposal" was
+false. And the note's closing rule - "every item above is a unary domain filter
+and none of them can empty a domain" - is no longer true of item 5: a zone that
+cuts a multi-cell part leaves the cell past the boundary with only the joint
+partner, which is struck. That is the contradiction Group H's test drives, so
+the note now says the answer was to REFUSE the grammar by name rather than to
+start retrying seeds.
+
+**Both stale recipes are rewritten around the tables**
+(`guide-extend-scenarios.md:167`). Recipe 1 told a contributor to hand-edit
+`enum EventConfig` and its `From` impl; both come out of `scenario_events!`, so
+following it meant editing the macro body. Recipe 3 did the same for
+`EventActionConfig`, and named `leaf_config`/`leaf_config_mut`, which have zero
+hits. Both now say: add a ROW, and here is what the table cannot generate.
+Recipe 3 documents `effect` and `inspect`, adds the `step_chain` arm a nesting
+action owes, corrects the editor half (`ActionChoice` is an alias for
+`ActionTag`, so there is no second list - only `ActionChoiceExt::stock`), and
+gains a fifth step for the lint arm. The "Two surfaces" table, the checklist and
+the "find it in the code" list follow. Every symbol the guide still names was
+grepped and resolves.
+
+**The beat chain is named after the chain, not after `Sequence`**
+(`scenario-system.md:228`). `Cinematic` files the same `SequenceRun` through the
+same `start_run`, so "the one action whose state does not live in the action"
+was wrong, and so was "one group per `Sequence` step". The section is now "A
+beat chain keeps its cursor in the engine" and points at `step_chain` as the one
+place a nesting arm is declared. Both action-submodule lists gained `audio`,
+`cinematic` and `registry`.
+
+**The creator page describes the slots that exist**
+(`author-a-scenario.md:15`). One `editor_`-prefixed bundle per named range, and
+the editor opens nothing without that prefix - verified at `bundle.rs:518`,
+where `saved_bundles` filters the index on it.
+
+**The keybinds page states the four defaults** (`keybinds.md:255`). The Weapons
+table had torpedoes on LMB, which no shipped content and no editor default has
+put them on since `default_binds` gave `SectionKind::Torpedo` its own key. It
+now carries turret / torpedo / railgun rows with the desk and pad defaults, and
+the prose is the changelog's own line - Space thrusts, LMB the PDCs, `F` the
+tubes, `R` the railgun - instead of a "shipped ship" that does not exist.
+
+Fixed in passing: `nova_editor/src/event.rs:797` said "the one arm whose steps
+are children" with the second such arm on the line below it.
+
+Green: `mdbook build` clean, `cargo check -p nova_editor`. No web manifest
+change - no headings were added or renamed.
+
+**Found while doing this, NOT fixed - a gamepad binding collision.**
+`default_binds` gives `SectionKind::Torpedo` `GamepadButton::LeftTrigger2`
+(`placement.rs:176`), and `camera_bindings`' `combat_stance` ("Raise Weapons")
+holds the same button (`nova_ship/src/input/bindings.rs:106-108`). On a pad,
+pulling L2 raises the weapons AND fires the tubes. The arena's
+`no_arena_weapon_binding_lands_on_a_key_the_flight_rig_spends` cannot see it:
+`flight_rig_reserved_sources` is derived from `flight_bindings()` only, and
+`combat_stance` lives in `camera_bindings()`. Whether that is a defect or the
+intended pad ergonomic is a design call, so the keybinds page documents what the
+code does and this is left for the owner. It is the same class the changelog
+entry at `:127` was closing ("One weapon, one button"), with the stance in the
+PDC's old place.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2764,11 +2852,14 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**9 MAJOR, by theme.** (Group H closed five: two collapse refusal paths - one
-tested, one recorded as untestable - the `Hovered` bundle, the arena stamp's
-hardcoded grid, and the stale changelog entry. Group G closed five before it
-and Group F four; the count of 24 quoted earlier in this run was one high, it
-read the three-file docs bullet as three.)
+**4 MAJOR**, listed in full below - the count is the list, not a running
+subtraction. (The earlier tallies in this run drifted: they were arithmetic on
+a curated set whose bullets merged some findings and split others. The four
+below are what is actually left. Group F closed four, G five, H five, I six.)
+
+None of the four is a defect waiting on a patch. Two are unmeasured perf notes
+that want a quiet host and a measurement pass; one is a feature nobody has
+scheduled; one is a coverage gap in the Cinematic's harness.
 
 Editor and WFC correctness (batches 1-3):
 - `nova_editor/src/node.rs:1310` (unmeasured) - per-frame document walks are
@@ -2784,22 +2875,6 @@ Coverage:
   no harnessed range, only unit tests.
 - `nova_hud/src/comms_panel.rs:342` (perf, unmeasured, PRE-EXISTING) -
   `sync_comms_cards` rebuilds the whole visible stack every frame, idle included.
-
-Documentation the range left behind:
-- `docs/project-tour.md:30`, `docs/architecture.md:12`, `docs/concept-index.md:82`
-  - `nova_wfc` is a workspace member in neither crate map, neither dependency
-  graph, nor the concept index, whose WFC row points at a deleted file.
-  Confirmed: zero `nova_wfc` hits in all three.
-- `docs/ship-layout-sense.md:3` - written against the deleted file; every
-  constant it cites is gone.
-- `docs/guide-extend-scenarios.md:167` - Recipe 3 tells a contributor to
-  hand-edit generated code and names symbols that no longer exist.
-- `docs/scenario-system.md:228` - "`Sequence` is the one action whose state does
-  not live in the action" is false now, and two neighbouring claims with it.
-- `web/src/create/author-a-scenario.md:15` - still describes the single
-  `editor_save` slot.
-- `web/src/wiki/keybinds.md:255` - says torpedoes fire on the left mouse button;
-  an editor-placed torpedo takes `F`.
 
 **~85 MINOR**, in the batch blocks above. Not triaged individually; each was
 recorded where it was found.

@@ -235,24 +235,42 @@ RCS is a docking aid, not standard flight: it appears only when a scenario grant
                 ></span>
                 (default)
             </td>
-            <td>-</td>
+            <td>
+                <span
+                    class="pf pf-trigger-right"
+                    role="img"
+                    aria-label="Right trigger"
+                ></span>
+            </td>
         </tr>
         <tr>
             <td>Launch torpedo</td>
+            <td><kbd>F</kbd> (default)</td>
             <td>
                 <span
-                    class="pf pf-mouse-1"
+                    class="pf pf-trigger-left"
                     role="img"
-                    aria-label="Left mouse button"
+                    aria-label="Left trigger"
                 ></span>
-                (default)
             </td>
-            <td>-</td>
+        </tr>
+        <tr>
+            <td>Fire railgun</td>
+            <td><kbd>R</kbd> (default)</td>
+            <td>
+                <span
+                    class="pf pf-stick-right-click"
+                    role="img"
+                    aria-label="Right stick click"
+                ></span>
+            </td>
         </tr>
     </tbody>
 </table>
 
-Weapon sections are rebindable: in the editor, click a section to bind it to any key or mouse button, so a ship's turret and torpedo controls are whatever its build assigns. The shipped ship fires both turrets and torpedoes on the left mouse button; a torpedo only launches while you hold a raised (red) combat lock. A [railgun](../sections/railgun/) you bolt on binds the same way, and its key is a tap that commits the charge rather than a burst you hold.
+One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a [railgun](../sections/railgun/) <kbd>R</kbd>. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.
+
+None of this is fixed: in the editor, click a section to bind it to any key or mouse button, so a ship's controls are whatever its build assigns.
 
 ## Interface
 

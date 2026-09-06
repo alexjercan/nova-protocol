@@ -33,12 +33,14 @@ for responsibilities and the dependency graph.
 | `nova_core` | Wiring only: `AppBuilder` assembles the whole plugin stack. No gameplay. |
 | `nova_gameplay` | The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns `GameStates`/`PauseStates`/`GameMode`. |
 | `nova_ship` | The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship's soundtrack. |
+| `nova_wfc` | Generated hulls: a catalog plus an authored `Grammar` in, a `ShipHull` out. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
 | `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
 | `nova_os` | NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI. |
 | `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
 | `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
+| `nova_events_macros` | The `EventKind` derive behind `nova_events`' engine events. Its only consumer is `nova_events`. |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs. |
 | `nova_modding` | Bundle/content/catalog asset loaders and the `Content` routing enum. |
 | `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
@@ -78,6 +80,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](scenario-system.md) |
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/), [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/) |
 | A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Create your first scenario](https://alexjercan.github.io/nova-protocol/create/author-a-scenario/) |
+| A generated hull, or the grammar it is drawn from | `crates/nova_wfc/` + `crates/nova_authoring/src/base_content/grammars.rs`, then `content -- gen` | [Concept index](concept-index.md), [Create: grammars](https://alexjercan.github.io/nova-protocol/create/grammars/) |
 | The ship editor | `crates/nova_editor/` | -- |
 | Shared UI theme / widgets | `crates/nova_ui/` | -- |
 | The web site / wiki | `web/` | [Building & running](development.md) |

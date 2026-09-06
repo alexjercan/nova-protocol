@@ -1,15 +1,19 @@
 # Giving a generated ship a front
 
-Design note, written against `examples/playable/shared/wfc.rs` and the
-`wfc_ships` row it collapses.
+Design note. Written in 2026-08 against `examples/playable/shared/wfc.rs`,
+where the collapse used to live as consts in one example file. It lives in
+`crates/nova_wfc` now and every number the note treated as a constant is an
+authored field of a `Grammar` (`nova_ship::prelude::ShipGrammarConfig`), so the
+citations below have been re-derived. The REASONING is unchanged and is why the
+note is kept.
 
 The complaint it answers: looking at any render of the `wfc_ships` row, drives
 point in several directions on the same hull. The generator places parts by
 mating rules alone. Nothing knows a thruster belongs at the back, a bridge on
 top, or guns where they can bear.
 
-One of the recommendations below is already implemented and rendered, because it
-turned out to be twelve lines. The rest is a proposal.
+Three of the six recommendations below have landed since, and a fourth thing
+arrived that was not on the list. Each item carries its own status line.
 
 ## 1. The actual cause, which is narrower than "no sense of layout"
 
@@ -42,27 +46,32 @@ illegal. The drive was the one part whose direction was both free and wrong.
 More than expected. The generator is not orientation-blind - it is
 orientation-blind *about parts* while being quite opinionated about *shape*.
 
+Every row was a constant when this was written. All but two are authored
+`Grammar` fields now, which is the change that made the note need re-deriving
+rather than retiring: the facts are the same facts, a mod can retune them, and
+`standard_hull` is the grammar the numbers below come from.
+
 | Fact | Where | What it already means |
 | --- | --- | --- |
-| `LENGTH = 11` on `z` | `HULL_GRID` | the ship's long axis |
-| `HEIGHT = 5` on `y`, `KEEL_ROW = 2` | `HULL_GRID`, `KEEL_ROW` | up, and a middle |
-| `x = 0` is the mirror plane | `HULL_GRID.origin.x = 0.5` | port/starboard |
-| `VACUUM_BOW_TAPER = 24.0` | `hull_vacuum_weight` | **`z = 0` is the BOW** |
-| `VACUUM_STERN = 9.0` | `hull_vacuum_weight` | the last row is sparse |
-| `seed_keel` | collapses the spine by hand | a connected structure to grow on |
-| `keel_prototype(LENGTH / 3)` | the bridge, forward of centre | a front, already |
+| `grid.length = 11` on `z` | `GrammarGrid`, authored | the ship's long axis |
+| `grid.height = 5` on `y`; the keel row is `height / 2` | `GrammarGrid`; `TileSet::hull` | up, and a middle |
+| `x = 0` is the mirror plane | `Grid::starboard_half` starts at `x = 0.5` | port/starboard |
+| `vacuum.bow_taper = 24.0` | `GrammarVacuum`, read by `Plan::vacuum_weight` | **`z = 0` is the BOW** |
+| `vacuum.stern = 9.0` | `GrammarVacuum`, same reader | the last row is sparse |
+| `seed_keel` | collapses the spine by hand, from `keel.hull` | a connected structure to grow on |
+| `keel.bridge` at `length / 3` | the bridge, forward of centre | a front, already |
 
 The answer to "does `keel_component` / the mating structure give a natural axis
 to hang this on" is yes, and it is not the mating structure - it is the KEEL.
-`seed_keel` already hand-collapses eleven cells before the generator gets a say,
-and `keel_prototype` already puts a bridge forward of centre. The precedent for
+`seed_keel` already hand-collapses the spine before the generator gets a say,
+and already puts `keel.bridge` forward of centre. The precedent for
 "decide the big thing up front, let the collapse fill in around it" is in the
 file, working, with a doc comment explaining why. Everything in this note is that
 same move applied one more time.
 
 What the grid does NOT give: any asymmetry in `y`. `off_keel` is
-`x + |y - KEEL_ROW|`, symmetric about the keel row, so a hull's deck and its
-belly are weighted identically. A ship generated here has a front and a back but
+`x + |y - keel_row|` (`collapse.rs`, `Plan::vacuum_weight`), symmetric about the
+keel row, so a hull's deck and its belly are weighted identically. A ship generated here has a front and a back but
 genuinely has no top.
 
 ## 3. What comparable generators do
@@ -112,15 +121,29 @@ does not buy the fact; putting the fact in the right place does.
 
 ## 4. Ranked recommendations
 
-Cost against effect. The first is done; the rest are not.
+Cost against effect, as ranked at the time. Where they stand now:
 
-### 1. A per-part AIM, as a unary constraint. DONE, RENDERED
+| # | Then | Now |
+| --- | --- | --- |
+| 1. Per-part aim | done | shipped, as the authored `GrammarPart::aim` |
+| 2. Seed the drive deck | done | shipped, and it seeds a multi-cell drive whole |
+| 3. Deck and belly | measured, not landed | unchanged: measured, not landed, still a taste call |
+| 4. Seed a superstructure | proposal | not landed |
+| 5. Zone the grid | "only if 1-4 are not enough" | the MECHANISM shipped as `GrammarPart::zone`; `standard_hull` authors none |
+| 6. Re-tune the weights | last | not done; the weights are content now, so it is a mod's call as much as ours |
 
-`Part` gains `aim: Option<usize>` - the only face this part may fire through -
-and `hull_domains` strikes any tile that disagrees. The thruster gets
-`Some(AFT)`; everything else keeps `None`.
+Not on the list and shipped anyway: a seeded SPINAL GUN (`GrammarKeel::bow_gun`),
+which is item 2's move applied to the bow. It is what replaced the `wfc_arena`
+bench stamping a lance on after the collapse.
 
-- **Cost:** one struct field, a four-line predicate, one line in `hull_domains`.
+### 1. A per-part AIM, as a unary constraint. SHIPPED
+
+Landed as proposed, then became content: a draw entry carries
+`aim: Option<GrammarAim>` - the only face this part may fire through - and
+`Plan::domains` strikes any tile `Plan::aim_allowed` disagrees with. The
+shipped grammar aims its thrusters `Aft`; everything else authors nothing.
+
+- **Cost:** one struct field, a four-line predicate, one line in `Plan::domains`.
   Cannot empty a domain, because `VACUUM` is compatible with everything and is
   never struck, so the no-backtracking collapse is not put at risk.
 - **Effect:** every nozzle on every ship points aft. This is the whole reported
@@ -136,13 +159,19 @@ and `hull_domains` strikes any tile that disagrees. The thruster gets
   price, is the binding constraint** - which is exactly why the next item is not
   optional.
 
-### 2. Seed the drive deck, the way the keel is seeded. DONE, RENDERED
+### 2. Seed the drive deck, the way the keel is seeded. SHIPPED
 
-`seed_stern` hand-collapses two cells before the roll: a hull block beside the
-last keel cell, and a nozzle bolted to its aft face. The mirror makes that a pair
-either side of the centreline. `seed_keel` now stops one cell short of the
-transom so the seam cell beside the drive is free - a keel cube there would press
-a socket into the drive's blind flank.
+`seed_stern` hand-collapses the stern before the roll: a deck plate the size of
+the drive's mount face, and the drive bolted to its aft face. The mirror makes
+that a pair either side of the centreline. `seed_keel` stops one cell short of
+the transom so the seam cell beside the drive is free - a keel cube there would
+press a socket into the drive's blind flank.
+
+It grew past the two cells proposed here: the drive is authored
+(`GrammarKeel::stern_drive`) and may be several cells on a side, so the seed
+lays the block by its minimum corner and propagation fills the rest of it in.
+`runnable` refuses a grid too small to hold what the grammar seeds, by name,
+rather than letting the seed run off the end.
 
 - **Cost:** fifteen lines, in the shape of the function above it.
 - **Effect:** every ship has an engine at the back of it, guaranteed, and the
@@ -161,8 +190,10 @@ a socket into the drive's blind flank.
 
 ### 3. Give the hull a deck and a belly. MEASURED, NOT LANDED
 
+It would be two more `GrammarVacuum` fields today, not two consts.
+
 `off_keel` is symmetric in `y`, so a ship has no top. Weight the two directions
-differently - `|y - KEEL_ROW|` times `DECK_TAPER` above and `BELLY_TAPER` below -
+differently - `|y - keel_row|` times a deck taper above and a belly taper below -
 and the hull fills out above the keel and tapers under it.
 
 - **Cost:** one line and two constants.
@@ -178,9 +209,9 @@ and the hull fills out above the keel and tapers under it.
   keel row, or a superstructure seeded on top of the keel the way item 2 seeds
   the stern. Which is item 4.
 
-### 4. Seed a superstructure, not just a bridge cell
+### 4. Seed a superstructure, not just a bridge cell. NOT LANDED
 
-`keel_prototype` puts the controller at `y = KEEL_ROW`, mid-height, buried inside
+`seed_keel` puts `keel.bridge` at the keel row, mid-height, buried inside
 the hull. A bridge that reads is a bridge you can SEE: on top, forward of centre,
 standing proud.
 
@@ -195,12 +226,27 @@ standing proud.
   seeded neighbours to pass `SPIKE_SUPPORT`, or an exemption. Budget a couple of
   hours, not ten minutes.
 
-### 5. Zone the grid, and give each zone its own part list
+### 5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED
 
 The general form of items 1-4: split `z` into bow / midships / engineering bands
 (the vacuum taper already computes the signal) and ban part families per band -
 no drives forward of the engineering band, no bays in it, bridges only in
 midships-top. Same mechanism as item 1, a table instead of a formula.
+
+Shipped as `GrammarPart::zone`, with six regions rather than three bands: thirds
+along the hull (`Bow`, `Amidships`, `Stern`), halves either side of the keel row
+(`Dorsal`, `Ventral`, and the keel row itself is neither), and the outboard half
+(`Flank`). It rules on one CELL, so a multi-cell part is zoned only where every
+cell of it qualifies. **`standard_hull` authors no zone at all** - the mechanism
+is there for a mod, and the caution below is why the base grammar has not spent
+it.
+
+The caution turned out to be right in a way not anticipated here: a zone CAN
+empty a domain, which nothing else in this note can. Not through the unary
+filter itself - vacuum survives that - but across a JOINT, where vacuum is not
+an option and only the partner segment fits. Zone a multi-cell part into a
+region too short to hold it and the cell past the boundary has nothing left.
+The collapse refuses that grammar by name; it does not photograph it.
 
 - **Cost:** a band function and a table. Maybe forty lines.
 - **Effect:** the ships get an internal LAYOUT rather than a uniform texture,
@@ -212,7 +258,7 @@ midships-top. Same mechanism as item 1, a table instead of a formula.
   start producing contradictions the answer is modifying-in-blocks per band, and
   that is a real piece of work.
 
-### 6. Re-tune the weights, once, after all of the above
+### 6. Re-tune the weights, once, after all of the above. NOT DONE
 
 The record already says weights have to be tuned together and read together,
 because the parts compete with each other rather than only with vacuum. Items 1
@@ -224,6 +270,10 @@ mounts came down a third and nobody asked them to.
   histogram).
 - **Do it LAST.** Tuning weights against a layout that is about to change is
   wasted work, and it is how the previous round of numbers got measured twice.
+- The weights are AUTHORED now (`GrammarPart::weight`, `GrammarVacuum`), so a
+  sweep tunes `standard_hull` rather than the generator. A mod retunes the same
+  numbers without touching this crate, which is most of the reason not to keep
+  chasing them here.
 
 ## 5. What I would NOT do
 
@@ -231,7 +281,9 @@ mounts came down a third and nobody asked them to.
 prototypes, an "aft drive" and a "manoeuvring thruster", and let mating sort them
 out. It cannot: mating is binary and the distinction is global, so both would
 still land anywhere. It would also put a generator concern into shipped catalog
-content that the editor and every scenario have to carry.
+content that the editor and every scenario have to carry. The `Grammar` is where
+that fact went instead - authored, overlayable, and read by nothing but the
+collapse.
 
 **Do not add a scoring-and-rejection pass.** Generate N ships, score each for
 "engines at the back, bridge on top", keep the best. It is the obvious answer and
@@ -255,11 +307,13 @@ put a generator's taste inside a rule a player's ship is judged by. Aim belongs
 in `Part`, where it is one file's opinion; clearance belongs in `nova_ship`,
 where it is physics.
 
-**Do not reach for backtracking.** Every item above is a unary domain filter and
-none of them can empty a domain, because vacuum is compatible with everything.
-That property is worth defending: a collapse that cannot fail needs no restart
-loop, no retry counter and no failure budget. Any proposal that costs it should
-have to argue for itself.
+**Do not reach for backtracking.** Every unary filter above is safe on its own,
+because vacuum is compatible with everything and is never struck. That property
+is worth defending: a collapse that cannot fail needs no restart loop, no retry
+counter and no failure budget. Any proposal that costs it should have to argue
+for itself - and note that item 5 already costs a little of it, because a joint
+face has no vacuum option. The answer there was to REFUSE the grammar with a
+line naming what to change, not to start retrying seeds.
 
 ## Sources
 

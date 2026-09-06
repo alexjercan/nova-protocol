@@ -220,18 +220,27 @@ chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.
 
 Actions fan out to one submodule per family beside `actions/mod.rs` -
-`flow`, `mission`, `sequence`, `ship`, `spawn`, `timer`, `view` - and adding
-one is [Extend the scenario engine](guide-extend-scenarios.md).
+`audio`, `cinematic`, `flow`, `mission`, `sequence`, `ship`, `spawn`, `timer`,
+`view` - plus `registry`, which is the macro and the table rather than a family.
+Adding one is [Extend the scenario engine](guide-extend-scenarios.md).
 
-### `Sequence` keeps its cursor in the engine
+### A beat chain keeps its cursor in the engine
 
-`Sequence` is the one action whose state does not live in the action. A
-`SequenceActionConfig` is an authored LITERAL key plus an ordered list of
-steps; running it calls `NovaEventWorld::start_sequence`, which files a
-`SequenceRun` - key, steps, cursor, the time the step became current - in the
-event world beside the keyed timers. The config is immutable and shared
+A BEAT CHAIN is an authored LITERAL key plus an ordered list of
+`SequenceStepConfig`s, and its state does not live in the action. Running one
+files a `SequenceRun` - key, steps, cursor, the time the step became current -
+in the event world beside the keyed timers. The config is immutable and shared
 (`Arc<Vec<SequenceStepConfig>>`), so the same chain can be authored once and
 started from several handlers.
+
+Two actions are chains. `Sequence` calls `NovaEventWorld::start_sequence`;
+`Cinematic` calls `start_cinematic`, which files the same run through the same
+`start_run` and adds the ending it owes - whether the player may leave early,
+and the events the scene reports when it finishes or is skipped. Name the
+mechanism after the CHAIN, not after `Sequence`: an arm that nests steps is
+declared in exactly one place, `EventActionConfig::step_chain`, and every
+walker in the tree reads it. Add a third chain there and nothing else has to
+learn about it.
 
 The cursor CANNOT live in the action: handlers are dispatched from an index
 snapshot and an action config is read-only during a pass, so a step counter
@@ -262,13 +271,14 @@ That makes a shut gate a soft-lock, which is why a gated step carries a
 and the event it waited for. `start_sequence` holds the other loud half - a
 restart on a live key is refused and logged, because one key is one cursor.
 
-Because a step's action list is a FRAME of its own, four walkers had to learn
-to recurse into it: `inline_queries`, `object_count`, the lint's
-`collect_declared` / `check_action`, and the per-event spawn-id pass. The
-shared helpers are `EventActionConfig::walk` and
-`ScenarioEventConfig::action_groups`, which returns a handler's own actions
-plus one group per `Sequence` step it starts, however deeply nested. Any new
-rule that reasons about "one frame" reads `action_groups`, not `actions`.
+Because a step's action list is a FRAME of its own, every walker that reasons
+about frames has to recurse into it: `inline_queries`, `object_count`, the
+lint's `collect_declared` / `check_action`, and the per-event spawn-id pass.
+The shared helpers are `EventActionConfig::walk` (and `walk_mut`, for a pass
+that rewrites) and `ScenarioEventConfig::action_groups`, which returns a
+handler's own actions plus one group per step of every chain it starts, however
+deeply nested. Any new rule that reasons about "one frame" reads
+`action_groups`, not `actions`.
 
 ## Variables and the event world (`world.rs`, `variables.rs`)
 
