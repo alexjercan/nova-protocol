@@ -1300,6 +1300,20 @@ pub(crate) fn rebuild_node_views(
     }
 }
 
+/// True on a frame that could have made or cleared an id clash: an id was
+/// written, a node changed parents, or a node with an id went away.
+///
+/// The removals are drained FIRST and into a `bool`, so `||` short-circuiting
+/// cannot leave a frame's removals queued for the next one to re-read.
+pub(crate) fn ids_or_parents_moved(
+    ids: Query<(), Changed<NodeId>>,
+    trees: Query<(), Changed<Children>>,
+    mut gone: RemovedComponents<NodeId>,
+) -> bool {
+    let gone = gone.read().count() > 0;
+    gone || !ids.is_empty() || !trees.is_empty()
+}
+
 /// Say when two children of one node ended up wearing the same id.
 ///
 /// An id is the document's own key: it is what a save writes, what a load reads
@@ -1307,6 +1321,11 @@ pub(crate) fn rebuild_node_views(
 /// nothing can tell apart, and an `error!` line at the moment a counter goes
 /// missing says nothing about the row that came out of it. Said once per clash,
 /// and cleared when the clash goes.
+///
+/// GATED on [`ids_or_parents_moved`]: the scan is quadratic in the children of
+/// one node, and a generated hull is one node with every section under it. The
+/// `said` latch is a `Local`, so a frame this does not run leaves the last
+/// verdict standing - which is the same verdict, because nothing moved.
 pub(crate) fn report_duplicate_ids(
     parents: Query<&Children>,
     ids: Query<&NodeId>,
@@ -1338,7 +1357,70 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-    use crate::scenario::default_world_objects;
+    use crate::{config::EditorStatus, scenario::default_world_objects};
+
+    /// The gate in front of `report_duplicate_ids` has to fire on every way a
+    /// clash can appear OR go. One it misses leaves the rail silent about a
+    /// real clash, because the latch is still holding the last verdict.
+    ///
+    /// The middle step takes the id off WITHOUT despawning the node, which is
+    /// the case only `RemovedComponents` sees: the entity is still a child, so
+    /// the parent's `Children` never changes.
+    #[test]
+    fn the_duplicate_gate_fires_on_a_clash_appearing_and_on_one_going() {
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.init_resource::<EditorStatus>();
+        app.add_systems(Update, report_duplicate_ids.run_if(ids_or_parents_moved));
+
+        let parent = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .spawn((NodeId("hull_1".to_string()), ChildOf(parent)));
+        let second = app
+            .world_mut()
+            .spawn((NodeId("hull_2".to_string()), ChildOf(parent)))
+            .id();
+        app.update();
+        assert_eq!(said(&app), None, "two ids that differ are not a clash");
+
+        app.world_mut()
+            .entity_mut(second)
+            .insert(NodeId("hull_1".to_string()));
+        app.update();
+        assert_eq!(
+            said(&app).as_deref(),
+            Some("two nodes are both called 'hull_1' - rename one"),
+            "a renamed id is a frame the gate has to let through"
+        );
+
+        clear_status(&mut app);
+        app.world_mut().entity_mut(second).remove::<NodeId>();
+        app.update();
+        app.world_mut()
+            .entity_mut(second)
+            .insert(NodeId("hull_1".to_string()));
+        app.update();
+        assert_eq!(
+            said(&app).as_deref(),
+            Some("two nodes are both called 'hull_1' - rename one"),
+            "the same clash came back: a gate blind to the id going away leaves \
+             the latch set, and the second refusal is never said"
+        );
+    }
+
+    /// What the rail would be showing.
+    fn said(app: &App) -> Option<String> {
+        app.world()
+            .resource::<EditorStatus>()
+            .line()
+            .map(|(line, _)| line.to_string())
+    }
+
+    /// Blank the line, so the next assert reads a FRESH refusal rather than
+    /// the one still holding from the step before.
+    fn clear_status(app: &mut App) {
+        *app.world_mut().resource_mut::<EditorStatus>() = EditorStatus::default();
+    }
 
     /// The announcement is what drops a body, so the pair has to be tested
     /// together: nothing else marks a view stale any more.

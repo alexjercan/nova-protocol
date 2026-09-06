@@ -609,6 +609,10 @@ Fix: gate `report_duplicate_ids` and `sync_editor_probe` behind
 `Changed<NodeId>`/`Changed<ChildOf>` or a dirty flag; hoist `sections_of` to one
 call and compare cheap keys before formatting; give `sync_hull_plan` a run
 condition on the block being shown.
+FIXED in Group K, four different ways: a `Changed`/`RemovedComponents` gate on
+`report_duplicate_ids`, one `sections_of` in `wanted_rows`, an
+`a_ship_is_entered` gate on `sync_hull_plan`, and `sync_editor_probe` registered
+only in a debug build. Still unmeasured, and still deliberately so.
 UNMEASURED, and deliberately so: the only `system_ship_editor` capture on disk is
 `probe-runs/b9dcb68f/` from an unrelated commit, at 247.98 ms mean under software
 rendering. That host is GPU-bound by two orders of magnitude, cannot resolve the
@@ -1379,6 +1383,8 @@ Fix: reconcile in place. The card set changes only when `CommsQueue.visible`
 gains or loses an entry; the per-frame part is alpha. Key the cards by queue
 slot, spawn and despawn only on a slot change, and write the colours each frame
 on existing nodes - the shape `sync_cinematic_title` already uses.
+FIXED in Group K, by that shape. The key is a minted `CommsLineId`, not the slot
+- a slot moves when the card under it expires. Proved in counts by three tests.
 
 **MINOR - `crates/nova_hud/src/cinematic_prompt.rs:118` - the prompt reads the keyboard column directly instead of the house source helper, so a pad player is told the wrong key or none.**
 `.and_then(|action| action.keyboard.first()).map(|source| source.label())`.
@@ -2905,6 +2911,83 @@ property and re-running. All four failed, each in its own beat and no earlier:
 Also: `docs/development.md` lists the range twice (the cross-cutting set and the
 monotonic-variable line), and the changelog gained one Internals & Tooling entry.
 
+### Group K - the two per-frame rebuilds. DONE.
+
+Both findings were "this runs every frame and need not". Neither had a number
+against it, and both said so; both are closed with COUNTS and behaviour, not
+milliseconds, because the hosts here are software-rendered and cannot resolve a
+CPU delta of this size.
+
+**The comms stack (`nova_hud/src/comms_panel.rs:342`).** Reconciled in place.
+A `CommsLineId(u64)` is minted when a line enters `CommsQueue.visible` and rides
+the card root and every node inside it. `enqueue_new_lines` no longer touches the
+tree at all - it only enqueues - and the new `reconcile_comms_cards` owns it:
+despawn the cards whose id has left the queue, spawn one for each id that has no
+card, and write the panel's own `Visibility` on a diff. `paint_comms_cards` then
+writes borders, backgrounds and text colours through four id-keyed queries, each
+on a compare. The TEXT is written once, at spawn, because a showing line's words
+do not change.
+
+The proof is three tests, all in counts:
+
+| test | reads |
+| --- | --- |
+| `a_showing_card_is_not_rebuilt_while_it_holds` | three lines, six more frames: the same three card entities, and the `Added` counters still at 3 cards and 3 texts |
+| `expiry_takes_one_card_and_arrival_appends_one` | one card leaves and one joins; the two that held keep their entities and their stack order |
+| `a_held_card_still_fades_on_its_own_entities` | the fade-in rises on the SAME entity, and the card is taken down only when it expires |
+
+The counter is a `Changed`/`Added` detector system in `PostUpdate` with a
+resource behind it - `is_changed()` off an `EntityRef` reads false outside a
+system. The three helpers that read the stack (`card_border_alphas`,
+`visible_texts`, `visible_speakers`) now walk the panel's own `Children` instead
+of iterating a global query: the old order only matched the drawn order because
+every card was respawned each frame, and that accident goes with this fix.
+
+Negative check: reinstating the unconditional `despawn_related::<Children>()`
+and the rebuild made exactly those three tests fail and left the other thirteen
+green - the fix is specific, and the code it replaced was not otherwise broken.
+16/16 pass.
+
+**The editor's document walks (`nova_editor/src/node.rs:1310`).** Four sites,
+four different answers, because they are four different problems:
+
+- `report_duplicate_ids` is quadratic in the children of ONE node, and a
+  generated hull is one node with every section under it. Gated on a new
+  `ids_or_parents_moved`: an id written, a node reparented, or a node with an id
+  taken away. The removals are drained first and into a `bool`, so `||`
+  short-circuiting cannot leave a frame's removals queued for the next.
+- `wanted_rows` called `sections_of` twice per entered ship - each a collect and
+  a sort over every section node in the document. Hoisted to one call.
+- `sync_hull_plan` built a `Vec<Drawn>` and a `format!` every frame for a line
+  in the GENERATE block. The block is hidden with `Display::None`, not
+  despawned, so an empty-query early return would have been dead code; the gate
+  is the same expression `sync_context_panels` shows the block on.
+- `sync_editor_probe` is now registered only in a DEBUG build. A run condition
+  was the wrong tool: the snapshot reads fourteen sources, and a hand-written
+  list of them would rot silently and freeze the harness's read surface. Nothing
+  reads `EditorProbe` outside a debug build - the predicates are in `nova_debug`,
+  which the same feature links - so a shipped editor was paying a full document
+  sweep per frame to fill a resource it could not see. `nova_editor`'s own tests
+  register the system themselves and are unaffected.
+
+Proof. A new unit test, `the_duplicate_gate_fires_on_a_clash_appearing_and_on_one_going`,
+walks a clash in and back out; its middle step takes the id off WITHOUT
+despawning the node, which is the case only `RemovedComponents` sees. Dropping
+that half of the condition makes the test fail on its last assert and nothing
+else. The other three are covered live: `system_ship_editor` under
+`NOVA_AUTOPILOT` ran 666 steps, `cycle complete, no panic (t=14.0s)`, exit 0.
+Forcing `a_ship_is_entered` to `false` stalled exactly one beat of that range -
+`editor: tick the lance and read the hull plan`, after 20s - and no earlier one,
+so the range does watch the line the gate now guards. 480/480 lib tests pass.
+
+Note for the next run on this box: `~/.local/share/nova-protocol/mods/the-ledger`
+holds an OLD copy of the mod that still uses the `StoryMessage` action name, and
+it takes the asset load down before any range starts. Point
+`NOVA_MODDING_CACHE_ROOT` at an empty directory. Nothing in the repo is wrong.
+
+Changelog: one Performance entry. The comms fix gets none - the panel it fixes
+is itself unreleased, so this is a bug introduced and fixed inside one cycle.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2912,28 +2995,18 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**3 MAJOR**, listed in full below - the count is the list, not a running
+**1 MAJOR**, listed in full below - the count is the list, not a running
 subtraction. (The earlier tallies in this run drifted: they were arithmetic on
-a curated set whose bullets merged some findings and split others. The three
-below are what is actually left. Group F closed four, G five, H five, I six,
-J one.)
+a curated set whose bullets merged some findings and split others. The one
+below is what is actually left. Group F closed four, G five, H five, I six,
+J one, K two.)
 
-None of the three is a defect waiting on a patch. Two are unmeasured perf notes
-that want a quiet host and a measurement pass; one is a feature nobody has
-scheduled.
-
-Editor and WFC correctness (batches 1-3):
-- `nova_editor/src/node.rs:1310` (unmeasured) - per-frame document walks are
-  O(sections) or O(sections^2); a generated hull multiplies the input.
+It is not a defect waiting on a patch. It is a feature nobody has scheduled.
 
 Grammar as content (the rest closed in Group F):
 - `nova_ship/src/sections/ship_grammar.rs:222` - a mod can only RETUNE
   `standard_hull`; a new grammar id is still unreachable. The claims that said
   otherwise are corrected; SELECTION is a feature and is unscheduled.
-
-Perf:
-- `nova_hud/src/comms_panel.rs:342` (perf, unmeasured, PRE-EXISTING) -
-  `sync_comms_cards` rebuilds the whole visible stack every frame, idle included.
 
 **~85 MINOR**, in the batch blocks above. Not triaged individually; each was
 recorded where it was found.
@@ -2941,4 +3014,5 @@ recorded where it was found.
 Nothing here blocks the range: it builds, it lints, and it plays. The three
 heaviest - a save rewriting a retry wrong, every Generate repainting the ship,
 and a save named "Sandbox" taking over the editor's own stage range - closed in
-Group G. What is left is one unmeasured perf pair and one unscheduled feature.
+Group G. Both unmeasured perf notes closed in Group K, in counts rather than
+milliseconds. What is left is one unscheduled feature.

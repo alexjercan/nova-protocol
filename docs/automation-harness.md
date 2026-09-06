@@ -231,6 +231,11 @@ selection resolves to. `nova_debug::harness` wraps those as `editor_tool_is`,
 `editor_placement_clear`, `editor_gallery_open`, `editor_gallery_closed`,
 `editor_filter_focused` and `editor_gallery_selected`.
 
+The probe exists only in a `debug` build, which is the only build that has
+those predicates: `nova_debug` and the snapshot are linked by the same feature.
+A shipped editor does not carry it, and does not pay the document sweep that
+fills it.
+
 So a placing gesture reads: aim, hold until the editor SOLVED a placement there;
 press, hold until the pointer registered it; release; hold until the section
 landed. `system_ship_editor` and the `screenshot_editor` walk are written that

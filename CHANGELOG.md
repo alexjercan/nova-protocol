@@ -342,6 +342,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Wreck pieces go physical two dozen a frame instead of all at once, so a hull
   shedding 700 sections in one instant no longer grows 700 colliders and their
   contacts on a single frame.
+- The editor stops re-walking the document each frame: the duplicate-id scan
+  runs only when an id or a parent moves, the tree walks a ship's sections once,
+  and the probe snapshot is a debug build's.
 
 ### Fixes
 - Only the pane under the pointer scrolls. Every scrolling pane on screen was

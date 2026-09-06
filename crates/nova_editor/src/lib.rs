@@ -89,9 +89,9 @@ use keybind::{
     sync_section_keybind_labels, EditorRebind,
 };
 use node::{
-    drop_edited_views, ensure_document, rebuild_node_views, report_duplicate_ids,
-    sync_camera_focus, sync_object_views, sync_ship_focus, teardown_document, EditContext,
-    ObjectBodyStale,
+    drop_edited_views, ensure_document, ids_or_parents_moved, rebuild_node_views,
+    report_duplicate_ids, sync_camera_focus, sync_object_views, sync_ship_focus, teardown_document,
+    EditContext, ObjectBodyStale,
 };
 use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
@@ -106,6 +106,7 @@ use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
+    a_ship_is_entered,
     callout::sync_placement_callout,
     files::{close_file_window, open_file_window, sync_save_name},
     inspector::{
@@ -376,10 +377,23 @@ fn editor_plugin(app: &mut App) {
     );
 
     // The outward snapshot of everything below. `PostUpdate` so it reports the
-    // frame that has just finished whichever system decided it, and ungated so
-    // leaving the editor CLEARS it rather than freezing the last build.
-    app.init_resource::<EditorProbe>();
-    app.add_systems(PostUpdate, sync_editor_probe);
+    // frame that has just finished whichever system decided it, and unGATED
+    // within the build that has it, so leaving the editor CLEARS it rather
+    // than freezing the last build.
+    //
+    // Present only in a DEBUG build, because that is the only build anything
+    // reads it in: the harness predicates live in `nova_debug`, which the same
+    // feature links, and the editor ranges that assert off them are built with
+    // it. The snapshot walks the whole document and clones what it finds, so a
+    // shipped editor was paying a full sweep per frame - worst on the hulls
+    // the Generate verb makes, which are one node with every section under it -
+    // to fill a resource nothing in that build can see. A run condition is not
+    // the tool: the snapshot reads fourteen sources, and a hand-written list of
+    // them would go stale silently and freeze the harness's read surface.
+    if cfg!(feature = "debug") {
+        app.init_resource::<EditorProbe>();
+        app.add_systems(PostUpdate, sync_editor_probe);
+    }
 
     // Button colours, selection highlight, and the component tooltip.
     ui::register(app);
@@ -480,7 +494,10 @@ fn editor_plugin(app: &mut App) {
                 sync_style_list,
                 sync_part_ticks,
                 sync_part_zones,
-                sync_hull_plan,
+                // The only one of the four that is gated: it formats a string
+                // off the whole draw list, and its line lives in a block that
+                // is shown only inside a ship.
+                sync_hull_plan.run_if(a_ship_is_entered),
             ),
             // After the field has taken the keystroke, so a seed is judged the
             // frame it is typed rather than the frame after - the widget's own
@@ -539,7 +556,10 @@ fn editor_plugin(app: &mut App) {
                 sync_gizmo,
             )
                 .chain(),
-            report_duplicate_ids,
+            // Quadratic in the children of one node, and a generated hull
+            // puts every section under one. Only a frame that moved an id or
+            // a parent can have changed the answer.
+            report_duplicate_ids.run_if(ids_or_parents_moved),
             // Both read single letters, which is also what a builder types
             // into an inspector field - so both are verbs, and Normal is where
             // verbs live. The rest of this chain draws, and drawing is not a

@@ -1336,6 +1336,15 @@ pub(crate) fn sync_part_zones(
     }
 }
 
+/// True while the GENERATE block is on screen.
+///
+/// The block is spawned with the rail and hidden with `Display::None`, so the
+/// query behind it is never empty and only the context says whether anything
+/// there would be read. See [`sync_context_panels`], which is what shows it.
+pub(crate) fn a_ship_is_entered(context: Res<EditContext>) -> bool {
+    context.ship().is_some()
+}
+
 /// Write the HULL PLAN line: which prototype fills each SEEDED role of the
 /// hull the ticks add up to.
 ///
@@ -1344,6 +1353,10 @@ pub(crate) fn sync_part_zones(
 /// ticked drive is the main engine, the biggest ticked spinal gun is the bow
 /// gun - so a builder gets them without learning a second control, and this
 /// line is what tells them it happened.
+///
+/// GATED on the block being shown, unlike the compare-and-write reconcilers
+/// beside it: this walks every ticked row and formats a string, which is too
+/// much to build each frame for a line that is not on screen.
 pub(crate) fn sync_hull_plan(
     sections: Option<Res<GameSections>>,
     grammars: Option<Res<GameGrammars>>,
@@ -1729,7 +1742,10 @@ fn wanted_rows(
         let (glyph, kind) = ship_mark(node.driver);
         let (label, ordinal) = tree_text(&node.name, &id.0);
         let inside = entered == Some(ship);
-        let parts = sections_of(ship, nodes).len();
+        // ONE walk for both: this row's count and the rows under it are the
+        // same list, and the walk sorts every section node in the document.
+        let sections = sections_of(ship, nodes);
+        let parts = sections.len();
         rows.push(WantedRow {
             node: ship,
             depth: 1,
@@ -1756,7 +1772,7 @@ fn wanted_rows(
         if entered != Some(ship) {
             continue;
         }
-        for (section, id, node, _) in sections_of(ship, nodes) {
+        for (section, id, node, _) in sections {
             // The ORDINAL comes off the id even where the part is named,
             // unlike a ship: six reinforced hulls share one name, and the
             // number is the only thing telling them apart.

@@ -112,6 +112,14 @@ struct CommsSpeakerMarker;
 #[derive(Component)]
 struct CommsCardMarker;
 
+/// Which showing line a card - and every node inside it - draws.
+///
+/// The card set is reconciled against this id rather than rebuilt, so a line
+/// that is still on screen keeps its entities, its taffy nodes and its shaped
+/// text for as long as it is showing. Two identical lines are still two ids.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+struct CommsLineId(u64);
+
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 struct CommsIconMarker {
     kind: CommsIconKind,
@@ -125,6 +133,8 @@ enum CommsIconKind {
 
 #[derive(Clone, Debug)]
 struct VisibleCommsLine {
+    /// Identity of this showing line, matched by [`CommsLineId`] on its card.
+    id: u64,
     line: StoryLine,
     age_secs: f32,
 }
@@ -158,6 +168,9 @@ impl VisibleCommsLine {
 struct CommsQueue {
     /// Feed entries consumed so far (the feed is append-only in-scenario).
     seen: usize,
+    /// The next [`CommsLineId`]. Never reused, so a despawned card's id cannot
+    /// be mistaken for a live one.
+    next_id: u64,
     /// Lines waiting their turn, oldest first.
     pending: VecDeque<StoryLine>,
     /// Lines currently rendered, oldest first.
@@ -178,7 +191,8 @@ impl Plugin for CommsPanelPlugin {
             (
                 enqueue_new_lines.run_if(resource_changed::<StoryFeed>),
                 drive_comms_stack,
-                sync_comms_cards,
+                reconcile_comms_cards,
+                paint_comms_cards,
             )
                 .chain()
                 .in_set(super::NovaHudSystems),
@@ -214,22 +228,18 @@ fn spawn_comms_panel(mut commands: Commands) {
 /// Feed changes drive the lossless pending queue; an EMPTIED feed (scenario
 /// teardown) resets everything instantly - the
 /// leaked-line pin.
-fn enqueue_new_lines(
-    feed: Res<StoryFeed>,
-    mut queue: ResMut<CommsQueue>,
-    mut commands: Commands,
-    mut panel: Query<(Entity, &mut Visibility), With<CommsPanelMarker>>,
-) {
+///
+/// The QUEUE is the whole reset. The tree follows from it in the same frame,
+/// because [`reconcile_comms_cards`] is chained behind this and despawns the
+/// card of every line that is no longer visible - so there is exactly one
+/// system that edits the card set, and teardown cannot drift from expiry.
+fn enqueue_new_lines(feed: Res<StoryFeed>, mut queue: ResMut<CommsQueue>) {
     if feed.0.len() < queue.seen {
         // Teardown (the feed is append-only in-scenario, so shrinking means
-        // reset): drop the queue and visible stack, then hide at once.
+        // reset): drop the queue and the visible stack.
         queue.seen = 0;
         queue.pending.clear();
         queue.visible.clear();
-        if let Ok((entity, mut visibility)) = panel.single_mut() {
-            commands.entity(entity).despawn_related::<Children>();
-            *visibility = Visibility::Hidden;
-        }
     }
     let seen = queue.seen;
     for line in feed.0.iter().skip(seen) {
@@ -260,7 +270,10 @@ fn drive_comms_stack(
         let Some(line) = queue.pending.pop_front() else {
             break;
         };
+        let id = queue.next_id;
+        queue.next_id += 1;
         queue.visible.push_back(VisibleCommsLine {
+            id,
             line,
             age_secs: 0.0,
         });
@@ -274,40 +287,188 @@ fn drive_comms_stack(
     }
 }
 
-fn sync_comms_cards(
+/// Spawn the card of a line that has just appeared and despawn the card of a
+/// line that has gone. Nothing else.
+///
+/// The panel used to tear the whole stack down and rebuild it every frame,
+/// idle frames included: with the cap at three that was fifteen despawns and
+/// fifteen spawns per frame, fifteen taffy nodes deregistered and
+/// re-registered, and six freshly built `Text` components - a full measure and
+/// shape pass over every glyph of a wrapped body line, every frame, for as
+/// long as a conversation was up. The only thing that actually moved between
+/// those frames was the alpha, which [`paint_comms_cards`] writes onto the
+/// nodes that are already there.
+///
+/// New lines are always promoted onto the BACK of `visible`, and spawning
+/// appends, so walking the queue in order and spawning the ones that have no
+/// card yet keeps the children in stack order without reordering anything.
+fn reconcile_comms_cards(
     queue: Res<CommsQueue>,
     asset_server: Option<Res<AssetServer>>,
     mut commands: Commands,
     mut panel: Query<(Entity, &mut Visibility), With<CommsPanelMarker>>,
+    cards: Query<(Entity, &CommsLineId), With<CommsCardMarker>>,
 ) {
-    let Ok((entity, mut visibility)) = panel.single_mut() else {
+    let Ok((panel, mut visibility)) = panel.single_mut() else {
         return;
     };
-    commands.entity(entity).despawn_related::<Children>();
-    if queue.visible.is_empty() {
-        *visibility = Visibility::Hidden;
-        return;
+    let wanted = if queue.visible.is_empty() {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
+    if *visibility != wanted {
+        *visibility = wanted;
     }
-    *visibility = Visibility::Inherited;
-    commands.entity(entity).with_children(|parent| {
+
+    for (card, id) in &cards {
+        if !queue.visible.iter().any(|visible| visible.id == id.0) {
+            commands.entity(card).despawn();
+        }
+    }
+    commands.entity(panel).with_children(|parent| {
         for visible in &queue.visible {
+            if cards.iter().any(|(_, id)| id.0 == visible.id) {
+                continue;
+            }
             parent.spawn(comms_card(visible, asset_server.as_deref()));
         }
     });
 }
 
+/// Fade what is already on screen.
+///
+/// The alpha is the whole per-frame part of a card: it multiplies the fade with
+/// the channel's own signal strength, so a guard-channel catch stays faint for
+/// the whole of its dwell. Written on diff, so the flat middle of a dwell -
+/// where nothing is fading - costs nothing at all.
+///
+/// The TEXT is not here. It is written once, when the card is spawned, because
+/// a showing line's words do not change.
+#[expect(
+    clippy::type_complexity,
+    reason = "one query per marked node in a card"
+)]
+fn paint_comms_cards(
+    queue: Res<CommsQueue>,
+    mut q_card: Query<
+        (&CommsLineId, &mut BorderColor, &mut BackgroundColor),
+        With<CommsCardMarker>,
+    >,
+    mut q_icon: Query<
+        (
+            &CommsLineId,
+            &CommsIconMarker,
+            &mut BorderColor,
+            &mut BackgroundColor,
+            &mut ImageNode,
+        ),
+        Without<CommsCardMarker>,
+    >,
+    mut q_speaker: Query<(&CommsLineId, &mut TextColor), With<CommsSpeakerMarker>>,
+    mut q_body: Query<
+        (&CommsLineId, &mut TextColor),
+        (With<CommsTextMarker>, Without<CommsSpeakerMarker>),
+    >,
+) {
+    let showing = |id: &CommsLineId| queue.visible.iter().find(|visible| visible.id == id.0);
+
+    for (id, mut border, mut background) in &mut q_card {
+        let Some(visible) = showing(id) else {
+            continue;
+        };
+        let (tone, alpha) = (visible.line.channel.tone, card_alpha(visible));
+        set_border(
+            &mut border,
+            tone.border().with_alpha(tone.border().alpha() * alpha),
+        );
+        set_background(
+            &mut background,
+            tone.fill().with_alpha(tone.fill().alpha() * alpha),
+        );
+    }
+    for (id, icon, mut border, mut background, mut image) in &mut q_icon {
+        let Some(visible) = showing(id) else {
+            continue;
+        };
+        let (tone, alpha) = (visible.line.channel.tone, card_alpha(visible));
+        set_border(&mut border, tone.text().with_alpha(alpha));
+        let (fill, tint) = match icon.kind {
+            CommsIconKind::Authored => (
+                Color::srgba(0.0, 0.0, 0.0, 0.0),
+                Color::WHITE.with_alpha(alpha),
+            ),
+            CommsIconKind::Fallback => (tone.text().with_alpha(0.18 * alpha), image.color),
+        };
+        set_background(&mut background, fill);
+        if image.color != tint {
+            image.color = tint;
+        }
+    }
+    for (id, mut color) in &mut q_speaker {
+        let Some(visible) = showing(id) else {
+            continue;
+        };
+        set_text_color(
+            &mut color,
+            visible
+                .line
+                .channel
+                .tone
+                .text()
+                .with_alpha(card_alpha(visible)),
+        );
+    }
+    for (id, mut color) in &mut q_body {
+        let Some(visible) = showing(id) else {
+            continue;
+        };
+        set_text_color(
+            &mut color,
+            visible.line.channel.body().with_alpha(card_alpha(visible)),
+        );
+    }
+}
+
+/// The fade and the channel's own strength multiply: a guard-channel catch is
+/// faint for the whole of its dwell, not only while it is fading.
+fn card_alpha(visible: &VisibleCommsLine) -> f32 {
+    visible.alpha() * visible.line.channel.signal_strength
+}
+
+/// The three write-on-diff helpers. A `DerefMut` on any of these marks the
+/// component changed, which is what wakes the UI passes downstream, so a card
+/// resting at full alpha must not be assigned to.
+fn set_border(border: &mut BorderColor, wanted: Color) {
+    let wanted = BorderColor::all(wanted);
+    if *border != wanted {
+        *border = wanted;
+    }
+}
+
+fn set_background(background: &mut BackgroundColor, wanted: Color) {
+    if background.0 != wanted {
+        background.0 = wanted;
+    }
+}
+
+fn set_text_color(color: &mut TextColor, wanted: Color) {
+    if color.0 != wanted {
+        color.0 = wanted;
+    }
+}
+
 fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> impl Bundle {
     let channel = &line.line.channel;
     let tone = channel.tone;
-    // The fade and the channel's own strength multiply: a guard-channel catch
-    // is faint for the whole of its dwell, not only while it is fading.
-    let alpha = line.alpha() * channel.signal_strength;
+    let alpha = card_alpha(line);
     let header = match channel.tag.as_deref() {
         Some(tag) => format!("{} / {tag}", line.line.speaker.to_uppercase()),
         None => line.line.speaker.to_uppercase(),
     };
     (
         CommsCardMarker,
+        CommsLineId(line.id),
         Node {
             width: Val::Percent(100.0),
             min_height: Val::Px(76.0),
@@ -325,7 +486,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
         BorderColor::all(tone.border().with_alpha(tone.border().alpha() * alpha)),
         BackgroundColor(tone.fill().with_alpha(tone.fill().alpha() * alpha)),
         children![
-            comms_icon(&line.line, tone, alpha, asset_server),
+            comms_icon(line.id, &line.line, tone, alpha, asset_server),
             (
                 Node {
                     flex_grow: 1.0,
@@ -336,12 +497,14 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                 children![
                     (
                         CommsSpeakerMarker,
+                        CommsLineId(line.id),
                         Text::new(header),
                         TextFont::from_font_size(COMMS_SPEAKER_FONT_SIZE_PX),
                         TextColor(tone.text().with_alpha(alpha)),
                     ),
                     (
                         CommsTextMarker,
+                        CommsLineId(line.id),
                         Text::new(line.line.text.clone()),
                         TextFont::from_font_size(COMMS_BODY_FONT_SIZE_PX),
                         TextColor(channel.body().with_alpha(alpha)),
@@ -357,6 +520,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
 }
 
 fn comms_icon(
+    id: u64,
     line: &StoryLine,
     tone: ChipTone,
     alpha: f32,
@@ -376,6 +540,7 @@ fn comms_icon(
             CommsIconMarker {
                 kind: CommsIconKind::Authored,
             },
+            CommsLineId(id),
             node,
             ImageNode::new(
                 asset_server
@@ -391,6 +556,7 @@ fn comms_icon(
             CommsIconMarker {
                 kind: CommsIconKind::Fallback,
             },
+            CommsLineId(id),
             node,
             ImageNode::default(),
             BorderColor::all(tone.text().with_alpha(alpha)),
@@ -426,16 +592,70 @@ mod tests {
             (
                 enqueue_new_lines.run_if(resource_changed::<StoryFeed>),
                 drive_comms_stack,
-                sync_comms_cards,
+                reconcile_comms_cards,
+                paint_comms_cards,
             )
                 .chain(),
         );
         // The one system that writes `UiTransform::scale` on a HUD node, in
-        // PostUpdate so it sees the cards `sync_comms_cards` queued this
+        // PostUpdate so it sees the cards `reconcile_comms_cards` queued this
         // frame. Without it a card could carry an emphasis and no test here
         // would ever read the scale that emphasis asks for.
         app.add_systems(PostUpdate, crate::emphasis::drive_hud_emphasis);
+        // The rewrite counters, in PostUpdate for the same reason: a spawn
+        // queued in Update is not in the world until the schedule's sync
+        // point. `Changed` can only be read from a SYSTEM - asking an
+        // `EntityRef` is silently always false - so the count has to be
+        // collected here and read back off the resource.
+        app.init_resource::<CardChurn>();
+        app.add_systems(PostUpdate, count_card_churn);
         app
+    }
+
+    /// How much of the card tree the panel has rebuilt since the app started.
+    #[derive(Resource, Default, Debug, PartialEq, Eq)]
+    struct CardChurn {
+        /// Cards spawned.
+        cards: usize,
+        /// Body `Text` components written - each one a measure and shape pass
+        /// over every glyph of a wrapped line.
+        texts: usize,
+    }
+
+    fn count_card_churn(
+        mut churn: ResMut<CardChurn>,
+        cards: Query<(), Added<CommsCardMarker>>,
+        texts: Query<(), (Changed<Text>, With<CommsTextMarker>)>,
+    ) {
+        churn.cards += cards.iter().count();
+        churn.texts += texts.iter().count();
+    }
+
+    fn churn(app: &App) -> (usize, usize) {
+        let churn = app.world().resource::<CardChurn>();
+        (churn.cards, churn.texts)
+    }
+
+    /// The panel's cards in STACK order - the order the column lays them out,
+    /// which is `Children` and not the order a global query happens to walk
+    /// its archetypes in.
+    fn cards_in_stack_order(app: &mut App) -> Vec<Entity> {
+        let world = app.world_mut();
+        let Ok(children) = world
+            .query_filtered::<&Children, With<CommsPanelMarker>>()
+            .single(world)
+        else {
+            return Vec::new();
+        };
+        children.iter().collect()
+    }
+
+    /// Read `T` off each card in stack order, through `pick`.
+    fn per_card<T>(app: &mut App, pick: impl Fn(EntityRef<'_>) -> T) -> Vec<T> {
+        cards_in_stack_order(app)
+            .into_iter()
+            .map(|card| pick(app.world().entity(card)))
+            .collect()
     }
 
     fn push_line(app: &mut App, speaker: &str, text: &str, dwell: Option<f32>) {
@@ -507,11 +727,12 @@ mod tests {
 
     /// The border alpha of each drawn card, in stack order.
     fn card_border_alphas(app: &mut App) -> Vec<f32> {
-        app.world_mut()
-            .query_filtered::<&BorderColor, With<CommsCardMarker>>()
-            .iter(app.world())
-            .map(|border| border.top.alpha())
-            .collect()
+        per_card(app, |card| {
+            card.get::<BorderColor>()
+                .expect("a card draws a border")
+                .top
+                .alpha()
+        })
     }
 
     fn panel_visibility(app: &mut App) -> Visibility {
@@ -522,19 +743,33 @@ mod tests {
     }
 
     fn visible_texts(app: &mut App) -> Vec<String> {
-        app.world_mut()
-            .query_filtered::<&Text, With<CommsTextMarker>>()
-            .iter(app.world())
-            .map(|text| text.0.clone())
+        let cards = cards_in_stack_order(app);
+        cards
+            .into_iter()
+            .filter_map(|card| text_under::<CommsTextMarker>(app.world(), card))
             .collect()
     }
 
     fn visible_speakers(app: &mut App) -> Vec<String> {
-        app.world_mut()
-            .query_filtered::<&Text, With<CommsSpeakerMarker>>()
-            .iter(app.world())
-            .map(|text| text.0.clone())
+        let cards = cards_in_stack_order(app);
+        cards
+            .into_iter()
+            .filter_map(|card| text_under::<CommsSpeakerMarker>(app.world(), card))
             .collect()
+    }
+
+    /// The `Text` of the node inside `card` marked with `M`.
+    fn text_under<M: Component>(world: &World, card: Entity) -> Option<String> {
+        fn walk<M: Component>(world: &World, at: Entity) -> Option<String> {
+            if world.get::<M>(at).is_some() {
+                return world.get::<Text>(at).map(|text| text.0.clone());
+            }
+            world
+                .get::<Children>(at)?
+                .iter()
+                .find_map(|child| walk::<M>(world, child))
+        }
+        walk::<M>(world, card)
     }
 
     #[test]
@@ -785,6 +1020,132 @@ mod tests {
         assert!(
             app.world().resource::<CommsQueue>().visible.is_empty(),
             "teardown drops visible cards too"
+        );
+    }
+
+    /// The claim the rewrite is for, stated as COUNTS rather than
+    /// milliseconds: a card that is still showing is not rebuilt.
+    ///
+    /// The panel used to despawn and respawn its whole stack every frame. With
+    /// the cap at three that was 15 despawns and 15 spawns per frame and six
+    /// `Text` components built from scratch - a full measure and shape pass
+    /// over every glyph of a wrapped body line - for as long as a conversation
+    /// was up. Here three lines hold for six more frames and the counters do
+    /// not move: three cards, three body texts, once each.
+    #[test]
+    fn a_showing_card_is_not_rebuilt_while_it_holds() {
+        let mut app = comms_app();
+        app.update();
+        push_line(&mut app, "ALPHA", "First line.", None);
+        push_line(&mut app, "BRAVO", "Second line.", None);
+        push_line(&mut app, "CHARLIE", "Third line.", None);
+        app.update();
+
+        let settled = cards_in_stack_order(&mut app);
+        assert_eq!(settled.len(), 3, "the burst filled the visible stack");
+        assert_eq!(
+            churn(&app),
+            (3, 3),
+            "three cards and three body texts, built once"
+        );
+
+        for _ in 0..6 {
+            app.update();
+        }
+        assert_eq!(
+            cards_in_stack_order(&mut app),
+            settled,
+            "a line that is still showing keeps its card - the same entities, \
+             the same taffy nodes, the same shaped text"
+        );
+        assert_eq!(
+            churn(&app),
+            (3, 3),
+            "and nothing was spawned or re-shaped to hold it there"
+        );
+    }
+
+    /// The other half: the card set still FOLLOWS the queue. A line that
+    /// expires takes its own card and leaves its neighbours alone, and a new
+    /// line arrives at the bottom of the stack.
+    #[test]
+    fn expiry_takes_one_card_and_arrival_appends_one() {
+        let mut app = comms_app();
+        app.update();
+        // A short line that expires first, then one that outlives it.
+        push_line(&mut app, "ALPHA", "Brief.", Some(COMMS_DWELL_MIN_SECS));
+        push_line(&mut app, "BRAVO", "Longer.", None);
+        app.update();
+        let before = cards_in_stack_order(&mut app);
+        assert_eq!(before.len(), 2);
+        let (spawned, _) = churn(&app);
+
+        // The clamped 3.0 s dwell plus its 0.4 s fade, at 0.25 s an update -
+        // and nowhere near the other line's 8.0 s.
+        for _ in 0..14 {
+            app.update();
+        }
+        let after = cards_in_stack_order(&mut app);
+        assert_eq!(
+            after,
+            vec![before[1]],
+            "the expired line's card goes and the one still showing is the \
+             SAME entity, not a rebuild of it"
+        );
+        assert_eq!(visible_speakers(&mut app), vec!["BRAVO"]);
+        assert_eq!(churn(&app).0, spawned, "nothing respawns to close the gap");
+
+        push_line(&mut app, "CHARLIE", "Arriving.", None);
+        app.update();
+        let arrived = cards_in_stack_order(&mut app);
+        assert_eq!(arrived.len(), 2);
+        assert_eq!(arrived[0], before[1], "the held card keeps its slot");
+        assert_eq!(
+            visible_speakers(&mut app),
+            vec!["BRAVO", "CHARLIE"],
+            "and the new line lands at the bottom of the stack"
+        );
+        assert_eq!(churn(&app).0, spawned + 1, "one card for one line");
+    }
+
+    /// A card that is not rebuilt still FADES: the alpha is the per-frame part,
+    /// written onto the nodes that are already there. Without this the test
+    /// above would pass just as well on a panel that had stopped drawing.
+    #[test]
+    fn a_held_card_still_fades_on_its_own_entities() {
+        let mut app = comms_app();
+        app.update();
+        push_line(&mut app, "ALPHA", "Fading.", Some(COMMS_DWELL_MIN_SECS));
+        app.update();
+        let card = cards_in_stack_order(&mut app);
+        assert_eq!(card.len(), 1);
+        // The card is spawned at age zero, which is the bottom of its fade-in.
+        let arriving = card_border_alphas(&mut app);
+        assert_eq!(arriving, vec![0.0], "it arrives transparent");
+
+        // One 0.25 s update is exactly the fade-in, so the card is fully up.
+        app.update();
+        let up = card_border_alphas(&mut app);
+        assert_eq!(
+            cards_in_stack_order(&mut app),
+            card,
+            "the same entity is still the one on screen"
+        );
+        assert!(
+            up[0] > arriving[0],
+            "and the fade is written onto it rather than respawned: {} then {}",
+            arriving[0],
+            up[0]
+        );
+        assert_eq!(churn(&app).0, 1, "one card, faded in place");
+
+        // Out the far side: the dwell and the fade tail, and the card goes.
+        for _ in 0..14 {
+            app.update();
+        }
+        assert!(
+            cards_in_stack_order(&mut app).is_empty(),
+            "and it is taken down when its line expires"
         );
     }
 
