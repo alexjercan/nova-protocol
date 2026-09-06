@@ -187,7 +187,8 @@ fn scenario_from(ron_str: &str) -> ScenarioConfig {
             | Content::Campaign(_)
             | Content::Style(_)
             | Content::Ship(_)
-            | Content::Impact(_) => None,
+            | Content::Impact(_)
+            | Content::Grammar(_) => None,
         })
         .expect("content contains a Scenario")
 }

@@ -803,6 +803,13 @@ mod tests {
                 _ => None,
             })
             .collect();
+        let grammars = content
+            .iter()
+            .filter_map(|c| match c {
+                Content::Grammar(g) => Some(g.clone()),
+                _ => None,
+            })
+            .collect();
         WalkedBundle {
             id: id.to_string(),
             manifest: BundleManifest {
@@ -818,6 +825,7 @@ mod tests {
             ships,
             scenarios,
             campaigns,
+            grammars,
             // The tests do not exercise multi-file provenance; a single
             // synthetic file name carries every item.
             content: content
