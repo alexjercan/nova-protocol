@@ -223,39 +223,26 @@ fn mod_catalog_lists_installed_mods_metadata() {
         .expect("build mod catalog");
 
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(
-        mods.len(),
-        3,
-        "base + the story mod + example are the installed catalog"
-    );
+    assert_eq!(mods.len(), 2, "base + example are the installed catalog");
     assert_eq!(mods[0].id, "base", "base is first (load order)");
     assert!(mods[0].base, "base is flagged");
     assert_eq!(
         mods[0].meta.name, "Base Game",
         "base's display name comes from base.bundle.ron's meta"
     );
-    assert_eq!(
-        mods[1].id, "nova_protocol",
-        "the story mod loads right after base"
-    );
+    assert_eq!(mods[1].id, "example");
     assert!(!mods[1].base);
     assert_eq!(
-        mods[1].meta.name, "Nova Protocol",
-        "the story's display name comes from nova_protocol.bundle.ron's meta"
-    );
-    assert_eq!(mods[2].id, "example");
-    assert!(!mods[2].base);
-    assert_eq!(
-        mods[2].meta.name, "Example Mod",
+        mods[1].meta.name, "Example Mod",
         "example's display name comes from example.bundle.ron's meta"
     );
     assert_eq!(
-        mods[2].meta.description,
+        mods[1].meta.description,
         "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
         "example's description comes from its bundle meta (the catalog has none)"
     );
-    assert_eq!(mods[2].meta.version, "1.3.0", "bundle meta version decodes");
-    assert_eq!(mods[2].meta.author, "Nova Protocol");
+    assert_eq!(mods[1].meta.version, "1.3.0", "bundle meta version decodes");
+    assert_eq!(mods[1].meta.author, "Nova Protocol");
 }
 
 /// `build_mod_catalog` FILTERS `hidden: true` entries out of the player-facing
@@ -271,8 +258,8 @@ fn hidden_entries_are_filtered_from_mod_catalog() {
     let mods = &app.world().resource::<ModCatalog>().0;
     assert_eq!(
         mods.len(),
-        3,
-        "only base + the story mod + example are player-visible (the hidden fixture is filtered)"
+        2,
+        "only base + example are player-visible (the hidden fixture is filtered)"
     );
     assert!(
         !mods.iter().any(|m| m.id == "hidden-fixture"),
@@ -353,13 +340,10 @@ fn seed_from(preset: &[&str]) -> std::collections::HashSet<String> {
 /// locked in the UI).
 #[test]
 fn seed_enabled_mods_unions_base_over_any_restored_set() {
-    // No restored prefs -> the fresh-install default.
+    // No restored prefs -> the fresh-install default. No shipped mod is on by
+    // default today, so that is base alone.
     let from_empty = seed_from(&[]);
     assert!(from_empty.contains("base"), "base is enabled by default");
-    assert!(
-        from_empty.contains("nova_protocol"),
-        "the story mod is on for a fresh install"
-    );
     assert!(!from_empty.contains("example"), "example is off by default");
 
     // A restored set with a non-base mod (and NO base) -> keep the example choice AND
@@ -372,10 +356,6 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
     assert!(
         from_example.contains("base"),
         "base is forced on regardless of the restored set"
-    );
-    assert!(
-        !from_example.contains("nova_protocol"),
-        "a restored set without the story mod is the player's choice; it stays off"
     );
 }
 

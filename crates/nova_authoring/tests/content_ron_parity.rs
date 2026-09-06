@@ -1,18 +1,15 @@
 //! Parity guard for the built-in content files: the committed
-//! `assets/base/**/*.content.ron` and `assets/mods/nova_protocol/**/*.content.ron`
-//! must match their builders byte for byte.
+//! `assets/base/**/*.content.ron` must match its builders byte for byte.
 //!
-//! The config builders (`build_section_catalog` / `build_scenarios` /
-//! `build_story_scenarios`) are the SINGLE definition of each built-in; at
-//! runtime `register_bundles` loads the committed RON (via each bundle) and
-//! routes each item into `GameSections` / `GameScenarios`. The `content` CLI's
-//! `gen` subcommand is the one writer of those files; this test is assert-only:
-//! a MISSING file fails like a drifted one, so `cargo test` never mutates the
-//! assets tree.
+//! The config builders (`build_section_catalog` / `build_scenarios`) are the
+//! SINGLE definition of each built-in; at runtime `register_bundles` loads the
+//! committed RON (via each bundle) and routes each item into `GameSections` /
+//! `GameScenarios`. The `content` CLI's `gen` subcommand is the one writer of
+//! those files; this test is assert-only: a MISSING file fails like a drifted
+//! one, so `cargo test` never mutates the assets tree.
 //!
 //! - `assets/base/sections/base.content.ron` = one `Vec<Content>` of `Section((..))`.
 //! - `assets/base/scenarios/<id>.content.ron` = a `Vec<Content>` with one `Scenario((..))`.
-//! - `assets/mods/nova_protocol/scenarios/<id>.content.ron` = the same, for the story.
 //!
 //! A second guard pins the UNIFORMITY invariant (every generated bundle's
 //! content file is builder-backed): each bundle must ship exactly the
@@ -24,7 +21,7 @@ use std::{
     path::PathBuf,
 };
 
-use nova_authoring::generation::{content_files, STORY_MOD_DIR};
+use nova_authoring::generation::content_files;
 use nova_mod_format::BundleManifest;
 
 /// The one regeneration path, named by every failure in this file.
@@ -52,15 +49,10 @@ fn committed_content_matches_builders() {
 }
 
 /// The generated bundles: each bundle directory (assets-root-relative) and
-/// its manifest path.
-fn generated_bundles() -> [(&'static str, String); 2] {
-    [
-        ("base", "base/base.bundle.ron".to_string()),
-        (
-            STORY_MOD_DIR,
-            format!("{STORY_MOD_DIR}/nova_protocol.bundle.ron"),
-        ),
-    ]
+/// its manifest path. One today - the base game; a shipped mod that grows its
+/// own builders joins the list here.
+fn generated_bundles() -> [(&'static str, String); 1] {
+    [("base", "base/base.bundle.ron".to_string())]
 }
 
 /// Each generated bundle's content list and the generator's file map under

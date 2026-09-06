@@ -1,14 +1,13 @@
 //! `nova_authoring` is the OFFLINE half of the content pipeline: the Rust
 //! builders that define every built-in scenario and section, the serializer
-//! that writes them to the committed `assets/base/**/*.content.ron` and
-//! `assets/mods/nova_protocol/**/*.content.ron`, and the lint/balance walk
-//! that validates a content tree. It was carved out of
+//! that writes them to the committed `assets/base/**/*.content.ron`, and the
+//! lint/balance walk that validates a content tree. It was carved out of
 //! `nova_assets` because keeping it there hid the runtime asset stack behind
 //! twice its own volume.
 //!
 //! Touch this crate to change what built-in content IS (a builder under
-//! `base_content` or `mod_content`, then `content gen`), or to change what
-//! the `content lint` gate accepts.
+//! `base_content`, then `content gen`), or to change what the `content lint`
+//! gate accepts.
 //!
 //! The CLI over all of it is [`cli`], reached as the game binary's `content`
 //! subcommand:
@@ -20,17 +19,12 @@
 #![warn(missing_docs)]
 
 mod base_content;
-mod mod_content;
 
 pub mod balance;
-/// Narrow runtime-neutral access to reusable built-in scenario scenes: the
-/// story mod's chapter scenes for the preview benches, and the id New Game
+/// Narrow runtime-neutral access to the built-in scenarios: the id New Game
 /// starts.
 pub mod built_in_scenarios {
-    pub use crate::{
-        base_content::scenarios::tutorial::TUTORIAL_SCENARIO_ID,
-        mod_content::nova_protocol::{first_shift_scene, CampaignPortraits, FirstShiftScene},
-    };
+    pub use crate::base_content::scenarios::tutorial::TUTORIAL_SCENARIO_ID;
 }
 /// Narrow runtime-neutral access to the shipped fleet: the ids a scenario
 /// spawns each craft by, and the section ids its weapons answer to.

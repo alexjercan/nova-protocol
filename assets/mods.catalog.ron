@@ -17,11 +17,6 @@
         base: true,
     ),
     (
-        id: "nova_protocol",
-        bundle: "mods/nova_protocol/nova_protocol.bundle.ron",
-        enabled_by_default: true,
-    ),
-    (
         id: "example",
         bundle: "mods/example/example.bundle.ron",
     ),

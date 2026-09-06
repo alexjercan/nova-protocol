@@ -75,11 +75,11 @@ const WELL_SWITCH_HYSTERESIS = 1.1; // gravity.rs:214
 // ORBIT's trusted band (crates/nova_ship/src/flight/state.rs).
 const ORBIT_CLEARANCE_FACTOR = 1.5; // state.rs:392
 const ORBIT_BAND_SAFETY = 0.9; // state.rs:393
-// Shipped fixtures: the two campaign planetoids (crates/nova_authoring/src/
-// mod_content/nova_protocol/stage.rs). A scenario's `mass`
+// Two authored wells of mission scale, from the belt bench
+// (examples/playable/shared/first_shift_stage.rs). A scenario's `mass`
 // is still an `Option<f32>` in u^3/s^2 (nova_scenario/src/objects/asteroid.rs:92).
-const INSPECTION_PLANETOID_MU = 27000; // stage.rs:29 (u^3/s^2)
-const CONCEALMENT_PLANETOID_MU = 20000; // stage.rs:39 (u^3/s^2)
+const INSPECTION_PLANETOID_MU = 27000; // first_shift_stage.rs:32 (u^3/s^2)
+const CONCEALMENT_PLANETOID_MU = 20000; // first_shift_stage.rs:50 (u^3/s^2)
 
 // Radar locking (crates/nova_ship/src/input/targeting/). The dwell curve's
 // reference range is still an engine `f32` in world units (state.rs:54-57), so
@@ -287,7 +287,7 @@ const LANCE_TORPEDO_CRUISE = 350; // ordnance.rs:49 (MetersPerSecond)
 const ROUNDS_PER_LANCE_TORPEDO = 116;
 const ROUNDS_PER_SERPENT = 390;
 // The starter ship's soft manual-speed cap: what a torpedo has to catch when
-// the target is running (first_shift's `CUTTER_SPEED_CAP`, `MetersPerSecond`).
+// the target is running (tutorial.rs:38 `speed_cap`, `MetersPerSecond`).
 const PLAYER_SPEED_CAP = 150;
 
 // ---- pure models (mirror the Rust rules) ----------------------------------

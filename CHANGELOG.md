@@ -73,21 +73,10 @@ does NOT get an entry - and it is the only place they are written down.
 - New Game starts Basic Training: a Fleet gunnery range where Range Control
   talks a cadet through the helm verbs, GOTO and ORBIT out to a planetoid and
   back, the gun, five hulks and two drones that go live.
-- **(breaking)** The campaign is one chapter, An Ordinary Shift;
-  `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
-  `final_tally` are gone. Retarget a mod that named one.
-- **(breaking)** The story is the shipped `nova_protocol` mod: chapter,
-  campaign, crew portraits and thumbnail left base. A mod that borrowed a crew
-  face via `dep://base/` now depends on the story mod.
-- An Ordinary Shift, the story's one chapter: an Earthworks crew flies three
-  recoveries under a 150 m/s cap, sneaks a planetoid lap out of Meridian's
-  sight, and watches a warship kill the carrier.
-- The crew argue the rotation home while they work, and a stranger clips the
-  guard channel twice before the sentence that matters arrives.
-- The strike plays as two scenes, an approach and a salvo, and neither can be
-  skipped. The chapter closes on the wreck rather than handing the camera back.
-- The campaign opens on a title card over the carrier: the sector, the year,
-  and one line naming the Meridian and saying what a carrier is.
+- **(breaking)** The game ships no campaign: the `nova_protocol` campaign and
+  its `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
+  `final_tally` chapters are gone, and the story is being rewritten. Retarget a
+  mod that named one.
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 - Every main-menu backdrop flies the block fleet now: the waystation's
@@ -107,8 +96,8 @@ does NOT get an entry - and it is the only place they are written down.
   asteroid template must author one.
 
 ### Interface & HUD
-- Nova Protocol's campaign comms now give each recurring voice a distinct green
-  CRT portrait, including Cutter One's crew, Meridian and unknown channels.
+- Base content ships two comms portraits, the player's own label and Range
+  Control's face, reachable by any mod as `dep://base/portraits/<name>.png`.
 - A comms card is drawn in its channel: work traffic in transmission blue, the
   crew in phosphor, and a guard-channel catch faint, amber and tagged GUARD.
 - Comms use screen-relative cards with 20 px text and distinct speaker headers.
@@ -185,16 +174,14 @@ does NOT get an entry - and it is the only place they are written down.
   raider, an industrial carrier, a stolen warship and five cleanup craft - plus
   four wreck fragments of the carrier.
 - A siege railgun lance joins the catalog beside the standard one: the same gun
-  at capital grade, 500 damage through 360,000 power and a 30 m rake. Only the
-  campaign's stolen warship carries one.
+  at capital grade, 500 damage through 360,000 power and a 30 m rake.
 - **(breaking)** The base game ships BLOCK hulls only: the modelled Racer,
   CargoA and CargoB fleet and its part prototypes move into The Ledger, which
   now carries their meshes itself.
 
 ### Modding & Mod Portal
 - A catalog entry can set `enabled_by_default`: a fresh install with no saved
-  enabled set switches that mod on, and the story mod ships that way. A saved
-  set is left as the player chose it.
+  enabled set switches that mod on. A saved set is left as the player chose it.
 - The editor writes as many mods as you name ranges, each an `editor_`-prefixed
   bundle of its own, instead of the one `editor_save` slot every save replaced.
 - The Ledger brings its own fleet - modelled craft, their section prototypes

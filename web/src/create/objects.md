@@ -296,7 +296,7 @@ crashing, so a missing dependency is visible instead of fatal.
 | field | type | default | meaning |
 |---|---|---|---|
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
-| `speed_cap` | `Option` number | `None` | soft manual-speed cap in m/s (An Ordinary Shift flies the whole chapter at `Some(150.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
+| `speed_cap` | `Option` number | `None` | soft manual-speed cap in m/s (Basic Training flies the whole range at `Some(150.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
 
 `AI((..))` fields:
 

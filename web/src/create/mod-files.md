@@ -88,7 +88,7 @@ metadata stays in its own bundle's `meta` block.
 | `id` | string | required | The enable key and overlay namespace, and the `<id>` in another mod's `dep://<id>/` refs. |
 | `bundle` | path | required | The mod's `*.bundle.ron`, relative to the assets root. |
 | `base` | bool | `false` | The base game: enabled by default and locked on in the Mods menu. |
-| `enabled_by_default` | bool | `false` | Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. The shipped story mod sets it. |
+| `enabled_by_default` | bool | `false` | Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. No shipped mod sets it today. |
 | `hidden` | bool | `false` | Kept out of the Mods menu but still installed and enableable by id, for tooling and test rigs. |
 
 The full packaging, catalog, local installation, and publishing flow is in

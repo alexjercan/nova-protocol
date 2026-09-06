@@ -1,13 +1,12 @@
-//! first_shift_ships: the fixed ship candidates for the first two replacement
-//! Nova Protocol scenarios, posed for a free-fly visual review.
+//! first_shift_ships: eight shipped hulls posed side by side for a free-fly
+//! visual review.
 //!
-//! The front row holds the engineer's maintenance cutter, the industrial
-//! carrier, and the stolen military warship. The rear row holds five cleanup
-//! searchers for the wreck-field sequel: two unarmed salvage hulls, two
-//! PDC-armed escorts, and a PDC escort carrying one Serpent torpedo bay. All
-//! eight are shipped base content and the campaign flies them, so this row is
-//! where a silhouette change is reviewed against the ships it has to read
-//! apart from - not a place to iterate before promotion.
+//! The front row holds the maintenance cutter, the industrial carrier, and the
+//! military warship. The rear row holds five cleanup searchers: two unarmed
+//! salvage hulls, two PDC-armed escorts, and a PDC escort carrying one Serpent
+//! torpedo bay. All eight are shipped base content, so this row is where a
+//! silhouette change is reviewed against the ships it has to read apart from -
+//! not a place to iterate before promotion.
 //!
 //! Every hull is spawned by its CATALOG id, so the row poses the shipped ships
 //! themselves: a silhouette that moves in `base_content` moves here. Cladding
@@ -123,7 +122,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
     ];
 
     ScenarioConfig {
-        description: "The eight ships of the first two Nova Protocol chapters".to_string(),
+        description: "Eight shipped hulls, posed side by side".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -146,8 +145,8 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
     }
 }
 
-/// One posed catalog ship. `ship` is the CATALOG id, so the row shows the hull
-/// the campaign flies rather than a copy of it.
+/// One posed catalog ship. `ship` is the CATALOG id, so the row shows the
+/// shipped hull rather than a copy of it.
 fn ship_object(id: &str, name: &str, position: Meters3, ship: &str) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -183,7 +182,7 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &Gam
         .collect();
     assert!(
         errors.is_empty(),
-        "first_shift_ships: candidate fleet failed content lint:\n  {}",
+        "first_shift_ships: posed fleet failed content lint:\n  {}",
         errors.join("\n  "),
     );
 }

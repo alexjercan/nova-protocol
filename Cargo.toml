@@ -120,45 +120,6 @@ path = "examples/playable/first_shift_ships.rs"
 name = "first_shift_map"
 path = "examples/playable/first_shift_map.rs"
 
-# Thin playable fixtures over the nine production scene fragments that compose
-# First Shift. Each file owns only preview ship poses; nova_authoring supplies
-# the real map, cast, story, objectives, cameras, actions and handlers.
-[[example]]
-name = "first_shift_01_departure"
-path = "examples/playable/first_shift_01_departure.rs"
-
-[[example]]
-name = "first_shift_02_rcs"
-path = "examples/playable/first_shift_02_rcs.rs"
-
-[[example]]
-name = "first_shift_03_salvage"
-path = "examples/playable/first_shift_03_salvage.rs"
-
-[[example]]
-name = "first_shift_04_navigation"
-path = "examples/playable/first_shift_04_navigation.rs"
-
-[[example]]
-name = "first_shift_05_orbit"
-path = "examples/playable/first_shift_05_orbit.rs"
-
-[[example]]
-name = "first_shift_06_return"
-path = "examples/playable/first_shift_06_return.rs"
-
-[[example]]
-name = "first_shift_07_strike_approach"
-path = "examples/playable/first_shift_07_strike_approach.rs"
-
-[[example]]
-name = "first_shift_08_strike_salvo"
-path = "examples/playable/first_shift_08_strike_salvo.rs"
-
-[[example]]
-name = "first_shift_09_aftermath"
-path = "examples/playable/first_shift_09_aftermath.rs"
-
 # The railgun slug's ionized wake at three speeds (2.5, 7.5 and the shipped
 # 15 km/s) under three lifetime policies, with dark hull plates for the moving
 # light and every knob live. Task 20260902-143732's tuning bench: it fires the

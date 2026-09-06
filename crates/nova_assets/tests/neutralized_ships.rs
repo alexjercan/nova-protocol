@@ -1,17 +1,17 @@
 //! Production-faithful scenario tests for the NEUTRALIZED (combat-dead) signal
-//! over the shipped mainline.
+//! over the shipped training range.
 //!
 //! A ship that was armed and has lost all working weapons OR its flight
 //! computer fires `OnNeutralizedEvent` instead of being destroyed. The physical
 //! predicate is pinned in `nova_gameplay::integrity::neutralize`; what this
 //! file owns is the SCENARIO DATA's consumption of it.
 //!
-//! The mainline has no kill objectives to complete - the campaign's cutter
-//! carries no gun in either chapter - so the whole contract here is the
-//! PLAYER's side of it: losing the helm is a Defeat, it queues the retry, and
-//! it is gated below the epilogue so a hull coming apart during an earned win
-//! cannot overwrite it. That last guard is the one worth a test: it is
-//! invisible in the script and catastrophic when it is missing.
+//! The contract is the PLAYER's side of it: losing the helm is a Defeat, it
+//! queues the retry, and it is gated below the epilogue so a hull coming apart
+//! during an earned win cannot overwrite it. That last guard is the one worth
+//! a test: it is invisible in the script and catastrophic when it is missing.
+//! The range's drones go quiet under the same signal and must declare
+//! nothing.
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
@@ -21,19 +21,24 @@ use nova_events::prelude::{
 use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
 
-const FIRST_SHIFT_RON: &str =
-    include_str!("../../../assets/mods/nova_protocol/scenarios/first_shift.content.ron");
+const TUTORIAL_RON: &str = include_str!("../../../assets/base/scenarios/tutorial.content.ron");
 
-/// The beat each chapter's defeat gate sits below: `BEAT_OUTRO` in the
-/// authored script. Spelled out here rather than imported, because the point
-/// of the test is that the RON carries the gate - importing the constant would
-/// let a script that dropped the guard still pass.
-const FIRST_SHIFT_OUTRO: f64 = 16.0;
+/// The scenario the range queues when the player loses the helm: itself.
+const TUTORIAL_ID: &str = "tutorial";
 
-/// The id the chapter's own defeat gates name. Also spelled out rather than
+/// The beat the range's defeat gate sits below: the outro beat in the authored
+/// script. Spelled out here rather than imported, because the point of the
+/// test is that the RON carries the gate - importing the constant would let a
+/// script that dropped the guard still pass.
+const TUTORIAL_OUTRO: f64 = 12.0;
+
+/// A beat while the lesson is still running.
+const TUTORIAL_LIVE: f64 = 2.0;
+
+/// The id the range's own defeat gates name. Also spelled out rather than
 /// imported: a script that renamed the player's hull and left the gates
 /// pointing at the old id would still pass against a constant.
-const FIRST_SHIFT_PLAYER: &str = "cutter";
+const TUTORIAL_PLAYER: &str = "trainer";
 
 fn scenario_from(ron: &str) -> ScenarioConfig {
     let items: Vec<nova_modding::prelude::Content> =
@@ -119,13 +124,15 @@ fn queued_scenario(app: &App) -> Option<String> {
 }
 
 /// A live beat, the epilogue beat, and what a neutralize means in each.
-fn player_neutralize_case(ron: &str, id: &str, ship: &str, live_beat: f64, outro_beat: f64) {
-    let scenario = scenario_from(ron);
+#[test]
+fn a_tutorial_player_neutralize_is_a_gated_terminal_defeat() {
+    let (id, ship) = (TUTORIAL_ID, TUTORIAL_PLAYER);
+    let scenario = scenario_from(TUTORIAL_RON);
 
-    // On a live beat: an immediate Defeat with the chapter queued for retry.
+    // On a live beat: an immediate Defeat with the run queued for retry.
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "beat", live_beat);
+    seed_var(&mut app, "beat", TUTORIAL_LIVE);
     app.update();
     assert_eq!(
         outcome_kind(&app),
@@ -142,7 +149,7 @@ fn player_neutralize_case(ron: &str, id: &str, ship: &str, live_beat: f64, outro
     assert_eq!(
         queued_scenario(&app).as_deref(),
         Some(id),
-        "{id}: the retry is the chapter itself, offered rather than forced"
+        "{id}: the retry is the run itself, offered rather than forced"
     );
 
     // On the epilogue beat: the win is already locked, and the same event
@@ -150,7 +157,7 @@ fn player_neutralize_case(ron: &str, id: &str, ship: &str, live_beat: f64, outro
     // Victory with a Defeat while the banner was on screen.
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "beat", outro_beat);
+    seed_var(&mut app, "beat", TUTORIAL_OUTRO);
     neutralize(&mut app, ship);
     assert_eq!(
         outcome_kind(&app),
@@ -159,29 +166,18 @@ fn player_neutralize_case(ron: &str, id: &str, ship: &str, live_beat: f64, outro
     );
 }
 
+/// A drone going quiet is the gunnery lesson being PASSED, not a loss
+/// condition. Only the player's id is wired to an outcome: a scenario that read
+/// a disarmed drone as the player's defeat would end the run on the beat it
+/// exists for.
 #[test]
-fn a_first_shift_player_neutralize_is_a_gated_terminal_defeat() {
-    player_neutralize_case(
-        FIRST_SHIFT_RON,
-        "first_shift",
-        FIRST_SHIFT_PLAYER,
-        2.0,
-        FIRST_SHIFT_OUTRO,
-    );
-}
-
-/// The carrier dying is the chapter, not a loss condition, and the warship
-/// leaving is not a win. Only the player's id is wired to an outcome: the
-/// strike kills the biggest ship on the board, and a scenario that read that
-/// as the player's defeat would end the chapter on the beat it exists for.
-#[test]
-fn nothing_but_the_player_can_end_an_ordinary_shift() {
-    let scenario = scenario_from(FIRST_SHIFT_RON);
+fn nothing_but_the_player_can_end_the_range() {
+    let scenario = scenario_from(TUTORIAL_RON);
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "beat", 14.0);
+    seed_var(&mut app, "beat", 11.0);
 
-    for bystander in ["carrier", "warship"] {
+    for bystander in ["drone_1", "drone_2"] {
         neutralize(&mut app, bystander);
         assert_eq!(
             outcome_kind(&app),

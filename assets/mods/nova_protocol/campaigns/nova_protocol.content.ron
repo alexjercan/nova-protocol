@@ -1,9 +1,0 @@
-[
-    Campaign((
-        id: "nova_protocol",
-        name: "Nova Protocol",
-        scenarios: [
-            "first_shift",
-        ],
-    )),
-]

@@ -164,10 +164,8 @@ launchable by id.
 | `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
 | `menu_duel` | Duel Cycle | yes | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
 
-The base bundle ships no campaign. The story - `first_shift` ("An Ordinary
-Shift") under the `nova_protocol` campaign - is the shipped `nova_protocol` mod
-in `assets/mods/nova_protocol/`, switched on by a fresh install and toggled from
-the Mods menu like any other mod. There are no other content kinds - a content file holds
+The base bundle ships no campaign, and no shipped mod carries one today - a
+`Campaign` is a mod's to declare. There are no other content kinds - a content file holds
 `Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact`, `Grammar` and
 `Channel` items only; factions are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
@@ -252,8 +250,8 @@ base bundle resources, and are NOT dep-referenceable.)
 
 ### Images (7)
 
-- `textures/cubemap.png` - the stock skybox, and the sky the training range and
-  the story are flown under
+- `textures/cubemap.png` - the stock skybox, and the sky the training range is
+  flown under
 - `textures/cubemap_alt.png` - the alternate skybox: a `SetSkybox` swap target
   and what the editor sandbox loads
 - `textures/asteroid.png` - the asteroid surface texture
@@ -261,10 +259,9 @@ base bundle resources, and are NOT dep-referenceable.)
 - `banner.png` - the base mod's banner
 - `portraits/*.png` - the green CRT faces a
   [`NarrativeCue`](../actions/#narrativecue) puts on the comms card:
-  `player.png`, the player's own label (the story mod borrows it as
-  `dep://base/portraits/player.png`), and `range-control.png`, the training
-  range's voice. The story's crew faces ship with the `nova_protocol` mod, not
-  here. Reusable by any mod - a portrait is just an image ref
+  `player.png`, the player's own label, and `range-control.png`, the training
+  range's voice. Reusable by any mod - a portrait is just an image ref, and a
+  mod that wants a face of its own ships it under its own tree
 
 Skybox `.png.meta` sidecars (the cube reinterpret) ride along with their
 image automatically and are never listed or referenced directly.
@@ -295,9 +292,8 @@ The builders behind this page live under
 `crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
 section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
 skin styles, `ships/` owns the block hulls,
-`scenarios/` groups mainline and main-menu scenarios, `channels.rs` owns the
-narrative channels, and the story mod's builders under `mod_content/nova_protocol/`
-own its campaign membership. If this page and the generated RON
+`scenarios/` groups the training range and the main-menu backdrops, and
+`channels.rs` owns the narrative channels. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

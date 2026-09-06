@@ -1,10 +1,10 @@
-//! screenshot_scenario_picker: the Scenarios picker with a campaign chapter
-//! selected (`news-090-scenario-campaigns.png`), driven through the shipped app
+//! screenshot_scenario_picker: the Scenarios picker with a scenario selected
+//! (`news-090-scenario-campaigns.png`), driven through the shipped app
 //! (`editor_app`).
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - open the picker, select the
-//!   chapter, exit clean, capturing nothing.
+//!   rows, exit clean, capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write the PNG (staged under
 //!   `NOVA_CAPTURE_DIR`).
 //!
@@ -38,25 +38,15 @@ use ui_walk::Gestures;
 #[derive(Parser)]
 #[command(name = "screenshot_scenario_picker")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the Scenarios picker with a campaign chapter selected. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
+#[command(about = "Capture the Scenarios picker with a scenario selected. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
 struct Cli;
 
-/// The campaign chapter the Scenarios shot selects.
-///
-/// The picker's own subject in that figure is the CAMPAIGN grouping - the `[-]`
-/// header with its chapters indented under it - so the selection has to be a
-/// chapter rather than one of the uncampaigned scenarios in the tail. The
-/// campaign ships ONE chapter, so this is it; the header reads as its parent by
-/// the row's indent rather than by having a sibling above it.
-/// `assets/mods/nova_protocol/campaigns/nova_protocol.content.ron` lists the chapters;
-/// campaigns render expanded unless collapsed, so nothing has to open it.
+/// The row the Scenarios shot selects: the base game's training range, the one
+/// scenario every install lists whatever its enabled mods are.
 #[cfg(feature = "debug")]
-const CAMPAIGN_CHAPTER_ROW: &str = "Scenario Row: first_shift";
-/// The story mod's catalog id. Enabled by the script rather than trusted to
-/// the fresh-install seed: a saved enabled set on the capture host may have
-/// switched it off.
-#[cfg(feature = "debug")]
-const STORY_MOD_ID: &str = "nova_protocol";
+const BASE_SCENARIO_ROW: &str = "Scenario Row: tutorial";
+/// The example mod's arena, the second row the walk selects and the one it
+/// plays into.
 #[cfg(feature = "debug")]
 const EXAMPLE_SCENARIO_ROW: &str = "Scenario Row: example_arena";
 
@@ -90,7 +80,7 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The driven walk: menu -> Scenarios -> a campaign chapter selected.
+/// The driven walk: menu -> Scenarios -> a scenario selected.
 #[cfg(feature = "debug")]
 fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     // The HUD chrome is dropped right before the shot rather than once at
@@ -109,27 +99,30 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::MainMenu))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("enable the story and example mods")
+        // Enabled by the script rather than trusted to the fresh-install seed:
+        // a saved enabled set on the capture host may have switched it off.
+        .step("enable the example mod")
         .on_enter(|world: &mut World| {
-            let mut enabled = world.resource_mut::<EnabledMods>();
-            enabled.0.insert(STORY_MOD_ID.to_string());
-            enabled.0.insert("example".to_string());
+            world
+                .resource_mut::<EnabledMods>()
+                .0
+                .insert("example".to_string());
         })
         .until(frames(SETTLE_FRAMES * 2))
         .add()
         .step("settle the menu and its ambience backdrop")
         .until(frames(SETTLE_FRAMES))
         .add()
-        // The Scenarios picker: the campaign header and its indented chapters.
+        // The Scenarios picker: the scenario list and its details pane.
         .click("open Scenarios", "Scenarios Button")
         .step("settle the scenarios picker")
         .until(frames(SETTLE_FRAMES))
         .add()
-        .click("select a campaign chapter", CAMPAIGN_CHAPTER_ROW)
-        .step("settle the selected chapter's details pane")
+        .click("select a scenario", BASE_SCENARIO_ROW)
+        .step("settle the selected scenario's details pane")
         .until(frames(SETTLE_FRAMES))
         .add()
-        .step("the chapter is the selected row")
+        .step("the training range is the selected row")
         .on_enter(|world: &mut World| {
             // The picker's OWN record of which click landed
             // (`select_scenario_row` inserts `Selected` on the clicked row and
@@ -139,10 +132,10 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let selected = world
                 .query_filtered::<&Name, With<Selected>>()
                 .iter(world)
-                .any(|name| name.as_str() == CAMPAIGN_CHAPTER_ROW);
+                .any(|name| name.as_str() == BASE_SCENARIO_ROW);
             assert!(
                 selected,
-                "the click on `{CAMPAIGN_CHAPTER_ROW}` never landed: the picker \
+                "the click on `{BASE_SCENARIO_ROW}` never landed: the picker \
                  has not marked that row Selected, so the details pane shows the \
                  PREVIOUS selection"
             );

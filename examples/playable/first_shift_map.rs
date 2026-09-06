@@ -1,11 +1,14 @@
-//! first_shift_map: the fixed spatial layout candidate for Nova Protocol's
-//! replacement opening, with the accepted ship candidates included for scale.
+//! first_shift_map: a fixed spatial layout at mission scale, with shipped ships
+//! posed in it for scale.
 //!
-//! The scene exposes the whole tutorial route at once: the carrier and launch,
-//! first flight beacon, the cutter-only rock plate between the carrier and
-//! planetoids, GOTO approach, inspection planetoid, and the larger body that hides the
-//! warship's emergence point. Objective
-//! markers and the HUD list are review labels, not final mission wording.
+//! The bench is the belt of `shared/first_shift_stage.rs` with a route laid
+//! over it: the carrier and launch, first flight beacon, the cutter-only rock
+//! plate between the carrier and planetoids, GOTO approach, inspection
+//! planetoid, and the larger body that hides the warship's emergence point.
+//! Nothing here is shipped content - it is the layout kept as an example of
+//! what the scenario vocabulary can build, and the most populated authored
+//! scene the frame-time window has to measure. Objective markers and the HUD
+//! list are review labels.
 //!
 //! Choose a pilot from the CLI. `camera` keeps the accelerated free camera and
 //! keys 1-5 for the overview, launch, salvage, orbit, and ambush views:
@@ -259,7 +262,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
     );
 
     ScenarioConfig {
-        description: "First Shift map and sight-line candidate".to_string(),
+        description: "Belt map and sight-line bench".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -353,7 +356,7 @@ fn beacon(id: &str, label: &str, position: Meters3, color: Color) -> ScenarioObj
 }
 
 /// One placed catalog ship. `ship` is the CATALOG id, so the layout is flown
-/// with the hulls the campaign ships rather than copies of them.
+/// with the shipped hulls rather than copies of them.
 fn ship_object(
     id: &str,
     name: &str,
@@ -445,7 +448,7 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &Gam
         .collect();
     assert!(
         errors.is_empty(),
-        "first_shift_map: candidate layout failed content lint:\n  {}",
+        "first_shift_map: bench layout failed content lint:\n  {}",
         errors.join("\n  "),
     );
 }

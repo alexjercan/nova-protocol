@@ -256,13 +256,11 @@ What is on disk today, in reading order:
   with an explode toggle), `widget_zoo` (every `nova_ui` widget factory, live
   and clickable in both skins), `compare_asteroids` / `compare_planets` (the
   number keys re-dress the focus subject) and `asteroid_kinds` / `planet_types`
-  (the whole authored range of each, side by side). Last, the campaign
-  fixtures: `first_shift_01_departure` through `first_shift_09_aftermath` each
-  load one production scene fragment with nothing of their own but preview ship
-  poses, `first_shift_map` is the spatial bench for the belt they share, and
-  `first_shift_ships` poses the campaign's eight hulls in a row. All of them
-  still walk and capture under `NOVA_AUTOPILOT`, which is what keeps them on the
-  probe gate.
+  (the whole authored range of each, side by side). Last, the mission-scale
+  pair: `first_shift_map` is a fixed belt layout with a route over it - the most
+  populated authored scene there is - and `first_shift_ships` poses eight
+  shipped hulls in a row. All of them still walk and capture under
+  `NOVA_AUTOPILOT`, which is what keeps them on the probe gate.
 - `systems/` - the correctness ranges. Every name carries a prefix for the KIND
   of check it is - `system_` functionality, `bug_` a regression range for a
   defect that was found, `stress_` load - and `examples/systems/README.md` owns
@@ -740,8 +738,8 @@ cargo run --features debug probe run system_player_path --repeat 5  # gated repe
 cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -> aggregate index
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
-cargo run --features debug probe scenario first_shift    # a SCENARIO by id, no example involved
-cargo run --features debug probe scenario assets/mods/nova_protocol/scenarios/first_shift.content.ron  # ... or by file
+cargo run --features debug probe scenario tutorial       # a SCENARIO by id, no example involved
+cargo run --features debug probe scenario assets/base/scenarios/tutorial.content.ron  # ... or by file
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours -

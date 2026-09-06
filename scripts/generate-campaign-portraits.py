@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Generate the green CRT speaker portraits.
 
-Two owners: the base game's faces (the player, Range Control) write under
-`assets/base/portraits/`, the Nova Protocol story mod's under
-`assets/mods/nova_protocol/portraits/`. The SVG sources all live in
-`art/portraits/`.
+The base game's faces - the player and Range Control - write under
+`assets/base/portraits/`; their SVG sources live in `art/portraits/`. A mod
+that ships faces of its own writes them under its own asset tree.
 """
 
 from pathlib import Path
@@ -13,7 +12,6 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT / "art" / "portraits"
 BASE_DIR = ROOT / "assets" / "base" / "portraits"
-STORY_DIR = ROOT / "assets" / "mods" / "nova_protocol" / "portraits"
 
 BG = "#030d08"
 PANEL = "#06170f"
@@ -22,7 +20,6 @@ GREEN = "#55d68b"
 BRIGHT = "#c0ffd4"
 DARK = "#183426"
 AMBER = "#c2a23b"
-AMBER_DARK = "#796424"
 
 
 def rect(x: int, y: int, w: int, h: int, fill: str) -> str:
@@ -73,69 +70,6 @@ def person(
     ]
 
 
-def control() -> list[str]:
-    s = frame() + person("#7f7650", "#555b3c", "#253f30", "#347951", "#245c3d")
-    s += [
-        rect(10, 7, 3, 4, "#253f30"),
-        rect(19, 7, 3, 5, "#253f30"),
-        rect(8, 9, 2, 8, GREEN),
-        rect(22, 9, 2, 7, GREEN),
-        rect(23, 15, 4, 1, GREEN),
-        rect(26, 15, 1, 3, BRIGHT),
-        rect(12, 24, 8, 1, BRIGHT),
-    ]
-    return s
-
-
-def deck_chief() -> list[str]:
-    s = frame() + person("#8f8656", "#5d603e", "#b7dfc3", AMBER, AMBER_DARK)
-    s += [
-        rect(12, 6, 8, 2, "#b7dfc3"),
-        rect(10, 7, 3, 5, "#73977f"),
-        rect(20, 7, 3, 5, "#73977f"),
-        rect(7, 9, 2, 9, GREEN),
-        rect(23, 9, 2, 7, GREEN),
-        rect(24, 15, 3, 1, GREEN),
-        rect(26, 15, 1, 3, BRIGHT),
-        rect(7, 26, 3, 1, "#b8da5d"),
-        rect(22, 26, 3, 1, "#b8da5d"),
-    ]
-    return s
-
-
-def copilot() -> list[str]:
-    s = frame() + person("#9b8e5c", "#686344", "#24382b", "#398763", "#20543b")
-    s += [
-        polygon("10,8 12,5 21,6 22,9", "#24382b"),
-        rect(9, 8, 3, 6, "#24382b"),
-        rect(21, 9, 2, 5, "#24382b"),
-        rect(8, 10, 2, 7, GREEN),
-        rect(22, 10, 2, 6, GREEN),
-        rect(23, 15, 4, 1, GREEN),
-        rect(26, 15, 1, 2, BRIGHT),
-        rect(14, 24, 4, 3, DARK),
-    ]
-    return s
-
-
-def engineer() -> list[str]:
-    s = frame() + person("#766c48", "#4e5035", "#1a3024", "#a78a2e", "#6d5c24")
-    s += [
-        rect(10, 6, 12, 3, "#1a3024"),
-        rect(9, 8, 3, 5, "#1a3024"),
-        rect(20, 8, 3, 5, "#1a3024"),
-        rect(11, 8, 4, 2, "#315e44"),
-        rect(17, 8, 4, 2, "#315e44"),
-        rect(12, 8, 2, 1, BRIGHT),
-        rect(18, 8, 2, 1, BRIGHT),
-        rect(15, 8, 2, 1, GREEN),
-        rect(9, 23, 3, 5, "#347951"),
-        rect(20, 23, 3, 5, "#347951"),
-        rect(12, 24, 8, 1, AMBER),
-    ]
-    return s
-
-
 def player() -> list[str]:
     s = frame()
     s += [
@@ -170,50 +104,9 @@ def range_control() -> list[str]:
     return s
 
 
-def beacon() -> list[str]:
-    s = frame()
-    s += [
-        polygon("16,5 26,16 16,27 6,16", "#245c3d"),
-        polygon("16,7 24,16 16,25 8,16", GREEN),
-        polygon("16,10 21,16 16,22 11,16", BG),
-        rect(15, 11, 2, 7, BRIGHT),
-        rect(15, 20, 2, 2, BRIGHT),
-        rect(4, 15, 4, 1, AMBER),
-        rect(24, 15, 4, 1, AMBER),
-        rect(15, 3, 2, 4, AMBER),
-        rect(15, 25, 2, 4, AMBER),
-    ]
-    return s
-
-
-def unknown() -> list[str]:
-    s = frame()
-    s += [
-        polygon("8,24 11,9 16,5 21,9 24,24", "#123122"),
-        polygon("11,11 16,7 21,11 20,20 12,20", "#06100b"),
-        rect(12, 12, 8, 2, "#1b4b32"),
-        rect(13, 13, 2, 1, GREEN),
-        rect(18, 13, 1, 1, GREEN),
-        rect(9, 23, 14, 5, "#1d4932"),
-        rect(4, 8, 9, 1, BRIGHT),
-        rect(18, 10, 10, 1, GREEN),
-        rect(5, 17, 7, 1, GREEN),
-        rect(19, 19, 8, 1, BRIGHT),
-        rect(7, 26, 5, 1, AMBER),
-        rect(21, 6, 6, 1, AMBER),
-    ]
-    return s
-
-
 PORTRAITS = {
-    "meridian-control": (STORY_DIR, control),
-    "deck-chief": (STORY_DIR, deck_chief),
-    "copilot": (STORY_DIR, copilot),
-    "engineer": (STORY_DIR, engineer),
     "player": (BASE_DIR, player),
     "range-control": (BASE_DIR, range_control),
-    "automated-beacon": (STORY_DIR, beacon),
-    "unknown-channel": (STORY_DIR, unknown),
 }
 
 

@@ -770,8 +770,8 @@ MANUAL burn reads it; the autopilot plans its own deceleration.
 ### SetControllerVerb
 
 Grant or withhold one flight verb on a scoped ship's controller - the
-tutorial-progression primitive (An Ordinary Shift starts with `Goto` withheld
-and grants it when the player first locks the planetoid).
+tutorial-progression primitive (Basic Training starts with every verb withheld
+and grants one per beat, `Goto` after the cadet's first lock).
 
 ```ron
 SetControllerVerb((id: "player_spaceship", verb: Goto, enabled: true)),

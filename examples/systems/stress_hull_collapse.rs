@@ -38,11 +38,6 @@
 //! authored numbers - the range reads the mounted section and fails loudly if
 //! what content authored is no longer what this arithmetic was written for.
 //!
-//! `examples/playable/first_shift_08_strike_salvo.rs` stays the hand-run cross
-//! check against real mainline content: a skinned carrier, a scripted salvo and
-//! a camera. It is not a range and it makes no claim; when this one moves, that
-//! is the scene to fly and look at.
-//!
 //! # No frame-time capture
 //!
 //! `NovaProbePlugin::default().without_frametime()`, for the reason

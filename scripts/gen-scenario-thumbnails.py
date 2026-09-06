@@ -64,9 +64,6 @@ HEIGHT = 180
 SCENARIOS = [
     # --- base (the built-in scenarios; builders in nova_authoring) ---
     ("tutorial", "Basic Training", "assets/base/thumbnails/tutorial.png"),
-    # --- assets/mods/nova_protocol (the shipped story mod) ---
-    ("first_shift", "An Ordinary Shift",
-     "assets/mods/nova_protocol/thumbnails/first_shift.png"),
     # --- webmods/gauntlet ---
     ("gauntlet_run", "Gauntlet Run", "webmods/gauntlet/thumbnails/gauntlet_run.png"),
     # --- webmods/the-ledger (chapter 1 visible, 2-5 under the campaign header) ---

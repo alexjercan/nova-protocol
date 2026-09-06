@@ -11,7 +11,7 @@ The game boots into a main menu. **New Game** drops you into **Basic Training** 
 
 - **New Game** - drops you into **Basic Training**, the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
-- **Scenarios** - opens the complete scenario picker, the story campaign An Ordinary Shift included.
+- **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
 - **Mods** - opens the installed-mod and online-catalog browser.
 - **Settings** - adjusts volume, graphics quality, and UI skin, and shows the control reference.
 - **Exit** - quits (hidden in the browser build).

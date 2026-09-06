@@ -226,7 +226,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<id>"),
         args: &[CommandArg::Live(live::SCENARIO)],
-        examples: &["scenario load first_shift"],
+        examples: &["scenario load tutorial"],
     },
     CommandSpec {
         name: "status",
@@ -912,7 +912,7 @@ pub fn command_list_rows(filter: Option<CommandClass>) -> Vec<TerminalRow> {
 /// The Command shell's staged introduction, revealed row-by-row on first entry
 /// and reprinted whole by `clear`.
 ///
-/// `world` describes the live context (`first_shift / paused`, `main menu /
+/// `world` describes the live context (`tutorial / paused`, `main menu /
 /// idle`, `ship editor / paused`, `no scenario / idle`); `armed` is whether the
 /// player has run `cheats enable` in this run.
 pub fn command_intro_rows(world: &str, armed: bool) -> Vec<TerminalRow> {
@@ -1260,7 +1260,7 @@ mod tests {
     /// mark rather than a written-down number.
     #[test]
     fn the_intro_reports_the_computed_registry_and_cheat_state() {
-        let clean = command_intro_rows("first_shift / paused", false);
+        let clean = command_intro_rows("tutorial / paused", false);
         let text = |rows: &[TerminalRow]| {
             rows.iter()
                 .map(|row| row.text.clone())
@@ -1272,7 +1272,7 @@ mod tests {
             "REGISTRY ..... {} commands / ready",
             COMMAND_CATALOG.len()
         )));
-        assert!(clean_text.contains("WORLD ........ first_shift / paused"));
+        assert!(clean_text.contains("WORLD ........ tutorial / paused"));
         assert!(clean_text.contains("CHEATS ....... disabled / run clean"));
         assert!(
             clean_text.contains(&format!("NOVA OS v{}", nova_info::APP_VERSION)),
