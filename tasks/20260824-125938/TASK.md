@@ -10,4 +10,5 @@ Ideation, broad on purpose. The headline promise for the far future
 An alternate mode beside the scripted scenarios, Mount and Blade in space: freeform travel, multiple factions with standing and conflicts you can join, ship upgrades and unlocks, trade and salvage - a living sandbox driven by systems rather than RON scripts.
 
 Research: `RESEARCH.md` (2026-09-06) - how the mode fits the engine, the mods,
-and a save file. Direction agreed by the owner 2026-09-06; not scheduled.
+and a save file. Direction and decisions agreed by the owner 2026-09-06; not
+scheduled.

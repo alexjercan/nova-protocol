@@ -3,8 +3,8 @@
 Survey date: 2026-09-06, tree at `2c2e0624` (Add tutorial). Reference record,
 not scheduled work. Every claim about the code is read from the tree; every
 design line is a proposal. The owner agreed with the direction in sections 2
-to 4, the procedural world, and gates with a chart on 2026-09-06. Nothing is
-scheduled; the decisions at the end stay open until each is stated.
+to 4, the procedural world, and gates with a chart on 2026-09-06, and took
+the decisions listed at the end the same day. Nothing is scheduled.
 
 **Read the [Recommendations](#recommendations) first if you only read one
 section.**
@@ -290,7 +290,7 @@ by id, linted offline and at merge:
 
 | Kind | What it declares | Read by |
 | --- | --- | --- |
-| `World` | generation parameters (sector count, map size, biome weights, faction list, starting ship and credits) and any pinned authored sectors. Base ships one. A total conversion overlays `base`'s by id; a second world appears under New Game as a choice. Mirrors `Campaign`. | world generator, New Game |
+| `World` | generation parameters (sector count, map size, biome weights, faction list, starting ship and credits) and any pinned authored sectors. Base ships it in the base bundle, and New Game always starts the base world, base-owned like `new_game_scenario`. A creator's total conversion overlays it by id, the uniform rule for every kind. Mirrors `Campaign`. | world generator, New Game |
 | `Biome` | what a sector of this kind is made of: planet type weights and counts, rock field density and kinds, station chance, sky choice, danger. The `Grammar` pattern: the mod ships the taste, the engine draws. | sector generator |
 | `StationTemplate` | a station grammar or hull id, faction filter, services list (`Market`, `Shipyard`, `ContractBoard`, `Comms`), what it sells (section ids, ship ids, commodity ids) | sector generator, dock screen |
 | `Faction` | name, style id, ships and grammars for patrols, default relations, default standing to the player | strategic sim, spawner, `Allegiance` |
@@ -353,10 +353,12 @@ screen renders the station's declared services with generic widgets; a
 contract board renders `Contract` text and rewards; comms use the existing
 cue and portrait path. That covers the usual "custom menu" ask.
 
-Embedded scripting (Lua, Rhai, wasm) is the alternative. Recommend against it
-for now: it doubles the API surface to keep stable, it bypasses lint, and it
-breaks the "author it explicitly, fail at lint" rule. Revisit only if a
-concrete mod cannot be expressed through doors A to C.
+Decided 2026-09-06: the vocabulary stays closed, and embedded scripting
+(Lua, Rhai, wasm) is out. It would double the API surface to keep stable,
+bypass lint, and break the "author it explicitly, fail at lint" rule.
+Anything the vocabulary cannot express is Rust code written for the
+open-world mode, in the engine, and the vocabulary grows where that code
+needs a hook a mod can reach.
 
 ### Ship resources: fuel, oxygen, cargo
 
@@ -375,7 +377,7 @@ deltas, nothing else. No resource is open-world-only.
 The `WorldState` resource, serialized as RON through `persist.rs`. Never the
 ECS world. Contents:
 
-- `schema` (integer) and the game version string.
+- The game version string that wrote it (the only compatibility key).
 - The enabled mod set with each mod's `meta.version`.
 - The world seed and the world clock.
 - The player: sector, docked station, credits, standing map, cargo map, active
@@ -394,7 +396,7 @@ through a mod bundle (`nova_editor/src/bundle.rs`).
 
 ### When a save happens
 
-Save points, not anywhere-saves:
+Save points, not anywhere-saves (decided 2026-09-06):
 
 - Autosave on sector arrival and on dock and undock.
 - Manual save from the pause menu while docked or out of combat (no hostile
@@ -437,11 +439,12 @@ from the saved hull and deltas. Continue = the newest autosave.
 
 ### Format evolution
 
-Follow `PersistedSettings`: every field has a serde default, values clamp on
-load, tests pin that an older file still reads. A format break bumps `schema`
-and refuses older saves with a message. Recommended promise until 1.0: a save
-reads within one release line only. The changelog marks a break with
-`**(breaking)**` as it does for content.
+Decided 2026-09-06: no save compatibility between versions. The save records
+the game version that wrote it; a different version refuses to load it with
+a message that names both versions. No serde defaults for migration, no
+`schema` counter, no migration code. The load menu shows an old slot greyed
+with its version so the player knows why. Values are still clamped on load,
+because a hand-edited file is not a version problem.
 
 ### Randomness
 
@@ -486,12 +489,14 @@ Cheap, and out of scope for this note by the owner's word:
    5. `Contract`, `Encounter`, the director, `ReturnToWorld`.
    6. The strategic layer: faction conflict simulated between visits.
 
-## Open decisions for the owner
+## Decisions (owner, 2026-09-06)
 
-- Agreed 2026-09-06: scene per sector, generated and materialised on first
-  visit; physical gates on a sector graph; a chart app in NOVA OS.
-- Closed vocabulary (recommended) or embedded scripting.
-- Save points (recommended) or anywhere-saves.
-- The save compatibility promise before 1.0.
-- Base open-world content in the base bundle as a `World` item (recommended)
-  or as a separate always-on shipped mod.
+- Scene per sector, generated and materialised on first visit; physical
+  gates on a sector graph; a chart app in NOVA OS.
+- Closed vocabulary. No embedded scripting. Anything more is Rust code
+  written for the open-world mode.
+- Save points, not anywhere-saves.
+- No save compatibility between versions.
+- The base game lives in the base bundle, never in a mod. Mods are for
+  creators; the shipped mods (`nova_protocol`, `example`) are examples of
+  how to write one.
