@@ -96,6 +96,15 @@ A ship names one with `style: Some("<id>")` beside `skin: true` on its
 a `Style` with the same id replaces that look everywhere; a new id is a new look.
 See [Ship skin styles](../styles/).
 
+### Ship grammars
+
+| id | what it is |
+|---|---|
+| `standard_hull` | the keeled, mirrored warship the editor's generator draws from unless told otherwise: a seeded spine with a bridge a third of the way back, a mirrored pair of stern drives, and hull, controller, thruster, torpedo and PDC prototypes on the draw |
+
+A generator names one by id. A mod declaring a `Grammar` with the same id
+replaces it; a new id is a new line of ship. See [Ship grammars](../grammars/).
+
 ### Modelled ship parts (not base content)
 
 Base ships NO parts cut for one craft. Every base hull is built out of the
@@ -141,8 +150,8 @@ launchable by id.
 
 One campaign ships: `nova_protocol` ("Nova Protocol"), whose one member is
 `first_shift`. There are no other content kinds - a content file holds
-`Section`, `Scenario`, `Campaign`, `Ship`, and `Style` items only; factions
-are not content. The base ship ids are tabled in
+`Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact` and `Grammar`
+items only; factions are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
 New Game is base-owned: `new_game_scenario: Some("first_shift")` in
@@ -223,7 +232,7 @@ All under `dep://base/sounds/`: `ammo_dry.wav`, `bay_door.wav`,
 (UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)
 
-### Images (6)
+### Images (12)
 
 - `textures/cubemap.png` - the stock skybox, and the sky the campaign is flown
   under
@@ -232,6 +241,11 @@ base bundle resources, and are NOT dep-referenceable.)
 - `textures/asteroid.png` - the asteroid surface texture
 - `thumbnails/first_shift.png` - the picker plate
 - `banner.png` - the base mod's banner
+- `portraits/*.png` - the green CRT faces a
+  [`NarrativeCue`](../actions/#narrativecue) puts on the comms card, one per
+  named voice in the base campaign: `automated-beacon.png`, `copilot.png`,
+  `deck-chief.png`, `engineer.png`, `meridian-control.png`, `player.png`,
+  `unknown-channel.png`. Reusable by any mod - a portrait is just an image ref
 
 Skybox `.png.meta` sidecars (the cube reinterpret) ride along with their
 image automatically and are never listed or referenced directly.

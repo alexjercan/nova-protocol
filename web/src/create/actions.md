@@ -7,7 +7,7 @@ never panics a scenario). All 46 at a glance:
 
 | action | group | what it does |
 |---|---|---|
-| [`SpawnScenarioObject`](#spawnscenarioobject) | [world](#spawning-the-world) | spawn one object: asteroid, ship, beacon, crate, or light |
+| [`SpawnScenarioObject`](#spawnscenarioobject) | [world](#spawning-the-world) | spawn one object: anchor, asteroid, planet, ship, beacon, crate, or light |
 | [`ScatterObjects`](#scatterobjects) | [world](#spawning-the-world) | spawn `count` copies of a template at deterministic random positions |
 | [`DespawnScenarioObject`](#despawnscenarioobject) | [world](#spawning-the-world) | remove a scoped object and its whole child hierarchy |
 | [`CreateScenarioArea`](#createscenarioarea) | [world](#spawning-the-world) | spawn an invisible spherical sensor zone for `OnEnter` / `OnExit` |
@@ -66,7 +66,7 @@ and does nothing - spawn first.
 ### SpawnScenarioObject
 
 Spawn one object. `base` is the shared identity block; `kind` picks the
-object and carries its config - the six kinds are the
+object and carries its config - the seven kinds are the
 [Scenario objects reference](../objects/).
 
 ```ron
@@ -580,7 +580,8 @@ action list; it REPORTS, and the handlers that answer live beside it:
 
 Filter both with [`Cinematic((key: "..."))`](../filters/#cinematic), or a
 scenario with two scenes answers the wrong one. A filter naming a key no
-`Cinematic` plays is a lint Warn.
+`Cinematic` plays is a lint Error, and a lint error refuses the scenario at
+load.
 
 `skippable` is authored on every scene because a scene that cannot be left is a
 real decision - three seconds long, or the first time only - and not the kind of

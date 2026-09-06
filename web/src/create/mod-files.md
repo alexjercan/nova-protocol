@@ -167,7 +167,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The six content chapters
+## The seven content chapters
 
 <div id="wiki-children"></div>
 
@@ -182,6 +182,9 @@ Large mods can use one scenario per file and list all of them in `content`.
   materials, and the destructible decoration scattered over them.
 - An [impact](../impacts/) row pairs a damage type with a material to voice a
   hit - what your round sounds like against what it struck.
+- A [grammar](../grammars/) is the table a PROCEDURAL hull is drawn from: which
+  sections the generator may reach for, how often, and how big and how sparse
+  the hull it builds is.
 
 ## Paths and dependencies
 
