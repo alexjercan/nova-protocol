@@ -8,9 +8,10 @@
 //! a scene that is cancelled, deadlined or torn down simply stops posting, and
 //! the card that is already up finishes its own hold.
 //!
-//! Untagged by `HudTier` for the same reason the skip prompt is - a scene drops
-//! the HUD to its cinematic level, and a card the cinematic level hides is a
-//! card that never plays.
+//! Untagged by `HudTier` for the same reason the skip prompt is: not because a
+//! scene drops the HUD level (nothing does - that toggle is the player's), but
+//! so the player's own toggle cannot delete a shot's title while the shot keeps
+//! running. Untagged means not HUD-managed, so the card outlives the level.
 //!
 //! The CORNER is authored, not chosen here. Every corner of a Nova screen is
 //! spoken for by something at some point (the comms stack owns bottom-left, the

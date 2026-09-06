@@ -22,7 +22,7 @@ use nova_gameplay::{
     asset_ref::AssetRef,
     audio::{AudioRoute, SfxCommandsExt, SoundBank, UiSfx},
 };
-use nova_ui::{hud::ChipTone, theme};
+use nova_ui::hud::ChipTone;
 
 use super::{HudSelfDrivenVisibility, HudTier};
 
@@ -81,12 +81,24 @@ impl NarrativeChannel {
         }
     }
 
+    /// The colour of the line the player actually reads.
+    ///
+    /// Drawn from the channel like the frame and the header, so a Crew line is
+    /// phosphor throughout rather than a phosphor frame around blue text.
+    pub fn body(self) -> Color {
+        match self {
+            NarrativeChannel::Comms => COMMS_BODY_WORK,
+            NarrativeChannel::Crew => COMMS_BODY_CREW,
+            NarrativeChannel::Guard => COMMS_BODY_GUARD,
+        }
+    }
+
     /// How strongly the card is drawn: a guard-channel catch is faint, and a
     /// line the ship was sent is not.
     pub fn signal_strength(self) -> f32 {
         match self {
+            NarrativeChannel::Comms | NarrativeChannel::Crew => 1.0,
             NarrativeChannel::Guard => 0.7,
-            _ => 1.0,
         }
     }
 }
@@ -146,9 +158,17 @@ const COMMS_BLIP_VOLUME: f32 = 0.22;
 /// from turning a transmission into one long subtitle line.
 const COMMS_PANEL_WIDTH_PERCENT: f32 = 48.0;
 const COMMS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
-/// The comms body text - demo 2's `.msg` pale blue, legible against the blue
-/// chip without competing with the speaker accent.
-const COMMS_BODY: Color = Color::srgb_u8(0xcf, 0xe6, 0xff);
+/// The body text of a comms card, per channel.
+///
+/// Each is its channel's accent lifted about three quarters of the way to
+/// white: the line stays legible at 20px against the card without competing
+/// with the 14px speaker accent, which is what demo 2's `.msg` pale blue did
+/// for the one channel that existed then. The guard channel is not darkened
+/// here - its faintness is [`NarrativeChannel::signal_strength`], so the one
+/// mechanism carries it on the frame, the header and the body alike.
+const COMMS_BODY_WORK: Color = Color::srgb_u8(0xcf, 0xe6, 0xff);
+const COMMS_BODY_CREW: Color = Color::srgb_u8(0xcd, 0xff, 0xde);
+const COMMS_BODY_GUARD: Color = Color::srgb_u8(0xff, 0xe3, 0xb7);
 
 /// Square speaker icon size inside a comms card.
 const COMMS_ICON_SIZE_PX: f32 = 48.0;
@@ -400,7 +420,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                         CommsTextMarker,
                         Text::new(line.line.text.clone()),
                         TextFont::from_font_size(COMMS_BODY_FONT_SIZE_PX),
-                        TextColor(COMMS_BODY.with_alpha(COMMS_BODY.alpha() * alpha)),
+                        TextColor(channel.body().with_alpha(alpha)),
                         TextLayout {
                             linebreak: LineBreak::WordBoundary,
                             ..default()
@@ -449,7 +469,7 @@ fn comms_icon(
             },
             node,
             ImageNode::default(),
-            BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(alpha)),
+            BorderColor::all(tone.text().with_alpha(alpha)),
             BackgroundColor(tone.text().with_alpha(0.18 * alpha)),
             children![],
         ),

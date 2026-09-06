@@ -5,10 +5,17 @@
 //! event-world sync (nova_scenario) writes [`CinematicPrompt`] here. The prompt
 //! shows the key while the scene will take it and goes when the scene ends.
 //!
-//! Deliberately NOT tagged with a `HudTier`. A scene almost always drops the
-//! HUD to its cinematic level, and a skip prompt hidden by the very thing it
-//! is offering to skip is worse than no prompt: an untagged widget is not
-//! HUD-managed, so it survives the level and drives its own visibility.
+//! Deliberately NOT tagged with a `HudTier`. Nothing drops the HUD level for a
+//! scene - `HudVisibility` is the PLAYER's grave/tilde toggle, and the menu's -
+//! so the reason is the other way round: a skip prompt the player can hide,
+//! while the scene it is offering to skip keeps playing, is worse than no
+//! prompt. An untagged widget is not HUD-managed (`apply_hud_visibility` filters
+//! `With<HudTier>`), so it survives the level and drives its own visibility.
+//!
+//! The cost of that is real and deliberate: this widget and the title card are
+//! the only two HUD surfaces that do not answer the player's own toggle, which
+//! is why `wiki/hud.md` has to name them as the exception rather than promise a
+//! clean screen.
 //!
 //! Being outside the HUD's management is also why it has to place itself. The
 //! bottom-centre column belongs to the keybind dock; the prompt measures the
@@ -111,12 +118,17 @@ fn sync_cinematic_prompt(
     mut q_row: Query<&mut Visibility, With<CinematicPromptMarker>>,
     mut q_text: Query<&mut Text, With<CinematicPromptText>>,
 ) {
+    // Every bound source, not the keyboard column: `cinematic_skip` ships a pad
+    // default, and a rebind can empty the keyboard column while leaving the
+    // action perfectly reachable. Reading `keyboard` alone told a pad player to
+    // press ENTER, and hid the prompt entirely for a keyboardless binding whose
+    // skip still fired.
     let label = prompt
         .skip_action
         .as_deref()
         .and_then(|action| bindings.get(action))
-        .and_then(|action| action.keyboard.first())
-        .map(|source| source.label());
+        .and_then(|action| action.sources().next())
+        .map(|source| source.glyph_label());
     for mut visibility in &mut q_row {
         *visibility = match label {
             Some(_) => Visibility::Inherited,

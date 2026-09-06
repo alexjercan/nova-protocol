@@ -25,7 +25,7 @@ The heads-up display is diegetic - the instruments read the ship's real state - 
 The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise keeps a quiet screen - the velocity sphere, your speed, the dock's few live verbs, the always-on ship markers and the status bar - and everything else arrives with its moment.
 
 <div class="widget" data-widget="hud-context">
-<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears every element.</p>
+<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
 </div>
 
 <details class="explain">
@@ -43,11 +43,13 @@ The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of
 Grave / tilde (or the gamepad Select button) toggles the whole display between two levels:
 
 - **On** - the contextual HUD above.
-- **Cinematic** - a clean screen for captures and quiet flying.
+- **Cinematic** - a clean screen for captures and quiet flying. Clean, not empty: see the two deliberate exceptions below.
 
 There is no third "minimal" level any more: showing everything all the time is what made a manual detail dial useful, and the contextual rules do that job continuously instead.
 
 Every widget still declares its kind - **Instrument** (velocity sphere, flight chips, autopilot marker, maneuver instruments, lead pips, lock crosshairs, allegiance markers), **Chrome** (the keybind dock, verb cues, the component-lock panel, edge indicators, objective markers, the target inset) or **Status** (the fps/version bar) - and all of them clear at Cinematic.
+
+Two surfaces carry no kind at all, and so the toggle does not reach them: a cutscene's title card, and its SKIP prompt. Both belong to a scene rather than to your instruments. Hiding the way out of a scene that is still playing would be worse than the clean frame is worth, so a capture taken during a cutscene keeps them.
 
 ## Flight readouts
 
