@@ -76,14 +76,15 @@ in this range is judged for how it feels to play. Generated art (`web/src/assets
 
 ## Progress
 
-All seven batches adjudicated. Review COMPLETE; fixes not started. Two BLOCKERs open: the stale
-probe roster (batch 2) and the dangling `second_shift` row in
-`screenshot_scenario_picker` (batch 4).
+All seven batches adjudicated; review COMPLETE. Final totals: 4 BLOCKER (a
+fourth surfaced during the fix pass), 45 MAJOR, 90 MINOR.
 
-Final totals: 3 BLOCKER, 45 MAJOR, 88 MINOR.
+Fix pass COMPLETE for the grouping the verdict scheduled (A-E, 27 fixes,
+committed). The findings the verdict did NOT schedule are still open and are
+listed under "Still open" at the end of this file.
 
 The owner raised the hardcoded comms channels mid-run; recorded below, ahead of
-batches 4-5.
+batches 4-5, and fixed as group C.
 
 ## Findings
 
@@ -2562,4 +2563,74 @@ current and lints clean.
 
 ### Still open
 
-Nothing. Every batch finding is either fixed or recorded as deliberate.
+The verdict's A-E grouping is done. It was a CURATED list, not the whole
+findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
+were recorded but never scheduled. What stands, re-verified against HEAD on
+2026-09-06:
+
+**24 MAJOR, by theme.**
+
+Editor and WFC correctness (batches 1-3):
+- `nova_wfc/src/grid.rs:55` - `cells()` is a `u32` multiply and the gate bounds
+  the grid only from below; an authored `2048x2048x1024` lints clean and wraps.
+- `nova_wfc/src/collapse.rs:327,:683` - both documented refusal paths untested.
+- `nova_editor/src/bundle.rs:90` - a save named "Sandbox" derives
+  `editor_sandbox` and takes over the editor's own stage range.
+- `nova_editor/src/bundle.rs:63,:488` - the `editor_` prefix is a listing
+  convention, not a property the editor owns.
+- `nova_editor/src/generate.rs:186,:379` - every Generate overwrites the ship's
+  cladding and style; the cladding toggle the record claims never landed.
+  Confirmed still `node.style = hull.style.clone();` at `:187`.
+- `nova_editor/src/generate.rs:381` - the lint-refusal arm has no test.
+- `nova_editor/src/node.rs:1310` (unmeasured) - per-frame document walks are
+  O(sections) or O(sections^2); a generated hull multiplies the input.
+- `nova_editor/src/scenario.rs:1201` - `retarget_retries` recurses into
+  `Sequence` but not `Cinematic`, so a retry authored inside a scene keeps the
+  wrong scenario id through a save. Confirmed: the match still has one arm.
+- `nova_ui/src/screen/list.rs:93` - the `Hovered` fix has no failing-without-it
+  test.
+- `examples/playable/wfc_arena/stamps.rs:36` - the surviving stamp hardcodes the
+  grid the grammar now authors.
+
+Grammar as content - the load half of the authoring rule:
+- `nova_assets/src/merge.rs:373` - a grammar registers at load with NO lint pass,
+  so "an error at lint, then at load" has no load half. Confirmed:
+  `lint_grammar_config` has zero hits in `merge.rs`. This is the same gap group C
+  closed for channels, still open for grammars.
+- `nova_ship/src/sections/ship_grammar.rs:222` - a mod can only REPLACE
+  `standard_hull`; a new grammar id is unreachable.
+- `nova_scenario/src/lint/ship.rs:175` - the grid check is blind to the
+  footprints of the parts the grammar seeds.
+- `nova_scenario/src/lint/ship.rs:134` - 92 lines of lint gate with no test.
+
+Coverage:
+- `nova_scenario/src/actions/cinematic.rs` - the Cinematic and its skip path have
+  no harnessed range, only unit tests.
+- `nova_hud/src/comms_panel.rs:342` (perf, unmeasured, PRE-EXISTING) -
+  `sync_comms_cards` rebuilds the whole visible stack every frame, idle included.
+
+Documentation the range left behind:
+- `docs/project-tour.md:30`, `docs/architecture.md:12`, `docs/concept-index.md:82`
+  - `nova_wfc` is a workspace member in neither crate map, neither dependency
+  graph, nor the concept index, whose WFC row points at a deleted file.
+  Confirmed: zero `nova_wfc` hits in all three.
+- `docs/ship-layout-sense.md:3` - written against the deleted file; every
+  constant it cites is gone.
+- `docs/guide-extend-scenarios.md:167` - Recipe 3 tells a contributor to
+  hand-edit generated code and names symbols that no longer exist.
+- `docs/scenario-system.md:228` - "`Sequence` is the one action whose state does
+  not live in the action" is false now, and two neighbouring claims with it.
+- `web/src/create/author-a-scenario.md:15` - still describes the single
+  `editor_save` slot.
+- `web/src/wiki/keybinds.md:255` - says torpedoes fire on the left mouse button;
+  an editor-placed torpedo takes `F`.
+- `CHANGELOG.md:373` - an unreleased entry describes the stamp this range
+  deleted.
+
+**~85 MINOR**, in the batch blocks above. Not triaged individually; each was
+recorded where it was found.
+
+Nothing here blocks the range: it builds, it lints, and it plays. The heaviest
+are the `merge.rs:373` grammar load gate (an authoring rule with half its
+enforcement), `scenario.rs:1201` (a save silently rewrites a retry wrong), and
+`grid.rs:55` (an authored grammar can wrap the cell count).
