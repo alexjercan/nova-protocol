@@ -964,7 +964,7 @@
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Foreman Okono",
                         text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
                         dwell: Some(7.0),
@@ -989,7 +989,7 @@
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "You",
                         text: "I see them. Keep the Mule on my line, Okono - I'll take them off her.",
                     )),
@@ -1052,7 +1052,7 @@
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Foreman Okono",
                         text: "They only have eyes for you, not the Mule - so drag their fire wide of her, and keep a rock between you when the tracers come.",
                     )),
@@ -1084,7 +1084,7 @@
                         expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Foreman Okono",
                         text: "Sixpence is scrap. Don't cheer yet.",
                     )),
@@ -1115,7 +1115,7 @@
                         expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Foreman Okono",
                         text: "Tinfoil King's down. The Mule's still breathing.",
                     )),
@@ -1148,7 +1148,7 @@
                         id: "obj_escort",
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Foreman Okono",
                         text: "Wave one's scrap and the Mule's still with us. Breathe, Kestrel - the scope already shows two more burns coming.",
                         dwell: Some(6.0),

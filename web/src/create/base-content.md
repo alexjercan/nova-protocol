@@ -134,6 +134,20 @@ asteroid kind.
 The materials the base game names are `"hull"` (every section) and the five
 asteroid kinds, which are the same ids an asteroid's `material` field takes.
 
+## Narrative channels
+
+Where a story line is heard, and how the comms panel draws one that was. Any
+[`NarrativeCue`](../actions/#narrativecue) names one by id, and re-declaring an
+id restyles that channel for the whole game.
+
+| id | drawn | tagged | what it is |
+|---|---|---|---|
+| `comms` | incoming-transmission blue | no | the work channel: traffic addressed to this ship |
+| `crew` | phosphor green | no | inside the hull, off the radio - a voice in the room |
+| `guard` | amber, at 70% strength | `GUARD` | everybody's channel, nobody's conversation |
+
+The fields are documented in [Channels](../channels/).
+
 ## Scenario ids
 
 What `NextScenario((scenario_id: ...))`, a `Campaign` member list, and the
@@ -150,8 +164,8 @@ launchable by id.
 
 One campaign ships: `nova_protocol` ("Nova Protocol"), whose one member is
 `first_shift`. There are no other content kinds - a content file holds
-`Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact` and `Grammar`
-items only; factions are not content. The base ship ids are tabled in
+`Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact`, `Grammar` and
+`Channel` items only; factions are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
 New Game is base-owned: `new_game_scenario: Some("first_shift")` in
@@ -276,8 +290,8 @@ The builders behind this page live under
 `crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
 section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
 skin styles, `ships/` owns the block hulls,
-`scenarios/` groups mainline and main-menu scenarios, and
-`campaigns.rs` owns campaign membership. If this page and the generated RON
+`scenarios/` groups mainline and main-menu scenarios, `channels.rs` owns the
+narrative channels, and `campaigns.rs` owns campaign membership. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

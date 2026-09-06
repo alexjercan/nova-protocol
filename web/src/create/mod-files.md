@@ -167,7 +167,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The seven content chapters
+## The eight content chapters
 
 <div id="wiki-children"></div>
 
@@ -185,6 +185,9 @@ Large mods can use one scenario per file and list all of them in `content`.
 - A [grammar](../grammars/) is the table a PROCEDURAL hull is drawn from: which
   sections the generator may reach for, how often, and how big and how sparse
   the hull it builds is.
+- A [channel](../channels/) is where a story line was heard, and how the comms
+  panel draws one that was - the difference between a line addressed to your
+  ship and one you are overhearing.
 
 ## Paths and dependencies
 

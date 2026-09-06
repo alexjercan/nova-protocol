@@ -33,7 +33,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_gameplay::prelude::{Allegiance, AssetRef, CHANNEL_COMMS};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
@@ -1017,7 +1017,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
             allegiance: Allegiance::Enemy,
         }),
         EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-            channel: NarrativeChannelConfig::Comms,
+            channel: CHANNEL_COMMS.to_string(),
             speaker: picket.callsign.to_string(),
             text: "Contact acknowledged. Weapons free.".to_string(),
             dwell: None,
@@ -1092,7 +1092,7 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
         actions: vec![
             EventActionConfig::SetSkybox(SetSkyboxActionConfig::new(beacon.cubemap)),
             EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                channel: NarrativeChannelConfig::Comms,
+                channel: CHANNEL_COMMS.to_string(),
                 speaker: beacon.label.to_string(),
                 text: beacon.line.to_string(),
                 dwell: None,
@@ -1251,7 +1251,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
                     "Free flight: press F1 to return to the editor",
                 )),
                 EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    channel: NarrativeChannelConfig::Comms,
+                    channel: CHANNEL_COMMS.to_string(),
                     speaker: "Range Control".to_string(),
                     text: "Range is yours. Hulks to port, live pickets deeper in - they wake if \
                            you paint them or crowd them. F1 puts you back on the build deck."

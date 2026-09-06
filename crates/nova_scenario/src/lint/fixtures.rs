@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::AssetRef;
+use nova_gameplay::prelude::{AssetRef, CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD};
 use nova_ship::prelude::SectionConfig;
 
 use crate::{
@@ -14,6 +14,12 @@ use crate::{
 
 pub(crate) fn known(ids: &[&str]) -> HashSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
+}
+
+/// The channel ids base content authors, so a fixture cue naming one of them
+/// resolves the way it does in the shipped game.
+pub(crate) fn base_channels() -> HashSet<String> {
+    known(&[CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD])
 }
 
 pub(crate) fn campaign(id: &str, members: &[&str]) -> CampaignConfig {

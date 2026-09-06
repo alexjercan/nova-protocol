@@ -487,7 +487,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, impacts, and grammars.",
+            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, impacts, grammars, and channels.",
         related: [
             "campaigns",
             "scenarios",
@@ -496,13 +496,14 @@ const CREATE_PAGES = [
             "styles",
             "impacts",
             "grammars",
+            "channels",
         ],
         headings: [
             "Folder structure",
             "The bundle manifest",
             "Balance acknowledgments",
             "Content files",
-            "The seven content chapters",
+            "The eight content chapters",
             "Paths and dependencies",
             "Overlay behavior",
         ],
@@ -631,6 +632,25 @@ const CREATE_PAGES = [
             "Naming a material",
             "Base rows",
             "Destruction is not here",
+        ],
+    },
+    {
+        slug: "channels",
+        md: "channels.md",
+        title: "Narrative channels for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference"],
+        summary:
+            "Author where a story line was heard: the Channel item, the tones a card is drawn in, the tag and signal strength that say how much of a line is addressed to the player, and the three base channels.",
+        related: ["actions", "scenarios", "mod-files", "base-content"],
+        headings: [
+            "The Channel item",
+            "Tones",
+            "Tag and signal strength",
+            "Base channels",
+            "Using a channel",
         ],
     },
     {
@@ -831,11 +851,19 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference", "ships"],
         summary:
-            "Every id and asset the base game ships: section prototype ids, ship, style and grammar ids, scenario ids, the campaign, dep://base asset paths, and overlay rules.",
-        related: ["sections", "mod-files", "objects", "impacts", "grammars"],
+            "Every id and asset the base game ships: section prototype ids, ship, style and grammar ids, narrative channels, scenario ids, the campaign, dep://base asset paths, and overlay rules.",
+        related: [
+            "sections",
+            "mod-files",
+            "objects",
+            "impacts",
+            "grammars",
+            "channels",
+        ],
         headings: [
             "Section prototypes",
             "Impact rows",
+            "Narrative channels",
             "Scenario ids",
             "Assets: what dep://base/ can reach",
             "The overlay rule",

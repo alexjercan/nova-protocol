@@ -1873,7 +1873,7 @@ fn an_id_nothing_spawns_does_not_resolve() {
 fn a_row_that_names_a_file_says_what_kind_of_file() {
     let action = ActionNode {
         kind: ActionKind::Leaf(EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-            channel: nova_scenario::prelude::NarrativeChannelConfig::Comms,
+            channel: nova_gameplay::prelude::CHANNEL_COMMS.to_string(),
             speaker: "Alpha".to_string(),
             text: "Strip it clean.".to_string(),
             dwell: None,

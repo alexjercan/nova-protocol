@@ -2498,6 +2498,68 @@ outro no longer claims a hand-off its own call refuses), and `pacing.rs:113`
 campaign scene fixtures, `first_shift_map`, `first_shift_ships`,
 `asteroid_kinds` and `planet_types`.
 
+### Group C - the comms channel architecture (the owner's item). DONE.
+
+Channels are content now. `NarrativeChannel` - the closed enum in `nova_hud`
+with a four-method lookup table hanging off it - is gone, and with it the
+`NarrativeChannelConfig` mirror enum in `nova_scenario`.
+
+**The type.** `nova_gameplay::narrative_channel` owns `NarrativeChannelConfig`
+(`id`, `tone`, `tag`, `signal_strength`), the `GameChannels` catalog resource,
+and the three base ids as constants. It sits in `nova_gameplay` because both
+ends need it: the HUD reads a resolved channel off each line and the scenario
+layer resolves the id a cue names - the same split `StoryFeed` already had.
+`ChipTone` is re-exported from its prelude, because a crate that authors a
+channel has to name its tone without depending on the widget crate.
+
+**The wire.** `NarrativeCueActionConfig.channel` is a `String` id.
+`world.rs`'s sync resolves it once against `GameChannels`, so the HUD never
+sees an id. `Content::Channel` is the eighth content kind; the merge inserts
+`GameChannels` beside the other seven registries.
+
+**The gate.** A cue naming an id nothing authors is an Error at lint
+(`lint_scenario` took a `known_channels` set) and again at load
+(`start_errors`), never a fallback. `lint_channel_config` checks the row itself:
+non-empty id, finite strength in (0, 1], no empty tag. The walk resolves a
+mod's channels the way it resolves its sections - base, its declared
+dependencies, its own - so a bundle cannot borrow a channel that merely happens
+to be installed.
+
+**The content.** `crates/nova_authoring/src/base_content/channels.rs` authors
+the three rows; `assets/base/channels/base.content.ron` is generated from it and
+listed in the base bundle. `ChipTone::body()` replaced the three hand-tuned
+`COMMS_BODY_*` constants with one lift toward white (crew reproduced exactly,
+work within 2/255, guard slightly paler - recorded, deliberate).
+
+**Craft, taken along the way.** `Content::kind()` / `Content::id()` /
+`Content::into_scenario()` replaced eight per-kind matches that each had to be
+revisited for every content kind: the merge's duplicate check (seven
+near-identical blocks, now one loop), its resource-ref gate, `lint_walk`'s
+`file_of` and its resource-ref walk, and four integration tests that broke on
+`Content::Channel`. `merge_content_item`'s own match stays - routing an item
+into its bucket is what it is FOR. `merge_content_item` takes `&mut MergeOutcome` instead
+of eight out-params. `on_load_scenario` was one parameter under Bevy's ceiling;
+its five content reads are a `ContentGate` `SystemParam` now.
+
+Per AGENTS.md, no `**(breaking)**` marker and no migration note: `channel:`
+never shipped - it arrived in unpushed `246c4c66`, and v0.12.0 still used
+`StoryMessageActionConfig`. The existing `StoryMessage` is `NarrativeCue` entry
+carries the id spelling instead.
+
+Verified: workspace `cargo check --all-targets` clean; `nova_scenario` 389,
+`nova_hud` 252, `nova_authoring` 115, `nova_assets` 75 + all integration
+targets, `nova_editor` 473, `nova_os_ui` 118, `nova_wfc` 13, `nova_gameplay`
+280 - all green. `content lint`: 0 errors, 0 warnings over base and both
+webmods. `content gen` regenerated the base RON. Live run of
+`first_shift_01_departure` under Xvfb draws Demir's card in the resolved work
+channel (screenshot inspected).
+
+Not in scope, noted: the copy of The Ledger installed on this machine under
+`mods://` is a pre-rename bundle and fails to parse `StoryMessage`. That is the
+already-recorded `**(breaking)**` rename doing what the changelog says it does,
+on a user-machine artifact - the `webmods/the-ledger` source in this repo is
+current and lints clean.
+
 ### Still open
 
-C: the comms channel architecture (the owner's item).
+Nothing. Every batch finding is either fixed or recorded as deliberate.

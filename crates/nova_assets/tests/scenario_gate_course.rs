@@ -170,15 +170,7 @@ fn scenario_from(ron_str: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron_str).expect("content RON parses");
     items
         .into_iter()
-        .find_map(|c| match c {
-            Content::Scenario(s) => Some(s),
-            Content::Section(_)
-            | Content::Campaign(_)
-            | Content::Style(_)
-            | Content::Ship(_)
-            | Content::Impact(_)
-            | Content::Grammar(_) => None,
-        })
+        .find_map(Content::into_scenario)
         .expect("content contains a Scenario")
 }
 

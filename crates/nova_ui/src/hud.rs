@@ -51,7 +51,8 @@ pub const CHIP_LABEL_FONT: f32 = 10.0;
 
 /// A chip's semantic family. The tone decides the text, unit-suffix and border
 /// colours; the fill is shared so the whole HUD reads as one instrument.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ChipTone {
     /// Flight/nav/status readouts - green phosphor, the HUD's default voice.
     #[default]
@@ -106,6 +107,32 @@ impl ChipTone {
             _ => CHIP_FILL,
         }
     }
+
+    /// The tone as a colour to READ a sentence in, rather than to label with.
+    ///
+    /// A chip carries two or three words and can afford full saturation; a
+    /// comms line is a paragraph, and the same accent under it is tiring and
+    /// low-contrast against the slab. This is the accent lifted
+    /// [`BODY_LIFT`] of the way to white, which keeps the family recognisable
+    /// while the words stay the brightest thing on the card.
+    ///
+    /// Derived rather than authored so a tone cannot ship a reading colour that
+    /// disagrees with its own accent - and so a channel a MOD authors gets one
+    /// without picking a hex value out of the air.
+    pub fn body(self) -> Color {
+        let accent = self.text().to_srgba();
+        Color::srgb(lift(accent.red), lift(accent.green), lift(accent.blue))
+    }
+}
+
+/// How far [`ChipTone::body`] lifts an accent toward white.
+const BODY_LIFT: f32 = 0.75;
+
+/// One channel of [`BODY_LIFT`], in linear-free sRGB space - the same space the
+/// palette constants are written in, so the result reads as a paler version of
+/// the hex it came from.
+fn lift(channel: f32) -> f32 {
+    channel + (1.0 - channel) * BODY_LIFT
 }
 
 /// The chip's [`Node`] geometry: 1px border, the demo's 4x9 padding, centred

@@ -101,7 +101,7 @@ impl EventAction<NovaEventWorld> for CancelCinematicActionConfig {
 /// Which corner of the screen a title card sits in.
 ///
 /// Mirrors nova_hud's [`ScreenCorner`], the same split
-/// `NarrativeChannelConfig` makes with `NarrativeChannel`: the HUD cannot
+/// `HudReadoutFormatConfig` makes with `HudReadoutFormat`: the HUD cannot
 /// depend on this crate. The `Config` suffix is what keeps the two halves
 /// distinguishable when nova_core globs both preludes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]

@@ -45,7 +45,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::ImpactSoundConfig;
+use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -106,6 +106,59 @@ pub enum Content {
     /// table, so a mod can re-voice a single (damage type, material) pair
     /// without restating the rest.
     Impact(ImpactSoundConfig),
+    /// A [`NarrativeChannelConfig`] - registers into `GameChannels` keyed by
+    /// its id. Where a story line was HEARD, and how the comms panel draws one
+    /// that was: a mod authors a distress band or a corporate net and its cues
+    /// name it, instead of borrowing one of the base game's three.
+    Channel(NarrativeChannelConfig),
+}
+
+impl Content {
+    /// What kind of item this is, as the word the authoring messages use.
+    ///
+    /// Paired with [`id`](Content::id) it replaces the per-kind match every
+    /// caller used to write out - the merge's duplicate check, its overlay
+    /// router and the resource-ref gate each had their own copy, and a new
+    /// content kind had to be added to all of them or be silently exempt.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Content::Section(_) => "section",
+            Content::Scenario(_) => "scenario",
+            Content::Campaign(_) => "campaign",
+            Content::Style(_) => "style",
+            Content::Ship(_) => "ship",
+            Content::Grammar(_) => "grammar",
+            Content::Impact(_) => "impact",
+            Content::Channel(_) => "channel",
+        }
+    }
+
+    /// The item's own id - the overlay key, and what a duplicate is a duplicate
+    /// OF.
+    pub fn id(&self) -> &str {
+        match self {
+            Content::Section(cfg) => &cfg.base.id,
+            Content::Scenario(cfg) => &cfg.id,
+            Content::Campaign(cfg) => &cfg.id,
+            Content::Style(cfg) => &cfg.id,
+            Content::Ship(cfg) => &cfg.id,
+            Content::Grammar(cfg) => &cfg.id,
+            Content::Impact(cfg) => &cfg.id,
+            Content::Channel(cfg) => &cfg.id,
+        }
+    }
+
+    /// The scenario this item is, or `None` for any other kind.
+    ///
+    /// A content file is heterogeneous, so a caller that wants the scenario out
+    /// of one otherwise writes a match over every kind to answer a question
+    /// about one - and has to revisit it each time a kind is added.
+    pub fn into_scenario(self) -> Option<ScenarioConfig> {
+        match self {
+            Content::Scenario(cfg) => Some(cfg),
+            _ => None,
+        }
+    }
 }
 
 /// The content of one `*.content.ron` file: a thin [`Asset`] wrapper around a

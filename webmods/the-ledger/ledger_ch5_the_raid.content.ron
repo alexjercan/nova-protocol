@@ -150,7 +150,7 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Broker Vesh",
                         text: "Here is what your payday bought, Kestrel: a gunship with teeth, and two of my wing to fly cover. The Magpies have a forward post out in the rocks - the same crew that shadowed you in the channel. Go settle it. LMB is your guns, and the R key drops those torpedo tubes. Crack the base and clean up their fighters.",
                     )),
@@ -1656,7 +1656,7 @@
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Broker Vesh",
                         text: "The Nest is coming apart - good shooting, Kestrel. Now finish their fighters and the account is closed.",
                         dwell: Some(6.0),
@@ -1684,7 +1684,7 @@
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Broker Vesh",
                         text: "The Nest hangs dead - guns cold, engines dark. Good shooting, Kestrel. Now finish their fighters and the account is closed.",
                         dwell: Some(6.0),

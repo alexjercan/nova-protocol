@@ -210,6 +210,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** A section's and an asteroid's `impact_sound` is gone. Each
   names a `material`, and `Impact` rows pair a damage type with a material, so
   a mod can voice one round against one surface.
+- A `Channel` content item is where a line was heard: its tone, its tag, how
+  faintly it is drawn. A `NarrativeCue` names one by id, so a mod authors its
+  own band instead of borrowing the base three.
 - A `Railgun` section kind: charge seconds, slug damage, power, speed and
   lifetime, muzzle recoil, and an optional `rake_radius` trailing a widening
   sphere behind the slug's tip. Omit it for a needle.
@@ -249,8 +252,8 @@ does NOT get an entry - and it is the only place they are written down.
   location, stamp and one line - and expires on the scenario clock, so no
   handler has to take it down.
 - **(breaking)** `StoryMessage` is `NarrativeCue`, and every line authors a
-  `channel`: `Comms` for traffic sent to you, `Crew` for the cabin, `Guard` for
-  what you overheard. Rename and add the field.
+  `channel` id: `"comms"` for traffic sent to you, `"crew"` for the cabin,
+  `"guard"` for what you overheard. Rename and add the field.
 - `PlaySound` plays one authored cue in the cockpit, on the `Interface` or
   `Hull` route, with an optional gain between 0 and 1. Positional sound stays
   on the object that makes it.

@@ -15,7 +15,7 @@ never panics a scenario). All 46 at a glance:
 | [`ObjectiveComplete`](#objectivecomplete) | [mission](#mission-story) | complete and remove the HUD objective with an id |
 | [`ObjectiveMarkerAttach`](#objectivemarkerattach) | [mission](#mission-story) | pin the gold HUD marker chip on a scoped object |
 | [`ObjectiveMarkerDetach`](#objectivemarkerdetach) | [mission](#mission-story) | remove that marker |
-| [`NarrativeCue`](#narrativecue) | [mission](#mission-story) | speak one line on a named channel: comms, crew, or guard |
+| [`NarrativeCue`](#narrativecue) | [mission](#mission-story) | speak one line on an authored channel, named by id |
 | [`HudReadout`](#hudreadout) | [mission](#mission-story) | bind a live HUD readout to a scenario variable |
 | [`HintEmphasisSet`](#hintemphasisset) | [mission](#mission-story) | pulse one keybind-dock chip gold |
 | [`HintEmphasisClear`](#hintemphasisclear) | [mission](#mission-story) | drop the gold emphasis on one chip |
@@ -290,9 +290,9 @@ each, at most three visible). Pending lines wait without being dropped. One
 line per beat is still the style; the queue is the safety net.
 
 ```ron
-NarrativeCue((channel: Comms, speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
-NarrativeCue((channel: Crew, speaker: "Copilot", text: "You heard the man.")),
-NarrativeCue((channel: Guard, speaker: "Unknown Signal", text: "- state registry and -")),
+NarrativeCue((channel: "comms", speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
+NarrativeCue((channel: "crew", speaker: "Copilot", text: "You heard the man.")),
+NarrativeCue((channel: "guard", speaker: "Unknown Signal", text: "- state registry and -")),
 ```
 
 <details class="explain">
@@ -300,7 +300,7 @@ NarrativeCue((channel: Guard, speaker: "Unknown Signal", text: "- state registry
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `channel` | `Comms` \| `Crew` \| `Guard` | required | where the line is heard; see below |
+| `channel` | string | required | the id of the [channel](../channels/) the line is heard on; see below |
 | `speaker` | string | required | the distinct uppercase speaker header |
 | `text` | string | required | the line |
 | `dwell` | `Option` number | `None` | per-line hold override in seconds, clamped to [3, 30] (lint warns outside); `Some(12.0)` |
@@ -311,17 +311,22 @@ cockpit down two different channels and the difference matters. Control on the
 work channel is talking TO you; the same desk read over the guard channel is
 something you overheard.
 
-| channel | drawn | tagged | means |
-|---|---|---|---|
-| `Comms` | incoming-transmission blue | no | the work channel: traffic addressed to this ship |
-| `Crew` | phosphor green | no | inside the hull, off the radio - a voice in the room |
-| `Guard` | amber, at 70% strength | `GUARD` | everybody's channel, nobody's conversation - a fragment the cockpit caught |
+A channel is [authored content](../channels/), not a fixed list, so a mod ships
+a distress band or a corporate net and its lines are drawn in it. Three come
+with the base game and any mod may name them:
 
-The channel is REQUIRED on every cue. A line whose channel was guessed is a
-line drawn in the wrong voice, and the wrong voice is the whole difference
-between being called and overhearing. Only `Guard` carries a tag: the work
-channel is what the panel IS and the crew are in the room, so tagging either
-would label every line to distinguish it from nothing.
+| id | drawn | tagged | means |
+|---|---|---|---|
+| `comms` | incoming-transmission blue | no | the work channel: traffic addressed to this ship |
+| `crew` | phosphor green | no | inside the hull, off the radio - a voice in the room |
+| `guard` | amber, at 70% strength | `GUARD` | everybody's channel, nobody's conversation - a fragment the cockpit caught |
+
+The channel is REQUIRED on every cue, and an id no bundle authors is an Error at
+lint and a refusal at load. A line whose channel was guessed is a line drawn in
+the wrong voice, and the wrong voice is the whole difference between being called
+and overhearing. Only `guard` carries a tag: the work channel is what the panel
+IS and the crew are in the room, so tagging either would label every line to
+distinguish it from nothing.
 
 Scenario-scoped: teardown clears the log.
 
@@ -447,7 +452,7 @@ Sequence((
             after: Some(2.0),
             actions: [
                 NarrativeCue((
-                    channel: Comms,
+                    channel: "comms",
                     speaker: "Capt. Halloran",
                     text: "Kestrel, you are cleared to burn.",
                 )),
@@ -551,7 +556,7 @@ Cinematic((
         (
             after: Some(14.0),
             actions: [
-                NarrativeCue((channel: Guard, speaker: "Unknown Signal", text: "- vessel this net -")),
+                NarrativeCue((channel: "guard", speaker: "Unknown Signal", text: "- vessel this net -")),
             ],
         ),
     ],

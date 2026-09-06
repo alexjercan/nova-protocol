@@ -550,6 +550,8 @@ impl EventActionConfig {
 
 #[cfg(test)]
 mod effect_tests {
+    use nova_gameplay::prelude::CHANNEL_COMMS;
+
     use super::*;
 
     #[test]
@@ -598,7 +600,7 @@ mod effect_tests {
             key: "quiet".to_string(),
             steps: vec![step(vec![EventActionConfig::NarrativeCue(
                 NarrativeCueActionConfig {
-                    channel: NarrativeChannelConfig::Comms,
+                    channel: CHANNEL_COMMS.to_string(),
                     speaker: "OKONO".to_string(),
                     text: "Strip it clean.".to_string(),
                     dwell: None,

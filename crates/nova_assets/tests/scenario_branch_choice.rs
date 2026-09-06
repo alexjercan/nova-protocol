@@ -82,7 +82,7 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "choice", expression: Term(Factor(Literal(Number(1.0)))))),
                     VariableSet((key: "act", expression: Term(Factor(Literal(Number(2.0)))))),
                     SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
-                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Something is closing on you.")),
+                    NarrativeCue((channel: "comms", speaker: "Speaker One", text: "Something is closing on you.")),
                     SpawnScenarioObject((
                         base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 300.0, -2600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
@@ -105,7 +105,7 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "choice", expression: Term(Factor(Literal(Number(2.0)))))),
                     VariableSet((key: "act", expression: Term(Factor(Literal(Number(3.0)))))),
                     VariableSet((key: "close_gate", expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))))),
-                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Nothing left to chase.")),
+                    NarrativeCue((channel: "comms", speaker: "Speaker One", text: "Nothing left to chase.")),
                 ],
             ),
             (
@@ -181,15 +181,7 @@ fn scenario_from(ron_str: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron_str).expect("content RON parses");
     items
         .into_iter()
-        .find_map(|c| match c {
-            Content::Scenario(s) => Some(s),
-            Content::Section(_)
-            | Content::Campaign(_)
-            | Content::Style(_)
-            | Content::Ship(_)
-            | Content::Impact(_)
-            | Content::Grammar(_) => None,
-        })
+        .find_map(Content::into_scenario)
         .expect("content contains a Scenario")
 }
 

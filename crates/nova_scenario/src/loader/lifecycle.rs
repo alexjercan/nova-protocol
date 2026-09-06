@@ -135,6 +135,21 @@ pub(super) fn unload_scenario(
     **current_scenario = None;
 }
 
+/// The merged content the start gate lints a scenario against, as one system
+/// parameter rather than five: they are read together, in one place, and the
+/// observer is already near Bevy's parameter ceiling.
+///
+/// Every one is optional because a rig that merged no content still loads
+/// scenarios - the editor's sandbox and the headless tests both do.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(super) struct ContentGate<'w> {
+    issues: Option<Res<'w, ContentIssues>>,
+    sections: Option<Res<'w, GameSections>>,
+    ships: Option<Res<'w, GameShips>>,
+    scenarios: Option<Res<'w, GameScenarios>>,
+    channels: Option<Res<'w, GameChannels>>,
+}
+
 /// The Error-level findings against a scenario about to start: what the merge
 /// filed under this id, and a lint of the config in hand.
 ///
@@ -144,14 +159,10 @@ pub(super) fn unload_scenario(
 /// sees a scenario which never went through the merge - the editor builds one
 /// and triggers `LoadScenario` with it, so a table lookup alone passes content
 /// the same bytes would be refused for after a save.
-fn start_errors(
-    scenario: &ScenarioConfig,
-    issues: Option<&ContentIssues>,
-    sections: Option<&GameSections>,
-    ships: Option<&GameShips>,
-    scenarios: Option<&GameScenarios>,
-) -> Vec<String> {
-    let mut messages: Vec<String> = issues
+fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
+    let mut messages: Vec<String> = gate
+        .issues
+        .as_deref()
         .map(|issues| {
             issues
                 .errors(&scenario.id)
@@ -161,22 +172,42 @@ fn start_errors(
         })
         .unwrap_or_default();
 
-    let known_sections =
-        KnownSections::from_configs(sections.map_or(&[][..], |registry| &registry.0));
-    let known_ships = KnownShips::from_configs(ships.map_or(&[][..], |registry| &registry.0));
-    let mut known_scenarios: std::collections::HashSet<String> = scenarios
+    let known_sections = KnownSections::from_configs(
+        gate.sections
+            .as_deref()
+            .map_or(&[][..], |registry| &registry.0),
+    );
+    let known_ships = KnownShips::from_configs(
+        gate.ships
+            .as_deref()
+            .map_or(&[][..], |registry| &registry.0),
+    );
+    let mut known_scenarios: std::collections::HashSet<String> = gate
+        .scenarios
+        .as_deref()
         .map(|registry| registry.0.keys().cloned().collect())
         .unwrap_or_default();
     // A scenario always resolves its own id: the retry a range queues names
     // itself, and the editor's sandbox is absent from the registry on a rig
     // that never merged content.
     known_scenarios.insert(scenario.id.clone());
+    let known_channels: std::collections::HashSet<String> = gate
+        .channels
+        .as_deref()
+        .map(|catalog| catalog.0.iter().map(|channel| channel.id.clone()).collect())
+        .unwrap_or_default();
 
     messages.extend(
-        lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios)
-            .into_iter()
-            .filter(|issue| issue.severity == LintSeverity::Error)
-            .map(|issue| issue.message),
+        lint_scenario(
+            scenario,
+            &known_sections,
+            &known_ships,
+            &known_scenarios,
+            &known_channels,
+        )
+        .into_iter()
+        .filter(|issue| issue.severity == LintSeverity::Error)
+        .map(|issue| issue.message),
     );
     let mut seen = std::collections::HashSet::new();
     messages.retain(|message| seen.insert(message.clone()));
@@ -194,10 +225,7 @@ pub(super) fn on_load_scenario(
     mut objectives: Option<ResMut<GameObjectives>>,
     mut story_feed: Option<ResMut<StoryFeed>>,
     asset_server: Res<AssetServer>,
-    issues: Option<Res<ContentIssues>>,
-    sections: Option<Res<GameSections>>,
-    ships: Option<Res<GameShips>>,
-    scenarios: Option<Res<GameScenarios>>,
+    gate: ContentGate,
     mut failure: Option<ResMut<ScenarioStartFailure>>,
     mut cheats: Option<ResMut<RunCheats>>,
     bindings: Res<InputBindings>,
@@ -207,13 +235,7 @@ pub(super) fn on_load_scenario(
     // Checked BEFORE teardown so whatever was on screen stays; the stale
     // outcome overlay is cleared so the FAILED TO START modal does not stack
     // under it.
-    let messages = start_errors(
-        &load.0,
-        issues.as_deref(),
-        sections.as_deref(),
-        ships.as_deref(),
-        scenarios.as_deref(),
-    );
+    let messages = start_errors(&load.0, &gate);
     if !messages.is_empty() {
         error!(
             "on_load_scenario: refusing to start '{}' ({} content error(s)):",
@@ -1424,7 +1446,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: NarrativeChannelConfig::Comms,
+                channel: CHANNEL_COMMS.to_string(),
                 speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
@@ -1434,7 +1456,7 @@ mod tests {
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
-                channel: NarrativeChannel::Comms,
+                channel: NarrativeChannelConfig::new(CHANNEL_COMMS, ChipTone::Comms),
                 speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
@@ -1460,7 +1482,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: NarrativeChannelConfig::Comms,
+                channel: CHANNEL_COMMS.to_string(),
                 speaker: "Speaker One".to_string(),
                 text: "beta".to_string(),
                 dwell: None,

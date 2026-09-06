@@ -5,7 +5,7 @@
 //! owning scenario module.
 
 use bevy::prelude::AudioSource;
-use nova_gameplay::prelude::AssetRef;
+use nova_gameplay::prelude::{AssetRef, CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD};
 use nova_scenario::prelude::*;
 
 /// Glob-import surface for generic scenario authoring constructors.
@@ -165,13 +165,16 @@ pub fn clear_hint_emphasis(verb: impl Into<String>) -> EventActionConfig {
 }
 
 /// Build a speaker-attributed narrative cue with default dwell and no icon.
+///
+/// `channel` is a channel id the content authors; an id nothing declares is a
+/// lint error and a load refusal.
 pub fn cue(
-    channel: NarrativeChannelConfig,
+    channel: impl Into<String>,
     speaker: impl Into<String>,
     text: impl Into<String>,
 ) -> EventActionConfig {
     EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-        channel,
+        channel: channel.into(),
         speaker: speaker.into(),
         text: text.into(),
         dwell: None,
@@ -181,18 +184,18 @@ pub fn cue(
 
 /// A line on the work channel: the traffic a shift is paid to answer.
 pub fn comms(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(NarrativeChannelConfig::Comms, speaker, text)
+    cue(CHANNEL_COMMS, speaker, text)
 }
 
 /// A line spoken inside the cutter, heard by nobody else.
 pub fn crew(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(NarrativeChannelConfig::Crew, speaker, text)
+    cue(CHANNEL_CREW, speaker, text)
 }
 
 /// A line bleeding off the Fleet guard channel: never addressed to the cutter,
 /// and heard in fragments.
 pub fn guard(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(NarrativeChannelConfig::Guard, speaker, text)
+    cue(CHANNEL_GUARD, speaker, text)
 }
 
 /// Build a keyed cinematic action: a beat chain the player may walk out of.

@@ -171,6 +171,10 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &Gam
         &known,
         &KnownShips::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
+        &build_channels()
+            .into_iter()
+            .map(|channel| channel.id)
+            .collect(),
     );
     let errors: Vec<_> = issues
         .iter()

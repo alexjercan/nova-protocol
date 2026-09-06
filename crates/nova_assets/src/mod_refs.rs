@@ -826,13 +826,13 @@ mod tests {
             events: [
                 ( name: OnStart, filters: [], actions: [
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Alpha",
                         text: "Own icon.",
                         icon: Some("self://icons/alpha.png"),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Relay",
                         text: "Shared icon.",
                         icon: Some("dep://base/icons/comms.png"),

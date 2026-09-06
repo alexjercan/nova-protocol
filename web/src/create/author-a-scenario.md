@@ -221,7 +221,7 @@ For example:
 
 ```ron
 NarrativeCue((
-    channel: Comms,
+    channel: "comms",
     speaker: "Harbor Master",
     text: "Two wrecks block the lane. Clear them before the convoy arrives.",
 )),

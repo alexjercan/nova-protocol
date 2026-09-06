@@ -2,6 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_ship::prelude::{
     derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
     PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig, SectionKind,
@@ -705,6 +706,31 @@ mod tests {
     use super::*;
     use crate::lint::fixtures::*;
 
+    /// A channel is pure presentation, so the only thing to check is that the
+    /// presentation is authorable: a card drawn at nothing never reaches the
+    /// player, and a tag that says nothing is a label on every line.
+    #[test]
+    fn a_channel_drawn_at_nothing_or_labelled_with_nothing_is_an_error() {
+        use nova_gameplay::prelude::ChipTone;
+
+        let good = NarrativeChannelConfig::new("work", ChipTone::Comms);
+        assert!(
+            lint_channel_config(&good, "test").is_empty(),
+            "a plain channel must lint clean"
+        );
+
+        for bad in [
+            NarrativeChannelConfig::new("", ChipTone::Comms),
+            NarrativeChannelConfig::new("dark", ChipTone::Comms).with_signal_strength(0.0),
+            NarrativeChannelConfig::new("loud", ChipTone::Comms).with_signal_strength(1.5),
+            NarrativeChannelConfig::new("nameless", ChipTone::Comms).with_tag("  "),
+        ] {
+            let issues = lint_channel_config(&bad, "test");
+            assert_eq!(issues.len(), 1, "{bad:?} -> {issues:?}");
+            assert_eq!(issues[0].severity, LintSeverity::Error);
+        }
+    }
+
     #[test]
     fn unknown_prototype_is_an_error() {
         let s = scenario(vec![spawn_ship("player", "no_such_proto")], vec![]);
@@ -713,6 +739,7 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -746,6 +773,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -757,6 +785,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
     }
@@ -790,6 +819,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -801,7 +831,8 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
-            &known(&["test_scenario"])
+            &known(&["test_scenario"]),
+            &base_channels(),
         )
         .is_empty());
     }
@@ -941,7 +972,13 @@ mod tests {
             modifications: Vec::new(),
         });
         let scenario = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&scenario, &catalog, &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &scenario,
+            &catalog,
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert!(
             issues
                 .iter()
@@ -982,6 +1019,7 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1032,6 +1070,7 @@ mod tests {
             &sections(&["known"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         assert_eq!(
             issues
@@ -1049,6 +1088,7 @@ mod tests {
             &sections(&["known"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &base_channels(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }
@@ -1114,7 +1154,13 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert_eq!(
             issues
                 .iter()
@@ -1132,7 +1178,13 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert!(
             issues
                 .iter()
@@ -1149,7 +1201,13 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert_eq!(
             issues
                 .iter()
@@ -1171,7 +1229,13 @@ mod tests {
         a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         b.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         let s = scenario(vec![ship(a, b)], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert!(
             issues
                 .iter()
@@ -1187,7 +1251,13 @@ mod tests {
         a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         b.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         let s = scenario(vec![ship(a, b)], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert!(
             issues
                 .iter()
@@ -1254,7 +1324,13 @@ mod tests {
     fn directly_mated_sections_may_overlap() {
         let (action, catalog) = ship_with_mated_overlap();
         let s = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&s, &catalog, &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &catalog,
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
         assert!(issues.is_empty(), "{issues:?}");
     }
 
@@ -1392,4 +1468,56 @@ mod tests {
             }
         );
     }
+}
+
+/// Well-formedness for one authored narrative channel.
+///
+/// A channel is pure presentation, so there is nothing here about what a line
+/// MEANS - only the two ways a card can come out unreadable: a strength that
+/// draws it at nothing, and a tag that takes the space beside the speaker
+/// without saying anything.
+///
+/// Whether two channels are visibly different is deliberately NOT checked. Two
+/// bands on one tone is a legitimate authoring choice (a mod may want four
+/// channels and has four tones), and the tag is there to separate them.
+pub fn lint_channel_config(channel: &NarrativeChannelConfig, source: &str) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    let mut error = |message: String| {
+        issues.push(LintIssue {
+            severity: LintSeverity::Error,
+            scenario: channel.id.clone(),
+            message,
+        });
+    };
+
+    if channel.id.trim().is_empty() {
+        error(format!("a channel in {source} has an empty id"));
+    }
+
+    // Zero is excluded, not clamped: a channel drawn at nothing is a channel
+    // whose lines never reach the player, which is a mistake rather than a
+    // style. Above one is a card brighter than the HUD it sits in.
+    if !(channel.signal_strength.is_finite()
+        && channel.signal_strength > 0.0
+        && channel.signal_strength <= 1.0)
+    {
+        error(format!(
+            "channel '{}' in {source} has signal strength {}, which is outside (0, 1]",
+            channel.id, channel.signal_strength
+        ));
+    }
+
+    if channel
+        .tag
+        .as_ref()
+        .is_some_and(|tag| tag.trim().is_empty())
+    {
+        error(format!(
+            "channel '{}' in {source} authors an empty tag; omit the field for a channel \
+             that needs no saying",
+            channel.id
+        ));
+    }
+
+    issues
 }

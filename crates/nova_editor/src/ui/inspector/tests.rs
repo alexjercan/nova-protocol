@@ -1638,7 +1638,7 @@ fn a_file_row_offers_the_bundles_files_and_marks_one_they_do_not_ship() {
             EditorNode,
             ActionNode {
                 kind: ActionKind::Leaf(EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    channel: nova_scenario::prelude::NarrativeChannelConfig::Comms,
+                    channel: nova_gameplay::prelude::CHANNEL_COMMS.to_string(),
                     speaker: "Alpha".to_string(),
                     text: "Strip it clean.".to_string(),
                     dwell: None,

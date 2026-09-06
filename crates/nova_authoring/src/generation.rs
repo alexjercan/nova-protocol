@@ -11,7 +11,7 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
-use nova_gameplay::prelude::ImpactSoundConfig;
+use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipConfig, ShipSource, SpaceshipConfig, SpaceshipSectionConfig,
@@ -25,10 +25,11 @@ use crate::base_content;
 /// parity test asserts.
 pub mod prelude {
     pub use super::{
-        build_campaign_contents, build_campaigns, build_grammar_content, build_grammars,
-        build_impact_content, build_impacts, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        build_campaign_contents, build_campaigns, build_channel_content, build_channels,
+        build_grammar_content, build_grammars, build_impact_content, build_impacts,
+        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
+        build_ship_content, build_ships, build_style_content, build_styles, content_files,
+        serialize_content, spawned_ship_sections,
     };
 }
 
@@ -144,6 +145,22 @@ pub fn build_impact_content() -> Vec<Content> {
     build_impacts().into_iter().map(Content::Impact).collect()
 }
 
+/// The base game's narrative channels, in the order the file carries them -
+/// which is also the order `GameChannels` resolves in.
+pub fn build_channels() -> Vec<NarrativeChannelConfig> {
+    base_content::build().channels
+}
+
+/// The channel catalog wrapped as one `Vec<Content>` of `Content::Channel`
+/// items - the shape the committed `assets/base/channels/base.content.ron`
+/// file carries.
+///
+/// ONE file for every channel: a channel is only legible against the others,
+/// because what it means is how a line drawn in it differs from the rest.
+pub fn build_channel_content() -> Vec<Content> {
+    build_channels().into_iter().map(Content::Channel).collect()
+}
+
 /// The built-in scenarios, each wrapped as its own single-item
 /// `Vec<Content>` (`[Content::Scenario(..)]`) keyed by scenario id - the
 /// shape each committed `assets/scenarios/<id>.content.ron` file carries. The
@@ -203,6 +220,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/grammars/base.content.ron".to_string(),
             serialize_content(&build_grammar_content()),
+        ),
+        (
+            "base/channels/base.content.ron".to_string(),
+            serialize_content(&build_channel_content()),
         ),
     ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {

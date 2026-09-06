@@ -14,6 +14,9 @@
         // The generator's taste. After the sections it draws from, for the
         // ships' reason: a grammar names section prototypes by id.
         "grammars/base.content.ron",
+        // The channels a line can be heard on. Before the scenarios, for the
+        // ships' reason: a cue names a channel by id.
+        "channels/base.content.ron",
         "campaigns/nova_protocol.content.ron",
         "scenarios/menu_waystation.content.ron",
         "scenarios/menu_gauntlet.content.ron",

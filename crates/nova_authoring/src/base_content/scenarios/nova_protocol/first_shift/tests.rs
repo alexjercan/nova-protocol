@@ -1122,11 +1122,7 @@ fn the_guard_channel_is_ignored_twice_before_it_matters() {
     let fragments: Vec<String> = all_actions(&config)
         .into_iter()
         .filter_map(|action| match action {
-            EventActionConfig::NarrativeCue(cue)
-                if cue.channel == NarrativeChannelConfig::Guard =>
-            {
-                Some(cue.text)
-            }
+            EventActionConfig::NarrativeCue(cue) if cue.channel == CHANNEL_GUARD => Some(cue.text),
             _ => None,
         })
         .collect();
@@ -1142,7 +1138,7 @@ fn the_guard_channel_is_ignored_twice_before_it_matters() {
     assert!(
         all_actions(&config).iter().all(|action| {
             !matches!(action, EventActionConfig::NarrativeCue(cue)
-                if cue.channel == NarrativeChannelConfig::Guard
+                if cue.channel == CHANNEL_GUARD
                     && cue.speaker != GUARD_VOICE)
         }),
         "every guard fragment is the same unnamed signal, or the payoff is a \
@@ -1488,9 +1484,21 @@ fn every_preview_scene_passes_the_content_lint() {
         .map(|scenario| scenario.id.clone())
         .collect();
 
+    let known_channels: std::collections::HashSet<String> = content
+        .channels
+        .iter()
+        .map(|channel| channel.id.clone())
+        .collect();
+
     let mut errors = Vec::new();
     for preview in &previews {
-        for issue in lint_scenario(preview, &known_sections, &known_ships, &known_scenarios) {
+        for issue in lint_scenario(
+            preview,
+            &known_sections,
+            &known_ships,
+            &known_scenarios,
+            &known_channels,
+        ) {
             if issue.severity == LintSeverity::Error {
                 errors.push(format!("[{}] {}", preview.id, issue.message));
             }

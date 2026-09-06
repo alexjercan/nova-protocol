@@ -105,7 +105,7 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Broker Vesh",
                         text: "Here's the arithmetic, Kestrel: my buyer pays enough to clear your debt twice. Or you burn the box and nobody owns what's inside. Berth or buoy. Pick.",
                     )),
@@ -363,7 +363,7 @@
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Broker Vesh",
                         text: "Docking clamps on, transferring now - wait. Kestrel, that's a military burn painting you, closing fast. My buyer did NOT send a gunship. You've got maybe ten seconds before it's in range. MOVE.",
                     )),
@@ -565,7 +565,7 @@
                         id: "obj_ch4_recap",
                     )),
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Broker Vesh",
                         text: "You cooked a fortune, Kestrel. The buoy's got it - nothing left in that flash but slag and static. No box, no buyer, nobody chasing a thing that no longer exists. Take us home. Quiet.",
                     )),

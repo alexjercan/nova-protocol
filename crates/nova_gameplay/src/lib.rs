@@ -39,6 +39,7 @@ pub mod lifetime;
 pub mod markers;
 pub mod math;
 pub mod mesh;
+pub mod narrative_channel;
 pub mod objectives;
 pub mod plugin;
 pub mod projectile_hooks;
@@ -104,10 +105,11 @@ pub mod prelude {
         cooldown::prelude::*, damage::prelude::*, freeze::prelude::*, gravity::prelude::*,
         impact_sound::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
         juice::prelude::*, lifetime::prelude::*, markers::prelude::*, math::prelude::*,
-        mesh::prelude::*, objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
-        relations::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
-        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, PauseStates,
+        mesh::prelude::*, narrative_channel::prelude::*, objectives::prelude::*,
+        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
+        rounds::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
+        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
+        PauseStates,
     };
 }
 

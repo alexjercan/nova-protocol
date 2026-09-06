@@ -607,7 +607,10 @@ impl ActionChoiceExt for ActionChoice {
             }
             ActionChoice::NarrativeCue => {
                 EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    channel: NarrativeChannelConfig::Comms,
+                    // Empty like the speaker and the text beside it: a new cue
+                    // is a blank the author fills in, and a channel guessed for
+                    // them is the one field they would never think to check.
+                    channel: String::new(),
                     speaker: String::new(),
                     text: String::new(),
                     dwell: None,

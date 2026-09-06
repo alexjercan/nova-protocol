@@ -221,6 +221,10 @@ pub fn lint_errors(scenario: &ScenarioConfig, sections: &GameSections) -> Vec<St
         &known,
         &KnownShips::default(),
         &HashSet::from([scenario.id.clone()]),
+        // A generated hull carries geometry, never dialogue: the throwaway
+        // scenario this gate wraps it in authors no cue, so no channel has to
+        // resolve.
+        &HashSet::new(),
     )
     .into_iter()
     .filter(|issue| issue.severity == LintSeverity::Error)

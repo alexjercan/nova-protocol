@@ -1,6 +1,7 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
-//! `GameShips`, `GameScenarios`, `GameCampaigns`, `GameStyles`, `GameImpacts`),
+//! `GameShips`, `GameScenarios`, `GameCampaigns`, `GameStyles`, `GameImpacts`,
+//! `GameChannels`),
 //! linting the result as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
@@ -12,7 +13,9 @@ pub mod prelude {
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{GameImpacts, ImpactSoundConfig};
+use nova_gameplay::prelude::{
+    GameChannels, GameImpacts, ImpactSoundConfig, NarrativeChannelConfig,
+};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{GameCampaigns, GameScenarios, GameShips, NewGameStart, ShipConfig};
 use nova_ship::prelude::*;
@@ -223,16 +226,7 @@ pub fn register_bundles(
                     // Every kind, not just scenarios: a section or campaign
                     // with a bad ref was logged and merged anyway, so the
                     // runtime gate never saw it.
-                    let id = match item {
-                        Content::Section(cfg) => cfg.base.id.clone(),
-                        Content::Scenario(cfg) => cfg.id.clone(),
-                        Content::Campaign(cfg) => cfg.id.clone(),
-                        Content::Style(cfg) => cfg.id.clone(),
-                        Content::Ship(cfg) => cfg.id.clone(),
-                        Content::Impact(cfg) => cfg.id.clone(),
-                        Content::Grammar(cfg) => cfg.id.clone(),
-                    };
-                    undeclared_ref_issues.push((id, message));
+                    undeclared_ref_issues.push((item.id().to_string(), message));
                 }
                 items.push(mod_refs::rewrite_refs(item, &scope));
             }
@@ -292,6 +286,11 @@ pub fn register_bundles(
     let merged_ships = nova_scenario::prelude::KnownShips::from_configs(outcome.ships.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
+    let merged_channels: std::collections::HashSet<String> = outcome
+        .channels
+        .iter()
+        .map(|channel| channel.id.clone())
+        .collect();
     let mut content_issues = nova_scenario::prelude::ContentIssues::default();
     // Every MERGED ship, checked where it is authored: a scenario referencing
     // one only checks that the id resolves, so this is the pass that sees the
@@ -318,6 +317,7 @@ pub fn register_bundles(
             &merged_sections,
             &merged_ships,
             &merged_scenarios,
+            &merged_channels,
         );
         for issue in &found {
             warn!(
@@ -371,10 +371,12 @@ pub fn register_bundles(
     commands.insert_resource(GameImpacts(outcome.impacts));
     commands.insert_resource(GameShips(outcome.ships));
     commands.insert_resource(GameGrammars(outcome.grammars));
+    commands.insert_resource(GameChannels(outcome.channels));
 }
 
 /// The result of merging an ordered list of bundles: the id-keyed registries plus
 /// any intra-bundle id conflicts that were detected (and skipped).
+#[derive(Default)]
 pub struct MergeOutcome {
     /// Sections in registration order (base then mods), overlaid last-wins by id.
     pub sections: Vec<SectionConfig>,
@@ -396,6 +398,10 @@ pub struct MergeOutcome {
     /// Ship grammars in registration order, overlaid last-wins by id - so a
     /// mod retunes the generator by declaring the base grammar's id.
     pub grammars: Vec<ShipGrammarConfig>,
+    /// Narrative channels in registration order, overlaid last-wins by id - so
+    /// a mod restyles the work channel by declaring `comms`, and adds a band of
+    /// its own by declaring a new id.
+    pub channels: Vec<NarrativeChannelConfig>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -420,182 +426,31 @@ where
     B: IntoIterator<Item = I>,
     I: IntoIterator<Item = &'a Content>,
 {
-    let mut sections: Vec<SectionConfig> = Vec::new();
-    let mut scenarios = GameScenarios::default();
-    let mut campaigns = GameCampaigns::default();
-    let mut styles: Vec<ShipStyleConfig> = Vec::new();
-    let mut ships: Vec<ShipConfig> = Vec::new();
-    let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
-    let mut grammars: Vec<ShipGrammarConfig> = Vec::new();
-    let mut conflicts: Vec<String> = Vec::new();
+    let mut outcome = MergeOutcome::default();
 
     for bundle in bundles {
-        // Ids seen in THIS bundle, per kind - reset each bundle so a later bundle
-        // may overlay an earlier one, while a repeat within one bundle conflicts.
-        let mut seen_sections: HashSet<&str> = HashSet::new();
-        let mut seen_scenarios: HashSet<&str> = HashSet::new();
-        let mut seen_campaigns: HashSet<&str> = HashSet::new();
-        let mut seen_styles: HashSet<&str> = HashSet::new();
-        let mut seen_ships: HashSet<&str> = HashSet::new();
-        let mut seen_impacts: HashSet<&str> = HashSet::new();
-        let mut seen_grammars: HashSet<&str> = HashSet::new();
+        // Ids seen in THIS bundle, per kind - reset each bundle so a later
+        // bundle may overlay an earlier one, while a repeat within one bundle
+        // conflicts. Keyed by `Content::kind` rather than one set per kind: the
+        // seven near-identical blocks this replaces all did the same thing, and
+        // an eighth content kind meant writing the block again.
+        let mut seen: HashMap<&'static str, HashSet<&str>> = HashMap::new();
 
         for item in bundle {
-            match item {
-                Content::Section(cfg) => {
-                    if !seen_sections.insert(cfg.base.id.as_str()) {
-                        conflicts.push(format!(
-                            "section id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.base.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
-                Content::Scenario(cfg) => {
-                    if !seen_scenarios.insert(cfg.id.as_str()) {
-                        conflicts.push(format!(
-                            "scenario id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
-                Content::Campaign(cfg) => {
-                    if !seen_campaigns.insert(cfg.id.as_str()) {
-                        conflicts.push(format!(
-                            "campaign id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
-                Content::Style(cfg) => {
-                    if !seen_styles.insert(cfg.id.as_str()) {
-                        conflicts.push(format!(
-                            "style id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
-                Content::Ship(cfg) => {
-                    if !seen_ships.insert(cfg.id.as_str()) {
-                        conflicts.push(format!(
-                            "ship id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
-                Content::Grammar(cfg) => {
-                    if !seen_grammars.insert(cfg.id.as_str()) {
-                        conflicts.push(format!(
-                            "grammar id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
-                Content::Impact(cfg) => {
-                    if !seen_impacts.insert(cfg.id.as_str()) {
-                        conflicts.push(format!(
-                            "impact id '{}' appears more than once in one bundle; \
-                             keeping the first, skipping the duplicate",
-                            cfg.id
-                        ));
-                        continue;
-                    }
-                    merge_content_item(
-                        item,
-                        &mut sections,
-                        &mut scenarios,
-                        &mut campaigns,
-                        &mut styles,
-                        &mut ships,
-                        &mut impacts,
-                        &mut grammars,
-                    );
-                }
+            if !seen.entry(item.kind()).or_default().insert(item.id()) {
+                outcome.conflicts.push(format!(
+                    "{} id '{}' appears more than once in one bundle; \
+                     keeping the first, skipping the duplicate",
+                    item.kind(),
+                    item.id()
+                ));
+                continue;
             }
+            merge_content_item(item, &mut outcome);
         }
     }
 
-    MergeOutcome {
-        sections,
-        scenarios,
-        campaigns,
-        styles,
-        ships,
-        impacts,
-        grammars,
-        conflicts,
-    }
+    outcome
 }
 
 /// Route one content item into the accumulating registries with last-wins
@@ -605,54 +460,54 @@ where
 /// so overlay is a linear replace-in-place; scenarios and campaigns are maps so
 /// overlay is a plain `insert`. Called by [`merge_bundles`] once per accepted
 /// item.
-fn merge_content_item(
-    item: &Content,
-    sections: &mut Vec<SectionConfig>,
-    scenarios: &mut GameScenarios,
-    campaigns: &mut GameCampaigns,
-    styles: &mut Vec<ShipStyleConfig>,
-    ships: &mut Vec<ShipConfig>,
-    impacts: &mut Vec<ImpactSoundConfig>,
-    grammars: &mut Vec<ShipGrammarConfig>,
-) {
+fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
     match item {
-        Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
-            Some(existing) => *existing = cfg.as_ref().clone(),
-            None => sections.push(cfg.as_ref().clone()),
-        },
+        Content::Section(cfg) => {
+            match into.sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
+                Some(existing) => *existing = cfg.as_ref().clone(),
+                None => into.sections.push(cfg.as_ref().clone()),
+            }
+        }
         Content::Scenario(cfg) => {
-            scenarios.insert(cfg.id.clone(), cfg.clone());
+            into.scenarios.insert(cfg.id.clone(), cfg.clone());
         }
         Content::Campaign(cfg) => {
-            campaigns.insert(cfg.id.clone(), cfg.clone());
+            into.campaigns.insert(cfg.id.clone(), cfg.clone());
         }
         // A Vec like the sections, for the same reason: a style catalog has an
         // order, and overlaying in place keeps a mod's restyle where the base
         // one stood.
-        Content::Style(cfg) => match styles.iter_mut().find(|s| s.id == cfg.id) {
+        Content::Style(cfg) => match into.styles.iter_mut().find(|s| s.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
-            None => styles.push(cfg.clone()),
+            None => into.styles.push(cfg.clone()),
         },
         // A Vec for the same reason again: the ship catalog has an order a
         // picker reads, and overlaying in place keeps a mod's rebuild where the
         // base hull stood.
-        Content::Ship(cfg) => match ships.iter_mut().find(|s| s.id == cfg.id) {
+        Content::Ship(cfg) => match into.ships.iter_mut().find(|s| s.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
-            None => ships.push(cfg.clone()),
+            None => into.ships.push(cfg.clone()),
         },
         // A Vec once more, and here the order is load-bearing for LOOKUP as
         // well as authoring: `GameImpacts::sound` takes the first row matching
         // a pair, so a base row a mod did not re-declare keeps its place.
-        Content::Impact(cfg) => match impacts.iter_mut().find(|i| i.id == cfg.id) {
+        Content::Impact(cfg) => match into.impacts.iter_mut().find(|i| i.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
-            None => impacts.push(cfg.clone()),
+            None => into.impacts.push(cfg.clone()),
         },
         // A Vec, ordered, for the styles' reason: a grammar catalog is what a
         // generator picker lists, and overlaying in place keeps a mod's
         // regrammar where the base one stood.
-        Content::Grammar(cfg) => match grammars.iter_mut().find(|g| g.id == cfg.id) {
+        Content::Grammar(cfg) => match into.grammars.iter_mut().find(|g| g.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
-            None => grammars.push(cfg.clone()),
+            None => into.grammars.push(cfg.clone()),
+        },
+        // And once more, for the styles' reason: the channel catalog is what a
+        // future picker would list, and overlaying in place keeps a mod's
+        // restyled work channel where the base one stood.
+        Content::Channel(cfg) => match into.channels.iter_mut().find(|c| c.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => into.channels.push(cfg.clone()),
         },
     }
 }
@@ -682,49 +537,18 @@ mod tests {
     /// on, mirroring the scenario map's insert-overlay.
     #[test]
     fn later_section_overlays_earlier_by_id_in_place() {
-        let mut sections: Vec<SectionConfig> = Vec::new();
-        let mut scenarios = GameScenarios::default();
-        let mut campaigns = GameCampaigns::default();
-        let mut styles: Vec<ShipStyleConfig> = Vec::new();
-        let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
-        let mut ships: Vec<ShipConfig> = Vec::new();
-        let mut grammars: Vec<ShipGrammarConfig> = Vec::new();
+        // Base bundle: two sections in palette order. Mod bundle: overlays
+        // "hull" with a new health, leaves "thruster" alone.
+        let base = [
+            Content::Section(Box::new(section("hull", 100.0))),
+            Content::Section(Box::new(section("thruster", 50.0))),
+        ];
+        let modded = [Content::Section(Box::new(section("hull", 999.0)))];
 
-        // Base bundle: two sections in palette order.
-        merge_content_item(
-            &Content::Section(Box::new(section("hull", 100.0))),
-            &mut sections,
-            &mut scenarios,
-            &mut campaigns,
-            &mut styles,
-            &mut ships,
-            &mut impacts,
-            &mut grammars,
-        );
-        merge_content_item(
-            &Content::Section(Box::new(section("thruster", 50.0))),
-            &mut sections,
-            &mut scenarios,
-            &mut campaigns,
-            &mut styles,
-            &mut ships,
-            &mut impacts,
-            &mut grammars,
-        );
-
-        // Mod bundle: overlays "hull" with a new health, leaves "thruster".
-        merge_content_item(
-            &Content::Section(Box::new(section("hull", 999.0))),
-            &mut sections,
-            &mut scenarios,
-            &mut campaigns,
-            &mut styles,
-            &mut ships,
-            &mut impacts,
-            &mut grammars,
-        );
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
 
         // No duplicate appended: still two sections, original order kept.
+        let sections = outcome.sections;
         assert_eq!(sections.len(), 2, "overlay must replace, not append");
         assert_eq!(sections[0].base.id, "hull", "palette order preserved");
         assert_eq!(sections[1].base.id, "thruster");
@@ -736,14 +560,6 @@ mod tests {
     /// sections - the two kinds must behave identically under overlay.
     #[test]
     fn later_scenario_overlays_earlier_by_id() {
-        let mut sections: Vec<SectionConfig> = Vec::new();
-        let mut scenarios = GameScenarios::default();
-        let mut campaigns = GameCampaigns::default();
-        let mut styles: Vec<ShipStyleConfig> = Vec::new();
-        let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
-        let mut ships: Vec<ShipConfig> = Vec::new();
-        let mut grammars: Vec<ShipGrammarConfig> = Vec::new();
-
         let id = "shakedown_run".to_string();
         let base = ScenarioConfig::new(
             id.clone(),
@@ -752,31 +568,14 @@ mod tests {
         );
         let mut modded = base.clone();
         modded.name = "modded".to_string();
+        let base = [Content::Scenario(base)];
+        let modded = [Content::Scenario(modded)];
 
-        merge_content_item(
-            &Content::Scenario(base),
-            &mut sections,
-            &mut scenarios,
-            &mut campaigns,
-            &mut styles,
-            &mut ships,
-            &mut impacts,
-            &mut grammars,
-        );
-        merge_content_item(
-            &Content::Scenario(modded),
-            &mut sections,
-            &mut scenarios,
-            &mut campaigns,
-            &mut styles,
-            &mut ships,
-            &mut impacts,
-            &mut grammars,
-        );
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
 
-        assert_eq!(scenarios.len(), 1, "overlay must replace, not add");
+        assert_eq!(outcome.scenarios.len(), 1, "overlay must replace, not add");
         assert_eq!(
-            scenarios.get(&id).unwrap().name,
+            outcome.scenarios.get(&id).unwrap().name,
             "modded",
             "later scenario must win"
         );

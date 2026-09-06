@@ -310,7 +310,7 @@
                     // text). The story log is scenario-scoped: it clears at
                     // teardown, so a line never leaks into the next scenario.
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Range Control",
                         text: "Welcome to the range. Two derelicts on the board - clear them at your leisure.",
                     )),
@@ -587,7 +587,7 @@
                 ],
                 actions: [
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Range Control",
                         text: "Clock's running. Put your reticle on a derelict and hold the trigger.",
                     )),
@@ -611,7 +611,7 @@
                 ],
                 actions: [
                     NarrativeCue((
-                        channel: Comms,
+                        channel: "comms",
                         speaker: "Range Control",
                         text: "Late contact drifting onto the range - bonus target if you want it.",
                     )),

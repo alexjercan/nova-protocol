@@ -4,12 +4,13 @@
 //! section prototypes, semantic craft assemblies, and path-based asset refs.
 //! Generic authoring helpers, lint, and serialization tooling stay outside it.
 
-use nova_gameplay::prelude::ImpactSoundConfig;
+use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 
 pub(crate) mod assets;
 pub(crate) mod campaigns;
+pub(crate) mod channels;
 pub(crate) mod grammars;
 pub(crate) mod impacts;
 pub(crate) mod scenarios;
@@ -28,6 +29,7 @@ pub(crate) struct BaseContent {
     pub(crate) styles: Vec<ShipStyleConfig>,
     pub(crate) impacts: Vec<ImpactSoundConfig>,
     pub(crate) grammars: Vec<ShipGrammarConfig>,
+    pub(crate) channels: Vec<NarrativeChannelConfig>,
 }
 
 /// Build every built-in content family from one explicit asset inventory.
@@ -41,5 +43,6 @@ pub(crate) fn build() -> BaseContent {
         styles: styles::style_catalog(&assets),
         impacts: impacts::impact_table(&assets),
         grammars: grammars::grammar_catalog(),
+        channels: channels::channel_catalog(),
     }
 }

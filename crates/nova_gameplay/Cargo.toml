@@ -41,7 +41,7 @@ workspace = true
 
 [features]
 debug = ["bevy/track_location"]
-serde = ["dep:serde", "bevy/serialize"]
+serde = ["dep:serde", "bevy/serialize", "nova_ui/serde"]
 # The headless avian app in `test_support`, for crates split out of this one
 # that test against the same harness. Off by default so avian's test wiring
 # never reaches a release build; enable it as a dev-dependency feature only.

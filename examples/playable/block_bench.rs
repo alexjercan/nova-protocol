@@ -496,6 +496,9 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
         &known,
         &KnownShips::default(),
         &HashSet::from([scenario.id.clone()]),
+        // The bench authors geometry, never dialogue: no cue, so no channel
+        // has to resolve.
+        &HashSet::new(),
     );
     let errors: Vec<&str> = issues
         .iter()
