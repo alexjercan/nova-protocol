@@ -361,8 +361,8 @@ impl Collapse<'_> {
     ///
     /// A weight is authored per PART and spent per part: whatever orientations
     /// of it are still standing in this cell SHARE it. That keeps the authored
-    /// number meaning "how often do I want one of these, where one is allowed"
-    /// - immune both to how symmetric a part happens to be (the hull cube
+    /// number meaning "how often do I want one of these, where one is allowed" -
+    /// immune both to how symmetric a part happens to be (the hull cube
     /// presents one tile, the bay six) and to how many of its orientations this
     /// particular cell has already ruled out. Without it a mount, which by its
     /// single socket has at most one legal orientation anywhere, would be
@@ -585,8 +585,8 @@ impl Collapse<'_> {
     /// so on a lattice with a half-cell phase they come out as `x` and `-1 - x`.
     ///
     /// Clearance has to be judged on the whole ship rather than on the half
-    /// that was collapsed, because a lane pointing at the centreline crosses it
-    /// - and what is waiting on the far side is the part's own reflection,
+    /// that was collapsed, because a lane pointing at the centreline crosses it -
+    /// and what is waiting on the far side is the part's own reflection,
     /// firing back.
     pub(crate) fn ship_cells(&self, chosen: &[usize], kept: &[bool]) -> Vec<ShipCell<'_>> {
         let mut cells = Vec::new();

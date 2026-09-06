@@ -2125,7 +2125,7 @@ mod tests {
             SectionKind::Railgun(RailgunSectionConfig::default()),
         ]
         .iter()
-        .flat_map(|kind| default_binds(kind))
+        .flat_map(default_binds)
         .map(|source| source.label())
         .collect();
         let unique: std::collections::HashSet<&String> = desk.iter().collect();

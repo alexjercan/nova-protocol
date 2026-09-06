@@ -293,9 +293,11 @@ mod tests {
     /// left it: `ComputedNode` measures in physical pixels and carries the
     /// inverse scale factor that converts them back.
     fn spawn_dock(app: &mut App, logical_height: f32, scale: f32, visible: bool) -> Entity {
-        let mut computed = ComputedNode::default();
-        computed.size = Vec2::new(320.0, logical_height * scale);
-        computed.inverse_scale_factor = 1.0 / scale;
+        let computed = ComputedNode {
+            size: Vec2::new(320.0, logical_height * scale),
+            inverse_scale_factor: 1.0 / scale,
+            ..Default::default()
+        };
         app.world_mut()
             .spawn((
                 KeybindDockMarker,

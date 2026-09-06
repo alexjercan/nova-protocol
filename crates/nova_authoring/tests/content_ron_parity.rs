@@ -6,9 +6,9 @@
 //! `build_story_scenarios`) are the SINGLE definition of each built-in; at
 //! runtime `register_bundles` loads the committed RON (via each bundle) and
 //! routes each item into `GameSections` / `GameScenarios`. The `content` CLI's
-//! `gen` subcommand is the one writer of those files; this test is assert-only
-//! - a MISSING file fails like a drifted one, so `cargo test` never mutates
-//! the assets tree.
+//! `gen` subcommand is the one writer of those files; this test is assert-only:
+//! a MISSING file fails like a drifted one, so `cargo test` never mutates the
+//! assets tree.
 //!
 //! - `assets/base/sections/base.content.ron` = one `Vec<Content>` of `Section((..))`.
 //! - `assets/base/scenarios/<id>.content.ron` = a `Vec<Content>` with one `Scenario((..))`.

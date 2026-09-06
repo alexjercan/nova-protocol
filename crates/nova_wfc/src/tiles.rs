@@ -433,12 +433,12 @@ fn segment_tiles(
     }
 
     for cell in cells() {
-        for face in 0..FACES.len() {
-            let next = cell.as_vec3() + FACES[face];
+        for offset in FACES {
+            let next = cell.as_vec3() + offset;
             if next.cmplt(Vec3::ZERO).any() || next.cmpge(extent).any() {
                 continue;
             }
-            let Some(turned) = face_index(rotation * FACES[face]) else {
+            let Some(turned) = face_index(rotation * offset) else {
                 return Ok(None);
             };
             segments[index(cell)].joints[turned] = Some(index(next.as_uvec3()));

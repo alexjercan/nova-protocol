@@ -755,6 +755,58 @@ fn check_section_overlaps(
     }
 }
 
+/// Well-formedness for one authored narrative channel.
+///
+/// A channel is pure presentation, so there is nothing here about what a line
+/// MEANS - only the two ways a card can come out unreadable: a strength that
+/// draws it at nothing, and a tag that takes the space beside the speaker
+/// without saying anything.
+///
+/// Whether two channels are visibly different is deliberately NOT checked. Two
+/// bands on one tone is a legitimate authoring choice (a mod may want four
+/// channels and has four tones), and the tag is there to separate them.
+pub fn lint_channel_config(channel: &NarrativeChannelConfig, source: &str) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    let mut error = |message: String| {
+        issues.push(LintIssue {
+            severity: LintSeverity::Error,
+            scenario: channel.id.clone(),
+            message,
+        });
+    };
+
+    if channel.id.trim().is_empty() {
+        error(format!("a channel in {source} has an empty id"));
+    }
+
+    // Zero is excluded, not clamped: a channel drawn at nothing is a channel
+    // whose lines never reach the player, which is a mistake rather than a
+    // style. Above one is a card brighter than the HUD it sits in.
+    if !(channel.signal_strength.is_finite()
+        && channel.signal_strength > 0.0
+        && channel.signal_strength <= 1.0)
+    {
+        error(format!(
+            "channel '{}' in {source} has signal strength {}, which is outside (0, 1]",
+            channel.id, channel.signal_strength
+        ));
+    }
+
+    if channel
+        .tag
+        .as_ref()
+        .is_some_and(|tag| tag.trim().is_empty())
+    {
+        error(format!(
+            "channel '{}' in {source} authors an empty tag; omit the field for a channel \
+             that needs no saying",
+            channel.id
+        ));
+    }
+
+    issues
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1744,56 +1796,4 @@ mod tests {
             }
         );
     }
-}
-
-/// Well-formedness for one authored narrative channel.
-///
-/// A channel is pure presentation, so there is nothing here about what a line
-/// MEANS - only the two ways a card can come out unreadable: a strength that
-/// draws it at nothing, and a tag that takes the space beside the speaker
-/// without saying anything.
-///
-/// Whether two channels are visibly different is deliberately NOT checked. Two
-/// bands on one tone is a legitimate authoring choice (a mod may want four
-/// channels and has four tones), and the tag is there to separate them.
-pub fn lint_channel_config(channel: &NarrativeChannelConfig, source: &str) -> Vec<LintIssue> {
-    let mut issues = Vec::new();
-    let mut error = |message: String| {
-        issues.push(LintIssue {
-            severity: LintSeverity::Error,
-            scenario: channel.id.clone(),
-            message,
-        });
-    };
-
-    if channel.id.trim().is_empty() {
-        error(format!("a channel in {source} has an empty id"));
-    }
-
-    // Zero is excluded, not clamped: a channel drawn at nothing is a channel
-    // whose lines never reach the player, which is a mistake rather than a
-    // style. Above one is a card brighter than the HUD it sits in.
-    if !(channel.signal_strength.is_finite()
-        && channel.signal_strength > 0.0
-        && channel.signal_strength <= 1.0)
-    {
-        error(format!(
-            "channel '{}' in {source} has signal strength {}, which is outside (0, 1]",
-            channel.id, channel.signal_strength
-        ));
-    }
-
-    if channel
-        .tag
-        .as_ref()
-        .is_some_and(|tag| tag.trim().is_empty())
-    {
-        error(format!(
-            "channel '{}' in {source} authors an empty tag; omit the field for a channel \
-             that needs no saying",
-            channel.id
-        ));
-    }
-
-    issues
 }

@@ -31,17 +31,17 @@ fn main() {
     eprintln!("run it with --features debug");
 }
 
-/// The id First Shift gives the player's hull. The range types it half and lets
-/// completion finish it, so a rename breaks this range loudly rather than
+/// The id the tutorial gives the player's hull. The range types it half and
+/// lets completion finish it, so a rename breaks this range loudly rather than
 /// leaving the completion untested.
 #[cfg(feature = "debug")]
-const PLAYER_ID: &str = "cutter";
+const PLAYER_ID: &str = "trainer";
 
 /// A UNIQUE prefix of it. Tab completion reads the live world, so this has to
-/// name one ship and no other: the carrier is the only other hull on the map,
-/// and it starts with a `c` too.
+/// name one ship and no other: the range's five targets start with a `t` too,
+/// so one letter is not enough.
 #[cfg(feature = "debug")]
-const PLAYER_ID_PREFIX: &str = "cut";
+const PLAYER_ID_PREFIX: &str = "tr";
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {

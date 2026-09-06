@@ -18,6 +18,11 @@
 //!     cargo run --example first_shift_08_strike_salvo --features debug
 //! ```
 
+#[cfg(feature = "debug")]
+use std::time::Duration;
+
+#[cfg(feature = "debug")]
+use bevy::time::TimeSystems;
 use bevy::{prelude::*, window::PrimaryWindow};
 use clap::Parser;
 use nova_authoring::prelude::*;
@@ -35,15 +40,27 @@ const SCENE_DONE: &str = "strike_salvo_scene_done";
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "first-shift-railgun-hits";
 
+/// How far the game clock may advance in one frame of a harnessed walk that
+/// captures nothing.
+///
+/// Bevy clamps `Time<Virtual>` to a quarter second a frame. On CI's software
+/// rasterizer a salvo frame costs three to five seconds - the draw count, not
+/// the pixels: 320x180 with shadow maps off measured the same - so the scripted
+/// scene ran at a twelfth of wall speed and its thirty seconds outran the
+/// harness deadline. Such a walk has no viewer, so its clock follows the wall
+/// instead: a frame advances up to this much and the fixed loop runs the steps
+/// that covers. A capture keeps the default; its frames are the product.
+#[cfg(feature = "debug")]
+const WALK_MAX_DELTA: Duration = Duration::from_secs(2);
+
 /// A wall-clock backstop for a beat that waits on the SCENARIO clock, from the
 /// scripted seconds it is waiting through.
 ///
 /// Step deadlines run on real time; the set piece this walk watches runs on the
-/// game clock, and `Time<Virtual>` clamps that to a quarter second a frame.
-/// Under CI's software rasterizer a frame costs more than that, so gameplay
-/// advances at roughly a third of wall speed and a backstop written in scripted
-/// seconds has to buy three of them. These stay BACKSTOPS - the healthy run
-/// spends the scripted time and moves on.
+/// game clock, which [`WALK_MAX_DELTA`] lets keep up with the wall down to a
+/// frame every two seconds. A frame slower than that still loses time, so a
+/// backstop written in scripted seconds buys three of them. These stay
+/// BACKSTOPS - the healthy run spends the scripted time and moves on.
 #[cfg(feature = "debug")]
 fn backstop(scripted_secs: f32) -> f32 {
     scripted_secs * 3.0
@@ -149,6 +166,9 @@ fn main() -> bevy::app::AppExit {
             );
         }
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        if harness_env_active() && !capturing() && !capture_stills {
+            app.add_systems(First, hold_walk_clock.before(TimeSystems));
+        }
     }
 
     app.run()
@@ -202,6 +222,15 @@ fn size_window(
         .resolution
         .set(cli.resolution.x as f32, cli.resolution.y as f32);
     *done = true;
+}
+
+/// Held every frame, not set once: a scenario load or a pause hands
+/// `Time<Virtual>` back at its default.
+#[cfg(feature = "debug")]
+fn hold_walk_clock(mut time: ResMut<Time<Virtual>>) {
+    if time.max_delta() != WALK_MAX_DELTA {
+        time.set_max_delta(WALK_MAX_DELTA);
+    }
 }
 
 fn place_ship(scenario: &mut ScenarioConfig, id: &str, position: Meters3, rotation: Quat) {
