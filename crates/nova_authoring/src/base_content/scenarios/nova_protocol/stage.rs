@@ -1,15 +1,15 @@
-//! The belt both mainline chapters are set in.
+//! The belt the mainline campaign is set in.
 //!
-//! Chapter two is chapter one's map an hour later, so the two scenarios must
-//! agree on every fixed thing in it down to the metre: the same two planetoids
-//! with the same masses, the same rock plate, the same far dressing, and the
-//! carrier's position - which chapter one spawns a ship at and chapter two
-//! spawns a grave at. Authoring that twice would let the wreck field drift off
-//! the rocks it is supposed to be tangled in, so it is authored ONCE here and
-//! both chapters read it.
+//! One chapter is authored against it today, and the map is meant to be
+//! REVISITED: the same two planetoids with the same masses, the same rock
+//! plate, the same far dressing, and the carrier's position, which a later
+//! chapter would spawn a grave at where this one spawns a ship. That is why
+//! every fixed thing is authored ONCE here and read by name rather than typed
+//! into a chapter - a second chapter that re-typed these numbers would let the
+//! wreck field drift off the rocks it is supposed to be tangled in.
 //!
-//! Layout provenance: `examples/playable/first_shift_map.rs` and
-//! `second_shift_map.rs`, the spatial benches this stage was reviewed in.
+//! Layout provenance: `examples/playable/first_shift_map.rs`, the spatial
+//! bench this stage was reviewed in.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -63,8 +63,7 @@ pub(crate) const CONCEALMENT_MASS: f32 = 20_000.0;
 
 /// The rock plate between the carrier and both planetoids: broad enough that
 /// the cutter has several lines through it, and tight enough that nothing
-/// capital-sized would try. Chapter one's crates sit in it; chapter two's
-/// wreckage is scattered across it.
+/// capital-sized would try. The shift's crates sit in it.
 pub(crate) const SALVAGE_ROCKS: [(Meters3, Meters); 40] = [
     (Meters3::new(400.0, 220.0, -1_200.0), Meters(32.0)),
     (Meters3::new(1_000.0, -260.0, -1_000.0), Meters(22.0)),
@@ -156,12 +155,13 @@ pub(crate) const SALVAGE_MIX: [(&str, u32); 4] = [
 /// lets the player keep.
 pub(crate) const AMBIENT_MIX: [(&str, u32); 3] = [(KIND_ROCK, 6), (KIND_CARBON, 3), (KIND_ICE, 1)];
 
-/// Scenario ids for the two fixed bodies. Both chapters spawn them under these
-/// names, so a marker, an orbit order or a lock reads the same in either.
+/// Scenario ids for the two fixed bodies. Every chapter set on this map spawns
+/// them under these names, so a marker, an orbit order or a lock reads the same
+/// in each.
 pub(crate) const ID_INSPECTION: &str = "inspection_planetoid";
 pub(crate) const ID_CONCEALMENT: &str = "concealment_planetoid";
 
-/// The beacon ink both chapters navigate by.
+/// The beacon ink this map is navigated by.
 pub(crate) const BEACON_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
 
 /// Beacon trigger radius. It MUST contain the autopilot's park point: GOTO
@@ -239,7 +239,7 @@ pub(crate) fn rock(
 }
 
 /// One of the two planetoids: a gravity source, and indestructible, because
-/// both chapters are authored against it still being there.
+/// the map is authored against it still being there.
 ///
 /// A PLANET, not a big rock. The ids, the masses and the invulnerable flag are
 /// unchanged, and the radii are chosen to reproduce the body radius each rock

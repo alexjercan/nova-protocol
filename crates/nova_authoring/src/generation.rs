@@ -50,10 +50,10 @@ pub fn build_scenarios() -> Vec<ScenarioConfig> {
 }
 
 /// The base game's campaigns, in a stable order. Today just "Nova Protocol",
-/// the base storyline, listing its chapters in play order: First Shift and
-/// Second Shift, both visible, both reachable for replay under the campaign
-/// header. The member ids reference the scenario-id constants so a scenario
-/// rename cannot silently orphan a member.
+/// the base storyline, listing its chapters in play order - one so far, An
+/// Ordinary Shift, visible and reachable for replay under the campaign header.
+/// The member ids reference the scenario-id constants so a scenario rename
+/// cannot silently orphan a member.
 pub fn build_campaigns() -> Vec<CampaignConfig> {
     base_content::build().campaigns
 }

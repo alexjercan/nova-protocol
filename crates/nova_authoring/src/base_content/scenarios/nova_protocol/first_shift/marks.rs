@@ -1,10 +1,12 @@
 //! Everything First Shift puts on the map that the shared belt does not own:
 //! the scenario ids, the temporary marks the lessons are flown against, the
-//! crates, and the two poses the attack is filmed from.
+//! crates, and the seven poses the shift is filmed from - two for the
+//! conversations, five for the strike.
 //!
 //! It is one module so a pacing revision is a numbers edit in one place. The
 //! fixed belt - both planetoids, the rock plate, the far dressing - lives in
-//! `stage` and is shared with chapter two; nothing here may move it.
+//! `stage` and is shared with anything else set on this map; nothing here may
+//! move it.
 //!
 //! Layout provenance: `examples/playable/first_shift_map.rs`, the spatial
 //! bench this stage was reviewed in.
@@ -20,7 +22,7 @@ use crate::scenario_helpers::prelude::*;
 // --- scenario ids ------------------------------------------------------------
 
 /// The player's cutter. Named, not `player_spaceship`: it is a crewed ship
-/// with a part in the story, and chapter two flies the same one.
+/// with a part in the story.
 pub(super) const ID_CUTTER: &str = "cutter";
 pub(super) const ID_CARRIER: &str = "carrier";
 pub(super) const ID_WARSHIP: &str = "warship";

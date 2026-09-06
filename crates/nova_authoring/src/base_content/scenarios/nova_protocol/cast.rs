@@ -16,7 +16,7 @@ use nova_scenario::prelude::*;
 use crate::base_content::assets::CampaignPortraits;
 
 /// The carrier's own name, used in objective and banner text. The ship is a
-/// character in chapter one and a grave afterwards, so it is named in one
+/// character in the shift and a grave afterwards, so it is named in one
 /// place.
 pub(crate) const CARRIER_NAME: &str = "Meridian";
 

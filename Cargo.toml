@@ -105,7 +105,7 @@ path = "examples/playable/shape_bench.rs"
 name = "block_bench"
 path = "examples/playable/block_bench.rs"
 
-# The eight ships of Nova Protocol's first two chapters: maintenance cutter,
+# The eight ships of Nova Protocol: maintenance cutter,
 # industrial carrier and stolen military warship, plus the five cleanup
 # searchers of the wreck field. All eight are shipped base content; the example
 # poses them side by side so a silhouette change is reviewed against the row it

@@ -1,4 +1,4 @@
-//! The Nova Protocol campaign chapters and their shared story vocabulary.
+//! The Nova Protocol campaign's chapter and the story vocabulary around it.
 
 mod cast;
 mod first_shift;

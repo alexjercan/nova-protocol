@@ -47,9 +47,9 @@ fn merged_campaign_resolves_members_in_play_order() {
         );
     }
 
-    // Chapter one is the New Game entry and chapter two is chained from it, so
-    // BOTH are visible in the flat picker: nothing in this campaign is
-    // reachable only through the campaign mapping.
+    // Every listed chapter is visible in the flat picker too: nothing in this
+    // campaign is reachable only through the campaign mapping. A chapter chained
+    // from another still gets its own row.
     for member in &campaign.scenarios {
         assert!(
             !outcome.scenarios[member].hidden,

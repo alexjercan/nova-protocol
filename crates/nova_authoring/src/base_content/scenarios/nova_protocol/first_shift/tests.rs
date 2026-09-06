@@ -191,7 +191,7 @@ fn spawned_ship(config: &ScenarioConfig, id: &str) -> Option<ScenarioObjectConfi
 
 /// The campaign's two named ships are named, and the player's hull is no
 /// longer the generic runtime id. Everything downstream addresses them by
-/// these strings: chapter two flies the same cutter, the console names it, and
+/// these strings: the console names the cutter, and
 /// the set piece fires the warship's guns by ship id.
 #[test]
 fn the_cutter_and_the_carrier_carry_their_own_names() {

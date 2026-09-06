@@ -254,9 +254,15 @@ What is on disk today, in reading order:
   selection ring, a focus turntable, pedestal and cell-frame toggles),
   `parts_viewer` (a paged grid, a focus turntable and a reassembled recipe ship
   with an explode toggle), `widget_zoo` (every `nova_ui` widget factory, live
-  and clickable in both skins) and `compare_asteroids` / `compare_planets` (the
-  number keys re-dress the focus subject). All of them still walk and capture
-  under `NOVA_AUTOPILOT`, which is what keeps them on the probe gate.
+  and clickable in both skins), `compare_asteroids` / `compare_planets` (the
+  number keys re-dress the focus subject) and `asteroid_kinds` / `planet_types`
+  (the whole authored range of each, side by side). Last, the campaign
+  fixtures: `first_shift_01_departure` through `first_shift_09_aftermath` each
+  load one production scene fragment with nothing of their own but preview ship
+  poses, `first_shift_map` is the spatial bench for the belt they share, and
+  `first_shift_ships` poses the campaign's eight hulls in a row. All of them
+  still walk and capture under `NOVA_AUTOPILOT`, which is what keeps them on the
+  probe gate.
 - `systems/` - the correctness ranges. Every name carries a prefix for the KIND
   of check it is - `system_` functionality, `bug_` a regression range for a
   defect that was found, `stress_` load - and `examples/systems/README.md` owns

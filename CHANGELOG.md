@@ -78,13 +78,8 @@ does NOT get an entry - and it is the only place they are written down.
   guard channel twice before the sentence that matters arrives.
 - The strike plays as two scenes, an approach and a salvo, and neither can be
   skipped. The chapter closes on the wreck rather than handing the camera back.
-- The skip prompt rides above the keybind dock instead of printing through the
-  verb chips, and drops back to the floor when the dock has nothing to show.
 - The campaign opens on a title card over the carrier: the sector, the year,
   and one line naming the Meridian and saying what a carrier is.
-- `CinematicTitle` posts a shot's title card in an authored screen corner -
-  location, stamp and one line - and expires on the scenario clock, so no
-  handler has to take it down.
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 - Every main-menu backdrop flies the block fleet now: the waystation's
@@ -249,13 +244,16 @@ does NOT get an entry - and it is the only place they are written down.
   `OnCinematicFinished` on every path out and `OnCinematicSkipped` first on a
   skip. `CancelCinematic` ends one early.
 - A `Cinematic` filter matches an ending by its scene key, so a scenario with
-  two scenes answers the right one. An unplayed key warns at lint.
+  two scenes answers the right one. An unplayed key is a lint error.
+- `CinematicTitle` posts a shot's title card in an authored screen corner -
+  location, stamp and one line - and expires on the scenario clock, so no
+  handler has to take it down.
 - **(breaking)** `StoryMessage` is `NarrativeCue`, and every line authors a
   `channel`: `Comms` for traffic sent to you, `Crew` for the cabin, `Guard` for
   what you overheard. Rename and add the field.
 - `PlaySound` plays one authored cue in the cockpit, on the `Interface` or
-  `Hull` route, with an optional gain. Positional sound stays on the object
-  that makes it.
+  `Hull` route, with an optional gain between 0 and 1. Positional sound stays
+  on the object that makes it.
 - `content lint` checks a helm order's ship and key, an empty patrol route, an
   orbit's well, an AI constraint's ship, and a forced shot's section id and
   class.
@@ -296,8 +294,8 @@ does NOT get an entry - and it is the only place they are written down.
 - Every wiki figure reads in meters, scopes and catalogs included.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
-- The wiki's first flight walks First Shift beat by beat, and the scenario
-  list, glossary and gravity figures read off the two new chapters.
+- The wiki's first flight walks An Ordinary Shift beat by beat, and the
+  scenario list, glossary and gravity figures read off the campaign.
 - The wiki gets a Commands page: the `:` shell, what its introduction reports,
   and the whole catalog by class - utility, read-only, settings, and the
   cheats that mark a run.

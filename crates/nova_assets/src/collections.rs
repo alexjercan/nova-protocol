@@ -210,7 +210,8 @@ pub struct GameAssets {
     /// The wreck's automatic beacon.
     #[asset(path = "base/portraits/automated-beacon.png")]
     pub portrait_automated_beacon: Handle<Image>,
-    /// The cleanup group's leader in chapter two.
+    /// The guard channel: Fleet challenge traffic all shift, and the voice that
+    /// reads the clause over the Meridian.
     #[asset(path = "base/portraits/unknown-channel.png")]
     pub portrait_unknown_channel: Handle<Image>,
     /// The base hull section mesh.

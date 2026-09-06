@@ -298,9 +298,12 @@ const GUARD_CLAUSE_AT: f64 = 4.0;
 const GUARD_REACTION_GAP: f64 = 2.5;
 
 /// Backstops on the scene's three helm gates, at roughly three times the
-/// measured leg. A blown deadline stops the chain, which ends the scene, which
-/// runs the handler that gives the player their ship back - so the worst a
-/// mis-measured leg can do is cut the set piece short.
+/// measured leg. A blown deadline stops the chain and then fires the scene's
+/// ending with `skipped = false` (`nova_scenario::world`), which the next
+/// handler cannot tell from a clean finish - so the salvo starts on schedule
+/// with the warship wherever the blown gate left it. The backstop bounds the
+/// WAIT, not the damage: generous is the safe direction, and a leg that is
+/// re-timed has to bring these with it.
 const APPROACH_LEG_DEADLINE: f64 = 100.0;
 const ALIGN_DEADLINE: f64 = 30.0;
 
@@ -1246,9 +1249,15 @@ pub(crate) fn first_shift(
             // Everything after this point is ONE scene. The approach is a
             // `Cinematic` rather than a `Sequence` because it takes the camera
             // and the controls away for a minute and a quarter of a ship
-            // getting closer. What the scene owes the player back is authored
-            // on the handler that answers it, never inside the chain, so the
-            // camera and the controls come back on the one path out.
+            // getting closer.
+            //
+            // This is the one interval the chapter never hands back. The
+            // opening and the RCS briefing each end on their own
+            // `ResumePlayerControl`; the strike does not, and the chapter runs
+            // out under scenario teardown with the player still watching. That
+            // is the point of the chapter, and
+            // `only_the_conversation_holds_return_control_before_teardown`
+            // pins the count so it stays deliberate.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnGotoComplete,
@@ -1885,8 +1894,8 @@ fn strike_aftermath() -> Vec<EventActionConfig> {
     ]
 }
 
-/// The epilogue: the tease line, then the banner and the hand-off to chapter
-/// two.
+/// The epilogue: the tease line, then the banner. Nothing is handed off to -
+/// see the `None` below.
 fn outro() -> EventActionConfig {
     pacing::outro_sequence(
         VAR_BEAT,

@@ -25,7 +25,8 @@ pub struct CampaignPortraits {
     pub player: AssetRef<Image>,
     /// The wreck's automatic beacon.
     pub automated_beacon: AssetRef<Image>,
-    /// The cleanup group's leader in chapter two.
+    /// The guard channel: Fleet challenge traffic all shift, and the voice that
+    /// reads the clause over the Meridian.
     pub unknown_channel: AssetRef<Image>,
 }
 

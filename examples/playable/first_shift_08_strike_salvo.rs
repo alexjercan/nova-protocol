@@ -31,7 +31,7 @@ const WARSHIP_PREVIEW_POS: Meters3 = Meters3::new(3_700.0, 150.0, -2_200.0);
 const SHIPPED_DEATH_OFFSET: &str = "440,25,-235";
 const DEFAULT_CAPTURE_DIR: &str = "target/shots";
 const LOOP_WINDOW: &str = "railgun_loop_window";
-const SCENE_DONE: &str = "attack_salvo_scene_done";
+const SCENE_DONE: &str = "strike_salvo_scene_done";
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "first-shift-railgun-hits";
 
@@ -72,7 +72,7 @@ struct Cli {
     capture: bool,
 
     /// Prefix for review still filenames.
-    #[arg(long, default_value = "attack")]
+    #[arg(long, default_value = "strike")]
     label: String,
 }
 
@@ -107,14 +107,14 @@ fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     #[cfg(feature = "debug")]
     let capture_stills = cli.capture;
-    let mut app = AppBuilder::new().with_game_plugins(attack_plugin).build();
+    let mut app = AppBuilder::new().with_game_plugins(strike_plugin).build();
     app.insert_resource(cli);
 
     #[cfg(feature = "debug")]
     {
         app.add_plugins(LoopCapturePlugin::default());
         let load = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-            .step("load the attack salvo")
+            .step("load the strike salvo")
             .enter(GameStates::Loading)
             .until(player_ship_present())
             .deadline(60.0)
@@ -154,7 +154,7 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-fn attack_plugin(app: &mut App) {
+fn strike_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load);
     app.add_systems(Update, size_window);
 }

@@ -750,10 +750,10 @@ body with a new origin, and it reads the grain from a different place.
 
 The builders live under
 `crates/nova_authoring/src/base_content/scenarios/`. `main_menu/` gives each
-menu backdrop its own file, and `nova_protocol/` owns the campaign chapters plus
-the stage, cast and pacing vocabulary they share. Its `first_shift.rs` builds the
-New Game starter - the
-beat-chain reference: one `beat` counter gates every handler, and count
+menu backdrop its own file, and `nova_protocol/` owns the campaign chapter plus
+the stage, cast and pacing vocabulary around it. Its `first_shift/` builds the
+New Game starter across `mod.rs` (the chain), `marks.rs`, `story.rs` and
+`tests.rs` - the beat-chain reference: one `beat` counter gates every handler, and count
 milestones run on `OnUpdate` handlers keyed on the counter (handler order
 within one event is not load-bearing). The builders are an OFFLINE inventory,
 not the runtime path: `content -- gen` serializes them to
@@ -781,9 +781,10 @@ one nudge does not silently cost the player three quarters of a revolution.
   `OnNeutralized` fires from `nova_gameplay`'s integrity stack, and a rock's
   `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted).
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
-  `actions/` submodule (`flow`/`mission`/`sequence`/`ship`/`spawn`/`timer`/
-  `view`), plus an
-  `EventActionConfig` variant in `actions/mod.rs`.
+  `actions/` submodule (`audio`/`cinematic`/`flow`/`mission`/`sequence`/`ship`/
+  `spawn`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
+  table in `actions/mod.rs`. The `EventActionConfig` variant is GENERATED from
+  that row - writing one by hand collides with the macro.
 - Filter: same pattern in `filters.rs` (`EventFilterConfig`).
 - Object: a module under `objects/` (config + bundle function, plugin in
   `objects/mod.rs`) plus a `ScenarioObjectKind` variant/match in

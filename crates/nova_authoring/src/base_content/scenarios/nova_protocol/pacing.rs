@@ -1,4 +1,4 @@
-//! Scenario pacing primitives, shared across the mainline scenarios.
+//! Scenario pacing primitives for the mainline scenarios.
 //!
 //! Owner playtest (2026-07-22): objectives were showing in the same frame as
 //! the conversation that introduces them, and completing an objective was
@@ -107,6 +107,10 @@ pub(crate) const OUTRO_BANNER_AFTER: f64 = 5.0;
 /// `banner_extra` rides the LAST beat. An objective belongs there rather than
 /// on either comms beat: the mainline forbids posting one in the same frame as
 /// a conversation line, and the banner beat is the only one without a line.
+///
+/// `next_scenario` is the queued hand-off, riding that same last beat. `None`
+/// is a chapter that ENDS - the campaign stops here rather than continuing
+/// somewhere - which is what every caller passes today.
 pub(crate) fn outro_sequence(
     act_var: &'static str,
     won_act: f64,
