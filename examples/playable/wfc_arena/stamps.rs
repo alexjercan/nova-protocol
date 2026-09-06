@@ -32,8 +32,56 @@ fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSect
 /// and the production ship generator will own a richer grammar later. The
 /// arena only needs a deterministic fleet for judging one capital drive against
 /// two or three vector drives.
-pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64, sections: &GameSections) {
-    const SUPPORT_Z: f32 = 4.0;
+pub fn stamp_large_drives(
+    hull: &mut ShipHull,
+    seed: u64,
+    sections: &GameSections,
+    grid: GrammarGrid,
+) {
+    // Ship-space geometry the stamp has to agree with the collapse on. These
+    // were three literals tuned for `half_width: 4, length: 11`, back when the
+    // grid was a const in the same file as the collapse. The GRAMMAR authors it
+    // now - a mod may overlay `standard_hull` with a longer one - so they are
+    // read off the grid the hull was actually collapsed in.
+    //
+    // `Grid::starboard_half` starts the starboard half at `x = 0.5` and puts
+    // the z origin at `-(length - 1) / 2`, so a mirrored hull's outer cell
+    // centres sit at +/- (half_width - 0.5) and its aft-most row at
+    // (length - 1) / 2. The beam takes the row one forward of that, and the
+    // carve clears everything aft of the beam's own forward face.
+    let beam_half_x = grid.half_width as f32;
+    let support_z = (grid.length as f32 - 1.0) * 0.5 - 1.0;
+    let carve_z = support_z + 0.5;
+    let widest = |ids: &[&str]| -> f32 {
+        ids.iter()
+            .map(|id| {
+                sections
+                    .get_section(id)
+                    .unwrap_or_else(|| panic!("wfc_arena: no section prototype '{id}'"))
+                    .base
+                    .collider
+                    .unwrap_or_default()
+            })
+            .map(|collider| rotated_half_extents(collider, Quat::IDENTITY).x)
+            .fold(0.0, f32::max)
+    };
+    // Refused by NAME rather than stamped crooked. The drive centres below are
+    // authored bench positions, not derived ones, so a grid the beam cannot
+    // carry is a grid this stamp was never tuned for.
+    let needed = widest(&["capital_thruster_section", "vector_thruster_section"]);
+    assert!(
+        beam_half_x >= needed,
+        "wfc_arena: the stamp bolts drives {needed} cell(s) either side of the keel onto a beam          only {beam_half_x} wide; grammar '{STANDARD_HULL_GRAMMAR_ID}' is {} cell(s) across its \
+         half-width and this stamp was tuned for 4",
+        grid.half_width
+    );
+    assert!(
+        grid.length >= 3,
+        "wfc_arena: the stamp clears the aft-most row and the one in front of it; grammar \
+         '{STANDARD_HULL_GRAMMAR_ID}' is {} cell(s) long and there would be no hull left",
+        grid.length
+    );
+
     let (prototype, length, centres): (&str, f32, Vec<Vec3>) = match seed % 3 {
         0 => (
             "capital_thruster_section",
@@ -67,7 +115,10 @@ pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64, sections: &GameSection
     // The carve reads BODIES, not positions: a two-cell bay centred one row
     // forward of the transom still pokes its aft cell into the deck being
     // cleared, and keeping it would stand the stamp's own beam inside it.
-    let beam = (Vec3::new(0.0, 0.0, SUPPORT_Z), Vec3::new(4.0, 0.5, 0.5));
+    let beam = (
+        Vec3::new(0.0, 0.0, support_z),
+        Vec3::new(beam_half_x, 0.5, 0.5),
+    );
     hull.sections.retain(|section| {
         let SectionSource::Prototype(id) = &section.source else {
             panic!("wfc_arena: every generated section is a catalog prototype");
@@ -80,18 +131,18 @@ pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64, sections: &GameSection
             .abs()
             .cmplt(half + beam.1 - Vec3::splat(GRID_EPSILON))
             .all();
-        section.position.z + half.z <= 4.5 + GRID_EPSILON && !inside_beam
+        section.position.z + half.z <= carve_z + GRID_EPSILON && !inside_beam
     });
 
-    for index in 0..8 {
-        let x = -3.5 + index as f32;
+    for index in 0..(2 * grid.half_width) {
+        let x = -(beam_half_x - 0.5) + index as f32;
         hull.sections.push(stamped_section(
             format!("large_drive_support_{index}"),
             "reinforced_hull_section",
-            Vec3::new(x, 0.0, SUPPORT_Z),
+            Vec3::new(x, 0.0, support_z),
         ));
     }
-    let centre_z = SUPPORT_Z + 0.5 + length * 0.5;
+    let centre_z = carve_z + length * 0.5;
     info!(
         "wfc_arena: seed {seed} stamped with {} `{prototype}` drive(s)",
         centres.len()
@@ -149,14 +200,14 @@ mod stamp_tests {
 
     #[test]
     fn arena_stamps_one_capital_or_two_to_three_vector_drives() {
-        let (sections, _) = catalog_tiles();
+        let (sections, tiles) = catalog_tiles();
         for (seed, prototype, count) in [
             (0, "capital_thruster_section", 1),
             (1, "vector_thruster_section", 2),
             (2, "vector_thruster_section", 3),
         ] {
             let mut hull = ShipHull::default();
-            stamp_large_drives(&mut hull, seed, &sections);
+            stamp_large_drives(&mut hull, seed, &sections, tiles.grid());
             assert_eq!(
                 hull.sections
                     .iter()
@@ -171,14 +222,74 @@ mod stamp_tests {
                     .iter()
                     .filter(|section| section.id.starts_with("large_drive_support_"))
                     .count(),
-                8,
+                2 * tiles.grid().half_width as usize,
             );
         }
     }
 
+    /// The stamp follows the GRID, which is content now.
+    ///
+    /// `half_width` and `length` were three literals in this file - the beam's
+    /// x extent, the row it takes, and the plane the carve clears to - tuned
+    /// for the 4x5x11 the collapse then held as consts. A mod overlaying
+    /// `standard_hull` with a longer hull used to move the transom out from
+    /// under a beam that stayed where it was: the carve stripped rows that
+    /// should have survived, and the beam was planted cells inside the hull.
+    #[test]
+    fn the_stamp_moves_its_beam_when_the_grammar_retunes_the_grid() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let mut grammar = GameGrammars(nova_authoring::generation::build_grammars())
+            .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+            .expect("the base content ships one")
+            .clone();
+        grammar.grid.half_width = 5;
+        grammar.grid.length = 13;
+        let tiles = TileSet::build(&sections, &grammar).expect("the retuned grid reads");
+
+        let mut hull = tiles.hull(0, false, None).expect("the seed collapses");
+        stamp_large_drives(&mut hull, 0, &sections, tiles.grid());
+
+        let supports: Vec<&SpaceshipSectionConfig> = hull
+            .sections
+            .iter()
+            .filter(|section| section.id.starts_with("large_drive_support_"))
+            .collect();
+        // 13 cells long puts the aft-most row at z = 6, so the beam takes 5.
+        assert_eq!(
+            supports.len(),
+            10,
+            "a hull 10 cells across takes 10 supports"
+        );
+        assert!(
+            supports
+                .iter()
+                .all(|section| (section.position.z - 5.0).abs() < GRID_EPSILON),
+            "the beam has to sit one row forward of the transom, not where an 11-cell hull \
+             put it: {:?}",
+            supports.iter().map(|s| s.position.z).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            supports
+                .iter()
+                .map(|section| section.position.x)
+                .fold(f32::NEG_INFINITY, f32::max),
+            4.5,
+            "and it has to reach the outboard cell of the wider hull"
+        );
+        // The whole point of moving it: nothing the collapse laid forward of
+        // the beam is carved, and nothing aft of it survives.
+        assert!(
+            hull.sections
+                .iter()
+                .any(|section| section.position.z > 3.0 && section.position.z < 5.0),
+            "the carve stripped rows a 13-cell hull should have kept"
+        );
+        refuse_unmated_contacts(&hull, &sections);
+    }
+
     #[test]
     fn arena_stamp_replaces_only_the_central_support_beam() {
-        let (sections, _) = catalog_tiles();
+        let (sections, tiles) = catalog_tiles();
         let mut hull = ShipHull {
             sections: vec![
                 stamped_section(
@@ -194,7 +305,7 @@ mod stamp_tests {
             ],
             ..default()
         };
-        stamp_large_drives(&mut hull, 20_260_829, &sections);
+        stamp_large_drives(&mut hull, 20_260_829, &sections, tiles.grid());
         assert!(hull
             .sections
             .iter()
@@ -210,7 +321,7 @@ mod stamp_tests {
         let (sections, tiles) = catalog_tiles();
         for seed in [6, 7, 8, 20_260_829] {
             let mut hull = tiles.hull(seed, true, None).expect("the seed collapses");
-            stamp_large_drives(&mut hull, seed, &sections);
+            stamp_large_drives(&mut hull, seed, &sections, tiles.grid());
             refuse_unmated_contacts(&hull, &sections);
         }
     }

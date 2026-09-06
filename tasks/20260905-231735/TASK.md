@@ -2697,6 +2697,66 @@ own, in Ship Settings.
 Green: `nova_editor` 479 lib tests, `nova_assets` all suites, workspace
 `cargo check --all-targets`, `cargo fmt --all`.
 
+### Group H - the WFC range's own coverage, and what it left behind. DONE.
+
+Five findings. Four are closed with tests; one is closed by RECORDING that it
+cannot be tested, which is the honest half of the same job.
+
+**The contradiction path has a test** (`collapse.rs:327`). `lib.rs` makes
+"failing rather than photographing" a headline claim and nothing drove a
+collapse into a contradiction. Reaching it took working out why the unary
+filters cannot: `VACUUM` passes all of them and is compatible with every solid,
+so a domain always keeps emptiness. A JOINT is the exception - across a joint
+face vacuum is not an option, so the partner segment is the only thing that
+fits. A three-cell lance seeded on the bow of a six-cell grid, zoned `Bow`, has
+its last segment struck by the zone and nothing left in that cell. `runnable`
+passes the grammar, so it is the solver's own refusal. The test also lifts the
+zone and collapses the same grid, so it is the zone that cut the block and not
+the shorter grid. Verified: falling back to `VACUUM` in `solve` fails it.
+
+**The blocked-exits path CANNOT be tested, and now says so**
+(`collapse.rs:683`). A sweep of 7,200 seeds over 120 bent grammars - vacuum
+priced 0.001 to 4, every part from featherweight to twenty, four grid shapes,
+with and without a seeded bow gun - reached it never. It is unreachable by
+construction, and for a stated reason: `erode_blocked_exits` drops a blocked
+part before this reads, and `fill_pits` is handed the surviving lanes so it
+cannot put one back. The comment at the guard records the sweep and the two
+properties it depends on, rather than leaving a reader to assume coverage.
+Listing it as a missing test would have been wrong; so would deleting the
+guard.
+
+**The `Hovered` fix has a test that fails without it** (`list.rs:93`).
+`hovered_viewport_takes_the_whole_wheel` hand-spawns the component, so it stayed
+green through the whole v0.12.0 life of the bug. The new test spawns
+`scroll_viewport()` and asserts the ENTITY carries `Hovered` - the component the
+picking backend can only write into if the bundle put it there - then confirms
+what it buys by standing in for the backend. The bundle assertion is the gate
+and the comment says so. Verified: removing the component from the bundle fails
+it.
+
+**The arena stamp reads the grid instead of remembering it** (`stamps.rs:36`).
+`SUPPORT_Z = 4.0`, the carve plane at `4.5`, the beam half-extent `4.0` and the
+eight-support run all encoded `half_width: 4, length: 11` from when those were
+consts beside the collapse. `stamp_large_drives` now takes the `GrammarGrid`
+(`TileSet::grid()`, already public) and derives all four from
+`Grid::starboard_half`'s own arithmetic. What is NOT derived - the drive centres
+are authored bench positions - is guarded by name: a grid whose beam cannot
+carry the widest drive the stamp bolts on is refused with the grammar id in the
+line. The test collapses a 5x5x13 hull and asserts the beam moved to `z = 5`,
+grew to ten supports, reached `x = 4.5`, and carved nothing a 13-cell hull
+should keep. Verified: putting the literals back fails it.
+
+**The changelog entry for the deleted stamp is folded into the one that
+shipped** (`CHANGELOG.md:373`). It claimed `wfc_arena` "bolts a spinal railgun
+to every generated bow ... carves whatever the collapse hung in front of the
+bore"; `stamp_spinal_lance` returns zero hits in the tree. Both it and its
+replacement sit inside `[Unreleased]`, so AGENTS.md wants one entry. The `R`
+binding it also named is still true and survives; the bolting and carving do
+not. 172 characters.
+
+Green: `nova_wfc` 14, `nova_ui` 57, `wfc_arena` 14, workspace
+`cargo check --all-targets`, `cargo fmt --all`.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2704,21 +2764,15 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**14 MAJOR, by theme.** (Group G closed five, all in the editor. Group F
-closed four before it; the count of 24 quoted earlier in this run was one high
-- it read the three-file docs bullet as three.)
+**9 MAJOR, by theme.** (Group H closed five: two collapse refusal paths - one
+tested, one recorded as untestable - the `Hovered` bundle, the arena stamp's
+hardcoded grid, and the stale changelog entry. Group G closed five before it
+and Group F four; the count of 24 quoted earlier in this run was one high, it
+read the three-file docs bullet as three.)
 
 Editor and WFC correctness (batches 1-3):
-- `nova_wfc/src/collapse.rs:327,:683` - both documented refusal paths untested.
-  Group F gave the SIBLING test
-  (`a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run`) its message
-  assertions; these two paths still have no test at all.
 - `nova_editor/src/node.rs:1310` (unmeasured) - per-frame document walks are
   O(sections) or O(sections^2); a generated hull multiplies the input.
-- `nova_ui/src/screen/list.rs:93` - the `Hovered` fix has no failing-without-it
-  test.
-- `examples/playable/wfc_arena/stamps.rs:36` - the surviving stamp hardcodes the
-  grid the grammar now authors.
 
 Grammar as content (the rest closed in Group F):
 - `nova_ship/src/sections/ship_grammar.rs:222` - a mod can only RETUNE
@@ -2746,14 +2800,12 @@ Documentation the range left behind:
   `editor_save` slot.
 - `web/src/wiki/keybinds.md:255` - says torpedoes fire on the left mouse button;
   an editor-placed torpedo takes `F`.
-- `CHANGELOG.md:373` - an unreleased entry describes the stamp this range
-  deleted.
 
 **~85 MINOR**, in the batch blocks above. Not triaged individually; each was
 recorded where it was found.
 
-Nothing here blocks the range: it builds, it lints, and it plays. The heaviest
-left are `scenario.rs:1201` (a save silently rewrites a retry wrong),
-`generate.rs:186` (every Generate overwrites the builder's cladding and style),
-and `bundle.rs:90` (a save named "Sandbox" takes over the editor's own stage
-range).
+Nothing here blocks the range: it builds, it lints, and it plays. The three
+heaviest - a save rewriting a retry wrong, every Generate repainting the ship,
+and a save named "Sandbox" taking over the editor's own stage range - closed in
+Group G. What is left is one unmeasured perf pair, one unscheduled feature, two
+coverage gaps and the documentation.

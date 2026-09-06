@@ -849,7 +849,7 @@ fn combat_hull(tiles: &TileSet, seed: u64, style: StyleId, sections: &GameSectio
     let mut hull = tiles
         .hull(seed, true, style)
         .unwrap_or_else(|error| panic!("wfc_arena: {error}"));
-    stamps::stamp_large_drives(&mut hull, seed, sections);
+    stamps::stamp_large_drives(&mut hull, seed, sections, tiles.grid());
     load_lances(&mut hull, seed);
     hull
 }
@@ -2400,7 +2400,7 @@ mod binding_tests {
 
         for seed in 0..6u64 {
             let mut hull = tiles.hull(seed, true, None).expect("the seed collapses");
-            stamps::stamp_large_drives(&mut hull, seed, &sections);
+            stamps::stamp_large_drives(&mut hull, seed, &sections, tiles.grid());
             for (id, sources) in player_bindings(&hull, 0, &BTreeMap::new()) {
                 for source in sources {
                     assert!(

@@ -187,6 +187,79 @@ fn hovered_viewport_takes_the_whole_wheel() {
     );
 }
 
+/// The wheel rule is a property of the BUNDLE, not of the driver.
+///
+/// `hovered_viewport_takes_the_whole_wheel` above hand-spawns `Hovered`, so it
+/// stayed green the whole time production attached none and one notch moved
+/// every pane at once - the bug that shipped in v0.12.0. This spawns what
+/// production spawns and reaches for the component through the world, the way
+/// the picking backend does, so a bundle that drops it fails here instead of
+/// passing quietly.
+#[test]
+fn a_spawned_viewport_carries_the_hover_the_wheel_rule_reads() {
+    use bevy::picking::hover::Hovered;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.world_mut().init_resource::<Messages<MouseWheel>>();
+    let under = app
+        .world_mut()
+        .spawn((scroll_viewport(), viewport(1.0)))
+        .id();
+    let beside = app
+        .world_mut()
+        .spawn((scroll_viewport(), viewport(1.0)))
+        .id();
+
+    // THE assertion. `Hovered` is what the picking backend writes into when the
+    // pointer enters a pane, and it can only write one the bundle already put
+    // there; without it `any_hovered` is false forever.
+    assert!(
+        app.world().get::<Hovered>(under).is_some(),
+        "scroll_viewport() has to carry Hovered, or no pane ever reports hover"
+    );
+    assert!(
+        app.world().get::<Hovered>(beside).is_some(),
+        "and every pane carries one, so the driver can tell them apart"
+    );
+
+    // The rest is what that component BUYS, standing in for the backend. It is
+    // confirmation, not the gate: this insert would put the component back.
+    app.world_mut().entity_mut(under).insert(Hovered(true));
+
+    app.world_mut().write_message(MouseWheel {
+        unit: MouseScrollUnit::Pixel,
+        x: 0.0,
+        y: -30.0,
+        window: Entity::PLACEHOLDER,
+        phase: TouchPhase::Moved,
+    });
+    app.world_mut()
+        .run_system_once(scroll_viewports)
+        .expect("scroll driver runs");
+
+    assert_eq!(
+        app.world()
+            .entity(under)
+            .get::<ScrollPosition>()
+            .unwrap()
+            .0
+            .y,
+        30.0,
+        "the pane under the pointer takes the notch"
+    );
+    assert_eq!(
+        app.world()
+            .entity(beside)
+            .get::<ScrollPosition>()
+            .unwrap()
+            .0
+            .y,
+        0.0,
+        "and the pane beside it stays put, which is the whole rule"
+    );
+}
+
 /// The bar is spawned beside the pane it drives, in one `children!` that
 /// cannot name either entity. The wiring pass is what makes that legal.
 #[test]

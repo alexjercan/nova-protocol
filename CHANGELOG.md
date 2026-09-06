@@ -371,9 +371,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Every example flies on your saved settings - mouse sensitivity, keybinds,
   volumes, quality, skin - and only the settings panel can write them back. A
   scripted run reads and writes none of them.
-- The `wfc_arena` bench bolts a spinal railgun to every generated bow, answering
-  its stern drive stamp, carves whatever the collapse hung in front of the bore,
-  and binds it to `R` for a player slot.
+- The `wfc_arena` bench names a spinal railgun as its `bow_gun`, so the collapse
+  seeds the pair rather than the bench bolting one on, and binds it to `R` for a
+  player slot.
 - New `railgun_wake_bench` example: the slug's ionized wake at three speeds
   under three lifetime policies, every knob live and in slow motion, driving
   the weapon's own tuning.

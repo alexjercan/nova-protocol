@@ -151,6 +151,60 @@ fn a_grammar_naming_an_absent_prototype_is_refused_with_the_id_in_the_line() {
     );
 }
 
+/// The contradiction path, which `lib.rs` makes a headline claim about:
+/// failing rather than photographing a half-collapsed grid.
+///
+/// The unary filters cannot reach it on their own - `VACUUM` passes all of
+/// them and is compatible with every solid, so a domain always keeps at least
+/// emptiness. What CAN reach it is a JOINT: a multi-cell part is seeded by its
+/// minimum corner and propagation lays the rest of the block out, and across a
+/// joint face vacuum is not an option, so the partner segment is the only
+/// thing that fits. Zone a multi-cell part into a region too short to hold it
+/// and the cell past the boundary has the partner struck and nothing else
+/// left.
+///
+/// A three-cell lance seeded on the bow of a six-cell grid: the bow third is
+/// `z * 3 < 6`, so `z = 2` is amidships and the lance's last segment has
+/// nowhere to be. `runnable` passes it - the grid IS long enough for the gun
+/// and the drive - which is what makes this the solver's own refusal rather
+/// than the gate's.
+#[test]
+fn a_grammar_that_collapses_into_a_contradiction_is_refused_rather_than_photographed() {
+    let sections = GameSections(nova_authoring::generation::build_section_catalog());
+    let mut grammar = shipped_grammar();
+    grammar.grid.length = 6;
+    grammar.keel.bow_gun = Some(LANCE.to_string());
+    grammar.parts.push(GrammarPart {
+        prototype: LANCE.to_string(),
+        weight: 1.0,
+        aim: None,
+        zone: Some(GrammarZone::Bow),
+    });
+
+    let refused = TileSet::build(&sections, &grammar).and_then(|set| set.hull(0, false, None));
+    let Err(line) = refused else {
+        panic!("a grid that cannot hold the block it seeds has to come back as a line");
+    };
+    assert!(
+        line.contains("collapsed to nothing"),
+        "refused, but for `{line}` rather than for the contradiction"
+    );
+
+    // The same grammar with the zone lifted collapses, so it is the zone that
+    // cut the block and not the shorter grid.
+    grammar.parts.last_mut().expect("just pushed").zone = None;
+    assert!(
+        TileSet::build(&sections, &grammar)
+            .and_then(|set| set.hull(0, false, None))
+            .is_ok(),
+        "the six-cell grid itself is fine; only the zone that cuts the lance is not"
+    );
+}
+
+/// The lance the test above cuts in half: three cells long, so a zone boundary
+/// can fall inside it.
+const LANCE: &str = "railgun_lance_section";
+
 /// Every hull the collapse hands out is one the game would ACCEPT. The check
 /// is the game's own lint, not a copy of it.
 #[test]

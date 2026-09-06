@@ -677,6 +677,15 @@ impl Collapse<'_> {
         // A check, not the fix: `compatible` and `erode_blocked_exits` are what
         // make it pass. A generator that can draw a bay firing into its own
         // hull has to REFUSE the seed rather than hand one out.
+        //
+        // No test drives this arm, and the record says so rather than pretending
+        // otherwise: a sweep of 7,200 seeds over 120 bent grammars - vacuum
+        // priced from 0.001 to 4, every part from featherweight to twenty, four
+        // grid shapes, with and without a seeded bow gun - reached it never.
+        // Erosion drops a blocked part before this reads, and the filler is
+        // handed the surviving lanes so it cannot put one back. Reachable only
+        // if one of those two stops holding, which is exactly when it earns its
+        // keep.
         let cells = self.ship_cells(&chosen, &kept);
         let blocked = blocked_findings(&cells);
         if !blocked.is_empty() {
