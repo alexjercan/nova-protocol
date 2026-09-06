@@ -261,6 +261,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_cinematic",
+        &[
+            "a live scene offers the skip on the real hud",
+            "a paused scene refuses the skip",
+            "the skip is announced before the finish",
+            "an unskippable scene offers no way out",
+            "a scene that runs out reports its finish",
+            "the skip cancels the beats it did not play",
+            "the title card comes down on its own",
+        ],
+    ),
+    (
         "system_player_path",
         &[
             "the combat lock is on the prey",
@@ -567,7 +579,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 237;
+const SYSTEMS_INVARIANTS: usize = 244;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

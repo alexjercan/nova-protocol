@@ -1107,6 +1107,9 @@ title sync reaching a real HUD. AGENTS.md and the correctness brief both say a
 substantial feature earns a harnessed range, not only a unit test.
 Fix: a `system_cinematic` range on the `AppBuilder` rig with `outcome:` slugs on
 the roster.
+FIXED in Group J: `examples/systems/system_cinematic.rs`, 22 beats, seven
+roster slugs. All four live-chain properties are asserted and each was checked
+against its own absence.
 
 **MINOR - `crates/nova_events/src/lib.rs:85-87` - `CINEMATIC_KEY_FIELD_NAME` and `TIMER_KEY_FIELD_NAME` are both the literal `"key"`, so the two filters alias each other.**
 Verified both constants are `"key"`. `CinematicFilterConfig::filter`
@@ -2845,6 +2848,63 @@ code does and this is left for the owner. It is the same class the changelog
 entry at `:127` was closing ("One weapon, one button"), with the stance in the
 PDC's old place.
 
+### Group J - the Cinematic's live half. DONE.
+
+One MAJOR: `crates/nova_scenario/src/actions/cinematic.rs` had no harnessed
+range, only unit tests.
+
+Fix: `examples/systems/system_cinematic.rs`, 22 autopilot beats on the
+`AppBuilder` rig, plus its `[[example]]` block and a seven-slug roster in
+`catalog_drift.rs` (`SYSTEMS_INVARIANTS` 237 -> 244).
+
+Why a range and not more unit tests. Every test in `cinematic.rs` drives
+`NovaEventWorld` directly and moves the clock by hand, so each one starts from a
+scene that is ALREADY running with a cursor the test placed. Four things exist
+only in the live chain, and the range is those four:
+
+1. The GATE. `skip_cinematic_on_request` is chained into the scenario pulse
+   behind `scenario_is_live && Unpaused && scenario_has_settled`
+   (`loader/clock.rs:96-112`). The range opens the real pause overlay with ESC,
+   presses the skip against it, holds twelve frames and reads the negative.
+2. The RUN CONDITION. `a_player_can_answer` wants a real `ButtonInput` pair and
+   a real `InputBindings`. The skip is `press_action(CINEMATIC_SKIP_ACTION)`,
+   so the registry decides which key that is, exactly as it does for a player.
+3. The ORDER. `OnCinematicSkipped` before `OnCinematicFinished` is a claim about
+   DISPATCH through the real `GameEventQueue`, not about two adjacent
+   `commands.fire` calls. The finish handler proves it from inside the
+   scenario: its first action copies the skip handler's latch, so a finish that
+   ran first copies the seeded zero.
+4. The HUD. `CinematicPrompt` and `CinematicTitle` are resources nova_scenario
+   writes every frame and nova_hud draws. The range reads them off the live app:
+   the prompt names the skip action under the skippable scene and is quiet under
+   the unskippable one, and the card comes down on its own hold.
+
+The fixture is two scenes. `overture` is skippable, two beats, and posts the
+title card; `debrief` is authored unskippable and is started by the overture's
+own finish handler, so one run covers both endings. The second overture beat is
+due at 5.0s and the card holds for 6.0s ON PURPOSE: the range's last wait is the
+card expiring, which puts the scenario clock past the moment the cancelled beat
+was due, so `late_beat == 0` is a reading rather than a run that ended early.
+
+The pause half needs `NovaMenuPlugin` named explicitly, as system_outcomes does:
+ESC-to-pause lives in nova_menu and `with_game_plugins` turns the menu off.
+
+Live: `DISPLAY=:99 NOVA_AUTOPILOT=1 cargo run --example system_cinematic
+--features debug` - 22 steps, `cycle complete, no panic (t=7.9s)`, exit 0.
+
+Each claim was checked against its own absence, by breaking the PRODUCTION
+property and re-running. All four failed, each in its own beat and no earlier:
+
+| broke | run said |
+| --- | --- |
+| `in_state(PauseStates::Unpaused)` out of the clock chain | `report the frozen skip`: "a paused scenario must not take the skip" |
+| finish fired before skip in `advance_scenario_sequences` | `report the skip`: `finish_saw_skip` left 0.0, right 1.0 |
+| `run.step = run.steps.len()` out of `skip_cinematic` | `report the whole scene`: `late_beat` left 1.0, right 0.0 |
+| the `CinematicPrompt` write out of the event-world sync | `the scene takes the screen` never advanced |
+
+Also: `docs/development.md` lists the range twice (the cross-cutting set and the
+monotonic-variable line), and the changelog gained one Internals & Tooling entry.
+
 ### Still open
 
 The verdict's A-E grouping is done. It was a CURATED list, not the whole
@@ -2852,14 +2912,15 @@ findings set: 4 BLOCKER + 20 MAJOR are closed, and the rest of the batch blocks
 were recorded but never scheduled. What stands, re-verified against HEAD on
 2026-09-06:
 
-**4 MAJOR**, listed in full below - the count is the list, not a running
+**3 MAJOR**, listed in full below - the count is the list, not a running
 subtraction. (The earlier tallies in this run drifted: they were arithmetic on
-a curated set whose bullets merged some findings and split others. The four
-below are what is actually left. Group F closed four, G five, H five, I six.)
+a curated set whose bullets merged some findings and split others. The three
+below are what is actually left. Group F closed four, G five, H five, I six,
+J one.)
 
-None of the four is a defect waiting on a patch. Two are unmeasured perf notes
+None of the three is a defect waiting on a patch. Two are unmeasured perf notes
 that want a quiet host and a measurement pass; one is a feature nobody has
-scheduled; one is a coverage gap in the Cinematic's harness.
+scheduled.
 
 Editor and WFC correctness (batches 1-3):
 - `nova_editor/src/node.rs:1310` (unmeasured) - per-frame document walks are
@@ -2870,9 +2931,7 @@ Grammar as content (the rest closed in Group F):
   `standard_hull`; a new grammar id is still unreachable. The claims that said
   otherwise are corrected; SELECTION is a feature and is unscheduled.
 
-Coverage:
-- `nova_scenario/src/actions/cinematic.rs` - the Cinematic and its skip path have
-  no harnessed range, only unit tests.
+Perf:
 - `nova_hud/src/comms_panel.rs:342` (perf, unmeasured, PRE-EXISTING) -
   `sync_comms_cards` rebuilds the whole visible stack every frame, idle included.
 
@@ -2882,5 +2941,4 @@ recorded where it was found.
 Nothing here blocks the range: it builds, it lints, and it plays. The three
 heaviest - a save rewriting a retry wrong, every Generate repainting the ship,
 and a save named "Sandbox" taking over the editor's own stage range - closed in
-Group G. What is left is one unmeasured perf pair, one unscheduled feature, two
-coverage gaps and the documentation.
+Group G. What is left is one unmeasured perf pair and one unscheduled feature.

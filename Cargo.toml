@@ -269,6 +269,14 @@ path = "examples/systems/system_section_severing.rs"
 name = "system_scenario_grammar"
 path = "examples/systems/system_scenario_grammar.rs"
 
+# The SCENE: a beat chain that takes the screen, the prompt and title card it
+# puts on the HUD, the pause that freezes the way out, and the two endings the
+# scenario hears in order. The live half of `actions/cinematic.rs`, whose unit
+# tests all start from a scene that is already running.
+[[example]]
+name = "system_cinematic"
+path = "examples/systems/system_cinematic.rs"
+
 [[example]]
 name = "system_player_path"
 path = "examples/systems/system_player_path.rs"

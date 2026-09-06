@@ -285,6 +285,9 @@ What is on disk today, in reading order:
   loaded with `LoadScenario`: `system_scenario_grammar` (the scenario language -
   variables, events, filters, actions), `system_player_path` (a scenario played
   through the real input pipeline: lock, kill, travel-lock, GOTO),
+  `system_cinematic` (a SCENE: the prompt and title card it puts on the HUD,
+  the pause that freezes the way out, the skip the player presses, and the two
+  endings the scenario hears in order),
   `system_outcomes`
   (die -> the Defeat overlay -> Retry -> a clean reload -> kill -> the
   objective and the CHECKPOINT -> Continue -> the chained scenario),
@@ -848,7 +851,8 @@ velocities finite (plus an absurd-speed bound at 10x a ship's soft
 `FlightSpeedCap`), scenario Number variables finite, registered monotonic
 variables never decreasing (opt-in per example: `system_player_path` registers
 `target_down`/`leg`, `system_scenario_grammar` seven counters and latches,
-`system_outcomes` `hostile_down`), and a total entity-count leak bound. A
+`system_cinematic` eight scene latches, `system_outcomes` `hostile_down`), and a
+total entity-count leak bound. A
 monotonic is one-way within a SCENARIO LIFE, not for the process: the memory is
 forgotten on `ScenarioLoaded`, so an example that replays through its loop
 point re-seeds its latches without taking a false regression. Violations warn,

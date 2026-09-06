@@ -363,6 +363,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A `stress_hull_collapse` range fires one siege slug into a 1296-cell hull,
   asserts the corridor it destroyed and every piece it shed, and records what
   the collapse frame cost.
+- A `system_cinematic` range plays a scene live: the prompt and card it puts on
+  the HUD, a skip pressed against the pause menu and refused, the skip that
+  lands, and both endings in dispatch order.
 - Ramming and destruction report one line per FRAME - contacts, damage, and
   what died by type - instead of one line per contact and three per section.
   The per-event detail moved to `trace`.
