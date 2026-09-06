@@ -48,10 +48,15 @@ struct Cli;
 /// chapter rather than one of the uncampaigned scenarios in the tail. The
 /// campaign ships ONE chapter, so this is it; the header reads as its parent by
 /// the row's indent rather than by having a sibling above it.
-/// `assets/base/campaigns/nova_protocol.content.ron` lists the chapters;
+/// `assets/mods/nova_protocol/campaigns/nova_protocol.content.ron` lists the chapters;
 /// campaigns render expanded unless collapsed, so nothing has to open it.
 #[cfg(feature = "debug")]
 const CAMPAIGN_CHAPTER_ROW: &str = "Scenario Row: first_shift";
+/// The story mod's catalog id. Enabled by the script rather than trusted to
+/// the fresh-install seed: a saved enabled set on the capture host may have
+/// switched it off.
+#[cfg(feature = "debug")]
+const STORY_MOD_ID: &str = "nova_protocol";
 #[cfg(feature = "debug")]
 const EXAMPLE_SCENARIO_ROW: &str = "Scenario Row: example_arena";
 
@@ -104,12 +109,11 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::MainMenu))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("enable the bundled example mod")
+        .step("enable the story and example mods")
         .on_enter(|world: &mut World| {
-            world
-                .resource_mut::<EnabledMods>()
-                .0
-                .insert("example".to_string());
+            let mut enabled = world.resource_mut::<EnabledMods>();
+            enabled.0.insert(STORY_MOD_ID.to_string());
+            enabled.0.insert("example".to_string());
         })
         .until(frames(SETTLE_FRAMES * 2))
         .add()

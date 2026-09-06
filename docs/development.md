@@ -17,7 +17,7 @@
 
 ```sh
 cargo run                         # the game (boots into the main menu)
-cargo run -- --scenario first_shift # the game, straight into one scenario
+cargo run -- --scenario tutorial    # the game, straight into one scenario
 cargo run --features dev          # + debug tooling (inspector, wireframe)
 cargo run --example system_scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
@@ -437,7 +437,7 @@ the main menu - for anyone who would rather not click through the picker, and
 for a mod author testing one scenario id in one command:
 
 ```sh
-cargo run -- --scenario first_shift        # a base scenario
+cargo run -- --scenario tutorial           # a base scenario
 cargo run -- --scenario my_mod_intro       # anything an ENABLED mod registers
 cargo run -- --scenario nope               # refuses, and lists every id
 ```
@@ -460,7 +460,7 @@ subcommand of the game binary, not a separate bin) authors and validates the
 game's content. Two subcommands, run from the repo root:
 
 ```sh
-cargo run content gen                                   # regenerate the base *.content.ron
+cargo run content gen                                   # regenerate the base and story-mod *.content.ron
 cargo run content lint                                  # lint the whole content tree
 cargo run content lint --target <mod>                   # lint one mod (dir, id, or `base`)
 cargo run content lint --target <mod> --report r.md     # + write a per-mod report (md|html)
@@ -741,7 +741,7 @@ cargo run --features debug probe run system_player_path,system_scenario_grammar 
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
 cargo run --features debug probe scenario first_shift    # a SCENARIO by id, no example involved
-cargo run --features debug probe scenario assets/base/scenarios/first_shift.content.ron  # ... or by file
+cargo run --features debug probe scenario assets/mods/nova_protocol/scenarios/first_shift.content.ron  # ... or by file
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours -

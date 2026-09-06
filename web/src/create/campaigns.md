@@ -71,8 +71,8 @@ NextScenario((
 - Campaign replacement does not replace the member scenarios. Overlay those
   scenario ids separately if required.
 
-The base campaign and scenario ids are listed in the
-[base content catalog](../base-content/#scenario-ids).
+The base scenario ids, and where the shipped story campaign lives, are listed
+in the [base content catalog](../base-content/#scenario-ids).
 
 ## Check it
 

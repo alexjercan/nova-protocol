@@ -1,7 +1,6 @@
 //! Cross-chapter structural pacing tests.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 use super::*;
@@ -10,7 +9,7 @@ use super::*;
 /// refs do not affect the event script, so defaults suffice).
 fn mainline_scenarios() -> Vec<(&'static str, ScenarioConfig)> {
     let tex = || AssetRef::<Image>::default();
-    let portraits = crate::base_content::assets::BaseContentAssets::from_paths().portraits;
+    let portraits = CampaignPortraits::authored();
     vec![(
         first_shift::FIRST_SHIFT_SCENARIO_ID,
         first_shift::first_shift(tex(), tex(), &portraits),

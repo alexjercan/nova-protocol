@@ -22,7 +22,7 @@ use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
 
 const FIRST_SHIFT_RON: &str =
-    include_str!("../../../assets/base/scenarios/first_shift.content.ron");
+    include_str!("../../../assets/mods/nova_protocol/scenarios/first_shift.content.ron");
 
 /// The beat each chapter's defeat gate sits below: `BEAT_OUTRO` in the
 /// authored script. Spelled out here rather than imported, because the point

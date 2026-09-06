@@ -2,8 +2,9 @@
 
 Nova Protocol supports data-driven mods. A mod can add campaigns, playable
 scenarios, ship sections, whole ships and skin styles, menu backdrops, story
-messages, objectives, enemies, and custom art or audio. The base campaign and
-portal mods use the same content system available to mod authors.
+messages, objectives, enemies, and custom art or audio. The shipped story
+campaign is itself a mod, and portal mods use the same content system available
+to mod authors.
 
 You need a text editor and a local copy of the repository. Start with one small
 scenario, play it, then publish it when it works.

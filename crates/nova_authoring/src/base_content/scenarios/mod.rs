@@ -5,7 +5,8 @@ use nova_scenario::prelude::ScenarioConfig;
 use super::assets::BaseContentAssets;
 
 pub(crate) mod main_menu;
-pub(crate) mod nova_protocol;
+pub(crate) mod pacing;
+pub(crate) mod tutorial;
 
 /// Fixed seed shared by deterministic built-in scatter fields.
 pub(crate) const SCATTER_SEED: u64 = 0x0605_0403_0201_0000;
@@ -22,6 +23,6 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
         main_menu::gauntlet(cubemap(), texture()),
         main_menu::weave(cubemap(), texture()),
         main_menu::duel(cubemap(), texture()),
-        nova_protocol::first_shift(cubemap(), texture(), &assets.portraits),
+        tutorial::tutorial(cubemap(), texture()),
     ]
 }

@@ -45,7 +45,7 @@ const PLAYER_ID_PREFIX: &str = "cut";
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
-    let mut app = editor_app(false, Some(StartupScenario::Id("first_shift".to_string())));
+    let mut app = editor_app(false, Some(StartupScenario::Id("tutorial".to_string())));
 
     // The virtual window, exactly as in `system_headless_novaos`: typing is
     // read off `KeyboardInput`, which carries the window it was typed into.

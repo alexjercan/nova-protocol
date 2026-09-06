@@ -1,11 +1,11 @@
 //! Deterministic RON serialization for the private built-in content inventory.
-//! The builders under `base_content` are the single definition of each built-in;
-//! production loads their serialized RON. This module rebuilds them with
-//! path-based asset refs and serializes them
-//! deterministically for two consumers that must agree byte for byte: the
-//! `content` CLI's `gen` subcommand WRITES the committed files (`cargo run
-//! content gen`) and the `content_ron_parity` integration test ASSERTS them.
-//! Not part of the game's public API.
+//! The builders under `base_content` (the base game) and `mod_content` (the
+//! shipped story mod) are the single definition of each built-in; production
+//! loads their serialized RON. This module rebuilds them with path-based
+//! asset refs and serializes them deterministically for two consumers that
+//! must agree byte for byte: the `content` CLI's `gen` subcommand WRITES the
+//! committed files (`cargo run content gen`) and the `content_ron_parity`
+//! integration test ASSERTS them. Not part of the game's public API.
 //!
 //! The `ScenarioConfig` serde derives are already present in this crate's
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
@@ -18,7 +18,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 
-use crate::base_content;
+use crate::{base_content, mod_content::nova_protocol};
 
 /// The built-in builders, the deterministic RON serializer they are written
 /// through, and [`content_files`] - the file-by-file view `gen` writes and the
@@ -28,8 +28,9 @@ pub mod prelude {
         build_campaign_contents, build_campaigns, build_channel_content, build_channels,
         build_grammar_content, build_grammars, build_impact_content, build_impacts,
         build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
-        build_ship_content, build_ships, build_style_content, build_styles, content_files,
-        serialize_content, spawned_ship_sections,
+        build_ship_content, build_ships, build_story_scenario_contents, build_story_scenarios,
+        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        STORY_MOD_DIR,
     };
 }
 
@@ -50,14 +51,25 @@ pub fn build_scenarios() -> Vec<ScenarioConfig> {
     base_content::build().scenarios
 }
 
-/// The base game's campaigns, in a stable order. Today just "Nova Protocol",
-/// the base storyline, listing its chapters in play order - one so far, An
-/// Ordinary Shift, visible and reachable for replay under the campaign header.
-/// The member ids reference the scenario-id constants so a scenario rename
-/// cannot silently orphan a member.
-pub fn build_campaigns() -> Vec<CampaignConfig> {
-    base_content::build().campaigns
+/// The story mod's scenarios, in a stable order: the chapters of Nova
+/// Protocol, built with the `self://` and `dep://base/` refs the mod's own
+/// generated files carry.
+pub fn build_story_scenarios() -> Vec<ScenarioConfig> {
+    nova_protocol::build().scenarios
 }
+
+/// The story mod's campaigns, in a stable order. Today just "Nova Protocol",
+/// listing its chapters in play order - one so far, An Ordinary Shift, visible
+/// and reachable for replay under the campaign header. The member ids
+/// reference the scenario-id constants so a scenario rename cannot silently
+/// orphan a member. The base game itself ships no campaign.
+pub fn build_campaigns() -> Vec<CampaignConfig> {
+    nova_protocol::build().campaigns
+}
+
+/// The story mod's directory under `assets/`, and the prefix every one of
+/// its generated files carries in [`content_files`].
+pub const STORY_MOD_DIR: &str = nova_protocol::MOD_DIR;
 
 /// The base game's skin styles, in a stable order - the look a ship's derived
 /// cladding wears, named by id from its config.
@@ -172,10 +184,20 @@ pub fn build_scenario_contents() -> Vec<(String, Vec<Content>)> {
         .collect()
 }
 
-/// Each built-in campaign wrapped as its own single-item `Vec<Content>`
+/// The story mod's scenarios, each wrapped as its own single-item
+/// `Vec<Content>` keyed by scenario id - the shape each committed
+/// `assets/mods/nova_protocol/scenarios/<id>.content.ron` file carries.
+pub fn build_story_scenario_contents() -> Vec<(String, Vec<Content>)> {
+    build_story_scenarios()
+        .into_iter()
+        .map(|scenario| (scenario.id.clone(), vec![Content::Scenario(scenario)]))
+        .collect()
+}
+
+/// Each story campaign wrapped as its own single-item `Vec<Content>`
 /// (`[Content::Campaign(..)]`) keyed by campaign id - the shape each committed
-/// `assets/base/campaigns/<id>.content.ron` file carries. The parity test
-/// serializes each.
+/// `assets/mods/nova_protocol/campaigns/<id>.content.ron` file carries. The
+/// parity test serializes each.
 pub fn build_campaign_contents() -> Vec<(String, Vec<Content>)> {
     build_campaigns()
         .into_iter()
@@ -195,7 +217,8 @@ pub fn serialize_content(content: &[Content]) -> String {
 }
 
 /// Every builder-backed content file as (assets-root-relative path,
-/// serialized body), in a stable order. The single file map both the
+/// serialized body), in a stable order: the base game's under `base/`, the
+/// story mod's under [`STORY_MOD_DIR`]. The single file map both the
 /// `content` CLI's `gen` subcommand (writes) and the parity test
 /// (asserts) walk, so the two can never disagree about what exists or
 /// what it contains.
@@ -234,10 +257,20 @@ pub fn content_files() -> Vec<(String, String)> {
     }));
     files.extend(build_campaign_contents().into_iter().map(|(id, content)| {
         (
-            format!("base/campaigns/{id}.content.ron"),
+            format!("{STORY_MOD_DIR}/campaigns/{id}.content.ron"),
             serialize_content(&content),
         )
     }));
+    files.extend(
+        build_story_scenario_contents()
+            .into_iter()
+            .map(|(id, content)| {
+                (
+                    format!("{STORY_MOD_DIR}/scenarios/{id}.content.ron"),
+                    serialize_content(&content),
+                )
+            }),
+    );
     files
 }
 
@@ -307,7 +340,7 @@ mod tests {
             check(&format!("ship '{}'", ship.id), &ship.hull.sections);
         }
 
-        for scenario in build_scenarios() {
+        for scenario in build_scenarios().into_iter().chain(build_story_scenarios()) {
             for event in &scenario.events {
                 for action in &event.actions {
                     for object in ship_objects(action) {

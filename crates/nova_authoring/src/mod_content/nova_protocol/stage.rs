@@ -227,7 +227,7 @@ pub(crate) fn rock(
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             material: kind.to_string(),
-            destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
+            destroy_sound: Some(AssetRef::from("dep://base/sounds/destroy_rock.wav")),
             radius,
             texture: texture.clone(),
             mass: None,

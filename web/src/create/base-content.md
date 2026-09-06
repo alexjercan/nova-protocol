@@ -158,19 +158,21 @@ launchable by id.
 
 | id | display name | hidden | what it is |
 |---|---|---|---|
-| `first_shift` | An Ordinary Shift | no | the New Game opening: a salvage shift, and what ends it |
+| `tutorial` | Basic Training | no | the New Game opening: the Fleet gunnery range, a qualification card read over the radio |
 | `menu_waystation` | Waystation Traffic | yes | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
 | `menu_gauntlet` | Torpedo Gauntlet | yes | menu backdrop: a doomed point-defense stand (hands off to the weave) |
 | `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
 | `menu_duel` | Duel Cycle | yes | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
 
-One campaign ships: `nova_protocol` ("Nova Protocol"), whose one member is
-`first_shift`. There are no other content kinds - a content file holds
+The base bundle ships no campaign. The story - `first_shift` ("An Ordinary
+Shift") under the `nova_protocol` campaign - is the shipped `nova_protocol` mod
+in `assets/mods/nova_protocol/`, switched on by a fresh install and toggled from
+the Mods menu like any other mod. There are no other content kinds - a content file holds
 `Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact`, `Grammar` and
 `Channel` items only; factions are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
-New Game is base-owned: `new_game_scenario: Some("first_shift")` in
+New Game is base-owned: `new_game_scenario: Some("tutorial")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod
 declaring it is warned and ignored.
 
@@ -248,20 +250,21 @@ All under `dep://base/sounds/`: `ammo_dry.wav`, `bay_door.wav`,
 (UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)
 
-### Images (12)
+### Images (7)
 
-- `textures/cubemap.png` - the stock skybox, and the sky the campaign is flown
-  under
+- `textures/cubemap.png` - the stock skybox, and the sky the training range and
+  the story are flown under
 - `textures/cubemap_alt.png` - the alternate skybox: a `SetSkybox` swap target
   and what the editor sandbox loads
 - `textures/asteroid.png` - the asteroid surface texture
-- `thumbnails/first_shift.png` - the picker plate
+- `thumbnails/tutorial.png` - the picker plate
 - `banner.png` - the base mod's banner
 - `portraits/*.png` - the green CRT faces a
-  [`NarrativeCue`](../actions/#narrativecue) puts on the comms card, one per
-  named voice in the base campaign: `automated-beacon.png`, `copilot.png`,
-  `deck-chief.png`, `engineer.png`, `meridian-control.png`, `player.png`,
-  `unknown-channel.png`. Reusable by any mod - a portrait is just an image ref
+  [`NarrativeCue`](../actions/#narrativecue) puts on the comms card:
+  `player.png`, the player's own label (the story mod borrows it as
+  `dep://base/portraits/player.png`), and `range-control.png`, the training
+  range's voice. The story's crew faces ship with the `nova_protocol` mod, not
+  here. Reusable by any mod - a portrait is just an image ref
 
 Skybox `.png.meta` sidecars (the cube reinterpret) ride along with their
 image automatically and are never listed or referenced directly.
@@ -293,7 +296,8 @@ The builders behind this page live under
 section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
 skin styles, `ships/` owns the block hulls,
 `scenarios/` groups mainline and main-menu scenarios, `channels.rs` owns the
-narrative channels, and `campaigns.rs` owns campaign membership. If this page and the generated RON
+narrative channels, and the story mod's builders under `mod_content/nova_protocol/`
+own its campaign membership. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

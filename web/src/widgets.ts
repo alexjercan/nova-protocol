@@ -76,7 +76,7 @@ const WELL_SWITCH_HYSTERESIS = 1.1; // gravity.rs:214
 const ORBIT_CLEARANCE_FACTOR = 1.5; // state.rs:392
 const ORBIT_BAND_SAFETY = 0.9; // state.rs:393
 // Shipped fixtures: the two campaign planetoids (crates/nova_authoring/src/
-// base_content/scenarios/nova_protocol/stage.rs). A scenario's `mass`
+// mod_content/nova_protocol/stage.rs). A scenario's `mass`
 // is still an `Option<f32>` in u^3/s^2 (nova_scenario/src/objects/asteroid.rs:92).
 const INSPECTION_PLANETOID_MU = 27000; // stage.rs:29 (u^3/s^2)
 const CONCEALMENT_PLANETOID_MU = 20000; // stage.rs:39 (u^3/s^2)

@@ -13,7 +13,7 @@ use nova_scenario::prelude::ASTEROID_GEOMETRIC_FACTOR_MAX;
 use super::*;
 
 fn portraits() -> CampaignPortraits {
-    crate::base_content::assets::BaseContentAssets::from_paths().portraits
+    CampaignPortraits::authored()
 }
 
 fn config() -> ScenarioConfig {
@@ -1477,9 +1477,11 @@ fn every_preview_scene_passes_the_content_lint() {
             )
         })
         .collect();
+    let story = super::super::build();
     let known_scenarios: std::collections::HashSet<String> = content
         .scenarios
         .iter()
+        .chain(story.scenarios.iter())
         .chain(previews.iter())
         .map(|scenario| scenario.id.clone())
         .collect();

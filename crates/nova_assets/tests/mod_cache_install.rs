@@ -141,13 +141,6 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
     GameAssets {
         cubemap: Handle::default(),
         asteroid_texture: Handle::default(),
-        portrait_meridian_control: Handle::default(),
-        portrait_deck_chief: Handle::default(),
-        portrait_copilot: Handle::default(),
-        portrait_engineer: Handle::default(),
-        portrait_player: Handle::default(),
-        portrait_automated_beacon: Handle::default(),
-        portrait_unknown_channel: Handle::default(),
         hull_01: Handle::default(),
         turret_yaw_01: Handle::default(),
         turret_pitch_01: Handle::default(),
@@ -242,7 +235,7 @@ fn installed_fixture_merges_when_enabled_and_unmerges_on_uninstall() {
     {
         let scenarios = app.world().resource::<GameScenarios>();
         assert!(
-            scenarios.contains_key("first_shift"),
+            scenarios.contains_key("tutorial"),
             "the base merge ran (its scenario registered)"
         );
         assert!(
@@ -293,7 +286,7 @@ fn installed_fixture_merges_when_enabled_and_unmerges_on_uninstall() {
         "uninstalling must re-merge the downloaded scenario away"
     );
     assert!(
-        scenarios.contains_key("first_shift"),
+        scenarios.contains_key("tutorial"),
         "shipped content is untouched by the uninstall"
     );
 }

@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Generate the Nova Protocol campaign's green CRT speaker portraits."""
+"""Generate the green CRT speaker portraits.
+
+Two owners: the base game's faces (the player, Range Control) write under
+`assets/base/portraits/`, the Nova Protocol story mod's under
+`assets/mods/nova_protocol/portraits/`. The SVG sources all live in
+`art/portraits/`.
+"""
 
 from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT / "art" / "portraits"
-ASSET_DIR = ROOT / "assets" / "base" / "portraits"
+BASE_DIR = ROOT / "assets" / "base" / "portraits"
+STORY_DIR = ROOT / "assets" / "mods" / "nova_protocol" / "portraits"
 
 BG = "#030d08"
 PANEL = "#06170f"
@@ -146,6 +153,23 @@ def player() -> list[str]:
     return s
 
 
+def range_control() -> list[str]:
+    s = frame() + person("#8a7f55", "#5b5a3e", "#2b2f2a", "#2f6d8a", "#224d63")
+    s += [
+        rect(10, 7, 12, 2, "#2b2f2a"),
+        rect(9, 8, 3, 5, "#2b2f2a"),
+        rect(20, 8, 3, 5, "#2b2f2a"),
+        rect(8, 9, 2, 8, GREEN),
+        rect(22, 9, 2, 8, GREEN),
+        rect(19, 16, 5, 1, GREEN),
+        rect(23, 16, 1, 3, BRIGHT),
+        rect(13, 23, 6, 1, BRIGHT),
+        rect(10, 26, 12, 1, "#5fb7e0"),
+        rect(4, 4, 3, 1, "#5fb7e0"),
+    ]
+    return s
+
+
 def beacon() -> list[str]:
     s = frame()
     s += [
@@ -182,13 +206,14 @@ def unknown() -> list[str]:
 
 
 PORTRAITS = {
-    "meridian-control": control,
-    "deck-chief": deck_chief,
-    "copilot": copilot,
-    "engineer": engineer,
-    "player": player,
-    "automated-beacon": beacon,
-    "unknown-channel": unknown,
+    "meridian-control": (STORY_DIR, control),
+    "deck-chief": (STORY_DIR, deck_chief),
+    "copilot": (STORY_DIR, copilot),
+    "engineer": (STORY_DIR, engineer),
+    "player": (BASE_DIR, player),
+    "range-control": (BASE_DIR, range_control),
+    "automated-beacon": (STORY_DIR, beacon),
+    "unknown-channel": (STORY_DIR, unknown),
 }
 
 
@@ -204,10 +229,10 @@ def svg(shapes: list[str]) -> str:
 
 def main() -> None:
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
-    ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    for name, build in PORTRAITS.items():
+    for name, (asset_dir, build) in PORTRAITS.items():
+        asset_dir.mkdir(parents=True, exist_ok=True)
         source = SOURCE_DIR / f"{name}.svg"
-        output = ASSET_DIR / f"{name}.png"
+        output = asset_dir / f"{name}.png"
         source.write_text(svg(build()), encoding="utf-8")
         subprocess.run(
             ["magick", "-background", "none", str(source), str(output)],

@@ -1,23 +1,30 @@
 //! Parity guard for the built-in content files: the committed
-//! `assets/base/**/*.content.ron` must match their builders byte for byte.
+//! `assets/base/**/*.content.ron` and `assets/mods/nova_protocol/**/*.content.ron`
+//! must match their builders byte for byte.
 //!
-//! The config builders (`build_section_catalog` / `build_scenarios`) are the
-//! SINGLE definition of each built-in; at runtime `register_bundles` loads the
-//! committed RON (via the base bundle) and routes each item into
-//! `GameSections` / `GameScenarios`. The `content` CLI's `gen` subcommand is
-//! the one writer of those files; this test is assert-only - a MISSING file fails like a
-//! drifted one, so `cargo test` never mutates the assets tree.
+//! The config builders (`build_section_catalog` / `build_scenarios` /
+//! `build_story_scenarios`) are the SINGLE definition of each built-in; at
+//! runtime `register_bundles` loads the committed RON (via each bundle) and
+//! routes each item into `GameSections` / `GameScenarios`. The `content` CLI's
+//! `gen` subcommand is the one writer of those files; this test is assert-only
+//! - a MISSING file fails like a drifted one, so `cargo test` never mutates
+//! the assets tree.
 //!
 //! - `assets/base/sections/base.content.ron` = one `Vec<Content>` of `Section((..))`.
 //! - `assets/base/scenarios/<id>.content.ron` = a `Vec<Content>` with one `Scenario((..))`.
+//! - `assets/mods/nova_protocol/scenarios/<id>.content.ron` = the same, for the story.
 //!
-//! A second guard pins the UNIFORMITY invariant (every base content file is
-//! builder-backed, per): `base.bundle.ron` must ship exactly the generated file
-//! set, so a hand-written file cannot hide in the bundle.
+//! A second guard pins the UNIFORMITY invariant (every generated bundle's
+//! content file is builder-backed): each bundle must ship exactly the
+//! generated file set under its directory, so a hand-written file cannot hide
+//! in the bundle.
 
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
 
-use nova_authoring::generation::content_files;
+use nova_authoring::generation::{content_files, STORY_MOD_DIR};
 use nova_mod_format::BundleManifest;
 
 /// The one regeneration path, named by every failure in this file.
@@ -44,31 +51,48 @@ fn committed_content_matches_builders() {
     }
 }
 
-/// `base.bundle.ron`'s content list and the generator's file map must be the
-/// SAME set (paths in the bundle are relative to the bundle's directory,
-/// `assets/base/`). Catches both directions: a generated file the bundle
+/// The generated bundles: each bundle directory (assets-root-relative) and
+/// its manifest path.
+fn generated_bundles() -> [(&'static str, String); 2] {
+    [
+        ("base", "base/base.bundle.ron".to_string()),
+        (
+            STORY_MOD_DIR,
+            format!("{STORY_MOD_DIR}/nova_protocol.bundle.ron"),
+        ),
+    ]
+}
+
+/// Each generated bundle's content list and the generator's file map under
+/// its directory must be the SAME set (paths in a bundle are relative to the
+/// bundle's directory). Catches both directions: a generated file the bundle
 /// forgot to ship, and a hand-added bundle entry no builder backs.
 #[test]
-fn base_bundle_ships_exactly_the_generated_files() {
-    let bundle_path = assets_dir().join("base/base.bundle.ron");
-    let manifest: BundleManifest = ron::de::from_str(
-        &std::fs::read_to_string(&bundle_path)
-            .unwrap_or_else(|err| panic!("read {}: {err}", bundle_path.display())),
-    )
-    .expect("base.bundle.ron parses as a BundleManifest");
+fn every_generated_bundle_ships_exactly_its_generated_files() {
+    let mut generated: BTreeMap<&str, BTreeSet<String>> = BTreeMap::new();
+    for (rel, _) in content_files() {
+        let (dir, _) = generated_bundles()
+            .into_iter()
+            .find(|(dir, _)| rel.starts_with(&format!("{dir}/")))
+            .unwrap_or_else(|| panic!("generated file {rel} belongs to no generated bundle"));
+        let inside = rel[dir.len() + 1..].to_string();
+        generated.entry(dir).or_default().insert(inside);
+    }
 
-    let shipped: BTreeSet<String> = manifest.content.into_iter().collect();
-    let generated: BTreeSet<String> = content_files()
-        .into_iter()
-        .map(|(rel, _)| {
-            rel.strip_prefix("base/")
-                .expect("generated files live under assets/base/")
-                .to_string()
-        })
-        .collect();
-    assert_eq!(
-        shipped, generated,
-        "base.bundle.ron and the generator disagree about the base content set; \
-         {REGEN} and align the bundle's content list"
-    );
+    for (dir, manifest_rel) in generated_bundles() {
+        let bundle_path = assets_dir().join(&manifest_rel);
+        let manifest: BundleManifest = ron::de::from_str(
+            &std::fs::read_to_string(&bundle_path)
+                .unwrap_or_else(|err| panic!("read {}: {err}", bundle_path.display())),
+        )
+        .unwrap_or_else(|err| panic!("{manifest_rel} parses as a BundleManifest: {err}"));
+
+        let shipped: BTreeSet<String> = manifest.content.into_iter().collect();
+        let expected = generated.remove(dir).unwrap_or_default();
+        assert_eq!(
+            shipped, expected,
+            "{manifest_rel} and the generator disagree about the {dir} content set; \
+             {REGEN} and align the bundle's content list"
+        );
+    }
 }

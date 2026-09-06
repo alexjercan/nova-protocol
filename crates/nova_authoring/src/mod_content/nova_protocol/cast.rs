@@ -13,7 +13,7 @@ use bevy::prelude::Image;
 use nova_gameplay::prelude::AssetRef;
 use nova_scenario::prelude::*;
 
-use crate::base_content::assets::CampaignPortraits;
+use super::CampaignPortraits;
 
 /// The carrier's own name, used in objective and banner text. The ship is a
 /// character in the shift and a grave afterwards, so it is named in one
@@ -93,7 +93,7 @@ pub(crate) fn apply_portraits(portraits: &CampaignPortraits, events: &mut [Scena
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{base_content::assets::BaseContentAssets, scenario_helpers::prelude::*};
+    use crate::scenario_helpers::prelude::*;
 
     /// Every voice the campaign speaks with resolves to its OWN portrait. A
     /// `self://` reference only resolves inside a mod bundle, so this also
@@ -101,7 +101,7 @@ mod tests {
     /// written.
     #[test]
     fn every_campaign_voice_has_its_own_portrait() {
-        let portraits = BaseContentAssets::from_paths().portraits;
+        let portraits = CampaignPortraits::authored();
         let path = |speaker| {
             portrait(&portraits, speaker)
                 .unwrap_or_else(|| panic!("'{speaker}' has no portrait"))
@@ -126,7 +126,7 @@ mod tests {
     /// every voice in the chapter's ending on the fallback face.
     #[test]
     fn a_line_buried_inside_a_scene_still_gets_a_face() {
-        let portraits = BaseContentAssets::from_paths().portraits;
+        let portraits = CampaignPortraits::authored();
         let mut events = vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,

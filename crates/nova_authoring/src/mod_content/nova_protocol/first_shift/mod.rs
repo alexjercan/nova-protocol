@@ -582,10 +582,10 @@ fn film_blend(
     })
 }
 
-/// One of the base bundle's own clips, on the interface track.
+/// One of the base game's clips, borrowed through `dep://base`, on the interface track.
 fn cue_sound(name: &str) -> EventActionConfig {
     play_sound(
-        AssetRef::from(format!("self://sounds/{name}.wav")),
+        AssetRef::from(format!("dep://base/sounds/{name}.wav")),
         SoundRouteConfig::Interface,
     )
 }

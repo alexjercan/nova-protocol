@@ -122,7 +122,9 @@ pub struct BundleManifest {
 /// `id` is what `register_bundles` keys enable/disable on and the merge-overlay
 /// namespace. `bundle` is the mod's `*.bundle.ron` manifest path, RELATIVE to the
 /// asset root (the catalog lives at the root). `base` marks the base game's own
-/// entry - enabled by default and (in the UI) locked on.
+/// entry - enabled by default and (in the UI) locked on. `enabled_by_default`
+/// marks a shipped mod a fresh install switches on and the player may switch
+/// off again.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModEntry {
     /// Stable id - the enable/disable key and the merge-overlay namespace.
@@ -132,6 +134,13 @@ pub struct ModEntry {
     /// True for the base game's entry: enabled by default, locked on in the UI.
     #[serde(default)]
     pub base: bool,
+    /// True for a shipped mod that a FRESH install enables - one with no saved
+    /// enabled-mods set yet. Unlike `base` it is a plain toggle afterwards:
+    /// the player's choice persists, and a later boot never re-enables it.
+    /// The story campaign ships this way, so it is on the Scenarios board out
+    /// of the box and gone when the player says so.
+    #[serde(default)]
+    pub enabled_by_default: bool,
     /// True for dev/tooling mods: omitted from the player-facing mods list, but
     /// still installed - the bundle loads and the mod is enableable by id from
     /// code. No shipped mod uses it right now; the semantics are pinned by

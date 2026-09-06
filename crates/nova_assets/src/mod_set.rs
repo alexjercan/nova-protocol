@@ -164,18 +164,24 @@ pub fn build_mod_catalog(
             id: m.record.id.clone(),
             bundle: m.record.bundle.clone(),
             base: false,
+            enabled_by_default: false,
             hidden: false,
         };
         mod_catalog.0.push(ModInfo::new(&decl, meta));
     }
 }
 
-/// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in, strip
-/// `hidden` (non-base) ids out.
+/// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in, seed
+/// `enabled_by_default` ids on a fresh install, strip `hidden` (non-base) ids
+/// out.
 ///
 /// The UNION keeps base enabled regardless of what `load_enabled_mods`
 /// restored - base is locked on in the UI, so it must always be active - while
-/// preserving any persisted or toggled non-base choices. The STRIP makes a
+/// preserving any persisted or toggled non-base choices. The SEED runs only
+/// when nothing was restored: a saved set always carries base, so an EMPTY set
+/// here is a first boot, and that is the one moment a default-enabled mod is
+/// switched on. From then on it is the player's toggle, and a set saved
+/// without it stays without it. The STRIP makes a
 /// hidden (dev/tooling) mod's enablement SESSION-ONLY: without it, an example
 /// run that enables a hidden mod persists the id, and a later normal run would
 /// restore-and-merge a mod the menu has no row to disable. Examples
@@ -193,11 +199,14 @@ pub fn seed_enabled_mods(
         error!("seed_enabled_mods: the mods catalog was not loaded; nothing enabled by default");
         return;
     };
+    let fresh_install = enabled.0.is_empty();
     for entry in &catalog.entries {
         if entry.decl.base {
             enabled.0.insert(entry.decl.id.clone());
         } else if entry.decl.hidden {
             enabled.0.remove(&entry.decl.id);
+        } else if entry.decl.enabled_by_default && fresh_install {
+            enabled.0.insert(entry.decl.id.clone());
         }
     }
 }

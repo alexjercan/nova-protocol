@@ -21,6 +21,7 @@ use super::assets::BaseContentAssets;
 
 mod block;
 
+pub(crate) use block::BLOCK_CLEANUP_TURRET_ID;
 pub use block::{
     BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_WARSHIP_BAY_IDS,
     BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_TURRET_IDS,
@@ -175,6 +176,16 @@ pub(crate) fn inline_hull(sections: Vec<SpaceshipSectionConfig>) -> ShipSource {
         sections,
         ..Default::default()
     })
+}
+
+/// Every section id the picket's catalog entry carries, plates included, for
+/// content that modifies the whole hull at spawn rather than one named part.
+pub(crate) fn picket_section_ids() -> Vec<String> {
+    block::salvage_picket()
+        .sections()
+        .into_iter()
+        .map(|section| section.id)
+        .collect()
 }
 
 /// One spawn-time delta aimed at a named section of the resolved hull.

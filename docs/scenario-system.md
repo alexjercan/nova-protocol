@@ -525,8 +525,8 @@ early - or back through gate 1 again - matches no live handler and is inert. The
 this on a synthetic course: an out-of-order entry does not advance `gate`.
 
 Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
-tutorial's step chain). The base `first_shift` starter uses the same idiom
-with a `beat` counter; see [Built-in scenarios](#built-in-scenarios).
+tutorial's step chain). The base `tutorial` range and the story mod's
+`first_shift` chapter use the same idiom with a `beat` counter; see [Built-in scenarios](#built-in-scenarios).
 
 ### The act-gating pattern
 
@@ -758,18 +758,24 @@ body with a new origin, and it reads the grain from a different place.
 
 ## Built-in scenarios
 
-The builders live under
-`crates/nova_authoring/src/base_content/scenarios/`. `main_menu/` gives each
-menu backdrop its own file, and `nova_protocol/` owns the campaign chapter plus
-the stage, cast and pacing vocabulary around it. Its `first_shift/` builds the
-New Game starter across `mod.rs` (the chain), `marks.rs`, `story.rs` and
-`tests.rs` - the beat-chain reference: one `beat` counter gates every handler, and count
-milestones run on `OnUpdate` handlers keyed on the counter (handler order
-within one event is not load-bearing). The builders are an OFFLINE inventory,
-not the runtime path: `content -- gen` serializes them to
-the committed `assets/base/scenarios/*.content.ron`, `base.bundle.ron` lists
-them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
-`GameScenarios` like any mod's. `content_ron_parity` pins builders == RON.
+The builders live under `crates/nova_authoring/src/base_content/scenarios/`
+for the base bundle and `crates/nova_authoring/src/mod_content/nova_protocol/`
+for the shipped story mod. In the base tree `main_menu/` gives each menu
+backdrop its own file, `tutorial/` builds the New Game starter, Basic Training,
+across `mod.rs` (the chain), `range.rs` (the props) and `script.rs` (every
+line), and `pacing.rs` holds the cue and outro spacing both trees share. The
+story tree owns the campaign chapter plus the stage and cast vocabulary around
+it; its `first_shift/` builds An Ordinary Shift across `mod.rs`, `marks.rs`,
+`story.rs` and `tests.rs`. Both starters are the beat-chain reference: one
+`beat` counter gates every handler, and count milestones run on `OnUpdate`
+handlers keyed on the counter (handler order within one event is not
+load-bearing). The builders are an OFFLINE inventory, not the runtime path:
+`content -- gen` serializes them to the committed
+`assets/base/scenarios/*.content.ron` and
+`assets/mods/nova_protocol/**/*.content.ron`, each bundle manifest lists its
+own, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
+`GameScenarios` like any mod's. `content_ron_parity` pins builders == RON for
+both bundles.
 
 The orbit tracker derives lifecycle edges from live autopilot state. Once the
 ship first reaches `Hold` it also sums signed radial-angle changes around the

@@ -103,7 +103,7 @@ A dash means the action has no binding on that device.
     </tbody>
 </table>
 
-RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the mainline campaign flies without it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
+RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
 ## Targeting and camera
 

@@ -1,17 +1,17 @@
 # Your first flight
 
-Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, An Ordinary Shift beat by beat, and where to go next.
+Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.
 
 ## Launch and start
 
-The game boots into a main menu. **New Game** drops you into **An Ordinary Shift** - the campaign opening, flown in a ready-made maintenance cutter, so there is nothing to build first. The other doors can wait.
+The game boots into a main menu. **New Game** drops you into **Basic Training** - the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.
 
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
-- **New Game** - drops you into **An Ordinary Shift**, the campaign opening, flown in a ready-made ship, so there is nothing to build first.
+- **New Game** - drops you into **Basic Training**, the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
-- **Scenarios** - opens the complete scenario picker.
+- **Scenarios** - opens the complete scenario picker, the story campaign An Ordinary Shift included.
 - **Mods** - opens the installed-mod and online-catalog browser.
 - **Settings** - adjusts volume, graphics quality, and UI skin, and shows the control reference.
 - **Exit** - quits (hidden in the browser build).
@@ -25,12 +25,12 @@ The game boots into a main menu. **New Game** drops you into **An Ordinary Shift
         <span class="figure__placeholder-name">assets/tutorial-menu.png</span>
         <span class="figure__placeholder-note">The main menu with its live ambient backdrop (an AI ship flying a thruster orbit) and the New Game / Sandbox / Scenarios / Mods / Settings / Exit options.</span>
     </div>
-    <figcaption class="figure__caption">The game boots into a main menu; New Game starts An Ordinary Shift.</figcaption>
+    <figcaption class="figure__caption">The game boots into a main menu; New Game starts Basic Training.</figcaption>
 </figure>
 
 In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.
 
-Pick **New Game**. An Ordinary Shift teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes the instant the gesture lands.
+Pick **New Game**. Basic Training teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.
 
 ## The first two minutes
 
@@ -41,60 +41,47 @@ Distances read in meters and kilometers and speeds in meters per second (`m/s`);
 - **GOTO.** With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. Any manual input hands the ship straight back to you.
 - **Raise weapons and fire.** Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now "hot". Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.
 
-That is the whole core loop: burn, lock, GOTO, shoot. An Ordinary Shift walks you through the flying half of it - the cutter it hands you carries no gun, so the last gesture waits for a ship that does (the [sandbox](#the-sandbox) range, or a scenario that arms you).
+That is the whole core loop: burn, lock, GOTO, shoot. Basic Training covers all of it on an armed trainer, ORBIT included.
 
-## An Ordinary Shift, beat by beat
+## Basic Training, beat by beat
 
-You open on the flank of the industrial carrier **Meridian**, held in an exterior view while its work circuit briefs three recoveries on Plate Seven. You command **Cutter One**, an industrial cutter with an experienced copilot beside you and an engineer at the cargo rig. Two crates are manifested; the third is an unweighed loose recovery. Meridian gets under way in fifty-six minutes. The camera returns with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view.
+You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an armed picket held on the line, while Range Control reads the qualification card: fly the pattern, take the flight computer out to the planetoid and back, put five target hulks on the scrap list, then deal with two live drones. The camera comes back with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view. A 150 m/s manual-flight cap stays on for the whole card.
 
-### Part 1 - Burn, then trim
+### Part 1 - The pattern
 
-1. **Burn to the work mark, then stop.** Hold <kbd>W</kbd> to burn. On arrival, press <kbd>X</kbd> once and let STOP bring Cutter fully to rest; the next lesson waits for the physical maneuver to finish. A gentle 150 m/s manual-flight cap remains active for the whole shift.
-2. **Fly the four-mark trim box.** Cutter One's port RCS manifold was replaced during scheduled maintenance. A fatal accident aboard another company's cutter taught the copilot not to trust a green diagnostic alone, so the crew checks the real translation response in open space before entering the rocks. The camera first shows all four marks together, then returns control and highlights only the current corner. Hold <kbd>Shift</kbd> and move the mouse to translate without turning the ship - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and RCS runs out at 100 m/s in any direction. Fly across to A, up to B, back across to C, then down to D where you started.
+1. **Burn to mark ALPHA.** Hold <kbd>W</kbd> to burn and steer with the mouse. ALPHA sits dead ahead; flying into its ring completes the beat.
+2. **Kill the drift.** Press <kbd>X</kbd> once and let STOP bring the trainer to rest. Hands off: the next lesson waits for the maneuver to finish, and a manual input takes the ship back before it is done.
+3. **Slide across to BRAVO.** Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and RCS tops out at 100 m/s in any direction.
 
-### Part 2 - The plate
+### Part 2 - The flight computer
 
-3. **Recover the crates, one at a time.** The first sits on the plate's open edge where the rocks are sparse; the second is well inside them, where they are not. Use RCS to bring Cutter visibly alongside the tumbling box; collection happens at close contact, not at the edge of its marker. The next crate is not shown until the one before it is aboard.
+4. **Travel-lock the planetoid.** Keep weapons down, put the planetoid off the far corner in front of you and hold <kbd>Ctrl</kbd> until the white travel lock takes. A red lock means weapons were up: it is the gun's lock, and the computer flies only the white one.
+5. **GOTO.** Press <kbd>G</kbd> and the autopilot flies the leg: it burns over, flips, and stops 500 m off the rock. Hands off until it is parked; a manual input takes the ship back, and the card waits for you to lock and press <kbd>G</kbd> again.
+6. **ORBIT.** Parked inside the planetoid's pull, press <kbd>O</kbd>. The computer circularises and holds the orbit; the beat completes when it calls the orbit stable.
+7. **Home to CHARLIE.** Mark CHARLIE goes up on the line. Travel-lock it - wait for it to come round if the planetoid is in the way - and press <kbd>G</kbd>. The computer drops the orbit on its own. Flying home by hand counts too: CHARLIE's ring closes the beat.
 
-### Part 3 - Lock and let the computer fly
+### Part 3 - The line
 
 <figure class="figure">
     <!-- Capture: assets/tutorial-radar-lock.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/tutorial-radar-lock.png</span>
-        <span class="figure__placeholder-note">The white NAV crosshair mid-sweep while holding CTRL, with the lock brackets snapping onto the first transit mark.</span>
+        <span class="figure__placeholder-note">The red combat crosshair mid-sweep while holding CTRL with weapons raised, with the lock brackets snapping onto Target 1.</span>
     </div>
-    <figcaption class="figure__caption">Radar locking is deliberate: hold CTRL and the radar locks whatever you look at.</figcaption>
+    <figcaption class="figure__caption">Locking is deliberate: raise weapons, hold CTRL, and the radar locks whatever you look at.</figcaption>
 </figure>
 
-4. **Lock the transit mark.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the mark below and to the west - look DOWN, it sits well under the horizontal - until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
-5. **Press GOTO.** With the mark locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the mark. The temporary mark remains until the maneuver has settled. The crew checks turnaround, braking, and arrival against Cutter One's maintenance release, then repeats the complete lock-and-GOTO operation at TRANSIT 2 before signing off its guidance.
+8. **Lock Target 1.** Hold the right mouse button to raise weapons, put Target 1 in front of you and hold <kbd>Ctrl</kbd> until the red combat lock takes. A white lock means you swept with weapons lowered: it is a travel lock, it feeds no gun, and Range Control asks you to sweep again.
+9. **Put rounds into it.** Hold the left mouse button and the gun follows the lock. Keep the rounds on the hulk until it comes apart. A cadet who shoots Target 1 apart before the lock lands skips the lesson; the card moves on either way.
+10. **Clear the line.** Four more hulks are marked. Work them in any order; the range tallies each one as it breaks up.
 
-### Part 4 - The detour
+### Part 4 - Something that shoots back
 
-<figure class="figure">
-    <!-- Capture: assets/tutorial-orbit.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
-        <span class="figure__placeholder-name">assets/tutorial-orbit.png</span>
-        <span class="figure__placeholder-note">The ship flying a clean ORBIT circle around the planetoid, with the ORBIT radius spoke shown on the HUD.</span>
-    </div>
-    <figcaption class="figure__caption">Press ORBIT near a gravity well and the ship flies itself into a clean circle.</figcaption>
-</figure>
+11. **Two range drones go live.** They sat neutral through the whole card. Now they turn hostile, come for you, and shoot back. Defeat both - destroyed or disarmed, either counts. A crippled drone that coasts off the range counts too: Range Control calls the recovery tug, and you are not asked to chase it.
+12. **Range is cold.** Range Control logs the qualification, welcomes you to the Fleet, and points you at the Scenarios board for your first posting. Breaking the trainer up, or losing its gun, ends the card with a Retry on the same range.
 
-6. **Take the crew up on it.** The mandatory route ends behind the survey body, out of Meridian's direct view. The engineer proposes an "unscheduled gravity check" for the one autopilot mode omitted from the maintenance release. Everybody knows it is a donut.
-7. **Press ORBIT and fly a full lap.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Complete one physical revolution while the crew checks that the replaced manifold is not fighting the orbit corrections.
-8. **Get back on the plate.** Meridian sees Cutter One return around the body and asks for an explanation. The maintenance release was already filed, the carrier gets under way inside the hour, and the third crate is still outstanding. Fly back to the work site.
-
-### Part 5 - What you cannot stop
-
-9. **Collect the last crate, then run home.** Its tag is valid but it still has no manifest. With all three aboard, the chief calls Cutter One to the outer hold three kilometres off Meridian - the last GOTO of the shift and the only thing the rest of the chapter waits for.
-10. **A warship comes out from behind the large planetoid.** Its transponder and running lights are dark. Cutter One identifies an Earth Navy hull without a fleet code; Meridian identifies itself as an unarmed Earthworks carrier and gets no answer. The warship closes, brings its bow-mounted railguns onto the carrier, walks six siege torpedoes out of its bays and fires both railguns together. The silent destruction cuts from the railgun strike to your view of the torpedo impacts, holds that view while the warship starts away, then settles on the wreck.
-11. **The staged shots hold your controls.** The camera takes seven authored shots, including the opening and RCS briefing. Flight, look, stance, and weapon input pause while a shot owns the view; pause and menu controls still work. Control returns after the two conversation holds. The shift opens on a title card naming the sector, the year and the carrier. The strike plays as two scenes, the **approach** and the **salvo**, and neither can be skipped - the chapter ends on the wreck rather than giving the camera back. The script never flies Cutter for you.
-12. **Keep the channel open.** The crew calls Meridian and gets no human answer. What finally responds is a weak automated distress beacon. The victory banner names the four hundred and twelve people who were aboard, and the beacon is still transmitting when it comes up.
-
-(Tap <kbd>Ctrl</kbd> to clear a nav lock at any time.)
+(Tap <kbd>Ctrl</kbd> to clear a lock at any time.)
 
 ## The sandbox
 

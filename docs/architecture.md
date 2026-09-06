@@ -438,12 +438,13 @@ live UNDER `assets/base/` (exported `gltf/` models `.glb`, `textures/`,
 web (Trunk `copy-dir`) and native (`release.yaml`) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the `gltf/` models are exported
 from live OUT of the shipped tree, in top-level `art/blender/`, because nothing
-loads them at runtime. The built-in sections, ships, styles, scenarios and
-campaigns ARE data: the Rust builders under
+loads them at runtime. The built-in sections, ships, styles and scenarios ARE
+data, and so is the shipped story: the Rust builders under
 `crates/nova_authoring/src/base_content/` (`sections/`, `ships/`, `styles.rs`,
-`scenarios/`, `campaigns.rs`, `assets.rs`) are the single source, and
-`cargo run content gen` serializes them to the
-committed `assets/base/**/*.content.ron` the game loads like any other bundle.
+`scenarios/`, `assets.rs`) and `mod_content/nova_protocol/` are the single
+source, and `cargo run content gen` serializes them to the committed
+`assets/base/**/*.content.ron` and `assets/mods/nova_protocol/**/*.content.ron`
+the game loads like any other bundle.
 Never hand-edit the generated files; edit the builders and re-run `gen`.
 
 ## Find it in the code

@@ -76,6 +76,21 @@ The bundle tells the loader which files belong to the mod:
 `resources` lists files, not folders. A `.meta` sidecar next to a listed image
 travels with that image automatically and is not listed separately.
 
+## The installed catalog
+
+`assets/mods.catalog.ron` lists every mod the build ships, in load order, and
+is the only index the loader reads: there is no directory scan, so the web
+build works from the same file. Each entry is a thin pointer; the mod's
+metadata stays in its own bundle's `meta` block.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | The enable key and overlay namespace, and the `<id>` in another mod's `dep://<id>/` refs. |
+| `bundle` | path | required | The mod's `*.bundle.ron`, relative to the assets root. |
+| `base` | bool | `false` | The base game: enabled by default and locked on in the Mods menu. |
+| `enabled_by_default` | bool | `false` | Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. The shipped story mod sets it. |
+| `hidden` | bool | `false` | Kept out of the Mods menu but still installed and enableable by id, for tooling and test rigs. |
+
 The full packaging, catalog, local installation, and publishing flow is in
 [Publish a mod](../publish-a-mod/).
 

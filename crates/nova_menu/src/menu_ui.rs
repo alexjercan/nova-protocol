@@ -372,7 +372,7 @@ pub(crate) fn setup_menu_ui(
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
-                        Text::new("Pick a scenario to play. New Game plays the main story."),
+                        Text::new("Pick a scenario to play. New Game starts Basic Training."),
                         TextFont {
                             font_size: FontSize::Px(13.0),
                             ..default()
@@ -418,8 +418,9 @@ pub(crate) fn on_new_game(
     mut state: ResMut<NextState<GameStates>>,
     mut pick: ResMut<NewGameScenario>,
 ) {
-    // New Game always plays the main story from the top: clear any override the
-    // Scenarios picker left, so `start_new_game_scenario` loads the canned start.
+    // New Game always starts the base bundle's declared start (the training
+    // range): clear any override the Scenarios picker left, so
+    // `start_new_game_scenario` loads the canned start.
     pick.0 = None;
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);

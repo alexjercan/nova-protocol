@@ -68,12 +68,18 @@ does NOT get an entry - and it is the only place they are written down.
 - A `Planet` must author `invulnerable: true`. A destructible one is a lint
   error and refuses to load: nothing carves a planet, so it would sit there
   taking hits and never break.
+- New Game starts Basic Training: a Fleet gunnery range where Range Control
+  talks a cadet through the helm verbs, GOTO and ORBIT out to a planetoid and
+  back, the gun, five hulks and two drones that go live.
 - **(breaking)** The campaign is one chapter, An Ordinary Shift;
   `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
-- An Ordinary Shift opens New Game: an Earthworks crew flies three recoveries
-  under a 150 m/s cap, sneaks a planetoid lap out of Meridian's sight, and
-  watches a warship kill the carrier.
+- **(breaking)** The story is the shipped `nova_protocol` mod: chapter,
+  campaign, crew portraits and thumbnail left base. A mod that borrowed a crew
+  face via `dep://base/` now depends on the story mod.
+- An Ordinary Shift, the story's one chapter: an Earthworks crew flies three
+  recoveries under a 150 m/s cap, sneaks a planetoid lap out of Meridian's
+  sight, and watches a warship kill the carrier.
 - The crew argue the rotation home while they work, and a stranger clips the
   guard channel twice before the sentence that matters arrives.
 - The strike plays as two scenes, an approach and a salvo, and neither can be
@@ -184,6 +190,9 @@ does NOT get an entry - and it is the only place they are written down.
   now carries their meshes itself.
 
 ### Modding & Mod Portal
+- A catalog entry can set `enabled_by_default`: a fresh install with no saved
+  enabled set switches that mod on, and the story mod ships that way. A saved
+  set is left as the player chose it.
 - The editor writes as many mods as you name ranges, each an `editor_`-prefixed
   bundle of its own, instead of the one `editor_save` slot every save replaced.
 - The Ledger brings its own fleet - modelled craft, their section prototypes
@@ -300,8 +309,8 @@ does NOT get an entry - and it is the only place they are written down.
 - Every wiki figure reads in meters, scopes and catalogs included.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
-- The wiki's first flight walks An Ordinary Shift beat by beat, and the
-  scenario list, glossary and gravity figures read off the campaign.
+- The wiki's first flight walks Basic Training beat by beat, and the
+  scenario list, glossary and gravity figures read off the shipped scenarios.
 - The wiki gets a Commands page: the `:` shell, what its introduction reports,
   and the whole catalog by class - utility, read-only, settings, and the
   cheats that mark a run.
