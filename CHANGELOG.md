@@ -419,6 +419,26 @@ does NOT get an entry - and it is the only place they are written down.
 - Comic pages are typed TypeScript modules: panels, speech, transcripts, HUD
   chips and inline SVG art, rendered by an allowlisting renderer with no markup
   path. The archive builds with zero comics.
+- A `bench play` subcommand seats an agent at the process channel - a scripted
+  baseline, `pi` with any model, or any process on a unix socket - and scores
+  the run from the game's own state.
+- The bench condenses each snapshot into a pilot's view in meters - bearings
+  from the nose, contacts, beacons, mounts, refusals - and logs every line both
+  ways to an `audit.jsonl` beside `score.json`.
+- `bench replay` feeds an audit's wire lines to a fresh game and grades the
+  end: `match`, `close` (how many rounds land drifts between processes) or
+  `mismatch`.
+- `--record <dir>` on a bench play or replay draws every tick offscreen with
+  the full HUD and stitches `<dir>.mp4` at 60 frames per second: the agent's
+  run as a real-time movie, however long it thought.
+- The world snapshot carries a `mission` block - objectives, outcome, comms -
+  and a `beacons` list, so a reader can tell what the player is asked to do.
+- The world snapshot lists every asteroid and planet under `bodies` - kind,
+  position, the derived radius a carve shrinks - and reports the ship's
+  autopilot and dominant gravity well.
+- A `range` bench fixture with no objective: a planetoid, two rocks, a beacon
+  and an unarmed hostile derelict, for goals given on the command line -
+  orbit, park, destroy - and graded from the score's `end` block.
 
 ## [0.12.0] - 2026-08-31
 

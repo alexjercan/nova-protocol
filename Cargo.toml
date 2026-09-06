@@ -563,6 +563,9 @@ nova_authoring = { path = "crates/nova_authoring" }
 # Optional: only the `debug` feature links the probe host into the game
 # binary, so release/dist builds never carry it.
 nova_probe_cli = { path = "crates/nova_probe_cli", optional = true }
+# The agent bench (the `bench` subcommand), behind the same feature. It spawns
+# this very binary as the game over the channel and links no nova crate.
+nova_bench = { path = "crates/nova_bench", optional = true }
 # The IN-GAME half, behind the same feature. A scenario has no example file to
 # wire capabilities for it, so `probe scenario <id|path>` measures the game
 # binary itself and the binary has to carry the collectors. Every capability is
@@ -741,6 +744,7 @@ debug = [
   "nova_probe_cli?/debug",
   "dep:nova_probe",
   "dep:nova_channel",
+  "dep:nova_bench",
 ]
 dev = ["debug"]
 # The automatic PROFILED pass: bevy's per-system spans are
@@ -775,6 +779,7 @@ members = [
   # nova_assets stays the runtime asset stack, authoring stays one crate.
   "crates/nova_authoring",
   "crates/nova_autopilot",
+  "crates/nova_bench",
   # The process channel: named inputs on stdin, snapshots on stdout
   # (task 20260820-174148).
   "crates/nova_channel",

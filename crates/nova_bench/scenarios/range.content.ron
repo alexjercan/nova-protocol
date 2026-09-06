@@ -1,0 +1,161 @@
+// The bench's range: an open world with no objective and no victory, for
+// goals the referee is handed on the command line ("orbit the planetoid",
+// "park on the derelict", "destroy the derelict") and bounded by the tick
+// and wall-clock budgets. Loaded loose, never installed:
+//   cargo run --features debug bench play crates/nova_bench/scenarios/range.content.ron \
+//       --agent pi --goal "..." --ticks 9000
+// The only outcome is Defeat when the gunship breaks up; nothing here shoots
+// back, so that takes flying into something.
+//
+// The furniture, all from the gunship's spawn point facing -Z:
+//   - a 600 m planetoid 7 km dead ahead, the ORBIT target; its well is the
+//     dominant well inside about 3 km of the surface, and the orbit helm
+//     takes a ring from an approach of about 300 m/s but not from 550;
+//   - a small rock 1.6 km ahead and a little to starboard, and a big rock
+//     3 km to port that stops radar. Both are GOTO and navigation targets
+//     only: a turret round flies through a rock and takes nothing off it,
+//     so nothing here is carved (the body reads about five times the
+//     authored radius, the mesh's own extent);
+//   - a nav beacon, WORK MARK, 2.5 km to port and above;
+//   - a derelict hauler 2.4 km to starboard, unarmed, no controller, flagged
+//     hostile so the radar will lock it: the GOTO target with a hull to
+//     size the park against, and the DESTROY target. It despawns when it
+//     breaks up, which the scorer counts as a kill.
+[
+    Scenario((
+        id: "bench_range",
+        name: "Bench: Range",
+        description: "An open range: a planetoid, rocks, a mark and a derelict. No objective; the goal is yours.",
+        cubemap: "base/textures/cubemap.png",
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "key_light",
+                            name: "Key Light",
+                            position: (-1500.0, 1250.0, -500.0),
+                            rotation: (-0.24307884, -0.36920026, -0.10068656, 0.8913283),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Bench Gunship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_gunship"),
+                            controller: Player((
+                                input_mapping: {
+                                    "pdc_forward_port": [Keyboard(KeyU)],
+                                    "pdc_forward_starboard": [Keyboard(KeyI)],
+                                    "pdc_aft_port": [Keyboard(KeyJ)],
+                                    "pdc_aft_starboard": [Keyboard(KeyK)],
+                                    "pdc_ventral_port": [Keyboard(KeyN)],
+                                    "pdc_ventral_starboard": [Keyboard(KeyM)],
+                                },
+                                speed_cap: None,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "planetoid",
+                            name: "Kestrel",
+                            position: (0.0, 0.0, -7000.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Planet((
+                            radius: 600.0,
+                            planet_type: BarrenRock,
+                            seed: 20260906,
+                            mass: Some(40000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_small",
+                            name: "Small Rock",
+                            position: (300.0, 0.0, -1600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 12.0,
+                            texture: "base/textures/asteroid.png",
+                            material: "rock",
+                            destroy_sound: Some("base/sounds/destroy_rock.wav"),
+                            invulnerable: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_big",
+                            name: "Big Rock",
+                            position: (-2800.0, 100.0, -1200.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 45.0,
+                            texture: "base/textures/asteroid.png",
+                            material: "rock",
+                            destroy_sound: Some("base/sounds/destroy_rock.wav"),
+                            invulnerable: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "work_mark",
+                            name: "Work Mark",
+                            position: (-1800.0, 400.0, -1800.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "WORK MARK",
+                            radius: 20.0,
+                            color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+                            area_radius: Some(300.0),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "derelict",
+                            name: "Derelict Hauler",
+                            position: (1700.0, -150.0, -1700.0),
+                            rotation: (0.0, 0.38268343, 0.0, 0.92387953),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_hauler"),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The gunship broke up."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

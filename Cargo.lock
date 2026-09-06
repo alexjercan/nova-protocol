@@ -4513,6 +4513,7 @@ dependencies = [
  "nova_assets",
  "nova_authoring",
  "nova_autopilot",
+ "nova_bench",
  "nova_channel",
  "nova_core",
  "nova_debug",
@@ -4585,6 +4586,15 @@ dependencies = [
  "bevy",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "nova_bench"
+version = "0.12.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4843,6 +4853,7 @@ dependencies = [
  "nova_core",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_os_ui",
  "nova_scenario",
  "nova_ship",

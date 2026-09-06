@@ -36,6 +36,16 @@
 //!   `stands_on`, which is the plate under it.
 //! - `ordnance` - every torpedo and turret round in flight: owner, position,
 //!   velocity, damage, remaining lifetime, target.
+//! - `beacons` - every [`BeaconMarker`]: id, label, position. The nav marks a
+//!   scenario tells the player to fly to.
+//! - `bodies` - every asteroid and planet: id, name, kind, position, the
+//!   derived surface radius (a carved rock shrinks) and whether it is
+//!   invulnerable. A rock that was carved away is simply gone from the list.
+//! - `mission` - what the player is being asked to do: the `objectives` on the
+//!   HUD, the declared `outcome` (`null` in play, else the Victory or Defeat
+//!   banner with its message), and the `comms` lines the story feed has
+//!   delivered so far. What an external pilot reads its goal from, and what a
+//!   referee scores a driven run against (task 20260824-125933).
 //!
 //! ## Why the skin, and why in this much detail
 //!
@@ -102,13 +112,14 @@ use bevy::{diagnostic::FrameCount, prelude::*};
 use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_gameplay::{
     prelude::{
-        Allegiance, DefeatedMarker, Health, HealthZeroMarker, IntegrityDisabledMarker,
-        NeutralizedMarker, ProjectileDamage, ProjectileOwner, SectionClass, SectionMarker,
-        SpaceshipRootMarker, TempEntity, TempEntityState, TorpedoProjectileMarker,
-        TurretBulletProjectileMarker,
+        Allegiance, BeaconLabel, BeaconMarker, DefeatedMarker, DominantWell, GameObjectives,
+        Health, HealthZeroMarker, IntegrityDisabledMarker, NeutralizedMarker, ProjectileDamage,
+        ProjectileOwner, SectionClass, SectionMarker, SpaceshipRootMarker, TempEntity,
+        TempEntityState, TorpedoProjectileMarker, TurretBulletProjectileMarker,
     },
     GameStates, PauseStates,
 };
+use nova_hud::prelude::StoryFeed;
 use nova_os_ui::{
     map::MapContactCode,
     nova_os::prelude::{NovaOsTerminal, TerminalMode},
@@ -116,15 +127,17 @@ use nova_os_ui::{
 };
 use nova_scenario::{
     prelude::{
-        CurrentScenario, SectionAmmoOverride, SectionHealthOverride, SectionRename,
+        AsteroidInvulnerable, AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetInvulnerable,
+        PlanetMarker, SectionAmmoOverride, SectionHealthOverride, SectionRename,
         SpaceshipController,
     },
     world::NovaEventWorld,
 };
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
-    skin_summary, AITarget, CombatLock, GameStyles, PlacedPart, PlateReport, PointDefenseMount,
-    RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
+    skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock, GameStyles,
+    PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RailgunCharge,
+    RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
     SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle,
     SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
     TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
@@ -408,7 +421,25 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
             .map(|entity| ordnance_record(world, entity))
             .collect(),
     );
+    let mut q_beacons = world.query_filtered::<Entity, With<BeaconMarker>>();
+    let beacon_entities: Vec<Entity> = q_beacons.iter(world).collect();
+    let beacons = ordered(
+        beacon_entities
+            .into_iter()
+            .map(|entity| beacon_record(world, entity))
+            .collect(),
+    );
+    let mut q_bodies =
+        world.query_filtered::<Entity, Or<(With<AsteroidMarker>, With<PlanetMarker>)>>();
+    let body_entities: Vec<Entity> = q_bodies.iter(world).collect();
+    let bodies = ordered(
+        body_entities
+            .into_iter()
+            .map(|entity| body_record(world, entity))
+            .collect(),
+    );
     let ui = ui_block(world);
+    let mission = mission_block(world);
 
     serde_json::json!({
         "schema": SNAPSHOT_SCHEMA,
@@ -420,8 +451,138 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
         "t_real": t_real,
         "t_game": t_game,
         "ui": ui,
+        "mission": mission,
         "ships": ships,
+        "beacons": beacons,
+        "bodies": bodies,
         "ordnance": ordnance,
+    })
+}
+
+/// What the player is being asked to do, as the HUD would show it: the
+/// objective stack in display order, the declared outcome, and every comms
+/// line delivered so far in delivery order. Each list keeps its authored
+/// order rather than a value sort, because the order IS the information -
+/// the top objective is the current one and the last line is the newest.
+///
+/// A world without the resources (a headless rig with no scenario loader)
+/// reads as a mission with nothing on it, never as a missing block.
+fn mission_block(world: &World) -> serde_json::Value {
+    let objectives: Vec<serde_json::Value> = world
+        .get_resource::<GameObjectives>()
+        .map(|objectives| {
+            objectives
+                .objectives
+                .iter()
+                .map(|objective| {
+                    serde_json::json!({ "id": objective.id, "message": objective.message })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let outcome = world
+        .get_resource::<CurrentOutcome>()
+        .and_then(|current| current.0.as_ref())
+        .map_or(serde_json::Value::Null, |outcome| {
+            serde_json::json!({
+                "kind": format!("{:?}", outcome.outcome),
+                "message": outcome.message,
+            })
+        });
+    let comms: Vec<serde_json::Value> = world
+        .get_resource::<StoryFeed>()
+        .map(|feed| {
+            feed.0
+                .iter()
+                .map(|line| {
+                    serde_json::json!({
+                        "speaker": line.speaker,
+                        "text": line.text,
+                        "channel": line.channel.id,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    serde_json::json!({
+        "objectives": objectives,
+        "outcome": outcome,
+        "comms": comms,
+    })
+}
+
+/// One nav beacon, keyed by its scenario object id.
+fn beacon_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
+    let id = label(world, entity);
+    let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
+    let record = serde_json::json!({
+        "id": id,
+        "label": world.get::<BeaconLabel>(entity).map(|label| label.0.clone()),
+        "position": vec3(transform.translation),
+    });
+    (key(&id), record)
+}
+
+/// One asteroid or planet, keyed by its scenario object id. `radius` is the
+/// derived surface the sim measures the body by, in world units; a carved
+/// rock reports a smaller one after every remesh.
+fn body_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
+    let id = label(world, entity);
+    let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
+    let (kind, invulnerable) = if world.get::<PlanetMarker>(entity).is_some() {
+        (
+            "Planet",
+            world
+                .get::<PlanetInvulnerable>(entity)
+                .is_some_and(|flag| flag.0),
+        )
+    } else {
+        (
+            "Asteroid",
+            world
+                .get::<AsteroidInvulnerable>(entity)
+                .is_some_and(|flag| flag.0),
+        )
+    };
+    let record = serde_json::json!({
+        "id": id,
+        "name": world.get::<Name>(entity).map(ToString::to_string),
+        "kind": kind,
+        "position": vec3(transform.translation),
+        "radius": world.get::<BodyRadius>(entity).map(|radius| num(radius.0)),
+        "invulnerable": invulnerable,
+    });
+    (key(&id), record)
+}
+
+/// The ship's autopilot as the HUD status line reads it: the engaged action
+/// and its target, the phase, and the last action that completed. `null`
+/// when the helm is manual.
+fn autopilot_record(world: &World, entity: Entity) -> serde_json::Value {
+    let engaged = world.get::<Autopilot>(entity).map(|autopilot| {
+        let (action, target) = match autopilot.action {
+            AutopilotAction::Stop => ("Stop", serde_json::Value::Null),
+            AutopilotAction::Goto { target } => ("Goto", label(world, target)),
+            AutopilotAction::GotoPos { position } => ("GotoPos", vec3(position)),
+            AutopilotAction::Orbit { well, .. } => ("Orbit", label(world, well)),
+        };
+        serde_json::json!({
+            "action": action,
+            "target": target,
+            "phase": format!("{:?}", autopilot.phase),
+        })
+    });
+    let completed = world
+        .get::<PlayerAutopilotCompleted>(entity)
+        .map(|completed| match completed.action {
+            AutopilotAction::Stop => "Stop",
+            AutopilotAction::Goto { .. } => "Goto",
+            AutopilotAction::GotoPos { .. } => "GotoPos",
+            AutopilotAction::Orbit { .. } => "Orbit",
+        });
+    serde_json::json!({
+        "engaged": engaged,
+        "completed": completed,
     })
 }
 
@@ -670,6 +831,8 @@ fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "travel_lock": label_of(world, world.get::<TravelLock>(entity).and_then(|lock| lock.0)),
         "combat_lock": label_of(world, world.get::<CombatLock>(entity).and_then(|lock| lock.0)),
         "ai_target": label_of(world, world.get::<AITarget>(entity).and_then(|target| target.0)),
+        "autopilot": autopilot_record(world, entity),
+        "gravity_well": label_of(world, world.get::<DominantWell>(entity).map(|well| well.0)),
         // The derived skin as a whole: the histogram, the measurements and the
         // cells it refused. Per-plate detail hangs off the plate's own fixture
         // record; this is the half no single plate can answer.
@@ -1452,6 +1615,157 @@ mod tests {
     /// The whole point of the artifact: one state, one set of bytes. Two
     /// captures of the SAME frame must not differ, or a diff of two runs is
     /// noise.
+    #[test]
+    fn bodies_and_the_autopilot_say_where_the_ship_is_and_where_it_is_going() {
+        use nova_gameplay::prelude::DominantWell;
+        use nova_scenario::prelude::{
+            AsteroidInvulnerable, AsteroidMarker, PlanetInvulnerable, PlanetMarker,
+        };
+        use nova_ship::prelude::{Autopilot, AutopilotAction, BodyRadius};
+
+        let mut app = rig();
+        assert_eq!(
+            capture_snapshot(app.world_mut(), "test")["bodies"],
+            serde_json::json!([])
+        );
+        let planet = app
+            .world_mut()
+            .spawn((
+                PlanetMarker,
+                EntityId::new("planetoid"),
+                Name::new("Kestrel"),
+                Transform::from_xyz(0.0, 0.0, -700.0),
+                BodyRadius(66.0),
+                PlanetInvulnerable(true),
+            ))
+            .id();
+        app.world_mut().spawn((
+            AsteroidMarker,
+            EntityId::new("rock"),
+            Name::new("Rock"),
+            Transform::from_xyz(30.0, 0.0, -150.0),
+            BodyRadius(1.4),
+            AsteroidInvulnerable(false),
+        ));
+        let ship = ship(&mut app, "cutter", Vec3::ZERO);
+        app.world_mut().entity_mut(ship).insert((
+            Autopilot::engage(AutopilotAction::Orbit {
+                well: planet,
+                plan: None,
+            }),
+            DominantWell(planet),
+        ));
+
+        let snapshot = capture_snapshot(app.world_mut(), "test");
+        let bodies = snapshot["bodies"].as_array().expect("a list");
+        assert_eq!(bodies.len(), 2);
+        assert_eq!(bodies[0]["id"], "planetoid");
+        assert_eq!(bodies[0]["kind"], "Planet");
+        assert_eq!(bodies[0]["name"], "Kestrel");
+        assert_eq!(bodies[0]["radius"], 66.0);
+        assert_eq!(bodies[0]["invulnerable"], true);
+        assert_eq!(bodies[1]["id"], "rock");
+        assert_eq!(bodies[1]["kind"], "Asteroid");
+        assert_eq!(bodies[1]["invulnerable"], false);
+        assert_eq!(
+            bodies[1]["position"],
+            serde_json::json!([30.0, 0.0, -150.0])
+        );
+
+        let me = &snapshot["ships"][0];
+        assert_eq!(me["autopilot"]["engaged"]["action"], "Orbit");
+        assert_eq!(me["autopilot"]["engaged"]["target"], "planetoid");
+        assert_eq!(me["autopilot"]["engaged"]["phase"], "Align");
+        assert_eq!(me["autopilot"]["completed"], serde_json::Value::Null);
+        assert_eq!(me["gravity_well"], "planetoid");
+    }
+
+    #[test]
+    fn the_mission_block_and_the_beacons_say_what_the_player_is_asked_to_do() {
+        use nova_gameplay::prelude::{ChipTone, NarrativeChannelConfig, Objective};
+        use nova_hud::prelude::StoryLine;
+        use nova_scenario::prelude::{OutcomeActionConfig, ScenarioOutcomeKind};
+
+        let mut app = rig();
+        // Before any scenario resource exists, the block is empty, not absent.
+        let bare = capture_snapshot(app.world_mut(), "test");
+        assert_eq!(bare["mission"]["objectives"], serde_json::json!([]));
+        assert_eq!(bare["mission"]["outcome"], serde_json::Value::Null);
+        assert_eq!(bare["mission"]["comms"], serde_json::json!([]));
+        assert_eq!(bare["beacons"], serde_json::json!([]));
+
+        app.insert_resource(GameObjectives {
+            objectives: vec![
+                Objective::new("burn", "Burn to the work mark."),
+                Objective::new("stop", "Come to a full stop."),
+            ],
+        });
+        app.insert_resource(CurrentOutcome(Some(OutcomeActionConfig::new(
+            ScenarioOutcomeKind::Victory,
+            "The shift is over.",
+        ))));
+        let channel = NarrativeChannelConfig {
+            id: "comms".to_string(),
+            tone: ChipTone::default(),
+            tag: None,
+            signal_strength: 1.0,
+        };
+        app.insert_resource(StoryFeed(vec![
+            StoryLine {
+                speaker: "Halloran".to_string(),
+                text: "Bring us to a full stop first.".to_string(),
+                dwell: None,
+                icon: None,
+                channel: channel.clone(),
+            },
+            StoryLine {
+                speaker: "Control".to_string(),
+                text: "Copy.".to_string(),
+                dwell: None,
+                icon: None,
+                channel,
+            },
+        ]));
+        app.world_mut().spawn((
+            BeaconMarker,
+            EntityId::new("work_mark"),
+            BeaconLabel::new("WORK MARK"),
+            Transform::from_xyz(-50.0, 8.0, 90.0),
+        ));
+        app.world_mut().spawn((
+            BeaconMarker,
+            EntityId::new("alpha"),
+            BeaconLabel::new("ALPHA"),
+            Transform::from_xyz(1.0, 2.0, 3.0),
+        ));
+
+        let snapshot = capture_snapshot(app.world_mut(), "test");
+        // Objectives and comms keep authored order: the top objective is the
+        // current one, the last line the newest.
+        assert_eq!(
+            snapshot["mission"]["objectives"],
+            serde_json::json!([
+                { "id": "burn", "message": "Burn to the work mark." },
+                { "id": "stop", "message": "Come to a full stop." },
+            ])
+        );
+        assert_eq!(
+            snapshot["mission"]["outcome"],
+            serde_json::json!({ "kind": "Victory", "message": "The shift is over." })
+        );
+        assert_eq!(snapshot["mission"]["comms"][0]["speaker"], "Halloran");
+        assert_eq!(snapshot["mission"]["comms"][1]["text"], "Copy.");
+        assert_eq!(snapshot["mission"]["comms"][1]["channel"], "comms");
+        // Beacons are value-ordered by id like every other entity list.
+        assert_eq!(snapshot["beacons"][0]["id"], "alpha");
+        assert_eq!(snapshot["beacons"][1]["id"], "work_mark");
+        assert_eq!(snapshot["beacons"][1]["label"], "WORK MARK");
+        assert_eq!(
+            snapshot["beacons"][1]["position"],
+            serde_json::json!([-50.0, 8.0, 90.0])
+        );
+    }
+
     #[test]
     fn two_captures_of_one_frame_are_byte_identical() {
         let mut app = rig();

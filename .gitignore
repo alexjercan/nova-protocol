@@ -261,3 +261,4 @@ __marimo__/
 # harness plus the keys, and the baseline-vs-after comparison is made locally
 # (`./report.py after baseline` renders both side by side).
 /benchmark/results/
+/bench-runs/

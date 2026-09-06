@@ -43,6 +43,9 @@ nova_scenario = { path = "../nova_scenario" }
 # nova_os_ui's re-export) and the CRT glass slice (map contact codes pushed
 # through the shipped warp inverse) - the screen a GUI player sees, as data.
 nova_os_ui = { path = "../nova_os_ui" }
+# The snapshot's `mission.comms` reads the story feed the comms panel draws -
+# the lines a pilot has been told, as the HUD holds them.
+nova_hud = { path = "../nova_hud" }
 # Timeline entries carry the events' serde_json payloads (GameEventInfo::data),
 # so the JSONL sink serializes with serde_json rather than hand-rolling.
 serde_json = { version = "1" }

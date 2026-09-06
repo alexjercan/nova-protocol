@@ -76,6 +76,14 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// The agent bench: an agent plays a scenario over the channel and the
+    /// referee scores the run.
+    #[cfg(feature = "debug")]
+    #[command(disable_help_flag = true)]
+    Bench {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -87,6 +95,8 @@ fn main() -> ExitCode {
         Some(Command::Content { ref args }) => return nova_authoring::cli::main(args),
         #[cfg(feature = "debug")]
         Some(Command::Probe { ref args }) => return nova_probe_cli::native::main(args),
+        #[cfg(feature = "debug")]
+        Some(Command::Bench { ref args }) => return nova_bench::main(args),
         None => {}
     }
 

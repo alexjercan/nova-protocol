@@ -54,6 +54,7 @@ for responsibilities and the dependency graph.
 | `nova_channel` | Dev tooling: the process channel. Named inputs, pointer moves, text, keys and `command` lines in on stdin; world snapshots and acknowledgements out on stdout. |
 | `nova_probe` | Dev tool (not in the shipped game): the in-game half of the run-harness - the capability plugins an example wires (frame time, timeline, invariants, world snapshot, scene census, frame cost). |
 | `nova_probe_cli` | Dev tool: the host half - spawns runs, grades artifacts, renders reports; the `probe run`/`report` CLI. |
+| `nova_bench` | Dev tool: the agent bench - referees an external agent (a scripted baseline, `pi`, any process) playing a scenario over the process channel, audits and scores the run; the `bench play`/`replay` CLI. |
 | `nova_perf_web` | Dev tool: the wasm app `probe run --platform web` boots and measures. |
 | `nova_authoring` | Offline content pipeline: the Rust builders for built-in scenarios/sections, `content -- gen` (writes `assets/base/**/*.content.ron`), `content -- lint`. |
 | `nova_meta_gen` | Binary under `tools/` (web-build tooling, not a game crate): writes default `.meta` sidecars for web assets (Trunk `post_build` hook). |

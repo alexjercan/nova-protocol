@@ -1,0 +1,23 @@
+[package]
+name = "nova_bench"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The agent bench: a referee that lets an external agent play a scenario over the process channel, and scores the run (dev tools)"
+
+# No `nova_*` dependency on purpose. The bench speaks JSON to the game over
+# pipes and to the agent over a socket, so its tests link neither Bevy nor
+# the game - the same rule nova_autopilot keeps. The game binary is spawned
+# by path (`current_exe`), never linked.
+
+[dependencies]
+# Same derive-based CLI the game binary and the probe host use.
+clap = { version = "4.5.48", features = ["derive"] }
+# The audit stream and the score are serialized by derive; the snapshot and
+# the wire lines are read as plain values.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+
+[lints]
+workspace = true

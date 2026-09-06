@@ -123,6 +123,19 @@ environment half exists at all. See
 `NOVA_CAPTURE` set; `NOVA_MUTE=0` forces sound through one. The flag wins over
 both, and a muted run says `nova audio: output muted for this run` once.
 
+## The agent bench: an agent at the channel
+
+Owned by `nova_bench`. The mechanism is [The agent bench](agent-bench.md).
+
+| Variable | Gates | For |
+| --- | --- | --- |
+| `NOVA_BENCH_SOCKET` | the unix socket the referee answers on; `bench play` sets it for the agent process, and a `cmd:` agent reads it | harness |
+| `NOVA_BENCH_PI` | the `pi` binary `bench play --agent pi` spawns; unset, `pi` on the path | harness |
+
+The bench sets `NOVA_SEED` on the child game from `--seed`, and points the
+child at an empty profile under the run directory, so a play never reads or
+writes the settings on disk.
+
 ## The replay seed
 
 Owned by `nova_gameplay`, next to the entropy plugin it seeds.

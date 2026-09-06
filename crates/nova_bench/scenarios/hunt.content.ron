@@ -1,0 +1,113 @@
+// The bench's hunt: one player gunship and one hostile raider parked ahead on
+// the burn line, with an objective and an outcome so the referee has a
+// verdict to score. Loaded loose, never installed:
+//   cargo run --features debug bench play crates/nova_bench/scenarios/hunt.content.ron
+// The raider holds station under a short engage grace, then fights. Every
+// mount has its own free key, so `section.<id>` presses one mount and never
+// its neighbour.
+[
+    Scenario((
+        id: "bench_hunt",
+        name: "Bench: Hunt",
+        description: "Destroy the raider on the burn line.",
+        // A loose file registers no `dep://` source; the base pack's cubemap
+        // is reachable over the default asset root instead.
+        cubemap: "base/textures/cubemap.png",
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    Objective((
+                        id: "hunt",
+                        message: "Destroy the raider ahead.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Bench Gunship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_gunship"),
+                            controller: Player((
+                                input_mapping: {
+                                    "pdc_forward_port": [Keyboard(KeyU)],
+                                    "pdc_forward_starboard": [Keyboard(KeyI)],
+                                    "pdc_aft_port": [Keyboard(KeyJ)],
+                                    "pdc_aft_starboard": [Keyboard(KeyK)],
+                                    "pdc_ventral_port": [Keyboard(KeyN)],
+                                    "pdc_ventral_starboard": [Keyboard(KeyM)],
+                                },
+                                speed_cap: None,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "raider",
+                            name: "Bench Raider",
+                            position: (0.0, 0.0, -2600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_raider"),
+                            controller: AI((
+                                engage_delay: Some(15.0),
+                            )),
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("raider"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "hunt",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The raider is down."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The gunship broke up."),
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The gunship is disarmed."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
