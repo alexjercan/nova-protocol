@@ -154,6 +154,13 @@ pub(super) fn spawn_ship(app: &mut App) -> (Entity, Entity, Entity) {
 /// behavior they were written for - the same opt-out the mainline campaign uses
 /// while RCS is off pending rework.
 pub(super) fn withhold_rcs(app: &mut App, ship: Entity) {
+    withhold_verbs(app, ship, &[FlightVerb::Rcs]);
+}
+
+/// Withhold `verbs` on every controller of `ship`: the same gate a scenario
+/// installs with the `DisableVerb` spawn modification (the training range
+/// withholds ORBIT until its lesson).
+pub(super) fn withhold_verbs(app: &mut App, ship: Entity, verbs: &[FlightVerb]) {
     let controllers: Vec<Entity> = app
         .world_mut()
         .query_filtered::<(Entity, &ChildOf), With<ControllerSectionMarker>>()
@@ -164,7 +171,7 @@ pub(super) fn withhold_rcs(app: &mut App, ship: Entity) {
     for controller in controllers {
         app.world_mut()
             .entity_mut(controller)
-            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+            .insert(WithheldVerbs(verbs.iter().copied().collect()));
     }
 }
 

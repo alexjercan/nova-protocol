@@ -634,9 +634,12 @@ pub(super) fn autopilot_system(
         let rcs_cap = rcs_cap_override
             .map(|c| c.0)
             .unwrap_or(settings.rcs_speed_cap);
-        let rcs_granted = q_computer.iter().any(|(_, &ChildOf(parent), withheld)| {
-            parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))
-        });
+        let verb_granted = |verb: FlightVerb| {
+            q_computer.iter().any(|(_, &ChildOf(parent), withheld)| {
+                parent == ship && withheld.is_none_or(|w| w.granted(verb))
+            })
+        };
+        let rcs_granted = verb_granted(FlightVerb::Rcs);
         let rcs_capable = rcs_granted && rcs_cap > 0.0 && error_speed > 1e-3;
         // The RCS takes a goal only where it has CLEAR authority over the local
         // gravity: its `rcs_accel` push must comfortably exceed the inward
@@ -807,11 +810,18 @@ pub(super) fn autopilot_system(
             // point is not corrected inward. Because the arrival already floors
             // itself at the band floor, this cannot burn the ship outward to a
             // ring it was never told to fly.
+            // The park is ORBIT, so it is the ORBIT VERB that decides whether
+            // the computer may fly it: a controller withholding ORBIT (the
+            // training range, until its lesson) hands the ship back at the
+            // standoff instead of flying a maneuver the pilot has not been
+            // given. Either way the LEG completed - it arrived - so the
+            // completion is reported before the park, and a scenario waiting on
+            // the arrival hears it whether or not the computer parks.
             // Breakout semantics (any flight input, Z) are ORBIT's own,
             // unchanged. Everything else - GotoPos, well-less targets, STOP, a
-            // bandless well - releases as before.
+            // withheld verb, a bandless well - releases as before.
             if let AutopilotAction::Goto { target } = autopilot.action {
-                if goto_arrived {
+                if goto_arrived && verb_granted(FlightVerb::Orbit) {
                     if let Ok((well_position, well_data)) = q_wells.get(target) {
                         let well = band_well(target, well_data);
                         let r_vec = position.0 - well_position.0;
@@ -826,6 +836,11 @@ pub(super) fn autopilot_system(
                                 "autopilot_system: ship {ship:?} arrived, parking into \
                                  ORBIT at ring {radius}"
                             );
+                            if is_player {
+                                commands.entity(ship).insert(PlayerAutopilotCompleted {
+                                    action: autopilot.action,
+                                });
+                            }
                             *autopilot = Autopilot::engage(AutopilotAction::Orbit {
                                 well: target,
                                 plan: Some(OrbitPlan {

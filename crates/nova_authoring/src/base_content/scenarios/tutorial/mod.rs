@@ -107,6 +107,14 @@ const OPEN_CARD_SECONDS: f32 = 8.0;
 /// hull with the range behind it.
 const OPEN_OFFSET: Meters3 = Meters3::new(-140.0, 50.0, 160.0);
 
+/// The ORBIT lesson's gap, in place of [`INSTRUCTION_GAP`]. Short on purpose:
+/// every other lesson on the card waits for the cadet, and this one does not.
+/// GOTO hands the trainer back inside the planetoid's pull, so the key the line
+/// names has to answer while there is still fall left to spend - and the beat
+/// this step advances is what arms the handler that reads the orbit, so the
+/// cadet must not be able to fly it before the step lands.
+const ORBIT_GAP: f64 = 1.5;
+
 /// The keybind-dock chips a lesson pulses.
 const HINT_STOP: &str = "STOP";
 const HINT_RCS: &str = "RCS";
@@ -438,7 +446,11 @@ pub(crate) fn tutorial(
                 ),
             ],
         ),
-        // Parked off the planetoid, inside its pull: ORBIT.
+        // Parked off the planetoid, inside its pull: ORBIT. The computer hands
+        // the trainer back here rather than parking it for the cadet, because
+        // ORBIT is still withheld - so this is the one lesson on the card that
+        // does not wait for its cadet. The trainer is falling from the moment
+        // the line lands, and the rock is roughly nine seconds under it.
         once(
             EventConfig::OnGotoComplete,
             vec![trainer_at(ID_PLANETOID), in_beat(BEAT_GOTO)],
@@ -448,7 +460,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::ORBIT_LINE),
                 lesson_later(
                     BEAT_ORBIT,
-                    INSTRUCTION_GAP,
+                    ORBIT_GAP,
                     vec![
                         advance(BEAT_ORBIT),
                         grant(FlightVerb::Orbit),

@@ -359,6 +359,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A flight computer severed onto a wreck aims at the wreck. It kept targeting
   the hull it left, so the attitude loop errored every tick once that hull
   died, and would have twisted the wrong body.
+- A GOTO that ends at a planetoid reports its arrival, and parks itself in
+  orbit only where the ship's computer grants ORBIT - one withholding the verb
+  hands the ship back at the standoff instead.
 
 ### Internals & Tooling
 - One TABLE declares the action vocabulary. A row generates the enum arm, the

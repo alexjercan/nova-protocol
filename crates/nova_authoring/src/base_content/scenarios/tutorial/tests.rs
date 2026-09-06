@@ -218,14 +218,36 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
     };
     let mass = planet.mass.expect("the planetoid is anchored, so it pulls");
     let surface = planet.body_radius().to_engine();
-    let well = GravityWell::from_mass(mass, surface, &GravitySettings::default());
-    let standoff = FlightSettings::default().arrival_standoff;
+    let gravity = GravitySettings::default();
+    let flight = FlightSettings::default();
+    let well = GravityWell::from_mass(mass, surface, &gravity);
+    let standoff = flight.arrival_standoff;
     let park = surface + standoff;
+    // The card sends the cadet from GOTO's park point straight into ORBIT, so
+    // the park point has to be a ring ORBIT will actually fly. The band is the
+    // engine's own rule (a floor over the surface, a ceiling inside the well's
+    // unfaded core), and it is published for exactly this: content that gates
+    // progress on a ring must be sized against the rings the verb hands out,
+    // not against a re-derivation of the arithmetic.
+    let (min, max) = orbit_radius_band(&well, &gravity, &flight)
+        .expect("the planetoid must be orbitable at all");
     assert!(
-        well.soi_radius > 2.0 * park,
-        "GOTO parks {park} u from the planetoid's centre; its reach ({} u) must hold that \
-         with room for the hull",
-        well.soi_radius
+        park > min && park < max,
+        "GOTO parks {park} u from the planetoid's centre; ORBIT's band is {min}..{max} u"
+    );
+
+    // And the cadet's clock. GOTO hands the trainer back at the park point with
+    // ORBIT still withheld, so the trainer is falling while Range Control talks
+    // it through the key: the mass has to leave enough fall to hear the line,
+    // read the card and answer. Radial free-fall from rest, closed form.
+    let floor = surface + gravity.surface_margin;
+    let ratio = floor / park;
+    let fall_seconds = (park.powi(3) / (2.0 * well.mu)).sqrt()
+        * (ratio.sqrt().acos() + (ratio * (1.0 - ratio)).sqrt());
+    assert!(
+        fall_seconds > 8.0,
+        "a cadet parked off the planetoid has {fall_seconds} s before the rock; the ORBIT \
+         line and its card need more room than that"
     );
     assert!(
         MARK_CHARLIE.area.to_engine() > standoff + Meters(100.0).to_engine(),

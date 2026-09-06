@@ -78,7 +78,7 @@
                             radius: 600.0,
                             planet_type: BarrenRock,
                             seed: 20260815,
-                            mass: Some(40000.0),
+                            mass: Some(10000.0),
                             invulnerable: true,
                         )),
                     )),
@@ -1690,7 +1690,7 @@
                         key: "beat_6",
                         steps: [
                             (
-                                after: Some(4.0),
+                                after: Some(1.5),
                                 actions: [
                                     VariableSet((
                                         key: "beat",

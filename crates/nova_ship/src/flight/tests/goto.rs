@@ -481,3 +481,142 @@ fn goto_arrival_settles_without_hunting() {
         "the hull must release still, not mid-swing: {release_spin} rad/s"
     );
 }
+
+/// The training range's own well, so the numbers a cadet flies are the numbers
+/// under test: a 600 m rock, at the two ends of the pull a planetoid is
+/// authored with.
+fn spawn_range_planetoid(app: &mut App, mu: f32) -> Entity {
+    app.world_mut()
+        .spawn((
+            RigidBody::Static,
+            Transform::default(),
+            nova_gameplay::gravity::GravityWell::from_mass(mu, 60.0, &GravitySettings::default()),
+        ))
+        .id()
+}
+
+/// A cadet's trainer at a range planetoid: the shipped five-section geometry,
+/// player-marked (so the leg reports its completion) and carrying the RCS
+/// intent production ships carry.
+fn spawn_trainer(app: &mut App) -> Entity {
+    let (ship, _controller) = diag_ship(app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert((PlayerSpaceshipMarker, RcsIntent::default()));
+    ship
+}
+
+/// Fly a GOTO at `well` from outside the standoff, and report how long the leg
+/// ran PAST the moment it first reached the park envelope. `None` when it never
+/// terminated at all.
+fn ticks_held_after_arriving(
+    app: &mut App,
+    ship: Entity,
+    well: Entity,
+    budget: usize,
+) -> Option<usize> {
+    // The rig has already finalized its mass, so avian owns the pose: place the
+    // ship through `Position`, not the Transform it no longer reads.
+    let start = Vec3::new(0.0, 0.0, 300.0);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert((Transform::from_translation(start), Position(start)));
+    settle(app);
+    assert!(
+        (app.world().get::<Position>(ship).unwrap().0 - start).length() < 1.0,
+        "the leg has to start outside the well's standoff to be a leg at all"
+    );
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: well }));
+    let park = 60.0 + app.world().resource::<FlightSettings>().arrival_standoff;
+    let mut arrived_at = None;
+    for tick in 0..budget {
+        app.update();
+        if arrived_at.is_none() && app.world().get::<Position>(ship).unwrap().0.length() <= park {
+            arrived_at = Some(tick);
+        }
+        let ended = match app.world().get::<Autopilot>(ship) {
+            None => true,
+            Some(autopilot) => matches!(autopilot.action, AutopilotAction::Orbit { .. }),
+        };
+        if ended {
+            return Some(tick - arrived_at.unwrap_or(tick));
+        }
+    }
+    None
+}
+
+/// The park into ORBIT used to SWALLOW the arrival: the computer replaced the
+/// GOTO with an orbit and reported nothing, so `OnGotoComplete` never fired and
+/// every scenario beat hanging off the arrival stalled with the ship visibly
+/// parked - Basic Training's ORBIT lesson, which is granted by that beat.
+/// Arriving IS the leg's terminal condition, whatever the computer does next.
+#[test]
+fn a_goto_that_parks_into_orbit_still_reports_its_arrival() {
+    for mu in [10_000.0, 40_000.0] {
+        let mut app = orbit_app();
+        let well = spawn_range_planetoid(&mut app, mu);
+        let ship = spawn_trainer(&mut app);
+
+        let held = ticks_held_after_arriving(&mut app, ship, well, 6000);
+        assert!(
+            held.is_some_and(|ticks| ticks < 320),
+            "a GOTO at a mu={mu} planetoid must end when it arrives, held {held:?} ticks"
+        );
+        assert!(
+            matches!(
+                app.world().get::<Autopilot>(ship).map(|ap| ap.action),
+                Some(AutopilotAction::Orbit { .. })
+            ),
+            "a GOTO at a well body parks into ORBIT when the verb is granted"
+        );
+        assert_eq!(
+            app.world().get::<PlayerAutopilotCompleted>(ship),
+            Some(&PlayerAutopilotCompleted {
+                action: AutopilotAction::Goto { target: well },
+            }),
+            "the arrival is reported even when the computer parks into ORBIT"
+        );
+    }
+}
+
+/// ORBIT is a VERB, and the park is ORBIT: a controller withholding it (Basic
+/// Training, until the lesson that hands it over) must get its ship back at the
+/// standoff instead of the computer quietly flying a maneuver the cadet has not
+/// been given - which is also what left the cadet parked in an orbit the card
+/// was still waiting to teach.
+#[test]
+fn goto_at_a_well_hands_the_ship_back_when_orbit_is_withheld() {
+    let mut app = orbit_app();
+    let well = spawn_range_planetoid(&mut app, 10_000.0);
+    let ship = spawn_trainer(&mut app);
+    withhold_verbs(&mut app, ship, &[FlightVerb::Orbit]);
+
+    let held = ticks_held_after_arriving(&mut app, ship, well, 6000);
+    assert!(
+        held.is_some_and(|ticks| ticks < 320),
+        "the leg must still end when it arrives, held {held:?} ticks"
+    );
+    assert!(
+        app.world().get::<Autopilot>(ship).is_none(),
+        "a withheld ORBIT releases the ship instead of parking it"
+    );
+    assert_eq!(
+        app.world().get::<PlayerAutopilotCompleted>(ship),
+        Some(&PlayerAutopilotCompleted {
+            action: AutopilotAction::Goto { target: well },
+        }),
+        "the arrival is reported, so the ORBIT lesson gated on it can arm"
+    );
+    let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+    let distance = app.world().get::<Position>(ship).unwrap().0.length();
+    assert!(
+        distance > 60.0 + GravitySettings::default().surface_margin,
+        "the ship is handed back above the surface, got {distance}"
+    );
+    assert!(
+        distance <= 60.0 + standoff + 10.0,
+        "the ship is handed back at the standoff, got {distance}"
+    );
+}

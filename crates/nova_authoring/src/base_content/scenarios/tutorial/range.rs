@@ -288,15 +288,23 @@ pub(super) fn drone_down_var(id: &str) -> String {
 /// drill flies out to and parks in orbit around, and the range's backdrop.
 /// It is scenery to the gun.
 ///
-/// Its mass sets both the pull and the reach, and the reach must contain the
-/// point GOTO parks at (the surface plus the arrival standoff), or ORBIT is
-/// asked for outside the well. A test pins that with the engine's own rule.
+/// Its mass sets the pull, the reach and the cadet's clock, and a test pins the
+/// first two with the engine's own rules: ORBIT's ring band must contain the
+/// point GOTO parks at (the surface plus the arrival standoff), or the verb is
+/// asked for somewhere it will not fly.
+///
+/// The clock is the third, and it is why the mass is what it is rather than the
+/// guardrail maximum it used to be. GOTO hands the trainer back parked one
+/// standoff off the surface with ORBIT still withheld, so the cadet is falling
+/// while Range Control talks: at the guardrail the rock is under the hull in
+/// under five seconds, which is not a lesson. At this mass the fall runs about
+/// nine, and the ORBIT card lands inside the first two of them.
 pub(super) const ID_PLANETOID: &str = "range_planetoid";
 /// What the planetoid's HUD chip reads.
 pub(super) const PLANETOID_LABEL: &str = "PLANETOID";
 const PLANETOID_POS: Meters3 = Meters3::new(-5_600.0, -1_100.0, -3_800.0);
 const PLANETOID_RADIUS: Meters = Meters(600.0);
-const PLANETOID_MASS: f32 = 40_000.0;
+const PLANETOID_MASS: f32 = 10_000.0;
 const PLANETOID_SEED: u32 = 20_260_815;
 
 /// The planetoid: indestructible and pinned, because the map is authored
