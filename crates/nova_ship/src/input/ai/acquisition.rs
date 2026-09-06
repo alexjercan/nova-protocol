@@ -234,7 +234,7 @@ pub(super) fn update_ai_target(
             **target,
             threat.recent_attacker(),
             candidates,
-            |candidate, at| !scan.is_occluded(own_anchor, at, candidate),
+            |candidate, at| !scan.is_occluded(ship, own_anchor, at, candidate),
         );
         // Change-detection hygiene: only write on a real change. A dead or
         // out-of-range target clears here (the pick simply no longer finds

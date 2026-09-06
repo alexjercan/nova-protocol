@@ -66,10 +66,14 @@ Rounds are physical: a bullet expends itself on the **first tangible thing**
 it meets, so an asteroid between you and a hostile eats the burst that was
 meant for you. Hostiles respect the same geometry - a gunner with a rock on
 the firing line **holds fire** instead of hosing the rock, and won't waste a
-torpedo on cover either. Its attack orbit keeps it circling all the while,
-so expect the pressure back the moment its motion clears the angle. That
-makes hard cover a real tool: breaking the line of sight buys you a pause in
-the pressure, not just a bullet sponge. Two caveats: a rock is cover that
+torpedo on cover either. It loses more than the shot: with the line blocked
+it loses the **pick**, and a ship with nothing picked goes back to its passive
+routine at once - a patrol route or an orbit directive if it was given one, and
+otherwise a coast to rest. There is no grace period and no attack orbit held
+open for you. It re-acquires the instant the line clears, and its passive
+routine may well have carried it somewhere that clears the line on its own.
+That makes hard cover a real tool: breaking the line of sight buys you a full
+disengage, not just a bullet sponge. Two caveats: a rock is cover that
 **wears out where it is hit** - see below - and intangible volumes (beacon
 rings, trigger zones) stop nothing. Point-defense is the exception - a turret
 swatting an inbound torpedo keeps firing no matter what is in the way.

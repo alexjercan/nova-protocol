@@ -59,8 +59,10 @@ impl LockFocus {
 const TARGET_CANDIDATE_COUNT: usize = 5;
 
 /// A collected lockable body: entity, world position, hostile-to-player,
-/// combat-target (ship or committed torpedo).
-pub(super) type Lockable = (Entity, Vec3, bool, bool);
+/// combat-target (ship or committed torpedo), and in-sight (no radar occluder
+/// on the line). Sight is REPORTED rather than applied, because the slots do
+/// not agree on it: see `update_contacts_and_locks`.
+pub(super) type Lockable = (Entity, Vec3, bool, bool, bool);
 
 /// The scanner query every collection pass walks. Turret bullets are excluded
 /// outright: they are dynamic bodies that stream straight down the aim ray.
@@ -161,12 +163,13 @@ pub(super) fn collect_lockable(
                 if position.distance_squared(origin) > max_range * max_range {
                     return None;
                 }
-                if scan.is_occluded(origin, position, entity) {
-                    return None;
-                }
+                // Recorded, not rejected: acquiring anything needs sight, but a
+                // travel designation the player already holds survives a rock
+                // drifting across it. Each slot applies its own policy below.
+                let in_sight = !scan.is_occluded(ship_entity, origin, position, entity);
                 let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
                 let is_combat_target = is_ship || is_torpedo.is_some();
-                Some((entity, position, is_hostile, is_combat_target))
+                Some((entity, position, is_hostile, is_combat_target, in_sight))
             },
         )
         .collect()
@@ -250,27 +253,36 @@ pub(super) fn update_contacts_and_locks(
             &[travel.0, combat.0],
         );
 
-        // Validity: a lock holds exactly while its target is collectible.
-        let still = |target: Option<Entity>| {
-            target.filter(|target| candidates.iter().any(|&(entity, ..)| entity == *target))
+        let collected = |target: Entity| {
+            candidates
+                .iter()
+                .find(|&&(entity, ..)| entity == target)
+                .copied()
         };
-        let travel_now = still(travel.0);
+
+        // Validity, and the one place the two slots differ. A TRAVEL
+        // designation is a place the player has already been told about, so it
+        // holds while the body is collectible at all - cover cannot take back
+        // what you were shown, and a rock drifting over a nav mark used to make
+        // [G] a silent no-op. A COMBAT lock is a live radio link and needs the
+        // line the whole time it is held.
+        let travel_now = travel.0.filter(|target| collected(*target).is_some());
         if travel.0 != travel_now {
             travel.0 = travel_now;
         }
-        let mut combat_now = still(combat.0);
+        let mut combat_now = combat
+            .0
+            .filter(|target| collected(*target).is_some_and(|(.., in_sight)| in_sight));
         // Name the branch that let go, rather than leaving the owner (and any
-        // future investigation) to infer it from the wreckage. A target that
-        // vanished from the candidate set is GONE (despawned, or no longer a
-        // lockable body at all), BEHIND COVER, or merely OUT OF RANGE, and the
-        // query with one more ray tells the three apart.
+        // future investigation) to infer it from the wreckage - and name it off
+        // the pass that made the decision, so the log cannot disagree with the
+        // gate. Collected but out of sight is COVER; dropped by the pass while
+        // still a lockable body is RANGE; gone from the query entirely is GONE.
         if let (Some(target), None) = (combat.0, combat_now) {
-            let reason = match q_candidates.get(target) {
-                Err(_) => CombatLockDrop::TargetGone,
-                Ok((_, at, ..)) if scan.is_occluded(origin, at.translation(), target) => {
-                    CombatLockDrop::Occluded
-                }
-                Ok(_) => CombatLockDrop::OutOfRange,
+            let reason = match collected(target) {
+                Some(_) => CombatLockDrop::Occluded,
+                None if q_candidates.get(target).is_ok() => CombatLockDrop::OutOfRange,
+                None => CombatLockDrop::TargetGone,
             };
             report_combat_lock_drop(&mut dropped, target, reason, decay.0);
         }
@@ -346,8 +358,8 @@ pub(super) fn update_contacts_and_locks(
             aim,
             candidates
                 .iter()
-                .filter(|&&(entity, _, is_hostile, is_combat)| {
-                    is_hostile && is_combat && !q_neutralized.contains(entity)
+                .filter(|&&(entity, _, is_hostile, is_combat, in_sight)| {
+                    is_hostile && is_combat && in_sight && !q_neutralized.contains(entity)
                 })
                 .map(|&(entity, position, ..)| (entity, position)),
         );

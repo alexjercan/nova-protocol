@@ -63,7 +63,7 @@ default mass and radar signature together.
 | `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` ALWAYS makes this rock a well. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space) |
 | `material` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock looks and how a round sounds landing on it - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
-| `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = the radius (big rocks lock far). Lock range is thirty times the signature, so a 200 m rock is lockable from 6 km |
+| `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = the radius (big rocks lock far). Lock range is thirty times the signature, so a 200 m rock is lockable from 6 km. Separately, and whatever the signature says, EVERY asteroid blocks radar: nothing behind it can be locked or detected while it is on the line - see [line of sight](#radar-line-of-sight) |
 | `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` derives one from the object's own `id`, so a rock differs from its neighbours but keeps its shape on every load. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
 
 ```ron
@@ -153,7 +153,7 @@ with a big radius is a rock the size of a planet, and it looks like one.
 | `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = the global rule |
 | `relief` | `Option` number | `None` | how far the highest ground stands above the mean radius, in meters. `None` = the type's own (2% of the radius on a hazy greenhouse, 6% on a volcanic world). Must be positive and smaller than the radius |
 | `sea_level` | `Option` number | `None` | where the surface flattens into sea, as a fraction 0-1 of the height range. `Some(0.0)` drains a sea; `None` = the type's own (only `IceWorld` and `Temperate` have one) |
-| `lock_signature` | `Option` number | `None` | radar signature override in meters; `None` = the mean radius |
+| `lock_signature` | `Option` number | `None` | radar signature override in meters; `None` = the mean radius. A planet also blocks radar over its whole sphere - the largest piece of cover you can place - see [line of sight](#radar-line-of-sight) |
 
 ```ron
 SpawnScenarioObject((
@@ -304,7 +304,7 @@ crashing, so a missing dependency is visible instead of fatal.
 |---|---|---|---|
 | `patrol` | list of 3-tuples | `[]` | waypoint loop in world METERS while nothing hostile is detected; empty = station-keep. Legs blocked by a solid body (an asteroid's geometric radius) are flown around automatically, so routes need not measure every rock. Nav beacons are marks to fly TO, never obstacles, so a route can be its own beacons |
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
-| `engage_range` | `Option` number | `None` | hostile-detection override in meters: a passive ship leaves its routine for a hostile inside this range instead of the default 4,000 m. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
+| `engage_range` | `Option` number | `None` | hostile-detection override in meters: a passive ship leaves its routine for a hostile inside this range instead of the default 4,000 m. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl. Range is the CEILING, not the guarantee: detection is line-of-sight gated, so a wide emplacement parked behind a planetoid never wakes - see [line of sight](#radar-line-of-sight) |
 | `pd_range` | `Option` number | `None` | point-defense override in meters: the guns hold fire until an inbound hostile torpedo is inside this range instead of the default 1,500 m. Short = staged close-in intercepts; past the turret's ~1,800 m reach it just wastes the opening shots |
 | `waypoint_slack` | `Option` number | `None` | patrol arrival slack override in meters on top of where the leg comes to rest (hull + arrival standoff); the default is 250 m. Small = the ship turns onto the next leg closer to each waypoint. Below ~20 m risks stalling outside the advance gate - author small, not zero |
 | `arrival_standoff` | `Option` number | `None` | the navigation margin in meters between this ship's own hull and a GOTO goal's surface, instead of the engine's default 500 m. `Some(0.0)` is legal and parks the hull's face on the mark. Pair a small margin with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `hull + margin + slack`) |
@@ -466,6 +466,29 @@ The shipped scenes all use the same three-point rig - an 11000 lux warm key
 (the only shadow caster), a 16000 lux cold rim from behind, and a 2600 lux cool
 fill from the shadow side. Copy the full light blocks from
 `assets/mods/example/example.content.ron`.
+
+## Radar line of sight
+
+Asteroids and planets are the two object kinds that block radar. While one sits
+on the line between a sensor and a body, that body is not there: it cannot be
+locked, it does not raise a threat arrow, and an AI ship does not detect it.
+Nothing else in the catalog occludes - beacons, crates, lights, trigger areas
+and other ships are all transparent to the sweep.
+
+This makes cover a thing you PLACE, and it has consequences a range number does
+not warn you about:
+
+- A picket with a wide `engage_range` still needs the line. Parked behind a
+  planetoid, it watches nothing.
+- A belt scattered across an approach lane will make a hostile engage, lose the
+  pick and go passive, then engage again as the geometry opens and closes. If a
+  ship looks indecisive, look at what is between it and its target.
+- A rock carves as it is shot, so cover a scene depends on can be shot away.
+- Range is a ceiling on top of sight, not an alternative to it. Both have to
+  pass.
+
+Only ACQUIRING is gated. A travel lock the player already holds survives a rock
+drifting across it, so a rock is not a way to cancel someone's autopilot.
 
 ## Traps for the unwary
 

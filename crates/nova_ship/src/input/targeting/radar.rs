@@ -211,7 +211,12 @@ fn radar_pick(
 ) -> Option<Entity> {
     let scored: Vec<(Entity, f32)> = candidates
         .iter()
-        .filter_map(|&(entity, position, ..)| {
+        .filter_map(|&(entity, position, _, _, in_sight)| {
+            // Acquisition needs the line: you cannot designate what the radar
+            // cannot see, which is the rule a held travel lock is exempt from.
+            if !in_sight {
+                return None;
+            }
             let to_target = position - origin;
             let distance = to_target.length();
             if distance < f32::EPSILON {
@@ -281,8 +286,8 @@ mod tests {
         let candidates = [
             // ~1.1 deg off axis, far vs ~8.5 deg off axis, near: the
             // nearer-to-center one wins even though it is further away.
-            (near_center, Vec3::new(2.0, 0.0, -100.0), false, true),
-            (off_center, Vec3::new(3.0, 0.0, -20.0), false, true),
+            (near_center, Vec3::new(2.0, 0.0, -100.0), false, true, true),
+            (off_center, Vec3::new(3.0, 0.0, -20.0), false, true, true),
         ];
         let picked = radar_pick(None, origin, aim, cone_cos(18.0), &candidates);
         assert_eq!(picked, Some(near_center));
@@ -295,6 +300,7 @@ mod tests {
             Vec3::new(50.0, 0.0, 0.0),
             false,
             true,
+            true,
         )];
         assert_eq!(
             radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &side),
@@ -306,6 +312,7 @@ mod tests {
             Vec3::new(0.0, 0.0, 100.0),
             false,
             true,
+            true,
         )];
         assert_eq!(
             radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &behind),
@@ -315,6 +322,44 @@ mod tests {
         assert_eq!(
             radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &[]),
             None
+        );
+    }
+
+    /// Acquisition needs the line. A body dead on the ray and well inside the
+    /// cone is still not offered while a rock stands in front of it - which is
+    /// the half of the occlusion rule a HELD travel designation is exempt from.
+    #[test]
+    fn radar_pick_never_offers_a_body_it_cannot_see() {
+        let hidden = Entity::from_raw_u32(1).unwrap();
+        let clear = Entity::from_raw_u32(2).unwrap();
+        let min_cos = cone_cos(18.0);
+        let behind_cover = [(hidden, Vec3::new(0.0, 0.0, -100.0), false, true, false)];
+        assert_eq!(
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &behind_cover),
+            None,
+            "a body on the ray but behind cover must not be offered"
+        );
+        // And it does not shadow the body that IS visible behind it.
+        let mixed = [
+            (hidden, Vec3::new(0.0, 0.0, -100.0), false, true, false),
+            (clear, Vec3::new(4.0, 0.0, -100.0), false, true, true),
+        ];
+        assert_eq!(
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &mixed),
+            Some(clear),
+            "the nearest VISIBLE body wins, not the nearest body"
+        );
+        // An incumbent that goes behind cover loses the pick outright.
+        assert_eq!(
+            radar_pick(
+                Some(hidden),
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                min_cos,
+                &behind_cover
+            ),
+            None,
+            "hysteresis must not hold a candidate the radar can no longer see"
         );
     }
 
@@ -331,8 +376,8 @@ mod tests {
         // a at ~8 deg off-ray, b at ~7.4 deg: nearer, but NOT decisively
         // ((1-cos7.4) ~ 0.0084 vs 0.75 * (1-cos8) ~ 0.0073).
         let marginal = [
-            (a, Vec3::new(14.0, 0.0, -100.0), false, true),
-            (b, Vec3::new(13.0, 0.0, -100.0), false, true),
+            (a, Vec3::new(14.0, 0.0, -100.0), false, true, true),
+            (b, Vec3::new(13.0, 0.0, -100.0), false, true, true),
         ];
         assert_eq!(
             radar_pick(Some(a), origin, aim, min_cos, &marginal),
@@ -341,8 +386,8 @@ mod tests {
         );
         // b dead on the ray: decisive.
         let decisive = [
-            (a, Vec3::new(14.0, 0.0, -100.0), false, true),
-            (b, Vec3::new(0.1, 0.0, -100.0), false, true),
+            (a, Vec3::new(14.0, 0.0, -100.0), false, true, true),
+            (b, Vec3::new(0.1, 0.0, -100.0), false, true, true),
         ];
         assert_eq!(
             radar_pick(Some(a), origin, aim, min_cos, &decisive),
@@ -352,7 +397,7 @@ mod tests {
         // No incumbent: plain nearest wins.
         assert_eq!(radar_pick(None, origin, aim, min_cos, &marginal), Some(b));
         // Cone empty: candidate drops (the abort).
-        let outside = [(a, Vec3::new(100.0, 0.0, 0.0), false, true)];
+        let outside = [(a, Vec3::new(100.0, 0.0, 0.0), false, true, true)];
         assert_eq!(radar_pick(Some(a), origin, aim, min_cos, &outside), None);
     }
 

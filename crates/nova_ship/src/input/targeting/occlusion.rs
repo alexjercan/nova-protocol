@@ -33,12 +33,24 @@ pub(crate) struct RadarScan<'w, 's> {
 }
 
 impl RadarScan<'_, '_> {
-    /// Whether a body that stops radar stands between `origin` and the target
-    /// `body` at `at`.
+    /// Whether a body that stops radar stands between `scanner` at `origin` and
+    /// the target `body` at `at`.
     ///
-    /// The target's OWN occluding collider never blocks it: a rock is lockable,
-    /// and the ray to its centre goes through its own hull to get there.
-    pub(crate) fn is_occluded(&self, origin: Vec3, at: Vec3, body: Entity) -> bool {
+    /// Neither end of the line blocks itself. For the target that is what makes
+    /// a rock lockable at all: the ray to its centre goes through its own hull
+    /// to get there. For the scanner it is not yet load-bearing - no ship hull
+    /// carries [`RadarOccluder`] today - but `origin` is INSIDE the scanner's
+    /// own hull, and a solid cast from inside a collider returns distance zero,
+    /// so the day a hull occludes (a picket screening its wingman) every ship
+    /// would blind itself instantly. The sibling line-of-FIRE gate excludes the
+    /// shooter for the same reason.
+    pub(crate) fn is_occluded(
+        &self,
+        scanner: Entity,
+        origin: Vec3,
+        at: Vec3,
+        body: Entity,
+    ) -> bool {
         let reach = at - origin;
         let Ok(direction) = Dir3::new(reach) else {
             // The scanner is standing on the body. Nothing can be between them.
@@ -53,20 +65,25 @@ impl RadarScan<'_, '_> {
                 // not looking out of a hollow shell.
                 true,
                 &SpatialQueryFilter::default(),
-                &|collider| self.stops_radar_for(collider, body),
+                &|collider| self.stops_radar_between(collider, scanner, body),
             )
             .is_some()
     }
 
-    /// Whether `collider` is opaque to radar looking for `body` - which its
-    /// own colliders are not.
+    /// Whether `collider` is opaque to radar on the line from `scanner` to
+    /// `body` - which the colliders of either end are not.
     ///
     /// An occluding collider avian cannot attribute to a body counts as
     /// cover: failing closed loses a lock, failing open locks through a
     /// world.
-    fn stops_radar_for(&self, collider: Entity, body: Entity) -> bool {
-        self.occluders.contains(collider)
-            && self.collider_of.get(collider).map(|of| of.body) != Ok(body)
+    fn stops_radar_between(&self, collider: Entity, scanner: Entity, body: Entity) -> bool {
+        if !self.occluders.contains(collider) {
+            return false;
+        }
+        let Ok(owner) = self.collider_of.get(collider).map(|of| of.body) else {
+            return true;
+        };
+        owner != body && owner != scanner
     }
 }
 
@@ -85,6 +102,7 @@ mod tests {
     /// One line-of-sight question and the answer the scan gave it.
     #[derive(Resource)]
     struct Sightline {
+        scanner: Entity,
         origin: Vec3,
         at: Vec3,
         body: Entity,
@@ -92,7 +110,7 @@ mod tests {
     }
 
     fn answer_the_sightline(scan: RadarScan, mut line: ResMut<Sightline>) {
-        line.blocked = scan.is_occluded(line.origin, line.at, line.body);
+        line.blocked = scan.is_occluded(line.scanner, line.origin, line.at, line.body);
     }
 
     /// A rock at `at`: the body root a lock would name, with the hull that
@@ -133,8 +151,20 @@ mod tests {
 
     /// Whether the scanner at the origin can see `body` at `at`, asked of a
     /// real collider tree.
+    ///
+    /// The scanner is a bare entity here: no test but
+    /// `a_scanner_that_stops_radar_still_sees_past_its_own_hull` needs it to
+    /// own a collider, and one that does would sit on every line.
     fn blocked(app: &mut App, at: Vec3, body: Entity) -> bool {
+        let scanner = app.world_mut().spawn(Name::new("scanner")).id();
+        blocked_from(app, scanner, at, body)
+    }
+
+    /// The same question asked on behalf of a specific scanner, for the tests
+    /// that care which entity is holding the radar.
+    fn blocked_from(app: &mut App, scanner: Entity, at: Vec3, body: Entity) -> bool {
         app.insert_resource(Sightline {
+            scanner,
             origin: Vec3::ZERO,
             at,
             body,
@@ -189,6 +219,31 @@ mod tests {
             !blocked(&mut app, Vec3::new(0.0, 0.0, -300.0), rock),
             "the ray to a rock's centre goes through the rock; its own hull \
              cannot be what hides it"
+        );
+    }
+
+    /// The scanner end of the exemption. No shipped hull stops radar today, so
+    /// this drives a rock as the scanner: it is the same shape - an occluding
+    /// collider tree whose body is holding the radar - and it is the shape a
+    /// screening picket would have.
+    #[test]
+    fn a_scanner_that_stops_radar_still_sees_past_its_own_hull() {
+        let mut app = unfinished_integrity_physics_app();
+        let contact = spawn_contact(&mut app, Vec3::new(0.0, 0.0, -400.0));
+        let scanner = spawn_rock(&mut app, Vec3::ZERO, 50.0);
+        app.finish();
+        settle(&mut app);
+        let at = Vec3::new(0.0, 0.0, -400.0);
+        assert!(
+            !blocked_from(&mut app, scanner, at, contact),
+            "the origin is inside the scanner's own hull, and a solid cast from \
+             inside a collider returns distance zero - so without the exemption \
+             a scanner that occludes blinds itself and locks nothing"
+        );
+        assert!(
+            blocked(&mut app, at, contact),
+            "and the exemption is the scanner's alone: the same rock on the \
+             same line hides the contact from anyone else"
         );
     }
 
@@ -255,6 +310,64 @@ mod tests {
             dropped,
             vec![(contact, CombatLockDrop::Occluded)],
             "and says it was cover, not range and not a death"
+        );
+    }
+
+    /// The two slots part company here, on purpose. A combat lock is a live
+    /// radio link and cover breaks it; a travel designation is a place the
+    /// player has already been shown, and cover cannot take that back. Before
+    /// this split a rock drifting over a nav mark made `[G]` a silent no-op.
+    #[test]
+    fn cover_drops_a_combat_lock_but_keeps_a_travel_designation() {
+        let mut app = unfinished_integrity_physics_app();
+        app.init_resource::<TargetingSettings>();
+        app.init_resource::<Messages<CombatLockDropped>>();
+        let mark = spawn_contact(&mut app, Vec3::new(0.0, 0.0, -400.0));
+        let player = app
+            .world_mut()
+            .spawn((
+                Name::new("player"),
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                targeting_state(),
+            ))
+            .id();
+        let rock = spawn_rock(&mut app, Vec3::new(600.0, 0.0, -200.0), 50.0);
+        app.finish();
+        settle(&mut app);
+
+        // Both slots take the same body over a clear sky.
+        app.world_mut()
+            .run_system_once(update_contacts_and_locks)
+            .unwrap();
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(mark);
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(mark);
+        app.world_mut()
+            .run_system_once(update_contacts_and_locks)
+            .unwrap();
+        assert_eq!(app.world().get::<TravelLock>(player).unwrap().0, Some(mark));
+        assert_eq!(app.world().get::<CombatLock>(player).unwrap().0, Some(mark));
+
+        // Same rock, same line, one pass: the slots answer differently.
+        app.world_mut()
+            .get_mut::<Transform>(rock)
+            .unwrap()
+            .translation = Vec3::new(0.0, 0.0, -200.0);
+        settle(&mut app);
+        app.world_mut()
+            .run_system_once(update_contacts_and_locks)
+            .unwrap();
+
+        assert_eq!(
+            app.world().get::<CombatLock>(player).unwrap().0,
+            None,
+            "the weapons lock is a radio link and cover breaks it"
+        );
+        assert_eq!(
+            app.world().get::<TravelLock>(player).unwrap().0,
+            Some(mark),
+            "the nav designation survives the same rock on the same line"
         );
     }
 
