@@ -1,8 +1,11 @@
-<div class="article-kicker">Nova Protocol / Setting book</div>
+<div class="article-kicker">Nova Protocol / World reference</div>
 
-# Preface
+# Encyclopedia
 
 <figure class="plate">
-<a href="images/industrial-saturn.svg"><img src="images/industrial-saturn.svg" width="1600" height="1000" alt="Green CRT concept art of industrial structures against Saturn and its rings."></a>
-<figcaption>Industrial Saturn. A visual proposal, not a map or an approved station design.</figcaption>
+<a href="images/encyclopedia/industrial-station-concept.svg"><img src="images/encyclopedia/industrial-station-concept.svg" width="1600" height="900" alt="Concept illustration of an orbital habitat and industrial structures against Saturn and its rings."></a>
+<figcaption><strong>Visual concept.</strong> No specific station, orbit, scale,
+or engineering design is established by this illustration.</figcaption>
 </figure>
+
+Read the [world overview](setting.md) or [browse by subject](contents.md).

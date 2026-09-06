@@ -1,8 +1,10 @@
-# Setting
+# World overview
 
-This chapter records the agreed setting. No protagonist, central conflict, or
-plot has been chosen. The institutions and technology described here establish
-fiction, not a list of implemented game systems.
+This overview records the agreed setting. The main narrative will be told
+through the web comic, with this encyclopedia providing optional context. No
+protagonist, central conflict, or plot has been chosen. The institutions and
+technology described here establish fiction, not a list of implemented game
+systems.
 
 **Saturn is being sold as a permanent home, but administered as a temporary
 worksite.**
@@ -18,10 +20,20 @@ born children, but not yet a locally born adult generation. Communities,
 businesses, and local loyalties have developed within living memory. People
 still remember the promises that brought them here.
 
-Settlement began with one ring station and branched outward. Roughly three to
-five substantial station towns now serve numerous smaller industrial
-installations and a few specialized moon outposts. The original station remains
-an important hub.
+Settlement began with [Keystone](places/keystone.md), a station built primarily
+as a construction and supply hub. It received equipment, supported construction
+crews, and supplied new installations before growing into a substantial home
+as expansion branched outward.
+
+Roughly three to five substantial station towns now serve numerous smaller
+industrial installations and a few specialized moon outposts. The original
+station remains an important hub.
+
+[Junction](places/junction.md), one of the other major towns, is a newer freight
+hub operated by [Farspan Logistics](organizations/farspan-logistics.md), a
+long-haul carrier. It competes with Keystone for traffic and local business.
+It is a competing port, not a compulsory gateway for every ship entering the
+network.
 
 This is a settlement network, not a fixed map. Stations and moons orbit Saturn;
 their exact orbits, separations, and transport routes remain open.
@@ -32,9 +44,10 @@ Colonization combines raw-material extraction, industrial investment, jobs,
 and the promise of a permanent home.
 
 Earth finances infrastructure and guarantees major contracts. Private companies
-operate much of the development and seek long-term control of facilities and
-markets. Saturn's economy is not yet expected to support itself. Public
-investment supports infrastructure and the imports needed for expansion.
+earn income from building and operating the settlement network while seeking
+long-term control of facilities and markets. Saturn's economy is not yet
+expected to support itself. Public investment supports infrastructure and the
+imports needed for expansion.
 
 The boom is still accelerating. Facilities open, workers arrive, and some
 people genuinely improve their lives. The project has real achievements.
@@ -109,18 +122,42 @@ malicious.
 
 ## Institutions and political power
 
+<figure class="plate">
+<a href="images/encyclopedia/corporate-relationships.svg"><img src="images/encyclopedia/corporate-relationships.svg" width="1280" height="1040" alt="Relationship diagram showing Earth funding and public authority, competing corporate operators, employment-linked residency, worker representation, and independent contractors."></a>
+<figcaption><strong>Reference diagram.</strong> Selected relationships from the
+agreed setting. Arrows describe funding and dependence, not a complete chain
+of command. The separation of state military power from company security is
+intentional. <a href="images/encyclopedia/corporate-relationships.svg">Open diagram</a>.</figcaption>
+</figure>
+
 ### Competing companies
 
 Several major corporate groups operate at Saturn. No single company controls
-the entire development project.
+the entire development project. No industry is assumed to belong exclusively
+to one company.
 
 They compete for contracts and influence while sharing an interest in
 preserving employer control. Cooperation is not assumed to be universal or
 permanent. Rivalry can create opportunities without making a competing company
 benevolent.
 
-Corporate identities, business interests, concessions, and particular alliances
-have not yet been defined.
+Keystone's founding operator, [EarthWorks Industrial](organizations/earthworks-industrial.md),
+commonly called EarthWorks, began with construction and supply. Its influence
+grew through infrastructure and operating contracts, not control of the entire
+settlement network.
+
+EarthWorks' main external dependency is long-haul transport. It handles local
+construction and supply but relies heavily on outside carriers for Earth-Saturn
+freight. Those carriers have leverage over its schedules and expansion plans,
+without any one carrier being assigned an absolute monopoly.
+
+[Farspan Logistics](organizations/farspan-logistics.md), commonly called Farspan,
+is one of EarthWorks' outside carriers and operates Junction.
+It is both a freight supplier to EarthWorks and a competitor to Keystone's local
+businesses and settlement operations.
+
+Other company names, precise holdings, concessions, and particular alliances
+remain open.
 
 ### State authority and security
 
@@ -222,15 +259,15 @@ The setting does not yet establish:
 
 - A calendar year or the chronology of exploration before permanent settlement.
 - Exact populations, station designs, or habitation gravity levels.
-- Named stations, selected moons, orbital layouts, or route distances.
+- Names of other stations, selected moons, orbital layouts, or route distances.
 - Particular resource deposits, production rates, or the long-term balance
   between local production, imports, exports, and public funding.
 - Drive technology, propellant chemistry, quantified ship budgets, or normal
   and exceptional travel schedules.
 - Communications technology and operating delays, or long-voyage accommodation
   and crew endurance arrangements.
-- Named companies, public bodies, unions, research institutions, or their
-  detailed relationships and jurisdictions.
+- Names of other companies, public bodies, unions, research institutions, or
+  their detailed relationships and jurisdictions.
 - Resident government, detailed labor and residency rules, or specific security
   powers.
 - A protagonist, central conflict, inciting incident, or plot.

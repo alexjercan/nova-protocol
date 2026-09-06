@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="900" viewBox="0 0 800 900" role="img" aria-labelledby="title description">
+  <title id="title">EarthWorks, Farspan, Keystone and Junction</title>
+  <desc id="description">Farspan Logistics supplies Earth-Saturn freight services to EarthWorks Industrial. EarthWorks is Keystone's founding operator. Farspan operates Junction. Keystone and Junction compete for traffic and local business. These are selected commercial relationships, not an orbital map or a chart of property ownership.</desc>
+  <defs>
+    <marker id="service-arrow" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M2 2L18 10L2 18" fill="none" stroke="#7fdda4" stroke-width="3"/>
+    </marker>
+    <marker id="role-arrow" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M2 2L18 10L2 18" fill="none" stroke="#70bd91" stroke-width="3"/>
+    </marker>
+    <marker id="rivalry-arrow" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L18 10L2 18" fill="none" stroke="#efb463" stroke-width="3"/>
+    </marker>
+  </defs>
+  <rect width="800" height="900" fill="#04100b"/>
+  <rect x="12" y="12" width="776" height="876" fill="none" stroke="#356d4e"/>
+
+  <g fill="none" stroke-width="3" stroke-linejoin="round">
+    <path d="M624 200V128H176V200" stroke="#7fdda4" marker-end="url(#service-arrow)"/>
+    <path d="M176 348V540" stroke="#70bd91" marker-end="url(#role-arrow)"/>
+    <path d="M624 348V540" stroke="#70bd91" marker-end="url(#role-arrow)"/>
+    <path d="M176 688V760H624V688" stroke="#efb463" marker-start="url(#rivalry-arrow)" marker-end="url(#rivalry-arrow)"/>
+  </g>
+
+  <g font-family="DejaVu Sans Mono, monospace" text-anchor="middle">
+    <text x="400" y="56" fill="#80b99a" font-size="24">FREIGHT AND STATION RIVALRY</text>
+    <text x="400" y="108" fill="#c0ffd4" font-size="28">Earth-Saturn freight</text>
+
+    <g fill="#092116" stroke="#70bd91" stroke-width="2">
+      <rect x="32" y="200" width="288" height="148" rx="3"/>
+      <rect x="480" y="200" width="288" height="148" rx="3"/>
+      <rect x="32" y="540" width="288" height="148" rx="3"/>
+      <rect x="480" y="540" width="288" height="148" rx="3"/>
+    </g>
+
+    <g fill="#c0ffd4" font-size="32">
+      <text x="176" y="258">EarthWorks</text>
+      <text x="176" y="302">Industrial</text>
+      <text x="624" y="258">Farspan</text>
+      <text x="624" y="302">Logistics</text>
+    </g>
+
+    <g fill="#aad4b9" font-size="26" text-anchor="end">
+      <text x="148" y="430">Founding</text>
+      <text x="148" y="467">operator</text>
+      <text x="596" y="453">Operates</text>
+    </g>
+
+    <g fill="#c0ffd4" font-size="36">
+      <text x="176" y="592">Keystone</text>
+      <text x="624" y="592">Junction</text>
+    </g>
+    <g fill="#aad4b9" font-size="26">
+      <text x="176" y="633">Construction</text>
+      <text x="176" y="665">and supply</text>
+      <text x="624" y="649">Freight hub</text>
+    </g>
+    <g fill="#efc58b" font-size="28">
+      <text x="400" y="808">Compete for traffic</text>
+      <text x="400" y="848">and local business</text>
+    </g>
+  </g>
+</svg>

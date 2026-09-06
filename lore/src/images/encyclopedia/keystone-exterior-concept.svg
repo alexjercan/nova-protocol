@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title description">
+  <title id="title">Keystone: exterior concept</title>
+  <desc id="description">An atmospheric, original station proposal. A warm-windowed residential ring surrounds the near end of a long industrial spine. Service blocks, handling arms, cargo and an open construction frame extend toward Saturn. Small utility craft surround the station. Geometry, scale, ship designs and orbital position are not established canon. The green tint is an encyclopedia presentation treatment, not a world color specification.</desc>
+  <defs>
+    <filter id="encyclopedia-green" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="800" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="1.4 -0.45 -0.15 0 0
+                                          -0.1 1 0.1 0 0
+                                          0.05 0.65 0.05 0 0
+                                          0 0 0 1 0"/>
+    </filter>
+    <radialGradient id="space" cx="80%" cy="16%" r="100%">
+      <stop stop-color="#283542"/>
+      <stop offset="0.52" stop-color="#101e2a"/>
+      <stop offset="1" stop-color="#040a11"/>
+    </radialGradient>
+    <radialGradient id="saturn" cx="78%" cy="18%" r="92%">
+      <stop stop-color="#c4b695"/>
+      <stop offset="0.42" stop-color="#8a8776"/>
+      <stop offset="0.76" stop-color="#404d54"/>
+      <stop offset="1" stop-color="#172633"/>
+    </radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0.8" y2="1">
+      <stop stop-color="#a0a797"/>
+      <stop offset="0.35" stop-color="#65757a"/>
+      <stop offset="0.68" stop-color="#34454f"/>
+      <stop offset="1" stop-color="#101b26"/>
+    </linearGradient>
+    <linearGradient id="ring-metal" x1="0.15" y1="1" x2="0.85" y2="0">
+      <stop stop-color="#26333d"/>
+      <stop offset="0.35" stop-color="#607077"/>
+      <stop offset="0.62" stop-color="#a3a78f"/>
+      <stop offset="1" stop-color="#d4c6a0"/>
+    </linearGradient>
+    <linearGradient id="footer" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#040a11" stop-opacity="0"/>
+      <stop offset="1" stop-color="#040a11" stop-opacity="0.95"/>
+    </linearGradient>
+    <clipPath id="planet-clip"><circle cx="1140" cy="122" r="312"/></clipPath>
+    <pattern id="panel-grid" width="22" height="18" patternUnits="userSpaceOnUse">
+      <rect width="22" height="18" fill="#182936"/>
+      <path d="M0 0H22V18" fill="none" stroke="#58696d" stroke-width="1"/>
+    </pattern>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="23" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+    <g id="service-block">
+      <path d="M0 0L19 -16H129L110 0Z" fill="#9ca18f" stroke="#354853"/>
+      <path d="M110 0L129 -16V33L110 50Z" fill="#263944" stroke="#172935"/>
+      <rect width="110" height="50" fill="url(#metal)" stroke="#111f2a" stroke-width="2"/>
+      <path d="M8 9H102M8 40H102M26 5V45M80 5V45" fill="none" stroke="#9ca390" stroke-opacity="0.5"/>
+      <path d="M9 14H20V32H9ZM88 14H101V32H88Z" fill="#243541"/>
+      <path d="M37 18H47M54 18H64M37 29H64" stroke="#d9bd7b" stroke-width="3"/>
+    </g>
+    <g id="cargo-block">
+      <path d="M0 0L12 -11H78L66 0Z" fill="#a88b60"/>
+      <path d="M66 0L78 -11V21L66 32Z" fill="#483c32"/>
+      <rect width="66" height="32" fill="#776955" stroke="#25313a" stroke-width="2"/>
+      <path d="M9 3V29M20 3V29M31 3V29M42 3V29M53 3V29" stroke="#b29e77" stroke-width="2"/>
+    </g>
+    <g id="panel-array">
+      <path d="M0 0H164V72H0Z" fill="url(#panel-grid)" stroke="#9a9f8b" stroke-width="3"/>
+      <path d="M0 36H164M82 0V72" fill="none" stroke="#c0b494" stroke-width="3"/>
+    </g>
+    <g id="utility-craft">
+      <path d="M0 0L24 -18H100L116 -3L96 17H20Z" fill="#768387" stroke="#16232c" stroke-width="2"/>
+      <path d="M20 0H110L96 17H20Z" fill="#344651"/>
+      <path d="M40 -12H73L87 0H30Z" fill="#c2bea4"/>
+      <path d="M42 -10H65L73 -3H35Z" fill="#263746"/>
+      <path d="M4 -7H23V5H4ZM9 10H28V22H9Z" fill="#1c2c39" stroke="#657b83"/>
+      <path d="M85 -6H102M86 4H99" stroke="#dfb364" stroke-width="3"/>
+      <circle cx="109" cy="-3" r="2" fill="#d9f4f1"/>
+    </g>
+  </defs>
+
+<g id="artwork" filter="url(#encyclopedia-green)">
+  <rect width="1280" height="800" fill="url(#space)"/>
+  <g fill="#c5d6dc">
+    <circle cx="61" cy="92" r="1.2"/><circle cx="192" cy="168" r="1"/><circle cx="334" cy="83" r="1.4"/>
+    <circle cx="447" cy="134" r="1"/><circle cx="638" cy="60" r="1.2"/><circle cx="772" cy="120" r="1"/>
+    <circle cx="48" cy="359" r="1"/><circle cx="148" cy="488" r="1.3"/><circle cx="219" cy="329" r="0.9"/>
+    <circle cx="701" cy="656" r="1"/><circle cx="813" cy="713" r="1.5"/><circle cx="1007" cy="651" r="1"/>
+    <circle cx="1181" cy="478" r="1.2"/><circle cx="1211" cy="689" r="1"/><circle cx="98" cy="645" r="0.9"/>
+    <circle cx="577" cy="717" r="1"/><circle cx="856" cy="482" r="1"/><circle cx="373" cy="689" r="0.8"/>
+  </g>
+  <g transform="rotate(-25 1140 122)" fill="none">
+    <ellipse cx="1140" cy="122" rx="482" ry="112" stroke="#abac96" stroke-width="27" opacity="0.28"/>
+    <ellipse cx="1140" cy="122" rx="430" ry="98" stroke="#e0ce9e" stroke-width="12" opacity="0.22"/>
+    <ellipse cx="1140" cy="122" rx="515" ry="121" stroke="#7f918e" stroke-width="5" opacity="0.4"/>
+  </g>
+  <circle cx="1140" cy="122" r="312" fill="url(#saturn)"/>
+  <g clip-path="url(#planet-clip)" transform="rotate(-25 1140 122)" fill="none">
+    <path d="M803 -10Q1140 66 1477 -10M803 48Q1140 124 1477 48M803 137Q1140 213 1477 137" stroke="#dbccac" stroke-width="22" opacity="0.12"/>
+    <path d="M803 87Q1140 163 1477 87M803 218Q1140 294 1477 218" stroke="#293c49" stroke-width="30" opacity="0.2"/>
+  </g>
+  <g transform="rotate(-25 1140 122)" fill="none">
+    <path d="M658 122A482 112 0 0 0 1622 122" stroke="#c1b99b" stroke-width="27" opacity="0.48"/>
+    <path d="M710 122A430 98 0 0 0 1570 122" stroke="#e0d2ad" stroke-width="12" opacity="0.38"/>
+    <path d="M625 122A515 121 0 0 0 1655 122" stroke="#8ea2a0" stroke-width="5" opacity="0.5"/>
+  </g>
+
+  <g transform="translate(420 410) rotate(-16)">
+    <ellipse cx="24" cy="0" rx="106" ry="222" fill="none" stroke="#101c26" stroke-width="58"/>
+    <ellipse cx="24" cy="0" rx="106" ry="222" fill="none" stroke="#48585e" stroke-width="46"/>
+    <g fill="none" stroke-linecap="square">
+      <path d="M0 -217V217M-104 0H104M-75 -155L75 155M-75 155L75 -155" stroke="#121f2b" stroke-width="16"/>
+      <path d="M0 -217V217M-104 0H104M-75 -155L75 155M-75 155L75 -155" stroke="#657478" stroke-width="5"/>
+    </g>
+
+    <path d="M455 -26V-96H548M515 25V112H598" fill="none" stroke="#283c48" stroke-width="14"/>
+    <path d="M455 -26V-96H548M515 25V112H598" fill="none" stroke="#96a08e" stroke-width="3"/>
+    <use href="#panel-array" transform="translate(485 -157) skewY(8)"/>
+    <use href="#panel-array" transform="translate(526 102) scale(0.8) skewY(8)"/>
+    <path d="M-120 -42H545L570 -22H-95Z" fill="#8e9a91" stroke="#324b55" stroke-width="2"/>
+    <path d="M-95 -22H570V26H-95Z" fill="url(#metal)" stroke="#162936" stroke-width="3"/>
+    <path d="M-120 -42L-95 -22V26L-120 6Z" fill="#182a35"/>
+    <path d="M-75 -11H550M-75 16H550" fill="none" stroke="#b9b18e" stroke-width="3"/>
+    <path d="M-65 -11L-30 16L5 -11L40 16L75 -11L110 16L145 -11L180 16L215 -11L250 16L285 -11L320 16L355 -11L390 16L425 -11L460 16L495 -11L530 16" fill="none" stroke="#223944" stroke-width="5"/>
+    <path d="M95 -37V-89H190M232 -37V-100H348M390 -38V-91H506" fill="none" stroke="#879387" stroke-width="10"/>
+    <use href="#service-block" transform="translate(72 -117)"/>
+    <use href="#service-block" transform="translate(223 -128)"/>
+    <use href="#service-block" transform="translate(374 -117)"/>
+    <use href="#service-block" transform="translate(492 -63) scale(0.72)"/>
+    <path d="M144 28L218 145M330 28L386 145M460 28L498 147" fill="none" stroke="#162834" stroke-width="18"/>
+    <path d="M144 28L218 145M330 28L386 145M460 28L498 147" fill="none" stroke="#859187" stroke-width="5"/>
+    <path d="M174 131H475L511 154H207Z" fill="#829084" stroke="#273e48" stroke-width="3"/>
+    <path d="M207 154H511V177H207Z" fill="#344954" stroke="#182c38" stroke-width="2"/>
+    <path d="M213 157L237 174L261 157L285 174L309 157L333 174L357 157L381 174L405 157L429 174L453 157L477 174L501 157" fill="none" stroke="#a99872" stroke-width="3"/>
+    <use href="#cargo-block" transform="translate(199 99)"/>
+    <use href="#cargo-block" transform="translate(283 99)"/>
+    <use href="#cargo-block" transform="translate(367 99)"/>
+    <use href="#cargo-block" transform="translate(253 58) scale(0.82)"/>
+    <path d="M375 -36V-202H510V-156" fill="none" stroke="#172a36" stroke-width="16"/>
+    <path d="M375 -36V-202H510V-156" fill="none" stroke="#bfa572" stroke-width="6"/>
+    <path d="M384 -126L428 -202M385 -168L406 -202" fill="none" stroke="#778476" stroke-width="4"/>
+    <path d="M501 -153L510 -143L519 -153" fill="none" stroke="#a9ada0" stroke-width="4"/>
+    <circle cx="375" cy="-201" r="10" fill="#8e7958" stroke="#d3b477" stroke-width="3"/>
+
+    <g fill="none" stroke-linejoin="round">
+      <path d="M255 177V289H470V177M281 177V267H496V177M255 289L281 267M470 289L496 267" stroke="#142733" stroke-width="15"/>
+      <path d="M255 177V289H470V177M281 177V267H496V177M255 289L281 267M470 289L496 267" stroke="#77867f" stroke-width="5"/>
+      <path d="M255 205L281 231L255 260M470 205L496 231L470 260M287 289L316 267L345 289L374 267L403 289L432 267" stroke="#9d9f86" stroke-width="3"/>
+    </g>
+    <path d="M299 253H434L453 238H318Z" fill="#687b7d" stroke="#b0afa0" stroke-width="2"/>
+    <path d="M318 238L322 213H402L434 253" fill="#334c59" stroke="#788f92" stroke-width="2"/>
+    <path d="M330 224H389" stroke="#c2b27d" stroke-width="4"/>
+
+    <ellipse cx="0" cy="0" rx="106" ry="222" fill="none" stroke="#182631" stroke-width="54"/>
+    <ellipse cx="0" cy="0" rx="106" ry="222" fill="none" stroke="url(#ring-metal)" stroke-width="45"/>
+    <ellipse cx="-3" cy="0" rx="106" ry="222" fill="none" stroke="#192c38" stroke-width="17"/>
+    <ellipse cx="-3" cy="0" rx="106" ry="222" fill="none" stroke="#d9b971" stroke-width="5" stroke-dasharray="5 10"/>
+    <ellipse cx="0" cy="0" rx="122" ry="238" fill="none" stroke="#d1c8a3" stroke-width="2" opacity="0.65"/>
+    <ellipse cx="0" cy="0" rx="87" ry="204" fill="none" stroke="#81938d" stroke-width="3"/>
+    <ellipse cx="-101" cy="-5" rx="21" ry="43" fill="#1e333f" stroke="#84958e" stroke-width="5"/>
+    <ellipse cx="-106" cy="-5" rx="11" ry="25" fill="#0d1e2b" stroke="#b9b58c" stroke-width="2"/>
+    <path d="M-124 -26H-175M-124 15H-162" fill="none" stroke="#647e84" stroke-width="4"/>
+    <path d="M-175 -38V-13M-162 5V25" stroke="#b8c6bc" stroke-width="3"/>
+    <g fill="#d5e7d9">
+      <circle cx="555" cy="-25" r="3"/><circle cx="510" cy="154" r="3"/><circle cx="255" cy="286" r="3"/>
+      <circle cx="-1" cy="-247" r="3"/><circle cx="-1" cy="247" r="3"/>
+    </g>
+  </g>
+  <use href="#utility-craft" transform="translate(1048 588) rotate(-18)"/>
+  <use href="#utility-craft" transform="translate(170 289) rotate(12) scale(0.43)" opacity="0.75"/>
+  <rect width="1280" height="800" filter="url(#grain)" opacity="0.035"/>
+  <rect y="655" width="1280" height="145" fill="url(#footer)"/>
+  <path d="M40 714H160" stroke="#c3a46e" stroke-width="3"/>
+  <g font-family="DejaVu Sans, sans-serif">
+    <text x="40" y="755" fill="#e4dfcc" font-size="30" letter-spacing="5">KEYSTONE</text>
+    <text x="40" y="780" fill="#95acb5" font-size="15" letter-spacing="2">EXTERIOR CONCEPT / NOT AN ESTABLISHED DESIGN</text>
+  </g>
+</g>
+</svg>
