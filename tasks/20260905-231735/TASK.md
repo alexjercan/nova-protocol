@@ -1,6 +1,6 @@
 # Nova Review of the unpushed code range: WFC, scenario vocabulary, occlusion
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 71
 - TAGS: v0.13.0, review
 
@@ -3087,3 +3087,17 @@ and a save named "Sandbox" taking over the editor's own stage range - closed in
 Group G. Both unmeasured perf notes closed in Group K, in counts rather than
 milliseconds. Grammar selection, the one item that was a feature rather than a
 defect, was built in Group L. What is left is the MINOR list.
+
+## Closed
+
+CLOSED 2026-09-06 by owner decision, with the MINOR list outstanding.
+
+What closing means here: the review ran, the curated set is empty, and the fix
+pass is finished. Six commits carry it - `841db07e`, `001200ec`, `75514473`,
+`0bcfbcb5`, `59e5c764`, `98916b4b` - and none is pushed.
+
+What it does NOT mean: the ~85 MINOR findings in the batch blocks above are not
+fixed and are not scheduled. They stay in this file because it is where they
+were recorded and where they are legible; this is a ledger, not a queue. Anyone
+picking one up should re-verify it against HEAD first - the fix groups moved
+several of the files they name.
