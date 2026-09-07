@@ -112,6 +112,24 @@ A mount with nothing to do does not stand in the wind. Out of combat the barrel 
 The deploy is not free. A stowed mount neither tracks nor fires until it is fully up - under a second, but a real window. Point defense assigns the mount well outside its own kill envelope, so an inbound torpedo meets a gun that is already firing; what the delay actually costs you is the ambush you spring with cold weapons and no lock, where the first trigger pull raises the guns instead of firing them.
 
 <figure class="figure">
+    <!-- Capture: assets/loops/loop-section-turret-stow.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/loop-section-turret-stow.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A mount close up, running the whole cycle: the
+            lids part and the gun rises on weapons hot, then
+            the barrel folds up, the assembly sinks and the
+            lids shut behind it.</span
+        >
+    </div>
+</figure>
+
+<figure class="figure">
     <!-- Capture: assets/wiki-section-turret-twin.png (producer: screenshot_section_weapons) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"

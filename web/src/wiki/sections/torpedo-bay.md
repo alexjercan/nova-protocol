@@ -64,8 +64,8 @@ So the Serpent is what you fire at something that shoots back, and the Lance at 
             >assets/wiki-combat-torpedo.png</span
         >
         <span class="figure__placeholder-note"
-            >A salvo in flight: launch burst at the bay,
-            drive plumes curving onto the lock.</span
+            >A torpedo in flight, seen broadside: drive lit,
+            diving on the corvette it is committed to.</span
         >
     </div>
 </figure>

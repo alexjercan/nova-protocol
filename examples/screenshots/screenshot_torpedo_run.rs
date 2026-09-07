@@ -74,19 +74,58 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 /// Every capture is its OWN step held until the PNG is on disk: Bevy services
 /// one primary-window capture per frame, so the rule is structural here rather
 /// than a guard inside a shared step.
-/// Where the lens stands off the ordnance pair, meters.
+/// How far the lens stands off the ordnance pair, meters.
 ///
-/// From BELOW, looking up the run. The rock field is a horizontal annulus
-/// 460 m thick, so any level camera in the hollow frames its subject against
-/// the far wall and the shot is rock soup; tipping the lens up puts open sky
-/// behind the target and the torpedo dives into frame.
-///
-/// The length is what the subject is: 170 m, close enough that a torpedo at
-/// its fuze point is a torpedo rather than the four-pixel spark an earlier
-/// 244 m stand-off left it. Both ordnance frames use it, so they are a
-/// before/after of the same shot.
+/// The frame has to hold the torpedo AND the hull it is diving on, which are
+/// [`RUN_IN_CAPTURE_RANGE`] apart. The lens spans 1.47 times its distance at
+/// 16:9, so this is that gap, plus the raider's own length, laid across the
+/// frame's diagonal with margin at both ends.
 #[cfg(feature = "debug")]
-const ORDNANCE_OFFSET: Meters3 = Meters3::new(111.0, -97.0, 83.0);
+const ORDNANCE_STANDOFF: Meters = Meters(185.0);
+
+/// Where between the two the run-in frame is centred, from the raider.
+///
+/// Short of the midpoint on purpose. The pair lies across the frame's
+/// diagonal, so a lens centred between them puts both in the corners and the
+/// empty middle carries the picture; biasing back toward the hull brings the
+/// ship being shot at to the centre and leaves the torpedo diving in from the
+/// top.
+#[cfg(feature = "debug")]
+const RUN_IN_BIAS: f32 = 0.45;
+
+/// How far short of the raider the run-in frame is shot.
+///
+/// A proximity fuze goes off [`hollow::TORPEDO_FUZE_RANGE`] out, so this is
+/// the last moment there is still a torpedo to photograph, plus enough margin
+/// that the write lands before the fuze does.
+#[cfg(feature = "debug")]
+const RUN_IN_CAPTURE_RANGE: Meters = Meters(hollow::TORPEDO_FUZE_RANGE.get() + 30.0);
+
+/// Where the lens stands, relative to what it is looking at.
+///
+/// BROADSIDE to the run, and from BELOW. Both halves are the picture:
+///
+/// - Broadside because the boat, the torpedo and the raider are on one line,
+///   and a lens anywhere along it puts the round behind the hull it is aimed
+///   at. That is what the old fixed offset did - the run-in still was a
+///   corvette filling the frame with its attacker eclipsed dead centre behind
+///   it. Standing off the line puts the gap between them ACROSS the frame,
+///   which is the only framing in which a run-in reads as a run-in.
+/// - From below because the rock field is a horizontal annulus 460 m thick, so
+///   any level camera in the hollow frames its subject against the far wall
+///   and the shot is rock soup. Tipping the lens up puts open sky behind.
+///
+/// Derived from the set rather than authored, so it stays broadside if the
+/// boat or the raider is ever moved. Both ordnance frames use it, so they are
+/// a before/after of the same shot.
+#[cfg(feature = "debug")]
+fn ordnance_offset() -> Meters3 {
+    let run_in = (hollow::LANCE_POSITION - hollow::RAIDER_POSITION)
+        .get()
+        .normalize();
+    let broadside = run_in.cross(Vec3::Y).normalize();
+    Meters3((broadside * 0.85 - Vec3::Y * 0.45).normalize() * ORDNANCE_STANDOFF.get())
+}
 
 #[cfg(feature = "debug")]
 fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -99,15 +138,18 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .step("settle the ordnance hollow")
         .until(frames(12))
         .add()
-        // One camera for both ordnance frames, so they are a before/after of the
-        // same shot. It is framed on the midpoint between the raider and where
-        // the fuze will go, NOT on the raider: a proximity fuze detonates 150 m
-        // short of its target, which at a close camera throws the blast a
-        // third of the way across the frame from the ship it is hitting.
+        // Framed on the midpoint between the raider and where the fuze will go,
+        // NOT on the raider: a proximity fuze detonates 150 m short of its
+        // target, which at a close camera throws the blast a third of the way
+        // across the frame from the ship it is hitting. The HUD comes down for
+        // both ordnance frames - the camera has left the player's ship, so its
+        // fps bar and its two contact chevrons are chrome over a picture of
+        // someone else's fight.
         .step("frame the torpedo run")
-        .on_enter(|world| {
+        .on_enter(|world: &mut World| {
+            hollow::hud_cinematic(world);
             let subject = hollow::ordnance_subject(world);
-            hollow::pose(world, subject + ORDNANCE_OFFSET, subject)
+            hollow::pose(world, subject + ordnance_offset(), subject)
         })
         .until(elapsed(0.4))
         .add()
@@ -129,10 +171,21 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         // target intact.
         .step("track the torpedoes in")
         .each(hollow::assert_salvo_still_live)
-        .until(hollow::torpedo_within(
-            hollow::TORPEDO_FUZE_RANGE + Meters(30.0),
-        ))
+        .until(hollow::torpedo_within(RUN_IN_CAPTURE_RANGE))
         .deadline(12.0)
+        .add()
+        // Re-framed on the pair as it actually stands: the raider has been
+        // drifting since the run was framed and the torpedo is most of a
+        // kilometre from where it started, so the midpoint the first framing
+        // guessed at is not the midpoint the shot needs.
+        .step("re-frame on the pair")
+        .on_enter(|world: &mut World| {
+            let raider = hollow::raider_position(world);
+            let subject = hollow::lead_torpedo_position(world)
+                .map_or(raider, |torpedo| raider + (torpedo - raider) * RUN_IN_BIAS);
+            hollow::pose(world, subject + ordnance_offset(), subject);
+        })
+        .until(frames(2))
         .add()
         .step("capture the torpedo run")
         .on_enter(move |world| shoot(world, "wiki-combat-torpedo.png"))
@@ -154,7 +207,7 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
             // was framed, and a rock in the wall behind it is one drift away
             // from being in front of it.
             let raider = hollow::raider_position(world);
-            hollow::pose(world, raider + ORDNANCE_OFFSET, raider)
+            hollow::pose(world, raider + ordnance_offset(), raider)
         })
         .until(elapsed(0.5))
         .add()

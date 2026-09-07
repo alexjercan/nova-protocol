@@ -531,6 +531,10 @@ name = "loop_spine_cut"
 path = "examples/screenshots/loop_spine_cut.rs"
 
 [[example]]
+name = "loop_turret_stow"
+path = "examples/screenshots/loop_turret_stow.rs"
+
+[[example]]
 name = "loop_goto_arrival"
 path = "examples/screenshots/loop_goto_arrival.rs"
 

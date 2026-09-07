@@ -30,6 +30,10 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write each PNG and the loop
 //!   (staged under `NOVA_CAPTURE_DIR`).
 //!
+//! `NOVA_RAILGUN_AFTERMATH` holds the recording longer past the hit; see
+//! [`AFTERMATH_ENV`]. The site's loop is captured with it set, its stills
+//! without.
+//!
 //! Capture (windowed, real GPU):
 //! ```text
 //! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
@@ -118,14 +122,48 @@ const SIGHT_CHARGE: f32 = 0.80;
 /// Seconds of WORLD time the recording holds after the slug is away, and so
 /// the moment every aftermath still is frozen at.
 ///
-/// The whole set turns on this one number: the loop closes here, the clock
-/// stops in the same breath, and `wiki-combat-railgun.png` and
+/// The stills turn on this one number: the loop closes here, the clock stops
+/// in the same breath, and `wiki-combat-railgun.png` and
 /// `wiki-section-railgun-corridor.png` are both taken of the world as it
 /// stands. Chosen off the FRAME rather than off the physics - at 0.13 s the
-/// hull still reads as a hull with a corridor bored through it; by 0.45 s it
-/// is a cloud of cells and nothing in the picture says what opened it.
+/// hull still reads as a hull with a corridor bored through it; by half a
+/// second it is a cloud of cells and nothing in the picture says what opened
+/// it.
 #[cfg(feature = "debug")]
 const CORRIDOR_WINDOW_SECS: f32 = 0.13;
+
+/// Environment override for [`CORRIDOR_WINDOW_SECS`], in seconds of world time.
+///
+/// The stills want the moment the corridor opens; the LOOP wants to watch the
+/// hull come apart afterwards, and one run cannot end at both. It does not
+/// have to: the stills and the loops are captured by two separate runs of this
+/// producer (`capture-web-shots.sh` stages into `target/shots`, then
+/// `capture-web-media.sh` stages into `target/loop-shots`), and each packager
+/// keeps only what it came for. So the shots pass takes the default and freezes
+/// on a hull with a hole bored down it, and the loops row sets this to hold
+/// several times longer - the same walk, recorded further into the wreck.
+///
+/// A value that is not a positive number of seconds is an authoring error and
+/// panics rather than falling back to the default: a typo in the capture row
+/// would otherwise ship a three-second loop and say nothing.
+#[cfg(feature = "debug")]
+const AFTERMATH_ENV: &str = "NOVA_RAILGUN_AFTERMATH";
+
+/// How long the recording holds after the slug is away, for THIS run.
+#[cfg(feature = "debug")]
+fn aftermath_window() -> f32 {
+    let Ok(raw) = std::env::var(AFTERMATH_ENV) else {
+        return CORRIDOR_WINDOW_SECS;
+    };
+    let seconds: f32 = raw
+        .parse()
+        .unwrap_or_else(|error| panic!("{AFTERMATH_ENV}={raw:?} is not a number: {error}"));
+    assert!(
+        seconds > 0.0,
+        "{AFTERMATH_ENV}={seconds} must be a positive number of seconds"
+    );
+    seconds
+}
 
 /// Charge fraction the loop's recording opens at.
 ///
@@ -703,19 +741,18 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // A tenth of a second of world, which at a twentieth of real time is
         // about two and a half seconds of footage: the muzzle flash, the slug
         // crossing the gap, the entry blowing out and the corridor opening
-        // down the hull behind it. Longer than this and the recording runs on
-        // into a debris cloud - and, because the stills are the frame this
-        // beat ends on, so do they.
+        // down the hull behind it. The stills are the frame this beat ends on,
+        // so the shots pass stops here; the loops pass sets `AFTERMATH_ENV`
+        // and rides the same walk on into the debris cloud.
         .step("watch the corridor open")
-        .until(elapsed(CORRIDOR_WINDOW_SECS))
+        .until(elapsed(aftermath_window()))
         .add()
         // The clock stops in the SAME breath as the loop closes, not after the
-        // encode. Encoding 290 frames of software render is five seconds of
-        // wall clock, and a world left running through it is a third of a
-        // second of drift the recording never shows: the loop ends on a hull
-        // with a corridor bored down it and the stills used to be taken of the
-        // cloud that hull had become. Now every still is the frame the loop
-        // ended on.
+        // encode. Encoding a few hundred frames of software render is seconds
+        // of wall clock, and a world left running through it is a third of a
+        // second of drift the recording never shows: the loop ends on one
+        // wreck and the stills used to be taken of a later one. Now every
+        // still is the frame the loop ended on.
         .step("close the railgun loop")
         .on_enter(|world: &mut World| {
             loop_end(world, RAILGUN_LOOP);

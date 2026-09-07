@@ -86,6 +86,7 @@ LOOPS=(
     "system_torpedo_launch|loop-section-torpedo-bay||"
     "system_torpedo_launch|news-0110-torpedo-types||"
     "stress_point_defense|loop-section-turret||NOVA_STRESS_PD_MOUNTS=4 NOVA_STRESS_PD_BAYS=4 NOVA_STRESS_PD_VIEW=lanes"
+    "loop_turret_stow|loop-section-turret-stow||"
     "loop_cockpit|landing-cockpit||"
     "loop_command_shell|command-shell-open||"
     "screenshot_flip_burn|loop-section-controller||"
@@ -97,7 +98,7 @@ LOOPS=(
     "loop_vfx_range|vfx-range||"
     "loop_vfx_range|vfx-cold-launch||"
     "loop_damage_sequence|landing-damage-sequence||"
-    "screenshot_railgun|loop-section-railgun||"
+    "screenshot_railgun|loop-section-railgun||NOVA_RAILGUN_AFTERMATH=0.5"
 )
 
 # A second name for footage already captured above, when a second producer

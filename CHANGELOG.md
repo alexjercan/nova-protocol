@@ -309,6 +309,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Every living still and loop is re-shot from a clean install: section-built
   ships throughout, new railgun figures, and the menu, the arrival and the
   damage sequence re-framed onto their subjects.
+- The section pages show the mechanism close up: a PDC deploying and stowing,
+  a railgun loop that runs on into the wreck, and a torpedo run-in shot
+  broadside so the round and its target both read.
 
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,

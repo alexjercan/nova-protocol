@@ -266,3 +266,83 @@ Not done: `loop-section-turret` still shoots the battery from the `lanes`
 measurement pose, so the mount is small in its own section figure. Giving it a
 documentation view means a fourth `View` variant, and the three that exist are
 measurement knobs.
+
+## Follow-up round two, 2026-09-07
+
+Three more notes on the shipped media, plus one figure that did not earn its
+place.
+
+### The hero duel stands 2 km apart
+
+`STRIKE_STAGE_RANGE` is 2 km now, not 500 m. The reason is the warhead: a
+torpedo's blast sphere is 300 m, so a pair inside knife range trade a salvo
+and both die in the same frame. At 2 km the salvo is six seconds of flight and
+lands on the ship it was aimed at.
+
+Raising the band alone did nothing - `fight_within` is a CEILING, so a 2.1 km
+ceiling was already true on the first frame of `close the range` and the next
+beat cancelled the orders it had just installed. The gate is now
+`fight_staged(range, tolerance)`, a BAND, and the pair actually closes to it.
+
+No lens holds both hulls at that separation: framing a 2 km spread means
+standing 1.4 km off, where a 110 m hull is a twenty-fifth of the frame width.
+So the capture keeps the over-the-shoulder `Cinema` pose and the rival reads as
+a marked contact down the threat axis, which is what it looks like in the game.
+
+### The railgun loop and its stills want different moments
+
+The loop closed 0.13 s after the hit, because that is the last frame at which
+`wiki-combat-railgun.png` still reads as a hull with a corridor bored through
+it. Half a second later it is a cloud of cells - a good LOOP and a useless
+still.
+
+They do not have to be one moment. The stills and the loops are two separate
+runs of `screenshot_railgun` (`capture-web-shots.sh` stages into
+`target/shots`, `capture-web-media.sh` into `target/loop-shots`), and each
+packager keeps only what it came for. `NOVA_RAILGUN_AFTERMATH` is the window,
+the loops row sets it to 0.5, and the stills pass takes the default. The loop
+is 10.7 s of the hull coming apart; the stills are untouched.
+
+### The turret page shows the mount, not the battery
+
+New producer, `loop_turret_stow` -> `loop-section-turret-stow.webm`: one PDC on
+a three-cell bench, alone in the dark, 26 m from the lens. The walk presses
+`combat_stance` and releases it; everything after that is the production stow
+machine. The set is empty on purpose - a contact would combat-lock the ship,
+and a locked ship keeps its weapons hot whatever the stance says, so the mount
+would never fold.
+
+The four quiet seconds a stow waits out (`STOW_SETTLE_SECONDS`) are a design
+cost, not a picture, so the recording runs them at 4x and drops back to real
+speed the frame the fold starts. Both animations play at the speed they were
+authored at.
+
+This also answers the note left open above: `loop-section-turret` still shoots
+the battery from the `lanes` measurement pose, but the mount now has a close
+figure of its own on the same page, so the wide shot is no longer the only one.
+
+### `wiki-combat-torpedo.png` was a picture of nothing
+
+The caption promised a salvo in flight; the frame was a corvette filling the
+lens with its attacker eclipsed dead centre BEHIND it, under the fps bar.
+
+- The camera stood on the run-in line. The boat, the torpedo and the raider are
+  collinear, so a lens anywhere along that line puts the round behind the hull
+  it is aimed at. The offset is derived from the set now - broadside to the
+  run, and from below, because the rock field is a horizontal annulus and a
+  level lens frames rock soup.
+- The framing is re-taken on the pair as it actually stands, off
+  `hollow::lead_torpedo_position`: the raider drifts and the torpedo crosses
+  most of a kilometre between the first framing and the shot.
+- `hollow::hud_cinematic` runs before both ordnance frames. The camera has left
+  the player's ship by then, so its fps bar and its two contact chevrons were
+  chrome over someone else's fight.
+
+### Verified
+
+- `cargo check --examples --features debug` and `cargo fmt --all`: clean.
+- Contact sheets read for `landing-wfc-2v2`, `loop-section-railgun` and
+  `loop-section-turret-stow`; both torpedo stills read at full resolution.
+- 36 loops packaged, all under the 3 MB budget. `gen-web-screenshots.py`: 59
+  copied, 4 pending (unchanged).
+- `cd web && npm run ci`: green.

@@ -823,6 +823,26 @@ pub fn assert_salvo_still_live(world: &mut World, _: f32, _: u32) {
     );
 }
 
+/// Where the leading torpedo is, if one is in flight.
+///
+/// The framing half of [`torpedo_range`]: a still of a run-in has to hold the
+/// round AND the hull it is diving on, and the round is the half that moves.
+#[cfg(feature = "debug")]
+pub fn lead_torpedo_position(world: &World) -> Option<Meters3> {
+    let raider = world
+        .try_query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>()?
+        .iter(world)
+        .find(|(_, id)| id.0 == RAIDER_ID)
+        .map(|(entity, _)| entity)?;
+    let target = world.get::<GlobalTransform>(raider)?.translation();
+    world
+        .try_query_filtered::<&GlobalTransform, With<TorpedoProjectileMarker>>()?
+        .iter(world)
+        .map(|transform| transform.translation())
+        .min_by(|a, b| f32::total_cmp(&a.distance(target), &b.distance(target)))
+        .map(Meters3::from_engine)
+}
+
 /// How far the closest live torpedo is from the raider, if there is one of each.
 #[cfg(feature = "debug")]
 pub fn torpedo_range(world: &World) -> Option<Meters> {

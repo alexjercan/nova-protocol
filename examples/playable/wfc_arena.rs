@@ -119,8 +119,8 @@
 //! happens a loud failure.
 //!
 //! A CAPTURE then STAGES the strike ([`Strike`]): both sides put their bores on
-//! each other and hold, the camera cuts in to knife range behind one hull, and
-//! every tube and every lance is cued together. What is scripted is the cue and
+//! each other and hold, the camera cuts in over one hull's shoulder, and every
+//! tube and every lance is cued together. What is scripted is the cue and
 //! the framing - the ordnance, the guidance, the point defense, the charge and
 //! the damage are all the shipped ones. Without it the recording is what the AI
 //! happens to be doing, and the AI settles its orbit at ~1 km: two specks
@@ -1816,8 +1816,8 @@ enum Vantage {
     /// `1`..`4`: over the shoulder of one roster slot, looking across it at
     /// the living enemies' mean position.
     Follow(usize),
-    /// The staged strike's framing: one roster slot at knife range, with the
-    /// fight it is trading with beyond it. Bound to no key - a hand-run
+    /// The staged strike's framing: one roster slot close in, with the fight
+    /// it is trading with down the threat axis beyond it. Bound to no key - a hand-run
     /// composes with `Q`, `E` and the number row - because it is the pose a
     /// capture is shot from and nothing else, and the whole staging is behind
     /// the debug feature the capture harness lives in.
@@ -2414,35 +2414,51 @@ const STRIKE_HIT_RANGE: Meters = Meters(300.0);
 /// combatant is sent to, measured from the subject along the bearing it is
 /// already on.
 ///
-/// 500 m, against the ~1 km the AI's own orbit settles at and the 3 km the
-/// hulls had already coasted to by the time the scoreboard called the fight
-/// real. It is chosen off the ORDNANCE, not off the lens: a Serpent cruises at
-/// 320 m/s, so this is under two seconds of torpedo flight - short enough that
-/// the whole run-in, the point defense answering it and the impact all fit
-/// inside one recording, and long enough that a 300 m warhead never goes off on
-/// the ship that launched it.
+/// 2 km, and the number is the WARHEAD's. A Serpent's pressure sphere is
+/// [`STRIKE_HIT_RANGE`], 300 m across, and an earlier cut staged the pair at
+/// 500 m and let them close: by the end of the recording the two hulls were
+/// inside one sphere, so a single warhead killed both and the loop read as a
+/// mutual annihilation rather than as a duel. At 2 km a hit belongs to the ship
+/// it lands on, with six blast radii to spare, and the gap stays that wide for
+/// the whole recording - [`STRIKE_CLOSING_SPEED`] walks in a tenth of it.
 ///
-/// It is also what SEPARATES the two hulls on film, and that is the second
-/// number it is tuned against. A 110 m gunship staged at 450 m is four hull
-/// lengths from its rival and the auto-frame fits the pair into one shot: they
-/// read as parked nose to nose. Four and a half is a duel across a gap. It is the OPENING
-/// range and not the whole recording's - [`STRIKE_CLOSING_SPEED`] walks it in
-/// from here, which is what lets the gap be wide enough to read and the salvo
-/// still arrive.
+/// The lens cannot hold both hulls at this range and nothing is gained by
+/// trying: it spans 1.47 times its distance, so framing a 2 km spread means
+/// standing 1.4 km off, where a 110 m gunship is a twenty-fifth of the frame
+/// width. The capture stands over the subject's shoulder instead
+/// ([`CINEMA_BACK`]), which puts the rival down the threat axis as a lit
+/// contact in the middle of frame and every round that crosses between them on
+/// a line into the shot.
+///
+/// What it costs is arrival time: 2 km is about six seconds of torpedo flight,
+/// so a salvo cued at the top of the recording lands during
+/// [`STRIKE_AFTERMATH_SECS`] rather than between the beats.
 #[cfg(feature = "debug")]
-const STRIKE_STAGE_RANGE: f32 = 50.0;
+const STRIKE_STAGE_RANGE: f32 = 200.0;
 /// The range the recording is staged at, engine world units: the walk parks the
 /// merge the first moment the two sides are this close.
 ///
-/// 560 m is a compromise between two failures, and POINT DEFENSE decides it.
-/// Wider and the salvo never lands even against a closing range: parked and
-/// held at 550 m the two hulls shot down all thirty-six warheads of a two-wave
-/// strike, and the recording is six seconds of tracers. Tighter and the pair fills one frame and the gunnery is lethal
-/// enough that a hull loses its controller before the torpedoes it fired
-/// arrive. Here the crossing is about a second and three quarters - inside the
-/// lance's charge, and short enough that the mounts only get part of the salvo.
+/// A hair over [`STRIKE_STAGE_RANGE`], because that is the range the shot
+/// wants and this beat only has to stop the walk from flying past it. The AI
+/// coasts to about 3 km on its own, so the pair is usually already outside
+/// this and `close_the_range` brings it in.
+///
+/// It used to be the tuned number, back when the staging was knife range and
+/// POINT DEFENSE decided everything: parked and held at 550 m the two hulls
+/// shot down all thirty-six warheads of a two-wave strike. That is still true
+/// and is no longer a failure - at 2 km the mounts get most of a salvo, and
+/// what the recording is of is the exchange, not the kill.
 #[cfg(feature = "debug")]
-const STRIKE_CLOSE_BAND: f32 = 56.0;
+const STRIKE_CLOSE_BAND: f32 = 210.0;
+/// How near [`STRIKE_STAGE_RANGE`] the staged move has to park before the
+/// recording opens, engine world units.
+///
+/// 200 m on 2 km. The move order parks on its own arrival standoff and two
+/// hulls drifting at [`STRIKE_CLOSING_SPEED`] are never exactly anywhere, so
+/// the test is a band; it is tight enough that "staged" still means the range
+/// the framing and the warhead were both chosen against.
+#[cfg(feature = "debug")]
+const STRIKE_STAGE_TOLERANCE: f32 = 20.0;
 /// The arrival standoff a staged move flies to, engine world units. The ship's
 /// own 500 m is coarser than the whole staging distance.
 #[cfg(feature = "debug")]
@@ -2570,8 +2586,8 @@ fn nearest_hostile(
         .map(|&(entity, _, position, _)| (entity, position))
 }
 
-/// Bring the fight back to knife range: the subject stops where it is, and
-/// everything hostile to it flies in to [`STRIKE_STAGE_RANGE`].
+/// Bring the fight back to the staged range: the subject stops where it is,
+/// and everything hostile to it flies in to [`STRIKE_STAGE_RANGE`].
 ///
 /// The beat exists because a duel that has PROVED itself is a duel that has
 /// already happened. The lines merge at a closing speed neither side brakes
@@ -2632,6 +2648,46 @@ fn fight_within(range: f32) -> std::sync::Arc<nova_protocol::nova_debug::harness
                 .iter()
                 .any(|&(b, rival)| rival != team && a.distance(b) <= range)
         })
+    })
+}
+
+/// True once the nearest hostile pair stands at `range`, give or take
+/// `tolerance` - engine world units.
+///
+/// A BAND and not a ceiling, which [`fight_within`] is. The staged range is
+/// wider than the range the AI picks for itself, so the walk's job here is to
+/// push the sides APART and the "are we there yet" test has to be able to say
+/// no while they are too close. Gating that on a ceiling is how an earlier cut
+/// staged nothing at all: the pair was already inside it when the beat opened,
+/// the beat passed on its first frame, and the next one cancelled the orders it
+/// had just installed.
+#[cfg(feature = "debug")]
+fn fight_staged(
+    range: f32,
+    tolerance: f32,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        let Some(mut query) =
+            world.try_query_filtered::<(&Transform, &Allegiance), With<SpaceshipRootMarker>>()
+        else {
+            return false;
+        };
+        let ships: Vec<(Vec3, usize)> = query
+            .iter(world)
+            .filter_map(|(transform, allegiance)| {
+                Some((transform.translation, team_of(allegiance)?))
+            })
+            .collect();
+        ships
+            .iter()
+            .flat_map(|&(a, team)| {
+                ships
+                    .iter()
+                    .filter(move |&&(_, rival)| rival != team)
+                    .map(move |&(b, _)| a.distance(b))
+            })
+            .min_by(f32::total_cmp)
+            .is_some_and(|nearest| (nearest - range).abs() <= tolerance)
     })
 }
 
@@ -2708,13 +2764,12 @@ fn stage_the_strike(world: &mut World) {
 /// the stillness is the first thing an eye picks up, before any of the weapons.
 ///
 /// Aimed rather than merely capped, because the direction is the second thing
-/// the recording needs: the salvo crosses a range that is shrinking under it,
-/// which is what lets the strike be staged wide enough to read as two ships
-/// and still land. And SLOW, because the first cut of this closed at 50 m/s
-/// and spent 350 m of a 500 m gap - the pair ended the loop nose to nose,
-/// which is the framing the closure was added to fix. Thirty a second is
-/// 200 m across the whole recording: motion the eye reads, and a gap left at
-/// the end of it.
+/// the recording needs: the salvo crosses a range that is shrinking under it.
+/// And SLOW, because the first cut of this closed at 50 m/s and spent 350 m of
+/// the gap it was given - the pair ended the loop nose to nose, which is the
+/// framing the closure was added to fix. Thirty a second is under 300 m across
+/// the whole recording, a seventh of [`STRIKE_STAGE_RANGE`]: motion the eye
+/// reads, and a gap that is still a gap at the end of it.
 #[cfg(feature = "debug")]
 const STRIKE_CLOSING_SPEED: f32 = 1.5;
 
@@ -2868,35 +2923,41 @@ const STRIKE_ALIGN_SECS: f32 = 4.0;
 /// The LEAD the lance gets over the tubes, seconds - not its whole charge.
 ///
 /// Cueing the lance first is what stops the salvo burying it: the charge is
-/// 1.5 s and the staged range is about two seconds of torpedo flight, so a
-/// second of head start puts the slug downrange while the warheads are still
-/// crossing. Waiting out the full charge instead costs the recording a second
-/// of two parked hulls trading tracers, which is a second neither of them has:
-/// at knife range and stopped, a duel is over in about three.
+/// 1.5 s, so a second of head start puts the slug downrange before the tubes
+/// clear. The slug crosses [`STRIKE_STAGE_RANGE`] in a fraction of the six
+/// seconds the warheads behind it need, which is the order the two weapons are
+/// meant to read in.
 #[cfg(feature = "debug")]
 const STRIKE_CHARGE_SECS: f32 = 0.9;
 /// Seconds between the two salvos, and the reason there are two.
 ///
 /// One alpha strike does not get through. Six point-defence mounts a side
-/// engage an inbound each and reload faster than a torpedo crosses 550 m, so a
-/// single salvo is shot down to the last warhead - thirty-six of them, on the
-/// run that established this. What beats a battery is SATURATION, and the bay
-/// supplies it: this is the tube cooldown, so the second cue is the next
-/// launch the magazine allows and not a second trigger invented for the
-/// camera. The mounts are still busy with the first wave when the second
-/// arrives.
+/// engage an inbound each and reload faster than a torpedo crosses the range
+/// between them, so a single salvo is shot down to the last warhead - thirty-
+/// six of them, on the run that established this. What beats a battery is
+/// SATURATION, and the bay supplies it: this is the tube cooldown, so the
+/// second cue is the next launch the magazine allows and not a second trigger
+/// invented for the camera. The mounts are still busy with the first wave when
+/// the second arrives.
 #[cfg(feature = "debug")]
 const STRIKE_SALVO_GAP_SECS: f32 = 1.4;
 /// Seconds the recording waits on the second salvo before it settles for what
-/// it has. The tubes take about a second to clear and the staged range is
-/// under two seconds of torpedo flight, so this is that with room for a
-/// warhead the point defense eats on the way in.
+/// it has. The tubes take about a second to clear; the rest is the wave
+/// leaving the ship and crossing into the shot, which at
+/// [`STRIKE_STAGE_RANGE`] is most of what this beat is for - the warheads are
+/// still in flight when it ends, and [`STRIKE_AFTERMATH_SECS`] holds for the
+/// arrival.
 #[cfg(feature = "debug")]
 const STRIKE_WINDOW_SECS: f32 = 4.0;
 /// Seconds held after the beats land, so the last fireball blooms and fades
 /// inside the loop instead of being cut off by it.
+///
+/// It carries the crossing as well now. At [`STRIKE_STAGE_RANGE`] a salvo cued
+/// at the top of the recording needs about six seconds to arrive, which is
+/// after the salvo beats have run - so this is what the point defense answering
+/// it is recorded in.
 #[cfg(feature = "debug")]
-const STRIKE_AFTERMATH_SECS: f32 = 2.0;
+const STRIKE_AFTERMATH_SECS: f32 = 3.5;
 
 /// Web media emitted by the arena's one capture walk.
 #[cfg(feature = "debug")]
@@ -2936,8 +2997,8 @@ fn arena_script(
     // fired AND both dealt damage) is not true until that merge is already
     // under way. A capture that waited for it staged its strike onto a wreck
     // that no longer fires. So the recording walk advances on the APPROACH, at
-    // the first moment the two sides are inside knife range, and stages there
-    // with both hulls whole. The smoke and probe walks keep the scoreboard:
+    // the first moment the two sides are inside the staging band, and stages
+    // there with both hulls whole. The smoke and probe walks keep the scoreboard:
     // proving the fight is the only thing they are for.
     script = if capturing() {
         script
@@ -2977,7 +3038,7 @@ fn arena_script(
         .step("close the range")
         .on_enter(close_the_range)
         .until(or(
-            fight_within(STRIKE_CLOSE_BAND),
+            fight_staged(STRIKE_STAGE_RANGE, STRIKE_STAGE_TOLERANCE),
             elapsed(STRIKE_CLOSE_SECS),
         ))
         .deadline(STRIKE_CLOSE_SECS * 2.0)
