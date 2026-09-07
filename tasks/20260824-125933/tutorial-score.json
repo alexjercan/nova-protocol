@@ -1,0 +1,399 @@
+{
+  "agent_report": "Completed every tutorial objective and waited through the final qualification dialogue. Both range drones were neutralized; Trainer Seven survived with the nose PDC intact and ended safely holding orbit. Outcome: Victory — Trainer Seven qualified. Welcome to the Fleet.",
+  "agent_status": "done",
+  "ammo_spent": 3106,
+  "damage_taken": 170.9025999999999,
+  "end": {
+    "autopilot": {
+      "action": "Orbit",
+      "phase": "Hold",
+      "target": "range_planetoid"
+    },
+    "autopilot_completed": null,
+    "beacons": [],
+    "bodies": [
+      {
+        "id": "deep_rock_0",
+        "radius_m": 122.5,
+        "surface_m": 8133.2
+      },
+      {
+        "id": "deep_rock_1",
+        "radius_m": 161.6,
+        "surface_m": 5418.5
+      },
+      {
+        "id": "deep_rock_10",
+        "radius_m": 82.6,
+        "surface_m": 4741.0
+      },
+      {
+        "id": "deep_rock_11",
+        "radius_m": 81.1,
+        "surface_m": 8414.7
+      },
+      {
+        "id": "deep_rock_12",
+        "radius_m": 126.0,
+        "surface_m": 7798.2
+      },
+      {
+        "id": "deep_rock_13",
+        "radius_m": 74.5,
+        "surface_m": 6546.2
+      },
+      {
+        "id": "deep_rock_14",
+        "radius_m": 119.8,
+        "surface_m": 5720.2
+      },
+      {
+        "id": "deep_rock_15",
+        "radius_m": 171.1,
+        "surface_m": 6592.8
+      },
+      {
+        "id": "deep_rock_16",
+        "radius_m": 182.8,
+        "surface_m": 9772.4
+      },
+      {
+        "id": "deep_rock_17",
+        "radius_m": 118.2,
+        "surface_m": 8461.1
+      },
+      {
+        "id": "deep_rock_18",
+        "radius_m": 108.0,
+        "surface_m": 7582.2
+      },
+      {
+        "id": "deep_rock_19",
+        "radius_m": 151.9,
+        "surface_m": 7204.3
+      },
+      {
+        "id": "deep_rock_2",
+        "radius_m": 72.5,
+        "surface_m": 7992.0
+      },
+      {
+        "id": "deep_rock_20",
+        "radius_m": 129.3,
+        "surface_m": 6988.9
+      },
+      {
+        "id": "deep_rock_21",
+        "radius_m": 95.0,
+        "surface_m": 4866.9
+      },
+      {
+        "id": "deep_rock_22",
+        "radius_m": 156.0,
+        "surface_m": 9378.7
+      },
+      {
+        "id": "deep_rock_23",
+        "radius_m": 95.0,
+        "surface_m": 7650.0
+      },
+      {
+        "id": "deep_rock_24",
+        "radius_m": 109.9,
+        "surface_m": 4249.5
+      },
+      {
+        "id": "deep_rock_25",
+        "radius_m": 149.6,
+        "surface_m": 4952.4
+      },
+      {
+        "id": "deep_rock_26",
+        "radius_m": 84.5,
+        "surface_m": 8891.9
+      },
+      {
+        "id": "deep_rock_27",
+        "radius_m": 184.1,
+        "surface_m": 4700.3
+      },
+      {
+        "id": "deep_rock_28",
+        "radius_m": 96.0,
+        "surface_m": 6207.1
+      },
+      {
+        "id": "deep_rock_29",
+        "radius_m": 86.2,
+        "surface_m": 7111.5
+      },
+      {
+        "id": "deep_rock_3",
+        "radius_m": 170.1,
+        "surface_m": 6395.2
+      },
+      {
+        "id": "deep_rock_30",
+        "radius_m": 189.1,
+        "surface_m": 4956.8
+      },
+      {
+        "id": "deep_rock_31",
+        "radius_m": 86.1,
+        "surface_m": 6969.2
+      },
+      {
+        "id": "deep_rock_32",
+        "radius_m": 148.6,
+        "surface_m": 5884.5
+      },
+      {
+        "id": "deep_rock_33",
+        "radius_m": 103.1,
+        "surface_m": 8975.8
+      },
+      {
+        "id": "deep_rock_4",
+        "radius_m": 154.7,
+        "surface_m": 7123.0
+      },
+      {
+        "id": "deep_rock_5",
+        "radius_m": 99.9,
+        "surface_m": 4856.7
+      },
+      {
+        "id": "deep_rock_6",
+        "radius_m": 97.7,
+        "surface_m": 9175.7
+      },
+      {
+        "id": "deep_rock_7",
+        "radius_m": 166.5,
+        "surface_m": 7516.2
+      },
+      {
+        "id": "deep_rock_8",
+        "radius_m": 77.5,
+        "surface_m": 9549.5
+      },
+      {
+        "id": "deep_rock_9",
+        "radius_m": 125.5,
+        "surface_m": 7993.1
+      },
+      {
+        "id": "range_planetoid",
+        "radius_m": 633.0,
+        "surface_m": 343.8
+      },
+      {
+        "id": "shallow_rock_0",
+        "radius_m": 103.4,
+        "surface_m": 6768.3
+      },
+      {
+        "id": "shallow_rock_1",
+        "radius_m": 52.7,
+        "surface_m": 8750.2
+      },
+      {
+        "id": "shallow_rock_10",
+        "radius_m": 142.4,
+        "surface_m": 8391.2
+      },
+      {
+        "id": "shallow_rock_11",
+        "radius_m": 46.9,
+        "surface_m": 10046.3
+      },
+      {
+        "id": "shallow_rock_12",
+        "radius_m": 117.6,
+        "surface_m": 9561.6
+      },
+      {
+        "id": "shallow_rock_13",
+        "radius_m": 109.2,
+        "surface_m": 9520.1
+      },
+      {
+        "id": "shallow_rock_14",
+        "radius_m": 49.3,
+        "surface_m": 9108.8
+      },
+      {
+        "id": "shallow_rock_15",
+        "radius_m": 85.3,
+        "surface_m": 9318.1
+      },
+      {
+        "id": "shallow_rock_16",
+        "radius_m": 144.0,
+        "surface_m": 6975.8
+      },
+      {
+        "id": "shallow_rock_17",
+        "radius_m": 87.6,
+        "surface_m": 7872.8
+      },
+      {
+        "id": "shallow_rock_18",
+        "radius_m": 113.7,
+        "surface_m": 9303.0
+      },
+      {
+        "id": "shallow_rock_19",
+        "radius_m": 137.0,
+        "surface_m": 9452.3
+      },
+      {
+        "id": "shallow_rock_2",
+        "radius_m": 80.7,
+        "surface_m": 8344.0
+      },
+      {
+        "id": "shallow_rock_20",
+        "radius_m": 141.9,
+        "surface_m": 9634.7
+      },
+      {
+        "id": "shallow_rock_21",
+        "radius_m": 117.2,
+        "surface_m": 7356.2
+      },
+      {
+        "id": "shallow_rock_22",
+        "radius_m": 106.7,
+        "surface_m": 6811.7
+      },
+      {
+        "id": "shallow_rock_23",
+        "radius_m": 130.9,
+        "surface_m": 7588.7
+      },
+      {
+        "id": "shallow_rock_24",
+        "radius_m": 100.1,
+        "surface_m": 9444.4
+      },
+      {
+        "id": "shallow_rock_25",
+        "radius_m": 65.8,
+        "surface_m": 8049.3
+      },
+      {
+        "id": "shallow_rock_26",
+        "radius_m": 146.4,
+        "surface_m": 8261.1
+      },
+      {
+        "id": "shallow_rock_27",
+        "radius_m": 58.3,
+        "surface_m": 8405.3
+      },
+      {
+        "id": "shallow_rock_28",
+        "radius_m": 115.1,
+        "surface_m": 7728.8
+      },
+      {
+        "id": "shallow_rock_29",
+        "radius_m": 137.5,
+        "surface_m": 8166.8
+      },
+      {
+        "id": "shallow_rock_3",
+        "radius_m": 101.4,
+        "surface_m": 7427.2
+      },
+      {
+        "id": "shallow_rock_4",
+        "radius_m": 90.3,
+        "surface_m": 8701.7
+      },
+      {
+        "id": "shallow_rock_5",
+        "radius_m": 78.0,
+        "surface_m": 7412.9
+      },
+      {
+        "id": "shallow_rock_6",
+        "radius_m": 88.2,
+        "surface_m": 8319.7
+      },
+      {
+        "id": "shallow_rock_7",
+        "radius_m": 63.2,
+        "surface_m": 8299.8
+      },
+      {
+        "id": "shallow_rock_8",
+        "radius_m": 141.7,
+        "surface_m": 8317.7
+      },
+      {
+        "id": "shallow_rock_9",
+        "radius_m": 138.7,
+        "surface_m": 9781.9
+      }
+    ],
+    "contacts": [
+      {
+        "defeated": true,
+        "distance_m": 1271.1,
+        "id": "drone_1"
+      },
+      {
+        "defeated": true,
+        "distance_m": 15759.2,
+        "id": "drone_2"
+      }
+    ],
+    "gravity_well": "range_planetoid",
+    "speed_mps": 98.4,
+    "travel_lock": null
+  },
+  "ended_by": "outcome",
+  "game_seconds": 400.68,
+  "gestures": 160,
+  "kills": 2,
+  "llm": {
+    "cache_read": 16505984,
+    "cache_write": 0,
+    "cost": 14.846677000000005,
+    "input": 1179477,
+    "messages": 133,
+    "output": 23210
+  },
+  "objectives_completed": [
+    "burn",
+    "goto",
+    "line",
+    "live",
+    "lock",
+    "nav_lock",
+    "orbit",
+    "rcs",
+    "return",
+    "stop"
+  ],
+  "objectives_seen": [
+    "burn",
+    "goto",
+    "line",
+    "live",
+    "lock",
+    "nav_lock",
+    "orbit",
+    "rcs",
+    "return",
+    "stop"
+  ],
+  "outcome": "victory",
+  "refusals": 2,
+  "sections_lost": 0,
+  "ticks": 24041,
+  "turns": 131,
+  "wall_seconds": 1636.8
+}

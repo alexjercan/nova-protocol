@@ -1,6 +1,6 @@
 # An agent plays the game, and a benchmark scores it
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.13.0,autopilot,tooling
 
@@ -139,3 +139,114 @@ test name them whatever features a run enables. The env-var page's
 names only `benchmark/`'s three coding-benchmark variables.
 
 `cargo test -p nova-protocol --test env_contract`: 9 passed.
+
+## The tutorial round (2026-09-07)
+
+The first agent victory on a SHIPPED scenario, not a bench fixture. pi,
+gpt-5.6-sol, thinking medium, `tutorial`, seed 7, `--ticks 50000
+--deadline 2000 --record`. The owner's goal text carried three human
+hints: sit through the cutscene, do not GOTO the beacon off orbit at the
+wrong moment, and do not stand still in front of the drones.
+
+`bench-runs/` is not tracked, so the proof lives here: `tutorial-score.json`
+is the score, `tutorial-play.md` is the whole play - narration, thinking
+headlines, gestures, sampled ticks and comms, in order.
+
+| Metric | Value |
+| --- | --- |
+| Outcome | victory, ended by outcome |
+| Objectives | 10 of 10 seen, 10 completed |
+| Ticks | 24041 (400.7 s game, 1636.8 s wall) |
+| Turns / gestures | 131 / 160 |
+| Damage taken | 170.9 of 4240 hull, 0 sections lost |
+| Ammo / kills | 3106 rounds, 2 drones |
+| Refusals | 2 |
+| LLM | 133 messages, 1179477 in (16505984 cached), 23210 out, $14.85 |
+| End | Orbit `range_planetoid` (Hold), 344 m over the surface |
+
+How it played:
+
+- It sat out the cutscene for 1000 ticks in four acts and never pressed
+  `scenario.cinematic_skip`, which was live in `inputs.live` from tick 1.
+  The human's "there is NO SKIP" beat the affordance in front of it.
+- Every leg was burn-then-coast, never a held throttle: it read the speed
+  after each burn and solved the coast in seconds.
+- It tapped `autopilot_stop` one act before the stop card existed, read the
+  no-op, and re-tapped once the card was up. The recovery was right; its
+  explanation of the no-op was not.
+- The RCS lesson landed as designed. It slid, measured 47 m/s of drift,
+  noticed Stop had left the hull reversed, yawed 82 degrees to put BRAVO on
+  the beam, and slid again.
+- The beacon leg is the owner's pro tip, obeyed. It held orbit until
+  CHARLIE was about 43 degrees off the planet's centre, reasoning about the
+  planet's apparent disc, and pressed G only with the planet 73 degrees off
+  the departure line and clearance rising.
+- The gunnery line was a loop: turn, raise, dwell, fire, cease on break-up.
+  It released the trigger the tick a hulk came apart, to save the magazine.
+- It never stood still in front of the drones. It turned the approach into
+  a 135 m/s crossing pass and kept that drift for the whole fight, trading
+  PDC arc for evasion and re-turning to bring the gun back to bear. Total
+  damage was 171 points and the nose PDC was never touched.
+- It aborted its own autopilot twice when the planetoid got close: a GOTO
+  intercept dropped into Orbit at 401 m of clearance, and a manual pursuit
+  dropped into Orbit at 600 m. It used Orbit as a collision brake at
+  161 m/s.
+
+What the run found:
+
+- A RAISED combat stance takes the aim away from the hull: `camera_rotate`
+  drives manual turret aim (`SpaceshipCameraControlMode::Turret`) and the
+  hull does not follow. The agent lost two acts to this, guessed the
+  release of the trigger had eaten the gesture, then worked it out live:
+  "confirming that weapons-down was required for hull steering". The manual
+  says this about an autopilot holding the helm and not about the stance.
+- `tap targeting.radar_clear` in the same act as `release
+  targeting.radar_hold` never actuates - one key read two ways. Both
+  refusals in the run are exactly that pair, and every standalone tap took.
+  The observation reports a refusal as `state: None` with no reason, so the
+  agent guessed a cause twice and was wrong twice (it blamed the Orbit
+  helm, then the lowered weapons).
+- `objectives_seen` is a sample, not the roster. The tutorial posts 11
+  cards; the run scored 10 of 10, because `fire` was posted AND completed
+  inside one 300-tick act and no observation ever held it.
+- A content defect, not the bench's: a fast kill on Target 1 draws both
+  `SCRAP_LINE` and `SCRAP_EARLY_LINE` in the same beat gap. The early
+  branch is gated on `in_beat(BEAT_LOCK)` while the scheduled `BEAT_FIRE`
+  lesson is still in flight, so a cadet who shoots inside `INSTRUCTION_GAP`
+  is congratulated twice, once for initiative it did not take.
+- The price of a play is the sweep's real question: $14.85 and 27 minutes
+  of wall clock for 6.7 minutes of game. Phase 5 has to budget for that.
+
+Notes from the cadet, kept because a first victory only happens once:
+
+- "The controls are still locked by the cinematic, so I'll continue waiting
+  without attempting a skip." The skip key was live the whole time.
+- "BRAVO is 150.6 m away - just outside the trigger. I'll coast a few more
+  ticks." It then spent an act on five ticks.
+- "Target 1 is gone and the lock dropped; I'll release the trigger
+  immediately to conserve the remaining magazine." Trigger discipline, on
+  a range that hands out free ammunition.
+- It reported every hit it did not take - "health and PDC are untouched",
+  "we remain untouched", "no damage has landed" - and then took 171 points
+  of damage without one word about it. After the hit it only ever checked
+  that the PDC was still there, which is what the owner told it to protect.
+- The thinking summariser turned its own tick counts into ship equipment:
+  "Locking radar90 component", "Identifying missing Fire300 target",
+  "Assessing drone696 ammo and target movement", "Assessing Fire360
+  destruction and relocation", "Preparing release coast240", "Adjusting
+  radar stance to 90 degrees". There is no radar90, no Fire300, and drone
+  696 is a hull-point count.
+- On losing a race with gravity: "our inherited downward orbital velocity
+  has reduced planet clearance to 600 m faster than thrust can cancel it."
+  That is the tutorial's own lesson, in its words.
+- Range Control got the last line right: "Qualification logged, cadet.
+  Welcome to the Fleet."
+
+## Closed (2026-09-07)
+
+The ideation closes on this victory. Phases 1, 2, 3 and 6 shipped in
+v0.12.0; the agent then played a shipped scenario end to end and won. Phase
+4 (the ratatui TUI) and phase 5 (`bench run`, the sweep and the HTML
+report) were never built and are not promised by this task. The findings
+above are unfixed: two manual gaps, one tutorial comms defect, and the
+`objectives_seen` sampling note.
