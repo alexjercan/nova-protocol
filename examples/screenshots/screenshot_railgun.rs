@@ -1,7 +1,7 @@
 //! screenshot_railgun: the spinal lance, from the bore to the hole it leaves -
 //! `wiki-section-railgun.png`, `wiki-section-railgun-sight.png`,
 //! `wiki-combat-railgun.png`, `wiki-section-railgun-corridor.png`, the siege
-//! lance's catalog card, and the `loop-section-railgun` loop.
+//! lance's catalog card, and the `loop-section-railgun` loops.
 //!
 //! One player gunboat sits at the origin with a lance on its spine, bore down
 //! -Z. A base Patrol Gunship stands downrange on that line, bow-on, so the shot
@@ -20,6 +20,11 @@
 //! is a handful of frames and the flight is none. Slowing gameplay time is what
 //! turns each beat into a framing that can be posed, settled and shot.
 //!
+//! The RECORDING is the exception. `NOVA_RAILGUN_LIVE=1` hands the clock back
+//! at the moment the loop opens and records the shot at real speed under its
+//! own name - see [`LIVE_ENV`]. The stills and the slowed loop are unaffected;
+//! they come off runs that leave it unset.
+//!
 //! The siege lance is a separate bench off the line, unfired. Nothing in the
 //! base fleet but the stolen warship carries one, and its card is a product
 //! photo rather than an event.
@@ -31,8 +36,9 @@
 //!   (staged under `NOVA_CAPTURE_DIR`).
 //!
 //! `NOVA_RAILGUN_AFTERMATH` holds the recording longer past the hit; see
-//! [`AFTERMATH_ENV`]. The site's loop is captured with it set, its stills
-//! without.
+//! [`AFTERMATH_ENV`]. Both site loops are captured with it set, the stills
+//! without. It counts WORLD seconds, so the same number is ten seconds of the
+//! slowed cut and its own length of the live one.
 //!
 //! Capture (windowed, real GPU):
 //! ```text
@@ -88,9 +94,12 @@ const TARGET_Z: Meters = Meters(-220.0);
 const BENCH_ID: &str = "siege_bench";
 const BENCH_AT: Meters3 = Meters3::new(200.0, -70.0, 90.0);
 
-/// The loop this walk records around the shot.
+/// The loops this walk records around the shot: the slowed cut, and the same
+/// shot at real speed. One run records ONE of them - see [`LIVE_ENV`].
 #[cfg(feature = "debug")]
 const RAILGUN_LOOP: &str = "loop-section-railgun";
+#[cfg(feature = "debug")]
+const RAILGUN_LIVE_LOOP: &str = "loop-section-railgun-live";
 
 /// How fast gameplay time runs for the walk.
 ///
@@ -172,6 +181,80 @@ fn aftermath_window() -> f32 {
 /// inside the window rather than one frame before it.
 #[cfg(feature = "debug")]
 const LOOP_OPEN_CHARGE: f32 = 0.97;
+
+/// Environment switch for the REAL-SPEED cut of the shot.
+///
+/// The slowed loop is a diagram: it exists so the muzzle flash, the slug and
+/// the corridor can be told apart at all. It is a poor answer to "how fast is
+/// this", because it makes a weapon that guts a gunship between two blinks look
+/// like something you could watch. So the same walk records a second loop with
+/// the clock left alone, and the page carries both: what the shot IS, and what
+/// the shot LOOKS like.
+///
+/// One run, one loop. The recording is the world running, so a run cannot hold
+/// the same shot at two speeds, and the two cuts are two rows of the capture
+/// table.
+///
+/// A value that is not `0` or `1` is an authoring error and panics rather than
+/// falling back: a typo in the capture row would otherwise re-record the slowed
+/// cut under the live cut's name and say nothing.
+#[cfg(feature = "debug")]
+const LIVE_ENV: &str = "NOVA_RAILGUN_LIVE";
+
+/// Whether THIS run records the real-speed cut.
+#[cfg(feature = "debug")]
+fn live_cut() -> bool {
+    let Ok(raw) = std::env::var(LIVE_ENV) else {
+        return false;
+    };
+    match raw.as_str() {
+        "0" => false,
+        "1" => true,
+        other => panic!("{LIVE_ENV}={other:?} must be 0 or 1"),
+    }
+}
+
+/// The loop THIS run records.
+#[cfg(feature = "debug")]
+fn railgun_loop() -> &'static str {
+    if live_cut() {
+        RAILGUN_LIVE_LOOP
+    } else {
+        RAILGUN_LOOP
+    }
+}
+
+/// How fast gameplay time runs while the recording is open.
+///
+/// An armed run is frame-clocked at the loop profile's fps, so a scale of 1.0
+/// is a second of world per second of footage: the live cut plays back at
+/// exactly the speed the gun goes off at.
+#[cfg(feature = "debug")]
+fn recorded_time_scale() -> f32 {
+    if live_cut() {
+        1.0
+    } else {
+        SHOT_TIME_SCALE
+    }
+}
+
+/// Charge fraction THIS run's recording opens at.
+///
+/// The live cut opens as early as the walk allows, and the earliness is the
+/// point: at real speed the shot is over inside two frames, so a loop that
+/// opened on the last breath of the charge would be an explosion with nothing
+/// before it to measure against. [`SIGHT_CHARGE`] is the charge the beat before
+/// already ran to, so asking for it again opens the recorder the moment that
+/// still is off - about a quarter second of a hull sitting there whole, and
+/// then it is not.
+#[cfg(feature = "debug")]
+fn loop_open_charge() -> f32 {
+    if live_cut() {
+        SIGHT_CHARGE
+    } else {
+        LOOP_OPEN_CHARGE
+    }
+}
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -728,11 +811,18 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // seconds of wall clock, and that used to be the first half of the
         // loop: a static frame with a lit bore in the corner of it.
         .step("run the charge out")
-        .until(charge_at_least(LOOP_OPEN_CHARGE))
+        .until(charge_at_least(loop_open_charge()))
         .deadline(STEP_DEADLINE_SECS)
         .add()
+        // The clock changes HERE, not at the framing beat: the live cut runs
+        // real time, and a frame of real time is a twentieth of the charge that
+        // is left, so setting it any earlier fires the gun before the recorder
+        // is open.
         .step("open the railgun loop")
-        .on_enter(|world: &mut World| loop_start(world, RAILGUN_LOOP))
+        .on_enter(|world: &mut World| {
+            loop_start(world, railgun_loop());
+            set_time_scale(world, recorded_time_scale());
+        })
         .add()
         .step("wait for the slug")
         .until(shot_away())
@@ -755,10 +845,10 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // still is the frame the loop ended on.
         .step("close the railgun loop")
         .on_enter(|world: &mut World| {
-            loop_end(world, RAILGUN_LOOP);
+            loop_end(world, railgun_loop());
             pause_the_clock(world);
         })
-        .until(loop_written(RAILGUN_LOOP))
+        .until(loop_written(railgun_loop()))
         .deadline(120.0)
         .add();
 

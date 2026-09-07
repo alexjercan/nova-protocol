@@ -434,3 +434,44 @@ where it stood, tumbling clear on the ship's own motion, greebles and all.
   pending (unchanged).
 - Full-resolution frames read for the duel's close and the 2v2 at CRF 41.
 - `cd web && npm run ci`: green.
+
+## Debris pivot, and a real-speed railgun cut, 2026-09-07
+
+Two requests, one capture pass.
+
+### The pivot
+
+Shed cladding and greebles swung rather than tumbled. Avian turns a body about
+its centre of mass and reads that off the body's colliders, and BOTH finales
+hand out a body with no collider on it: `shed_dead_fixtures` strips the shape
+because debris is not material, and `detach_destroyed_body` waits on
+`ChunkGrace` for its own. With nothing to derive from, the centre falls back to
+the entity ORIGIN - which is nowhere near the piece. A fixture is authored
+around the face it mounts on: `plate_collider` hangs its box at
+`-REACH + volume * 0.5`, half a cell clear of a thin plate, and `decor_collider`
+stands a greeble's box on a foot at `y = 0`. So a plate orbited a point up to
+5 m off itself at 2-6 rad/s, which is 20 m/s of swing on top of a 15-40 m/s
+kick.
+
+Both now read the centre off the collider on the way out and state it as an
+explicit `CenterOfMass`. The section half also fixes a pop that shipped in
+0.12.0: a wreck piece pivoted about its origin for the whole grace and snapped
+straight the moment `ChunkGrace` handed it a collider.
+
+### The real-speed cut
+
+`loop-section-railgun` is a twentieth of real time. That is what makes the
+muzzle flash, the slug and the corridor separable at all, and it is also a lie
+about the weapon - it makes something that guts a gunship between two blinks
+look watchable. `NOVA_RAILGUN_LIVE=1` records the same walk with the clock
+handed back at the moment the recorder opens, under
+`loop-section-railgun-live`, and the railgun page carries both.
+
+An armed run is frame-clocked at the profile's fps, so relative speed 1.0 is
+one second of world per second of footage - the live cut plays back at exactly
+the speed the gun goes off at. The clock changes at the LOOP-OPEN beat and not
+at the framing beat before it: one frame of real time is a twentieth of the
+charge that is left, so setting it any earlier fires the gun before the
+recorder is open. The live cut also opens at `SIGHT_CHARGE`, which the beat
+before already ran past, so the recording starts the moment that still is off
+and carries about a quarter second of intact hull before the flash.

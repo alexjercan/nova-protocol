@@ -99,6 +99,7 @@ LOOPS=(
     "loop_vfx_range|vfx-cold-launch||"
     "loop_damage_sequence|landing-damage-sequence||"
     "screenshot_railgun|loop-section-railgun||NOVA_RAILGUN_AFTERMATH=0.5"
+    "screenshot_railgun|loop-section-railgun-live||NOVA_RAILGUN_LIVE=1 NOVA_RAILGUN_AFTERMATH=2.0"
 )
 
 # A second name for footage already captured above, when a second producer

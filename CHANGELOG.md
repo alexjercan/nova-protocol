@@ -320,6 +320,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The landing loops are gun fights: the hulls stand 1.5 km apart, inside
   point-defence reach, so tracer streams answer every salvo, and only the
   framed ship carries a lance.
+- The Railgun page runs the same shot twice: the slowed cut that separates the
+  flash from the corridor, and a second loop at real speed, where the hull is
+  open in the frame after the muzzle flash.
 
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,

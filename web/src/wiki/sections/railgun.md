@@ -61,6 +61,31 @@ There is exactly one way out, and it is not the trigger: dropping your weapons b
             corridor opens the length of a gunship.</span
         >
     </div>
+    <figcaption class="figure__caption">
+        One shot at a twentieth of real time, which is the
+        only speed at which there is anything to point at.
+    </figcaption>
+</figure>
+
+<figure class="figure">
+    <!-- Capture: assets/loops/loop-section-railgun-live.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/loop-section-railgun-live.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >The same shot at real speed: the bore lets go and
+            the gunship downrange is already coming apart.</span
+        >
+    </div>
+    <figcaption class="figure__caption">
+        The same shot at real speed. There is no flight to
+        watch - the hull is open in the frame after the
+        muzzle flash.
+    </figcaption>
 </figure>
 
 <details class="explain">
