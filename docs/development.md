@@ -360,8 +360,8 @@ What is on disk today, in reading order:
   `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
   `screenshot_hull_juice`, `screenshot_torpedo_run`), the spinal lance
   (`screenshot_railgun`) and the flight computer around a real well
-  (`screenshot_orbit`, `screenshot_goto_burn`, `screenshot_flip_burn`). Ten
-  producers are named `loop_*` and write only video; recording is not their
+  (`screenshot_orbit`, `screenshot_goto_burn`, `screenshot_flip_burn`). The
+  `loop_*` producers write only video; recording is not their
   privilege, though - a `loop_start`/`loop_end` pair records from any harnessed
   example, so `screenshot_railgun`, `screenshot_editor`, `wfc_arena` and
   `system_torpedo_launch` each ship a loop beside their stills. What a run makes
@@ -604,7 +604,7 @@ nix develop --command scripts/capture-web-shots.sh screenshot_railgun  # or a fe
 It stages into `target/shots`, runs each producer under Xvfb, and then packages
 with `scripts/gen-web-screenshots.py`. It is the stills half of a pair:
 `scripts/capture-web-media.sh` does the same for the webm loops. Both point
-`NOVA_MODDING_CACHE_ROOT` and `NOVA_CONFIG_ROOT` at empty directories and stamp
+`NOVA_MODDING_CACHE_ROOT` and `NOVA_CONFIG_ROOT` at the capture sandbox and stamp
 a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
 producer that enables one on purpose (`screenshot_scenario_picker` does) can
 dress the next shot.
