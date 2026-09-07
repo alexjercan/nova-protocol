@@ -1724,9 +1724,22 @@ fn report_score(
 /// How the frame vantage stands off the fight: direction (broadside to the
 /// engagement axis and a little above), plus a floor and a rate on the ships'
 /// spread so every hull stays in frame from merge to knife range.
+///
+/// A camera pose read off transforms, so the two lengths are ENGINE world
+/// units - one unit is 10 m.
+///
+/// The RATE has to clear 0.68 or the fight outgrows the picture: the lens
+/// spans 1.47 times its distance at 16:9, so a standoff of `k * spread` frames
+/// `1.47 * k * spread` and the formation only fits while that exceeds the
+/// spread. 0.80 leaves the widest moment two thirds of the frame.
+///
+/// The FLOOR is what the frame settles to when the ships merge, and it used to
+/// be 55 - 550 m of standoff at knife range, where the whole fight was a fifth
+/// of the frame and each 110 m hull about a fourteenth of it. At 20 the pass
+/// itself is the shot.
 const CAMERA_DIRECTION: Vec3 = Vec3::new(0.0, 0.45, 1.0);
-const CAMERA_BASE: f32 = 55.0;
-const CAMERA_PER_SPREAD: f32 = 0.85;
+const CAMERA_BASE: f32 = 20.0;
+const CAMERA_PER_SPREAD: f32 = 0.80;
 
 /// Where the tactical overview stands: steeply above the fight and leaning
 /// back off it, at a multiple of the frame standoff. High enough to hold a

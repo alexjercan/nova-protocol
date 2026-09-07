@@ -39,11 +39,21 @@ without any GPU-captured asset.
 Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless)
 into the staging dir, then packaging them:
 
+    mkdir -p target/capture-home/data/mods target/capture-home/config
+    export NOVA_MODDING_CACHE_ROOT=$PWD/target/capture-home/data
+    export NOVA_CONFIG_ROOT=$PWD/target/capture-home/config
     for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
         NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
             cargo run --example "$shot" --features debug
     done
     python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets
+
+The site shows MAINLINE, from a clean install, so the two roots above are part
+of the capture and not a convenience. Without them the run reads the
+developer's own directories: the data directory's installed mods merge live at
+load and reskin the fleet, and the config directory carries the saved
+enabled-mod set and graphics settings. `scripts/capture-web-media.sh` exports
+the same pair for the loops.
 
 Run from the repo root. Uses only the Python standard library (no Pillow), like
 `scripts/gen-placeholder-sounds.py`, so it needs no third-party package: PNG
@@ -100,10 +110,9 @@ def frozen(name):
 # reports them as pending and skips them, so it stays useful as coverage grows.
 FIGURES = [
     # name                              example
-    ("wiki-gravity.png",                "screenshot_gravity"),
     ("wiki-sections.png",               "screenshot_hero_ship"),
     # A hull coming apart: the outer sections blowing off a core still firing.
-    ("wiki-ships-damage.png",           None),
+    ("wiki-ships-damage.png",           "loop_damage_sequence"),
     # The part-candidate viewer shows the seven body meshes before functional
     # modules are mounted by content. v0.10.0 evidence and nothing else: those
     # craft left base for The Ledger, so this figure is HISTORICAL and is not
@@ -145,13 +154,14 @@ FIGURES = [
     ("wiki-section-turret.png",         "screenshot_section_weapons"),
     ("wiki-section-turret-twin.png",    "screenshot_section_weapons"),
     ("wiki-section-torpedo-bay.png",    "screenshot_section_weapons"),
-    # The lance. No capture example renders one yet - no shipped hull carries
-    # it - so its four slots stay pending until the weapons closeup or the
-    # railgun range grows a capture step.
-    ("wiki-section-railgun.png",          None),
-    ("wiki-section-railgun-sight.png",    None),
-    ("wiki-section-railgun-corridor.png", None),
-    ("wiki-combat-railgun.png",           None),
+    # The lance, on a gunboat built around one: the bore charging, the sight
+    # line across the gap, the wide shot mid-flight, and the corridor it
+    # leaves. The siege lance rides the same range on its own bench.
+    ("wiki-section-railgun.png",          "screenshot_railgun"),
+    ("wiki-section-railgun-sight.png",    "screenshot_railgun"),
+    ("wiki-section-railgun-corridor.png", "screenshot_railgun"),
+    ("wiki-combat-railgun.png",           "screenshot_railgun"),
+    ("catalog-siege-railgun-lance-section.png", "screenshot_railgun"),
     # The drive family on one bench: the size comparison, then each large
     # drive on its own.
     ("wiki-section-drives.png",         "screenshot_section_drives"),
@@ -171,6 +181,10 @@ FIGURES = [
     ("feature-editor-events.png",        "screenshot_editor"),
     ("news-0110-damage-levels.png",      "screenshot_damage_levels"),
     ("greeble-catalog.png",              "greeble_catalog"),
+    # One ROW of that wall, read close enough that a piece's id, its box in
+    # meters and its health are legible. The whole wall is a picture of how
+    # many there are; a row is a picture of what one IS.
+    ("greeble-catalog-industrial.png",   "greeble_catalog"),
 ]
 
 # Thumbnails are 16:9 too (the post cards size them at 300px wide).
@@ -251,6 +265,11 @@ ALIASES = {
     "catalog-pdc-twin-kinetic-turret-section.png": "wiki-section-turret-twin.png",
     "catalog-pdc-twin-pierce-turret-section.png": "wiki-section-turret-twin.png",
     "catalog-railgun-lance-section.png": "wiki-section-railgun.png",
+    # The gravity chapter asks for a well it can read: a body on black is a
+    # rock, and the only frame in the set that SHOWS a well is the orbit shot -
+    # the planetoid, the holo ring across it, the radius spoke and the ship on
+    # the far end of that spoke. `screenshot_gravity` no longer tries.
+    "wiki-gravity.png": "tutorial-orbit.png",
 }
 
 # A `news-` still is a LEAF: an alias may write one, nothing may read one. A

@@ -23,7 +23,7 @@ The game boots into a main menu. **New Game** drops you into **Basic Training** 
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/tutorial-menu.png</span>
-        <span class="figure__placeholder-note">The main menu with its live ambient backdrop (an AI ship flying a thruster orbit) and the New Game / Sandbox / Scenarios / Mods / Settings / Exit options.</span>
+        <span class="figure__placeholder-note">The main menu over its live backdrop: a section-built gunship holding station in a rock band, with the New Game / Sandbox / Scenarios / Mods / Settings / Exit options beside it.</span>
     </div>
     <figcaption class="figure__caption">The game boots into a main menu; New Game starts Basic Training.</figcaption>
 </figure>

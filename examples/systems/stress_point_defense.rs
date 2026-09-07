@@ -261,8 +261,15 @@ const SCENARIO_ID: &str = "stress_point_defense";
 #[cfg(feature = "debug")]
 const LOAD_STEP: &str = "spawn the range";
 
+/// The turret section page's loop: a saturated point-defense engagement.
+///
+/// The LIVING name, not a post's. A `news-` loop is frozen - it records what
+/// one release looked like and is never re-cut - so a producer that writes one
+/// directly can never refresh the pages that show the same footage. The
+/// capture script copies this to `news-0110-point-defense` and
+/// `news-0120-point-defense` for the two posts that froze it.
 #[cfg(feature = "debug")]
-const POINT_DEFENSE_LOOP: &str = "news-0110-point-defense";
+const POINT_DEFENSE_LOOP: &str = "loop-section-turret";
 
 /// How many frames the saturated scene is held for.
 ///

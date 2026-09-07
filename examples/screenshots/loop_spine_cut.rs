@@ -176,10 +176,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             // section death severs the whole hull into loose wrecks. The kit
             // reads the ship catalog now, so the cut severs exactly what hangs
             // off the cut section.
-            hull: ShipSource::Inline(ShipHull {
-                sections: kit::catalog_hull(ships, SUBJECT_HULL),
-                ..default()
-            }),
+            hull: ShipSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
             ..default()
         }),
     });

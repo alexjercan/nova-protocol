@@ -12,9 +12,10 @@ A ship in Nova Protocol is not a monolithic model - it is a root entity with a h
             >assets/wiki-ships-damage.png</span
         >
         <span class="figure__placeholder-note"
-            >A hull coming apart under fire: outer sections
-            blowing off, the core still firing, a wreck
-            drifting clear.</span
+            >A gunship after a broadside walked up its port
+            flank: plating stripped off three sections, the
+            port turret dead, and an open hole where the aft
+            deck tore away.</span
         >
     </div>
     <figcaption class="figure__caption">

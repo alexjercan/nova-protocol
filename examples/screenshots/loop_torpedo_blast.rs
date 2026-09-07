@@ -224,17 +224,19 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         Some(Allegiance::Enemy),
         {
+            // The catalog hull WHOLE - skin and style included - with the
+            // plating outside the carve toughened. Rebuilt around the entry
+            // rather than assembled from its sections, so the target wears the
+            // same cladding the fleet does.
             let carved = carved_section_ids(ships);
-            kit::catalog_hull(ships, TARGET_HULL)
-                .into_iter()
-                .map(|mut section| {
-                    if !carved.contains(&section.id) {
-                        section.modifications =
-                            vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
-                    }
-                    section
-                })
-                .collect()
+            let mut hull = kit::catalog_ship(ships, TARGET_HULL);
+            for section in &mut hull.sections {
+                if !carved.contains(&section.id) {
+                    section.modifications =
+                        vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
+                }
+            }
+            hull
         },
     );
     let lance = ship(
@@ -245,7 +247,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             .looking_at(Vec3::ZERO, Vec3::Y)
             .rotation,
         Some(Allegiance::Player),
-        kit::catalog_hull(ships, "block_cleanup_leader"),
+        kit::catalog_ship(ships, "block_cleanup_leader"),
     );
     // The same shell, radii and seed as screenshot_combat's hollow: proven to
     // keep the pocket clear of the subject and the salvo's bearing.
@@ -286,7 +288,7 @@ fn ship(
     position: Meters3,
     rotation: Quat,
     allegiance: Option<Allegiance>,
-    sections: Vec<SpaceshipSectionConfig>,
+    hull: ShipHull,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -298,10 +300,7 @@ fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance,
-            hull: ShipSource::Inline(ShipHull {
-                sections,
-                ..default()
-            }),
+            hull: ShipSource::Inline(hull),
             ..default()
         }),
     })

@@ -303,6 +303,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The wiki gets a Commands page: the `:` shell, what its introduction reports,
   and the whole catalog by class - utility, read-only, settings, and the
   cheats that mark a run.
+- The site is mainline only: its widgets, catalogs and figures read base hulls
+  and base sections, and The Ledger's modelled craft are named only where the
+  modding docs discuss a mod.
+- Every living still and loop is re-shot from a clean install: section-built
+  ships throughout, new railgun figures, and the menu, the arrival and the
+  damage sequence re-framed onto their subjects.
 
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,

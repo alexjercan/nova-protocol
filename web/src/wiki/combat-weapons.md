@@ -12,9 +12,10 @@ Three weapon families - turrets, torpedoes and the spinal railgun - feed one typ
             >assets/wiki-combat.png</span
         >
         <span class="figure__placeholder-note"
-            >A firefight: turret tracers with a lead pip on
-            the target and a torpedo curving in, ideally
-            with a section being blown off.</span
+            >A firefight from over the shooter's shoulder:
+            four tracer streams reaching past the rocks
+            between them, and the target coming apart at the
+            end of them.</span
         >
     </div>
 </figure>
@@ -52,10 +53,10 @@ A torpedo owns the long end but pays for it in time. Fired at the edge of its re
             >assets/wiki-combat-railgun.png</span
         >
         <span class="figure__placeholder-note"
-            >A railgun shot mid-fight: the steel-blue slug
-            crossing the gap, a corridor opening through a
-            raider's flank and the far-side sections
-            bursting out.</span
+            >The moment the slug lands, seen from behind the
+            target: the wake still strung back to the gunboat
+            that fired, and the gunship's far side bursting
+            out along the line of the shot.</span
         >
     </div>
 </figure>

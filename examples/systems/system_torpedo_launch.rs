@@ -68,8 +68,20 @@ const CROSSER_ID: &str = "crosser";
 /// The scenario id the gate scene loads under.
 const RANGE_ID: &str = "torpedo_range";
 
+/// The v0.11.0 post's ordnance-comparison loop: two trails, one straight and
+/// one weaving, held side by side.
 #[cfg(feature = "debug")]
 const TYPES_LOOP: &str = "news-0110-torpedo-types";
+
+/// The torpedo-bay section page's loop: the iris at the muzzle, opening for a
+/// launch and shutting behind it.
+///
+/// A page about the BAY needs the bay in the picture. This used to be a second
+/// name for [`TYPES_LOOP`] - two trails on black, a kilometre from any hull -
+/// which is a fine picture of guidance and no picture at all of the section
+/// that fired.
+#[cfg(feature = "debug")]
+const BAY_LOOP: &str = "loop-section-torpedo-bay";
 
 #[cfg(feature = "debug")]
 /// The scenario id the crossing scene loads under. DISTINCT from [`RANGE_ID`]
@@ -1002,6 +1014,39 @@ fn torpedo_script() -> Script {
         .on_enter(|world: &mut World| shoot(world, "bay-doors-shut-again.png"))
         .until(shot_written("bay-doors-shut-again.png"))
         .deadline(5.0)
+        .add()
+        // The section page's loop: the same door cycle again, at the same
+        // framing, recorded this time. It runs as a SECOND cycle rather than
+        // around the three stills because nothing may be shot while a loop is
+        // open - a screenshot and a loop frame are the same window capture,
+        // and the second one asked for in a frame is dropped.
+        .step("open the torpedo bay loop")
+        .on_enter(|world| loop_start(world, BAY_LOOP))
+        .until(frames(2))
+        .add()
+        .step("fire through the iris for the loop")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
+        .until(and(the_iris_is_open(true), a_torpedo_is_emerging()))
+        .deadline(6.0)
+        .add()
+        // Long enough for the ordnance to run out of the frame under its own
+        // drive, short of the ~1.4 s at which this range's 300 m blast reaches
+        // back and takes the ship - and the bay - with it.
+        .step("let the ordnance run out")
+        .until(elapsed(0.8))
+        .add()
+        .step("shut the iris behind it")
+        .on_enter(clear_the_door_salvo)
+        .until(the_iris_is_open(false))
+        .deadline(8.0)
+        .add()
+        .step("hold the shut iris")
+        .until(elapsed(0.6))
+        .add()
+        .step("close the torpedo bay loop")
+        .on_enter(|world| loop_end(world, BAY_LOOP))
+        .until(loop_written(BAY_LOOP))
+        .deadline(60.0)
         .add();
     let script = fire_round(script, GATE_ROUND);
     let script = script

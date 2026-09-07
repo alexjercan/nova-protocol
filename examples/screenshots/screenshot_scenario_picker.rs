@@ -1,6 +1,13 @@
-//! screenshot_scenario_picker: the Scenarios picker with a scenario selected
-//! (`news-090-scenario-campaigns.png`), driven through the shipped app
-//! (`editor_app`).
+//! screenshot_scenario_picker: the Scenarios picker with a scenario selected,
+//! driven through the shipped app (`editor_app`).
+//!
+//! Ships three manifest images: `wiki-scenarios-picker` (the base game's list,
+//! nothing enabled but base), `wiki-first-scenario-picker` (the example mod's
+//! arena, for the create docs) and the frozen `news-090-scenario-campaigns`.
+//!
+//! The walk REPLACES the enabled mod set rather than adding to it. A capture
+//! host carries whatever mods its owner installed, and a wiki figure listing
+//! them shows the reader a game that does not exist.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - open the picker, select the
@@ -49,6 +56,18 @@ const BASE_SCENARIO_ROW: &str = "Scenario Row: tutorial";
 /// plays into.
 #[cfg(feature = "debug")]
 const EXAMPLE_SCENARIO_ROW: &str = "Scenario Row: example_arena";
+
+/// The wiki's living picker figure. Shot with NO mod enabled: the wiki
+/// documents the base game, and a picker row belonging to a mod on a base page
+/// tells a reader the game ships something it does not.
+#[cfg(feature = "debug")]
+const WIKI_PICKER_SHOT: &str = "wiki-scenarios-picker.png";
+
+/// The base game's own enabled set - the merge's baseline, with nothing added.
+#[cfg(feature = "debug")]
+fn base_only() -> EnabledMods {
+    EnabledMods(["base".to_string()].into_iter().collect())
+}
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -99,14 +118,15 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::MainMenu))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        // Enabled by the script rather than trusted to the fresh-install seed:
-        // a saved enabled set on the capture host may have switched it off.
-        .step("enable the example mod")
+        // The enabled set is REPLACED, not added to: the capture host has its
+        // own installed mods (a developer box has the web mods in its data
+        // dir), and a picker listing whichever of those happen to be switched
+        // on is neither reproducible nor a picture of the base game. The merge
+        // re-runs on an `EnabledMods` change and the picker rebuilds when
+        // `GameScenarios` does, so this applies live.
+        .step("cut the enabled set back to base")
         .on_enter(|world: &mut World| {
-            world
-                .resource_mut::<EnabledMods>()
-                .0
-                .insert("example".to_string());
+            *world.resource_mut::<EnabledMods>() = base_only();
         })
         .until(frames(SETTLE_FRAMES * 2))
         .add()
@@ -142,11 +162,30 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // The last step holds until the PNG is on disk, so the driver cannot
-        // report done out from under a pending write.
+        // report done out from under a pending write. Two names off this one
+        // frame, one shot at a time: the wiki's living figure and the frozen
+        // v0.9.0 news evidence. Bevy services one primary-window capture per
+        // frame, so they cannot share a step.
         .step("capture the scenarios picker")
+        .on_enter(shot(WIKI_PICKER_SHOT))
+        .until(shot_written(WIKI_PICKER_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("capture the campaigns news frame")
         .on_enter(shot("news-090-scenario-campaigns.png"))
         .until(shot_written("news-090-scenario-campaigns.png"))
         .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // Only now does a mod enter the picture, and only for the CREATE
+        // docs' figure: the example mod is the one a reader authoring their
+        // first scenario is following along with.
+        .step("enable the example mod")
+        .on_enter(|world: &mut World| {
+            let mut enabled = base_only();
+            enabled.0.insert("example".to_string());
+            *world.resource_mut::<EnabledMods>() = enabled;
+        })
+        .until(frames(SETTLE_FRAMES * 2))
         .add()
         .click("select the example scenario", EXAMPLE_SCENARIO_ROW)
         .step("settle the example scenario details")

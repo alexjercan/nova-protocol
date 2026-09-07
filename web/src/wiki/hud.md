@@ -81,7 +81,8 @@ A hull carrying a [railgun](../sections/railgun/) has one more instrument, becau
         >
         <span class="figure__placeholder-note"
             >The sight line out of the muzzle onto a gunship,
-            a ring on each section the shot would gut.</span
+            with the kill ring at the face the slug would
+            enter.</span
         >
     </div>
 </figure>

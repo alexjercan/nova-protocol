@@ -12,9 +12,11 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
             >assets/wiki-flight.png</span
         >
         <span class="figure__placeholder-note"
-            >A ship mid-burn with its plume lit and the
-            velocity sphere reading, ideally during a GOTO
-            flip so the diegetic autopilot is visible.</span
+            >A ship braking under GOTO: flipped retrograde
+            with its drive bells turned toward the lens, the
+            AP GOTO - BURN chip and the closing speed beside
+            it, and the nav line running on to the
+            destination.</span
         >
     </div>
 </figure>

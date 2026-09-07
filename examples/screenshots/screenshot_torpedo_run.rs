@@ -74,6 +74,20 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 /// Every capture is its OWN step held until the PNG is on disk: Bevy services
 /// one primary-window capture per frame, so the rule is structural here rather
 /// than a guard inside a shared step.
+/// Where the lens stands off the ordnance pair, meters.
+///
+/// From BELOW, looking up the run. The rock field is a horizontal annulus
+/// 460 m thick, so any level camera in the hollow frames its subject against
+/// the far wall and the shot is rock soup; tipping the lens up puts open sky
+/// behind the target and the torpedo dives into frame.
+///
+/// The length is what the subject is: 170 m, close enough that a torpedo at
+/// its fuze point is a torpedo rather than the four-pixel spark an earlier
+/// 244 m stand-off left it. Both ordnance frames use it, so they are a
+/// before/after of the same shot.
+#[cfg(feature = "debug")]
+const ORDNANCE_OFFSET: Meters3 = Meters3::new(111.0, -97.0, 83.0);
+
 #[cfg(feature = "debug")]
 fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -93,12 +107,7 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .step("frame the torpedo run")
         .on_enter(|world| {
             let subject = hollow::ordnance_subject(world);
-            // From BELOW, looking up the run. The rock field is a horizontal
-            // annulus 460 m thick, so any level camera in the hollow frames
-            // its subject against the far wall and the shot is rock soup;
-            // tipping the lens up puts open sky behind the target and the
-            // torpedo dives into frame.
-            hollow::pose(world, subject + Meters3::new(160.0, -140.0, 120.0), subject)
+            hollow::pose(world, subject + ORDNANCE_OFFSET, subject)
         })
         .until(elapsed(0.4))
         .add()
@@ -121,7 +130,7 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .step("track the torpedoes in")
         .each(hollow::assert_salvo_still_live)
         .until(hollow::torpedo_within(
-            hollow::TORPEDO_FUZE_RANGE + Meters(80.0),
+            hollow::TORPEDO_FUZE_RANGE + Meters(30.0),
         ))
         .deadline(12.0)
         .add()
@@ -145,7 +154,7 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
             // was framed, and a rock in the wall behind it is one drift away
             // from being in front of it.
             let raider = hollow::raider_position(world);
-            hollow::pose(world, raider + Meters3::new(160.0, -140.0, 120.0), raider)
+            hollow::pose(world, raider + ORDNANCE_OFFSET, raider)
         })
         .until(elapsed(0.5))
         .add()

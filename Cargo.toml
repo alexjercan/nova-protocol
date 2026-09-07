@@ -414,6 +414,12 @@ path = "examples/screenshots/screenshot_section_weapons.rs"
 name = "screenshot_section_drives"
 path = "examples/screenshots/screenshot_section_drives.rs"
 
+# The spinal lance: the bore, the sight, the shot and the corridor it leaves,
+# plus the siege lance's catalog card.
+[[example]]
+name = "screenshot_railgun"
+path = "examples/screenshots/screenshot_railgun.rs"
+
 # The Tab ship computer: the terminal, then an app filling the same tube.
 [[example]]
 name = "screenshot_nova_os_terminal"

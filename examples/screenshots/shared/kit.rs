@@ -12,7 +12,8 @@
 //!
 //! What it holds, and nothing else:
 //!
-//! - [`catalog_hull`]: the shipped section list for a ship in the catalog, and
+//! - [`catalog_ship`]: a shipped hull from the catalog, clad as it ships;
+//!   [`clad`], the same cladding over a hand-built cell list; and
 //!   [`cell_section`], the id of the section one block hull carries at a cell.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
 //!   actually be in frame.
@@ -43,13 +44,51 @@ use nova_protocol::prelude::*;
 /// `Disconnected`, and section integrity falls back to empty adjacency - under
 /// which any single section death severs the entire hull into loose wrecks.
 /// There is exactly one set of coordinates, and it is the one the game ships.
-pub fn catalog_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
+///
+/// Private: structure alone is not a ship a scene should spawn. Take a whole
+/// catalog entry with [`catalog_ship`], or clad your own cells with [`clad`].
+fn catalog_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
     ships
         .get_ship(hull)
         .unwrap_or_else(|| panic!("catalog_hull: unknown ship '{hull}'"))
         .hull
         .sections
         .clone()
+}
+
+/// The shipped hull WHOLE: its sections plus everything else the catalog entry
+/// says about it - the derived skin, the style that skin wears, its collapse
+/// threshold and its collapse sound.
+///
+/// This is what a scene should spawn. A `ShipHull { sections, ..default() }`
+/// around a bare section list spawns a
+/// ship with `skin: false`: the cladding every block ship in the fleet wears
+/// is DERIVED at spawn from `ShipSkin`/`ShipStyle` on the root, so a hull that
+/// leaves those at their defaults renders as bare cells. The game ships no
+/// such ship; a screenshot of one is a screenshot of something the player
+/// never sees.
+pub fn catalog_ship(ships: &GameShips, hull: &str) -> ShipHull {
+    ships
+        .get_ship(hull)
+        .unwrap_or_else(|| panic!("catalog_ship: unknown ship '{hull}'"))
+        .hull
+        .clone()
+}
+
+/// A hand-built cell list, clad: the same derived skin a catalog block hull
+/// wears, in the named style.
+///
+/// For the scenes that author their own structure rather than taking a
+/// shipped one. The style is required rather than defaulted, because an
+/// unnamed style is the undressed derivation - plate colours and no greebles -
+/// and that is a look no shipped ship has.
+pub fn clad(sections: Vec<SpaceshipSectionConfig>, style: &str) -> ShipHull {
+    ShipHull {
+        sections,
+        skin: true,
+        style: Some(style.to_string()),
+        ..default()
+    }
 }
 
 /// The id of the section a BLOCK hull carries at one build-grid cell.

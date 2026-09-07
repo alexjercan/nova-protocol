@@ -43,19 +43,22 @@ The public [Story](../../story/) archive presents campaigns as digital comics wi
             >assets/wiki-scenarios-picker.png</span
         >
         <span class="figure__placeholder-note"
-            >The Scenarios tab with a campaign expanded: its
-            chapters in play order under the collapsible
-            header, standalone scenarios listed below.</span
+            >The Scenarios tab on a base install: Basic
+            Training listed on its own, its card selected and
+            its briefing in the detail pane.</span
         >
     </div>
-    <figcaption class="figure__caption">Campaigns group their chapters; any chapter can be launched directly for a replay.</figcaption>
+    <figcaption class="figure__caption">The Scenarios tab lists everything installed that is not hidden. On a base install that is Basic Training.</figcaption>
 </figure>
 
-The **Scenarios** tab groups a campaign under a collapsible header - click the
-`[-]`/`[+]` header to expand or fold its chapters. A campaign lists its chapters
-in play order, so you can launch any chapter directly for a replay without
-flying the whole arc again. A campaign may also carry mid-story chapters that
-the story reaches on its own; they are listed under the same header. Scenarios that belong to no campaign (standalone
-mod scenarios) list on their own below the campaigns.
+The **Scenarios** tab lists every scenario the installed content offers, and
+launches any of them directly - so a chapter you have already flown is one
+click away for a replay. A fresh install lists Basic Training and nothing else:
+the menu backdrops are marked hidden, and the base game ships no campaign.
+
+Install a mod that does and the list grows a second shape. A campaign folds its
+chapters under a collapsible header - click the `[-]`/`[+]` to expand or fold
+it - and lists them in play order, mid-story chapters included. Scenarios that
+belong to no campaign list on their own below the campaigns.
 
 You can author your own scenarios and mods in RON - see the [Create docs](../../create/).

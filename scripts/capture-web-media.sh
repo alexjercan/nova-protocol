@@ -19,6 +19,10 @@
 # Requires: cargo, ffprobe, xvfb-run (all in the flake devshell). The capture
 # needs a software Vulkan (lavapipe/llvmpipe) behind the Xvfb display. Set
 # NOVA_REUSE_STAGE=1 to repackage a completed target/loop-shots capture set.
+#
+# The run is mod-free and setting-free: NOVA_MODDING_CACHE_ROOT and
+# NOVA_CONFIG_ROOT are pointed at empty directories, so neither an installed
+# mod nor a saved preference can dress the ships the site shows.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,6 +35,19 @@ OUT="$(cd "$OUT" && pwd)"
 STAGE="${CARGO_TARGET_DIR:-target}/loop-shots"
 mkdir -p "$STAGE"
 STAGE="$(cd "$STAGE" && pwd)"
+
+# The site shows MAINLINE, from a clean install. Two of the developer's own
+# directories would otherwise leak into the frame: the data directory, whose
+# installed mods merge live at load (a box with The Ledger installed reskins
+# the fleet these loops are of), and the config directory, which carries the
+# saved enabled-mod set and the graphics settings. Both are pointed at empty
+# directories of our own, so the run sees base and the shipped defaults
+# whatever the host has.
+SANDBOX="${CARGO_TARGET_DIR:-target}/capture-home"
+mkdir -p "$SANDBOX/data/mods" "$SANDBOX/config"
+SANDBOX="$(cd "$SANDBOX" && pwd)"
+export NOVA_MODDING_CACHE_ROOT="$SANDBOX/data"
+export NOVA_CONFIG_ROOT="$SANDBOX/config"
 
 for tool in cargo ffprobe xvfb-run; do
     command -v "$tool" >/dev/null || {
@@ -53,6 +70,7 @@ LOOPS=(
     "loop_derived_skin|news-0110-derived-skin||"
     "loop_round_types|news-0110-round-types||"
     "system_torpedo_launch|loop-section-torpedo-bay||"
+    "system_torpedo_launch|news-0110-torpedo-types||"
     "stress_point_defense|loop-section-turret||NOVA_STRESS_PD_MOUNTS=4 NOVA_STRESS_PD_BAYS=4 NOVA_STRESS_PD_VIEW=lanes"
     "loop_cockpit|landing-cockpit||"
     "screenshot_flip_burn|loop-section-controller||"
@@ -64,6 +82,7 @@ LOOPS=(
     "loop_vfx_range|vfx-range||"
     "loop_vfx_range|vfx-cold-launch||"
     "loop_damage_sequence|landing-damage-sequence||"
+    "screenshot_railgun|loop-section-railgun||"
 )
 
 # A second name for footage already captured above, when a second producer
@@ -85,7 +104,6 @@ ALIASES=(
     "news-0110-parts-gallery|landing-editor-build|screenshot_editor"
     "news-0110-damage-levels|loop-section-hull|screenshot_damage_levels"
     "news-0110-point-defense|loop-section-turret|stress_point_defense"
-    "news-0110-torpedo-types|loop-section-torpedo-bay|system_torpedo_launch"
     "news-0120-release-lead|landing-editor-build|screenshot_editor"
     "news-0120-point-defense|loop-section-turret|stress_point_defense"
     "news-0120-blast|torpedo-blast|loop_torpedo_blast"
@@ -106,11 +124,10 @@ done
 # than left out, so a full pass NAMES the gap instead of leaving a page's
 # placeholder unexplained - the same rule the pending stills follow in
 # scripts/gen-web-screenshots.py. A pending row is captured by nothing and
-# packaged into nothing; it only reports.
+# packaged into nothing; it only reports. Empty: every loop a page asks for has
+# a producer.
 #   loop|why
-PENDING=(
-    "loop-section-railgun|no capture example flies a hull carrying a lance, so nothing can record the bore, the shot and the corridor in one pass"
-)
+PENDING=()
 
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
 # nova_autopilot::loops); a loop over budget FAILS the run - re-cut it or

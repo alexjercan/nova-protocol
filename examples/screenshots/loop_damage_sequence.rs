@@ -21,11 +21,18 @@
 //! the cracked plating, the turret that dies and the pod that severs all have
 //! to be the ones facing the lens.
 //!
+//! The same walk also shoots the ships chapter's opening still,
+//! `wiki-ships-damage.png`, off the last beat - the hull cracked along the
+//! flank, its port turret dead, and the hole where its aft deck tore off. One
+//! scene answers both, and the still is taken AFTER the loop closes: a
+//! screenshot and a loop frame are the same window capture, and the second one
+//! asked for in a frame is dropped.
+//!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
 //!   nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: record and encode the loop into
-//!   `NOVA_CAPTURE_DIR/landing-damage-sequence.webm`.
+//!   `NOVA_CAPTURE_DIR/landing-damage-sequence.webm` and shoot the still.
 //!
 //! Capture:
 //! ```text
@@ -52,6 +59,10 @@ struct Cli;
 /// The loop this example records - the webm's file stem.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "landing-damage-sequence";
+
+/// The ships chapter's opening still, shot off the end of the same walk.
+#[cfg(feature = "debug")]
+const DAMAGE_STILL: &str = "wiki-ships-damage.png";
 
 /// Scenario id of the gunship that takes the beating.
 const SUBJECT_ID: &str = "damage_subject";
@@ -97,6 +108,32 @@ const DISABLED_TURRET: &str = "pdc_forward_port";
 /// wreck. A plate with nothing hanging off it frees nothing.
 #[cfg(feature = "debug")]
 const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, 1.0);
+
+/// Which way the still's lens faces, in the HULL's own frame - a direction
+/// only, so the tumble the sequence ends on cannot decide which face is shot.
+///
+/// Broadside off the port bow, and not the loop's own bearing: the loop looks
+/// from the port QUARTER, which is a fine view of a hull coming apart in
+/// motion and the wrong one for a still, because everything the sequence
+/// touches is on the flank. Cracked plating runs bow to waist
+/// ([`BROADSIDE_CELLS`]), the dead gun is the forward port mount, and the hole
+/// is aft at [`SEVERED_CELL`] - one flank-on frame carries all three, an aft
+/// quarter carries none of them.
+#[cfg(feature = "debug")]
+const STILL_EYE: Vec3 = Vec3::new(-1.0, 0.3, -0.35);
+
+/// How far the still's lens stands off the hull, meters.
+///
+/// The gunship is about 110 m stem to stern and the lens is across its beam,
+/// so the whole length is in frame: at this range that is a little under two
+/// thirds of the frame width, which leaves the silhouette room without
+/// shrinking the cracks it is here to show. The pod freed by the last beat is
+/// 90 m clear by the time the loop closes and may fall outside; the framing
+/// keeps the SHIP, because the hole the pod left is the readable half of the
+/// story and a pod at that range is four pixels. The chapter's figure note
+/// says so.
+#[cfg(feature = "debug")]
+const STILL_STANDOFF: f32 = 135.0;
 
 /// The slow tumble the hull carries into the sequence, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
@@ -153,10 +190,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             // The whole shipped gunship, turrets included: the sequence needs
             // a turret to disable and a real mate graph to sever along, and
             // both come from the catalog rather than from a hand-typed copy.
-            hull: ShipSource::Inline(ShipHull {
-                sections: kit::catalog_hull(ships, SUBJECT_HULL),
-                ..default()
-            }),
+            hull: ShipSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
             ..default()
         }),
     });
@@ -252,6 +286,21 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(loop_written(LOOP_NAME))
         .deadline(60.0)
         .add()
+        // The still, on the loop's own last state: the hull is already
+        // cracked, the turret is already gone and the pod is already clear,
+        // which is the whole of what the chapter's figure note promises. It
+        // cannot be shot a beat earlier - see the module doc on the shared
+        // window capture - and it is not shot on the loop's fixed pose
+        // either; see `frame_the_wreck`.
+        .step("frame the wreck")
+        .on_enter(frame_the_wreck)
+        .until(elapsed(0.4))
+        .add()
+        .step("shoot wiki-ships-damage.png")
+        .on_enter(|world| shoot(world, DAMAGE_STILL))
+        .until(shot_written(DAMAGE_STILL))
+        .deadline(30.0)
+        .add()
 }
 
 /// Advance once the subject is in the world.
@@ -262,6 +311,41 @@ fn subject_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predi
             .try_query_filtered::<&EntityId, With<SpaceshipRootMarker>>()
             .is_some_and(|mut query| query.iter(world).any(|id| id.0 == SUBJECT_ID))
     })
+}
+
+/// Stop the tumble and put the lens back on the flank the beats hit.
+///
+/// The facing has to be measured rather than authored: the hull tumbles, so a
+/// constant world pose lands on whichever side happens to be turned toward the
+/// lens by the last beat - the drive bell, as it happens, with every hit on
+/// the far side. Rebuilt from the hull's live rotation, the lens goes back to
+/// the PORT flank, which is the only flank any of the beats touched.
+///
+/// The spin is zeroed first, so the pose the camera is given is the pose the
+/// shot is taken on.
+#[cfg(feature = "debug")]
+fn frame_the_wreck(world: &mut World) {
+    let Some(subject) = kit::ship_root(world, SUBJECT_ID) else {
+        warn!("damage loop: no subject to frame the still on");
+        return;
+    };
+    if let Some(mut angular) = world
+        .entity_mut(subject)
+        .get_mut::<avian3d::prelude::AngularVelocity>()
+    {
+        angular.0 = Vec3::ZERO;
+    }
+    let Some(hull) = world.get::<GlobalTransform>(subject).copied() else {
+        warn!("damage loop: subject carries no global transform");
+        return;
+    };
+    // A Bevy boundary: the hull's transform is world units and the pose the
+    // harness takes is meters, so the position crosses over once. The rotation
+    // is unitless and turns the meter offset as it is.
+    let at = Meters3::from_engine(hull.translation()).get();
+    let eye = at + hull.rotation() * STILL_EYE.normalize() * STILL_STANDOFF;
+    let meters = |v: Vec3| Meters3::new(v.x, v.y, v.z);
+    pose_camera(world, meters(eye), meters(at));
 }
 
 /// Give the hull its slow tumble.

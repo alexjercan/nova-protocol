@@ -1,8 +1,8 @@
 # The site shows mainline ships: re-capture the web media and drop mod content from the pages
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: v0.13.0,docs,web,art
+- TAGS: v0.13.0, docs, web, art
 
 The site still shows the Kenney fleet. `138dfbfc` (2026-09-04) moved the
 modelled Racer/CargoA/CargoB craft into The Ledger and left base block-only,
@@ -116,3 +116,71 @@ contaminates the run.
 
 `web/src/news/*`, every `news-*` and `thumb-news-*` asset, and the
 comic/story art.
+
+## What landed
+
+### Producers
+
+- `shared/kit.rs` grew `catalog_ship` (the shipped hull WHOLE - sections plus
+  the derived skin, its style, its collapse threshold and sound) and `clad`
+  (a hand-built cell list wearing the same derived skin). `catalog_hull` went
+  private: structure alone is not a ship a scene should spawn. Every scene
+  producer now spawns clad catalog hulls.
+- Catalog cards, section closeups and section loops stay BARE on purpose:
+  cladding fills the EMPTY cells around a hull, so a clad documentation rig
+  photographs the plate instead of the part. Cladding the railgun rigs hid the
+  lance behind a smooth plate; both reverted, with the reason on the call.
+- `shared/ring.rs` gained `ring::leg` - install a leg camera on any bearing
+  and CUT to it. `chase` and `lead` are now two named cases of it.
+- `loop_goto_arrival`'s montage was ten PINNED poses. A ship braking from a
+  transfer crosses 200 m in the 0.65 s a cut holds, so it left every frame it
+  was placed in: eleven seconds of empty starfield. The ten bearings are leg
+  cameras now and the hull is in frame throughout.
+- `loop_damage_sequence`'s still framed the drive bell (a world-space bearing
+  against a tumbling hull). It is measured off the live hull rotation now and
+  looks at the port flank, which is the only flank any beat touches.
+- `screenshot_menu` pins the backdrop to `menu_gauntlet` and anchors the
+  camera to its gunship (`ScriptedCameraAnchor`, hull frame) 170 m off the
+  bow. The unpinned menu drew one of four backdrops at random, and the
+  authored backdrop pose is a 2.6 km establishing shot.
+- `screenshot_railgun` is new: the bore, the sight, the corridor, the combat
+  shot and the siege lance's catalog card, off `block_warship`.
+- Two latent breaks, both the same shape: `stress_point_defense` and
+  `screenshot_damage_levels` wrote `news-` loop names directly while the
+  capture script expected the living names, so `loop-section-turret` and
+  `loop-section-hull` could never be re-cut. Both now write the living name
+  and the script aliases the posts off it. `system_torpedo_launch` had the
+  third instance and now records the bay's door cycle as its own loop.
+
+### Capture
+
+Both packagers and the scratch still-runner now pin `NOVA_MODDING_CACHE_ROOT`
+and `NOVA_CONFIG_ROOT` at empty directories. A developer box with The Ledger
+or Gauntlet installed merges those mods at load and reskins the fleet the site
+is a picture of; the first capture round was shot that way and re-shot clean.
+
+58 stills, 6 icons and 34 loops packaged. News frozen throughout (no
+`NOVA_UNFREEZE`): every `news-` row in both manifests reads `frozen`.
+
+### Pages
+
+- `wiki/scenarios.md` now describes a base install (Basic Training alone,
+  backdrops hidden, no campaign shipped) and frames campaign grouping as what
+  an installed mod adds.
+- Figure notes rewritten against the frames that exist: the menu backdrop, the
+  ships chapter's damage still, the GOTO burn, the torpedo bay's iris, the
+  firefight, the scenario picker and the three railgun figures.
+- `create/styles.md` gained the greeble catalog figure - the producer existed
+  and shipped a still nothing referenced.
+
+### Verified
+
+- `python3 scripts/gen-web-screenshots.py --report`: every referenced image is
+  shipped and correctly shaped, 0 outstanding.
+- `cd web && npm run ci`: green, news namespace held across 74 source files.
+- Rendered pages read for the figures and prose above.
+- `CHANGELOG.md` [Unreleased] > Web & Platform: two entries.
+
+Not done: the scenario picker thumbnails are still generated placeholder art
+(advisory, 8 of them), and the landing page's four `feature-*.png` stills are
+shipped but no longer referenced by any page.

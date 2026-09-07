@@ -10,8 +10,10 @@
             >assets/wiki-section-torpedo-bay.png</span
         >
         <span class="figure__placeholder-note"
-            >A torpedo launching from the bay, guidance
-            trail curving onto a target.</span
+            >The bay on a hull, muzzle to the camera: the
+            two-cell tube, the hazard stripes along the
+            mouth, and the six petals of the iris shut over
+            the tube.</span
         >
     </div>
 </figure>

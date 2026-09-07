@@ -62,7 +62,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
         Quat::from_rotation_y(-0.55) * Quat::from_rotation_x(0.10) * Quat::from_rotation_z(0.18),
         SpaceshipController::None,
         None,
-        kit::catalog_hull(ships, "block_gunship"),
+        kit::catalog_ship(ships, "block_gunship"),
     );
 
     // The yard traffic: two working hulls flying slow loops around the hero,
@@ -80,7 +80,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
             Meters3::new(-300.0, 40.0, 860.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::catalog_hull(ships, "block_hauler"),
+        kit::catalog_ship(ships, "block_hauler"),
     );
     let hauler_b = ship(
         "drydock_hauler_b",
@@ -93,7 +93,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
             Meters3::new(580.0, -80.0, 600.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::catalog_hull(ships, "block_cutter"),
+        kit::catalog_ship(ships, "block_cutter"),
     );
 
     let belt = kit::NearField {
@@ -180,7 +180,7 @@ pub fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    sections: Vec<SpaceshipSectionConfig>,
+    hull: ShipHull,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -192,10 +192,7 @@ pub fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(ShipHull {
-                sections,
-                ..default()
-            }),
+            hull: ShipSource::Inline(hull),
             ..default()
         }),
     })

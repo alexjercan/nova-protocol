@@ -374,8 +374,15 @@ fn collect_descendants(world: &World, root: Entity, out: &mut Vec<Entity>) {
 #[cfg(feature = "debug")]
 type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 
+/// The hull section page's loop: one cell walked from clean plating to failure.
+///
+/// The LIVING name, not a post's. A `news-` loop is frozen - it records what
+/// one release looked like and is never re-cut - so a producer that writes one
+/// directly can never refresh the pages that show the same footage. The
+/// capture script copies this to `news-0110-damage-levels` for the post that
+/// froze it.
 #[cfg(feature = "debug")]
-const DAMAGE_LOOP: &str = "news-0110-damage-levels";
+const DAMAGE_LOOP: &str = "loop-section-hull";
 
 #[cfg(feature = "debug")]
 fn gallery_script() -> Script {

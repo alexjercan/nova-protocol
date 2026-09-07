@@ -90,10 +90,10 @@ The shot is readable after it leaves, too. The slug carries its own light with i
             >assets/wiki-section-railgun-sight.png</span
         >
         <span class="figure__placeholder-note"
-            >The sight line out of the muzzle across the gap
-            onto a gunship's long axis, a ring on each of the
-            sections the shot would gut, the line fat with a
-            charge nearly run.</span
+            >The sight line out of the muzzle, across the gap
+            and onto a gunship's long axis, with the kill ring
+            at the entry face and the line fat with a charge
+            nearly run.</span
         >
     </div>
 </figure>
@@ -143,10 +143,11 @@ How much it takes is one budget: **1800 power**, spent in the toughest each take
             >assets/wiki-section-railgun-corridor.png</span
         >
         <span class="figure__placeholder-note"
-            >The wall after the shot, entry face and exit face
-            side by side: a square hole three cells wide clean
-            through, the dead cells cold and cracked, the
-            second ring untouched.</span
+            >The gunship a moment after the slug crossed it:
+            a corridor bored through the bow, the cut cells
+            cracked and open to space, and the debris still
+            leaving the far side along the line of the
+            shot.</span
         >
     </div>
 </figure>

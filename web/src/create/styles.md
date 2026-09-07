@@ -28,6 +28,30 @@ plate behind it bare. Nothing decorative does anything else - if losing a thing
 should cost the ship an ability, that thing is a [section](../sections/), not
 decoration.
 
+<figure class="figure">
+    <!-- Capture: assets/greeble-catalog-industrial.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/greeble-catalog-industrial.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The base styles laid out a row per style, each
+            piece on its own pedestal under its id, its box
+            in meters and its health - the industrial row
+            read close, with armoured and civilian behind
+            it.</span
+        >
+    </div>
+    <figcaption class="figure__caption">
+        Every fixture the base styles scatter, one row per
+        style. A mod's own pieces sit in the same catalog
+        once the style declares them.
+    </figcaption>
+</figure>
+
 ## The Style item
 
 ```ron

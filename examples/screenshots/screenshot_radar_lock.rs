@@ -109,7 +109,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             speed_cap: None,
         }),
         None,
-        kit::catalog_hull(ships, "block_gunship"),
+        kit::catalog_ship(ships, "block_gunship"),
     );
 
     // The corridor: big rocks spread wide around the beacon, so the shot has
@@ -175,7 +175,7 @@ fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    sections: Vec<SpaceshipSectionConfig>,
+    hull: ShipHull,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -187,10 +187,7 @@ fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(ShipHull {
-                sections,
-                ..default()
-            }),
+            hull: ShipSource::Inline(hull),
             ..default()
         }),
     })

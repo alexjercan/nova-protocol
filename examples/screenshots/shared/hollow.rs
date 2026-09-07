@@ -102,7 +102,7 @@ pub fn ambush_hollow(
     sections: &GameSections,
     ships: &GameShips,
 ) -> ScenarioConfig {
-    let player_hull = kit::catalog_hull(ships, "block_gunship");
+    let player_hull = kit::catalog_ship(ships, "block_gunship");
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -117,7 +117,7 @@ pub fn ambush_hollow(
             // per-section, snapshotted from this map by section id at spawn
             // (`nova_scenario/src/objects/spaceship.rs`), so an empty map is a
             // ship whose guns no button reaches.
-            input_mapping: turret_bindings(sections, &player_hull),
+            input_mapping: turret_bindings(sections, &player_hull.sections),
             speed_cap: None,
         }),
         None,
@@ -140,7 +140,7 @@ pub fn ambush_hollow(
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_hull(ships, "block_raider"),
+        kit::catalog_ship(ships, "block_raider"),
     );
 
     // The live background: two friendlies working the near flanks, two hostiles
@@ -160,7 +160,7 @@ pub fn ambush_hollow(
             Meters3::new(-860.0, -60.0, -700.0),
         ]),
         Some(Allegiance::Player),
-        kit::catalog_hull(ships, "block_gunship"),
+        kit::catalog_ship(ships, "block_gunship"),
     );
     let wingman_b = ship(
         "hollow_wing_b",
@@ -173,7 +173,7 @@ pub fn ambush_hollow(
             Meters3::new(400.0, -200.0, -1_100.0),
         ]),
         Some(Allegiance::Player),
-        kit::catalog_hull(ships, "block_gunship"),
+        kit::catalog_ship(ships, "block_gunship"),
     );
     let hostile_a = ship(
         "hollow_hostile_a",
@@ -186,7 +186,7 @@ pub fn ambush_hollow(
             Meters3::new(-1_900.0, 60.0, -3_000.0),
         ]),
         None,
-        kit::catalog_hull(ships, "block_raider"),
+        kit::catalog_ship(ships, "block_raider"),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
@@ -199,7 +199,7 @@ pub fn ambush_hollow(
             Meters3::new(2_100.0, -40.0, -3_300.0),
         ]),
         None,
-        kit::catalog_hull(ships, "block_raider"),
+        kit::catalog_ship(ships, "block_raider"),
     );
 
     // The torpedo boat: the cleanup leader, which is the only small craft in
@@ -217,7 +217,7 @@ pub fn ambush_hollow(
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_hull(ships, "block_cleanup_leader"),
+        kit::catalog_ship(ships, "block_cleanup_leader"),
     );
 
     ScenarioConfig {
@@ -266,7 +266,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
             speed_cap: None,
         }),
         None,
-        kit::catalog_hull(ships, "block_gunship"),
+        kit::catalog_ship(ships, "block_gunship"),
     );
     let raider = ship(
         RAIDER_ID,
@@ -275,7 +275,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_hull(ships, "block_raider"),
+        kit::catalog_ship(ships, "block_raider"),
     );
     let lance = ship(
         LANCE_ID,
@@ -286,7 +286,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_hull(ships, "block_cleanup_leader"),
+        kit::catalog_ship(ships, "block_cleanup_leader"),
     );
     let shell = kit::NearField {
         id_prefix: "ordnance_rock_",
@@ -342,7 +342,7 @@ pub fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    sections: Vec<SpaceshipSectionConfig>,
+    hull: ShipHull,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -354,10 +354,7 @@ pub fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(ShipHull {
-                sections,
-                ..default()
-            }),
+            hull: ShipSource::Inline(hull),
             ..default()
         }),
     })
@@ -378,31 +375,17 @@ pub fn fighter(patrol: Vec<Meters3>) -> SpaceshipController {
     })
 }
 
-/// Bind every turret section of a built hull to the trigger, the way the
-/// shipped scenarios do (`shakedown_run` maps its two corvette turret cubes to
-/// `Mouse(Left)` + `Gamepad(RightTrigger2)`).
-///
-/// Read off the BUILT hull rather than typed out, for the same reason
-/// [`kit::catalog_hull`] is: the ids ARE the layout, and a hand-listed pair goes
-/// stale the moment a hull gains a gun. The map is keyed by INSTANCE id
-/// (`nova_scenario` snapshots bindings by section id at spawn), which is the id
-/// the assembly gave the mount.
-///
-/// This used to walk the section CATALOG and strip a `<hull>_` prefix off every
-/// turret prototype. Every craft mounts the one shared PDC now, whose id
-/// carries no hull prefix, so that filter matched nothing and handed back an
-/// empty map - a ship whose guns no button reaches, silently.
 /// The same hull with every turret rebuilt without a magazine, so a capture that
 /// holds fire never cuts to a reload.
 ///
 /// A prototype section resolves to an inline copy of the catalog entry: the
 /// magazine lives in the section config, so a rig that wants unlimited fire has
-/// to author the gun rather than reference it.
-pub fn unlimited_turrets(
-    sections: &GameSections,
-    hull: Vec<SpaceshipSectionConfig>,
-) -> Vec<SpaceshipSectionConfig> {
-    hull.into_iter()
+/// to author the gun rather than reference it. The hull is rewritten in place,
+/// so it keeps the cladding it came with.
+pub fn unlimited_turrets(sections: &GameSections, mut hull: ShipHull) -> ShipHull {
+    hull.sections = hull
+        .sections
+        .into_iter()
         .map(|mut section| {
             let SectionSource::Prototype(prototype) = &section.source else {
                 return section;
@@ -415,9 +398,24 @@ pub fn unlimited_turrets(
             }
             section
         })
-        .collect()
+        .collect();
+    hull
 }
 
+/// Bind every turret section of a built hull to the trigger, the way the
+/// shipped scenarios do (`shakedown_run` maps its two corvette turret cubes to
+/// `Mouse(Left)` + `Gamepad(RightTrigger2)`).
+///
+/// Read off the BUILT hull rather than typed out, for the same reason
+/// [`kit::catalog_ship`] is: the ids ARE the layout, and a hand-listed pair goes
+/// stale the moment a hull gains a gun. The map is keyed by INSTANCE id
+/// (`nova_scenario` snapshots bindings by section id at spawn), which is the id
+/// the assembly gave the mount.
+///
+/// This used to walk the section CATALOG and strip a `<hull>_` prefix off every
+/// turret prototype. Every craft mounts the one shared PDC now, whose id
+/// carries no hull prefix, so that filter matched nothing and handed back an
+/// empty map - a ship whose guns no button reaches, silently.
 pub fn turret_bindings(
     sections: &GameSections,
     hull: &[SpaceshipSectionConfig],

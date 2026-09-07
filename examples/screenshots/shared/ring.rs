@@ -143,7 +143,7 @@ pub fn the_ring_with_hull(
             speed_cap: None,
         }),
         None,
-        kit::catalog_hull(ships, hull),
+        kit::catalog_ship(ships, hull),
     );
 
     // The ring debris: OUTSIDE the flight path, and small. Two rules, both
@@ -275,7 +275,7 @@ pub fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    sections: Vec<SpaceshipSectionConfig>,
+    hull: ShipHull,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -287,10 +287,7 @@ pub fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(ShipHull {
-                sections,
-                ..default()
-            }),
+            hull: ShipSource::Inline(hull),
             ..default()
         }),
     })
@@ -403,17 +400,28 @@ pub fn drive_leg_camera(world: &mut World) {
     world.insert_resource(track);
 }
 
+/// Install a leg camera on a bearing of your own, and CUT to it: the filtered
+/// pose is dropped, so the rig starts solved at the new offset instead of
+/// sliding there over the next second.
+///
+/// [`chase`] and [`lead`] are the two bearings worth naming; this is what a
+/// montage of several needs.
+#[cfg(feature = "debug")]
+pub fn leg(world: &mut World, side: Meters, along: Meters, up: Meters, look_ahead: Meters) {
+    world.remove_resource::<LegCameraTrack>();
+    world.insert_resource(LegCamera {
+        side,
+        along,
+        up,
+        look_ahead,
+    });
+}
+
 /// Fly the camera behind the ship on the key side. The framing for a ship under
 /// power, since the drive is at the back and so is the lens.
 #[cfg(feature = "debug")]
 pub fn chase(world: &mut World, side: Meters, back: Meters, up: Meters, look_ahead: Meters) {
-    world.remove_resource::<LegCameraTrack>();
-    world.insert_resource(LegCamera {
-        side,
-        along: -back,
-        up,
-        look_ahead,
-    });
+    leg(world, side, -back, up, look_ahead);
 }
 
 /// Fly the camera ahead of the ship on the key side. The framing for a ship
@@ -421,13 +429,7 @@ pub fn chase(world: &mut World, side: Meters, back: Meters, up: Meters, look_ahe
 /// to be down the track with it.
 #[cfg(feature = "debug")]
 pub fn lead(world: &mut World, side: Meters, ahead: Meters, up: Meters) {
-    world.remove_resource::<LegCameraTrack>();
-    world.insert_resource(LegCamera {
-        side,
-        along: ahead,
-        up,
-        look_ahead: Meters::ZERO,
-    });
+    leg(world, side, ahead, up, Meters::ZERO);
 }
 
 /// Engage the ORBIT verb on the planetoid's well with an explicit plan - the

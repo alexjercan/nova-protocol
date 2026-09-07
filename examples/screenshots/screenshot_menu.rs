@@ -34,6 +34,27 @@ mod ui_walk;
 #[cfg(feature = "debug")]
 use ui_walk::Gestures;
 
+/// The backdrop this walk shoots against.
+const BACKDROP: &str = "menu_gauntlet";
+
+/// The one ship the gauntlet is built around, and the subject of the frame
+/// behind the menu.
+#[cfg(feature = "debug")]
+const BACKDROP_SHIP_ID: &str = "gauntlet_ship";
+
+/// Where the camera stands relative to that gunship, in the HULL's own frame:
+/// off the starboard bow (`-Z` is ahead of it), raised, about 170 m out.
+///
+/// The hull frame rather than world axes, because the gunship flies a patrol
+/// and a world-axis offset photographs whatever end the current leg presents -
+/// the first cut of this shot came out stern-on, a drive bell filling the
+/// middle of the menu. Riding the hull always gives the same three-quarter
+/// bow. A `block_gunship` is roughly 110 m stem to stern, and 170 m of
+/// standoff makes a frame 250 m wide: the sections and their mounts stay
+/// separable, with the rock band still around them.
+#[cfg(feature = "debug")]
+const BACKDROP_EYE: Meters3 = Meters3::new(130.0, 50.0, -95.0);
+
 #[derive(Parser)]
 #[command(name = "screenshot_menu")]
 #[command(version = "1.0.0")]
@@ -42,6 +63,21 @@ struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
+
+    // Pin the backdrop before the app boots. Menu entry draws one of the four
+    // shipped backdrops at RANDOM, so an unpinned capture is a different scene
+    // every run and the page's figure note can only describe whichever one it
+    // drew.
+    //
+    // The gauntlet, because it is the backdrop built around ONE named ship:
+    // a gunship holding a station against torpedo waves. The other three put
+    // their traffic on a route or on a dogfight, so the hull in shot is
+    // whichever one the act has carried into view.
+    //
+    // Set here rather than exported by the capture loop: the packager runs
+    // every still producer through one generic command, so a producer that
+    // needs an environment carries it itself.
+    std::env::set_var(MENU_BACKDROP_ENV, BACKDROP);
 
     // The same app the game/binary runs (main menu over the ambience backdrop).
     let mut app = editor_app(true, None);
@@ -92,6 +128,13 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .step("settle the menu and its ambience backdrop")
         .until(frames(SETTLE_FRAMES))
         .add()
+        // The backdrop's own SetCamera is an ESTABLISHING shot - 2.6 km out,
+        // where the gunship is a speck over a rock band. The menu is the
+        // reader's first sight of the fleet, so move in on the hull.
+        .step("frame the backdrop's gunship")
+        .on_enter(frame_backdrop_ship)
+        .until(frames(SETTLE_FRAMES))
+        .add()
         // Hide the HUD first, and let the PNG land BEFORE navigating away:
         // clicking on in the same frame captured a black mid-teardown frame.
         .step("capture the main menu")
@@ -133,4 +176,43 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(state_is(GameStates::Playing))
         .deadline(STEP_DEADLINE_SECS)
         .add()
+}
+
+/// Bolt the backdrop camera to the gauntlet's gunship.
+///
+/// An anchor rather than a fixed pose: the gunship flies a patrol six
+/// waypoints wide, so a pose solved at this instant is a picture of where the
+/// ship USED to be by the time the PNG lands.
+#[cfg(feature = "debug")]
+fn frame_backdrop_ship(world: &mut World) {
+    let ship = named_ship(world, BACKDROP_SHIP_ID).unwrap_or_else(|| {
+        panic!("screenshot_menu: backdrop '{BACKDROP}' spawned no ship '{BACKDROP_SHIP_ID}'")
+    });
+    let camera = {
+        let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+        query.iter(world).next()
+    };
+    let camera = camera.expect("screenshot_menu: the backdrop staged no scenario camera");
+    world
+        .entity_mut(camera)
+        .remove::<WASDCameraController>()
+        // The two overrides derive the same transform, so the backdrop's own
+        // fixed pose has to go or it fights the anchor every frame.
+        .remove::<ScriptedCameraPose>()
+        .insert(ScriptedCameraAnchor {
+            anchor: ship,
+            offset: BACKDROP_EYE,
+            frame: CameraOffsetFrame::Local,
+            look_at: ScriptedCameraLookAt::Anchor,
+        });
+}
+
+/// The spawned ship root carrying `id`.
+#[cfg(feature = "debug")]
+fn named_ship(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
+    query
+        .iter(world)
+        .find(|(_, entity_id)| entity_id.0 == id)
+        .map(|(entity, _)| entity)
 }

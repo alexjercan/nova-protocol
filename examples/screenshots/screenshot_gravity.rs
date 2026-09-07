@@ -1,9 +1,14 @@
-//! screenshot_gravity: the drydock's planetoid, from the yard and from close in.
+//! screenshot_gravity: the drydock hero with the yard's planetoid behind it.
 //!
-//! Loads "Drydock drift" (`shared/drydock.rs`) and poses two framings of the
-//! same body: the hero with the well behind it, then the well as the subject.
+//! Loads "Drydock drift" (`shared/drydock.rs`) and poses one framing: the hero
+//! gunship in the near field with the well's planetoid behind it.
 //!
-//! Ships two manifest images: `feature-gravity` and `wiki-gravity`.
+//! Ships one manifest image: `feature-gravity`.
+//!
+//! The wiki's gravity figure is NOT shot here. A body on black teaches nothing
+//! about a well; `screenshot_orbit` flies a real ring around a real one, with
+//! the holo ring, the radius spoke and the ship on the end of it in one frame,
+//! and the wiki page takes that.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk both framings, exit clean,
@@ -75,14 +80,19 @@ fn main() -> bevy::app::AppExit {
                 ))
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
-                // The gravity feature: hero in the near left, the planetoid
-                // behind it down-right, belt rocks between the two for depth.
+                // The gravity feature: hero left of centre, the planetoid
+                // right of it and 5.9 km back, belt rocks between the two for
+                // depth. Both subjects sit on the horizontal centreline and
+                // 29 degrees apart, which is what decides where the lens
+                // stands: the hero is 195 m off, so the ONLY freedom left is
+                // which way the camera faces out of it, and a pose that put
+                // the hero dead centre put the body behind the hero.
                 .step("frame feature-gravity.png")
                 .on_enter(|world: &mut World| {
                     pose_camera(
                         world,
-                        Meters3::new(-65.0, 26.0, 95.0),
-                        Meters3::new(0.0, 0.0, -20.0),
+                        Meters3::new(41.0, 32.0, 193.0),
+                        Meters3::new(43.0, 0.0, -4.0),
                     );
                 })
                 .until(frames(SETTLE_FRAMES))
@@ -90,23 +100,6 @@ fn main() -> bevy::app::AppExit {
                 .step("shoot feature-gravity.png")
                 .on_enter(|world: &mut World| shoot(world, "feature-gravity.png"))
                 .until(shot_written("feature-gravity.png"))
-                .deadline(SHOT_DEADLINE_SECS)
-                .add()
-                // The planetoid as the subject: closer in, the body filling the
-                // lower half with the yard's rocks passing in front of it.
-                .step("frame wiki-gravity.png")
-                .on_enter(|world: &mut World| {
-                    pose_camera(
-                        world,
-                        Meters3::new(400.0, -60.0, -1_100.0),
-                        drydock::PLANETOID_POSITION,
-                    );
-                })
-                .until(frames(SETTLE_FRAMES))
-                .add()
-                .step("shoot wiki-gravity.png")
-                .on_enter(|world: &mut World| shoot(world, "wiki-gravity.png"))
-                .until(shot_written("wiki-gravity.png"))
                 .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );

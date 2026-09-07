@@ -49,19 +49,6 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 }
 
 #[cfg(feature = "debug")]
-fn fixed_leg_pose(world: &mut World, side: Meters, along: Meters, up: Meters, look_ahead: Meters) {
-    let ship = ring::ship_position(world);
-    let track = ring::ship_heading(world);
-    ring::pin(
-        world,
-        ship + Meters3(
-            ring::lit_side(track) * side.get() + track * along.get() + Vec3::Y * up.get(),
-        ),
-        ship + Meters3(track * look_ahead.get()),
-    );
-}
-
-#[cfg(feature = "debug")]
 #[derive(Resource)]
 struct CutCamera {
     elapsed: f32,
@@ -71,24 +58,47 @@ struct CutCamera {
 #[cfg(feature = "debug")]
 const CUT_INTERVAL: f32 = 0.65;
 
+/// The arrival montage: ten bearings, each `(side, along, up, look_ahead)` in
+/// meters, relative to the ship and its track. Each is installed as a
+/// [`ring::LegCamera`], so the rig FLIES with the ship for its 0.65 s and the
+/// change of bearing is a cut.
+///
+/// A montage of PINNED poses is what this used to be, and it recorded eleven
+/// seconds of empty starfield: a ship braking from a transfer crosses 200 m in
+/// the time one cut holds, so it left every frame it was placed in almost as
+/// soon as the cut landed. `LegCamera` says so on itself; this is the same
+/// lesson learned twice.
+///
+/// Two numbers decide how the ship SITS in that frame. The STAND-OFF (the
+/// length of the first three) sets how much of the width the hull fills: the
+/// lens is 45 degrees vertical, so at 16:9 it spans 1.47 times its distance,
+/// and a 110 m gunship is half the frame width at about 150 m and a quarter of
+/// it at 300. The LOOK-AHEAD decides where in the frame it sits, because the
+/// camera aims at a point down the track rather than at the ship: half the
+/// horizontal field is 36 degrees, so a lead of 200 m at a 300 m stand-off
+/// pushes the subject 34 degrees off axis, onto the frame edge.
+///
+/// So: stand-offs between 120 and 170 m, and leads short enough to keep the
+/// hull inside the middle two thirds with the space it is flying into ahead of
+/// it.
 #[cfg(feature = "debug")]
 const CUTS: [(Meters, Meters, Meters, Meters); 10] = [
-    (Meters(300.0), Meters(-100.0), Meters(120.0), Meters(200.0)),
-    (Meters(320.0), Meters(80.0), Meters(180.0), Meters(180.0)),
-    (Meters(340.0), Meters(-160.0), Meters(50.0), Meters(180.0)),
-    (Meters(360.0), Meters(120.0), Meters(100.0), Meters(190.0)),
-    (Meters(310.0), Meters(160.0), Meters(-50.0), Meters(160.0)),
-    (Meters(340.0), Meters(-120.0), Meters(140.0), Meters(150.0)),
-    (Meters(290.0), Meters(50.0), Meters(200.0), Meters(130.0)),
-    (Meters(320.0), Meters(-150.0), Meters(70.0), Meters(120.0)),
-    (Meters(280.0), Meters(120.0), Meters(110.0), Meters(100.0)),
-    (Meters(300.0), Meters(-60.0), Meters(-40.0), Meters(90.0)),
+    (Meters(130.0), Meters(-45.0), Meters(55.0), Meters(45.0)),
+    (Meters(140.0), Meters(40.0), Meters(80.0), Meters(40.0)),
+    (Meters(150.0), Meters(-70.0), Meters(25.0), Meters(40.0)),
+    (Meters(160.0), Meters(55.0), Meters(45.0), Meters(45.0)),
+    (Meters(135.0), Meters(70.0), Meters(-25.0), Meters(35.0)),
+    (Meters(150.0), Meters(-55.0), Meters(65.0), Meters(35.0)),
+    (Meters(125.0), Meters(25.0), Meters(90.0), Meters(30.0)),
+    (Meters(140.0), Meters(-65.0), Meters(35.0), Meters(30.0)),
+    (Meters(120.0), Meters(55.0), Meters(50.0), Meters(25.0)),
+    (Meters(130.0), Meters(-30.0), Meters(-20.0), Meters(20.0)),
 ];
 
 #[cfg(feature = "debug")]
 fn start_cut_camera(world: &mut World) {
     let (side, along, up, look_ahead) = CUTS[0];
-    fixed_leg_pose(world, side, along, up, look_ahead);
+    ring::leg(world, side, along, up, look_ahead);
     world.insert_resource(CutCamera {
         elapsed: 0.0,
         next: 1,
@@ -104,21 +114,26 @@ fn drive_cut_camera(world: &mut World) {
     if cuts.elapsed >= CUT_INTERVAL {
         cuts.elapsed -= CUT_INTERVAL;
         let (side, along, up, look_ahead) = CUTS[cuts.next % CUTS.len()];
-        fixed_leg_pose(world, side, along, up, look_ahead);
+        ring::leg(world, side, along, up, look_ahead);
         cuts.next += 1;
     }
     world.insert_resource(cuts);
 }
 
+/// The last shot: the cutting stops and the ship is held on one bearing while
+/// the braking plume dies.
+///
+/// Still a leg camera, not a pin - "parked" is the autopilot's word for a ship
+/// that has stopped closing, not for one that has stopped moving.
 #[cfg(feature = "debug")]
 fn settle_camera(world: &mut World) {
     world.remove_resource::<CutCamera>();
-    fixed_leg_pose(
+    ring::leg(
         world,
-        Meters(250.0),
-        Meters(-70.0),
-        Meters(70.0),
-        Meters::ZERO,
+        Meters(140.0),
+        Meters(-50.0),
+        Meters(45.0),
+        Meters(60.0),
     );
 }
 

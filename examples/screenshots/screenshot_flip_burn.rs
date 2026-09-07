@@ -90,8 +90,19 @@ fn main() -> bevy::app::AppExit {
                 // hull is round, the drive is lit back down the path and the plume
                 // points where the ship is going. Waiting for the phase, not for a
                 // fraction of a rotation nobody can time.
-                .step("open the controller loop")
+                // Pose the lens before recording. The coast beat hands the
+                // camera back to the game's chase rig so the outbound leg is
+                // not spent watching a ship shrink - and the chase rig sits
+                // far enough back that the flip, recorded from it, was a hull
+                // a tenth of the frame wide on black. The loop gets the same
+                // lead framing the still does, opened out a little because
+                // the hull sweeps end-for-end inside it.
+                .step("frame the flip for the loop")
                 .on_enter(hide_hud)
+                .on_enter(|world| ring::lead(world, Meters(100.0), Meters(170.0), Meters(52.0)))
+                .until(elapsed(0.3))
+                .add()
+                .step("open the controller loop")
                 .on_enter(|world| loop_start(world, CONTROLLER_LOOP))
                 .add()
                 .step("flip and burn")
@@ -106,6 +117,12 @@ fn main() -> bevy::app::AppExit {
                 .until(loop_written(CONTROLLER_LOOP))
                 .deadline(60.0)
                 .add()
+                // Mostly AHEAD rather than mostly abeam, and lower. An offset
+                // weighted to the side gave a flat plan view of a flat hull
+                // with the retro plume pointing away from the lens; weighted
+                // down the track, the drive fires at the camera and the hull
+                // is read three-quarters on.
+                //
                 // So the camera is AHEAD of the ship for this one, not behind it:
                 // braking, the drive fires down the track, and the plume that was
                 // at the lens during the departure is now on the far side of the
@@ -116,7 +133,7 @@ fn main() -> bevy::app::AppExit {
                 .step("frame the flip")
                 .on_enter(|world| {
                     ring::hud_instrument(world);
-                    ring::lead(world, Meters(210.0), Meters(110.0), Meters(60.0));
+                    ring::lead(world, Meters(86.0), Meters(146.0), Meters(44.0));
                 })
                 .until(elapsed(0.3))
                 .add()
