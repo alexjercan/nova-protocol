@@ -15,7 +15,9 @@
 
 use std::ops::Range;
 
-use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, RigidBody};
+use avian3d::prelude::{
+    AngularVelocity, CenterOfMass, Collider, ComputeMassProperties3d, LinearVelocity, RigidBody,
+};
 use bevy::prelude::*;
 use bevy_rand::prelude::{GlobalRng, WyRand};
 use nova_gameplay::prelude::{
@@ -116,7 +118,7 @@ pub struct ShedFixtureMarker(pub Entity);
 /// its world transform to a local one, and give it a body. Nothing is spawned,
 /// copied or re-dressed, and its greebles ride it out still bolted on.
 ///
-/// # It leaves its collider behind
+/// # It leaves its collider behind, but keeps where the collider stood
 ///
 /// Shed cladding is DEBRIS, not material: kinematic, colliderless, and
 /// untouchable for the seconds it lives - the same claim
@@ -126,10 +128,20 @@ pub struct ShedFixtureMarker(pub Entity);
 /// per plate carrying a compound per greeble, which is the cost that already
 /// forced a dying section to strip the colliders off everything it takes with
 /// it. Flying through a sheet of tumbling cladding costs the read nothing.
+///
+/// The shape is still needed for one number: the PIVOT. Avian turns a body
+/// about its centre of mass, and a fixture is authored around the face it MOUNTS
+/// ON rather than around its middle - a plate hangs off the floor of its cell,
+/// a greeble stands with its foot at the origin - so a body left to the default
+/// centre swings about a point up to half a cell clear of the piece. That reads
+/// as cladding on a wire, not cladding tumbling. The collider already carries
+/// the answer, so its centre is copied onto the body as an explicit
+/// [`CenterOfMass`] on the way out, and a colliderless body still spins about
+/// itself.
 pub(crate) fn shed_dead_fixtures(
     mut commands: Commands,
     q_dead: Query<
-        (Entity, &GlobalTransform, &ChildOf),
+        (Entity, &GlobalTransform, &ChildOf, &Collider),
         (With<SectionFixture>, With<HealthZeroMarker>),
     >,
     q_parents: Query<&ChildOf>,
@@ -137,7 +149,7 @@ pub(crate) fn shed_dead_fixtures(
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
-    for (fixture, frame, ChildOf(section)) in &q_dead {
+    for (fixture, frame, ChildOf(section), collider) in &q_dead {
         let transform = frame.compute_transform();
         // Outward from the middle of the ship, which for cladding is the way it
         // already faces: a plate stands on the hull's outer surface, so this is
@@ -162,6 +174,7 @@ pub(crate) fn shed_dead_fixtures(
                 // parent frame to be local to.
                 transform,
                 RigidBody::Kinematic,
+                CenterOfMass(collider.center_of_mass()),
                 LinearVelocity(drift + away * rng.random_range(SHED_KICK)),
                 AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(SHED_SPIN)),
                 TempEntity(SHED_LIFETIME_SECS),
@@ -327,6 +340,44 @@ mod tests {
             "a greeble riding the wreck kept a shape on the debris body",
         );
         assert!(world.get::<TempEntity>(fixture).is_some(), "debris forever");
+    }
+
+    /// A shed piece tumbles about ITSELF. A fixture is authored around the face
+    /// it mounts on, so a body left to avian's default centre swings about a
+    /// point clear of the piece instead of spinning where it stands.
+    #[test]
+    fn shed_cladding_tumbles_about_the_shape_it_was_wearing() {
+        let (mut app, section, _) = shed_app(Vec3::Y * 2.0);
+        // A plate's collider in miniature: a thin box hanging off the floor of
+        // its cell, which is nowhere near the entity carrying it.
+        let seat = Vec3::Y * -0.4;
+        let plate = app
+            .world_mut()
+            .spawn((
+                ChildOf(section),
+                SectionFixture,
+                Health::new(10.0),
+                Collider::compound(vec![(
+                    seat,
+                    Quat::IDENTITY,
+                    Collider::cuboid(1.0, 0.2, 1.0),
+                )]),
+                Transform::default(),
+            ))
+            .id();
+        app.update();
+
+        kill(&mut app, plate);
+
+        let pivot = app
+            .world()
+            .get::<CenterOfMass>(plate)
+            .expect("shed cladding was given no centre of mass")
+            .0;
+        assert!(
+            pivot.distance(seat) < 1.0e-4,
+            "shed cladding spins about {pivot} instead of the plate at {seat}",
+        );
     }
 
     /// The shed runs ONCE. A fixture keeps its health pool and its marker after

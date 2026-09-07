@@ -353,6 +353,12 @@ fn detach_destroyed_body(
             // the structure it was bolted to. `ChunkGrace` makes it physical
             // once it has drifted clear.
             RigidBody::Kinematic,
+            // The shape's own centre, stated rather than left to the collider
+            // that has not landed yet. Avian turns a body about its centre of
+            // mass, so a piece without one pivots about its entity origin for
+            // the whole grace and then jumps to the shape's centre the moment
+            // `ChunkGrace` hands the collider over.
+            CenterOfMass(collider.center_of_mass()),
             LinearVelocity(drift + away * rng.random_range(PIECE_KICK)),
             AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(PIECE_SPIN)),
             ChunkGrace::new(collider),

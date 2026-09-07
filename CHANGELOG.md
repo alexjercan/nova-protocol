@@ -384,6 +384,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A GOTO that ends at a planetoid reports its arrival, and parks itself in
   orbit only where the ship's computer grants ORBIT - one withholding the verb
   hands the ship back at the standoff instead.
+- A wreck piece tumbles about the shape it was. Until its collider landed it
+  spun about the section's origin, so an off-centre part swung wide and then
+  snapped straight.
 
 ### Internals & Tooling
 - One TABLE declares the action vocabulary. A row generates the enum arm, the
