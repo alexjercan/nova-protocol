@@ -358,10 +358,16 @@ What is on disk today, in reading order:
   computer (`screenshot_nova_os_terminal`, `screenshot_nova_os_apps`), the Rock
   hollow combat beats (`screenshot_radar_lock`, `screenshot_contextual_hud`,
   `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
-  `screenshot_hull_juice`, `screenshot_torpedo_run`) and the flight computer
-  around a real well (`screenshot_orbit`, `screenshot_goto_burn`,
-  `screenshot_flip_burn`). The two webm producers are `loop_torpedo_blast` and
-  `loop_spine_cut`. The posed LINEUPS live here too -
+  `screenshot_hull_juice`, `screenshot_torpedo_run`), the spinal lance
+  (`screenshot_railgun`) and the flight computer around a real well
+  (`screenshot_orbit`, `screenshot_goto_burn`, `screenshot_flip_burn`). Ten
+  producers are named `loop_*` and write only video; recording is not their
+  privilege, though - a `loop_start`/`loop_end` pair records from any harnessed
+  example, so `screenshot_railgun`, `screenshot_editor`, `wfc_arena` and
+  `system_torpedo_launch` each ship a loop beside their stills. What a run makes
+  is decided by `scripts/capture-web-media.sh` (loops) and
+  `scripts/gen-web-screenshots.py` (stills), which name every producer and every
+  file it writes. The posed LINEUPS live here too -
   `screenshot_thruster_gallery` (the shipped drive, the proposed shell family
   and the CC0 candidates in one named row) and `screenshot_damage_levels` (the
   same ship at five damage levels, side by side, which is one comparison and so
@@ -588,16 +594,20 @@ captured in-engine and packaged into `web/src/assets/` by
 runtime once the asset exists (progressive enhancement in `web/src/site.ts`), so
 no HTML edit is needed - just drop the file in.
 
-Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
-staging dir, then package into `web/src/assets/`:
+Capture and package in one command:
 
 ```sh
-export NOVA_CAPTURE_DIR=target/shots
-for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
-    NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example "$shot" --features debug
-done
-python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
+nix develop --command scripts/capture-web-shots.sh              # every producer
+nix develop --command scripts/capture-web-shots.sh screenshot_railgun  # or a few
 ```
+
+It stages into `target/shots`, runs each producer under Xvfb, and then packages
+with `scripts/gen-web-screenshots.py`. It is the stills half of a pair:
+`scripts/capture-web-media.sh` does the same for the webm loops. Both point
+`NOVA_MODDING_CACHE_ROOT` and `NOVA_CONFIG_ROOT` at empty directories and stamp
+a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
+producer that enables one on purpose (`screenshot_scenario_picker` does) can
+dress the next shot.
 
 The capture examples run headless under `NOVA_AUTOPILOT`: each is one autopilot
 script whose steps pose the camera and shoot, and `NOVA_CAPTURE` is what makes
