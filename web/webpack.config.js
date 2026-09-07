@@ -31,7 +31,7 @@ const page = (chunk, template, filename) =>
         basePath: publicPath,
     });
 
-// Every doc page (both /wiki/ and /create/) comes from src/docs-manifest.js -
+// Every wiki, creator, and lore page comes from src/docs-manifest.js -
 // the ONE list that also drives the browser chrome (sidebar, search, tags,
 // see-also and index cards in src/docs.ts). Adding a page = its markdown file
 // plus one manifest entry; the generated page, crumb, TOC, meta description
@@ -198,10 +198,9 @@ const NEWS_POSTS = [
 const newsPage = (p) =>
     newsPostPage({ ...p, mdPath: `src/news/${p.slug}.md`, publicPath });
 
-// Redirect stubs for the retired /blog/ and /changelog/ URLs -> the merged
-// /news/ posts (patch versions fold into their parent feature post). Each emits
-// a tiny meta-refresh + canonical page (no chunks, no header/footer) so old
-// links and bookmarks keep resolving after the merge.
+// Retired entry pages and merged news URLs emit a tiny meta-refresh + canonical
+// page (no chunks, no header/footer) so old links and bookmarks keep resolving.
+// News patch versions fold into their parent feature post.
 const redirectHtml = (to) =>
     `<!doctype html>
 <html lang="en">
@@ -216,6 +215,8 @@ const redirectHtml = (to) =>
     </body>
 </html>`;
 const REDIRECTS = [
+    ["lore/setting", "lore"],
+    ["lore/contents", "lore"],
     ["blog", "news"],
     ["changelog", "news"],
     ["blog/devlog-1-modular-ships-and-first-combat", "news/0.1.0"],

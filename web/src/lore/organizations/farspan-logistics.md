@@ -4,7 +4,7 @@
 
 <table class="infobox">
 <caption>Farspan Logistics</caption>
-<tr><td colspan="2" class="image"><a href="../images/encyclopedia/farspan-brand-concept.svg"><img src="../images/encyclopedia/farspan-brand-concept.svg" width="800" height="480" alt="Farspan branding proposal: two terminals joined by an offset green span above a Farspan Logistics wordmark."></a></td></tr>
+<tr><td colspan="2" class="image"><a href="../../../assets/lore/farspan-brand-concept.svg"><img src="../../../assets/lore/farspan-brand-concept.svg" width="800" height="480" alt="Farspan branding proposal: two terminals joined by an offset green span above a Farspan Logistics wordmark."></a></td></tr>
 <tr><td colspan="2" class="cap">Emblem and wordmark proposal in encyclopedia colors. Not established branding.</td></tr>
 <tr><th scope="row">Short name</th><td>Farspan</td></tr>
 <tr><th scope="row">Type</th><td>Freight carrier and station operator</td></tr>
@@ -17,9 +17,9 @@
 **Farspan Logistics**, commonly called **Farspan**, is a long-haul freight
 carrier and station operator in Saturn's developing settlement network. It
 supplies Earth-Saturn freight services to
-[EarthWorks Industrial](earthworks-industrial.md) while operating
-[Junction](../places/junction.md), a newer freight-hub town that competes with
-[Keystone](../places/keystone.md).
+[EarthWorks Industrial](../earthworks-industrial/) while operating
+[Junction](../../places/junction/), a newer freight-hub town that competes with
+[Keystone](../../places/keystone/).
 
 The company combines transport services with its own station operations. Its
 relationship with EarthWorks involves both commercial dependence and
@@ -49,16 +49,16 @@ competition. Rivalry does not make Farspan benevolent or establish a permanent
 alliance with anyone opposing EarthWorks.
 
 The companies operate within the wider system of
-[institutions and political power](../setting.md#institutions-and-political-power),
+[law and power](../../law-and-power/),
 including Earth law, public oversight, and the distinction between company
 security and state military power.
 
 <figure class="plate">
-<a href="../images/encyclopedia/freight-and-station-rivalry.svg"><img src="../images/encyclopedia/freight-and-station-rivalry.svg" width="800" height="900" alt="Farspan supplies EarthWorks with Earth-Saturn freight. EarthWorks is Keystone's founding operator. Farspan operates Junction. The two stations compete for traffic and local business."></a>
+<a href="../../../assets/lore/freight-and-station-rivalry.svg"><img src="../../../assets/lore/freight-and-station-rivalry.svg" width="800" height="900" alt="Farspan supplies EarthWorks with Earth-Saturn freight. EarthWorks is Keystone's founding operator. Farspan operates Junction. The two stations compete for traffic and local business."></a>
 <figcaption><strong>Reference diagram.</strong> Farspan supplies freight to
 EarthWorks while Junction competes with Keystone. Arrows show selected
 commercial relationships, not property ownership or orbital positions.
-<a href="../images/encyclopedia/freight-and-station-rivalry.svg">Open diagram</a>.</figcaption>
+<a href="../../../assets/lore/freight-and-station-rivalry.svg">Open diagram</a>.</figcaption>
 </figure>
 
 ## Details still open
@@ -72,10 +72,10 @@ yet been established.
 
 ## Related subjects
 
-- [Junction](../places/junction.md)
-- [EarthWorks Industrial](earthworks-industrial.md)
-- [Keystone](../places/keystone.md)
-- [Competing companies](../setting.md#competing-companies)
-- [The settlement network](../setting.md#time-and-place)
-- [Travel and ship design](../setting.md#travel-and-ship-design)
-- [Browse subjects](../contents.md)
+- [Junction](../../places/junction/)
+- [EarthWorks Industrial](../earthworks-industrial/)
+- [Keystone](../../places/keystone/)
+- [Competing companies](../../law-and-power/#competing-companies)
+- [The settlement network](../../society/#the-settlement-network)
+- [Ships and travel](../../ships-and-travel/)
+- [Encyclopedia directory](../../)

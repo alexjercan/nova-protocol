@@ -1,5 +1,5 @@
-// The docs manifest: the single source of truth for BOTH doc sections of the
-// site - /wiki/ (players) and /create/ (mod authors). webpack.config.js
+// The docs manifest: the single source of truth for /wiki/ (players),
+// /create/ (mod authors), and /lore/ (world reference). webpack.config.js
 // requires this at config time to generate every page, its crumbs, TOC and
 // dev-server rewrite; docs.ts imports it in the browser to render the sidebar,
 // search, tags, see-also and index cards. One entry here IS the page - there is
@@ -10,7 +10,7 @@
 //
 // Page fields:
 // - slug: URL segment under the section root ("actions" -> /create/actions/).
-//   Children use nested slugs only in the wiki ("sections/hull").
+//   Nested slugs group subjects, such as "sections/hull" or "places/keystone".
 // - md: markdown source, relative to the section's mdDir.
 // - category: sidebar group; must be one of the section's categories.
 // - tags: small controlled taxonomy - tag chips, search, and the auto
@@ -871,7 +871,261 @@ const CREATE_PAGES = [
     },
 ];
 
-// The two doc sections. Each owns its URL root, sidebar categories, markdown
+const LORE_PAGES = [
+    {
+        slug: "economy",
+        md: "economy.md",
+        title: "Economy",
+        category: "World background",
+        tags: ["industry", "imports", "independence", "research"],
+        summary:
+            "Earth-backed expansion, local industry, imported supplies, independent operators, and research at Saturn.",
+        related: ["society", "law-and-power", "ships-and-travel"],
+        headings: [
+            "Expansion and investment",
+            "Local industry and imports",
+            "Independent operators and salvage",
+            "Research",
+            "Details still open",
+        ],
+        toc: true,
+    },
+    {
+        slug: "society",
+        md: "society.md",
+        title: "Society and settlement",
+        category: "World background",
+        tags: ["settlement", "homes", "migration", "stations"],
+        summary:
+            "Arrivals, station homes, working lives, and communities in Saturn's developing settlement network.",
+        related: ["places/keystone", "places/junction", "law-and-power"],
+        headings: [
+            "Arrivals and generations",
+            "Homes and working lives",
+            "The settlement network",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "law-and-power",
+        md: "law-and-power.md",
+        title: "Law and power",
+        category: "World background",
+        tags: ["rights", "residency", "companies", "security", "unions"],
+        summary:
+            "Employment-linked residency, corporate influence, public authority, security, and worker representation.",
+        related: ["economy", "society", "organizations/earthworks-industrial"],
+        headings: [
+            "Rights and company control",
+            "Competing companies",
+            "State authority and security",
+            "Worker representation",
+            "Institutions and political power",
+            "Details still open",
+        ],
+        toc: true,
+    },
+    {
+        slug: "ships-and-travel",
+        md: "ships-and-travel.md",
+        title: "Ships and travel",
+        category: "World background",
+        tags: ["ships", "transport", "technology", "propulsion"],
+        summary:
+            "Working ships, commercial journeys, express transfers, and the tradeoff between propulsion and useful payload.",
+        related: ["economy", "society", "organizations/farspan-logistics"],
+        headings: [
+            "Working ships",
+            "Thrust and momentum",
+            "Gravity and rendezvous",
+            "Commercial journeys",
+            "Express transfers",
+            "Design tradeoffs",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "places/keystone",
+        md: "places/keystone.md",
+        title: "Keystone",
+        category: "Places",
+        tags: ["stations", "earthworks", "settlement"],
+        summary:
+            "Saturn's first permanent station, founded as a construction and supply hub and now a substantial home.",
+        related: [
+            "places/junction",
+            "organizations/earthworks-industrial",
+            "society",
+        ],
+        headings: [
+            "Establishment and growth",
+            "Homes and working lives",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "places/junction",
+        md: "places/junction.md",
+        title: "Junction",
+        category: "Places",
+        tags: ["stations", "farspan", "freight"],
+        summary:
+            "Farspan's freight-hub town: a permanent home and a competing port, not a compulsory gateway to Saturn.",
+        related: [
+            "places/keystone",
+            "organizations/farspan-logistics",
+            "society",
+        ],
+        headings: [
+            "Freight and competition",
+            "Homes and work",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "places/clearwell",
+        md: "places/clearwell.md",
+        title: "Clearwell",
+        category: "Places",
+        tags: ["stations", "water", "clearwell", "home"],
+        summary:
+            "An independent water-processing station: a workplace and home to a small permanent community.",
+        related: ["organizations/clearwell-waterworks", "economy", "society"],
+        headings: [
+            "Water as useful supply",
+            "A small permanent home",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "organizations/earthworks-industrial",
+        md: "organizations/earthworks-industrial.md",
+        title: "EarthWorks Industrial",
+        category: "Companies and institutions",
+        tags: ["companies", "earthworks", "infrastructure"],
+        summary:
+            "Keystone's founding operator, an Earth-based infrastructure company dependent on outside long-haul carriers.",
+        related: [
+            "places/keystone",
+            "organizations/farspan-logistics",
+            "law-and-power",
+        ],
+        headings: [
+            "Role at Keystone",
+            "Transport dependence",
+            "Employment and public authority",
+            "Independent founders",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "organizations/farspan-logistics",
+        md: "organizations/farspan-logistics.md",
+        title: "Farspan Logistics",
+        category: "Companies and institutions",
+        tags: ["companies", "farspan", "freight"],
+        summary:
+            "An Earth-Saturn freight carrier and Junction's operator, both a supplier and competitor to EarthWorks.",
+        related: [
+            "places/junction",
+            "organizations/earthworks-industrial",
+            "ships-and-travel",
+        ],
+        headings: [
+            "Freight and station operations",
+            "Relationship with EarthWorks",
+            "Details still open",
+        ],
+    },
+    {
+        slug: "organizations/clearwell-waterworks",
+        md: "organizations/clearwell-waterworks.md",
+        title: "Clearwell Waterworks",
+        category: "Companies and institutions",
+        tags: ["companies", "clearwell", "water", "independence"],
+        summary:
+            "A decent, locally founded water operator, started by former EarthWorks staff without an Earth parent.",
+        related: ["places/clearwell", "characters/jonah-mercer", "economy"],
+        headings: [
+            "Work worth keeping",
+            "Water and the settlement network",
+            "The workship crew",
+        ],
+    },
+    {
+        slug: "characters/jonah-mercer",
+        md: "characters/jonah-mercer.md",
+        title: "Jonah Mercer",
+        category: "Characters",
+        tags: ["crew", "clearwell", "captain"],
+        summary:
+            "Clearwell's workship captain: competent, restrained, and expecting to return to Earth after the posting.",
+        related: [
+            "characters/leila-haddad",
+            "characters/tomas-vega",
+            "organizations/clearwell-waterworks",
+        ],
+        headings: ["A posting with an end", "Trust aboard"],
+    },
+    {
+        slug: "characters/leila-haddad",
+        md: "characters/leila-haddad.md",
+        title: "Leila Haddad",
+        category: "Characters",
+        tags: ["crew", "clearwell", "engineer", "home"],
+        summary:
+            "Chief engineer and the captain's trusted counterpart, with a settled life and a competitive game night at Clearwell.",
+        related: ["characters/jonah-mercer", "places/clearwell", "society"],
+        headings: ["Beyond the machinery", "Trust and different futures"],
+    },
+    {
+        slug: "characters/tomas-vega",
+        md: "characters/tomas-vega.md",
+        title: "Tomas Vega",
+        category: "Characters",
+        tags: ["crew", "clearwell", "pilot", "navigation"],
+        summary:
+            "A precise pilot and navigator who plans to leave Saturn and questions risks volunteered on the crew's behalf.",
+        related: [
+            "characters/jonah-mercer",
+            "characters/rina-okafor",
+            "ships-and-travel",
+        ],
+        headings: ["The cost of a promise", "A future elsewhere"],
+    },
+    {
+        slug: "characters/rina-okafor",
+        md: "characters/rina-okafor.md",
+        title: "Rina Okafor",
+        category: "Characters",
+        tags: ["crew", "clearwell", "recovery", "cargo"],
+        summary:
+            "Work operations lead for cargo, recovery, and external work, and the strongest advocate for helping station residents.",
+        related: [
+            "characters/tomas-vega",
+            "characters/jonah-mercer",
+            "places/clearwell",
+        ],
+        headings: ["People behind the work", "Obligations aboard"],
+    },
+    {
+        slug: "characters/samir-bell",
+        md: "characters/samir-bell.md",
+        title: "Samir Bell",
+        category: "Characters",
+        tags: ["crew", "clearwell", "systems", "communications"],
+        summary:
+            "Systems technician and first-aider: quietly curious, attentive to discrepancies, and more persuaded by records than rumors.",
+        related: [
+            "characters/leila-haddad",
+            "characters/rina-okafor",
+            "organizations/clearwell-waterworks",
+        ],
+        headings: ["What the records support", "Care aboard"],
+    },
+];
+
+// Each doc section owns its URL root, sidebar categories, markdown
 // directory and page list; the chrome and page generation both walk this array.
 // - `landing` (optional): a markdown page rendered at the section root itself
 //   (/create/). The wiki instead keeps a hand-authored index shell
@@ -908,6 +1162,27 @@ const DOC_SECTIONS = [
         },
         categories: ["Learn to mod", "Modding reference"],
         pages: CREATE_PAGES,
+    },
+    {
+        root: "lore",
+        title: "Lore",
+        homeLabel: "Encyclopedia",
+        searchPlaceholder: "Search the lore...",
+        titleSuffix: "Nova Protocol Lore",
+        mdDir: "src/lore",
+        landing: {
+            md: "index.md",
+            title: "Encyclopedia",
+            description:
+                "The Nova Protocol world reference: Saturn's settlements, companies, working lives, and technology.",
+        },
+        categories: [
+            "World background",
+            "Places",
+            "Companies and institutions",
+            "Characters",
+        ],
+        pages: LORE_PAGES,
     },
 ];
 

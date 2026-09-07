@@ -4,7 +4,7 @@
 
 <table class="infobox">
 <caption>EarthWorks Industrial</caption>
-<tr><td colspan="2" class="image"><a href="../images/encyclopedia/earthworks-brand-concept.svg"><img src="../images/encyclopedia/earthworks-brand-concept.svg" width="800" height="480" alt="EarthWorks branding proposal: a green-toned structural emblem above an EarthWorks Industrial wordmark."></a></td></tr>
+<tr><td colspan="2" class="image"><a href="../../../assets/lore/earthworks-brand-concept.svg"><img src="../../../assets/lore/earthworks-brand-concept.svg" width="800" height="480" alt="EarthWorks branding proposal: a green-toned structural emblem above an EarthWorks Industrial wordmark."></a></td></tr>
 <tr><td colspan="2" class="cap">Emblem and wordmark proposal in encyclopedia colors. Not established branding.</td></tr>
 <tr><th scope="row">Short name</th><td>EarthWorks</td></tr>
 <tr><th scope="row">Type</th><td>Industrial and infrastructure company</td></tr>
@@ -16,7 +16,7 @@
 
 **EarthWorks Industrial**, commonly called **EarthWorks**, is an Earth-based
 industrial and infrastructure company and the founding operator of
-[Keystone](../places/keystone.md), Saturn's first permanent ring station.
+[Keystone](../../places/keystone/), Saturn's first permanent ring station.
 
 Its early role in the settlement network centered on construction and supply.
 Its influence grew through infrastructure and operating contracts, rather than
@@ -51,8 +51,8 @@ Their available capacity and commercial priorities can conflict with
 EarthWorks' demand for equipment and supplies. This relationship does not give
 any single carrier an absolute monopoly.
 
-[Farspan Logistics](farspan-logistics.md), one of these carriers, operates
-[Junction](../places/junction.md), its own newer freight-hub town at Saturn.
+[Farspan Logistics](../farspan-logistics/), one of these carriers, operates
+[Junction](../../places/junction/), its own newer freight-hub town at Saturn.
 Farspan competes with Keystone for traffic and local business while supplying
 freight services to EarthWorks. The relationship combines commercial dependence
 with competition; Junction is not a compulsory gateway for other ships.
@@ -74,20 +74,28 @@ Corporate influence does not give EarthWorks command of Earth's military.
 Private security and escorts remain distinct from the main military forces;
 major intervention requires a state decision.
 
+## Independent founders
+
+[Clearwell Waterworks](../clearwell-waterworks/) was founded at Saturn by former
+EarthWorks staff. It operates an inhabited water-processing station as an
+independent local company, without an Earth parent. Its founders' employment
+history does not make Clearwell an EarthWorks subsidiary.
+
 ## Details still open
 
 The company's earlier Earth history, leadership, precise holdings, and
 concessions remain open, as do its detailed contracts with Farspan and its
-relationships with other operators. No specific labor dispute, misconduct case,
-or role in the main narrative has been chosen.
+relationships with other operators. Individual managers and their biographies
+have not yet been chosen.
 
 ## Related subjects
 
-- [Farspan Logistics](farspan-logistics.md)
-- [Keystone](../places/keystone.md)
-- [Junction](../places/junction.md)
-- [Competing companies](../setting.md#competing-companies)
-- [Expansion and economy](../setting.md#expansion-and-economy)
-- [Rights and company control](../setting.md#rights-and-company-control)
-- [State authority and security](../setting.md#state-authority-and-security)
-- [Browse subjects](../contents.md)
+- [Farspan Logistics](../farspan-logistics/)
+- [Clearwell Waterworks](../clearwell-waterworks/)
+- [Keystone](../../places/keystone/)
+- [Junction](../../places/junction/)
+- [Competing companies](../../law-and-power/#competing-companies)
+- [Economy](../../economy/)
+- [Rights and company control](../../law-and-power/#rights-and-company-control)
+- [State authority and security](../../law-and-power/#state-authority-and-security)
+- [Encyclopedia directory](../../)

@@ -13,8 +13,6 @@ dump.svg
 
 # mdbook output (book.toml build-dir); the source is docs/
 /book/
-# the lore book's output; the source is lore/src/
-/lore/book/
 
 # Default output of the nova_debug screenshot beat (nova_screenshot)
 screenshot.png

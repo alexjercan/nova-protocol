@@ -1,17 +1,17 @@
 import "./style.css";
+import "./lore.css";
 import { initSite } from "./site";
 import { initWidgets } from "./widgets";
 import { DOC_SECTIONS, DocPage, DocSection } from "./docs-manifest";
 
 initSite();
 
-// The whole doc chrome (for both /wiki/ and /create/) is rendered here from
+// The doc chrome for /wiki/, /create/, and /lore/ is rendered here from
 // the manifest in docs-manifest.js, so the sidebar, search, tag chips,
 // see-also and index all stay in sync with the generated pages. Each page
 // supplies placeholder elements by id; we only fill the ones present, so the
 // section indexes and sub-pages share this one script. Everything is scoped to
-// the CURRENT section: the wiki sidebar lists only wiki pages, the create
-// sidebar only creator pages.
+// the CURRENT section: each sidebar lists only its own section's pages.
 
 // basePath is not available to bundled JS, so read it off the header brand link
 // the same way site.ts does (works at "/" locally and "/nova-protocol/" on
@@ -24,7 +24,7 @@ function basePath(): string {
     return new URL(brand.href).pathname.replace(/\/*$/, "/");
 }
 
-// /wiki/... or /create/... -> the manifest section; anything else -> null.
+// Resolve the first URL segment against the registered doc sections.
 function currentSection(base: string): DocSection | null {
     const path = window.location.pathname;
     const rel = path.startsWith(base) ? path.slice(base.length) : path;

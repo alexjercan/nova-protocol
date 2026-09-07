@@ -1,0 +1,109 @@
+/* Encyclopedia furniture uses the site's palette and stays inside lore pages. */
+[data-doc-section="lore"] {
+    display: flow-root;
+}
+
+[data-doc-section="lore"] .article-kicker {
+    margin: 0 0 1.5em;
+    color: var(--phosphor-dim);
+    font-size: 0.76rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+[data-doc-section="lore"] table.infobox {
+    float: right;
+    clear: right;
+    width: min(26em, 46%);
+    margin: 0 0 1.2em 1.6em;
+    border: 1px solid var(--edge);
+    border-collapse: collapse;
+    border-radius: 0;
+    background: var(--screen-0);
+    line-height: 1.4;
+}
+
+[data-doc-section="lore"] .infobox caption {
+    padding: 0.55em;
+    border: 1px solid var(--edge);
+    border-bottom: 0;
+    background: var(--fill);
+    color: var(--phosphor);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+[data-doc-section="lore"] .infobox th,
+[data-doc-section="lore"] .infobox td {
+    padding: 0.35em 0.55em;
+    border: 0;
+    border-top: 1px dotted var(--edge-faint);
+}
+
+[data-doc-section="lore"] .infobox th {
+    width: 38%;
+    color: var(--phosphor-dim);
+    font-weight: 400;
+}
+
+[data-doc-section="lore"] .infobox tbody tr:nth-child(even) {
+    background: none;
+}
+
+[data-doc-section="lore"] .infobox td.image {
+    padding: 0;
+    border-top: 0;
+}
+
+[data-doc-section="lore"] .infobox td.image img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+[data-doc-section="lore"] .infobox .cap {
+    color: var(--phosphor-dim);
+    font-size: 0.92em;
+    font-style: italic;
+}
+
+[data-doc-section="lore"] figure.plate {
+    clear: both;
+    margin: 1.8em 0;
+    border: 1px solid var(--edge);
+    background: var(--screen-0);
+}
+
+[data-doc-section="lore"] .plate > a {
+    display: block;
+    border: 0;
+}
+
+[data-doc-section="lore"] .plate img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+[data-doc-section="lore"] .plate figcaption {
+    padding: 0.7em 1em;
+    border-top: 1px solid var(--edge-faint);
+    color: var(--phosphor-dim);
+    font-size: 0.82rem;
+}
+
+@media (max-width: 960px) {
+    [data-doc-section="lore"] table.infobox {
+        float: none;
+        width: 100%;
+        margin: 0 0 1.2em;
+    }
+}
+
+@media print {
+    [data-doc-section="lore"] figure.plate,
+    [data-doc-section="lore"] table.infobox {
+        break-inside: avoid;
+    }
+}

@@ -97,7 +97,7 @@ function highlightRon(code) {
     return out;
 }
 
-// Build-time markdown -> HTML for the doc pages (/wiki/ and /create/).
+// Build-time markdown -> HTML for the registered doc sections.
 // Rendering happens here in Node (the webpack config calls docPage at
 // configure time), so there is no runtime markdown cost and a no-JS / SEO
 // reader still gets the full article - the same "content in HTML, chrome via
@@ -232,7 +232,7 @@ function tocBox(headings) {
 // (publicPath is already known) rather than left as a <%= %> token.
 // opts: { section, description, crumbParent: { slug, title }, toc: headings,
 // landing }. `section` ({ root, title, titleSuffix }) picks the crumb root and
-// <title> suffix, so /wiki/ and /create/ pages share this one shell. A
+// <title> suffix, so all doc sections share this one shell. A
 // description is rendered as the page meta; a crumbParent renders a two-level
 // crumb ("Create / <parent> / <title>") for child pages; toc renders the
 // contents box above the body (the reference pages opt in); landing renders the
@@ -284,7 +284,7 @@ function docShell(title, basePath, opts = {}) {
                     id="wiki-nav"
                     aria-label="${sectionTitle} navigation"
                 ></aside>
-                <article class="wiki__body prose">
+                <article class="wiki__body prose" data-doc-section="${root}">
                     ${crumbBlock}<h1>${t}</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
                     ${opts.toc ? tocBox(opts.toc) : ""}
@@ -298,8 +298,8 @@ function docShell(title, basePath, opts = {}) {
 </html>`;
 }
 
-// Build one HtmlWebpackPlugin for a markdown doc page in a doc SECTION (/wiki/
-// or /create/). The rendered body rides on the plugin's `docBody` option;
+// Build one HtmlWebpackPlugin for a registered markdown doc page.
+// The rendered body rides on the plugin's `docBody` option;
 // HtmlPartialsPlugin injects it into the #doc-body placeholder at beforeEmit
 // (see webpack-partials.js). Shares the `docs` chunk so the sidebar/search/
 // tags/see-also all render from the manifest. `description` sets the page

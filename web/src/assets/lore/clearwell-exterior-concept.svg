@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title description">
+  <title id="title">Clearwell: water-station exterior concept</title>
+  <desc id="description">A small inhabited industrial station: storage vessels and processing modules occupy a utility spine, separated from a rotating residential section. Service panels and an unarmed workship complete the scene. Layout, equipment, capacity, scale and orbit are visual proposals, not established specifications. The green treatment does not establish physical colors.</desc>
+  <defs>
+    <filter id="encyclopedia-green" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="800" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1.4 -0.45 -0.15 0 0 -0.1 1 0.1 0 0 0.05 0.65 0.05 0 0 0 0 0 1 0"/></filter>
+    <radialGradient id="space" cx="82%" cy="6%" r="95%"><stop stop-color="#354957"/><stop offset="0.55" stop-color="#152938"/><stop offset="1" stop-color="#050d18"/></radialGradient>
+    <radialGradient id="planet" cx="25%" cy="10%" r="95%"><stop stop-color="#d8d0b6"/><stop offset="0.5" stop-color="#8d9d91"/><stop offset="1" stop-color="#1b3545"/></radialGradient>
+    <linearGradient id="alloy" x1="0" y1="0" x2="1" y2="0.2"><stop stop-color="#375564"/><stop offset="0.27" stop-color="#c5cdb7"/><stop offset="0.56" stop-color="#869d9c"/><stop offset="1" stop-color="#294757"/></linearGradient>
+    <linearGradient id="ring" x2="0.8" y2="1"><stop stop-color="#d9d4b8"/><stop offset="0.4" stop-color="#8aa19b"/><stop offset="1" stop-color="#2e4d5d"/></linearGradient>
+    <linearGradient id="fade" x2="0" y2="1"><stop stop-color="#050d18" stop-opacity="0"/><stop offset="1" stop-color="#050d18"/></linearGradient>
+    <pattern id="panels" width="24" height="16" patternUnits="userSpaceOnUse"><rect width="24" height="16" fill="#1b3446"/><path d="M24 0H0V16" fill="none" stroke="#5b7b83"/></pattern>
+    <g id="tank">
+      <path d="M-53 -128V12A53 17 0 0 0 53 12V-128Z" fill="url(#alloy)" stroke="#243e4b" stroke-width="3"/>
+      <ellipse cy="-128" rx="53" ry="17" fill="#b5c1ae" stroke="#486571" stroke-width="3"/>
+      <ellipse cy="-131" rx="18" ry="6" fill="#3c5966" stroke="#c8cdb2" stroke-width="2"/>
+      <path d="M-53 -91A53 17 0 0 0 53 -91M-53 -12A53 17 0 0 0 53 -12" fill="none" stroke="#284957" stroke-width="9"/>
+      <path d="M-53 -96A53 17 0 0 0 53 -96M-53 -17A53 17 0 0 0 53 -17" fill="none" stroke="#c5cbb1" stroke-width="3"/>
+      <path d="M25 -105V3M36 -102V6M25 -85H36M25 -62H36M25 -39H36M25 -16H36" fill="none" stroke="#b8c8b7" stroke-width="2"/>
+      <path d="M-36 21V39M36 21V39" stroke="#2c4a59" stroke-width="10"/>
+      <path d="M0 -137V-157H-28" fill="none" stroke="#84b8bb" stroke-width="6"/>
+    </g>
+    <g id="module">
+      <path d="M0 0L18 -14H115L97 0Z" fill="#c5c9b3"/>
+      <path d="M97 0L115 -14V55L97 69Z" fill="#2e4c5d"/>
+      <rect width="97" height="69" fill="url(#alloy)" stroke="#1b3747" stroke-width="3"/>
+      <path d="M12 14H82M12 53H82M28 3V65M70 3V65" stroke="#b0c0b0" stroke-width="2"/>
+      <rect x="39" y="24" width="23" height="17" fill="#213b4b" stroke="#95b5b1"/>
+    </g>
+  </defs>
+  <g id="artwork" filter="url(#encyclopedia-green)">
+    <rect width="1280" height="800" fill="url(#space)"/>
+    <g fill="#b9d0d4"><circle cx="61" cy="93" r="1.1"/><circle cx="259" cy="167" r="1.2"/><circle cx="438" cy="80" r="1"/><circle cx="578" cy="209" r="1.1"/><circle cx="727" cy="77" r="1.3"/><circle cx="97" cy="441" r="1.2"/><circle cx="202" cy="626" r="1.1"/><circle cx="566" cy="654" r="1"/><circle cx="1134" cy="549" r="1.4"/><circle cx="1206" cy="421" r="1.1"/></g>
+    <g transform="rotate(-19 1120 -162)" fill="none"><ellipse cx="1120" cy="-162" rx="794" ry="245" stroke="#b1bfae" stroke-width="29" opacity="0.34"/><ellipse cx="1120" cy="-162" rx="850" ry="264" stroke="#d3cbaa" stroke-width="7" opacity="0.4"/></g>
+    <circle cx="1120" cy="-162" r="400" fill="url(#planet)"/>
+    <g transform="rotate(-19 1120 -162)" fill="none"><path d="M326 -162A794 245 0 0 0 1914 -162" stroke="#bbc5b1" stroke-width="29" opacity="0.46"/><path d="M270 -162A850 264 0 0 0 1970 -162" stroke="#d3cbaa" stroke-width="7" opacity="0.5"/></g>
+    <g transform="translate(648 397) rotate(-13)">
+      <path d="M172 -10V-215H313M245 -7V-137H400" fill="none" stroke="#243f50" stroke-width="13"/>
+      <path d="M172 -10V-215H313M245 -7V-137H400" fill="none" stroke="#8ca6a2" stroke-width="4"/>
+      <path d="M214 -267H407V-174H214ZM300 -169H467V-89H300Z" fill="url(#panels)" stroke="#a7b8aa" stroke-width="3"/>
+      <path d="M310 -267V-174M214 -220H407M383 -169V-89M300 -129H467" stroke="#8da89f" stroke-width="3"/>
+      <ellipse cx="-364" cy="10" rx="59" ry="146" fill="none" stroke="#142e3f" stroke-width="31"/>
+      <path d="M-364 -133V153M-418 10H-308M-402 -91L-326 111M-402 111L-326 -91" stroke="#1c3848" stroke-width="13"/>
+      <path d="M-364 -133V153M-418 10H-308M-402 -91L-326 111M-402 111L-326 -91" stroke="#8ca59e" stroke-width="4"/>
+      <path d="M-382 -9H-225V29H-382Z" fill="url(#alloy)" stroke="#233e4d" stroke-width="3"/>
+      <ellipse cx="-371" cy="4" rx="59" ry="146" fill="none" stroke="url(#ring)" stroke-width="22"/>
+      <ellipse cx="-371" cy="4" rx="59" ry="146" fill="none" stroke="#284352" stroke-width="8"/>
+      <ellipse cx="-371" cy="4" rx="59" ry="146" fill="none" stroke="#d9cb93" stroke-width="3" stroke-dasharray="4 10"/>
+      <path d="M-305 -13L-283 -29H407L432 -13Z" fill="#acbaa8"/>
+      <path d="M-305 -13H432V26H-305Z" fill="url(#alloy)" stroke="#1d3747" stroke-width="3"/>
+      <path d="M-300 -1H421M-300 20H421" stroke="#b5c4b0" stroke-width="2"/>
+      <path d="M-300 0L-272 20L-244 0L-216 20L-188 0L-160 20L-132 0L-104 20L-76 0L-48 20L-20 0L8 20L36 0L64 20L92 0L120 20L148 0L176 20L204 0L232 20L260 0L288 20L316 0L344 20L372 0L400 20L428 0" fill="none" stroke="#2c4858" stroke-width="4"/>
+      <use href="#tank" transform="translate(-189 -61)"/>
+      <use href="#tank" transform="translate(-46 -61)"/>
+      <use href="#tank" transform="translate(97 -61)"/>
+      <path d="M-218 -214H-252V-43H245V-78M-75 -214H-109V-43M68 -214H34V-43" fill="none" stroke="#264859" stroke-width="12"/>
+      <path d="M-218 -214H-252V-43H245V-78M-75 -214H-109V-43M68 -214H34V-43" fill="none" stroke="#85b7b7" stroke-width="4"/>
+      <use href="#module" transform="translate(263 -91)"/>
+      <path d="M-185 27V84M-42 27V100M100 27V85" stroke="#2a4657" stroke-width="17"/>
+      <use href="#module" transform="translate(-229 82)"/>
+      <use href="#module" transform="translate(-84 98)"/>
+      <use href="#module" transform="translate(55 84)"/>
+      <path d="M-207 156V183H127V157M-36 172V183" fill="none" stroke="#8eb4ae" stroke-width="5"/>
+      <path d="M342 27V123H266" fill="none" stroke="#264556" stroke-width="16"/>
+      <path d="M342 27V123H266" fill="none" stroke="#91ada4" stroke-width="5"/>
+      <g transform="translate(279 176) rotate(7)">
+        <path d="M-80 -23L-56 -37H46L89 -9L68 19H-66Z" fill="#a8b5a8" stroke="#173344" stroke-width="3"/>
+        <path d="M-66 -3H76L68 19H-66Z" fill="#3c5b68"/>
+        <path d="M-45 -31V12M-4 -31V12M35 -31V12" stroke="#c1c6ad" stroke-width="4"/>
+        <path d="M48 -29L70 -18H40Z" fill="#193849"/>
+        <path d="M-97 -25H-64V-8H-97ZM-97 7H-64V24H-97Z" fill="#213e50" stroke="#8ca9a5" stroke-width="2"/>
+        <path d="M-28 -36V-53H13V-36" fill="#698b91" stroke="#b3c4b4" stroke-width="2"/>
+      </g>
+      <path d="M400 -29V-86M383 -65H417" stroke="#afc5b6" stroke-width="3"/>
+      <circle cx="400" cy="-86" r="3" fill="#c1e2d3"/>
+      <g fill="#c4dfc9"><circle cx="430" cy="5" r="3"/><circle cx="-305" cy="5" r="3"/><circle cx="127" cy="183" r="3"/></g>
+    </g>
+    <rect y="655" width="1280" height="145" fill="url(#fade)"/>
+    <path d="M40 713H160" stroke="#84b5ba" stroke-width="3"/>
+    <g font-family="DejaVu Sans, sans-serif"><text x="40" y="754" fill="#e0e6d5" font-size="31" letter-spacing="5">CLEARWELL</text><text x="40" y="780" fill="#95b4bc" font-size="15" letter-spacing="2">WATER-STATION EXTERIOR STUDY / NOT AN ESTABLISHED DESIGN</text></g>
+  </g>
+</svg>

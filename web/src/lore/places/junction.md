@@ -13,8 +13,8 @@
 </table>
 
 **Junction** is a major orbital station town operated by
-[Farspan Logistics](../organizations/farspan-logistics.md) in Saturn's settlement
-network. Established after [Keystone](keystone.md), it serves as a freight hub
+[Farspan Logistics](../../organizations/farspan-logistics/) in Saturn's settlement
+network. Established after [Keystone](../keystone/), it serves as a freight hub
 and a permanent home.
 
 It is one of roughly three to five substantial station towns supporting the
@@ -23,11 +23,11 @@ Junction competes with Keystone for traffic and local business, rather than
 serving as a compulsory gateway for every ship entering the settlements.
 
 <figure class="plate">
-<a href="../images/encyclopedia/junction-exterior-concept.svg"><img src="../images/encyclopedia/junction-exterior-concept.svg" width="1280" height="800" alt="Junction exterior concept: a broad freight terminal with cargo ships and handling structures below rotating residential sections, against Saturn's distant limb and rings."></a>
+<a href="../../../assets/lore/junction-exterior-concept.svg"><img src="../../../assets/lore/junction-exterior-concept.svg" width="1280" height="800" alt="Junction exterior concept: a broad freight terminal with cargo ships and handling structures below rotating residential sections, against Saturn's distant limb and rings."></a>
 <figcaption><strong>Visual concept.</strong> Freight operations and rotating
 housing in an exterior study. This does not establish a layout, scale, orbit,
 or whether the town was planned from the start.
-<a href="../images/encyclopedia/junction-exterior-concept.svg">Open image</a>.</figcaption>
+<a href="../../../assets/lore/junction-exterior-concept.svg">Open image</a>.</figcaption>
 </figure>
 
 ## Freight and competition
@@ -37,7 +37,7 @@ facilities within another operator's station. It combines the company's
 long-haul transport business with station operations.
 
 Farspan is also one of the outside carriers on which
-[EarthWorks Industrial](../organizations/earthworks-industrial.md), Keystone's
+[EarthWorks Industrial](../../organizations/earthworks-industrial/), Keystone's
 founding operator, depends for Earth-Saturn freight. The companies therefore
 have a supplier relationship while their station operations compete.
 
@@ -65,9 +65,9 @@ level, and local administrative arrangements remain open.
 
 ## Related subjects
 
-- [Farspan Logistics](../organizations/farspan-logistics.md)
-- [Keystone](keystone.md)
-- [EarthWorks Industrial](../organizations/earthworks-industrial.md)
-- [The settlement network](../setting.md#time-and-place)
-- [Homes and working lives](../setting.md#homes-and-working-lives)
-- [Browse subjects](../contents.md)
+- [Farspan Logistics](../../organizations/farspan-logistics/)
+- [Keystone](../keystone/)
+- [EarthWorks Industrial](../../organizations/earthworks-industrial/)
+- [The settlement network](../../society/#the-settlement-network)
+- [Homes and working lives](../../society/#homes-and-working-lives)
+- [Encyclopedia directory](../../)

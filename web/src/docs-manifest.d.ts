@@ -1,5 +1,5 @@
-// Types for docs-manifest.js, the single source of truth for both doc
-// sections (/wiki/ and /create/). The data lives in plain CommonJS so the
+// Types for docs-manifest.js, the single source of truth for registered doc
+// sections (/wiki/, /create/, and /lore/). The data lives in plain CommonJS so the
 // webpack config can require it at configure time; this declaration gives the
 // browser chunk (docs.ts) full typing over the same objects.
 

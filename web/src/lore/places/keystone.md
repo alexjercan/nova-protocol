@@ -24,10 +24,10 @@ moon outposts. Its historical role does not give its operator control of the
 entire network.
 
 <figure class="plate">
-<a href="../images/encyclopedia/keystone-exterior-concept.svg"><img src="../images/encyclopedia/keystone-exterior-concept.svg" width="1280" height="800" alt="Keystone exterior concept: a rotating residential ring beside a long industrial spine, service modules, and an open construction yard, with Saturn behind."></a>
+<a href="../../../assets/lore/keystone-exterior-concept.svg"><img src="../../../assets/lore/keystone-exterior-concept.svg" width="1280" height="800" alt="Keystone exterior concept: a rotating residential ring beside a long industrial spine, service modules, and an open construction yard, with Saturn behind."></a>
 <figcaption><strong>Visual concept.</strong> A construction-and-supply station
 exterior study. Geometry, scale, and orbital position remain proposals, not
-established specifications. <a href="../images/encyclopedia/keystone-exterior-concept.svg">Open image</a>.</figcaption>
+established specifications. <a href="../../../assets/lore/keystone-exterior-concept.svg">Open image</a>.</figcaption>
 </figure>
 
 ## Establishment and growth
@@ -36,7 +36,7 @@ The station was established roughly 10-15 years before the present setting.
 Its primary purpose was to support the construction of the settlement network,
 rather than to grow around a single resource-processing plant.
 
-The founding operator, [EarthWorks Industrial](../organizations/earthworks-industrial.md),
+The founding operator, [EarthWorks Industrial](../../organizations/earthworks-industrial/),
 began its Saturn settlement business with construction and supply. Its influence
 developed through infrastructure and operating contracts. The wider expansion
 is backed by Earth funding and major public contracts, while several corporate
@@ -46,9 +46,9 @@ Keystone's growth is part of a continuing development boom, not the aftermath
 of an economic collapse. New installations and settlement projects continue to
 create demand for construction, supplies, and transport.
 
-[Junction](junction.md), a newer freight-hub town, competes with Keystone for
+[Junction](../junction/), a newer freight-hub town, competes with Keystone for
 traffic and local business. Its operator,
-[Farspan Logistics](../organizations/farspan-logistics.md), is one of the outside
+[Farspan Logistics](../../organizations/farspan-logistics/), is one of the outside
 carriers on which EarthWorks depends for Earth-Saturn freight, making it both a
 supplier and a competitor.
 
@@ -77,16 +77,17 @@ have not yet been established. Neither have the station's exact orbit,
 population, dimensions, internal layout, or residential gravity level.
 
 The exterior study above is a visual proposal, not an approved engineering
-design. The cover illustration remains a separate, unassigned station concept.
+design. The illustration in [Society and settlement](../../society/) remains a
+separate, unassigned station concept.
 
 ## Related subjects
 
-- [Junction](junction.md)
-- [The settlement network](../setting.md#time-and-place)
-- [EarthWorks Industrial](../organizations/earthworks-industrial.md)
-- [Farspan Logistics](../organizations/farspan-logistics.md)
-- [Competing companies](../setting.md#competing-companies)
-- [Expansion and economy](../setting.md#expansion-and-economy)
-- [Rights and company control](../setting.md#rights-and-company-control)
-- [Worker representation](../setting.md#worker-representation)
-- [Browse subjects](../contents.md)
+- [Junction](../junction/)
+- [The settlement network](../../society/#the-settlement-network)
+- [EarthWorks Industrial](../../organizations/earthworks-industrial/)
+- [Farspan Logistics](../../organizations/farspan-logistics/)
+- [Competing companies](../../law-and-power/#competing-companies)
+- [Economy](../../economy/)
+- [Rights and company control](../../law-and-power/#rights-and-company-control)
+- [Worker representation](../../law-and-power/#worker-representation)
+- [Encyclopedia directory](../../)
