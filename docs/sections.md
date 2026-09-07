@@ -311,10 +311,20 @@ neighbours. The same structure always gives the same skin.
   that no longer exists.
 - On a LIVE ship, derivation runs at spawn and nowhere else. The skin is a pure
   function of the structure, so re-running it would grow back whatever combat
-  blew off; `despawn_dead_fixtures` takes a dead plate away and nothing puts it
+  blew off; `shed_dead_fixtures` takes a spent plate away and nothing puts it
   back.
+- A spent plate LEAVES rather than vanishing, the same finale a destroyed
+  section gets. `shed_dead_fixtures` (`sections/fixture.rs`) drops its `ChildOf`
+  where it stands, promotes its world pose to a local one, and gives it a kick
+  outward from the hull, a tumble and a `TempEntity` timer - inheriting the
+  ship's motion through `inherited_motion`, so cladding does not hang in space
+  while the hull flies out from under it. It is the SAME entity, so the meshes
+  drawing it and the greebles standing on it come along untouched. Its
+  colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
+  claim `spew` makes for its shards - because a hull wears hundreds of plates
+  and a dynamic body per plate is the cost a dying section already refuses.
 - `ShipSkinPlugin { render }` is split at the render line, not at the look line:
-  the derivation and the sweep are gameplay and run headless, and `render` gates
+  the derivation and the shed are gameplay and run headless, and `render` gates
   only the meshes hung on each plate by the `dress_skin_plate` observer.
 
 Cladding is OPT IN. The derivation reads a hull as unit cells, which the

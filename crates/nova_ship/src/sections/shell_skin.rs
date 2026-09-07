@@ -39,13 +39,16 @@ use bevy::{
     prelude::*,
 };
 use nova_gameplay::prelude::{
-    destructible_body, HealthZeroMarker, IntegritySystems, SectionMarker, SpaceshipRootMarker,
+    destructible_body, IntegritySystems, SectionMarker, SpaceshipRootMarker,
 };
 
 use crate::sections::{
     base_section::prelude::SectionFootprint,
     clearance::prelude::SectionExit,
-    fixture::prelude::SectionFixture,
+    fixture::{
+        prelude::{SectionFixture, ShedFixtureMarker},
+        shed_dead_fixtures,
+    },
     integrity::build_ship_integrity_graph,
     link_points::prelude::{LinkPoint, SectionLinkPoints},
     shell_shape::{ShellShape, ShellSurface, FULL, HALF, REACH},
@@ -1101,31 +1104,16 @@ fn plate_collider(volume: f32) -> Collider {
     )])
 }
 
-/// Take a fixture off the ship the moment its health runs out.
-///
-/// Structure is destroyed through the integrity graph, and a fixture is
-/// deliberately not in it, so without this a dead plate would sit there at zero
-/// health still stopping rounds. There is no wreck and no husk: a plate coming
-/// off IS the damage read, and what it uncovers is the hull behind it.
-fn despawn_dead_fixtures(
-    mut commands: Commands,
-    q_dead: Query<Entity, (With<SectionFixture>, With<HealthZeroMarker>)>,
-) {
-    for fixture in &q_dead {
-        // `try_despawn`: the section a fixture hangs on can die the same frame
-        // and take its children with it before this command lands.
-        commands.entity(fixture).try_despawn();
-    }
-}
-
-/// Clads a ship at spawn, dresses the plates it lays, and sweeps the dead ones.
+/// Clads a ship at spawn, dresses the plates it lays, and sheds the dead ones.
 ///
 /// SPLIT down the middle, and the split is not where a look/no-look reading
 /// would put it. A plate carries a collider, health and mass: a round has to
 /// stop on one and a shot-off plate has to leave a hole whether or not anybody
-/// is watching, so DERIVING the skin and SWEEPING dead plates are gameplay and
+/// is watching, so DERIVING the skin and SHEDDING dead plates are gameplay and
 /// run on a headless server too. `render` gates the meshes and their materials
-/// and nothing else.
+/// and nothing else. What a shed plate then does - see
+/// [`shed_dead_fixtures`](super::fixture::shed_dead_fixtures) - is the fixture
+/// module's, because greebles are shed by the same rule.
 #[derive(Default, Clone, Debug)]
 pub struct ShipSkinPlugin {
     /// Whether plates are given the meshes that draw them.
@@ -1140,6 +1128,7 @@ impl Plugin for ShipSkinPlugin {
         app.register_type::<ShipStyle>();
         app.register_type::<ShipDecorMarker>();
         app.register_type::<SectionFixture>();
+        app.register_type::<ShedFixtureMarker>();
         // Empty until the mod merge fills it, so a headless test or a scenario
         // with no styles authored still resolves (to nothing) rather than
         // panicking on a missing resource.
@@ -1153,7 +1142,7 @@ impl Plugin for ShipSkinPlugin {
                 spawn_ship_skin
                     .after(build_ship_integrity_graph)
                     .before(IntegritySystems),
-                despawn_dead_fixtures,
+                shed_dead_fixtures,
             ),
         );
 
@@ -1169,6 +1158,7 @@ impl Plugin for ShipSkinPlugin {
 #[cfg(test)]
 mod tests {
     use avian3d::prelude::{ColliderDensity, ComputeMassProperties3d};
+    use bevy_rand::prelude::{EntropyPlugin, WyRand};
     use nova_gameplay::prelude::{
         Health, HealthApplyDamage, HealthIsolated, NovaHealthPlugin, SectionMarker,
     };
@@ -1196,10 +1186,18 @@ mod tests {
     /// claims: everything asserted below has to hold with no meshes anywhere.
     fn skin_app() -> App {
         let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default(), NovaHealthPlugin));
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            NovaHealthPlugin,
+        ));
+        // The shed draws its kick and its spin off the seeded stream, so a rig
+        // without one leaves dead cladding bolted on.
+        app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
-        app.add_systems(Update, (spawn_ship_skin, despawn_dead_fixtures));
+        app.add_systems(Update, (spawn_ship_skin, shed_dead_fixtures));
         // The first tick of a manual clock is dt 0, so anything spawned before
         // one has passed lives in a frame that never advanced.
         app.update();
@@ -1325,12 +1323,14 @@ mod tests {
         );
     }
 
-    /// A plate whose health runs out comes off the ship.
+    /// A plate whose health runs out comes off the ship and drifts away.
     ///
     /// Nothing else would take it: destruction reaches structure through the
     /// integrity graph, and a fixture is deliberately not in it. The section
     /// behind survives, which is what makes losing skin a different event from
-    /// losing a part.
+    /// losing a part. What the plate does once it is loose is
+    /// [`fixture`](super::super::fixture)'s; this is the wiring that gets it
+    /// there.
     #[test]
     fn a_plate_at_zero_health_comes_off_and_leaves_its_section() {
         let mut app = skin_app();
@@ -1348,12 +1348,17 @@ mod tests {
         });
         app.update();
 
+        let world = app.world();
         assert!(
-            app.world().get_entity(plate).is_err(),
+            world.get::<ChildOf>(plate).is_none(),
             "a dead plate is still bolted to the hull",
         );
         assert!(
-            app.world().get_entity(section).is_ok(),
+            world.get::<ShedFixtureMarker>(plate).is_some(),
+            "a dead plate came off without becoming debris",
+        );
+        assert!(
+            world.get_entity(section).is_ok(),
             "the section behind it died with its cladding",
         );
     }

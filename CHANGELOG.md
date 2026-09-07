@@ -178,6 +178,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** The base game ships BLOCK hulls only: the modelled Racer,
   CargoA and CargoB fleet and its part prototypes move into The Ledger, which
   now carries their meshes itself.
+- Cladding shot off a hull FLIES. A spent skin plate comes away where it
+  stood, takes its greebles and tumbles clear on the ship's own motion,
+  instead of vanishing the frame it died.
 
 ### Modding & Mod Portal
 - A catalog entry can set `enabled_by_default`: a fresh install with no saved

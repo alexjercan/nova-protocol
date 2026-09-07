@@ -35,6 +35,11 @@
 //! cheaper of the two options - detaching each of them as a body of its own
 //! multiplies the piece count by everything a section wears.
 //!
+//! A plate that dies on its OWN, with the section behind it still standing,
+//! leaves the same way and is not this module's - `nova_ship`'s fixture layer
+//! sheds it, off [`inherited_motion`] and [`random_unit_vector`] so a hull
+//! coming apart and a hull being stripped draw their kicks from one stream.
+//!
 //! # Born inside the body it left
 //!
 //! A piece starts exactly where it was, which is inside the collider of the
@@ -60,9 +65,11 @@ use crate::{
     prelude::SpaceshipRootMarker,
 };
 
-/// `ExplodableEntity` and `DetachedPieceMarker`.
+/// `ExplodableEntity`, `DetachedPieceMarker`, and the two pieces of a detach
+/// that anything shedding debris off a live body needs: `inherited_motion` and
+/// `random_unit_vector`.
 pub mod prelude {
-    pub use super::{DetachedPieceMarker, ExplodableEntity};
+    pub use super::{inherited_motion, random_unit_vector, DetachedPieceMarker, ExplodableEntity};
 }
 
 /// How long a detached piece survives before it despawns.
@@ -114,32 +121,41 @@ impl Plugin for ExplodablePlugin {
 }
 
 /// A unit vector drawn off the seeded stream, uniformly over the sphere.
-fn random_unit_vector(rng: &mut impl RngExt) -> Vec3 {
+///
+/// Public because a wreck is not the only thing that leaves tumbling: cladding
+/// shed off a live hull takes its kick and its spin from the same stream, and
+/// two implementations of this would put the two on different distributions.
+pub fn random_unit_vector(rng: &mut impl RngExt) -> Vec3 {
     let height: f32 = rng.random_range(-1.0..1.0);
     let angle: f32 = rng.random_range(0.0..std::f32::consts::TAU);
     let ring = (1.0 - height * height).max(0.0).sqrt();
     Vec3::new(ring * angle.cos(), ring * angle.sin(), height).normalize_or(Vec3::Y)
 }
 
-/// The centre, drift and spin of the nearest body at or above `entity` that is
-/// moving, or `None` when nothing in the chain is.
+/// Where the nearest moving body at or above `entity` is, and how fast a point
+/// standing at `at` is travelling with it. `None` when nothing in the chain
+/// moves.
 ///
 /// A section carries no velocity of its own: it is a child of the ship's rigid
 /// body, and avian keeps the velocity there. So a piece's inheritance is a
 /// walk, not a lookup.
-fn moving_body(
+///
+/// The velocity is `v + omega x r`, not `v`. Without the second term a ship
+/// dying at speed leaves its pieces hanging where it was hit while the wreck
+/// flies out from under them, which reads as debris being spawned rather than
+/// shed.
+pub fn inherited_motion(
     entity: Entity,
+    at: Vec3,
     q_parents: &Query<&ChildOf>,
     q_motion: &Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
-) -> Option<(Vec3, Vec3, Vec3)> {
+) -> Option<(Vec3, Vec3)> {
     let mut current = entity;
     loop {
         if let Ok((frame, linear, angular)) = q_motion.get(current) {
-            return Some((
-                frame.translation(),
-                linear.0,
-                angular.map_or(Vec3::ZERO, |angular| angular.0),
-            ));
+            let centre = frame.translation();
+            let spin = angular.map_or(Vec3::ZERO, |angular| angular.0);
+            return Some((centre, linear.0 + spin.cross(at - centre)));
         }
         current = q_parents.get(current).ok()?.0;
     }
@@ -316,14 +332,8 @@ fn detach_destroyed_body(
     // How the structure was moving, so its pieces leave with it. A section is a
     // child of the rigid body rather than the body itself, so this walks up for
     // the nearest thing that has a velocity at all.
-    let motion = moving_body(entity, &q_parents, &q_motion);
-    let (centre, drift) =
-        motion.map_or((transform.translation, Vec3::ZERO), |(at, linear, spin)| {
-            // v + omega x r. Without the second term a ship dying at speed leaves
-            // its pieces hanging where it was hit while the wreck flies out from
-            // under them, which reads as debris being spawned rather than shed.
-            (at, linear + spin.cross(transform.translation - at))
-        });
+    let (centre, drift) = inherited_motion(entity, transform.translation, &q_parents, &q_motion)
+        .unwrap_or((transform.translation, Vec3::ZERO));
     // Outward from the middle of the structure, so a ship comes apart instead of
     // every piece sliding the same way.
     let kick = random_unit_vector(&mut rng);

@@ -1,16 +1,55 @@
 //! What is bolted TO a ship as opposed to what a ship is MADE of.
 //!
 //! A [`SectionFixture`] hangs off a section, takes damage and comes off, and
-//! never speaks for the structure it is attached to. Skin plates are the first
-//! kind; change this module when the line between structure and dressing moves.
+//! never speaks for the structure it is attached to. Skin plates and the
+//! greebles standing on them are the two kinds; change this module when the
+//! line between structure and dressing moves.
+//!
+//! # Coming off is the whole of a fixture's death
+//!
+//! [`shed_dead_fixtures`] is the other half of the marker. Structure dies
+//! through the integrity graph and a fixture is deliberately not in it, so
+//! without this a spent plate would sit at zero health still stopping rounds.
+//! There is no fireball and no wreck: a plate leaving IS the damage read, and
+//! what it uncovers is the hull behind it.
 
+use std::ops::Range;
+
+use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, RigidBody};
 use bevy::prelude::*;
-use nova_gameplay::prelude::HealthIsolated;
+use bevy_rand::prelude::{GlobalRng, WyRand};
+use nova_gameplay::prelude::{
+    inherited_motion, random_unit_vector, HealthIsolated, HealthZeroMarker, TempEntity,
+};
+use rand::RngExt;
 
-/// The fixture marker.
+/// The fixture marker and the marker a shed one carries.
 pub mod prelude {
-    pub use super::SectionFixture;
+    pub use super::{SectionFixture, ShedFixtureMarker};
 }
+
+/// How long a shed fixture drifts before it despawns.
+///
+/// Shorter than the 30 seconds a wreck gets, because a hull wears hundreds of
+/// fixtures against a handful of sections: a raked ship sheds more cladding in
+/// one pass than it has parts to lose in its whole life. Long enough to watch a
+/// plate leave and lose it against the stars.
+const SHED_LIFETIME_SECS: f32 = 12.0;
+
+/// How fast a fixture is pushed off the hull, in world units per second, on top
+/// of whatever the ship was already doing.
+///
+/// Under a section's kick. A plate is a sheet coming away from the frame it was
+/// bolted to, not a compartment letting go, so it drifts off the hull rather
+/// than being thrown clear of it.
+const SHED_KICK: Range<f32> = 1.5..4.0;
+
+/// How fast a shed fixture tumbles as it leaves, in radians per second.
+///
+/// Above a section's, and the difference is the read: a flat, light thing spins
+/// up faster than the block of ship it was screwed to, which is what tells a
+/// stripped patch of skin from a hull coming apart.
+const SHED_SPIN: Range<f32> = 2.0..6.0;
 
 /// Something attached to a section that is NOT part of the ship's structure.
 ///
@@ -45,3 +84,266 @@ pub mod prelude {
 #[reflect(Component)]
 #[require(HealthIsolated)]
 pub struct SectionFixture;
+
+/// Tags a fixture that has come off and is now drifting on its own, NAMING the
+/// section it was bolted to.
+///
+/// Also the guard that keeps [`shed_dead_fixtures`] from shedding one twice:
+/// the same absence it reads for that - a fixture with no parent left - is what
+/// this records the answer to, so an observer can still ask which part of the
+/// hull a piece of debris came off after the fact.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct ShedFixtureMarker(pub Entity);
+
+/// Take a spent fixture off the ship and let it tumble away.
+///
+/// The same finale a destroyed section gets from
+/// [`explode`](nova_gameplay::integrity::explode): off the parent, out along
+/// the hull normal, spinning, gone on a timer. It inherits
+/// the ship's motion through [`inherited_motion`] for the reason that module
+/// gives - a plate that kept only its position hangs in space while the ship
+/// flies out from under it, which reads as debris being spawned rather than
+/// shed.
+///
+/// # It is the SAME ENTITY, not a wreck built to look like it
+///
+/// A section detaches by spawning a body and moving its art onto it, because a
+/// section's art hangs off descendants and the gameplay entity is despawned. A
+/// fixture is the opposite shape: a plate carries its meshes as children and a
+/// greeble carries its model on itself, so the cheapest and most faithful
+/// detach is to cut the entity loose where it stands - drop `ChildOf`, promote
+/// its world transform to a local one, and give it a body. Nothing is spawned,
+/// copied or re-dressed, and its greebles ride it out still bolted on.
+///
+/// # It leaves its collider behind
+///
+/// Shed cladding is DEBRIS, not material: kinematic, colliderless, and
+/// untouchable for the seconds it lives - the same claim
+/// [`spew`](nova_gameplay::integrity::spew) makes for its shards, and the
+/// opposite of the one a carved chunk makes. A hull wears hundreds of
+/// plates and every plate wears greebles, so the alternative is a dynamic body
+/// per plate carrying a compound per greeble, which is the cost that already
+/// forced a dying section to strip the colliders off everything it takes with
+/// it. Flying through a sheet of tumbling cladding costs the read nothing.
+pub(crate) fn shed_dead_fixtures(
+    mut commands: Commands,
+    q_dead: Query<
+        (Entity, &GlobalTransform, &ChildOf),
+        (With<SectionFixture>, With<HealthZeroMarker>),
+    >,
+    q_parents: Query<&ChildOf>,
+    q_children: Query<&Children>,
+    q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
+    mut rng: Single<&mut WyRand, With<GlobalRng>>,
+) {
+    for (fixture, frame, ChildOf(section)) in &q_dead {
+        let transform = frame.compute_transform();
+        // Outward from the middle of the ship, which for cladding is the way it
+        // already faces: a plate stands on the hull's outer surface, so this is
+        // its own normal without anything having to read one.
+        let (centre, drift) =
+            inherited_motion(fixture, transform.translation, &q_parents, &q_motion)
+                .unwrap_or((transform.translation, Vec3::ZERO));
+        let toss = random_unit_vector(&mut rng);
+        let away =
+            Dir3::new(transform.translation - centre).unwrap_or(Dir3::new(toss).unwrap_or(Dir3::Y));
+
+        commands
+            .entity(fixture)
+            // Dropping `ChildOf` is what sheds it, and it is also the guard:
+            // a fixture already off the ship has no parent to leave and so
+            // never matches this query again.
+            .remove::<ChildOf>()
+            .remove::<Collider>()
+            .insert((
+                ShedFixtureMarker(*section),
+                // The world pose it was standing at, now that there is no
+                // parent frame to be local to.
+                transform,
+                RigidBody::Kinematic,
+                LinearVelocity(drift + away * rng.random_range(SHED_KICK)),
+                AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(SHED_SPIN)),
+                TempEntity(SHED_LIFETIME_SECS),
+            ));
+
+        // The greebles on a plate come with it, and their colliders do not -
+        // avian attaches every collider under a body to that body, and a plate
+        // that kept its dressing's shapes would be a debris body carrying a
+        // compound per piece.
+        let mut stack: Vec<Entity> = q_children
+            .get(fixture)
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        while let Some(node) = stack.pop() {
+            commands.entity(node).try_remove::<Collider>();
+            if let Ok(grandchildren) = q_children.get(node) {
+                stack.extend(grandchildren.iter());
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_rand::prelude::EntropyPlugin;
+    use nova_gameplay::prelude::{Health, HealthApplyDamage, NovaHealthPlugin};
+
+    use super::*;
+
+    /// A ship-shaped rig: a moving rigid body, a section under it, and a
+    /// fixture bolted to the section a metre out along `offset`.
+    fn shed_app(offset: Vec3) -> (App, Entity, Entity) {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin, NovaHealthPlugin));
+        app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
+        app.add_systems(Update, shed_dead_fixtures);
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                LinearVelocity(Vec3::X * 10.0),
+                Transform::default(),
+                GlobalTransform::IDENTITY,
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((ChildOf(ship), Transform::default()))
+            .id();
+        let fixture = app
+            .world_mut()
+            .spawn((
+                ChildOf(section),
+                SectionFixture,
+                Health::new(10.0),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                Transform::from_translation(offset),
+            ))
+            .id();
+        app.update();
+        (app, section, fixture)
+    }
+
+    fn kill(app: &mut App, entity: Entity) {
+        app.world_mut().trigger(HealthApplyDamage {
+            entity,
+            source: None,
+            amount: 1000.0,
+        });
+        app.update();
+    }
+
+    /// A spent plate leaves the hull as a body of its own rather than being
+    /// deleted where it stands. It is the SAME entity, so the meshes drawing it
+    /// come along without anything having to rebuild them.
+    #[test]
+    fn a_spent_fixture_comes_off_the_ship_still_wearing_its_own_art() {
+        let (mut app, section, fixture) = shed_app(Vec3::Y * 2.0);
+        let art = app
+            .world_mut()
+            .spawn((ChildOf(fixture), Transform::default()))
+            .id();
+
+        kill(&mut app, fixture);
+
+        let world = app.world();
+        assert!(
+            world.get::<ChildOf>(fixture).is_none(),
+            "a dead plate is still bolted to the hull",
+        );
+        assert_eq!(
+            world.get::<ShedFixtureMarker>(fixture).map(|shed| shed.0),
+            Some(section),
+            "shed cladding cannot say which part it came off",
+        );
+        assert_eq!(
+            world.get::<ChildOf>(art).map(|parent| parent.0),
+            Some(fixture),
+            "the meshes drawing the plate did not come off with it",
+        );
+        assert!(
+            world.get_entity(section).is_ok(),
+            "the section behind the cladding died with it",
+        );
+    }
+
+    /// The pose survives the cut: a plate two units up the hull is still two
+    /// units up the hull once it has no parent to be local to.
+    #[test]
+    fn a_shed_fixture_keeps_the_place_it_was_standing() {
+        let (mut app, _, fixture) = shed_app(Vec3::Y * 2.0);
+        kill(&mut app, fixture);
+
+        assert_eq!(
+            app.world().get::<Transform>(fixture).unwrap().translation,
+            Vec3::Y * 2.0,
+        );
+    }
+
+    /// A plate leaves with the ship, not with the frame it was hit in. Without
+    /// the inheritance the hull flies out from under its own cladding.
+    #[test]
+    fn a_shed_fixture_leaves_carrying_the_ships_motion() {
+        let (mut app, _, fixture) = shed_app(Vec3::Y * 2.0);
+        kill(&mut app, fixture);
+
+        let world = app.world();
+        let velocity = world.get::<LinearVelocity>(fixture).unwrap().0;
+        assert!(
+            velocity.x >= 10.0,
+            "shed cladding lost the ship's 10 u/s of drift: {velocity}",
+        );
+        // Outward: the plate stands up the +Y face, so that is the way it goes.
+        assert!(velocity.y > 0.0, "cladding shed INTO the hull: {velocity}");
+        assert!(
+            world.get::<AngularVelocity>(fixture).unwrap().0.length() >= SHED_SPIN.start,
+            "shed cladding slid off instead of tumbling",
+        );
+    }
+
+    /// Debris, not material. A body that kept its shapes would be a plate per
+    /// collider and a greeble per compound, times every plate a burst strips.
+    #[test]
+    fn shed_cladding_takes_no_colliders_with_it() {
+        let (mut app, _, fixture) = shed_app(Vec3::Y * 2.0);
+        let greeble = app
+            .world_mut()
+            .spawn((
+                ChildOf(fixture),
+                SectionFixture,
+                Collider::cuboid(0.2, 0.2, 0.2),
+                Transform::default(),
+            ))
+            .id();
+
+        kill(&mut app, fixture);
+
+        let world = app.world();
+        assert!(world.get::<Collider>(fixture).is_none());
+        assert!(
+            world.get::<Collider>(greeble).is_none(),
+            "a greeble riding the wreck kept a shape on the debris body",
+        );
+        assert!(world.get::<TempEntity>(fixture).is_some(), "debris forever");
+    }
+
+    /// The shed runs ONCE. A fixture keeps its health pool and its marker after
+    /// it comes off, so a query that only asked those two would re-kick the
+    /// same piece of debris every frame.
+    #[test]
+    fn a_fixture_is_shed_once_and_then_left_alone() {
+        let (mut app, _, fixture) = shed_app(Vec3::Y * 2.0);
+        kill(&mut app, fixture);
+        let velocity = app.world().get::<LinearVelocity>(fixture).unwrap().0;
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<LinearVelocity>(fixture).unwrap().0,
+            velocity,
+            "shed cladding was kicked a second time",
+        );
+    }
+}
