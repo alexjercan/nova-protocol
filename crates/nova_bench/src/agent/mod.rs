@@ -173,12 +173,13 @@ fn socket_path() -> PathBuf {
     std::env::temp_dir().join(format!("nova-bench-{}.sock", std::process::id()))
 }
 
+/// The unix socket the referee answers on. `play` sets it for the agent
+/// process; a `cmd:` agent reads it back to find the seat.
+pub const SOCKET_ENV: &str = "NOVA_BENCH_SOCKET";
+
 /// The environment an external agent gets.
 pub fn agent_env(socket: &std::path::Path) -> Vec<(String, String)> {
-    vec![(
-        "NOVA_BENCH_SOCKET".to_string(),
-        socket.display().to_string(),
-    )]
+    vec![(SOCKET_ENV.to_string(), socket.display().to_string())]
 }
 
 #[cfg(test)]
@@ -217,7 +218,7 @@ mod tests {
         let env = agent_env(std::path::Path::new("/tmp/x.sock"));
         assert_eq!(
             env,
-            vec![("NOVA_BENCH_SOCKET".to_string(), "/tmp/x.sock".to_string())]
+            vec![(SOCKET_ENV.to_string(), "/tmp/x.sock".to_string())]
         );
     }
 }

@@ -182,8 +182,9 @@ names its own root on `SettingsStorePlugin` instead.
   by them, so count `env::var` call sites instead of identifiers.
 - **Shell-only.** `NOVA_UI_PORT`, `NOVA_GAME_PORT`, `NOVA_MODS_PORT`,
   `NOVA_MODS_DIR`, `NOVA_PORT_LO`/`_HI` are read by `scripts/` and
-  `web/webpack.config.js`; `NOVA_BENCH_*` by `benchmark/`. No Rust reads any of
-  them.
+  `web/webpack.config.js`; `NOVA_BENCH_MODEL`, `NOVA_BENCH_EFFORT` and
+  `NOVA_BENCH_PERSONA` by `benchmark/`, which is the CODING benchmark and not
+  the agent bench above. No Rust reads any of them.
 - **Foreign variables the code legitimately reads**: `DISPLAY`,
   `WAYLAND_DISPLAY`, `RUST_LOG`, `BEVY_ASSET_ROOT`, `CARGO_*`, `CI`,
   `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `LVP_ICD`, `RUSTFLAGS`, `VK_ICD_FILENAMES`,

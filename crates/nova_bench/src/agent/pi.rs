@@ -42,9 +42,12 @@ pub struct PiConfig {
     pub log_path: PathBuf,
 }
 
-/// The pi binary; `NOVA_BENCH_PI` overrides the one on `PATH`.
+/// The pi binary to spawn, when the one on `PATH` is not the one to run.
+pub const PI_ENV: &str = "NOVA_BENCH_PI";
+
+/// The pi binary; [`PI_ENV`] overrides the one on `PATH`.
 fn pi_binary() -> String {
-    std::env::var("NOVA_BENCH_PI").unwrap_or_else(|_| "pi".to_string())
+    std::env::var(PI_ENV).unwrap_or_else(|_| "pi".to_string())
 }
 
 impl PiConfig {

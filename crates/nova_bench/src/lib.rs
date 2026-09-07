@@ -47,7 +47,7 @@ use std::process::ExitCode;
 /// Glob-import surface: the referee, its protocol pieces, and the agents.
 pub mod prelude {
     pub use crate::{
-        agent::AgentSpec,
+        agent::{pi::PI_ENV, AgentSpec, SOCKET_ENV},
         audit::{BenchEvent, Bus, Ui},
         game::{GameChannel, GameConfig, GameProcess, ScenarioTarget},
         gesture::{expand, parse_gestures, Gesture},

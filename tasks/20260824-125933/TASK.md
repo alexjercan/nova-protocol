@@ -126,3 +126,16 @@ pi on the range, gpt-5.6-luna low, seed 7, `--ticks 12000 --deadline 900`:
 | destroy | `pi`, manual with range control | finish, done, 1 kill | 2626 | 11 | 1096 | 0 | 65 s | $0.011 | no contact left |
 
 Run directories were the session scratchpad; the audits are not kept.
+
+## The env-contract gate (2026-09-07)
+
+`tests/env_contract.rs` went red on master: the bench's two variables were
+written up in the docs but never declared as constants, and the roster scan
+rejects a bare `NOVA_*` literal in `crates/`. They are now
+`nova_bench::prelude::{SOCKET_ENV, PI_ENV}`, on the roster with their own
+assertion, and the root package takes the dev-dependency edge that lets the
+test name them whatever features a run enables. The env-var page's
+"shell-only" bullet named `NOVA_BENCH_*` as read by nothing in Rust; it now
+names only `benchmark/`'s three coding-benchmark variables.
+
+`cargo test -p nova-protocol --test env_contract`: 9 passed.

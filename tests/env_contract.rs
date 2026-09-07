@@ -23,6 +23,7 @@ use nova_assets::{
     mod_cache::MOD_CACHE_ROOT_ENV, portal::PORTAL_URL_ENV, storage::CONFIG_ROOT_ENV,
 };
 use nova_autopilot::prelude::*;
+use nova_bench::prelude::{PI_ENV, SOCKET_ENV};
 use nova_gameplay::prelude::{HARNESS_ENVS, MUTE_ENV, SEED_ENV};
 use nova_menu::prelude::MENU_BACKDROP_ENV;
 use nova_probe::{
@@ -92,6 +93,14 @@ fn the_modding_variables_carry_their_own_prefix_and_the_config_root_does_not() {
     assert_eq!(CONFIG_ROOT_ENV, "NOVA_CONFIG_ROOT");
 }
 
+/// The agent bench: the seat an external agent reads, and the binary the pi
+/// seat spawns. Owned by `nova_bench`, which links no other nova crate.
+#[test]
+fn the_agent_bench_variables_are_the_documented_ones() {
+    assert_eq!(SOCKET_ENV, "NOVA_BENCH_SOCKET");
+    assert_eq!(PI_ENV, "NOVA_BENCH_PI");
+}
+
 /// The menu's capture pin, which belongs to the menu rather than to the
 /// harness that usually sets it.
 #[test]
@@ -151,6 +160,9 @@ const ROSTER: &[&str] = &[
     "NOVA_CONFIG_ROOT",
     // The menu's backdrop pin - nova_menu.
     "NOVA_MENU_BACKDROP",
+    // The agent bench - nova_bench.
+    "NOVA_BENCH_SOCKET",
+    "NOVA_BENCH_PI",
 ];
 
 /// Walk `crates/` and `src/` and fail on any `NOVA_*` string the roster above

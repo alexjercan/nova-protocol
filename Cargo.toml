@@ -599,6 +599,10 @@ nova_ui = { path = "crates/nova_ui" }
 # graph through nova_core; these edges only make them nameable from a test.
 nova_assets = { path = "crates/nova_assets" }
 nova_autopilot = { path = "crates/nova_autopilot" }
+# The agent bench declares the two `NOVA_BENCH_*` names. It is an optional
+# dependency above (the `debug` feature), and the contract test has to see it
+# whatever features a run enables. It links no nova crate, so the edge is free.
+nova_bench = { path = "crates/nova_bench" }
 nova_gameplay = { path = "crates/nova_gameplay" }
 # The bindings vocabulary: every example that gives a ship an `input_mapping`
 # names its sources as `InputSource`.
