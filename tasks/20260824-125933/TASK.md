@@ -256,77 +256,169 @@ above are unfixed: two manual gaps, one tutorial comms defect, and the
 Raised by the tutorial round, agreed with the owner, none started. The task
 is closed; this section lifts out whole if it becomes its own task.
 
-### 1. The view says what the game already knows about a cinematic
+One decision shapes the rest. `applied` is an ECHO, not a verdict. A
+command can be refused - it is a request, the shell answers it, and the
+answer carries a message. A button press cannot: worst case it is a no-op.
+The agent works out what an input did from the world, the way a player
+reads it off the HUD. So the question this round is not "how do we explain
+a failure". It is "does the view carry every fact the HUD paints, and
+nothing the pilot does not need".
+
+### 1. `applied` becomes an echo
+
+Today an input ack carries `state`, read off the action's `TriggerState`
+after the frame: `Fired`, `Ongoing` or `None`. `acks()` then infers a
+refusal from it - `state` of `refused` or `error`, or a `start` phase that
+came back `None` - and the bench view grows a `refused` list.
+
+The inference is unsound in both directions. Measured on the tutorial past
+the cutscene, all three of these ack `Fired` and do nothing at all:
+
+| Gesture | State after the frame | What happened |
+| --- | --- | --- |
+| `tap flight.autopilot_goto`, no travel lock | `Fired` | `engaged` stays null |
+| `tap flight.autopilot_orbit`, no well | `Fired` | `engaged` stays null |
+| `press section.pdc`, weapons down | `Fired` | `firing` false, ammo 500/500 |
+
+Every gate a pilot actually meets - needs a lock, needs a well, needs the
+stance, needs the helm, needs range - fires at the input layer and stops
+above it. `refused` cannot see any of them. It only ever caught two things:
+a lowered context, which `inputs.live` already shows, and a trigger that
+never fired, which is ambiguous by construction (`action_state` answers
+`None` when no rig entity holds the action at all).
+
+Make the input ack `{line, input, phase, tick}`, plus `late` in free mode.
+Drop `state`. Drop `refused` from the bench view. Commands keep `state`,
+`detail` and `rows`. A malformed line keeps its `game_errors` message: that
+is the driver writing nonsense, not the game deciding anything.
+
+`Score::refusals` is defined as channel error lines plus refused inputs. It
+becomes a malformed-line count and needs a new name or a new definition.
+This run's `refusals: 2` would read 0, which is more honest - the agent
+made two gesture-sequencing mistakes, not two refusals.
+
+### 2. The view carries what the HUD paints
+
+The parity rule, and the item that replaces the refusal work. Walk what the
+HUD paints, check each fact against the snapshot, close the gaps.
+
+The first confirmed hole is the lock dwell. `nova_hud/src/lock_dwell_ring.
+rs` paints a filling ring from `RadarState::{dwell_target, dwell_secs,
+dwell_needed}`: the player WATCHES the lock charge and knows to keep
+holding. The probe carries none of the three. That is why a scripted probe
+in the range round held the radar 40 ticks at 2500 m, read no lock, and
+called the contact unlockable - a bench-side conclusion no player would
+ever reach.
+
+Much of the parity is already there: `combat_lock`, `travel_lock`,
+`weapons_hot`, `autopilot.engaged`, `firing`, `ammo`, `turn_rate_dps`. This
+is a smaller job than it sounds, and once it is done "did my input do
+anything" is answerable for every action at once, instead of per action and
+never for the ones that matter.
+
+### 3. The cinematic fact
 
 `inputs.live` is a CONTEXT list: `input_block` takes every binding whose
 `ActionContext` is raised. So `scenario.cinematic_skip` is listed through
-the tutorial's unskippable opening, and the agent reads a key that does
-nothing. The scenario knows better: `ScenarioWorld::skippable_cinematic()`
-is computed every frame to raise the HUD's skip prompt. A player sees that
+the tutorial's unskippable opening and the agent reads a key that does
+nothing. The scenario knows better - `ScenarioWorld::skippable_cinematic()`
+is computed every frame to raise the HUD's skip prompt. The player sees the
 prompt appear or not; the agent has no equivalent.
 
-Give the mission block `cinematic: {playing, skippable}`, and drop
-`scenario.cinematic_skip` from `inputs.live` while the running scene is
-unskippable.
+Give the mission block `cinematic: {playing, skippable}`. Leave
+`inputs.live` alone: under item 1 it is the honest "not locked out" list
+and nothing more.
 
-The rule this sets, which matters more than the fix: gate only what the
-game computes exactly, and expose state for the rest. Do NOT build a
-per-action liveness predicate beside the real gates - it would duplicate
-the weapons safety, the helm owner and the lock requirements, and drift
-from them. A confidently wrong "valid actions" list is worse than an
-honestly coarse one, because an agent trusts it completely. The gates that
-are already readable stay readable: `travel_lock` says GOTO will act,
-`gravity_well` says Orbit will, `weapons_hot` says a trigger will.
+Do NOT build a per-action liveness predicate beside the real gates. It
+would duplicate the weapons safety, the helm owner and the lock
+requirements, and drift from them. A confidently wrong "valid actions" list
+is worse than an honestly coarse one, because an agent trusts it
+completely. It is also not well defined: `section.pdc` with the stance up,
+a lock and the target at 2500 m is "valid" and still puts nothing on the
+hull.
 
-### 2. An objective log in the mission block
+### 4. An objective log in the mission block
 
 `mission.objectives` is the live list only. A card posted and cleared
 between two acts leaves no trace, for the agent OR the scorer: the tutorial
 posts 11 cards and this run scored 10 of 10 because `fire` came and went
-inside one 300-tick act. The game answers one snapshot per act, so
-sampling harder means acting smaller, which is the wrong lever.
+inside one 300-tick act. The game answers one snapshot per act, so sampling
+harder means acting smaller, which is the wrong lever.
 
 The record already exists. `NovaOsFlightLog` (`nova_os_ui/src/terminal/
 flight_log.rs`) is built from `StoryFeed` plus `GameObjectives` and holds
 comms lines AND objective posted/completed entries in order - it is what
-the NOVA OS `log` command prints. Build the same thing into the mission
-block, with ticks, and have the scorer count cards it never sampled.
+the NOVA OS `log` command prints, and `nova_hud/src/objective_stack.rs`
+paints the same cards. Build it into the mission block with ticks, and have
+the scorer count cards it never sampled.
 
-### 3. A refusal that says why
-
-Three different failures reach the agent as one shrug:
-
-- The line never became an action - unknown wire name, an axis given a
-  button press. `refuse()` records a message and it arrives in
-  `game_errors`. This one already explains itself.
-- The action exists and its context is down. `applied` reads
-  `state: "refused"` with no message.
-- The input WAS dispatched and its `TriggerState` was `None` after the
-  frame. Nothing rejected it; it never fired. `action_state` also answers
-  `None` when no rig entity holds the action at all, so the value is
-  ambiguous by construction.
-
-`acks()` folds the last two into `refused: [{input, phase, state}]`, and
-the agent guessed a cause twice in this run and was wrong twice.
-
-Carry the reason where one exists (the context refusal knows its context).
-The silent `None` has no message to forward, because no code decided
-anything - that half is item 4.
-
-### 4. The expander catches the shared-key collision
+### 5. The expander catches the shared-key collision
 
 `targeting.radar_clear` is a TAP on the same key and threshold as
 `targeting.radar_hold` - one gesture read two ways, by design. Releasing
 the hold and tapping the clear on the same tick means the tap never fires.
 Both refusals in this run are exactly that pair; every standalone tap took.
 
-`expand` already sees both wire names landing on one tick, so it can refuse
-the pair with a precise message before the line reaches the game. Precedent
-is in this task: pi's first act put two verbs in one gesture, the parser
-error came back as a tool error, and the model fixed the call in one turn.
-Error text teaches faster than manual text.
+`expand` already sees both wire names landing on one tick, so it can reject
+the pair before writing the wire lines. That is a DRIVER-side parse error,
+the same class as "one verb per gesture", and it never claims the game
+refused anything - so it survives item 1 unharmed. Precedent is in this
+task: pi's first act put two verbs in one gesture, the parser error came
+back as a tool error, and the model fixed the call in one turn.
 
-### 5. Split the manual, and give it a page-reading tool
+Load-bearing, not optional: the silent `None` was the only signal that ever
+caught this class, and item 1 removes it.
+
+A ten-line repro, seven seconds, deterministic - paired with the release
+the clear reads `None`/`None`, alone ten ticks later it reads
+`Ongoing`/`Fired`:
+
+```
+{"tick": 1200}
+{"input": "targeting.radar_hold",  "phase": "start", "tick": 1201}
+{"tick": 1290}
+{"input": "targeting.radar_hold",  "phase": "stop",  "tick": 1291}
+{"input": "targeting.radar_clear", "phase": "start", "tick": 1291}
+{"input": "targeting.radar_clear", "phase": "stop",  "tick": 1292}
+{"tick": 1300}
+{"input": "targeting.radar_clear", "phase": "start", "tick": 1301}
+{"input": "targeting.radar_clear", "phase": "stop",  "tick": 1302}
+{"tick": 1310}
+```
+
+piped into `cargo run --features dev -- --norender --scenario tutorial
+--channel step`.
+
+### 6. The view is a pilot's view, not a census
+
+Measured over this run's 132 observations: the mean condensed view is about
+20800 characters and `bodies` is about 14200 of them. **Two thirds of every
+observation is the asteroid belt.** The run cost $14.85 and 1.18 M input
+tokens, so most of that spend was decoration.
+
+The belt streams in over the first frames - three bodies at tick 1, all 65
+from tick 101 - and from then on every rock is listed in full every time:
+id, name, kind, radius, bearing, distance, surface, invulnerable. The
+architecture page named this trap ("token spend on greebles") and the
+condensed view was the answer to it, but `condense` maps `bodies` whole and
+caps nothing.
+
+Enumeration is also the wrong shape. What a pilot needs about a rock is not
+that it exists at 8 km. It is: what is in my line of sight, what blocks the
+radar, what is on my GOTO path, what am I about to hit. The agent worked
+the occlusion out itself with apparent-disc trigonometry, correctly, from a
+list that never said any of it - which is a good demonstration that the
+list is both too long and too thin.
+
+So: rethink the block rather than truncate it. Bodies close enough to
+matter, in full; the rest as a summary a pilot would give ("shallow belt,
+28 rocks, nearest 4.2 km"). State the relations the player reads off the
+screen - occluding the lock, inside the GOTO corridor, the well you are in.
+The same question applies to every other list in the view: contacts,
+ordnance, sections, hull plates. This item is the general form of item 2 -
+carry what the pilot needs, drop what is scenery.
+
+### 7. Split the manual, and give it a page-reading tool
 
 `manual.md` is the whole system prompt and it has grown into a strategy
 guide. Split it by who needs the knowledge:
@@ -348,12 +440,17 @@ The measured numbers are a property of the interface, not of the game.
 Then the prompt lists the page names and a fourth tool reads one by name.
 That also makes "did it look something up" visible in the audit.
 
-Two rules the manual does not state today and should, wherever they land:
-a raised combat stance sends `camera_rotate` to the turrets and the hull
-does not follow (it cost this run two acts), and the shared radar key of
-item 4.
+The Discipline section changes with item 1. It says to read `refused` and
+`game_errors` after every act; it should say to check the field that
+carries the effect, with each conditional action naming its precondition
+beside its wire name - GOTO needs `travel_lock`, Orbit needs
+`gravity_well`, a trigger needs `weapons_hot`.
 
-### 6. The score can see a cheat
+Two rules the manual does not state today and should, wherever they land: a
+raised combat stance sends `camera_rotate` to the turrets and the hull does
+not follow (it cost this run two acts), and the shared radar key of item 5.
+
+### 8. The score can see a cheat
 
 `CheatState` arms once, is irreversible, and marks the run - the machinery
 for an honest attempt is already there, and `cheats status` reports it.
@@ -362,11 +459,11 @@ that armed cheats scores exactly like one that did not. The `command`
 gesture reaches the whole shell, `ammo infinite` and `speed-cap` included.
 
 Carry the mark in the snapshot and copy it into the score. A benchmark that
-cannot see a cheat is not a benchmark. (No command wins a scenario outright:
-`variable` is read-only and there is no `victory`. The cheapest cheese is
-infinite ammo and a raised speed cap.)
+cannot see a cheat is not a benchmark. (No command wins a scenario
+outright: `variable` is read-only and there is no `victory`. The cheapest
+cheese is infinite ammo and a raised speed cap.)
 
-### 7. The tutorial's double scrap line
+### 9. The tutorial's double scrap line
 
 A kill inside `INSTRUCTION_GAP` draws both `SCRAP_EARLY_LINE` and
 `SCRAP_LINE`: the early branch is gated on `in_beat(BEAT_LOCK)` while the
@@ -377,6 +474,11 @@ congratulated twice, once for initiative it did not take.
 
 The NOVA OS terminal rows in `ui.computer`. The computer pauses into
 `PauseStates::NovaOs` and drops the flight context, the owner has parked
-its design, and with item 2 landed there is nothing in there the agent
+its design, and with item 4 landed there is nothing in there the agent
 cannot read from the world. `{"command": ...}` stays what it is: the world
 shell, not the player's apps.
+
+A what-changed block between views. It would make "did my input do
+anything" a one-line check, and under item 1 that inference is the only
+mechanism the agent has. But it is a convenience laid over the view, and
+items 2 and 6 are the fix. Optional, and after them.
