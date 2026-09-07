@@ -4,7 +4,7 @@
     <!-- Capture: assets/icon-controller.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-controller.png</span
@@ -71,7 +71,7 @@ The other half of stacking is **redundancy**. Lose one of two and the ship does 
     <!-- Capture: assets/loops/loop-section-controller.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-controller.webm</span

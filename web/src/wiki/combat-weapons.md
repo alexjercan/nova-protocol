@@ -6,7 +6,7 @@ Three weapon families - turrets, torpedoes and the spinal railgun - feed one typ
     <!-- Capture: assets/wiki-combat.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-combat.png</span
@@ -47,16 +47,17 @@ A torpedo owns the long end but pays for it in time. Fired at the edge of its re
     <!-- Capture: assets/wiki-combat-railgun.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-combat-railgun.png</span
         >
         <span class="figure__placeholder-note"
-            >The moment the slug lands, seen from behind the
-            target: the wake still strung back to the gunboat
-            that fired, and the gunship's far side bursting
-            out along the line of the shot.</span
+            >The moment the slug lands, across the target's
+            bow quarter: the wake still strung back to the
+            gunboat that fired, and the cells the rake
+            condemns going up down the length of the
+            hull.</span
         >
     </div>
 </figure>
@@ -123,7 +124,7 @@ Both curves are anchored at **1,000 m/s**, a PDC round's muzzle speed - what it 
     <!-- Capture: assets/wiki-combat-aftermath.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-combat-aftermath.png</span

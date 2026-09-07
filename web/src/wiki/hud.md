@@ -6,7 +6,7 @@ The heads-up display is diegetic - the instruments read the ship's real state - 
     <!-- Capture: assets/wiki-hud.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-hud.png</span
@@ -74,7 +74,7 @@ A hull carrying a [railgun](../sections/railgun/) has one more instrument, becau
     <!-- Capture: assets/wiki-section-railgun-sight.png (shared with the Railgun page) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-railgun-sight.png</span

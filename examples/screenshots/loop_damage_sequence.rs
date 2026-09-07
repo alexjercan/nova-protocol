@@ -235,16 +235,21 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // One fixed framing for the whole sequence. A cut between beats would
         // read as four clips; the row's claim is that this is one continuous
-        // thing happening to one ship, so the camera does not move. Close
-        // enough that a crack is a crack rather than a smudge, and no closer:
-        // the frame also has to hold the freed engine block for the whole
-        // drift, and that block travels away from the hull.
+        // thing happening to one ship, so the camera does not move.
+        //
+        // The stand-off is the SHIP's, not the crack's. At 76 m this lens was
+        // inside its own subject: the loop showed a drive bell and a piece of
+        // plating, and the severed deck crossed the lens close enough to fill
+        // it. The hull is shot from the port QUARTER, so it presents about
+        // 60 m rather than its 110 m length; held at 115 m that silhouette is
+        // a third of the frame, which leaves the freed deck room to drift
+        // without leaving the shot, and a crack is still a crack.
         .step("frame the port flank")
         .on_enter(|world| {
             hide_hud(world);
             pose_camera(
                 world,
-                Meters3::new(-62.0, 23.0, 54.0),
+                Meters3::new(-88.0, 32.0, 81.0),
                 Meters3::new(-10.0, 6.0, 1.0),
             );
         })

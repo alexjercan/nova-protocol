@@ -39,21 +39,17 @@ without any GPU-captured asset.
 Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless)
 into the staging dir, then packaging them:
 
-    mkdir -p target/capture-home/data/mods target/capture-home/config
-    export NOVA_MODDING_CACHE_ROOT=$PWD/target/capture-home/data
-    export NOVA_CONFIG_ROOT=$PWD/target/capture-home/config
-    for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
-        NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
-            cargo run --example "$shot" --features debug
-    done
-    python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets
+    scripts/capture-web-shots.sh                  # every producer, then package
+    scripts/capture-web-shots.sh screenshot_orbit # or just the one being worked on
 
-The site shows MAINLINE, from a clean install, so the two roots above are part
-of the capture and not a convenience. Without them the run reads the
-developer's own directories: the data directory's installed mods merge live at
-load and reskin the fleet, and the config directory carries the saved
-enabled-mod set and graphics settings. `scripts/capture-web-media.sh` exports
-the same pair for the loops.
+The site shows MAINLINE, from a clean install, so that driver sandboxes
+NOVA_MODDING_CACHE_ROOT and NOVA_CONFIG_ROOT under target/capture-home and
+re-stamps the enabled-mod set to base-only before each producer. Without that
+the run reads the developer's own directories - the data directory's installed
+mods merge live at load and reskin the fleet - and, worse, inherits whatever the
+LAST producer saved: `screenshot_scenario_picker` enables the example mod on
+purpose, whose hull override then dressed every shot taken after it.
+`scripts/capture-web-media.sh` does the same for the loops.
 
 Run from the repo root. Uses only the Python standard library (no Pillow), like
 `scripts/gen-placeholder-sounds.py`, so it needs no third-party package: PNG

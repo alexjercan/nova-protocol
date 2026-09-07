@@ -4,7 +4,7 @@
     <!-- Capture: assets/icon-hull.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-hull.png</span
@@ -26,7 +26,7 @@ A hull cell keeps the shape it was built in. What it does instead is **crack**: 
     <!-- Capture: assets/loops/loop-section-hull.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-hull.webm</span

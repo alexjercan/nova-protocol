@@ -185,7 +185,7 @@ An app swallows the whole monitor: the header breadcrumb switches to `APPS / MAP
     <!-- Capture: assets/wiki-nova-os-map.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-nova-os-map.png</span
@@ -227,7 +227,7 @@ Click a blip (or cycle with <kbd>[</kbd>/<kbd>]</kbd>) and the readout fills in:
     <!-- Capture: assets/wiki-nova-os-ship.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-nova-os-ship.png</span
@@ -288,7 +288,7 @@ A reserved flight control is refused on the spot - `Space is already used by fli
     <!-- Capture: assets/wiki-nova-os-terminal.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-nova-os-terminal.png</span

@@ -115,6 +115,26 @@ const CLOSEUP_CHARGE: f32 = 0.35;
 #[cfg(feature = "debug")]
 const SIGHT_CHARGE: f32 = 0.80;
 
+/// Seconds of WORLD time the recording holds after the slug is away, and so
+/// the moment every aftermath still is frozen at.
+///
+/// The whole set turns on this one number: the loop closes here, the clock
+/// stops in the same breath, and `wiki-combat-railgun.png` and
+/// `wiki-section-railgun-corridor.png` are both taken of the world as it
+/// stands. Chosen off the FRAME rather than off the physics - at 0.13 s the
+/// hull still reads as a hull with a corridor bored through it; by 0.45 s it
+/// is a cloud of cells and nothing in the picture says what opened it.
+#[cfg(feature = "debug")]
+const CORRIDOR_WINDOW_SECS: f32 = 0.13;
+
+/// Charge fraction the loop's recording opens at.
+///
+/// The loop is the SHOT, not the wait for it. Late enough that the recording
+/// starts on a bore about to let go and early enough that the muzzle flash is
+/// inside the window rather than one frame before it.
+#[cfg(feature = "debug")]
+const LOOP_OPEN_CHARGE: f32 = 0.97;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -462,21 +482,39 @@ const SIGHT: RangeShot = RangeShot {
     path: "wiki-section-railgun-sight.png",
 };
 
-/// From behind the target, looking back down the bore: the hull that was hit
-/// fills the frame with its far side bursting out, the gunboat is a lit speck
-/// at the far end of the line, and the debris comes at the lens.
+/// The HIT, across the target's starboard bow quarter.
+///
+/// This framing used to stand BEHIND the target looking back down the bore,
+/// which put the stern between the lens and everything worth seeing: the slug
+/// goes in at the bow, the corridor runs the length of the hull, and from
+/// astern all of that happens on the far side of a hull plate. What came out
+/// was a few sparks around a silhouette.
+///
+/// So: off the starboard bow instead, 150 m out. The lens spans 1.47 times its
+/// distance, so the frame is some 220 m wide and the 110 m hull fills half of
+/// it. The slug crosses from the right, the entry is on a face the camera can
+/// see, and the sections the rake condemns die down the spine AWAY from the
+/// lens - a chain of fireballs walking into the hull, which is the one thing a
+/// still of a lance hit has to say.
 #[cfg(feature = "debug")]
 const GAP: RangeShot = RangeShot {
-    eye: Meters3::new(120.0, 50.0, -330.0),
-    look_at: Meters3::new(0.0, 0.0, -215.0),
+    eye: Meters3::new(140.0, 36.0, -180.0),
+    look_at: Meters3::new(0.0, 0.0, -222.0),
     path: "wiki-combat-railgun.png",
 };
 
-/// The hole, close: the target's bow face with the corridor bored into it.
+/// The wound: the raked hull from off its stern quarter, low, 117 m out.
+///
+/// Downrange of the entry on purpose. The lance comes in over the bow, so a
+/// lens on that side is looking into the fire the rake lights along its own
+/// line; from behind and below the drive bell, the intact stern is nearest,
+/// the wake runs out of frame both ways past it, and the bow beyond is the
+/// part that is open to space - the corridor read as a length of ship rather
+/// than as a hole in a plate.
 #[cfg(feature = "debug")]
 const CORRIDOR: RangeShot = RangeShot {
-    eye: Meters3::new(70.0, 34.0, -110.0),
-    look_at: Meters3::new(0.0, 0.0, -205.0),
+    eye: Meters3::new(96.0, 12.0, -298.0),
+    look_at: Meters3::new(0.0, 0.0, -232.0),
     path: "wiki-section-railgun-corridor.png",
 };
 
@@ -637,15 +675,23 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
     script = shoot_step(script, SIGHT.path);
 
     script = script
-        // The wide framing is posed BEFORE the slug leaves, because the loop
-        // this beat records is the shot itself and a camera that moved into
-        // place afterwards would have recorded the aftermath.
+        // The framing is posed BEFORE the slug leaves, because the loop this
+        // beat records is the shot itself and a camera that moved into place
+        // afterwards would have recorded the aftermath.
         .step("frame the gap")
         .on_enter(|world: &mut World| {
             frame(world, &GAP);
             set_time_scale(world, SHOT_TIME_SCALE);
         })
         .until(frames(SETTLE_FRAMES))
+        .add()
+        // Run the charge out to its last breath BEFORE recording. At a
+        // twentieth of real time the remaining fifth of a 1.5 s charge is six
+        // seconds of wall clock, and that used to be the first half of the
+        // loop: a static frame with a lit bore in the corner of it.
+        .step("run the charge out")
+        .until(charge_at_least(LOOP_OPEN_CHARGE))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("open the railgun loop")
         .on_enter(|world: &mut World| loop_start(world, RAILGUN_LOOP))
@@ -654,24 +700,35 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(shot_away())
         .deadline(STEP_DEADLINE_SECS)
         .add()
+        // A tenth of a second of world, which at a twentieth of real time is
+        // about two and a half seconds of footage: the muzzle flash, the slug
+        // crossing the gap, the entry blowing out and the corridor opening
+        // down the hull behind it. Longer than this and the recording runs on
+        // into a debris cloud - and, because the stills are the frame this
+        // beat ends on, so do they.
         .step("watch the corridor open")
-        .until(elapsed(0.35))
+        .until(elapsed(CORRIDOR_WINDOW_SECS))
         .add()
+        // The clock stops in the SAME breath as the loop closes, not after the
+        // encode. Encoding 290 frames of software render is five seconds of
+        // wall clock, and a world left running through it is a third of a
+        // second of drift the recording never shows: the loop ends on a hull
+        // with a corridor bored down it and the stills used to be taken of the
+        // cloud that hull had become. Now every still is the frame the loop
+        // ended on.
         .step("close the railgun loop")
-        .on_enter(|world: &mut World| loop_end(world, RAILGUN_LOOP))
+        .on_enter(|world: &mut World| {
+            loop_end(world, RAILGUN_LOOP);
+            pause_the_clock(world);
+        })
         .until(loop_written(RAILGUN_LOOP))
         .deadline(120.0)
-        .add()
-        // Nothing may be shot while a loop is open: both take the same window
-        // capture, the second is dropped as a duplicate render target, and the
-        // loop then drains forever waiting for a frame that was never taken.
-        // So the stills of the aftermath come after the encode - and the clock
-        // stops first, or the debris field would spread through every one of
-        // them.
-        .step("stop the clock")
-        .on_enter(pause_the_clock)
-        .until(frames(SETTLE_FRAMES))
         .add();
+
+    // Nothing may be shot while a loop is open: both take the same window
+    // capture, the second is dropped as a duplicate render target, and the loop
+    // then drains forever waiting for a frame that was never taken. So the
+    // stills of the aftermath come after the encode, off the frozen world.
 
     script = shoot_step(script, GAP.path);
 

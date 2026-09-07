@@ -13,8 +13,9 @@ The ship computer speaks a second language. Press <kbd>:</kbd> anywhere - the ma
         >
         <span class="figure__placeholder-note"
             >':' over live flight: the same monitor, the
-            COMMANDS header, and the introduction typing
-            itself out against the world it just froze.</span
+            COMMANDS header, the introduction typing itself out
+            against the world it just froze, and 'ships'
+            answered from the paused run.</span
         >
     </div>
 </figure>

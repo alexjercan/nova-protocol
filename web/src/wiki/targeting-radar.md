@@ -6,7 +6,7 @@ Locking is deliberate: there is no passive auto-targeting. You sweep the radar y
     <!-- Capture: assets/wiki-radar.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-radar.png</span
@@ -38,7 +38,7 @@ The clocks, exactly: the tap/hold threshold is 0.25 s - at or past it the press 
     <!-- Capture: assets/loops/lock-dwell.webm -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/lock-dwell.webm</span

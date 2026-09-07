@@ -8,7 +8,7 @@ on the web.
 <figure class="figure">
     <!-- Capture: assets/wiki-settings.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
         <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the four volume sliders and the Back button.</span>
     </div>
@@ -61,7 +61,7 @@ win is small, so Low is a knob for the low end rather than a general speed-up.
 <figure class="figure">
     <!-- Capture: assets/wiki-controls.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-controls.png</span>
         <span class="figure__placeholder-note">The Controls tab open on the FLIGHT group: one row per action, with the keyboard keycap and the pad glyph in their own columns.</span>
     </div>

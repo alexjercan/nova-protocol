@@ -270,9 +270,13 @@ fn build_default_blast_effect() -> EffectAsset {
     let age = writer.lit(0.).expr();
     let init_age = SetAttributeModifier::new(Attribute::AGE, age);
 
-    // A vacuum burst is a brief flash followed by fast incandescent ejecta,
-    // not a lingering atmospheric cloud. Shorter lives also reduce overdraw.
-    let lifetime = writer.lit(0.18).uniform(writer.lit(0.8)).expr();
+    // A vacuum burst is a flash followed by fast incandescent ejecta, not a
+    // lingering atmospheric cloud - but it is a SHIP-KILLER, and at 300 m of
+    // blast radius the fragments have to still be crossing the frame after the
+    // fireball has gone out. At the loop cadence the old 0.18..0.8 s was four
+    // to twenty-four recorded frames, which is why a detonation read as a
+    // blink on the docs site.
+    let lifetime = writer.lit(0.30).uniform(writer.lit(1.4)).expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
     // HDR white-gold gives the compact core enough bloom to read at combat
@@ -293,10 +297,13 @@ fn build_default_blast_effect() -> EffectAsset {
 
     // Long, narrow quads become radial incandescent streaks when oriented to
     // velocity. They contract into fragments instead of swelling into a ball.
+    // Sized against the WARHEAD, not against the particle: the shipped bay
+    // clears a 300 m sphere, so a 20 m streak is the smallest thing that still
+    // reads as ejecta off it rather than as a spark.
     let mut size_gradient = bevy_hanabi::Gradient::new();
-    size_gradient.add_key(0.0, Vec3::new(0.55, 0.12, 0.12));
-    size_gradient.add_key(0.06, Vec3::new(0.8, 0.14, 0.14));
-    size_gradient.add_key(0.25, Vec3::new(0.34, 0.07, 0.07));
+    size_gradient.add_key(0.0, Vec3::new(1.3, 0.22, 0.22));
+    size_gradient.add_key(0.06, Vec3::new(2.0, 0.26, 0.26));
+    size_gradient.add_key(0.25, Vec3::new(0.9, 0.13, 0.13));
     size_gradient.add_key(1.0, Vec3::ZERO);
 
     let size_over_lifetime = SizeOverLifetimeModifier {
@@ -325,7 +332,7 @@ fn build_default_blast_effect() -> EffectAsset {
 
     // Normalize before applying an intentionally broad speed range. The faster
     // front gives the brief burst reach without adding particles or lifetime.
-    let speed = writer.lit(12.0).uniform(writer.lit(60.0));
+    let speed = writer.lit(20.0).uniform(writer.lit(110.0));
     let velocity = dir.normalized() * speed + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
@@ -376,7 +383,7 @@ const BLAST_CORE_PARTICLES: f32 = 40.0;
 /// Physically this stands for the fireball rather than a shock wave: vacuum has
 /// nothing to carry a shock, so what expands is the warhead's own vaporised
 /// mass, and it cools as it thins. That is why the size gradient grows and the
-/// colour falls at the same time, and why it is over inside a third of a
+/// colour falls at the same time, and why it is over inside two thirds of a
 /// second - there is no atmosphere to keep it burning.
 fn build_default_blast_core_effect() -> EffectAsset {
     let spawner = SpawnerSettings::once(BLAST_CORE_PARTICLES.into()).with_emit_on_start(true);
@@ -387,17 +394,26 @@ fn build_default_blast_core_effect() -> EffectAsset {
 
     // Shorter than the ejecta's tail: the fireball is gone while the fragments
     // are still travelling, which is the order a vacuum burst happens in.
-    let lifetime = writer.lit(0.12).uniform(writer.lit(0.32)).expr();
+    let lifetime = writer.lit(0.22).uniform(writer.lit(0.62)).expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
     // Blinding white through amber to nothing. The first key is well past 1.0
     // in every channel so the core blooms into a flare rather than reading as
     // a white circle, and the last is transparent so the shell thins out
     // instead of cutting off.
+    //
+    // The ALPHA falls much faster than the colour, and that is what keeps the
+    // core a fireball rather than a bag of balloons. Forty of these quads
+    // overlap at the centre: while they are white they sum into a flare, but
+    // once they have cooled to amber a near-opaque alpha draws each one as its
+    // own flat orange disc, and the two frames after a detonation used to be a
+    // cluster of circles hanging over the wreck. Held low past the flash, the
+    // same quads read as thinning vapour with the hull showing through.
     let mut color_gradient = bevy_hanabi::Gradient::new();
-    color_gradient.add_key(0.0, Vec4::new(14.0, 13.0, 11.0, 1.0));
-    color_gradient.add_key(0.12, Vec4::new(9.0, 6.0, 2.4, 0.95));
-    color_gradient.add_key(0.40, Vec4::new(3.2, 1.0, 0.16, 0.6));
+    color_gradient.add_key(0.0, Vec4::new(14.0, 13.0, 11.0, 0.85));
+    color_gradient.add_key(0.12, Vec4::new(9.0, 6.0, 2.4, 0.55));
+    color_gradient.add_key(0.40, Vec4::new(3.2, 1.0, 0.16, 0.15));
+    color_gradient.add_key(0.70, Vec4::new(1.1, 0.22, 0.03, 0.08));
     color_gradient.add_key(1.0, Vec4::new(0.4, 0.05, 0.01, 0.0));
     let color_over_lifetime = ColorOverLifetimeModifier {
         gradient: color_gradient,
@@ -411,9 +427,9 @@ fn build_default_blast_core_effect() -> EffectAsset {
     // that size, so a gradient that keeps growing to the end reads as a
     // balloon being inflated.
     let mut size_gradient = bevy_hanabi::Gradient::new();
-    size_gradient.add_key(0.0, Vec3::splat(1.6));
-    size_gradient.add_key(0.18, Vec3::splat(4.2));
-    size_gradient.add_key(0.55, Vec3::splat(3.4));
+    size_gradient.add_key(0.0, Vec3::splat(2.4));
+    size_gradient.add_key(0.18, Vec3::splat(8.0));
+    size_gradient.add_key(0.55, Vec3::splat(6.2));
     size_gradient.add_key(1.0, Vec3::ZERO);
     let size_over_lifetime = SizeOverLifetimeModifier {
         gradient: size_gradient,
@@ -433,7 +449,7 @@ fn build_default_blast_core_effect() -> EffectAsset {
 
     // An order of magnitude under the ejecta. The shell is what the fragments
     // are seen leaving THROUGH, so it has to stay behind them.
-    let speed = writer.lit(1.5).uniform(writer.lit(9.0));
+    let speed = writer.lit(3.0).uniform(writer.lit(18.0));
     let velocity = dir.normalized() * speed + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
@@ -472,18 +488,19 @@ fn build_default_blast_core_effect() -> EffectAsset {
 /// daylight is the understatement.
 const BLAST_LIGHT_LUMENS: f32 = 40_000_000.0;
 
-/// How far the detonation light reaches, in world units (900 m).
+/// How far the detonation light reaches, in world units (1400 m).
 ///
-/// Three times the shipped warhead's 300 m blast radius. The light is the only
-/// part of a detonation that is meant to be seen from outside it: the fireball
-/// says something went off there, and the light says it went off near YOU.
-const BLAST_LIGHT_RANGE: f32 = 90.0;
+/// Between four and five times the shipped warhead's 300 m blast radius. The
+/// light is the only part of a detonation that is meant to be seen from outside
+/// it: the fireball says something went off there, and the light says it went
+/// off near YOU.
+const BLAST_LIGHT_RANGE: f32 = 140.0;
 
 /// How long the detonation light burns, in seconds.
 ///
 /// Shorter than the core it belongs to. The flash has to be over before the
 /// fireball is, or the last frames read as a lamp hanging in the debris.
-const BLAST_LIGHT_SECS: f32 = 0.16;
+const BLAST_LIGHT_SECS: f32 = 0.42;
 
 pub(super) fn insert_particle_effect(
     add: On<Add, NovaBlast>,
@@ -574,9 +591,9 @@ pub(super) fn insert_particle_effect(
                 ParticleEffect::new(default_blast.core_handle(&mut effects)),
                 mask,
                 properties,
-                // Shorter than the ejecta's: the core is finished inside a
-                // third of a second and nothing is left to draw after it.
-                TempEntity(1.0),
+                // Shorter than the ejecta's: the core is finished inside
+                // two thirds of a second and nothing is left to draw after it.
+                TempEntity(1.2),
             ));
         }
     }

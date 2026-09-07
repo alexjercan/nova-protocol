@@ -12,10 +12,10 @@ Large asteroids and planetoids carry gravity wells that pull ships, torpedoes an
             >assets/wiki-gravity.png</span
         >
         <span class="figure__placeholder-note"
-            >A diagram of a well: surface-clamp core,
-            inverse-square falloff, and the faded outer edge
-            of the sphere of influence - or a ship on a
-            clean ORBIT around a planetoid.</span
+            >A cutter holding a clean ORBIT around an ice
+            world: the flight computer's ring drawn across
+            the body, the radius spoke out to the hull, and
+            the debris ring beyond it.</span
         >
     </div>
 </figure>
@@ -25,7 +25,7 @@ Large asteroids and planetoids carry gravity wells that pull ships, torpedoes an
 A well accelerates you toward its center by an inverse-square law, `a = mu / r^2`. The mass parameter `mu` is the body's one authored gravity number - never your ship's mass: gravity is acceleration, so a stripped fighter and a laden hauler fall the same.
 
 <div class="widget" data-widget="gravity-well">
-<p>The pull runs a = mu / r^2: held at its surface value below the rock (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The campaign inspection planetoid authors mass 27000 for a 3.29 km sphere of influence and a few tens of m/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
+<p>The pull runs a = mu / r^2: held at its surface value below the surface (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The campaign inspection planetoid authors mass 27000 for a 3.29 km sphere of influence and a few tens of m/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
 </div>
 
 <details class="explain">

@@ -81,18 +81,30 @@ const CUT_INTERVAL: f32 = 0.65;
 /// So: stand-offs between 120 and 170 m, and leads short enough to keep the
 /// hull inside the middle two thirds with the space it is flying into ahead of
 /// it.
+///
+/// The third number is WHERE the lens stands, and on this leg it is the only
+/// one that decides whether the shot has a world in it. The beacon is 7.6 km
+/// straight up from the planetoid, so at the top of the leg the body is a 13
+/// degree disc directly BELOW the ship and everything else is empty sky: an
+/// abeam bearing records a grey hull on black, which is what these ten cuts
+/// used to be. Standing DOWN THE TRACK instead - the whole stand-off on
+/// `along`, the side offset kept under a third of it - aims the lens back past
+/// the ship at the world it climbed away from, and puts the planetoid inside
+/// the 22.5 degree half-field rather than just outside it. It is also the
+/// bearing the beat deserves: the ship is braking, so the drive fires up the
+/// track, and a camera up the track is looking into the plume.
 #[cfg(feature = "debug")]
 const CUTS: [(Meters, Meters, Meters, Meters); 10] = [
-    (Meters(130.0), Meters(-45.0), Meters(55.0), Meters(45.0)),
-    (Meters(140.0), Meters(40.0), Meters(80.0), Meters(40.0)),
-    (Meters(150.0), Meters(-70.0), Meters(25.0), Meters(40.0)),
-    (Meters(160.0), Meters(55.0), Meters(45.0), Meters(45.0)),
-    (Meters(135.0), Meters(70.0), Meters(-25.0), Meters(35.0)),
-    (Meters(150.0), Meters(-55.0), Meters(65.0), Meters(35.0)),
-    (Meters(125.0), Meters(25.0), Meters(90.0), Meters(30.0)),
-    (Meters(140.0), Meters(-65.0), Meters(35.0), Meters(30.0)),
-    (Meters(120.0), Meters(55.0), Meters(50.0), Meters(25.0)),
-    (Meters(130.0), Meters(-30.0), Meters(-20.0), Meters(20.0)),
+    (Meters(45.0), Meters(140.0), Meters(10.0), Meters(-10.0)),
+    (Meters(-55.0), Meters(150.0), Meters(-5.0), Meters(-15.0)),
+    (Meters(35.0), Meters(120.0), Meters(25.0), Meters(-20.0)),
+    (Meters(-40.0), Meters(155.0), Meters(0.0), Meters(0.0)),
+    (Meters(60.0), Meters(130.0), Meters(20.0), Meters(-25.0)),
+    (Meters(-30.0), Meters(145.0), Meters(15.0), Meters(-10.0)),
+    (Meters(50.0), Meters(125.0), Meters(30.0), Meters(-30.0)),
+    (Meters(-45.0), Meters(160.0), Meters(-10.0), Meters(0.0)),
+    (Meters(25.0), Meters(125.0), Meters(30.0), Meters(-20.0)),
+    (Meters(-55.0), Meters(130.0), Meters(20.0), Meters(-30.0)),
 ];
 
 #[cfg(feature = "debug")]
@@ -130,10 +142,10 @@ fn settle_camera(world: &mut World) {
     world.remove_resource::<CutCamera>();
     ring::leg(
         world,
+        Meters(40.0),
         Meters(140.0),
-        Meters(-50.0),
-        Meters(45.0),
-        Meters(60.0),
+        Meters(15.0),
+        Meters(-20.0),
     );
 }
 

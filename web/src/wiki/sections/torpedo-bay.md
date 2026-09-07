@@ -4,7 +4,7 @@
     <!-- Capture: assets/icon-torpedo-bay.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-torpedo-bay.png</span
@@ -58,7 +58,7 @@ So the Serpent is what you fire at something that shoots back, and the Lance at 
     <!-- Capture: assets/wiki-combat-torpedo.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-combat-torpedo.png</span
@@ -74,15 +74,14 @@ So the Serpent is what you fire at something that shoots back, and the Lance at 
     <!-- Capture: assets/loops/loop-section-torpedo-bay.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-torpedo-bay.webm</span
         >
         <span class="figure__placeholder-note"
-            >A short loop: the straight Lance and weaving
-            Serpent draw their distinct paths across the same
-            firing lane.</span
+            >The iris, close: the six petals folding out for a
+            launch and winking shut behind the round.</span
         >
     </div>
 </figure>
@@ -112,8 +111,9 @@ The scope spaces its layers out so you can read the falloff. A real torpedo goes
             >assets/loops/torpedo-blast.webm</span
         >
         <span class="figure__placeholder-note"
-            >The real thing: a Serpent's detonation blowing the
-            outer layers off a gunship.</span
+            >The real thing: one Serpent's detonation killing a
+            gunship, and the hull coming apart inside the
+            fireball.</span
         >
     </div>
 </figure>

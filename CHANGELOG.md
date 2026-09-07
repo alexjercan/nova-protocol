@@ -338,6 +338,11 @@ does NOT get an entry - and it is the only place they are written down.
 - An asteroid wears its kind: rock, metal, ice and carbon each get their own
   palette, strata and specular over a triplanar surface, so a belt reads as
   several materials instead of one repeated rock.
+- A death burns: a white flash, then incandescent fragments that outlive it and
+  keep travelling, and light thrown on the hulls nearby. A section going up is a
+  compartment; a whole hull letting go covers the wreck.
+- A torpedo's detonation is twice the size and burns three times as long: a
+  bigger core, ejecta thrown out past 100 m, and a flash that reaches 1.4 km.
 
 ### Performance
 - A collapsing hull measures its pre-cut centre of mass once per frame, not
@@ -384,6 +389,12 @@ does NOT get an entry - and it is the only place they are written down.
   The per-event detail moved to `trace`.
 - `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch
   fields a new matchup; `--seed` replays one and a scripted run stays pinned.
+- Under capture only, `wfc_arena` stages its strike: the pair is brought to
+  500 m and left closing slowly, the lances are cued a beat before two salvos,
+  and the result screen stands down. A hand-run fights exactly as before.
+- The ring loops now stand where the world is: the cockpit view frames the ice
+  planet and re-aims for the climb, and the GOTO arrival montage shoots back
+  down the track instead of at empty sky.
 - Every example flies on your saved settings - mouse sensitivity, keybinds,
   volumes, quality, skin - and only the settings panel can write them back. A
   scripted run reads and writes none of them.
@@ -413,6 +424,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The five headless spike ranges run on the scripted driver: 56 numbered step
   arms become named beats waiting on the pointer, the widget and the registry,
   so a stall names the beat, not a number.
+- `scripts/capture-web-shots.sh` drives the site's stills as
+  `capture-web-media.sh` drives its loops. Both stamp a base-only mod set
+  before each producer, so no range dresses the next one's shot.
 - An autopilot deadline counts real seconds, so a beat behind the pause overlay
   or the ship computer - where the game clock stops - aborts named instead of
   holding the run open forever.

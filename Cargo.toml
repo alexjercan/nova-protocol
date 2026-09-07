@@ -550,6 +550,12 @@ path = "examples/screenshots/loop_round_types.rs"
 name = "loop_cockpit"
 path = "examples/screenshots/loop_cockpit.rs"
 
+# The commands wiki page's opening figure: `:` dropping the computer over live
+# flight. `system_command_shell` is the same gesture with no renderer at all.
+[[example]]
+name = "loop_command_shell"
+path = "examples/screenshots/loop_command_shell.rs"
+
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.
 [lints]

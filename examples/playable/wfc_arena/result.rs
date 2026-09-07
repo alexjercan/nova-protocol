@@ -351,8 +351,10 @@ fn detect_and_show_result(
             if !warnings.0.is_empty() {
                 warnings.0.clear();
             }
-            virtual_time.pause();
-            physics_time.pause();
+            if may_freeze() {
+                virtual_time.pause();
+                physics_time.pause();
+            }
             cursor.grab_mode = CursorGrabMode::None;
             cursor.visible = true;
             info!("wfc_arena: match ended - {}", ending.label());
@@ -362,7 +364,7 @@ fn detect_and_show_result(
     let Some((ending, reveal_at, duration)) = flow.finishing else {
         return;
     };
-    if flow.shown || real_now < reveal_at {
+    if flow.shown || real_now < reveal_at || !may_freeze() {
         return;
     }
     let remaining = structure_by_slot(flow.expected, &q_health, &q_parents, &q_root_ids);
@@ -430,6 +432,20 @@ fn show_boundary_warnings(
         });
 }
 
+/// Whether the result screen may take the world - stop its clocks and put its
+/// verdict over the frame.
+///
+/// A CAPTURE run says no, and stands down entirely. An elimination inside the
+/// recording window is the shot the hero loop is after: freezing virtual time
+/// the moment the last controller dies leaves the encoder holding frames and
+/// strands the walk on a cap that can never come due, and the panel itself
+/// lands over the fireball it is reporting - a duel that ended two seconds into
+/// a nine-second loop spent the rest of it as a scoreboard. The verdict is
+/// still logged; only the screen and the freeze stand down.
+fn may_freeze() -> bool {
+    !capturing()
+}
+
 fn keep_interactive_screen_owned(
     flow: Res<MatchFlow>,
     pause: Res<State<PauseStates>>,
@@ -437,7 +453,7 @@ fn keep_interactive_screen_owned(
     mut physics_time: ResMut<Time<Physics>>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    let frozen = flow.finishing.is_some() || pause.get().is_frozen();
+    let frozen = (flow.finishing.is_some() && may_freeze()) || pause.get().is_frozen();
     if !frozen {
         if flow.active {
             virtual_time.unpause();

@@ -1,15 +1,18 @@
 //! loop_torpedo_blast: the `torpedo-blast` webm loop - a Serpent torpedo
-//! weaves in and its blast carves the outer hull layers off a stationary
-//! gunship.
+//! weaves in and kills a stationary gunship.
 //!
 //! The docs site's first MOVING figure, authored in the same idiom as every
 //! still: an autopilot script whose steps call `loop_start` / `loop_end`
 //! around the beats worth watching (`nova_autopilot::loops`). The recorded
 //! window opens with the round already inside 700 m - drive plume and the
-//! terminal weave on camera - runs through the detonation and the section
-//! deaths, and CUTS to a tracking shot of the carved survivor for the calm
-//! tail (the blast impulse throws the hull out of any fixed framing within a
-//! second).
+//! terminal weave on camera - and runs through the detonation, the fireball
+//! and the hull coming apart inside it.
+//!
+//! ONE camera, posed before the loop opens and never touched again. What was
+//! here was a hard cut to a tracking shot for the aftermath, and it read as a
+//! jump: a fixed lens is what makes the frame a place the hit happened IN,
+//! and the framing below is wide enough that the wreck spreads inside it
+//! instead of leaving it.
 //!
 //! The set is `screenshot_combat`'s ordnance chapter boiled down to its two
 //! ships: a target gunship parked at the origin and the torpedo boat high
@@ -18,12 +21,14 @@
 //! the lens up puts sky behind the subject). Every actor is scripted or
 //! inert, so a re-capture reproduces the same frames.
 //!
-//! The destruction is authored as a difference in section health, not in the
-//! weapon: the warhead's 750 blast damage covers the whole hull, so the
-//! non-carved sections are set tough enough to take it as wounds
-//! ([`TOUGH_SECTION_HEALTH`]) while the carve targets stay at prototype
-//! health and die to the real detonation - with a scripted carve as the
-//! deterministic backstop, timed to the same beat.
+//! NOTHING about the destruction is authored. The target wears the catalog
+//! hull at catalog health and the warhead does what a warhead does: 750 blast
+//! damage across a 300 m sphere depletes the hull, the aggregate falls through
+//! the structural-collapse floor, and every section it has left dies in one
+//! frame - which is the chain of fireballs `nova_gameplay::integrity::pyre`
+//! exists to draw. The earlier version of this loop toughened the plating and
+//! carved two named cells off with a scripted `HealthApplyDamage`, and it
+//! showed: a warhead went off and a gunship shrugged.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
@@ -73,43 +78,22 @@ const LANCE_POSITION: Meters3 = Meters3::new(-380.0, 300.0, -560.0);
 #[cfg(feature = "debug")]
 const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 
-/// ONE round, not the boat's full salvo: the 300 m blast covers the whole
-/// gunship, and two same-tick detonations (shared health snapshot,
-/// `blast_penetration`'s BLUE lane) gut every outer section at once - the
-/// aggregate falls through the structural-collapse floor and the WHOLE ship
-/// despawns. One warhead leaves a wounded hull for the scripted carve.
+/// Where the lens stands, as an offset from what it frames.
+///
+/// From BELOW the target, looking up the salvo's bearing, sky behind the hull.
+/// 320 m out, against a 110 m hull: the lens spans 1.47 times its distance, so
+/// the frame is some 470 m wide. That holds the fireball (110 m at its peak),
+/// the sections thrown out of it, and the drift they have picked up by the end
+/// of the tail - the whole reason this framing does not need a camera move.
+#[cfg(feature = "debug")]
+const LENS_OFFSET: Meters3 = Meters3::new(210.0, -185.0, 160.0);
+
+/// ONE round, not the boat's full salvo. One is already lethal - the 300 m
+/// blast covers the whole gunship and the aggregate falls through the
+/// structural-collapse floor - and a second warhead arriving into a hull that
+/// is already coming apart adds a fireball nobody can attribute to anything.
 #[cfg(feature = "debug")]
 const EXPECTED_TORPEDO_COUNT: usize = 1;
-
-/// The outer hull layers the detonation takes off, by BUILD-GRID CELL: the two
-/// starboard aft deck plates, which is the quarter the boat's bearing puts on
-/// the blast side of the parked target. The aft starboard mount stands on the
-/// forward one, so it comes off with the plate.
-///
-/// Named by cell rather than by id because a block hull's `plate_N` numbering
-/// is an artifact of the order its boxes were unioned (see
-/// [`kit::cell_section`]); the cell is the coordinate the hull is authored in.
-///
-/// They spawn at prototype health while the rest of the hull is authored
-/// tougher (see [`blast_range`]), so the blast beat destroys exactly these and
-/// the ship SURVIVES into the aftermath frames.
-const CARVED_CELLS: [Vec3; 2] = [Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 2.0)];
-
-/// The ids [`CARVED_CELLS`] resolve to on the shipped target hull.
-fn carved_section_ids(ships: &GameShips) -> Vec<String> {
-    CARVED_CELLS
-        .iter()
-        .map(|&cell| kit::cell_section(ships, TARGET_HULL, cell))
-        .collect()
-}
-
-/// Authored health for every non-carved section. A Serpent's warhead is 750
-/// blast damage across a 300 m sphere - the whole hull is inside it,
-/// and every prototype-health section is depleted outright (proved live: the
-/// root structurally collapsed mid-loop at 42 of 2030 aggregate). At this
-/// figure the same warhead wounds the hull for a few hundred per section and
-/// the ship SURVIVES into the aftermath, short exactly the carved layers.
-const TOUGH_SECTION_HEALTH: f32 = 2500.0;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -126,15 +110,14 @@ fn main() -> bevy::app::AppExit {
                 .until(cast_present())
                 .deadline(60.0)
                 .add()
-                // One fixed framing for the whole loop: from below the target,
-                // looking up the salvo's bearing, sky behind the hull. The HUD
+                // The ONE framing, posed here and never touched again. The HUD
                 // drops to cinematic so the fps/version bar stays out of the
                 // recording.
                 .step("frame the run")
                 .on_enter(|world| {
                     hide_hud(world);
                     let subject = blast_subject(world);
-                    pose_camera(world, subject + Meters3::new(160.0, -140.0, 120.0), subject);
+                    pose_camera(world, subject + LENS_OFFSET, subject);
                 })
                 .until(elapsed(1.0))
                 .add()
@@ -147,11 +130,12 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(commit_torpedoes)
                 .until(elapsed(0.1))
                 .add()
-                // Recording opens once the weave is inside 700 m: the loop
-                // spends its opening seconds on a lit drive closing in rather
-                // than on a distant dot.
+                // Recording opens once the weave is inside 400 m: at a
+                // Serpent's 320 m/s that is a second and a bit of lit drive
+                // closing in - anticipation, not the two and a half seconds of
+                // distant dot a wider gate spent.
                 .step("wait for the terminal run")
-                .until(torpedo_within(Meters(700.0)))
+                .until(torpedo_within(Meters(400.0)))
                 .deadline(15.0)
                 .add()
                 .step("open the loop")
@@ -161,28 +145,14 @@ fn main() -> bevy::app::AppExit {
                 .until(no_torpedo_in_flight())
                 .deadline(20.0)
                 .add()
-                // The deterministic backstop for the carve: the real blast
-                // usually kills the prototype-health sections itself (the
-                // lookup then warns and moves on), and this beat guarantees
-                // it through the production damage path either way.
-                .step("carve the outer hull")
-                .on_enter(carve_target_sections)
-                .until(carved_sections_gone())
-                .deadline(5.0)
-                .add()
-                // The calm tail: a hard CUT to a TRACKING shot on the live
-                // hull. The blast impulse throws the ship fast enough that
-                // any fixed aftermath framing is empty space within a second
-                // (proved live twice), so the camera re-poses off the hull
-                // every frame - the carved ship rides steady in frame while
-                // debris and rocks stream past, and the loop's last frame is
-                // a readable aftermath.
+                // The tail, on the SAME lens: the fireball burns down, the
+                // sections it threw tumble out of it, and the last frame is a
+                // wreck spreading. Long enough for the hulk fireball's own
+                // burn (under a second) plus the drift that makes it read as
+                // wreckage rather than as a freeze, and no longer - past two
+                // seconds the frame is debris holding station.
                 .step("let the blast clear")
-                .each(|world, _, _| {
-                    let target = target_position(world);
-                    pose_camera(world, target + Meters3::new(140.0, -100.0, 110.0), target);
-                })
-                .until(elapsed(2.5))
+                .until(elapsed(2.0))
                 .add()
                 .step("close the loop")
                 .on_enter(|world| loop_end(world, LOOP_NAME))
@@ -208,13 +178,9 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 /// shell around them and the photo rig. Both ships are `Controller::None` -
 /// nothing here flies itself, so the capture is deterministic.
 fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
-    // The whole shipped gunship, turrets included. The kit used to drop them:
-    // its own hand-typed copy of the mount centres had drifted from the
-    // builders', so the mounts mated nothing and the ship came back
-    // `Disconnected` - empty adjacency, under which the scripted carve would
-    // burst the WHOLE hull instead of taking its outer layers off. The kit
-    // reads the ship catalog now. The non-carved sections are authored tough -
-    // see [`TOUGH_SECTION_HEALTH`].
+    // The whole shipped gunship at catalog health, turrets and cladding
+    // included. Nothing here is tuned for the shot: what the warhead does to
+    // this hull is what it does to the same hull in a fight.
     let target = ship(
         TARGET_ID,
         "Target",
@@ -223,21 +189,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         // sections face the lens.
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         Some(Allegiance::Enemy),
-        {
-            // The catalog hull WHOLE - skin and style included - with the
-            // plating outside the carve toughened. Rebuilt around the entry
-            // rather than assembled from its sections, so the target wears the
-            // same cladding the fleet does.
-            let carved = carved_section_ids(ships);
-            let mut hull = kit::catalog_ship(ships, TARGET_HULL);
-            for section in &mut hull.sections {
-                if !carved.contains(&section.id) {
-                    section.modifications =
-                        vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
-                }
-            }
-            hull
-        },
+        kit::catalog_ship(ships, TARGET_HULL),
     );
     let lance = ship(
         LANCE_ID,
@@ -398,43 +350,6 @@ fn commit_torpedoes(world: &mut World) {
     info!("torpedo loop: {} torpedo(es) committed", torpedoes.len());
 }
 
-/// Take the carved sections off through the production damage path.
-#[cfg(feature = "debug")]
-fn carve_target_sections(world: &mut World) {
-    for section in carved_section_ids(world.resource::<GameShips>()) {
-        let Some(node) = target_section_health(world, &section) else {
-            warn!("torpedo loop: no health node under section '{section}'");
-            continue;
-        };
-        world.trigger(HealthApplyDamage {
-            entity: node,
-            source: None,
-            amount: 1.0e6,
-        });
-        info!("torpedo loop: carved '{section}' off the target");
-    }
-}
-
-/// Advance once every carved section is really gone from the TARGET - scoped
-/// by ship, because the boat's hull shares section ids with the target's.
-#[cfg(feature = "debug")]
-fn carved_sections_gone() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        let Some(target) = ship_by_id_ref(world, TARGET_ID) else {
-            return false;
-        };
-        let Some(mut sections) =
-            world.try_query_filtered::<(&EntityId, &ChildOf), With<SectionMarker>>()
-        else {
-            return true;
-        };
-        let carved = carved_section_ids(world.resource::<GameShips>());
-        !sections
-            .iter(world)
-            .any(|(id, parent)| parent.parent() == target && carved.contains(&id.0))
-    })
-}
-
 /// Advance once the whole salvo is in the world.
 #[cfg(feature = "debug")]
 fn torpedo_salvo_in_flight(
@@ -475,30 +390,6 @@ fn torpedo_range(world: &World) -> Option<Meters> {
         .iter(world)
         .map(|transform| Meters::from_engine(transform.translation().distance(position)))
         .min_by(|a, b| f32::total_cmp(&a.get(), &b.get()))
-}
-
-/// The `Health` node of one of the target's sections (on the section entity
-/// or one of its children).
-#[cfg(feature = "debug")]
-fn target_section_health(world: &mut World, section: &str) -> Option<Entity> {
-    let target = ship_by_id(world, TARGET_ID)?;
-    let candidates: Vec<Entity> = world
-        .query_filtered::<(Entity, &EntityId, &ChildOf), With<SectionMarker>>()
-        .iter(world)
-        .filter(|(_, id, parent)| id.0 == section && parent.parent() == target)
-        .map(|(entity, _, _)| entity)
-        .collect();
-    let section = candidates.into_iter().next()?;
-    if world.get::<Health>(section).is_some() {
-        return Some(section);
-    }
-    let children: Vec<Entity> = world
-        .get::<Children>(section)
-        .map(|children| children.iter().collect())
-        .unwrap_or_default();
-    children
-        .into_iter()
-        .find(|&child| world.get::<Health>(child).is_some())
 }
 
 /// The ship root carrying scenario id `id`.

@@ -4,7 +4,7 @@
     <!-- Capture: assets/icon-turret.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-turret.png</span
@@ -115,7 +115,7 @@ The deploy is not free. A stowed mount neither tracks nor fires until it is full
     <!-- Capture: assets/wiki-section-turret-twin.png (producer: screenshot_section_weapons) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-turret-twin.png</span
@@ -133,7 +133,7 @@ A beaten mount cracks and, past about a third of its health gone, throws sparks 
     <!-- Capture: assets/loops/loop-section-turret.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-turret.webm</span

@@ -49,6 +49,16 @@ SANDBOX="$(cd "$SANDBOX" && pwd)"
 export NOVA_MODDING_CACHE_ROOT="$SANDBOX/data"
 export NOVA_CONFIG_ROOT="$SANDBOX/config"
 
+# The sandbox is not write-only: a producer that changes the enabled-mod set
+# SAVES it, and the next producer to run reads it back. `screenshot_scenario_picker`
+# enables the example mod on purpose - its whole subject is a campaign folded
+# under a header - and every shot taken after it then wore the example mod's
+# hull override. So base-only is re-stamped before each producer rather than
+# seeded once.
+base_only_mods() {
+    printf '["base"]' >"$SANDBOX/config/enabled_mods.ron"
+}
+
 for tool in cargo ffprobe xvfb-run; do
     command -v "$tool" >/dev/null || {
         echo "!! $tool not on PATH (run inside \`nix develop\`)" >&2
@@ -60,9 +70,13 @@ done
 # producer's argument string; the optional fourth is a space-separated list of
 # environment assignments for that composition.
 #   example|loop|args|environment
+# The arena's two loops name a STYLE per side: AMBER flies armoured plate,
+# ONYX salvage. Both are shipped base styles, and a named look is what makes
+# the two sides read apart at knife range, where the team chevrons are the only
+# other thing telling them apart.
 LOOPS=(
-    "wfc_arena|hero-wfc-duel||"
-    "wfc_arena|landing-wfc-2v2|--ship amber --ship amber --ship onyx --ship onyx|"
+    "wfc_arena|hero-wfc-duel|--ship amber:armoured --ship onyx:salvage|"
+    "wfc_arena|landing-wfc-2v2|--ship amber:armoured --ship amber:armoured --ship onyx:salvage --ship onyx:salvage|"
     "loop_torpedo_blast|torpedo-blast||"
     "loop_spine_cut|spine-cut||"
     "loop_goto_arrival|goto-arrival||"
@@ -73,6 +87,7 @@ LOOPS=(
     "system_torpedo_launch|news-0110-torpedo-types||"
     "stress_point_defense|loop-section-turret||NOVA_STRESS_PD_MOUNTS=4 NOVA_STRESS_PD_BAYS=4 NOVA_STRESS_PD_VIEW=lanes"
     "loop_cockpit|landing-cockpit||"
+    "loop_command_shell|command-shell-open||"
     "screenshot_flip_burn|loop-section-controller||"
     "screenshot_radar_lock|lock-dwell||"
     "screenshot_editor|landing-editor-build||"
@@ -155,6 +170,7 @@ for pair in "${LOOPS[@]}"; do
     read -r -a run_env <<<"$env_string"
 
     echo ">> ${example}: capturing ${loop} under Xvfb..."
+    base_only_mods
     # A fresh server per run (-a picks a free display). `cargo run` rather
     # than the built binary so the asset root resolves at the repo, the way
     # every capture flow runs. Each tuple runs independently because one

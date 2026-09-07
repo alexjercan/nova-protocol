@@ -11,6 +11,8 @@
 //!   depletion to immediate destruction at any graph degree;
 //! - [`explode`] reacts to the destroy marker: detach the dead body from its
 //!   parent so it tumbles away whole, and fire `OnDestroyedEvent`.
+//! - [`pyre`] reacts to the same marker with the FIREBALL: the moment of the
+//!   death, where `explode` is its aftermath.
 //! - [`neutralize`] calls a ship combat-dead once its weapons are gone OR its
 //!   flight computer is.
 //! - [`erosion`] reads health as a level, for effects that grade a whole body.
@@ -33,6 +35,7 @@ pub mod erosion;
 pub mod explode;
 pub mod health;
 pub mod neutralize;
+pub mod pyre;
 pub mod spew;
 
 /// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
@@ -40,7 +43,7 @@ pub mod prelude {
     pub use super::{
         carve::prelude::*, chunk::prelude::*, components::prelude::*, core::prelude::*,
         erosion::prelude::*, explode::prelude::*, health::prelude::*, neutralize::prelude::*,
-        spew::prelude::*, NovaIntegrityPlugin,
+        pyre::prelude::*, spew::prelude::*, NovaIntegrityPlugin,
     };
 }
 
@@ -71,8 +74,10 @@ impl Plugin for NovaIntegrityPlugin {
         app.add_plugins(spew::CarveSpewPlugin);
         app.add_plugins(chunk::CarvedChunkPlugin);
 
-        // Nova's reaction to destruction: detach the dead body, OnDestroyedEvent.
+        // Nova's reaction to destruction, in two halves: the wreckage that
+        // drifts away, and the fireball it drifts out of.
         app.add_plugins(explode::ExplodablePlugin);
+        app.add_plugins(pyre::PyrePlugin);
 
         // Combat-death detection: weapons + thrusters all gone -> neutralized.
         app.add_plugins(neutralize::NeutralizePlugin);

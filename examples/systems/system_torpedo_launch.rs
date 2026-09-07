@@ -123,7 +123,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<RangeOutcome>();
         app.init_resource::<HeldInput>();
-        app.init_resource::<TrailOnly>();
+        app.init_resource::<RangeGizmos>();
         app.init_resource::<TransientsAtSwitch>();
         app.add_observer(
             |_: On<Add, TorpedoProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
@@ -247,14 +247,26 @@ struct RangeArmLogged;
 #[derive(Resource)]
 struct BestApproach(f32);
 
-/// Suppress steering diagnostics while the release figure records only the two
-/// type-coloured flight paths.
+/// How much of the range's own diagnostic drawing is on.
 ///
-/// Ungated: only the capture script ever sets it, but `draw_guidance_gizmos`
-/// reads it and that system is registered unconditionally. It takes the
-/// resource as `Option<Res<_>>`, so a build that never inserts it is fine.
-#[derive(Resource, Default)]
-struct TrailOnly(bool);
+/// Ungated: only the capture script ever changes it, but
+/// [`draw_guidance_gizmos`] reads it and that system is registered
+/// unconditionally. It takes the resource as `Option<Res<_>>`, so a build that
+/// never inserts it is fine.
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq)]
+enum RangeGizmos {
+    /// Everything: the line of sight, the arming sphere, the aim point and the
+    /// flown path. What a hand-run of the range wants to see.
+    #[default]
+    Diagnostic,
+    /// The two type-coloured flight paths and nothing else, for the release
+    /// figure that compares a straight run against a weave.
+    TrailsOnly,
+    /// Nothing at all. The wiki's bay loop is a close-up of the iris, and a red
+    /// aim line drawn across it is a developer's instrument in a player's
+    /// figure.
+    Off,
+}
 
 /// The midcourse lead readout. See [`track_lead_angle`].
 #[derive(Resource, Default)]
@@ -705,7 +717,7 @@ fn record_flight_paths(
 /// and the flown path behind it.
 fn draw_guidance_gizmos(
     mut gizmos: Gizmos,
-    trail_only: Option<Res<TrailOnly>>,
+    mode: Option<Res<RangeGizmos>>,
     q_torpedo: Query<
         (
             Entity,
@@ -719,7 +731,12 @@ fn draw_guidance_gizmos(
         With<TorpedoProjectileMarker>,
     >,
 ) {
-    if trail_only.as_deref().is_some_and(|mode| mode.0) {
+    let mode = mode.as_deref().copied().unwrap_or_default();
+    if mode == RangeGizmos::Off {
+        return;
+    }
+
+    if mode == RangeGizmos::TrailsOnly {
         let mut straight: Option<(&RangeFlightPath, Color)> = None;
         let mut weaving: Option<(&RangeFlightPath, Color)> = None;
         for (_, _, _, _, path, torpedo_type, weave) in &q_torpedo {
@@ -743,20 +760,18 @@ fn draw_guidance_gizmos(
 
     for (_, torpedo_transform, target, arming, path, torpedo_type, _) in &q_torpedo {
         let pos = torpedo_transform.translation();
-        if !trail_only.as_deref().is_some_and(|mode| mode.0) {
-            let status = if arming.is_armed() {
-                tailwind::GREEN_400
-            } else {
-                tailwind::YELLOW_400
-            };
-            gizmos.sphere(Isometry3d::from_translation(pos), 0.6, status);
-            gizmos.line(pos, **target, tailwind::RED_400);
-            gizmos.sphere(
-                Isometry3d::from_translation(**target),
-                1.0,
-                tailwind::RED_400,
-            );
-        }
+        let status = if arming.is_armed() {
+            tailwind::GREEN_400
+        } else {
+            tailwind::YELLOW_400
+        };
+        gizmos.sphere(Isometry3d::from_translation(pos), 0.6, status);
+        gizmos.line(pos, **target, tailwind::RED_400);
+        gizmos.sphere(
+            Isometry3d::from_translation(**target),
+            1.0,
+            tailwind::RED_400,
+        );
         if let Some(path) = path {
             // In the TYPE's own colour, so two trails in one frame say which
             // ordnance flew which path without a legend. A torpedo with no
@@ -1021,7 +1036,14 @@ fn torpedo_script() -> Script {
         // open - a screenshot and a loop frame are the same window capture,
         // and the second one asked for in a frame is dropped.
         .step("open the torpedo bay loop")
-        .on_enter(|world| loop_start(world, BAY_LOOP))
+        .on_enter(|world: &mut World| {
+            // The loop is a close-up of the hardware. The range's own
+            // instrument - the aim line, the arming sphere, the flown trail -
+            // is for a developer watching a guidance run, and drawn across a
+            // 43 m bay it is the loudest thing in the frame.
+            *world.resource_mut::<RangeGizmos>() = RangeGizmos::Off;
+            loop_start(world, BAY_LOOP);
+        })
         .until(frames(2))
         .add()
         .step("fire through the iris for the loop")
@@ -1044,7 +1066,10 @@ fn torpedo_script() -> Script {
         .until(elapsed(0.6))
         .add()
         .step("close the torpedo bay loop")
-        .on_enter(|world| loop_end(world, BAY_LOOP))
+        .on_enter(|world: &mut World| {
+            loop_end(world, BAY_LOOP);
+            *world.resource_mut::<RangeGizmos>() = RangeGizmos::Diagnostic;
+        })
         .until(loop_written(BAY_LOOP))
         .deadline(60.0)
         .add();
@@ -1133,7 +1158,7 @@ fn torpedo_script() -> Script {
 #[cfg(feature = "debug")]
 fn clear_torpedoes(world: &mut World) {
     world.resource_mut::<HeldInput>().fire = false;
-    world.resource_mut::<TrailOnly>().0 = true;
+    *world.resource_mut::<RangeGizmos>() = RangeGizmos::TrailsOnly;
     let torpedoes: Vec<Entity> = world
         .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
         .iter(world)
@@ -1153,8 +1178,8 @@ fn clear_torpedoes(world: &mut World) {
 /// iris it waits on would despawn with the bay. RELEASE Space too, not
 /// merely stop re-pressing it - `hold_inputs` never releases, and the bay
 /// keeps launching (and so keeps refreshing the door hold) while the key is
-/// down. Not [`clear_torpedoes`]: that one also flips the comparison shot's
-/// `TrailOnly` dressing, which must stay off here.
+/// down. Not [`clear_torpedoes`]: that one also puts the range into its
+/// comparison-shot [`RangeGizmos`] dressing, which must stay off here.
 #[cfg(feature = "debug")]
 fn clear_the_door_salvo(world: &mut World) {
     world.resource_mut::<HeldInput>().fire = false;
@@ -1246,11 +1271,19 @@ fn frame_the_bay_muzzle(world: &mut World) {
     };
     // transform_point, not translation + offset: it carries the section's
     // rotation AND any assembly scale into the framing.
-    let muzzle = section.transform_point(Vec3::new(0.0, 0.0, -1.0));
-    // Far enough out that a caught torpedo (up to ~50 m past the muzzle, see
-    // `a_torpedo_is_emerging`) sits between the bay and the camera instead
-    // of on the near plane.
-    let eye = section.transform_point(Vec3::new(2.6, 1.9, -7.0));
+    let muzzle = section.transform_point(Vec3::new(0.0, 0.0, -1.4));
+    // 43 m out, on a bay that is 10 m across its door face and 20 m long: the
+    // lens spans 1.47 times its distance, so the section fills a third of the
+    // frame width and the iris - the SUBJECT - is readable at the size a docs
+    // page draws a 1280-wide loop. It stood at 69 m, where the bay was a
+    // sixth of the frame on a field of black and the upscale made a
+    // correctly-sized recording look like a badly-sized one.
+    //
+    // Still far enough out that a caught torpedo sits between the bay and the
+    // camera rather than on the near plane: `a_torpedo_is_emerging` catches it
+    // 16 to 32 m past the muzzle, on the cold-launch leg before its drive
+    // lights.
+    let eye = section.transform_point(Vec3::new(1.9, 1.4, -5.0));
     nova_protocol::nova_debug::harness::pose_camera(
         world,
         Meters3::from_engine(eye),

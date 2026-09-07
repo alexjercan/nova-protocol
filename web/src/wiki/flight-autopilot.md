@@ -6,7 +6,7 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
     <!-- Capture: assets/wiki-flight.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-flight.png</span
@@ -56,7 +56,7 @@ See [Keybinds](../keybinds/) for the verb keys.
     <!-- Capture: assets/loops/goto-arrival.webm -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/goto-arrival.webm</span

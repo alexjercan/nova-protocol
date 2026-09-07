@@ -1,0 +1,751 @@
+//! The fireball a destroyed body throws.
+//!
+//! [`explode`](super::explode) says what the WRECKAGE does - a dead section
+//! detaches, takes a kick and a spin, and drifts. That is the aftermath, and on
+//! its own it is all a death ever had: a hull hit hard enough to come apart
+//! shed pieces in silence, which reads as parts falling off rather than as a
+//! ship being killed. This module is the moment itself.
+//!
+//! # A death is a core and its ejecta, because vacuum has nothing else
+//!
+//! There is no shock front and no smoke: what a body in vacuum throws is its
+//! own vaporised mass, which expands while it cools, and its fragments, which
+//! keep going after the light has gone. Those are two different pictures and a
+//! quad cannot draw both - a billboard cannot also be a streak - so each death
+//! spawns TWO instances, exactly as a torpedo detonation does
+//! (`build_default_blast_core_effect` beside `build_default_blast_effect`):
+//!
+//! - the CORE is camera-facing, brief, and the only part allowed to be bright.
+//!   It is a FLASH and not a fireball: nothing out here sustains combustion, so
+//!   it is gone inside a third of a second;
+//! - the EJECTA is oriented along velocity, so its quads read as tapered
+//!   streaks contracting into fragments rather than as a cloud of circles. It
+//!   outlives the flash, and it is what the eye follows afterwards.
+//!
+//! # Two sizes, because a death has two scales
+//!
+//! A SECTION dying is a compartment going up: a core about the size of the
+//! build-grid cell it stood in, over in a third of a second. A ship's
+//! INTEGRITY ROOT dying is the whole hull letting go, and it is the only death
+//! in the game that is allowed to fill the frame. Each size is its own pair of
+//! [`EffectAsset`]s rather than one asset scaled, because hanabi bakes its
+//! size and colour gradients into the asset.
+//!
+//! # A collapse is a chain, and a chain has to be capped
+//!
+//! Structural collapse destroys every section a hull has left in ONE frame, so
+//! the unbudgeted reading of "one fireball per death" is fifty deaths born
+//! together. The chain across the hull is exactly what a ship blowing up looks
+//! like, so it is kept - up to [`PYRE_FRAME_CAP`] of it - and the root's own
+//! fireball is never the one dropped.
+//!
+//! Engine units throughout: every size, speed and reach below is world units
+//! (one is 10 m) and world units per second, because they are measured against
+//! hull geometry and avian velocities. The figures in these docs are the
+//! METRES they come to, so the two can be checked against each other - an
+//! earlier cut read its own comments as metres, and shipped a section fireball
+//! of 9 m quads reaching 126 m, which is a small ship exploding rather than a
+//! compartment.
+
+use bevy::prelude::*;
+use bevy_hanabi::prelude::*;
+
+use super::components::prelude::*;
+use crate::{
+    lifetime::TempEntity,
+    settings::prelude::GraphicsBudget,
+    soft_dot::prelude::{declare_soft_dot_slot, soft_dot_modifier, SoftDot},
+    transient_light::prelude::LightFlash,
+};
+
+/// `PyrePlugin` and the marker its instances carry.
+pub mod prelude {
+    pub use super::{PyreEffectMarker, PyrePlugin};
+}
+
+/// Tags a live death fireball, so a range can count them. Both halves of one
+/// death carry it.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct PyreEffectMarker;
+
+/// How many deaths one frame may light.
+///
+/// A collapsing hull destroys everything it has left at once, and the read
+/// wanted is a chain of blasts walking across the wreck rather than a single
+/// puff. Six is enough for that on the largest shipped hull and bounds the
+/// per-instance GPU buffers a death can allocate in one frame.
+///
+/// It is a per-FRAME cap and not a per-death one, so a railgun corridor - a
+/// rake that condemns thirty cells over several frames - still lights a fire
+/// in every one of them. That is the right read for a wound down the length
+/// of a hull; what keeps it from becoming a wall is the section pyre's own
+/// reach, which is deliberately shorter than the lens is far.
+const PYRE_FRAME_CAP: u32 = 6;
+
+/// How many deaths this frame has already lit.
+///
+/// Reset in [`First`], spent by the observer. A resource and not a `Local`
+/// because the observer and the reset are different systems.
+#[derive(Resource, Default, Debug)]
+struct PyreBudget(u32);
+
+/// The shared graphs, built on the first death that needs one. Two per size:
+/// the core and its ejecta.
+///
+/// Lazy rather than [`FromWorld`], so an app that never destroys anything - and
+/// one running at a graphics tier with particles off - builds nothing.
+#[derive(Resource, Default, Debug)]
+struct PyreEffects {
+    section: Option<PyrePair>,
+    hulk: Option<PyrePair>,
+}
+
+/// The two graphs one death spawns.
+#[derive(Clone, Debug)]
+struct PyrePair {
+    core: Handle<EffectAsset>,
+    ejecta: Handle<EffectAsset>,
+}
+
+/// The vaporised mass: a compact camera-facing flare that expands as it cools.
+#[derive(Clone, Copy, Debug)]
+struct PyreCore {
+    /// Peak quad size, world units. The visible ball is wider than this - the
+    /// quads drift apart while they burn.
+    size: f32,
+    /// Slowest and fastest a core quad drifts, world units per second. Small:
+    /// what expands here is the fireball, not the debris.
+    drift: (f32, f32),
+    /// Shortest and longest a core quad lives, seconds.
+    life: (f32, f32),
+    /// How many quads the core is made of.
+    particles: f32,
+    /// Buffer the core is given, the next power of two above
+    /// [`Self::particles`].
+    capacity: u32,
+}
+
+/// The fragments: incandescent streaks that leave and keep going.
+#[derive(Clone, Copy, Debug)]
+struct PyreEjecta {
+    /// Peak streak LENGTH along its own velocity, world units.
+    length: f32,
+    /// Streak width across that, world units. A fraction of the length, or it
+    /// stops reading as a fragment and starts reading as a lozenge.
+    width: f32,
+    /// Slowest and fastest a fragment leaves, world units per second.
+    speed: (f32, f32),
+    /// Shortest and longest a fragment lives, seconds. Longer than the core's:
+    /// the light goes out while the pieces are still travelling.
+    life: (f32, f32),
+    /// How many fragments the burst throws.
+    particles: f32,
+    /// Buffer the burst is given, the next power of two above
+    /// [`Self::particles`].
+    capacity: u32,
+}
+
+/// One death's look: its two halves, and how brightly it lights the hulls
+/// around it.
+#[derive(Clone, Copy, Debug)]
+struct PyreScale {
+    /// The vaporised mass.
+    core: PyreCore,
+    /// The fragments it throws.
+    ejecta: PyreEjecta,
+    /// Peak intensity of the flash, in lumens.
+    lumens: f32,
+    /// How far the flash reaches, world units.
+    light_range: f32,
+    /// How long the flash burns, seconds.
+    light_secs: f32,
+    /// How long the instances are kept alive after the burst, seconds. Longer
+    /// than the longest fragment: an emitter despawned early takes its live
+    /// particles with it.
+    linger: f32,
+}
+
+/// A compartment going up. Sized against the build-grid cell it stood in - one
+/// world unit, 10 m - so the core is about the cell across and the fragments
+/// stay on the cell they came from.
+///
+/// The ejecta REACH is the number that decides whether a wound reads: 0.5
+/// units per second for at most 0.55 s is 0.28 units of travel, 2.8 m, so a
+/// railgun corridor - thirty cells going up along one line - draws a line of
+/// separate fires rather than the fog an earlier cut put across the whole
+/// hull.
+const SECTION_PYRE: PyreScale = PyreScale {
+    core: PyreCore {
+        size: 0.34,
+        drift: (0.10, 0.60),
+        life: (0.07, 0.20),
+        particles: 24.0,
+        capacity: 32,
+    },
+    ejecta: PyreEjecta {
+        length: 0.50,
+        width: 0.07,
+        speed: (0.12, 0.50),
+        life: (0.18, 0.55),
+        particles: 56.0,
+        capacity: 64,
+    },
+    lumens: 2_500_000.0,
+    light_range: 32.0,
+    light_secs: 0.22,
+    linger: 0.9,
+};
+
+/// The whole hull letting go. Sized against a shipped gunship - 110 m stem to
+/// stern, 11 units - so the core covers the wreck without swallowing the
+/// frame: a death the camera cannot see THROUGH is a death nobody can read,
+/// and the sections thrown out of it are half of what makes it one.
+///
+/// The fragments carry it after that, and they are most of the picture: the
+/// flash is over in a third of a second, while at up to 8 units per second for
+/// 1.7 s these cross about 13 units, 130 m - a hull length of debris still
+/// leaving the wreck when the light has gone out, which is the order a vacuum
+/// burst happens in.
+const HULK_PYRE: PyreScale = PyreScale {
+    core: PyreCore {
+        size: 1.30,
+        drift: (0.80, 5.00),
+        life: (0.12, 0.34),
+        particles: 80.0,
+        capacity: 128,
+    },
+    ejecta: PyreEjecta {
+        length: 2.20,
+        width: 0.20,
+        speed: (1.60, 8.00),
+        life: (0.45, 1.70),
+        particles: 320.0,
+        capacity: 512,
+    },
+    lumens: 60_000_000.0,
+    light_range: 170.0,
+    light_secs: 0.65,
+    linger: 2.6,
+};
+
+impl PyreEffects {
+    /// The pair for a death, building it on the first one that needs it.
+    fn pair(&mut self, root: bool, effects: &mut Assets<EffectAsset>) -> (PyrePair, PyreScale) {
+        let (slot, scale, name) = if root {
+            (&mut self.hulk, HULK_PYRE, "hulk")
+        } else {
+            (&mut self.section, SECTION_PYRE, "section")
+        };
+        let pair = slot
+            .get_or_insert_with(|| PyrePair {
+                core: effects.add(build_pyre_core(scale.core, &format!("pyre_{name}_core"))),
+                ejecta: effects.add(build_pyre_ejecta(
+                    scale.ejecta,
+                    &format!("pyre_{name}_ejecta"),
+                )),
+            })
+            .clone();
+        (pair, scale)
+    }
+}
+
+/// The CORE's colour: white-hot, and gone.
+///
+/// Vacuum is the whole argument for this curve. There is no oxidiser out here
+/// and nothing to hold pressure, so what a hull throws when it lets go is
+/// incandescent for as long as it takes the vapour to thin, and then it is
+/// dark - there is no burning fireball to sit and watch. So the alpha is at
+/// its highest on the first key and is down to a tenth by the time the quad is
+/// half way through its life. Everything after that is the ejecta's.
+///
+/// Alpha is also what decides whether a death reads as fire or as bubbles.
+/// These quads are drawn over each other by the dozen, and at the near-opaque
+/// alpha a detonation core can afford - it is normally seen from hundreds of
+/// metres away - a death seen from fifty is a heap of flat orange discs. Held
+/// low, the same quads sum into a translucent volume with the wreck showing
+/// through it.
+fn flash_gradient() -> bevy_hanabi::Gradient<Vec4> {
+    let mut gradient = bevy_hanabi::Gradient::new();
+    gradient.add_key(0.0, Vec4::new(14.0, 12.5, 10.0, 0.55));
+    gradient.add_key(0.18, Vec4::new(9.0, 6.0, 2.2, 0.34));
+    gradient.add_key(0.50, Vec4::new(3.4, 1.1, 0.20, 0.12));
+    gradient.add_key(1.0, Vec4::new(0.5, 0.06, 0.01, 0.0));
+    gradient
+}
+
+/// The EJECTA's colour: cooler than the flash it left, and it outlives it.
+///
+/// Cooler on purpose - a hundred streaks at the core's heat wash out the flare
+/// they came from - and it holds its alpha longer, because the fragments are
+/// what the eye follows once the light has gone. They cool through amber to a
+/// dim red and fade rather than cut.
+fn ember_gradient() -> bevy_hanabi::Gradient<Vec4> {
+    let mut gradient = bevy_hanabi::Gradient::new();
+    gradient.add_key(0.0, Vec4::new(6.0, 5.0, 3.4, 0.9));
+    gradient.add_key(0.12, Vec4::new(4.2, 2.1, 0.55, 0.8));
+    gradient.add_key(0.45, Vec4::new(1.6, 0.42, 0.06, 0.6));
+    gradient.add_key(0.80, Vec4::new(0.5, 0.09, 0.02, 0.3));
+    gradient.add_key(1.0, Vec4::new(0.10, 0.01, 0.0, 0.0));
+    gradient
+}
+
+/// A random unit direction, the same three-component draw every burst in the
+/// game uses.
+fn scatter(writer: &ExprWriter) -> bevy_hanabi::WriterExpr {
+    let rand_x = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+    let rand_y = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+    let rand_z = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+    (writer.lit(Vec3::X) * rand_x + writer.lit(Vec3::Y) * rand_y + writer.lit(Vec3::Z) * rand_z)
+        .normalized()
+}
+
+/// The core graph: the vaporised mass, camera-facing.
+///
+/// It grows fast, holds, and thins. The peak is early because a fireball
+/// reaches its size while it is still bright and spends the rest of its life
+/// fading at roughly that size. What separates a death from a warhead is
+/// duration - a magazine and a reactor keep burning after the hit that opened
+/// them - so this outlives a detonation core, and nothing else about it is
+/// different.
+fn build_pyre_core(core: PyreCore, name: &str) -> EffectAsset {
+    let spawner = SpawnerSettings::once(core.particles.into()).with_emit_on_start(true);
+    let writer = ExprWriter::new();
+
+    let init_age = SetAttributeModifier::new(Attribute::AGE, writer.lit(0.).expr());
+    let init_lifetime = SetAttributeModifier::new(
+        Attribute::LIFETIME,
+        writer
+            .lit(core.life.0)
+            .uniform(writer.lit(core.life.1))
+            .expr(),
+    );
+    let init_color = SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
+
+    // The velocity the wreck carried, written per death. A fireball that does
+    // not inherit it hangs where the ship WAS while the pieces fly on out of
+    // it, which reads as two unrelated events.
+    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.prop(base_velocity);
+    let speed = writer.lit(core.drift.0).uniform(writer.lit(core.drift.1));
+    let velocity = scatter(&writer) * speed + base_velocity;
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
+
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, Vec3::splat(core.size * 0.28));
+    size_gradient.add_key(0.16, Vec3::splat(core.size));
+    size_gradient.add_key(0.60, Vec3::splat(core.size * 0.78));
+    size_gradient.add_key(1.0, Vec3::ZERO);
+
+    // Round, not rectangular. These are the biggest quads in the frame while
+    // they burn, and without the mask a death reads as a cluster of glowing
+    // squares whatever the gradient does.
+    let mask = soft_dot_modifier(&writer);
+    let mut module = writer.finish();
+    declare_soft_dot_slot(&mut module);
+
+    EffectAsset::new(core.capacity, spawner, module)
+        .with_name(name)
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        .init(init_color)
+        // Camera-facing, and said in code rather than in a comment: a quad
+        // with no orient modifier is expanded along the fixed WORLD axes, so
+        // the fireball is drawn edge-on from any camera looking down one.
+        .render(OrientModifier::new(OrientMode::ParallelCameraDepthPlane))
+        .render(SizeOverLifetimeModifier {
+            gradient: size_gradient,
+            screen_space_size: false,
+        })
+        .render(mask)
+        .render(ColorOverLifetimeModifier {
+            gradient: flash_gradient(),
+            blend: ColorBlendMode::default(),
+            mask: ColorBlendMask::default(),
+        })
+}
+
+/// The ejecta graph: the fragments, oriented along their own velocity.
+///
+/// Long, narrow quads become radial incandescent streaks that CONTRACT into
+/// points as they cool, which is the same treatment the torpedo blast gives
+/// its ejecta and the reason a death does not read as a ball of bubbles. They
+/// are ballistic - no drag, because there is nothing to drag against - so the
+/// only thing that ends one is its lifetime.
+fn build_pyre_ejecta(ejecta: PyreEjecta, name: &str) -> EffectAsset {
+    let spawner = SpawnerSettings::once(ejecta.particles.into()).with_emit_on_start(true);
+    let writer = ExprWriter::new();
+
+    let init_age = SetAttributeModifier::new(Attribute::AGE, writer.lit(0.).expr());
+    let init_lifetime = SetAttributeModifier::new(
+        Attribute::LIFETIME,
+        writer
+            .lit(ejecta.life.0)
+            .uniform(writer.lit(ejecta.life.1))
+            .expr(),
+    );
+    let init_color = SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
+
+    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.prop(base_velocity);
+    let speed = writer
+        .lit(ejecta.speed.0)
+        .uniform(writer.lit(ejecta.speed.1));
+    let velocity = scatter(&writer) * speed + base_velocity;
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
+
+    // Stretched along X, which the orient modifier puts on the velocity. It
+    // reaches its length early and then draws in, so the burst is streaks
+    // first and sparks last.
+    let streak = |scale: f32| Vec3::new(ejecta.length * scale, ejecta.width, ejecta.width);
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, streak(0.35));
+    size_gradient.add_key(0.10, streak(1.0));
+    size_gradient.add_key(0.55, streak(0.55));
+    size_gradient.add_key(1.0, Vec3::ZERO);
+
+    // On a velocity-oriented quad the circular mask reads as a tapered streak
+    // rather than as a lozenge with corners.
+    let mask = soft_dot_modifier(&writer);
+    let mut module = writer.finish();
+    declare_soft_dot_slot(&mut module);
+
+    EffectAsset::new(ejecta.capacity, spawner, module)
+        .with_name(name)
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        .init(init_color)
+        .render(SizeOverLifetimeModifier {
+            gradient: size_gradient,
+            screen_space_size: false,
+        })
+        .render(OrientModifier::new(OrientMode::AlongVelocity))
+        .render(mask)
+        .render(ColorOverLifetimeModifier {
+            gradient: ember_gradient(),
+            blend: ColorBlendMode::default(),
+            mask: ColorBlendMask::default(),
+        })
+}
+
+/// Give the frame its fireball allowance back.
+fn refill_pyre_budget(mut budget: ResMut<PyreBudget>) {
+    budget.0 = 0;
+}
+
+/// Throw the fireball a death earns.
+///
+/// Reacts to the destroy marker rather than to a death event of its own, on the
+/// same terms as [`explode`](super::explode): the integrity layer decides WHEN
+/// something dies, and this decides what that looks like. A mod replacing this
+/// observer changes the look and inherits the cap for free.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer assembling a hanabi instance: the graph store, the mask, the frame budget, the tier gate and the two queries that place it"
+)]
+fn light_the_pyre(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut images: ResMut<Assets<Image>>,
+    mut pyres: ResMut<PyreEffects>,
+    mut soft_dot: ResMut<SoftDot>,
+    mut budget: ResMut<PyreBudget>,
+    tier: Option<Res<GraphicsBudget>>,
+    q_dead: Query<(&GlobalTransform, Has<IntegrityRoot>), With<IntegrityDestroyMarker>>,
+    q_drift: Query<&avian3d::prelude::LinearVelocity>,
+    q_parents: Query<&ChildOf>,
+) {
+    // Low graphics tier is spawn-less. Absent budget (a settings-less app)
+    // means full quality.
+    if !tier.as_deref().is_none_or(|tier| tier.particles) {
+        return;
+    }
+    let entity = add.entity;
+    let Ok((frame, root)) = q_dead.get(entity) else {
+        // Nothing that carries no transform: a health node hanging off a
+        // section, which the section's own fireball already covers.
+        return;
+    };
+    // The root's fireball is the one the whole death reads as, so it is never
+    // the one the cap drops.
+    if !root && budget.0 >= PYRE_FRAME_CAP {
+        return;
+    }
+    budget.0 += 1;
+
+    let (pair, scale) = pyres.pair(root, &mut effects);
+    let drift = inherited_drift(entity, &q_drift, &q_parents);
+    let at = frame.translation();
+    let dot = soft_dot.handle(&mut images);
+    for handle in [pair.core, pair.ejecta] {
+        let mut properties = EffectProperties::default();
+        properties.set("base_velocity", drift.into());
+        commands.spawn((
+            Name::new("Pyre Effect"),
+            PyreEffectMarker,
+            Transform::from_translation(at),
+            ParticleEffect::new(handle),
+            EffectMaterial {
+                images: vec![dot.clone()],
+            },
+            properties,
+            TempEntity(scale.linger),
+        ));
+    }
+
+    // Asked for, never assumed - the cap may refuse it, and a death that lit
+    // nothing is still a death. Amber rather than the core's first white key:
+    // the light stands in for the whole burn averaged over its life.
+    commands.trigger(LightFlash {
+        at,
+        color: Color::srgb(1.0, 0.66, 0.32),
+        peak_intensity: scale.lumens,
+        range: scale.light_range,
+        duration: scale.light_secs,
+    });
+}
+
+/// The velocity the dead body was carrying, from the nearest ancestor that has
+/// one.
+///
+/// A section holds no velocity of its own - it is a child of the ship's rigid
+/// body, and avian keeps the velocity there - so this is a walk, not a lookup.
+/// Mirrors [`explode`](super::explode)'s inheritance for the same reason.
+fn inherited_drift(
+    entity: Entity,
+    q_drift: &Query<&avian3d::prelude::LinearVelocity>,
+    q_parents: &Query<&ChildOf>,
+) -> Vec3 {
+    let mut current = entity;
+    loop {
+        if let Ok(drift) = q_drift.get(current) {
+            return drift.0;
+        }
+        let Ok(parent) = q_parents.get(current) else {
+            return Vec3::ZERO;
+        };
+        current = parent.0;
+    }
+}
+
+/// The fireball half of destruction: what a death LOOKS like at the moment it
+/// happens, beside [`explode`](super::explode)'s wreckage.
+pub struct PyrePlugin;
+
+impl Plugin for PyrePlugin {
+    fn build(&self, app: &mut App) {
+        trace!("PyrePlugin: build");
+
+        app.register_type::<PyreEffectMarker>();
+        app.init_resource::<PyreEffects>();
+        app.init_resource::<PyreBudget>();
+        app.add_systems(First, refill_pyre_budget);
+        app.add_observer(light_the_pyre);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The observer, the budget it spends and the two asset stores it builds
+    /// its graphs in. No render app: an [`EffectAsset`] is data, and what is
+    /// under test is which instances a death spawns, not how they draw.
+    fn pyre_app() -> App {
+        let mut app = App::new();
+        app.insert_resource(Assets::<EffectAsset>::default());
+        app.insert_resource(Assets::<Image>::default());
+        app.init_resource::<PyreEffects>();
+        app.init_resource::<PyreBudget>();
+        app.init_resource::<SoftDot>();
+        app.add_systems(First, refill_pyre_budget);
+        app.add_observer(light_the_pyre);
+        app
+    }
+
+    /// A body the pipeline can kill: it carries the transform the fireball is
+    /// placed at.
+    fn a_body(app: &mut App) -> Entity {
+        app.world_mut()
+            .spawn((Transform::default(), GlobalTransform::default()))
+            .id()
+    }
+
+    fn kill(app: &mut App, entity: Entity) {
+        app.world_mut()
+            .entity_mut(entity)
+            .insert(IntegrityDestroyMarker);
+    }
+
+    fn bursts(app: &mut App) -> Vec<Entity> {
+        let mut query = app
+            .world_mut()
+            .query_filtered::<Entity, With<PyreEffectMarker>>();
+        query.iter(app.world()).collect()
+    }
+
+    #[test]
+    fn a_death_lights_a_core_and_its_ejecta() {
+        let mut app = pyre_app();
+        let body = a_body(&mut app);
+        kill(&mut app, body);
+        app.update();
+
+        let lit = bursts(&mut app);
+        assert_eq!(lit.len(), 2, "a death is a flash AND the pieces it throws");
+        let graphs: Vec<_> = lit
+            .iter()
+            .map(|&burst| {
+                app.world()
+                    .get::<ParticleEffect>(burst)
+                    .expect("a burst carries its graph")
+                    .handle
+                    .clone()
+            })
+            .collect();
+        assert_ne!(
+            graphs[0], graphs[1],
+            "the two halves are different graphs - one billboard cannot also be a streak"
+        );
+    }
+
+    #[test]
+    fn a_hull_and_a_compartment_burn_at_different_scales() {
+        let mut app = pyre_app();
+        let section = a_body(&mut app);
+        kill(&mut app, section);
+        let hull = a_body(&mut app);
+        app.world_mut().entity_mut(hull).insert(IntegrityRoot);
+        kill(&mut app, hull);
+        app.update();
+
+        let graphs: std::collections::HashSet<_> = bursts(&mut app)
+            .iter()
+            .map(|&burst| {
+                app.world()
+                    .get::<ParticleEffect>(burst)
+                    .expect("a burst carries its graph")
+                    .handle
+                    .clone()
+            })
+            .collect();
+        assert_eq!(
+            graphs.len(),
+            4,
+            "a compartment and a whole hull are two sizes, so four graphs, not two"
+        );
+    }
+
+    #[test]
+    fn a_second_death_reuses_the_graphs_the_first_one_built() {
+        let mut app = pyre_app();
+        let first = a_body(&mut app);
+        kill(&mut app, first);
+        app.update();
+        let second = a_body(&mut app);
+        kill(&mut app, second);
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<Assets<EffectAsset>>().len(),
+            2,
+            "the graphs are shared - a death must not mint its own pair"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<Image>>().len(),
+            1,
+            "and so is the mask they draw through"
+        );
+    }
+
+    #[test]
+    fn a_node_with_no_transform_lights_nothing() {
+        let mut app = pyre_app();
+        let node = app.world_mut().spawn_empty().id();
+        kill(&mut app, node);
+        app.update();
+
+        assert!(
+            bursts(&mut app).is_empty(),
+            "a health node hanging off a section is covered by the section's own fire"
+        );
+    }
+
+    #[test]
+    fn a_collapse_is_capped_but_the_hull_itself_never_is() {
+        let mut app = pyre_app();
+        for _ in 0..(PYRE_FRAME_CAP + 4) {
+            let section = a_body(&mut app);
+            kill(&mut app, section);
+        }
+        let hull = a_body(&mut app);
+        app.world_mut().entity_mut(hull).insert(IntegrityRoot);
+        kill(&mut app, hull);
+        app.update();
+
+        assert_eq!(
+            bursts(&mut app).len() as u32,
+            (PYRE_FRAME_CAP + 1) * 2,
+            "six compartments walk across the wreck, and the hull's own fire is never the one dropped"
+        );
+    }
+
+    #[test]
+    fn the_allowance_comes_back_the_next_frame() {
+        let mut app = pyre_app();
+        for _ in 0..(PYRE_FRAME_CAP + 4) {
+            let section = a_body(&mut app);
+            kill(&mut app, section);
+        }
+        app.update();
+        for _ in 0..(PYRE_FRAME_CAP + 4) {
+            let section = a_body(&mut app);
+            kill(&mut app, section);
+        }
+        app.update();
+
+        assert_eq!(
+            bursts(&mut app).len() as u32,
+            PYRE_FRAME_CAP * 2 * 2,
+            "a rake down a hull lights a fire in every frame it condemns cells in"
+        );
+    }
+
+    #[test]
+    fn the_burst_inherits_the_velocity_the_wreck_was_carrying() {
+        let mut app = pyre_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                GlobalTransform::default(),
+                avian3d::prelude::LinearVelocity(Vec3::new(0.0, 0.0, -12.0)),
+            ))
+            .id();
+        let section = a_body(&mut app);
+        app.world_mut().entity_mut(section).insert(ChildOf(ship));
+        kill(&mut app, section);
+        app.update();
+
+        for burst in bursts(&mut app) {
+            let stored = app
+                .world()
+                .get::<EffectProperties>(burst)
+                .expect("a burst carries its properties")
+                .get_stored("base_velocity")
+                .expect("and the drift it inherited");
+            assert_eq!(
+                stored,
+                Vec3::new(0.0, 0.0, -12.0).into(),
+                "a fireball that stays where the ship WAS reads as a second, unrelated event"
+            );
+        }
+    }
+}

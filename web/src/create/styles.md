@@ -32,7 +32,7 @@ decoration.
     <!-- Capture: assets/greeble-catalog-industrial.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/greeble-catalog-industrial.png</span

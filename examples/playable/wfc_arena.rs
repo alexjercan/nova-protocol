@@ -95,9 +95,9 @@
 //! Every pose is computed off the live fight each frame, so a vantage keeps its
 //! subject framed:
 //!
-//! - `Q` auto-framing whole-fight view (default, and the capture frame). Left
-//!   alone for six seconds it falls into a slow orbit around the midpoint; a
-//!   pose key or free-fly input stops it and restarts the clock.
+//! - `Q` auto-framing whole-fight view (the default). Left alone for six
+//!   seconds it falls into a slow orbit around the midpoint; a pose key or
+//!   free-fly input stops it and restarts the clock.
 //! - `E` tactical overview. It holds its bearing and only re-centres.
 //! - `1`-`4` follow one roster slot over the shoulder, standing on the threat
 //!   axis and looking across it at the living enemy mean (smoothed, because a
@@ -117,6 +117,14 @@
 //! the arena, hold until both teams have fired AND both have dealt damage, then
 //! shoot the brawl mid-swing. The step deadline makes a fight that never
 //! happens a loud failure.
+//!
+//! A CAPTURE then STAGES the strike ([`Strike`]): both sides put their bores on
+//! each other and hold, the camera cuts in to knife range behind one hull, and
+//! every tube and every lance is cued together. What is scripted is the cue and
+//! the framing - the ordnance, the guidance, the point defense, the charge and
+//! the damage are all the shipped ones. Without it the recording is what the AI
+//! happens to be doing, and the AI settles its orbit at ~1 km: two specks
+//! trading tracers, no impact and no lance in six seconds of film.
 
 // Only for freezing the junk, which is a FRAMING choice - see `freeze_junk`.
 use std::collections::BTreeMap;
@@ -458,7 +466,9 @@ fn main() -> bevy::app::AppExit {
         // The media recorder extends the same driven walk below. It is inert on
         // probe and hand runs; adding a second autopilot would be a duplicate
         // driver rather than another camera.
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::new(
+            arena_loop_profile(),
+        ));
         // NO freeze_bodies here, unlike wfc_ships: the whole point is that
         // these bodies fly.
         app.add_plugins(arena_script(capture_loop, capture_thumbnail));
@@ -478,6 +488,14 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     // Enabled only for a hand-run: a capture composes its own frame, and an
     // orbit under it would photograph a different bearing every run.
     app.insert_resource(IdleOrbit::new(!capturing()));
+    // The staged strike is capture machinery: the counters exist only where a
+    // loop is being recorded, and the driven walk is the only thing that ever
+    // arms them.
+    if capturing() {
+        app.init_resource::<Strike>();
+        app.add_systems(Update, count_strike_hits);
+        app.add_observer(count_strike_shots);
+    }
     lobby::register(app);
     pause::register(app);
     result::register(app);
@@ -1758,6 +1776,22 @@ const OVERVIEW_STANDOFF: f32 = 1.9;
 const FOLLOW_BACK: f32 = 34.0;
 const FOLLOW_LIFT: f32 = 10.0;
 const FOLLOW_LEAD: f32 = 12.0;
+/// How the CAPTURE framing stands off the hull it frames: back along the threat
+/// axis, out to one side of it and lifted, in engine world units.
+///
+/// ~320 m out, against the frame vantage's kilometre. The lens spans 1.47 times
+/// its distance, so the shot is ~470 m wide: a 110 m hull fills a quarter of it
+/// - close enough to read the plating, the open irises and a muzzle flash - and
+/// a 300 m warhead going off on that hull still fits. Standing BEHIND the
+/// subject on the threat axis is what puts incoming ordnance on a line into the
+/// middle of frame instead of across a corner of it.
+#[cfg(feature = "debug")]
+const CINEMA_BACK: f32 = 25.0;
+#[cfg(feature = "debug")]
+const CINEMA_SIDE: f32 = 18.0;
+#[cfg(feature = "debug")]
+const CINEMA_LIFT: f32 = 8.0;
+
 /// Exponential smoothing rate (1/s) on the follow pose's aim point. The mean
 /// enemy position JUMPS when a ship dies or a reload lands; at 1.2 the camera
 /// crosses ~70% of such a swing in the first second and settles in about
@@ -1782,6 +1816,13 @@ enum Vantage {
     /// `1`..`4`: over the shoulder of one roster slot, looking across it at
     /// the living enemies' mean position.
     Follow(usize),
+    /// The staged strike's framing: one roster slot at knife range, with the
+    /// fight it is trading with beyond it. Bound to no key - a hand-run
+    /// composes with `Q`, `E` and the number row - because it is the pose a
+    /// capture is shot from and nothing else, and the whole staging is behind
+    /// the debug feature the capture harness lives in.
+    #[cfg(feature = "debug")]
+    Cinema(usize),
     /// The viewer took the camera; no pose writes until a camera key re-arms
     /// one.
     Free,
@@ -1985,6 +2026,29 @@ fn follow_pose(slot: usize, fight: &FightRead, aim: &mut FollowAim, dt: f32) -> 
     })
 }
 
+/// The staged strike's pose: stand behind and off the shoulder of one roster
+/// slot and look AT that hull, so the ordnance arriving on it is the subject
+/// and the enemy trading with it sits beyond.
+///
+/// [`follow_pose`] looks the other way - past the subject at the fight - which
+/// is the right read for a viewer flying along and the wrong one for a warhead
+/// arriving. The side vector is taken against world up rather than the hull's,
+/// so a rolling ship does not roll the horizon with it.
+#[cfg(feature = "debug")]
+fn cinema_pose(slot: usize, fight: &FightRead) -> Option<Pose> {
+    let (ship, team) = fight.followed.get(slot).copied().flatten()?;
+    let axis = fight
+        .hostile_mean(team)
+        .and_then(|threat| (threat - ship.translation).try_normalize())
+        .unwrap_or(*ship.forward());
+    let side = axis.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+    Some(Pose {
+        stand: ship.translation - axis * CINEMA_BACK + side * CINEMA_SIDE + Vec3::Y * CINEMA_LIFT,
+        target: ship.translation,
+        up: Vec3::Y,
+    })
+}
+
 /// Resolve the armed vantage against the live fight. A pose that needs a ship
 /// the fight no longer has - a follow slot the roster never filled, or one
 /// whose hull is dead - falls back to the frame pose rather than freezing.
@@ -2001,6 +2065,8 @@ fn vantage_pose(vantage: Vantage, fight: &FightRead, aim: &mut FollowAim, dt: f3
         Vantage::Follow(slot) => {
             follow_pose(slot, fight, aim, dt).or_else(|| Some(frame_pose(fight)))
         }
+        #[cfg(feature = "debug")]
+        Vantage::Cinema(slot) => cinema_pose(slot, fight).or_else(|| Some(frame_pose(fight))),
     }
 }
 
@@ -2313,6 +2379,468 @@ fn reap_team_chevrons(
     }
 }
 
+/// The capture profile the arena records at: the documentation profile with a
+/// coarser CRF.
+///
+/// This is the busiest scene the site ships. Two hulls trading tracers is
+/// already the highest-entropy frame in the set, and the 2v2 doubles it: four
+/// hulls, two salvos of ordnance, point defense answering all of it, and the
+/// debris and fireballs a duel leaves. VP9 spends bitrate on exactly that, and
+/// at the fleet CRF the 2v2 encoded 3.2 MB against the packager's 3 MB
+/// per-file budget. Every other loop lands between 100 KB and 900 KB at the
+/// fleet setting, so this is the one composition that pays for its own
+/// quality rather than the whole set paying for it.
+#[cfg(feature = "debug")]
+fn arena_loop_profile() -> nova_protocol::nova_debug::harness::LoopProfile {
+    nova_protocol::nova_debug::harness::LoopProfile {
+        crf: 37,
+        ..default()
+    }
+}
+
+/// The roster slot the capture frames and aims the strike at: the first hull
+/// AMBER fields. Slot 0 is always filled - the default roster opens with it and
+/// a `--ship` roster is parsed in order - and it is inside the follow row's
+/// reach, which is what lets the pose read it off [`FightRead`].
+#[cfg(feature = "debug")]
+const CINEMA_SLOT: usize = 0;
+
+/// How near the framed hull a warhead must fuze to count as a hit IN SHOT: one
+/// blast radius. A detonation further out than its own pressure sphere lit
+/// something else and does not belong to this frame.
+const STRIKE_HIT_RANGE: Meters = Meters(300.0);
+
+/// Where the strike is staged from, engine world units: the mark every other
+/// combatant is sent to, measured from the subject along the bearing it is
+/// already on.
+///
+/// 500 m, against the ~1 km the AI's own orbit settles at and the 3 km the
+/// hulls had already coasted to by the time the scoreboard called the fight
+/// real. It is chosen off the ORDNANCE, not off the lens: a Serpent cruises at
+/// 320 m/s, so this is under two seconds of torpedo flight - short enough that
+/// the whole run-in, the point defense answering it and the impact all fit
+/// inside one recording, and long enough that a 300 m warhead never goes off on
+/// the ship that launched it.
+///
+/// It is also what SEPARATES the two hulls on film, and that is the second
+/// number it is tuned against. A 110 m gunship staged at 450 m is four hull
+/// lengths from its rival and the auto-frame fits the pair into one shot: they
+/// read as parked nose to nose. Four and a half is a duel across a gap. It is the OPENING
+/// range and not the whole recording's - [`STRIKE_CLOSING_SPEED`] walks it in
+/// from here, which is what lets the gap be wide enough to read and the salvo
+/// still arrive.
+#[cfg(feature = "debug")]
+const STRIKE_STAGE_RANGE: f32 = 50.0;
+/// The range the recording is staged at, engine world units: the walk parks the
+/// merge the first moment the two sides are this close.
+///
+/// 560 m is a compromise between two failures, and POINT DEFENSE decides it.
+/// Wider and the salvo never lands even against a closing range: parked and
+/// held at 550 m the two hulls shot down all thirty-six warheads of a two-wave
+/// strike, and the recording is six seconds of tracers. Tighter and the pair fills one frame and the gunnery is lethal
+/// enough that a hull loses its controller before the torpedoes it fired
+/// arrive. Here the crossing is about a second and three quarters - inside the
+/// lance's charge, and short enough that the mounts only get part of the salvo.
+#[cfg(feature = "debug")]
+const STRIKE_CLOSE_BAND: f32 = 56.0;
+/// The arrival standoff a staged move flies to, engine world units. The ship's
+/// own 500 m is coarser than the whole staging distance.
+#[cfg(feature = "debug")]
+const STRIKE_ARRIVAL_STANDOFF: f32 = 5.0;
+
+/// How close a staged bore must come before the charge is allowed to run,
+/// degrees. Coarse against the AI's own ~8-degree commit gate, and it can be:
+/// the hull HOLDS this bearing for the whole strike, so what the tolerance buys
+/// is a hull that has stopped swinging rather than a solved firing solution.
+#[cfg(feature = "debug")]
+const STRIKE_ALIGN_TOLERANCE_DEGREES: f32 = 2.0;
+
+/// The order keys the staging installs under, so a log line about one says
+/// which beat of the capture put it there.
+#[cfg(feature = "debug")]
+const STRIKE_CLOSE_ORDER: &str = "arena_strike_close";
+#[cfg(feature = "debug")]
+const STRIKE_ALIGN_ORDER: &str = "arena_strike_align";
+
+/// The staged strike: the hull the capture frames, and the two beats the
+/// recording waits for.
+///
+/// The fight stays the AI's. What is scripted is WHEN both sides open up
+/// together and where the camera stands while they do, because the AI settles
+/// its orbit at ~1 km and the auto-frame backs off with the spread - so an
+/// unstaged six seconds is two specks trading tracers, with the torpedoes dying
+/// to point defense a kilometre from the lens and the lance never commiting at
+/// all. Every gate under the cue is still the shipped one: the bay's cooldown
+/// and magazine, the lance's charge, its single shell and its reload, the
+/// guidance, the point defense that shoots the ordnance down and the blast that
+/// lands when it does not.
+///
+/// Nothing here is armed outside a capture. A hand-run, a probe pass and the
+/// smoke walk fight exactly as they always did.
+#[derive(Resource, Default)]
+struct Strike {
+    /// The framed hull, once the walk has picked it.
+    subject: Option<Entity>,
+    /// Warheads that have fuzed within [`STRIKE_HIT_RANGE`] of it.
+    hits: u32,
+    /// Lances that have actually FIRED - the shell leaving, not the trigger
+    /// pull, so a gun whose charge was dumped does not count as a shot.
+    shots: u32,
+}
+
+#[cfg(feature = "debug")]
+impl Strike {
+    /// A lance has put its shell downrange.
+    fn shot(&self) -> bool {
+        self.shots > 0
+    }
+
+    /// A warhead has gone off on the framed hull.
+    fn hit(&self) -> bool {
+        self.hits > 0
+    }
+}
+
+/// Count the warheads that go off on the framed hull.
+///
+/// A SYSTEM because `Added` is change detection: read from the plain `&World` a
+/// harness predicate gets, it is silently always false.
+fn count_strike_hits(
+    mut strike: ResMut<Strike>,
+    q_blast: Query<&Transform, Added<NovaBlast>>,
+    q_ships: Query<&Transform, With<SpaceshipRootMarker>>,
+) {
+    let Some(subject) = strike.subject else {
+        return;
+    };
+    let Ok(hull) = q_ships.get(subject) else {
+        return;
+    };
+    let at = hull.translation;
+    let range = STRIKE_HIT_RANGE.to_engine();
+    strike.hits += q_blast
+        .iter()
+        .filter(|blast| blast.translation.distance(at) < range)
+        .count() as u32;
+}
+
+/// Count a lance discharge the moment the shell leaves.
+fn count_strike_shots(_: On<RailgunFired>, mut strike: ResMut<Strike>) {
+    strike.shots += 1;
+}
+
+/// Every standing combatant root: entity, team, where it is, and the roster
+/// slot its scenario id names. Junk carries no allegiance and is filtered out
+/// here, exactly as it is in [`read_fight`].
+#[cfg(feature = "debug")]
+fn combatant_roots(world: &mut World) -> Vec<(Entity, usize, Vec3, Option<usize>)> {
+    let mut query = world.query_filtered::<(
+        Entity,
+        &Transform,
+        &Allegiance,
+        Option<&EntityId>,
+    ), With<SpaceshipRootMarker>>();
+    query
+        .iter(world)
+        .filter_map(|(entity, transform, allegiance, id)| {
+            Some((
+                entity,
+                team_of(allegiance)?,
+                transform.translation,
+                id.and_then(fighter_slot),
+            ))
+        })
+        .collect()
+}
+
+/// The nearest combatant on another team, and where it is.
+#[cfg(feature = "debug")]
+fn nearest_hostile(
+    combatants: &[(Entity, usize, Vec3, Option<usize>)],
+    team: usize,
+    from: Vec3,
+) -> Option<(Entity, Vec3)> {
+    combatants
+        .iter()
+        .filter(|(_, rival, ..)| *rival != team)
+        .min_by(|(_, _, a, _), (_, _, b, _)| {
+            from.distance_squared(*a)
+                .total_cmp(&from.distance_squared(*b))
+        })
+        .map(|&(entity, _, position, _)| (entity, position))
+}
+
+/// Bring the fight back to knife range: the subject stops where it is, and
+/// everything hostile to it flies in to [`STRIKE_STAGE_RANGE`].
+///
+/// The beat exists because a duel that has PROVED itself is a duel that has
+/// already happened. The lines merge at a closing speed neither side brakes
+/// off, cross inside 400 m, and are a kilometre and a half apart and opening by
+/// the time the scoreboard can say both teams fired and both connected - so the
+/// unstaged recording opens on two hulls receding from each other. Both halves
+/// are the shipped helm orders (`StopShip` and `MoveShipTo`), flown by the
+/// game's own autopilot with its own flip-and-burn, and all of it happens
+/// before the loop opens.
+#[cfg(feature = "debug")]
+fn close_the_range(world: &mut World) {
+    let combatants = combatant_roots(world);
+    let (subject, subject_at) = strike_subject(&combatants);
+    for &(ship, _, position, _) in &combatants {
+        cancel_ship_order(world, ship);
+        let directive = if ship == subject {
+            ShipOrderDirective::Stop
+        } else {
+            let bearing = (position - subject_at)
+                .try_normalize()
+                .unwrap_or(Vec3::NEG_Z);
+            ShipOrderDirective::Move {
+                position: subject_at + bearing * STRIKE_STAGE_RANGE,
+                arrival_standoff: Some(STRIKE_ARRIVAL_STANDOFF),
+            }
+        };
+        install_strike_order(world, ship, STRIKE_CLOSE_ORDER, directive);
+    }
+}
+
+/// Advance once some hostile pair is inside `range` of each other, engine world
+/// units - the staging beat's arrival test, read off the fight rather than off
+/// an order report so a ship that gives up short still lets the capture go on.
+///
+/// Range is the WHOLE test, and rest deliberately is not part of it. A staged
+/// `Move` hands the helm back the moment it arrives, so the AI is flying again
+/// a second later and the pair is never simultaneously close and at rest; a
+/// walk that waited for both spent its whole minute waiting and opened on two
+/// specks three kilometres apart. Rest is taken rather than waited for -
+/// [`settle_the_fight`] replaces the merge speed with a slow closing drift at
+/// the staging beat, before the loop opens.
+#[cfg(feature = "debug")]
+fn fight_within(range: f32) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        let Some(mut query) =
+            world.try_query_filtered::<(&Transform, &Allegiance), With<SpaceshipRootMarker>>()
+        else {
+            return false;
+        };
+        let ships: Vec<(Vec3, usize)> = query
+            .iter(world)
+            .filter_map(|(transform, allegiance)| {
+                Some((transform.translation, team_of(allegiance)?))
+            })
+            .collect();
+        ships.iter().any(|&(a, team)| {
+            ships
+                .iter()
+                .any(|&(b, rival)| rival != team && a.distance(b) <= range)
+        })
+    })
+}
+
+/// The hull the capture frames, and where it is. Fails the run by name: a walk
+/// that cannot find its subject would otherwise photograph an empty sky.
+#[cfg(feature = "debug")]
+fn strike_subject(combatants: &[(Entity, usize, Vec3, Option<usize>)]) -> (Entity, Vec3) {
+    combatants
+        .iter()
+        .find(|(.., slot)| *slot == Some(CINEMA_SLOT))
+        .map(|&(entity, _, position, _)| (entity, position))
+        .unwrap_or_else(|| {
+            panic!("wfc_arena: the capture found no combatant in roster slot {CINEMA_SLOT}")
+        })
+}
+
+/// Install one staged helm order, replacing whatever the last beat left.
+///
+/// The three components `ForceAlign` and `MoveShipTo` install, plus the
+/// cancellation every install runs first: an AI ship stops FLYING itself while
+/// an order owns its helm and picks its routine back up when the order ends. It
+/// keeps SHOOTING throughout - only the flight writers stand down - which is
+/// what makes the staged lance shot a real one, down a line the hull was
+/// actually holding when its charge finished.
+#[cfg(feature = "debug")]
+fn install_strike_order(world: &mut World, ship: Entity, key: &str, directive: ShipOrderDirective) {
+    cancel_ship_order(world, ship);
+    let mut entity = world.entity_mut(ship);
+    if !entity.contains::<ShipOrderReports>() {
+        entity.insert(ShipOrderReports::default());
+    }
+    entity.insert((
+        ShipHelmOrder::new(key.to_string(), directive),
+        ShipOrderHelmAuthority,
+    ));
+}
+
+/// Pick the hull the capture frames, put every combatant's bore on its nearest
+/// hostile and hold it there, and cut the camera in behind the subject.
+///
+/// The bearing is read off transforms and handed to a directive that is
+/// compared against avian positions, so both ends are ENGINE world units and
+/// nothing converts.
+#[cfg(feature = "debug")]
+fn stage_the_strike(world: &mut World) {
+    let combatants = combatant_roots(world);
+    let (subject, _) = strike_subject(&combatants);
+    world.resource_mut::<Strike>().subject = Some(subject);
+    world.insert_resource(Vantage::Cinema(CINEMA_SLOT));
+    settle_the_fight(world, &combatants);
+
+    let tolerance = STRIKE_ALIGN_TOLERANCE_DEGREES.to_radians();
+    for &(ship, team, position, _) in &combatants {
+        let Some((_, mark)) = nearest_hostile(&combatants, team, position) else {
+            continue;
+        };
+        install_strike_order(
+            world,
+            ship,
+            STRIKE_ALIGN_ORDER,
+            ShipOrderDirective::Align {
+                look_at: mark,
+                tolerance,
+            },
+        );
+    }
+}
+
+/// What a staged hull is left doing, engine world units per second: 15 m/s
+/// each, so the pair closes at 30.
+///
+/// Not zero. A pair with the velocity written flat out of them holds its gap to
+/// the metre for the whole recording, and a fight photographs as a diorama -
+/// the stillness is the first thing an eye picks up, before any of the weapons.
+///
+/// Aimed rather than merely capped, because the direction is the second thing
+/// the recording needs: the salvo crosses a range that is shrinking under it,
+/// which is what lets the strike be staged wide enough to read as two ships
+/// and still land. And SLOW, because the first cut of this closed at 50 m/s
+/// and spent 350 m of a 500 m gap - the pair ended the loop nose to nose,
+/// which is the framing the closure was added to fix. Thirty a second is
+/// 200 m across the whole recording: motion the eye reads, and a gap left at
+/// the end of it.
+#[cfg(feature = "debug")]
+const STRIKE_CLOSING_SPEED: f32 = 1.5;
+
+/// Take the merge speed off every combatant and leave it closing slowly on its
+/// nearest hostile, so the `Align` that follows holds a pair that stays in
+/// frame without freezing in it.
+///
+/// `Align` turns a hull WITHOUT translating it: whatever speed the approach
+/// left on the hull is speed the recording inherits, and two hulls coasting off
+/// a 200 m/s merge are three kilometres apart by the time the torpedoes arrive.
+/// Braking them with an order instead would cost most of a minute of a fight
+/// that decides itself in one, so the velocities are written directly.
+///
+/// This is a cut, and it belongs to the STAGING - it happens before the loop
+/// opens, so nothing on film jumps. What the recording then shows is the
+/// shipped fight: real tubes, real charges, real point defense, real blasts.
+#[cfg(feature = "debug")]
+fn settle_the_fight(world: &mut World, combatants: &[(Entity, usize, Vec3, Option<usize>)]) {
+    use avian3d::prelude::{AngularVelocity, LinearVelocity};
+
+    for &(ship, team, position, _) in combatants {
+        let closing = nearest_hostile(combatants, team, position)
+            .and_then(|(_, mark)| (mark - position).try_normalize())
+            .map_or(Vec3::ZERO, |bearing| bearing * STRIKE_CLOSING_SPEED);
+        let mut entity = world.entity_mut(ship);
+        if let Some(mut velocity) = entity.get_mut::<LinearVelocity>() {
+            velocity.0 = closing;
+        }
+        if let Some(mut spin) = entity.get_mut::<AngularVelocity>() {
+            spin.0 = Vec3::ZERO;
+        }
+    }
+}
+
+/// Advance once every hull the strike aligned has settled on its bearing.
+///
+/// False while any is still swinging, and false before the orders are in - so
+/// the beat it gates carries a time cap beside it: a hull that lost its flight
+/// computer cannot turn, and a capture must degrade into a worse shot rather
+/// than stall on one.
+#[cfg(feature = "debug")]
+fn bores_settled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let Some(mut query) =
+            world.try_query_filtered::<Has<ScriptedAlignSettled>, With<ScriptedAlign>>()
+        else {
+            return false;
+        };
+        let mut aligning = false;
+        for settled in query.iter(world) {
+            aligning = true;
+            if !settled {
+                return false;
+            }
+        }
+        aligning
+    })
+}
+
+/// Who each combatant is shooting at: its nearest hostile.
+#[cfg(feature = "debug")]
+fn strike_targets(combatants: &[(Entity, usize, Vec3, Option<usize>)]) -> BTreeMap<Entity, Entity> {
+    combatants
+        .iter()
+        .filter_map(|&(ship, team, position, _)| {
+            nearest_hostile(combatants, team, position).map(|(hostile, _)| (ship, hostile))
+        })
+        .collect()
+}
+
+/// Run the charge on every lance that has a target.
+///
+/// The lance is cued FIRST and on its own beat, because the two weapons are on
+/// different clocks and the shorter one buries the longer: the charge is 1.5 s,
+/// the torpedoes cross the staged range in under half of that, and a hull that
+/// has just lost its controller to a warhead never finishes charging. Cued
+/// first, the slug leaves while both hulls are whole and the salvo arrives
+/// behind it.
+///
+/// The shipped scripted-weapon seam, not a new fire path - `ScriptedRailgunOrder`
+/// is the component `ForceRailgunFire` installs - and it is ONE-SHOT: it retires
+/// itself on the discharge, so this is a cue and not a held trigger.
+#[cfg(feature = "debug")]
+fn cue_the_lances(world: &mut World) {
+    let combatants = combatant_roots(world);
+    let targets = strike_targets(&combatants);
+    let lances: Vec<Entity> = world
+        .query_filtered::<(Entity, &ChildOf), With<RailgunSectionMarker>>()
+        .iter(world)
+        .filter(|(_, ChildOf(parent))| targets.contains_key(parent))
+        .map(|(section, _)| section)
+        .collect();
+    for lance in lances {
+        world.entity_mut(lance).insert(ScriptedRailgunOrder);
+    }
+}
+
+/// Pull every tube on both sides at once, homing on that ship's nearest hostile.
+///
+/// `ScriptedTorpedoOrder` is the component `ForceTorpedoFire` installs, and it
+/// is ONE-SHOT the same way: an alpha strike, not a held trigger. The AI's own
+/// trigger systems run in the input set and these holds in the section set
+/// after it, so the cue wins the frame it is armed in without either side
+/// having to know about the other.
+///
+/// Both sides, not just the shooter: the framed hull's own tubes are what the
+/// camera is closest to, and a strike only one side throws reads as a firing
+/// range rather than a fight.
+#[cfg(feature = "debug")]
+fn cue_the_tubes(world: &mut World) {
+    let combatants = combatant_roots(world);
+    let targets = strike_targets(&combatants);
+    let bays: Vec<(Entity, Entity)> = world
+        .query_filtered::<(Entity, &ChildOf), With<TorpedoSectionMarker>>()
+        .iter(world)
+        .map(|(section, ChildOf(parent))| (section, *parent))
+        .collect();
+    for (section, parent) in bays {
+        if let Some(&target) = targets.get(&parent) {
+            world
+                .entity_mut(section)
+                .insert(ScriptedTorpedoOrder { target });
+        }
+    }
+}
+
 /// Seconds the fight gets to prove itself: both teams firing and both dealt
 /// damage. The cold opening now sits IN FRONT of the predicate - grace plus
 /// the passive closing to [`ENGAGE_RANGE`] spends ~15-25 s before a shot is
@@ -2324,6 +2852,52 @@ fn reap_team_chevrons(
 #[cfg(feature = "debug")]
 const FIGHT_DEADLINE_SECS: f32 = 100.0;
 
+/// Seconds the staged approach gets to bring the sides back inside
+/// [`STRIKE_CLOSE_BAND`]. A hull braking off a 200 m/s merge and flying back in
+/// spends twenty of them, and none of that is on film - but the cap is what
+/// decides how much of the fight is spent staging, and this fight decides
+/// itself in about a minute. Past this the walk parks whatever range it has
+/// rather than filming a hull that has already lost its controller.
+#[cfg(feature = "debug")]
+const STRIKE_CLOSE_SECS: f32 = 25.0;
+/// Seconds the staged bearings get to settle before the loop opens. Two hulls
+/// this size take a couple of seconds to swing; past that the shot is worth
+/// more than the bore.
+#[cfg(feature = "debug")]
+const STRIKE_ALIGN_SECS: f32 = 4.0;
+/// The LEAD the lance gets over the tubes, seconds - not its whole charge.
+///
+/// Cueing the lance first is what stops the salvo burying it: the charge is
+/// 1.5 s and the staged range is about two seconds of torpedo flight, so a
+/// second of head start puts the slug downrange while the warheads are still
+/// crossing. Waiting out the full charge instead costs the recording a second
+/// of two parked hulls trading tracers, which is a second neither of them has:
+/// at knife range and stopped, a duel is over in about three.
+#[cfg(feature = "debug")]
+const STRIKE_CHARGE_SECS: f32 = 0.9;
+/// Seconds between the two salvos, and the reason there are two.
+///
+/// One alpha strike does not get through. Six point-defence mounts a side
+/// engage an inbound each and reload faster than a torpedo crosses 550 m, so a
+/// single salvo is shot down to the last warhead - thirty-six of them, on the
+/// run that established this. What beats a battery is SATURATION, and the bay
+/// supplies it: this is the tube cooldown, so the second cue is the next
+/// launch the magazine allows and not a second trigger invented for the
+/// camera. The mounts are still busy with the first wave when the second
+/// arrives.
+#[cfg(feature = "debug")]
+const STRIKE_SALVO_GAP_SECS: f32 = 1.4;
+/// Seconds the recording waits on the second salvo before it settles for what
+/// it has. The tubes take about a second to clear and the staged range is
+/// under two seconds of torpedo flight, so this is that with room for a
+/// warhead the point defense eats on the way in.
+#[cfg(feature = "debug")]
+const STRIKE_WINDOW_SECS: f32 = 4.0;
+/// Seconds held after the beats land, so the last fireball blooms and fades
+/// inside the loop instead of being cut off by it.
+#[cfg(feature = "debug")]
+const STRIKE_AFTERMATH_SECS: f32 = 2.0;
+
 /// Web media emitted by the arena's one capture walk.
 #[cfg(feature = "debug")]
 const HERO_LOOP: &str = "hero-wfc-duel";
@@ -2332,10 +2906,14 @@ const LANDING_2V2_LOOP: &str = "landing-wfc-2v2";
 #[cfg(feature = "debug")]
 const HERO_THUMBNAIL: &str = "thumb-news-0.11.0.png";
 
-/// The driven walk: load the arena, hold until the scoreboard proves both
-/// teams fired and both dealt damage, then capture the brawl. The AI controllers
-/// fly both ships; this one harness driver only observes and records them. The
-/// auto-frame camera is already the capture framing, so no step poses one.
+/// The driven walk: load the arena, hold until the scoreboard proves both teams
+/// fired and both dealt damage, then stage and record the strike.
+///
+/// The fight is the AI's from the first frame to the last; the walk observes it
+/// until the scoreboard says it is real, and only then cues the beats it wants
+/// on film (see [`Strike`]). Every recording beat carries a TIME CAP beside its
+/// event, so a salvo point defense eats whole, or a lance that loses its charge
+/// to a hit, costs the loop a beat rather than failing the capture run.
 #[cfg(feature = "debug")]
 fn arena_script(
     loop_name: &'static str,
@@ -2349,11 +2927,31 @@ fn arena_script(
             scenario_camera_present(),
         ))
         .deadline(STEP_DEADLINE_SECS)
-        .add()
-        .step("both teams fire and connect")
-        .until(resource_where::<Scoreboard>(Scoreboard::fight_happened))
-        .deadline(FIGHT_DEADLINE_SECS)
         .add();
+
+    // The two walks open on different evidence, and a capture CANNOT use the
+    // scoreboard's. This duel is decided at the first merge: the lines cross
+    // inside 500 m, maul each other in a couple of seconds, and one hull comes
+    // out of the pass without its controller - and `fight_happened` (both teams
+    // fired AND both dealt damage) is not true until that merge is already
+    // under way. A capture that waited for it staged its strike onto a wreck
+    // that no longer fires. So the recording walk advances on the APPROACH, at
+    // the first moment the two sides are inside knife range, and stages there
+    // with both hulls whole. The smoke and probe walks keep the scoreboard:
+    // proving the fight is the only thing they are for.
+    script = if capturing() {
+        script
+            .step("wait for the merge")
+            .until(fight_within(STRIKE_CLOSE_BAND))
+            .deadline(FIGHT_DEADLINE_SECS)
+            .add()
+    } else {
+        script
+            .step("both teams fire and connect")
+            .until(resource_where::<Scoreboard>(Scoreboard::fight_happened))
+            .deadline(FIGHT_DEADLINE_SECS)
+            .add()
+    };
 
     if capture_thumbnail {
         script = script
@@ -2371,11 +2969,49 @@ fn arena_script(
     }
 
     script
+        // Insurance, and normally a single frame: the walk arrives here already
+        // inside the band, so the orders are installed and the beat passes on
+        // the next test. It earns its place on the run where the approach was
+        // reached on a deadline instead - a pair that never merged is flown
+        // back together rather than photographed across three kilometres.
+        .step("close the range")
+        .on_enter(close_the_range)
+        .until(or(
+            fight_within(STRIKE_CLOSE_BAND),
+            elapsed(STRIKE_CLOSE_SECS),
+        ))
+        .deadline(STRIKE_CLOSE_SECS * 2.0)
+        .add()
+        .step("stage the strike")
+        .on_enter(stage_the_strike)
+        .until(or(bores_settled(), elapsed(STRIKE_ALIGN_SECS)))
+        .add()
         .step("open the arena loop")
         .on_enter(move |world: &mut World| loop_start(world, loop_name))
         .add()
-        .step("record the live duel")
-        .until(elapsed(6.0))
+        .step("the lances fire")
+        .on_enter(cue_the_lances)
+        .until(or(
+            resource_where::<Strike>(Strike::shot),
+            elapsed(STRIKE_CHARGE_SECS),
+        ))
+        .add()
+        .step("both sides open up")
+        .on_enter(cue_the_tubes)
+        .until(or(
+            resource_where::<Strike>(Strike::hit),
+            elapsed(STRIKE_SALVO_GAP_SECS),
+        ))
+        .add()
+        .step("the second salvo")
+        .on_enter(cue_the_tubes)
+        .until(or(
+            resource_where::<Strike>(Strike::hit),
+            elapsed(STRIKE_WINDOW_SECS),
+        ))
+        .add()
+        .step("hold the aftermath")
+        .until(elapsed(STRIKE_AFTERMATH_SECS))
         .add()
         .step("close the arena loop")
         .on_enter(move |world: &mut World| loop_end(world, loop_name))

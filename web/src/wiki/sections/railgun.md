@@ -4,7 +4,7 @@
     <!-- Capture: assets/wiki-section-railgun.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-railgun.png</span
@@ -50,15 +50,15 @@ There is exactly one way out, and it is not the trigger: dropping your weapons b
     <!-- Capture: assets/loops/loop-section-railgun.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-railgun.webm</span
         >
         <span class="figure__placeholder-note"
-            >A short loop: the bolt walks the bore, the shot
-            leaves, and a corridor opens through a hull block
-            and out the far side.</span
+            >A short loop, at a twentieth of real time: the
+            shot leaves, the slug crosses the gap, and a
+            corridor opens the length of a gunship.</span
         >
     </div>
 </figure>
@@ -84,7 +84,7 @@ The shot is readable after it leaves, too. The slug carries its own light with i
     <!-- Capture: assets/wiki-section-railgun-sight.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-railgun-sight.png</span
@@ -137,7 +137,7 @@ How much it takes is one budget: **1800 power**, spent in the toughest each take
     <!-- Capture: assets/wiki-section-railgun-corridor.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-railgun-corridor.png</span

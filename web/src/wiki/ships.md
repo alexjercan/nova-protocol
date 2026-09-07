@@ -6,7 +6,7 @@ A ship in Nova Protocol is not a monolithic model - it is a root entity with a h
     <!-- Capture: assets/wiki-ships-damage.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-ships-damage.png</span

@@ -15,20 +15,21 @@
 //!
 //! Sizing, so the numbers are not magic (the well math is
 //! `crates/nova_gameplay/src/gravity.rs`):
-//! - MEASURED, not assumed: the noise displaces the rock mesh outward, and the
-//!   derived `BodyRadius` of this planetoid comes out at 790-1080 m for an
-//!   authored 200 m - a factor of about 4.5, not the 2 a diameter-based reading
-//!   suggests. The spread is per RUN, since the displacement is seeded from the
-//!   global RNG, so nothing here may sit close to a boundary. Everything - the
-//!   well strength, the orbit band, the body in frame - measures from that
-//!   radius, and [`engage_orbit`] logs it, because the first cut of this scene
-//!   put the ring 190 m off the surface and shot a frame of nothing but rock.
+//! - The body is a PLANET, so its radius is its real size: the mesh stands
+//!   `1 + relief` off the mean radius, and an ice world's relief is 0.045, so
+//!   an authored 900 m draws a 940.5 m surface. That derived figure is what
+//!   the well, the orbit band and every framing measure from, and
+//!   [`engage_orbit`] logs it. A rock in the same place would not be: an
+//!   asteroid's radius is a designation its noise mesh reaches about five
+//!   times past, on a factor that is re-drawn per RUN - which is what put the
+//!   first cut of this scene's ring 190 m off the surface and shot a frame of
+//!   nothing but rock.
 //! - The orbit band runs from `1.5 * (body_radius + 1)` out to `0.9 * 0.85 *
 //!   SOI`, and the SOI comes from the authored mass alone
-//!   (`sqrt(mu / soi_cutoff_accel)`, 490 world units, so 4.9 km) - roughly
-//!   1.22 to 3.75 km here. [`ORBIT_RADIUS`] sits mid-band, so the explicit plan
-//!   is the ring the ship actually flies and the body reads as a body rather
-//!   than as terrain.
+//!   (`sqrt(mu / soi_cutoff_accel)`, 490 world units, so 4.9 km) - 1.41 to
+//!   3.75 km here. [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the
+//!   ring the ship actually flies and the body reads as a body rather than as
+//!   terrain.
 //! - The ring's circular speed is `sqrt(mu / r)`, around 140 m/s here: fast
 //!   enough that the drive is lit and the hull is visibly banked into its plane,
 //!   slow enough that a pinned camera keeps its subject for the length of a
@@ -51,10 +52,16 @@ use nova_protocol::prelude::*;
 
 /// The planetoid's scenario id.
 pub const PLANETOID_ID: &str = "ring_planetoid";
-/// Authored radius. The mesh draws well past it - about 910 m of real body
-/// for this 200 - and the well, the orbit band and every framing measure from
-/// that derived radius, not from this number.
-pub const PLANETOID_RADIUS: Meters = Meters(200.0);
+/// The body's MEAN radius, and its real size: a planet's mesh stands only
+/// `1 + relief` off it, so the surface the well and every framing measure from
+/// is 940.5 m. Sized to sit inside the 790-1080 m the big ice ROCK this set
+/// used to place happened to draw, so the framings built against that body
+/// hold unchanged.
+pub const PLANETOID_RADIUS: Meters = Meters(900.0);
+/// Which ice world this is. A planet's seed is required, and deliberately: the
+/// figures this set ships are framed against one body, so which body it is
+/// cannot be a number the engine picks per run.
+pub const PLANETOID_SEED: u32 = 4_711;
 /// The body's mass parameter (mu), the one authored gravity number, setting
 /// both the pull and the SOI (`soi = sqrt(mu / soi_cutoff_accel)`, 490 world
 /// units or 4.9 km here). A gravitational parameter, not a length: it stays in
@@ -178,7 +185,7 @@ pub fn the_ring_with_hull(
                 // exact key/rim/fill numbers, so the captured frames are unchanged.
                 actions: [
                     vec![
-                        planetoid(game_assets),
+                        planetoid(),
                         debris.action(game_assets),
                         player,
                         beacon(),
@@ -222,7 +229,20 @@ pub fn the_ring_with_hull(
 
 /// The planetoid: the set's subject and the well the whole scene is about.
 /// Invulnerable - nothing should be able to shoot the scenery out of a shot.
-pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
+///
+/// A PLANET, and an ICE one. Two separate reasons:
+/// - A world, not a rock, because at this size the difference is the whole
+///   picture: a scaled-up asteroid is a lump of noise with a rock texture
+///   tiled across it, while a planet draws banded terrain at a size that does
+///   not scale with the body. A shot of the flight computer holding a ring
+///   needs something under the ring that reads as somewhere.
+/// - Ice, because every figure this set ships is a picture of a cyan holo
+///   construct - the orbit ring, the radius spoke, the burn ribbon - drawn
+///   ACROSS the body, and against grey stone the two read as one grey mass
+///   with lines on it. An ice world is pale and blue-shifted, so the construct
+///   has a surface to sit on and the body has a silhouette. The debris ring
+///   stays stone, which is what gives the pair its contrast.
+pub fn planetoid() -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLANETOID_ID.to_string(),
@@ -230,16 +250,10 @@ pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            radius: PLANETOID_RADIUS,
-            texture: game_assets.asteroid_texture.clone().into(),
-            material: KIND_ROCK.to_string(),
-            destroy_sound: None,
-            mass: Some(PLANETOID_MASS),
-            invulnerable: true,
-            seed: None,
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(PlanetType::IceWorld, PLANETOID_RADIUS, PLANETOID_SEED)
+                .anchored(PLANETOID_MASS),
+        ),
     })
 }
 

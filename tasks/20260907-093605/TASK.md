@@ -184,3 +184,85 @@ is a picture of; the first capture round was shot that way and re-shot clean.
 Not done: the scenario picker thumbnails are still generated placeholder art
 (advisory, 8 of them), and the landing page's four `feature-*.png` stills are
 shipped but no longer referenced by any page.
+
+## Follow-up round, 2026-09-07
+
+Owner review of the packaged media raised three things: the landing hero's two
+ships sit too close together and read as static, the destruction particles look
+like large circles, and it was not clear whether those particles are the game
+or something added for the capture.
+
+### The particles are the game
+
+They are `crates/nova_gameplay/src/integrity/pyre.rs`, an observer on
+`IntegrityDestroyMarker` - the same seam `explode` hangs the wreckage off. It
+is new this release: before it, a death shed pieces in silence and the game had
+impact effects only. It fires for EVERY death, which is why an intercepted
+torpedo throws one: a torpedo's controller and thruster sections have 1 HP and
+die through the normal integrity pipeline (`on_torpedo_body_destroyed` in
+`bay.rs`), so the round that a PDC swats is a small hull coming apart.
+
+Owner decision: keep it on ordnance too, and refine the look rather than
+gate it.
+
+### What the refinement changed
+
+The first cut was ONE billboard burst of round soft dots, and its own doc
+comments read world units as metres - a factor of ten. A section death was
+9 m quads reaching 126 m, drawn at a detonation core's alpha; from fifty
+metres that is a heap of flat orange discs, which is the "bubbles" the review
+saw.
+
+It is now the house vacuum-burst shape, the one
+`torpedo_section/render.rs` already documents: TWO instances per death.
+
+- a CORE, camera-facing, bright, and gone inside a third of a second, because
+  nothing out here sustains combustion;
+- an EJECTA, oriented along velocity so its quads read as tapered streaks
+  contracting into sparks, ballistic and outliving the flash.
+
+Alpha is held low on both, so overlapping quads sum into a translucent volume
+with the wreck showing through instead of stacking into opaque discs. Sizes
+were re-derived in world units against the build-grid cell (a section) and the
+110 m gunship (a hull).
+
+The shipped torpedo blast core was the other half of the same complaint - flat
+orange discs at a torpedo hit, at alpha 0.95 - and its gradient tail was
+softened to match.
+
+### Framing
+
+- `wfc_arena` stages the pair at 500 m and leaves them closing at 15 m/s each
+  under capture, so the landing hero opens on two separated hulls in motion.
+  Empirically 620 m and 550 m never landed a warhead; 500 m does. At 25 m/s
+  each they ended the loop nose to nose, hence 15.
+- `loop_cockpit` stands OUTBOARD (negative `side`): `ring::lit_side` points
+  inboard on this set, so every positive-side framing looked at 3 km of empty
+  sky. It also re-frames for the climb, because a leg camera's `up` is world Y
+  and the beacon is 7.6 km straight up - the resting bearing collapses into a
+  view down the hull's own length once the track swings onto Y.
+- `loop_goto_arrival`'s ten cuts stood abeam, which at the top of that leg is
+  a grey hull on black. They stand down the track now, which both puts the
+  planetoid in frame and looks into the braking plume.
+- `loop_damage_sequence`'s lens was 76 m off its own subject. At 115 m the
+  whole hull is in frame and the freed deck drifts inside the shot.
+
+### Verified
+
+- 7 new unit tests in `pyre.rs` (it had none): the two instances a death
+  spawns, the two sizes, the shared graphs and mask, the transform-less node,
+  the frame cap with the hull exempt, the refill, and the inherited drift.
+  `cargo test -p nova_gameplay --lib integrity::pyre`: 7 passed.
+- `cargo check --examples --features debug` and `cargo fmt`: clean.
+- All 22 still producers and all 35 loops re-captured with the new effects and
+  re-packaged. Every loop under the 3 MB budget; `wfc_arena` needed its own
+  `LoopProfile { crf: 37 }` to get the 2v2 there.
+- `gen-web-screenshots.py --report`: 0 outstanding (8 scenario thumbnails
+  still advisory).
+- `cd web && npm run ci`: green.
+- Contact sheets read for every re-cut loop.
+
+Not done: `loop-section-turret` still shoots the battery from the `lanes`
+measurement pose, so the mount is small in its own section figure. Giving it a
+documentation view means a fourth `View` variant, and the three that exist are
+measurement knobs.

@@ -6,7 +6,8 @@ A scenario places a world and wires its objectives. It is the same machinery whe
 
 A scenario spawns a handful of object kinds:
 
-- **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). An invulnerable planetoid never wears at all.
+- **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). An invulnerable rock never wears at all.
+- **Planets** - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. A planet is always invulnerable - nothing carves one - and carries a [gravity well](../gravity-wells/) like any other body.
 - **Spaceships** - multi-section [builds](../sections/) under a player or AI controller (which can withhold or grant flight verbs).
 - **Nav beacons** - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.
 - **Salvage crates** - small pickups collected by flying through them.
@@ -37,7 +38,7 @@ The public [Story](../../story/) archive presents campaigns as digital comics wi
     <!-- Capture: assets/wiki-scenarios-picker.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-scenarios-picker.png</span

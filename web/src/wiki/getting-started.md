@@ -21,7 +21,7 @@ The game boots into a main menu. **New Game** drops you into **Basic Training** 
 <figure class="figure">
     <!-- Capture: assets/tutorial-menu.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/tutorial-menu.png</span>
         <span class="figure__placeholder-note">The main menu over its live backdrop: a section-built gunship holding station in a rock band, with the New Game / Sandbox / Scenarios / Mods / Settings / Exit options beside it.</span>
     </div>
@@ -65,7 +65,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
 <figure class="figure">
     <!-- Capture: assets/tutorial-radar-lock.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/tutorial-radar-lock.png</span>
         <span class="figure__placeholder-note">The red combat crosshair mid-sweep while holding CTRL with weapons raised, with the lock brackets snapping onto Target 1.</span>
     </div>
@@ -88,7 +88,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
 <figure class="figure">
     <!-- Capture: assets/wiki-sandbox-range.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-sandbox-range.png</span>
         <span class="figure__placeholder-note">The sandbox free-flight range from the player ship: the rock belts ahead, target hulks to port, and the F1 back-to-editor objective chip visible.</span>
     </div>

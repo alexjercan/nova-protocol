@@ -4,7 +4,7 @@
     <!-- Capture: assets/icon-thruster.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-thruster.png</span
@@ -38,7 +38,7 @@ A hurt drive **looks** hurt. Past about a third of its health gone it cracks and
     <!-- Capture: assets/loops/loop-section-thruster.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-thruster.webm</span
