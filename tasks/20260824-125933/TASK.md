@@ -250,3 +250,133 @@ v0.12.0; the agent then played a shipped scenario end to end and won. Phase
 report) were never built and are not promised by this task. The findings
 above are unfixed: two manual gaps, one tutorial comms defect, and the
 `objectives_seen` sampling note.
+
+## TODO (2026-09-07)
+
+Raised by the tutorial round, agreed with the owner, none started. The task
+is closed; this section lifts out whole if it becomes its own task.
+
+### 1. The view says what the game already knows about a cinematic
+
+`inputs.live` is a CONTEXT list: `input_block` takes every binding whose
+`ActionContext` is raised. So `scenario.cinematic_skip` is listed through
+the tutorial's unskippable opening, and the agent reads a key that does
+nothing. The scenario knows better: `ScenarioWorld::skippable_cinematic()`
+is computed every frame to raise the HUD's skip prompt. A player sees that
+prompt appear or not; the agent has no equivalent.
+
+Give the mission block `cinematic: {playing, skippable}`, and drop
+`scenario.cinematic_skip` from `inputs.live` while the running scene is
+unskippable.
+
+The rule this sets, which matters more than the fix: gate only what the
+game computes exactly, and expose state for the rest. Do NOT build a
+per-action liveness predicate beside the real gates - it would duplicate
+the weapons safety, the helm owner and the lock requirements, and drift
+from them. A confidently wrong "valid actions" list is worse than an
+honestly coarse one, because an agent trusts it completely. The gates that
+are already readable stay readable: `travel_lock` says GOTO will act,
+`gravity_well` says Orbit will, `weapons_hot` says a trigger will.
+
+### 2. An objective log in the mission block
+
+`mission.objectives` is the live list only. A card posted and cleared
+between two acts leaves no trace, for the agent OR the scorer: the tutorial
+posts 11 cards and this run scored 10 of 10 because `fire` came and went
+inside one 300-tick act. The game answers one snapshot per act, so
+sampling harder means acting smaller, which is the wrong lever.
+
+The record already exists. `NovaOsFlightLog` (`nova_os_ui/src/terminal/
+flight_log.rs`) is built from `StoryFeed` plus `GameObjectives` and holds
+comms lines AND objective posted/completed entries in order - it is what
+the NOVA OS `log` command prints. Build the same thing into the mission
+block, with ticks, and have the scorer count cards it never sampled.
+
+### 3. A refusal that says why
+
+Three different failures reach the agent as one shrug:
+
+- The line never became an action - unknown wire name, an axis given a
+  button press. `refuse()` records a message and it arrives in
+  `game_errors`. This one already explains itself.
+- The action exists and its context is down. `applied` reads
+  `state: "refused"` with no message.
+- The input WAS dispatched and its `TriggerState` was `None` after the
+  frame. Nothing rejected it; it never fired. `action_state` also answers
+  `None` when no rig entity holds the action at all, so the value is
+  ambiguous by construction.
+
+`acks()` folds the last two into `refused: [{input, phase, state}]`, and
+the agent guessed a cause twice in this run and was wrong twice.
+
+Carry the reason where one exists (the context refusal knows its context).
+The silent `None` has no message to forward, because no code decided
+anything - that half is item 4.
+
+### 4. The expander catches the shared-key collision
+
+`targeting.radar_clear` is a TAP on the same key and threshold as
+`targeting.radar_hold` - one gesture read two ways, by design. Releasing
+the hold and tapping the clear on the same tick means the tap never fires.
+Both refusals in this run are exactly that pair; every standalone tap took.
+
+`expand` already sees both wire names landing on one tick, so it can refuse
+the pair with a precise message before the line reaches the game. Precedent
+is in this task: pi's first act put two verbs in one gesture, the parser
+error came back as a tool error, and the model fixed the call in one turn.
+Error text teaches faster than manual text.
+
+### 5. Split the manual, and give it a page-reading tool
+
+`manual.md` is the whole system prompt and it has grown into a strategy
+guide. Split it by who needs the knowledge:
+
+- The WIKI holds what the game is - what a lock does, what orbit does,
+  what a PDC is, that turret rounds land inside about 2000 m. A player
+  learns those too.
+- The MANUAL holds how to drive it blind - the three tools, the act and
+  tick loop, the gesture verbs, the view's field names, the discipline,
+  plus the control-response constants that stand in for a screen.
+
+The test for one line: would a player with a screen ever need this? Turret
+range, yes - wiki. About 27 pixels of `camera_rotate` per degree, never -
+manual. A player closes a control loop at 60 Hz against what they see and
+needs no conversion factor. The agent decides once and lives with it for 60
+to 300 ticks, so it needs to know what an input will do BEFORE it commits.
+The measured numbers are a property of the interface, not of the game.
+
+Then the prompt lists the page names and a fourth tool reads one by name.
+That also makes "did it look something up" visible in the audit.
+
+Two rules the manual does not state today and should, wherever they land:
+a raised combat stance sends `camera_rotate` to the turrets and the hull
+does not follow (it cost this run two acts), and the shared radar key of
+item 4.
+
+### 6. The score can see a cheat
+
+`CheatState` arms once, is irreversible, and marks the run - the machinery
+for an honest attempt is already there, and `cheats status` reports it.
+Neither the probe snapshot nor the bench score carries the mark, so a run
+that armed cheats scores exactly like one that did not. The `command`
+gesture reaches the whole shell, `ammo infinite` and `speed-cap` included.
+
+Carry the mark in the snapshot and copy it into the score. A benchmark that
+cannot see a cheat is not a benchmark. (No command wins a scenario outright:
+`variable` is read-only and there is no `victory`. The cheapest cheese is
+infinite ammo and a raised speed cap.)
+
+### 7. The tutorial's double scrap line
+
+A kill inside `INSTRUCTION_GAP` draws both `SCRAP_EARLY_LINE` and
+`SCRAP_LINE`: the early branch is gated on `in_beat(BEAT_LOCK)` while the
+scheduled `BEAT_FIRE` lesson is still in flight. A cadet who shoots fast is
+congratulated twice, once for initiative it did not take.
+
+### Not on this list
+
+The NOVA OS terminal rows in `ui.computer`. The computer pauses into
+`PauseStates::NovaOs` and drops the flight context, the owner has parked
+its design, and with item 2 landed there is nothing in there the agent
+cannot read from the world. `{"command": ...}` stays what it is: the world
+shell, not the player's apps.
