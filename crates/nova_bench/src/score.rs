@@ -10,6 +10,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::observation::bodies_of;
+
 /// Token usage and cost, from pi's `message_end` events. Absent for agents
 /// that do not report usage.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -33,9 +35,12 @@ pub struct Llm {
 pub struct Score {
     /// `victory`, `defeat` or `none`, from `mission.outcome` at the end.
     pub outcome: String,
-    /// Objective ids that appeared at any point.
+    /// Objective ids that appeared at any point: the live list, plus every
+    /// card the flight log says was posted. A card posted and completed
+    /// between two snapshots never reaches the live list.
     pub objectives_seen: BTreeSet<String>,
-    /// Objective ids that appeared, then vanished before any defeat.
+    /// Objective ids the flight log says completed, plus ids that appeared in
+    /// the live list and then vanished before any defeat.
     pub objectives_completed: BTreeSet<String>,
     /// Ticks the run used.
     pub ticks: u64,
@@ -56,8 +61,15 @@ pub struct Score {
     /// Hostile ships that turned `defeated`, or left the world altogether: a
     /// hull that breaks up despawns without ever reading `defeated`.
     pub kills: u64,
-    /// Channel error lines plus refused inputs.
-    pub refusals: u64,
+    /// Wire lines the game refused outright: an unknown name, an axis driven
+    /// as a button, a malformed line. The DRIVER writing nonsense - never the
+    /// game deciding not to do something, which an input ack cannot see and
+    /// no longer claims to (see `nova_channel::apply::AppliedEntry`).
+    pub bad_lines: u64,
+    /// Whether the run carries NOVA OS's cheat mark. A benchmark that cannot
+    /// see a cheat is not a benchmark: arming cheats marks the attempt for
+    /// good, and the mark is copied here from the snapshot.
+    pub cheated: bool,
     /// Token usage, when the agent reports it.
     pub llm: Option<Llm>,
     /// Why the run ended: `outcome`, `ticks`, `turns`, `deadline`, `finish`,
@@ -111,15 +123,22 @@ fn end_row(end: &Value) -> Option<String> {
     Some(parts.join(", "))
 }
 
+/// One of the view's plain lists, as a slice the range cut can walk.
+fn list(value: &Value) -> Vec<Value> {
+    value.as_array().cloned().unwrap_or_default()
+}
+
 /// The end state a reader grades an open goal against, cut from the last
 /// pilot's view: the helm (autopilot engaged and completed, the dominant
 /// well, speed) and the range to every contact, beacon and body.
+///
+/// Pass a view condensed with `expand: ["all"]`: a summary view carries only
+/// the bodies the pilot was acting on, and an end state is read by a person
+/// grading a goal, not by the pilot.
 pub fn end_state(view: &Value) -> Value {
     let me = &view["me"];
-    let ranges = |list: &Value, keys: &[&str]| -> Vec<Value> {
-        list.as_array()
-            .into_iter()
-            .flatten()
+    let ranges = |list: &[Value], keys: &[&str]| -> Vec<Value> {
+        list.iter()
             .map(|item| {
                 let mut record = json!({ "id": item["id"] });
                 for key in keys {
@@ -137,9 +156,9 @@ pub fn end_state(view: &Value) -> Value {
         "gravity_well": me["gravity_well"],
         "speed_mps": me["speed_mps"],
         "travel_lock": me["travel_lock"],
-        "contacts": ranges(&view["contacts"], &["distance_m", "defeated"]),
-        "beacons": ranges(&view["beacons"], &["distance_m"]),
-        "bodies": ranges(&view["bodies"], &["surface_m", "radius_m"]),
+        "contacts": ranges(&list(&view["contacts"]), &["distance_m", "defeated"]),
+        "beacons": ranges(&list(&view["beacons"]), &["distance_m"]),
+        "bodies": ranges(&bodies_of(view), &["surface_m", "radius_m"]),
     })
 }
 
@@ -188,6 +207,21 @@ impl Scorer {
         }
         self.score.objectives_seen.extend(current);
 
+        // The live list is SAMPLED, one reading per act, so a card posted and
+        // completed inside one act is invisible to it. The flight log is the
+        // record NOVA OS prints and it keeps both halves, so it counts a card
+        // the sampling missed - and a logged completion is an event, not the
+        // disappearance the defeat guard above exists to distrust.
+        for entry in mission["log"].as_array().into_iter().flatten() {
+            let Some(id) = entry["id"].as_str() else {
+                continue;
+            };
+            self.score.objectives_seen.insert(id.to_string());
+            if entry["kind"] == "completed" {
+                self.score.objectives_completed.insert(id.to_string());
+            }
+        }
+
         let ships = snapshot["ships"].as_array().cloned().unwrap_or_default();
         if let Some(me) = ships.iter().find(|ship| ship["controller"] == "Player") {
             self.observe_me(me);
@@ -208,12 +242,8 @@ impl Scorer {
                 self.score.kills += 1;
             }
         }
-        for ack in snapshot["applied"].as_array().into_iter().flatten() {
-            let state = ack["state"].as_str().unwrap_or_default();
-            let start = ack["phase"] == "start";
-            if matches!(state, "refused" | "error") || (start && state == "None") {
-                self.score.refusals += 1;
-            }
+        if mission["cheats"]["marked"] == true {
+            self.score.cheated = true;
         }
     }
 
@@ -246,9 +276,9 @@ impl Scorer {
         }
     }
 
-    /// Count the game's own error lines (a refused wire line).
-    pub fn channel_errors(&mut self, count: u64) {
-        self.score.refusals += count;
+    /// Count the game's own error lines (a wire line it refused to parse).
+    pub fn bad_lines(&mut self, count: u64) {
+        self.score.bad_lines += count;
     }
 
     /// Fold one assistant message's usage in.
@@ -287,8 +317,11 @@ impl Scorer {
             format!("sections_lost        {}", score.sections_lost),
             format!("ammo_spent           {}", score.ammo_spent),
             format!("kills                {}", score.kills),
-            format!("refusals             {}", score.refusals),
+            format!("bad_lines            {}", score.bad_lines),
         ];
+        if score.cheated {
+            rows.push("cheats               ARMED: this run is marked".into());
+        }
         if let Some(llm) = &score.llm {
             rows.push(format!(
                 "llm                  {} messages, {} in ({} cached), {} out, cost {:.4}",
@@ -339,10 +372,14 @@ mod tests {
             },
             "contacts": [{ "id": "derelict", "distance_m": 2400.0, "defeated": false, "bearing_deg": [1, 2] }],
             "beacons": [{ "id": "work_mark", "distance_m": 5000.5 }],
-            "bodies": [
-                { "id": "planetoid", "surface_m": 812.0, "radius_m": 633.0 },
-                { "id": "rock_small", "surface_m": 6000.0, "radius_m": 60.0 }
-            ]
+            "bodies": {
+                "near": [{ "id": "planetoid", "surface_m": 812.0, "radius_m": 633.0 }],
+                "in_the_way": [],
+                "groups": [{
+                    "key": "5-10km.bow", "count": 1,
+                    "bodies": [{ "id": "rock_small", "surface_m": 6000.0, "radius_m": 60.0 }]
+                }]
+            }
         });
         let end = end_state(&view);
         assert_eq!(end["autopilot"]["action"], "Orbit");
@@ -395,6 +432,44 @@ mod tests {
             BTreeSet::from(["close".to_string(), "kill".to_string()])
         );
         assert_eq!(score.outcome, "none");
+    }
+
+    /// The live objective list is sampled once per act. A card that is posted
+    /// and completed inside one act never appears in it, and only the flight
+    /// log remembers it happened.
+    #[test]
+    fn a_card_posted_and_completed_between_two_acts_still_counts() {
+        let mut scorer = Scorer::default();
+        scorer.observe(&world(800.0, 40, false, &["kill"]));
+        let mut later = world(800.0, 40, false, &["kill"]);
+        later["mission"]["log"] = json!([
+            { "kind": "posted", "id": "scan", "message": "Scan the wreck." },
+            { "kind": "completed", "id": "scan", "message": "Scan the wreck." },
+            { "kind": "posted", "id": "kill", "message": "Kill the raider." },
+        ]);
+        scorer.observe(&later);
+        assert!(scorer.score.objectives_seen.contains("scan"));
+        assert!(scorer.score.objectives_completed.contains("scan"));
+        assert!(
+            !scorer.score.objectives_completed.contains("kill"),
+            "a card the log only posted is not complete"
+        );
+    }
+
+    /// The mark is copied off the world, not asked of the agent, and it
+    /// sticks: the run that armed cheats never scores clean again.
+    #[test]
+    fn an_armed_cheat_marks_the_score_for_good() {
+        let mut scorer = Scorer::default();
+        scorer.observe(&world(800.0, 40, false, &[]));
+        assert!(!scorer.score.cheated);
+        let mut armed = world(800.0, 40, false, &[]);
+        armed["mission"]["cheats"] = json!({ "armed": true, "marked": true });
+        scorer.observe(&armed);
+        assert!(scorer.score.cheated);
+        assert!(scorer.table().contains("cheats               ARMED"));
+        scorer.observe(&world(800.0, 40, false, &[]));
+        assert!(scorer.score.cheated, "the mark outlives the command");
     }
 
     #[test]

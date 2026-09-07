@@ -235,7 +235,7 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
         first = false;
         let answer = game.read_answer(timeout)?;
         let tick = line["tick"].as_u64().unwrap_or(0);
-        let mut observation = condense(&answer.snapshot, &held);
+        let mut observation = condense(&answer.snapshot, &held, &[]);
         observation["tick"] = json!(tick);
         bus.emit(BenchEvent::ChannelIn {
             tick,

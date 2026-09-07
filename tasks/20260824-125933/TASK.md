@@ -542,3 +542,128 @@ A what-changed block between views. It would make "did my input do
 anything" a one-line check, and under item 1 that inference is the only
 mechanism the agent has. But it is a convenience laid over the view, and
 items 2 and 6 are the fix. Optional, and after them.
+
+## The pilot's-view round (2026-09-07)
+
+The nine TODO items above landed on `agent-bench`. The task stays CLOSED;
+this section is the proof for the round the owner asked for.
+
+1. **`applied` is an echo.** `AckState` and `action_state()` are gone. An
+   input ack is `{line, input, phase, tick}` plus `late`; a command ack keeps
+   `state`, `detail` and `rows`. The view lost `refused`. `Score::refusals`
+   became `bad_lines` - wire lines the game could not parse - so a
+   sequencing mistake no longer reads as the game declining to act.
+2. **The view carries what the HUD paints.** `me.radar` carries the
+   acquisition dwell while the radar gesture is held: candidate, dwell
+   target, `dwell_secs` of `dwell_needed`, and the `dwell_fill` the ring
+   paints. Verified live over the channel on `hunt`: 0.3485 climbing to 1.0,
+   then `combat_lock: raider`.
+3. **The cinematic fact.** `NovaEventWorld::playing_cinematic()` joins
+   `skippable_cinematic()`; the snapshot's mission block carries
+   `{playing, skippable}` and the view carries it only while a scene runs.
+   No per-action liveness predicate was built. The tutorial has no
+   `Cinematic` sequence at all, only a `CinematicTitle`, so `playing` is
+   null there - which is the honest answer about its dead skip key.
+4. **An objective log.** The mission block carries the real
+   `NovaOsFlightLog` - what NOVA OS's `log` command prints - filtered to
+   posted and completed cards. `NovaOsUiPlugin` is unconditional, so it runs
+   headless. Entry order carries the sequence; no timestamp field was added
+   to a UI struct across ten construction sites. The view shows it as
+   `objective_log`, and the scorer folds the log into `objectives_seen` and
+   `objectives_completed`, so a card posted and completed inside one act -
+   invisible to the once-per-act sampling of the live list - still counts.
+5. **The shared radar key.** `parse_gestures` refuses an act carrying both
+   `targeting.radar_hold` and `targeting.radar_clear` - two readings of one
+   key - and says to split it. A driver-side parse error, because no press
+   downstream has a verdict to give.
+6. **A pilot's view, not a census.** Each body is classified alone, as a
+   pure function of the body and the ship's frame: `near` (surface inside
+   2000 m, or closest approach inside 500 m within 60 s), `in_the_way`
+   (across a lock or a GOTO corridor, with its reason), and everything else
+   summarised on a fixed distance ladder crossed with four bearing
+   quarters. `observe {"expand": ["<key>"]}` opens a group, free, off the
+   snapshot in hand. Expansion is for detail, never for safety.
+
+   Measured on the tutorial at tick 181, 65 rocks in view: 3 full records
+   and 5 group lines, `bodies` 1293 characters of a 5047-character view.
+   The run that raised the item enumerated them at about 14200 characters
+   of a 20800-character view.
+7. **The manual split.** `manual.md` keeps the protocol, the four tools,
+   the view's fields and the discipline. The game knowledge moved to
+   `crates/nova_bench/src/pages/{targeting,weapons,travel,orbit,fighting}.md`,
+   read on demand by `page {name}`. Discipline now names the effect field
+   for each action instead of sending the agent to `refused`, and states
+   the combat-stance rule and the shared radar key.
+8. **The score sees a cheat.** The snapshot's mission block carries
+   `cheats {armed, marked}` from `RunCheats`; the score carries `cheated`
+   and the table prints `ARMED: this run is marked`.
+9. **The tutorial's double scrap line.** A `target_1_locked` variable, set
+   by the `OnCombatLockStart` handler, filters `SCRAP_EARLY_LINE`, so a
+   cadet who shoots before the FIRE lesson posts is congratulated once.
+
+Proof, hunt fixture, seed 7, `pi` gpt-5.6-luna at `low`:
+
+| Outcome | Ticks | Turns | Ammo | Damage | Bad lines | Wall | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| victory | 916 | 10 | 1518 | 0 | 0 | 56.5 s | $0.014 |
+
+Ten turns, no damage, no malformed lines, and the run never opened a
+group - `hunt` fields no rocks. The tiering was verified separately on the
+tutorial with the `baseline` agent, which spends no tokens.
+
+Tests: `nova_bench` 53, `nova_channel` 13, `nova_probe` 82;
+`cargo check --features debug --bins` clean.
+
+## The extensibility round (2026-09-07)
+
+An out-of-context review of the two commits above, asked for one thing: what
+would bite someone EXTENDING this. Four findings, all fixed. Each was a place
+where the next edit fails silently rather than loudly.
+
+1. **`bodies_of` named the tiers.** It iterated a literal
+   `["near", "in_the_way"]`, and it is the only path into `Score::end`. A
+   fifth tier would have been emitted to the agent and dropped from the score
+   - losing exactly the bodies a new tier promoted for mattering. It now walks
+   the block's structure, taking every object record and every group's
+   `bodies`, so a new tier reaches the score with no edit.
+2. **An expansion that matched nothing was invisible.** The reply to a stale
+   key was byte-identical to the reply to no request at all, and a key can go
+   stale honestly - the ship moves and a group re-bins. `bodies.expanded` now
+   lists what actually opened. The `all`/`bodies` test also moved out of
+   `bodies_view` into one `expands()` helper, so a second expandable block
+   cannot forget the `all` case that `Referee::end` depends on.
+3. **The tool vocabulary was spelled in four places.** `manual::TOOLS` is now
+   the source: the pi spawn's `--tools` allowlist is built from it, and a test
+   holds `tools/nova_bench/pi/index.ts` to it - same names, same count, and no
+   hardcoded page list, since nothing links the relay to the referee at
+   compile time. A tool registered on one side and forgotten on the other used
+   to be simply absent at run time, with no error anywhere.
+4. **`SHARED_KEYS` was a hand copy of `ActionBinding::follows`.** The game
+   already models "this action shadows that one onto the same key". The
+   channel now publishes it as `input.shared`, the view carries it, and the
+   referee checks each act against what the world reported.
+
+   That last one was not hypothetical. The moment the pairs came from the
+   world, a SECOND pair appeared that the table never had:
+   `scenario.scenario_advance` / `scenario.cinematic_skip`. An agent driving
+   both in one act got nothing, silently, and nothing would have taught it.
+
+The same review also caught a stale protocol diagram in `docs/agent-bench.md`,
+which still read `observe / act / finish` after `page` landed.
+
+One bug of my own, caught by running the channel rather than the tests: the
+snapshot's block is `input`, not `inputs`, and both new readers spelled it
+`inputs`. The unit tests passed because the fixtures were mine. The view test
+now pins the real key.
+
+Tests: `nova_bench` 55, `nova_channel` 13. Verified live: the channel
+publishes both pairs, and a tutorial baseline run still scores its end state
+off the tiered view (`body shallow_rock_16 926 m`).
+
+Left undone, with the owner's agreement: the bench's five game pages restate
+what `web/src/wiki/{targeting-radar,combat-weapons,flight-autopilot,
+gravity-wells}.md` already says, in different words and with the same numbers
+(`pages/weapons.md` says turret rounds reach about 2000 m,
+`wiki/combat-weapons.md` says a PDC round reaches 2 km). Both are hand-written
+prose, so nothing catches a drift. The cheap guard, when it matters, is for
+the bench pages to `include_str!` the wiki rather than restate it.

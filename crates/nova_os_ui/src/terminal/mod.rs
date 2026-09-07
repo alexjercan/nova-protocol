@@ -63,7 +63,10 @@ use nova_os::prelude::{NovaOsCommandRegistry, NovaOsTerminal, TerminalMode};
 /// Glob-import surface: `use nova_os_ui::terminal::prelude::*`.
 pub mod prelude {
     pub use super::{
-        components::{NovaOsCloseTransition, NovaOsMonitorSettings},
+        components::{
+            NovaOsCloseTransition, NovaOsFlightLog, NovaOsFlightLogEntry, NovaOsFlightLogEntryKind,
+            NovaOsMonitorSettings,
+        },
         crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
         sound::play_nova_os_cue,
         NovaOsSystems,
@@ -74,13 +77,8 @@ use nova_gameplay::{objectives::prelude::GameObjectives, GameStates, PauseStates
 use nova_hud::prelude::StoryFeed;
 use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, RegisterInputActions};
 
-pub use self::{
-    components::{NovaOsCloseTransition, NovaOsMonitorSettings},
-    crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
-    sound::play_nova_os_cue,
-};
 use self::{
-    components::{NovaOsDegauss, NovaOsFlightLog},
+    components::NovaOsDegauss,
     crt::{animate_nova_os_crt, mirror_nova_os_hover, reconcile_nova_os_target, NovaOsCrtMaterial},
     flight_log::{announce_objectives_in_terminal, log_combat_lock_drops, sync_nova_os_logs},
     input::{
@@ -99,6 +97,14 @@ use self::{
         apply_nova_os_bed_volume, play_nova_os_power_down, start_nova_os_sound, stop_nova_os_bed,
     },
     spawn::{ensure_nova_os_spawned, reset_nova_os_for_new_ship},
+};
+pub use self::{
+    components::{
+        NovaOsCloseTransition, NovaOsFlightLog, NovaOsFlightLogEntry, NovaOsFlightLogEntryKind,
+        NovaOsMonitorSettings,
+    },
+    crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+    sound::play_nova_os_cue,
 };
 pub(crate) use self::{
     content::{section_kind_from_markers, section_kind_label},

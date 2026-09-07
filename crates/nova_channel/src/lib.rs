@@ -4,7 +4,8 @@
 //! One JSON object per line, both directions. Five input lanes (`input`,
 //! `aim`, `text`, `key`, `pointer`) plus the bare-`tick` step instruction;
 //! back comes `nova_probe`'s world snapshot with the channel's own blocks
-//! merged in: `applied` (every consumed line, echoed with its outcome),
+//! merged in: `applied` (every consumed line, echoed back with its tick - an
+//! echo, never a verdict: see [`apply::AppliedEntry`]),
 //! `input` (what may be pressed THIS tick) and - inside the snapshot itself -
 //! `ui` (the screen a GUI player sees, as data). The design record is
 //! `tasks/20260820-174148/nova-channel.html`; the executable schema reference
@@ -141,7 +142,7 @@ impl Plugin for NovaChannelPlugin {
 /// harness names.
 pub mod prelude {
     pub use crate::{
-        apply::{AckState, AppliedEntry, ChannelAck, ChannelFrame},
+        apply::{AppliedEntry, ChannelAck, ChannelFrame},
         protocol::{parse_line, Envelope, Lane, PointerCmd, PointerTarget},
         record::ChannelRecorder,
         ChannelMode, NovaChannelPlugin, NovaChannelSystems,

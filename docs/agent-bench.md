@@ -9,7 +9,7 @@ with one TypeScript relay in `tools/nova_bench/pi/`.
                  referee protocol                 process channel
   +-----------+  (unix socket, JSONL)  +------------+  (stdin/stdout JSONL)  +----------------+
   |  agent    | <--------------------> | nova_bench | <--------------------> |  nova-protocol |
-  |  (pi, a   |  observe / act / finish|  (referee) |  tick / input / aim ...|  --norender    |
+  |  (pi, a   | observe/act/page/finish|  (referee) |  tick / input / aim ...|  --norender    |
   |  script)  |                        |            |  <- snapshot           |  --channel step|
   +-----------+                        +-----+------+                        +----------------+
                                              |
@@ -79,8 +79,9 @@ One request per connection, one line each way.
 
 | Request | Reply | Meaning |
 | --- | --- | --- |
-| `{"observe": {}}` | `{"ok": <view>}` | The pilot's view now. Free: the clock does not move. |
+| `{"observe": {"expand": [...]}}` | `{"ok": <view>}` | The pilot's view now. Free: the clock does not move. `expand` names body groups to open in full. |
 | `{"act": {"gestures": [...], "ticks": N}}` | `{"ok": <view>}` | Apply the gestures, run N ticks (default 30), return the view. The only way time passes. |
+| `{"page": {"name": "targeting"}}` | `{"ok": {"page", "text"}}` | One page of the flight manual. Free. |
 | `{"finish": {"status": "done" or "gave_up", "report": "..."}}` | `{"ok": {"over": true}}` | The agent is finished. The report lands in the score; the metrics do not read it. |
 
 A malformed request gets `{"error": "..."}` and the run continues. Every
@@ -101,6 +102,19 @@ agent's vocabulary is relative and a transcript is replayable.
 Gestures in one act land on the same tick, in order. A held input stays held
 across acts until released.
 
+One act cannot drive both readings of a shared key. `targeting.radar_hold`
+and `targeting.radar_clear` are one key read two ways - a short press clears,
+a long one searches - so an act carrying both is refused with a message that
+says to split it. Nothing downstream could report that: a press has no verdict
+to give.
+
+The pairs are not a table in the bench. `nova_input` already models the
+relation as `ActionBinding::follows`, the channel publishes it as
+`inputs.shared`, and the referee checks the act against whatever the world
+reported. A game that declares a second shadow action is guarded without an
+edit here, and one that drops a shadow stops being guarded for a rule that no
+longer holds.
+
 ## The view
 
 The raw snapshot is a probe artifact: every hull plate, every ordnance record.
@@ -112,31 +126,76 @@ second and degrees:
   twelve radio lines).
 - `me`: id, `position_m`, `speed_mps`, `velocity_bearing_deg`,
   `turn_rate_dps`, `health`, `weapons_hot`, `combat_lock`, `travel_lock`,
-  `autopilot` (`engaged`: action, target and phase, or null; `completed`:
-  the last action that finished), `gravity_well` (the dominant well's id),
-  `sections` (the bridge, the drives, each mount with its `weapon`: kind,
-  ammo, `on_target`, `firing`) and `hull_plates` as `{total, damaged, lost}`.
+  `radar` (the acquisition dwell while the radar gesture is held: the
+  candidate, the dwell target, `dwell_secs` of `dwell_needed` and the
+  `dwell_fill` a player watches on the ring; null otherwise), `autopilot`
+  (`engaged`: action, target and phase, or null; `completed`: the last action
+  that finished), `gravity_well` (the dominant well's id), `sections` (the
+  bridge, the drives, each mount with its `weapon`: kind, ammo, `on_target`,
+  `firing`), `hull_plates` as `{total, damaged, lost}` and `withheld_verbs`
+  (flight verbs the scenario has not granted yet).
 - `contacts`: every other ship with `allegiance` (`Enemy`, `Player`,
   `Neutral`), `distance_m`, `bearing_deg`, `closing_mps`, `health`,
   `defeated`, `weapons_hot`, `ai_target`.
 - `beacons` with `distance_m` and `bearing_deg`.
-- `bodies`: every asteroid and planet with `kind`, `radius_m`, `distance_m`
-  to the centre, `surface_m` to the surface, `bearing_deg` and
-  `invulnerable`. A shot rock is carved, so its radius shrinks; a rock
-  carved away leaves the list.
+- `bodies`: the asteroids and planets, in three tiers. `near` and
+  `in_the_way` carry the full record - `kind`, `radius_m`, `distance_m` to
+  the centre, `surface_m` to the surface, `bearing_deg`, `closing_mps`,
+  `invulnerable` - and `in_the_way` adds `why`. Everything else is one
+  summary per `{distance band}.{bearing sector}` group with a `key`, a
+  `count` and the nearest surface, farthest surface and largest radius in it;
+  `observe {"expand": ["<key>"]}` opens one back up and `expanded` lists the
+  keys that actually opened, because a key can go stale as the ship moves. See
+  [Why the bodies are tiered](#why-the-bodies-are-tiered).
 - `ordnance` as `{inbound, outbound}` counts.
-- `inputs.live` (the wire names the game accepts now) and `inputs.held`.
-- `refused` (inputs the game did not take last act) and `commands` (answers
-  to `command` gestures).
+- `objective_log`: every objective card posted and completed, in order.
+- `cinematic` (only while a scene plays) as `{playing, skippable}`, and
+  `cheats_marked` (only when the run armed cheats).
+- `inputs.live` (the wire names that are not locked out), `inputs.held`, and
+  `inputs.shared`: the pairs of wire names that read one physical key. The
+  game declares that relation (`ActionBinding::follows`) and the channel
+  publishes it, so the referee refuses an act driving both sides of a pair
+  without the bench holding a table of its own.
+- `commands` (answers to `command` gestures).
 
 `bearing_deg` is `[azimuth, elevation]` from the nose: azimuth positive to
 starboard, elevation positive up. The wire names come from the live set in
 the view, never from a copy in the prompt, so a renamed input cannot go
 stale.
 
-The snapshot itself grew a `mission` block (objectives, outcome, comms), a
-`beacons` list, a `bodies` list and the ship's `autopilot` and
-`gravity_well` for this; see `nova_probe::capabilities::snapshot`.
+There is no `refused` list, because an input has no verdict to give. Every
+gate a pilot meets - needs a lock, needs a well, needs the stance, needs
+range - fires above the input layer, so a press that changed nothing looks
+exactly like one that did. The channel's `applied` block is an ECHO of the
+lines a frame consumed, `{line, input, phase, tick}`, and the agent reads the
+effect off the world: `autopilot.engaged`, `combat_lock`, `radar.dwell_fill`,
+`weapons_hot`, `bearing_deg`, `objectives`. A wire line the game could not
+parse is still an error, in `game_errors`, and always carries a message.
+
+The snapshot itself grew a `mission` block (objectives, outcome, comms, the
+objective log, the cinematic and the cheat mark), a `beacons` list, a
+`bodies` list and the ship's `autopilot`, `radar` and `gravity_well` for
+this; see `nova_probe::capabilities::snapshot`.
+
+### Why the bodies are tiered
+
+A scenario can field a hundred rocks. Enumerated in full they cost more
+tokens than the rest of the view together - measured over the first tutorial
+victory, `bodies` was about 14200 characters of a 20800-character view, two
+thirds of every observation, over a run that spent 1.18 M input tokens.
+
+Enumeration is also the wrong shape. What a pilot needs about a rock is not
+that it exists at 8 km: it is what is in the line of sight, what blocks the
+radar, what is on the GOTO path, and what the ship is about to hit. So each
+body is classified ALONE, as a pure function of that body and the ship's
+frame - no clustering, no seed, no iteration, no memory of the last view - so
+two observations of an unmoved world group identically and an agent can
+reason about a group across turns. The bands are a fixed ladder and the
+sectors are the four quarters, so a rock changes group only when it crosses
+an edge.
+
+Expansion is for detail, NEVER for safety: anything that can end the run is
+already in `near` or `in_the_way`.
 
 ## Agents
 
@@ -146,7 +205,9 @@ The snapshot itself grew a `mission` block (objectives, outcome, comms), a
   the referee, the score and the audit, and is what a CI check would run.
 - `pi`: spawns `pi --mode rpc` with the built-in tools off and the relay
   extension on, sends one prompt (the pilot manual in
-  `crates/nova_bench/src/manual.md`, the scenario, the goal, the first view)
+  `crates/nova_bench/src/manual.md`, the scenario, the goal, the first view;
+  the game knowledge behind it sits in `crates/nova_bench/src/pages/`, read
+  on demand through the `page` tool)
   and consumes the RPC event stream: assistant text, thinking, tool calls and
   usage land in the audit. `NOVA_BENCH_PI` names the binary when `pi` is
   not on the path. If pi settles with the run still open it is nudged once;
@@ -169,14 +230,15 @@ exit) and pi gets an abort.
 | Metric | Source |
 | --- | --- |
 | `outcome` | the mission outcome at the end: `victory`, `defeat`, `none` |
-| `objectives_seen`, `objectives_completed` | ids that appeared, and ids that then vanished before any defeat |
+| `objectives_seen`, `objectives_completed` | ids that appeared, and ids that then vanished before any defeat. The live list is sampled once per act, so both also fold in the mission block's objective log, which keeps a card posted and completed inside one act |
 | `ticks`, `game_seconds`, `wall_seconds` | the referee's clock |
 | `turns`, `gestures` | `act` calls, and the wire lines they expanded to |
 | `damage_taken` | the sum of health decreases on the player ship |
 | `sections_lost` | player sections that stopped being alive |
 | `ammo_spent` | the sum of `rounds` decreases across the player's mounts; a reload is an increase and does not count |
 | `kills` | `Enemy` ships that turned `defeated` |
-| `refusals` | channel error lines and refused inputs |
+| `bad_lines` | wire lines the game refused to parse: an unknown name, an axis driven as a button. The driver writing nonsense, never the game declining to act |
+| `cheated` | whether the run armed NOVA OS's cheats, copied from the snapshot's mark |
 | `llm` | pi only: messages, input, output, cached tokens and cost from the usage events |
 | `ended_by`, `agent_status`, `agent_report` | why it ended, and what the agent said |
 | `end` | where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, and the range to every contact, beacon and body |

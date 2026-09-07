@@ -307,8 +307,9 @@ impl Default for NovaOsCloseTransition {
 /// system entries, in the order the HUD observes them. Objective text updates
 /// edit the open posted entry rather than appending duplicate events.
 #[derive(Resource, Default, Debug, Clone)]
-pub(crate) struct NovaOsFlightLog {
-    pub(crate) entries: Vec<NovaOsFlightLogEntry>,
+pub struct NovaOsFlightLog {
+    /// Every logged event, in the order the HUD observed it.
+    pub entries: Vec<NovaOsFlightLogEntry>,
     pub(crate) active_objective_entries: Vec<NovaOsFlightLogActiveObjective>,
     pub(crate) previous_active: Vec<Objective>,
     pub(crate) seen_story: usize,
@@ -320,19 +321,30 @@ pub(crate) struct NovaOsFlightLogActiveObjective {
     pub(crate) entry_index: usize,
 }
 
+/// One row of the flight log: a comms line, an objective card going up or
+/// coming down, or the ship's own computer reporting something it did.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct NovaOsFlightLogEntry {
-    pub(crate) kind: NovaOsFlightLogEntryKind,
-    pub(crate) objective_id: Option<String>,
-    pub(crate) speaker: Option<String>,
-    pub(crate) message: String,
-    pub(crate) icon: Option<AssetRef<Image>>,
+pub struct NovaOsFlightLogEntry {
+    /// What kind of event this row records.
+    pub kind: NovaOsFlightLogEntryKind,
+    /// The objective this row is about, for the two objective kinds.
+    pub objective_id: Option<String>,
+    /// Who said it, for a comms row.
+    pub speaker: Option<String>,
+    /// The row's text, as the terminal prints it.
+    pub message: String,
+    /// The speaker's portrait, for a comms row.
+    pub icon: Option<AssetRef<Image>>,
 }
 
+/// What a [`NovaOsFlightLogEntry`] records.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NovaOsFlightLogEntryKind {
+pub enum NovaOsFlightLogEntryKind {
+    /// A line somebody said over the radio.
     Comms,
+    /// An objective card went up.
     ObjectivePosted,
+    /// An objective card came down: it was met.
     ObjectiveCompleted,
     /// The ship's own computer reporting something it did - a combat lock it
     /// let go of, for one. Nobody says it, so the row has no speaker.

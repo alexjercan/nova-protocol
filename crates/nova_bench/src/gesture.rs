@@ -55,6 +55,15 @@ impl Gesture {
         }
     }
 
+    /// The wire name this gesture drives, for the gestures that name one.
+    fn wire(&self) -> Option<&str> {
+        match self {
+            Self::Press(wire) | Self::Release(wire) | Self::Tap(wire) => Some(wire),
+            Self::Aim { wire, .. } => Some(wire),
+            Self::Command(_) | Self::Text(_) | Self::Key(_) | Self::Pointer(_) => None,
+        }
+    }
+
     /// A one-line label for the audit and the log.
     pub fn label(&self) -> String {
         match self {
@@ -72,9 +81,23 @@ impl Gesture {
     }
 }
 
+/// Wire names that are two readings of ONE physical key. The game binds
+/// `radar_clear` as a tap and `radar_hold` as a hold on the same key and
+/// threshold, by design: a short press clears, a long one searches.
+///
+/// One act stamps its instant gestures onto one tick, so an act carrying both
+/// names hands the key two contradictory readings and the tap never fires.
+/// Nothing downstream can report that - a press has no verdict to give - so
+/// the expander refuses the pair here, where the agent still gets a message it
+/// can act on.
 /// Parse the `gestures` array of an `act` request. Every element is one
 /// object with exactly one verb key; the error names the element and the
 /// reason so an agent can correct itself.
+///
+/// This is a SHAPE check only. Whether two of the gestures fight over one
+/// physical key depends on the bindings the game is running, so it is
+/// [`check_shared_keys`], which the referee calls with the pairs the world
+/// reported.
 pub fn parse_gestures(value: &Value) -> Result<Vec<Gesture>, String> {
     let Some(list) = value.as_array() else {
         return Err("`gestures` must be an array of gesture objects".into());
@@ -83,6 +106,44 @@ pub fn parse_gestures(value: &Value) -> Result<Vec<Gesture>, String> {
         .enumerate()
         .map(|(index, item)| {
             parse_gesture(item).map_err(|reason| format!("gesture {index}: {reason}"))
+        })
+        .collect()
+}
+
+/// Refuse an act that drives both readings of one key.
+///
+/// `shared` is the world's own `inputs.shared`: each pair is an action and the
+/// shadow that follows it onto the same physical key - a short press read
+/// against a long one. An act driving both hands the rig contradictory input
+/// and neither reading fires cleanly. The pairs are NOT a table here, because
+/// the game declares the relation and a driver copy would go stale the day
+/// someone declares a second one.
+pub fn check_shared_keys(gestures: &[Gesture], shared: &[[String; 2]]) -> Result<(), String> {
+    let driven: Vec<&str> = gestures.iter().filter_map(Gesture::wire).collect();
+    for [first, second] in shared {
+        if driven.contains(&first.as_str()) && driven.contains(&second.as_str()) {
+            return Err(format!(
+                "`{first}` and `{second}` are two readings of one key: an act that drives both \
+                 hands it contradictory input and neither reading lands. Put the second one in \
+                 the next act."
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The `input.shared` pairs of a raw snapshot, as [`check_shared_keys`] takes
+/// them. A snapshot without the key reports no pairs, which is what a world
+/// with no shadow action reports too.
+pub fn shared_keys(snapshot: &Value) -> Vec<[String; 2]> {
+    snapshot["input"]["shared"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|pair| {
+            let first = pair.get(0)?.as_str()?.to_string();
+            let second = pair.get(1)?.as_str()?.to_string();
+            Some([first, second])
         })
         .collect()
 }
@@ -224,6 +285,52 @@ mod tests {
         assert!(parse_gestures(&json!([{ "press": "a", "tap": "b" }])).is_err());
         assert!(parse_gestures(&json!([{ "aim": "x" }])).is_err());
         assert!(parse_gestures(&json!({})).is_err());
+    }
+
+    /// Both refusals of the first tutorial victory were this pair, and the
+    /// silent trigger that used to hint at it is gone: the act is refused
+    /// here instead, with a message that says what to do next.
+    #[test]
+    fn one_act_cannot_drive_both_readings_of_a_shared_key() {
+        let world = json!({
+            "input": { "shared": [["targeting.radar_hold", "targeting.radar_clear"]] }
+        });
+        let pairs = shared_keys(&world);
+        let both = parse_gestures(&json!([
+            { "release": "targeting.radar_hold" },
+            { "tap": "targeting.radar_clear" },
+        ]))
+        .unwrap();
+        let error = check_shared_keys(&both, &pairs).unwrap_err();
+        assert!(error.contains("two readings of one key"), "{error}");
+        assert!(error.contains("next act"), "{error}");
+
+        // Either one alone is ordinary.
+        let alone = parse_gestures(&json!([{ "tap": "targeting.radar_clear" }])).unwrap();
+        assert!(check_shared_keys(&alone, &pairs).is_ok());
+        let unrelated = parse_gestures(&json!([
+            { "release": "targeting.radar_hold" },
+            { "press": "flight.main_drive" },
+        ]))
+        .unwrap();
+        assert!(check_shared_keys(&unrelated, &pairs).is_ok());
+    }
+
+    /// The pairs come from the world, so a game that declares a second shadow
+    /// is guarded without the bench being taught about it.
+    #[test]
+    fn a_pair_the_world_declares_is_guarded_without_a_table_here() {
+        let world = json!({ "input": { "shared": [["flight.stop", "flight.stop_hard"]] } });
+        let gestures = parse_gestures(&json!([
+            { "tap": "flight.stop" },
+            { "tap": "flight.stop_hard" },
+        ]))
+        .unwrap();
+        let error = check_shared_keys(&gestures, &shared_keys(&world)).unwrap_err();
+        assert!(error.contains("flight.stop_hard"), "{error}");
+
+        // And a world that declares none guards nothing.
+        assert!(check_shared_keys(&gestures, &shared_keys(&json!({}))).is_ok());
     }
 
     #[test]

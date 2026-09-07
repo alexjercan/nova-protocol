@@ -16,7 +16,7 @@ use crate::{
     audit::{BenchEvent, Bus},
     cli::BudgetArgs,
     game::{GameChannel, BOOT_TIMEOUT, STEP_TIMEOUT},
-    gesture::{expand, parse_gestures, Gesture},
+    gesture::{check_shared_keys, expand, parse_gestures, shared_keys, Gesture},
     observation::condense,
     score::{end_state, Scorer},
 };
@@ -112,7 +112,7 @@ impl<G: GameChannel> Referee<G> {
             });
         }
         self.check_end();
-        Ok(self.observe())
+        Ok(self.observe(&[]))
     }
 
     /// Whether the run has ended.
@@ -152,11 +152,16 @@ impl<G: GameChannel> Referee<G> {
 
     /// The pilot's view now: the last snapshot condensed, plus the clock, the
     /// budget left and whether the run is over. Free - the clock stands.
-    pub fn observe(&self) -> Value {
+    ///
+    /// `expand` names the body groups to open in full. An expansion is a
+    /// second read of the snapshot already in hand, so it costs tokens and
+    /// never game time - which is why it lives on `observe` rather than on a
+    /// tool of its own.
+    pub fn observe(&self, expand: &[String]) -> Value {
         let view = self
             .last
             .as_ref()
-            .map(|snapshot| condense(snapshot, &self.held))
+            .map(|snapshot| condense(snapshot, &self.held, expand))
             .unwrap_or_else(|| json!({}));
         let mut ordered = Map::new();
         ordered.insert("tick".into(), json!(self.tick));
@@ -192,16 +197,16 @@ impl<G: GameChannel> Referee<G> {
     /// with `over: true` and moves nothing.
     pub fn act(&mut self, gestures: &[Gesture], ticks: u64) -> Value {
         if self.check_deadline() {
-            return self.observe();
+            return self.observe(&[]);
         }
         if self.scorer.score.turns >= self.budget.turns {
             self.end("turns");
-            return self.observe();
+            return self.observe(&[]);
         }
         let remaining = self.budget.ticks.saturating_sub(self.tick);
         if remaining == 0 {
             self.end("ticks");
-            return self.observe();
+            return self.observe(&[]);
         }
         let expansion = expand(gestures, self.tick, ticks.min(remaining), &mut self.held);
         self.scorer.score.turns += 1;
@@ -209,7 +214,7 @@ impl<G: GameChannel> Referee<G> {
         for line in &expansion.lines {
             if let Err(error) = self.send(line) {
                 self.end(&format!("game_error: {error}"));
-                return self.observe();
+                return self.observe(&[]);
             }
         }
         match self.game.read_answer(STEP_TIMEOUT) {
@@ -220,7 +225,7 @@ impl<G: GameChannel> Referee<G> {
             }
             Err(error) => self.end(&format!("game_error: {error}")),
         }
-        self.observe()
+        self.observe(&[])
     }
 
     /// The agent declares itself finished. The status and report are
@@ -248,16 +253,26 @@ impl<G: GameChannel> Referee<G> {
 
     fn answer(&mut self, request: &Value) -> Value {
         let Some(object) = request.as_object() else {
-            return json!({ "error": "a request is one object: {\"observe\": {}}, {\"act\": {...}} or {\"finish\": {...}}" });
+            return json!({ "error": "a request is one object: {\"observe\": {}}, {\"act\": {...}}, {\"page\": {...}} or {\"finish\": {...}}" });
         };
-        if object.contains_key("observe") {
-            return json!({ "ok": self.observe() });
+        if let Some(observe) = object.get("observe") {
+            let expand = match parse_expand(observe.get("expand")) {
+                Ok(expand) => expand,
+                Err(error) => return json!({ "error": error }),
+            };
+            return json!({ "ok": self.observe(&expand) });
         }
         if let Some(act) = object.get("act") {
             let gestures = match parse_gestures(act.get("gestures").unwrap_or(&json!([]))) {
                 Ok(gestures) => gestures,
                 Err(error) => return json!({ "error": error }),
             };
+            // The world says which actions share a physical key, so a game
+            // that declares a new shadow is guarded here without an edit.
+            let shared = self.last.as_ref().map(shared_keys).unwrap_or_default();
+            if let Err(error) = check_shared_keys(&gestures, &shared) {
+                return json!({ "error": error });
+            }
             let ticks = match act.get("ticks") {
                 None | Some(Value::Null) => DEFAULT_ACT_TICKS,
                 Some(value) => match value.as_u64() {
@@ -269,13 +284,26 @@ impl<G: GameChannel> Referee<G> {
             };
             return json!({ "ok": self.act(&gestures, ticks) });
         }
+        if let Some(request) = object.get("page") {
+            let Some(name) = request.get("name").and_then(Value::as_str) else {
+                return json!({
+                    "error": format!("`page` takes a page name: {}", crate::manual::page_names())
+                });
+            };
+            return match crate::manual::page(name) {
+                Some(text) => json!({ "ok": { "page": name, "text": text } }),
+                None => json!({
+                    "error": format!("no page `{name}`; the pages are {}", crate::manual::page_names())
+                }),
+            };
+        }
         if let Some(finish) = object.get("finish") {
             let status = finish["status"].as_str().unwrap_or("done");
             let report = finish["report"].as_str().unwrap_or("");
             self.finish(status, report);
             return json!({ "ok": { "over": true, "ended_by": self.over } });
         }
-        json!({ "error": "unknown request; send observe, act or finish" })
+        json!({ "error": "unknown request; send observe, act, page or finish" })
     }
 
     /// End the run for `reason` if the wall clock is spent. Returns whether
@@ -296,7 +324,9 @@ impl<G: GameChannel> Referee<G> {
         self.scorer.score.ended_by = reason.to_string();
         self.stamp_clock();
         if let Some(last) = &self.last {
-            self.scorer.score.end = end_state(&condense(last, &self.held));
+            // The end state grades an open goal, so it reads every body, not
+            // the pilot's summary of them.
+            self.scorer.score.end = end_state(&condense(last, &self.held, &["all".to_string()]));
         }
         self.bus.emit(BenchEvent::RunEnd {
             reason: reason.to_string(),
@@ -312,14 +342,14 @@ impl<G: GameChannel> Referee<G> {
 
     fn absorb(&mut self, snapshot: Value, errors: Vec<Value>) {
         self.scorer.observe(&snapshot);
-        self.scorer.channel_errors(errors.len() as u64);
+        self.scorer.bad_lines(errors.len() as u64);
         self.stamp_clock();
         for error in &errors {
             self.bus.emit(BenchEvent::Refusal {
                 detail: json!({ "game": error["error"], "line": error["line"] }),
             });
         }
-        let observation = condense(&snapshot, &self.held);
+        let observation = condense(&snapshot, &self.held, &[]);
         self.bus.emit(BenchEvent::ChannelIn {
             tick: self.tick,
             observation,
@@ -349,6 +379,25 @@ impl<G: GameChannel> Referee<G> {
 
     fn game_seconds(&self) -> f64 {
         (self.tick as f64 / TICKS_PER_SECOND as f64 * 100.0).round() / 100.0
+    }
+}
+
+/// The `expand` list of an `observe` request: the body-group keys to open in
+/// full. Absent is the summary view; `all` opens every group.
+fn parse_expand(value: Option<&Value>) -> Result<Vec<String>, String> {
+    match value {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(keys)) => keys
+            .iter()
+            .map(|key| {
+                key.as_str()
+                    .map(ToString::to_string)
+                    .ok_or_else(|| format!("`expand` takes group keys as strings, not {key}"))
+            })
+            .collect(),
+        Some(other) => Err(format!(
+            "`expand` is an array of group keys, like [\"5-10km.astern\"], not {other}"
+        )),
     }
 }
 
@@ -519,6 +568,29 @@ mod tests {
         assert_eq!(reply["ok"]["ended_by"], "finish");
         assert_eq!(referee.score_json()["agent_status"], "gave_up");
         assert_eq!(referee.score_json()["agent_report"], "Cannot find it.");
+    }
+
+    /// The two free reads: a manual page, and one body group opened up. What
+    /// the agent chose to look at lands in the audit either way.
+    #[test]
+    fn a_page_and_an_expansion_are_free_reads_that_move_no_clock() {
+        let game = Scripted::new(vec![world(600.0, None), world(600.0, None)]);
+        let mut referee = Referee::new(game, Bus::quiet(), budget(18_000, 300), false);
+        referee.start().unwrap();
+
+        let reply = referee.handle(&json!({ "page": { "name": "targeting" } }));
+        assert!(reply["ok"]["text"].as_str().unwrap().contains("dwell"));
+        let reply = referee.handle(&json!({ "page": { "name": "warp-drive" } }));
+        assert!(reply["error"].as_str().unwrap().contains("the pages are"));
+
+        let reply = referee.handle(&json!({ "observe": { "expand": ["5-10km.bow"] } }));
+        assert_eq!(reply["ok"]["tick"], 1);
+        let reply = referee.handle(&json!({ "observe": { "expand": "everything" } }));
+        assert!(reply["error"]
+            .as_str()
+            .unwrap()
+            .contains("array of group keys"));
+        assert_eq!(referee.tick(), 1, "neither read moved the clock");
     }
 
     #[test]

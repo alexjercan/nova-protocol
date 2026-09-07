@@ -1217,6 +1217,10 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
+                        key: "target_1_locked",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
                         key: "drones_down",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
@@ -1934,6 +1938,10 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "target_1_locked",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     HintEmphasisClear((
                         verb: "RADAR",
                     )),
@@ -1976,6 +1984,10 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("target_1_down"))),
+                        Term(Factor(Literal(Number(0.5)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("target_1_locked"))),
                         Term(Factor(Literal(Number(0.5)))),
                     ))),
                 ],

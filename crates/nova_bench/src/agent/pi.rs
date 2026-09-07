@@ -63,12 +63,16 @@ impl PiConfig {
             "--no-context-files",
             "--no-builtin-tools",
             "--tools",
-            "observe,act,finish",
-            "--extension",
         ]
         .iter()
         .map(ToString::to_string)
         .collect();
+        // The nix `pi` wrapper appends `--extension` flags of its own, so this
+        // allowlist is what keeps them out. It is built from the manual's tool
+        // table rather than spelled here, because a tool missing from it is
+        // filtered out at run time with no error anywhere.
+        args.push(crate::manual::tool_list());
+        args.push("--extension".into());
         args.push(self.extension.display().to_string());
         args.push("--system-prompt".into());
         args.push(self.system_prompt.clone());
@@ -334,9 +338,14 @@ mod tests {
         let args = config.args();
         assert_eq!(&args[..2], ["--mode", "rpc"]);
         assert!(args.contains(&"--no-builtin-tools".to_string()));
+        let tools = crate::manual::tool_list();
         assert!(args
             .windows(2)
-            .any(|pair| pair == ["--tools", "observe,act,finish"]));
+            .any(|pair| pair == ["--tools".to_string(), tools.clone()]));
+        assert!(
+            tools.contains("page"),
+            "the allowlist must carry every tool"
+        );
         assert!(args
             .windows(2)
             .any(|pair| pair == ["--model", "gpt-5.6-luna"]));

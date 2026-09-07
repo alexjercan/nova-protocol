@@ -176,7 +176,7 @@ fn run_stepped(app: &mut App, lines: &Receiver<(usize, String)>) -> AppExit {
                     stage(app, scheduled.remove(&(tick + 1)).unwrap_or_default());
                     app.update();
                     tick += 1;
-                    collect(app, &mut applied);
+                    collect(app, &mut applied, tick);
                     if let Some(exit) = app.should_exit() {
                         return exit;
                     }
@@ -243,7 +243,7 @@ fn run_free(app: &mut App, lines: &Receiver<(usize, String)>) -> AppExit {
         stage(app, due);
         app.update();
         tick += 1;
-        collect(app, &mut applied);
+        collect(app, &mut applied, tick);
         if let Some(exit) = app.should_exit() {
             return exit;
         }
@@ -264,10 +264,10 @@ fn stage(app: &mut App, staged: Vec<(usize, Lane)>) {
     }
 }
 
-/// After a frame: echo its refusals and bank its acks (each named action's
-/// `TriggerState` read now, after the frame evaluated).
-fn collect(app: &mut App, applied: &mut Vec<serde_json::Value>) {
-    let (acks, errors) = drain_acks(app.world_mut());
+/// After a frame: echo its refusals and bank its acks, stamped with the tick
+/// the frame just finished.
+fn collect(app: &mut App, applied: &mut Vec<serde_json::Value>, tick: u64) {
+    let (acks, errors) = drain_acks(app.world_mut(), tick);
     for (line_no, message) in errors {
         emit_error(&message, line_no);
     }
@@ -310,7 +310,23 @@ fn input_block(world: &World) -> serde_json::Value {
         .collect();
     contexts.sort();
     contexts.dedup();
-    serde_json::json!({ "live": live, "contexts": contexts })
+    // A shadow action reads the SAME physical key as the one it follows - a
+    // short press against a long one - so a frame carrying both hands the rig
+    // contradictory input and neither reading fires cleanly. The registry is
+    // where that relation is declared, so it is published here rather than
+    // copied into every driver that has to avoid it.
+    let mut shared: Vec<[String; 2]> = bindings
+        .iter()
+        .filter_map(|action| {
+            let leader = bindings.get(action.follows?)?;
+            Some([
+                wire_name(leader.group, leader.name),
+                wire_name(action.group, action.name),
+            ])
+        })
+        .collect();
+    shared.sort();
+    serde_json::json!({ "live": live, "contexts": contexts, "shared": shared })
 }
 
 /// Write one line to stdout. `false` means the client hung up, which ends a

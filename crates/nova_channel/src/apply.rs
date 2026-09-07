@@ -32,7 +32,7 @@ use nova_autopilot::prelude::{
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker};
 use nova_input::prelude::{
-    dispatch, ActionName, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
+    dispatch, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
 };
 use nova_os::prelude::{
     command_shell_specs, resolve_command_line, CommandChannel, CommandClass, CommandOutcome,
@@ -73,7 +73,16 @@ pub struct ChannelAck {
     pub errors: Vec<(usize, String)>,
 }
 
-/// One line's ack.
+/// One line's ack: an ECHO of a line this frame consumed, never a verdict on
+/// what it did.
+///
+/// A button press has no verdict to give. Every gate a pilot actually meets -
+/// needs a lock, needs a well, needs the stance, needs range - fires at the
+/// input layer and stops above it, so an ack that claimed to know would be
+/// wrong in both directions. A driver reads the effect off the world, the way
+/// a player reads it off the HUD. A line the wire itself cannot parse - an
+/// unknown name, an axis driven as a button - is still an ERROR, because that
+/// is the driver writing nonsense rather than the game deciding anything.
 #[derive(Debug, Clone)]
 pub struct AppliedEntry {
     /// The stdin line this acknowledges.
@@ -83,24 +92,9 @@ pub struct AppliedEntry {
     /// The gesture half: `start` / `stop` / `delta` / `type` / `tap` /
     /// `move` / `press` / `release` / `wheel`.
     pub phase: String,
-    /// The outcome, or the named action whose `TriggerState` answers it.
-    pub state: AckState,
     /// Free-running only: the line named a tick that had already passed, so it
     /// was applied on the next frame instead.
     pub late: bool,
-}
-
-/// How an ack's `state` field resolves.
-#[derive(Debug, Clone)]
-pub enum AckState {
-    /// Known at apply time: `Fired` for a landed raw gesture, `refused` for a
-    /// name whose context is not live.
-    Done(String),
-    /// A named action: the runner reads its [`TriggerState`] AFTER the frame
-    /// evaluated, which is how a driver observes "the press did nothing".
-    ///
-    /// [`TriggerState`]: bevy_enhanced_input::prelude::TriggerState
-    Action(String),
 }
 
 /// The pointer lane, in the picking backend's own slot.
@@ -203,9 +197,10 @@ fn apply_command(world: &mut World, line: usize, text: &str) {
 ///
 /// Deliberately NOT the internal scenario action a cheat may have run: a driver
 /// contracts against the public command vocabulary, not the enum behind it.
-fn command_ack(line: u64, result: &CommandResult) -> serde_json::Value {
+fn command_ack(line: u64, tick: u64, result: &CommandResult) -> serde_json::Value {
     serde_json::json!({
         "line": line,
+        "tick": tick,
         "command": result.command,
         "class": result.class.map(CommandClass::label),
         "state": result.status.label(),
@@ -234,17 +229,13 @@ fn apply_input(world: &mut World, line: usize, wire: &str, phase: InputPhase) {
     let Some(context) = known else {
         return refuse(world, line, format!("no action named `{wire}`"));
     };
+    // A lowered context swallows the press exactly as it swallows a player's
+    // key. `input.live` is what says so; the ack only ever echoes the line.
     if !world.resource::<ActiveContexts>().is_live(context) {
-        return ack(
-            world,
-            entry(line, wire, phase_word, AckState::Done("refused".into())),
-        );
+        return ack(world, entry(line, wire, phase_word));
     }
     match dispatch::apply(world, name, phase) {
-        Ok(()) => ack(
-            world,
-            entry(line, wire, phase_word, AckState::Action(name.to_string())),
-        ),
+        Ok(()) => ack(world, entry(line, wire, phase_word)),
         Err(DispatchError::NoButton(_)) => {
             refuse(
                 world,
@@ -265,16 +256,10 @@ fn apply_section(world: &mut World, line: usize, id: &str, phase: InputPhase, ph
         .resource::<ActiveContexts>()
         .is_live(nova_input::prelude::ActionContext::Flight)
     {
-        return ack(
-            world,
-            entry(line, &wire, phase_word, AckState::Done("refused".into())),
-        );
+        return ack(world, entry(line, &wire, phase_word));
     }
     dispatch::press_source(world, source, phase);
-    ack(
-        world,
-        entry(line, &wire, phase_word, AckState::Done("Fired".into())),
-    );
+    ack(world, entry(line, &wire, phase_word));
 }
 
 /// The first bound source of the player-ship section whose authored id is
@@ -330,16 +315,10 @@ fn apply_aim(world: &mut World, line: usize, wire: &str, delta: Vec2) {
         return refuse(world, line, format!("no action named `{wire}`"));
     };
     if !world.resource::<ActiveContexts>().is_live(context) {
-        return ack(
-            world,
-            entry(line, wire, "delta", AckState::Done("refused".into())),
-        );
+        return ack(world, entry(line, wire, "delta"));
     }
     match dispatch::apply_axis(world, name, delta) {
-        Ok(()) => ack(
-            world,
-            entry(line, wire, "delta", AckState::Done("Fired".into())),
-        ),
+        Ok(()) => ack(world, entry(line, wire, "delta")),
         Err(DispatchError::NoAxis(_)) => {
             refuse(world, line, format!("`{wire}` is not driven by an axis"));
         }
@@ -373,10 +352,7 @@ fn apply_text(world: &mut World, line: usize, text: &str) {
             None,
         );
     }
-    ack(
-        world,
-        entry(line, "text", "type", AckState::Done("Fired".into())),
-    );
+    ack(world, entry(line, "text", "type"));
 }
 
 // -- key ----------------------------------------------------------------------
@@ -413,15 +389,7 @@ fn apply_key(world: &mut World, line: usize, key: &str) {
         .resource_mut::<ChannelFrame>()
         .key_releases
         .push((code, logical));
-    ack(
-        world,
-        entry(
-            line,
-            &format!("key.{key}"),
-            "tap",
-            AckState::Done("Fired".into()),
-        ),
-    );
+    ack(world, entry(line, &format!("key.{key}"), "tap"));
 }
 
 fn write_keyboard(
@@ -451,7 +419,7 @@ fn write_keyboard(
 // -- pointer ------------------------------------------------------------------
 
 fn apply_pointer(world: &mut World, line: usize, cmd: &PointerCmd) {
-    let done = |phase: &str| entry(line, "pointer", phase, AckState::Done("Fired".into()));
+    let done = |phase: &str| entry(line, "pointer", phase);
     match cmd {
         PointerCmd::To(PointerTarget::Name(name)) => {
             if ui_node_rect(world, name).is_none() {
@@ -481,34 +449,32 @@ fn apply_pointer(world: &mut World, line: usize, cmd: &PointerCmd) {
 
 // -- ack assembly -------------------------------------------------------------
 
-fn entry(line: usize, input: &str, phase: &str, state: AckState) -> AppliedEntry {
+fn entry(line: usize, input: &str, phase: &str) -> AppliedEntry {
     AppliedEntry {
         line,
         input: input.to_string(),
         phase: phase.to_string(),
-        state,
         late: false,
     }
 }
 
-/// Resolve the frame's acks into `applied` JSON entries, reading each named
-/// action's [`TriggerState`] off the rig NOW - after the frame evaluated.
+/// Resolve the frame's acks into `applied` JSON entries, stamped with the tick
+/// the frame just finished.
 ///
-/// [`TriggerState`]: bevy_enhanced_input::prelude::TriggerState
-pub fn drain_acks(world: &mut World) -> (Vec<serde_json::Value>, Vec<(usize, String)>) {
+/// An input entry is `{line, input, phase, tick}` and says nothing more: the
+/// frame consumed this line. A command entry keeps its `state`, `detail` and
+/// `rows`, because a command IS a request the shell answers - see
+/// [`AppliedEntry`] for why the two differ.
+pub fn drain_acks(world: &mut World, tick: u64) -> (Vec<serde_json::Value>, Vec<(usize, String)>) {
     let ChannelAck { applied, errors } = std::mem::take(&mut *world.resource_mut::<ChannelAck>());
     let mut applied: Vec<serde_json::Value> = applied
         .into_iter()
         .map(|entry| {
-            let state = match entry.state {
-                AckState::Done(state) => state,
-                AckState::Action(name) => action_state(world, &name),
-            };
             let mut record = serde_json::json!({
                 "line": entry.line,
                 "input": entry.input,
                 "phase": entry.phase,
-                "state": state,
+                "tick": tick,
             });
             if entry.late {
                 record["late"] = serde_json::Value::Bool(true);
@@ -523,30 +489,10 @@ pub fn drain_acks(world: &mut World) -> (Vec<serde_json::Value>, Vec<(usize, Str
             channel
                 .drain_answers()
                 .into_iter()
-                .map(|(source, result)| command_ack(source.seq, &result)),
+                .map(|(source, result)| command_ack(source.seq, tick, &result)),
         );
     }
     (applied, errors)
-}
-
-/// The strongest `TriggerState` any rig entity holding this registry name
-/// reports: `Fired` beats `Ongoing` beats `None`. No rig entity (the action is
-/// registered but nothing spawned it - no ship on the field) reads as `None`,
-/// the same answer a dead press gives.
-fn action_state(world: &mut World, name: &str) -> String {
-    use bevy_enhanced_input::prelude::TriggerState;
-    let strongest = world
-        .query::<(&TriggerState, &ActionName)>()
-        .iter(world)
-        .filter(|(_, action)| action.0 == name)
-        .map(|(state, _)| *state)
-        .max_by_key(|state| match state {
-            TriggerState::None => 0,
-            TriggerState::Ongoing => 1,
-            TriggerState::Fired => 2,
-        })
-        .unwrap_or(TriggerState::None);
-    format!("{strongest:?}")
 }
 
 #[cfg(test)]
@@ -583,10 +529,11 @@ mod tests {
         apply_command(&mut world, 3, "graphix");
         assert!(!world.resource::<CommandChannel>().has_pending());
 
-        let (applied, errors) = drain_acks(&mut world);
+        let (applied, errors) = drain_acks(&mut world, 42);
         assert!(errors.is_empty());
         assert_eq!(applied.len(), 1);
         assert_eq!(applied[0]["line"], 3);
+        assert_eq!(applied[0]["tick"], 42);
         assert_eq!(applied[0]["state"], "error");
         assert_eq!(applied[0]["command"], "graphix");
     }
@@ -597,9 +544,11 @@ mod tests {
     fn a_command_ack_carries_the_command_its_class_and_its_result() {
         let ack = command_ack(
             9,
+            120,
             &CommandResult::ok("graphics", CommandClass::Setting, "graphics: low"),
         );
         assert_eq!(ack["line"], 9);
+        assert_eq!(ack["tick"], 120);
         assert_eq!(ack["command"], "graphics");
         assert_eq!(ack["class"], "setting");
         assert_eq!(ack["state"], "ok");
@@ -611,24 +560,8 @@ mod tests {
     fn a_line_staged_late_acks_late() {
         let mut world = ack_world();
         world.resource_mut::<ChannelFrame>().late_lines.insert(7);
-        ack(
-            &mut world,
-            entry(
-                7,
-                "flight.main_drive",
-                "start",
-                AckState::Done("Fired".into()),
-            ),
-        );
-        ack(
-            &mut world,
-            entry(
-                8,
-                "flight.main_drive",
-                "stop",
-                AckState::Done("None".into()),
-            ),
-        );
+        ack(&mut world, entry(7, "flight.main_drive", "start"));
+        ack(&mut world, entry(8, "flight.main_drive", "stop"));
         let acks = &world.resource::<ChannelAck>().applied;
         assert!(acks[0].late, "line 7 was staged late");
         assert!(!acks[1].late, "line 8 was on time");
@@ -638,30 +571,29 @@ mod tests {
     fn only_a_late_ack_serializes_the_flag() {
         let mut world = ack_world();
         world.resource_mut::<ChannelFrame>().late_lines.insert(7);
-        ack(
-            &mut world,
-            entry(
-                7,
-                "flight.main_drive",
-                "start",
-                AckState::Done("Fired".into()),
-            ),
-        );
-        ack(
-            &mut world,
-            entry(
-                8,
-                "flight.main_drive",
-                "stop",
-                AckState::Done("None".into()),
-            ),
-        );
-        let (applied, errors) = drain_acks(&mut world);
+        ack(&mut world, entry(7, "flight.main_drive", "start"));
+        ack(&mut world, entry(8, "flight.main_drive", "stop"));
+        let (applied, errors) = drain_acks(&mut world, 9);
         assert!(errors.is_empty());
         assert_eq!(applied[0]["late"], serde_json::Value::Bool(true));
         assert!(
             applied[1].get("late").is_none(),
             "on time: no flag on the wire"
+        );
+    }
+
+    /// The echo rule, pinned: an input ack carries the line, the name, the
+    /// half and the tick - and no verdict on what the press achieved.
+    #[test]
+    fn an_input_ack_is_an_echo_with_no_verdict_field() {
+        let mut world = ack_world();
+        ack(&mut world, entry(4, "flight.main_drive", "start"));
+        let (applied, _) = drain_acks(&mut world, 61);
+        assert_eq!(
+            applied[0],
+            serde_json::json!({
+                "line": 4, "input": "flight.main_drive", "phase": "start", "tick": 61
+            })
         );
     }
 }

@@ -19,7 +19,7 @@ pub fn run<G: GameChannel>(referee: &mut Referee<G>) -> String {
         if referee.is_over() {
             return "agent_exit".into();
         }
-        let view = referee.observe();
+        let view = referee.observe(&[]);
         seen_hostile |= hostiles(&view).next().is_some();
         let request = match decide(&view, seen_hostile) {
             Decision::Act(gestures) => {

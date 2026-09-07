@@ -1,10 +1,12 @@
-// The nova_bench relay extension for pi: three tools, each one JSON line to
-// the referee's unix socket at NOVA_BENCH_SOCKET and one line back. The
-// referee owns the clock and the score; this file owns nothing.
+// The nova_bench relay extension for pi: one tool per referee request, each
+// one JSON line to the referee's unix socket at NOVA_BENCH_SOCKET and one line
+// back. The referee owns the clock and the score; this file owns nothing.
 //
-// Loaded by `bench play --agent pi` as
-//   pi --mode rpc --no-builtin-tools --tools observe,act,finish -e tools/nova_bench/pi/index.ts
-// and never meant for an interactive session.
+// Loaded by `bench play --agent pi`, which builds the `--tools` allowlist from
+// `nova_bench::manual::TOOLS` and holds this file to it in a test. Registering
+// a tool here that the referee does not answer, or leaving one out, fails
+// there rather than silently at run time. Never meant for an interactive
+// session.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -71,10 +73,18 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "observe",
     label: "Observe",
-    description: "The pilot's current view of the game. Free: the clock does not move.",
-    parameters: Type.Object({}),
-    async execute() {
-      return reply(await ask({ observe: {} }));
+    description:
+      "The pilot's current view of the game. Free: the clock does not move. " +
+      "`expand` names body groups to open in full, by the `key` the view gives them.",
+    parameters: Type.Object({
+      expand: Type.Optional(
+        Type.Array(Type.String(), {
+          description: 'Body group keys to open in full, e.g. ["5-10km.astern"].',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      return reply(await ask({ observe: { expand: params.expand } }));
     },
   });
 
@@ -92,6 +102,20 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       return reply(await ask({ act: { gestures: params.gestures, ticks: params.ticks ?? 30 } }));
+    },
+  });
+
+  pi.registerTool({
+    name: "page",
+    label: "Page",
+    description:
+      "Read one page of the flight manual by name. The manual lists the pages, and a wrong " +
+      "name answers with the list. Free: the clock does not move.",
+    parameters: Type.Object({
+      name: Type.String({ description: "The page name." }),
+    }),
+    async execute(_toolCallId, params) {
+      return reply(await ask({ page: { name: params.name } }));
     },
   });
 

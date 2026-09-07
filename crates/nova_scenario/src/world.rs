@@ -137,6 +137,13 @@ impl SequenceRun {
             })
     }
 
+    /// Whether this run is a scene the player is sitting through right now.
+    fn is_playing_cinematic(&self) -> bool {
+        !self.stopped
+            && self.step < self.steps.len()
+            && self.cinematic.as_ref().is_some_and(|scene| !scene.ended)
+    }
+
     /// Claim this run's one ending, or `None` if it is not a scene or has
     /// already reported.
     fn end_cinematic(&mut self, skipped: bool) -> Option<CinematicEnding> {
@@ -787,6 +794,15 @@ impl NovaEventWorld {
         self.cinematic_title
             .as_ref()
             .map(|(config, _)| (config, age))
+    }
+
+    /// The key of the scene playing right now, skippable or not. The letterbox
+    /// is up and the flight controls are the scene's, not the player's.
+    pub fn playing_cinematic(&self) -> Option<&str> {
+        self.sequences
+            .iter()
+            .find(|run| run.is_playing_cinematic())
+            .map(|run| run.key.as_str())
     }
 
     /// The key of the scene the player may leave right now, for the HUD prompt.

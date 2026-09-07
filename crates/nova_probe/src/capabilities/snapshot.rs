@@ -43,9 +43,12 @@
 //!   invulnerable. A rock that was carved away is simply gone from the list.
 //! - `mission` - what the player is being asked to do: the `objectives` on the
 //!   HUD, the declared `outcome` (`null` in play, else the Victory or Defeat
-//!   banner with its message), and the `comms` lines the story feed has
-//!   delivered so far. What an external pilot reads its goal from, and what a
-//!   referee scores a driven run against (task 20260824-125933).
+//!   banner with its message), the `comms` lines the story feed has delivered
+//!   so far, the objective `log` behind them (every card posted and completed,
+//!   in order - what NOVA OS's `log` command prints), the `cinematic` playing
+//!   over the top and whether it may be skipped, and the run's `cheats` mark.
+//!   What an external pilot reads its goal from, and what a referee scores a
+//!   driven run against (task 20260824-125933).
 //!
 //! ## Why the skin, and why in this much detail
 //!
@@ -114,7 +117,7 @@ use nova_gameplay::{
     prelude::{
         Allegiance, BeaconLabel, BeaconMarker, DefeatedMarker, DominantWell, GameObjectives,
         Health, HealthZeroMarker, IntegrityDisabledMarker, NeutralizedMarker, ProjectileDamage,
-        ProjectileOwner, SectionClass, SectionMarker, SpaceshipRootMarker, TempEntity,
+        ProjectileOwner, RunCheats, SectionClass, SectionMarker, SpaceshipRootMarker, TempEntity,
         TempEntityState, TorpedoProjectileMarker, TurretBulletProjectileMarker,
     },
     GameStates, PauseStates,
@@ -123,7 +126,7 @@ use nova_hud::prelude::StoryFeed;
 use nova_os_ui::{
     map::MapContactCode,
     nova_os::prelude::{NovaOsTerminal, TerminalMode},
-    terminal::nova_os_window_px_showing,
+    terminal::{nova_os_window_px_showing, NovaOsFlightLog, NovaOsFlightLogEntryKind},
 };
 use nova_scenario::{
     prelude::{
@@ -136,8 +139,8 @@ use nova_scenario::{
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
     skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock, GameStyles,
-    PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RailgunCharge,
-    RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
+    PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
+    RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
     SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle,
     SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
     TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
@@ -460,8 +463,9 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
 }
 
 /// What the player is being asked to do, as the HUD would show it: the
-/// objective stack in display order, the declared outcome, and every comms
-/// line delivered so far in delivery order. Each list keeps its authored
+/// objective stack in display order, the declared outcome, every comms line
+/// delivered so far in delivery order, the objective log behind them, the
+/// scene playing over the top, and the run's cheat mark. Each list keeps its authored
 /// order rather than a value sort, because the order IS the information -
 /// the top objective is the current one and the last line is the newest.
 ///
@@ -504,10 +508,59 @@ fn mission_block(world: &World) -> serde_json::Value {
                 .collect()
         })
         .unwrap_or_default();
+    // Every objective card posted and completed, in order - NOVA OS's own
+    // flight log, which is what the `log` command prints. A card that goes up
+    // and comes down between two reads leaves no trace in `objectives`; it
+    // leaves one here, so a reader that samples the world can still see it
+    // happened.
+    let log: Vec<serde_json::Value> = world
+        .get_resource::<NovaOsFlightLog>()
+        .map(|log| {
+            log.entries
+                .iter()
+                .filter_map(|entry| {
+                    let kind = match entry.kind {
+                        NovaOsFlightLogEntryKind::ObjectivePosted => "posted",
+                        NovaOsFlightLogEntryKind::ObjectiveCompleted => "completed",
+                        NovaOsFlightLogEntryKind::Comms | NovaOsFlightLogEntryKind::System => {
+                            return None
+                        }
+                    };
+                    Some(serde_json::json!({
+                        "kind": kind,
+                        "id": entry.objective_id,
+                        "message": entry.message,
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // The scene the player is sitting through, and whether the skip binding
+    // would end it. `inputs.live` cannot answer the second question: it lists
+    // the whole raised context, so the skip action reads live through a scene
+    // that refuses to be skipped.
+    let cinematic = world.get_resource::<NovaEventWorld>().map_or_else(
+        || serde_json::json!({ "playing": serde_json::Value::Null, "skippable": serde_json::Value::Null }),
+        |scenario| {
+            serde_json::json!({
+                "playing": scenario.playing_cinematic(),
+                "skippable": scenario.skippable_cinematic(),
+            })
+        },
+    );
+    // The run's cheat mark, the same one `cheats status` prints. A benchmark
+    // that cannot see a cheat is not a benchmark.
+    let cheats = world.get_resource::<RunCheats>().map_or_else(
+        || serde_json::json!({ "armed": false, "marked": false }),
+        |cheats| serde_json::json!({ "armed": cheats.is_armed(), "marked": cheats.is_marked() }),
+    );
     serde_json::json!({
         "objectives": objectives,
         "outcome": outcome,
         "comms": comms,
+        "log": log,
+        "cinematic": cinematic,
+        "cheats": cheats,
     })
 }
 
@@ -553,6 +606,28 @@ fn body_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "invulnerable": invulnerable,
     });
     (key(&id), record)
+}
+
+/// The radar gesture in flight, as the HUD's lock ring paints it: the slot the
+/// gesture latched, the candidate under the ray, and the acquisition dwell -
+/// which target is charging, for how long, and how long it needs.
+///
+/// `null` whenever the radar is not held: [`RadarState`] lives on the ship
+/// only for the length of one gesture. Without the dwell a reader cannot tell
+/// "the lock is charging" from "this contact cannot be locked", which is the
+/// difference the ring shows a player at a glance.
+fn radar_record(world: &World, entity: Entity) -> serde_json::Value {
+    let Some(radar) = world.get::<RadarState>(entity) else {
+        return serde_json::Value::Null;
+    };
+    serde_json::json!({
+        "slot": radar.engaged.map(|slot| format!("{slot:?}")),
+        "candidate": label_of(world, radar.candidate),
+        "dwell_target": label_of(world, radar.dwell_target),
+        "dwell_secs": num(radar.dwell_secs),
+        "dwell_needed": num(radar.dwell_needed),
+        "dwell_fill": num(radar.dwell_fill()),
+    })
 }
 
 /// The ship's autopilot as the HUD status line reads it: the engaged action
@@ -832,6 +907,7 @@ fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "combat_lock": label_of(world, world.get::<CombatLock>(entity).and_then(|lock| lock.0)),
         "ai_target": label_of(world, world.get::<AITarget>(entity).and_then(|target| target.0)),
         "autopilot": autopilot_record(world, entity),
+        "radar": radar_record(world, entity),
         "gravity_well": label_of(world, world.get::<DominantWell>(entity).map(|well| well.0)),
         // The derived skin as a whole: the histogram, the measurements and the
         // cells it refused. Per-plate detail hangs off the plate's own fixture
@@ -1692,6 +1768,15 @@ mod tests {
         assert_eq!(bare["mission"]["objectives"], serde_json::json!([]));
         assert_eq!(bare["mission"]["outcome"], serde_json::Value::Null);
         assert_eq!(bare["mission"]["comms"], serde_json::json!([]));
+        assert_eq!(bare["mission"]["log"], serde_json::json!([]));
+        assert_eq!(
+            bare["mission"]["cinematic"],
+            serde_json::json!({ "playing": null, "skippable": null })
+        );
+        assert_eq!(
+            bare["mission"]["cheats"],
+            serde_json::json!({ "armed": false, "marked": false })
+        );
         assert_eq!(bare["beacons"], serde_json::json!([]));
 
         app.insert_resource(GameObjectives {

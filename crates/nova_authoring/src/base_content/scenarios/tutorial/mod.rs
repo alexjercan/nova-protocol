@@ -60,6 +60,11 @@ const VAR_BEAT: &str = "beat";
 const VAR_SCRAPPED: &str = "targets_scrapped";
 /// Whether Target 1 is gone: the two fire lessons read it to move on.
 const VAR_TARGET_1_DOWN: &str = "target_1_down";
+/// Whether Target 1 was ever combat-locked. The lock lesson schedules the
+/// fire beat a gap later, so a cadet who locks and kills inside that gap is
+/// still in [`BEAT_LOCK`] when the target dies - and would draw the "shot
+/// apart before the lock landed" line for a lock that did land.
+const VAR_TARGET_1_LOCKED: &str = "target_1_locked";
 /// Drones defeated, whichever beat they fell in.
 const VAR_DRONES_DOWN: &str = "drones_down";
 
@@ -298,6 +303,7 @@ pub(crate) fn tutorial(
         advance(BEAT_BRIEF),
         set_number(VAR_SCRAPPED, 0.0),
         set_number(VAR_TARGET_1_DOWN, 0.0),
+        set_number(VAR_TARGET_1_LOCKED, 0.0),
         set_number(VAR_DRONES_DOWN, 0.0),
     ]);
     start.extend(
@@ -537,6 +543,7 @@ pub(crate) fn tutorial(
             EventConfig::OnCombatLockStart,
             vec![trainer_at(target_id(1)), in_beat(BEAT_LOCK)],
             vec![
+                set_number(VAR_TARGET_1_LOCKED, 1.0),
                 clear_hint_emphasis(HINT_RADAR),
                 complete_objective(OBJ_LOCK),
                 comms(RANGE_CONTROL, script::FIRE_LINE),
@@ -557,6 +564,7 @@ pub(crate) fn tutorial(
             vec![
                 in_beat(BEAT_LOCK),
                 number_greater_than(VAR_TARGET_1_DOWN, 0.5),
+                number_less_than(VAR_TARGET_1_LOCKED, 0.5),
             ],
             vec![
                 clear_hint_emphasis(HINT_RADAR),
