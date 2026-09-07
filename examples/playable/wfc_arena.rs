@@ -467,7 +467,7 @@ fn main() -> bevy::app::AppExit {
         // probe and hand runs; adding a second autopilot would be a duplicate
         // driver rather than another camera.
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::new(
-            arena_loop_profile(),
+            arena_loop_profile(capture_loop),
         ));
         // NO freeze_bodies here, unlike wfc_ships: the whole point is that
         // these bodies fly.
@@ -2380,20 +2380,30 @@ fn reap_team_chevrons(
 }
 
 /// The capture profile the arena records at: the documentation profile with a
-/// coarser CRF.
+/// coarser CRF, and coarser again for the 2v2.
 ///
 /// This is the busiest scene the site ships. Two hulls trading tracers is
 /// already the highest-entropy frame in the set, and the 2v2 doubles it: four
 /// hulls, two salvos of ordnance, point defense answering all of it, and the
-/// debris and fireballs a duel leaves. VP9 spends bitrate on exactly that, and
-/// at the fleet CRF the 2v2 encoded 3.2 MB against the packager's 3 MB
-/// per-file budget. Every other loop lands between 100 KB and 900 KB at the
-/// fleet setting, so this is the one composition that pays for its own
-/// quality rather than the whole set paying for it.
+/// debris, shed cladding and fireballs a duel leaves. VP9 spends bitrate on
+/// exactly that, and at the fleet CRF the 2v2 encoded 3.2 MB against the
+/// packager's 3 MB per-file budget. Every other loop lands between 100 KB and
+/// 900 KB at the fleet setting, so this is the one composition that pays for
+/// its own quality rather than the whole set paying for it.
+///
+/// The two rosters are split because they are not the same picture. The duel
+/// is the landing page's lead and holds at 37 with room to spare; the 2v2 is a
+/// background band behind text, carries twice the moving debris, and went back
+/// over budget the day cladding started flying off a dying hull. It pays the
+/// difference alone rather than costing the lead its sharpness.
 #[cfg(feature = "debug")]
-fn arena_loop_profile() -> nova_protocol::nova_debug::harness::LoopProfile {
+fn arena_loop_profile(loop_name: &str) -> nova_protocol::nova_debug::harness::LoopProfile {
     nova_protocol::nova_debug::harness::LoopProfile {
-        crf: 37,
+        crf: if loop_name == LANDING_2V2_LOOP {
+            41
+        } else {
+            37
+        },
         ..default()
     }
 }

@@ -46,7 +46,7 @@ What you read instead is two different things at once.
 
 Which looks a part wears is decided by whoever built it, so a modded section can crack, spark, gutter, or show nothing at all.
 
-Cladding is the exception to "nothing changes shape". A [clad ship](../keybinds/) wears plates over its structure, and the plate that stops a round dies and comes off, leaving a hole onto the bare hull underneath. That is a piece leaving, not a part being eroded.
+Cladding is the exception to "nothing changes shape". A [clad ship](../keybinds/) wears plates over its structure, and the plate that stops a round dies and comes away where it stood - tumbling clear on the ship's own motion, greebles and all - leaving a hole onto the bare hull underneath. That is a piece leaving, not a part being eroded.
 
 Rocks are the other exception, and they carve for real - see [Shooting rock](../combat-weapons/#shooting-rock).
 

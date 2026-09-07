@@ -408,3 +408,29 @@ across the frame and away.
 - 36 loops re-packaged, all under the 3 MB budget (`landing-wfc-2v2` is the
   heaviest at 2.9 MB).
 - `cd web && npm run ci`: green.
+
+## Re-shoot for shed cladding, 2026-09-07
+
+`3f8163fa8` made a spent skin plate fly instead of vanish, so every living
+still and loop was re-recorded against it. The shed plates read plainly: flat
+angular panels coming away from the hull and tumbling clear, distinct from the
+cubic section blocks a dying section throws.
+
+One thing broke on the way through. `landing-wfc-2v2` encoded 3.37 MB against
+the packager's 3 MB budget - the loop already carried four hulls, two salvos
+and the point defence answering them, and a hull's worth of flying cladding on
+top of that is bitrate VP9 spends. The arena's capture profile splits its two
+rosters rather than paying for it across the set: the duel is the landing
+page's lead and stays at CRF 37 with room to spare, the 2v2 is a background
+band behind text and goes to 41, which lands it at 2.37 MB with no visible
+blocking.
+
+`web/src/wiki/ships.md` said a plate "comes off". It now says it comes away
+where it stood, tumbling clear on the ship's own motion, greebles and all.
+
+### Verified
+
+- 36 loops packaged, all under budget; `gen-web-screenshots.py`: 59 copied, 4
+  pending (unchanged).
+- Full-resolution frames read for the duel's close and the 2v2 at CRF 41.
+- `cd web && npm run ci`: green.
