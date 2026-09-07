@@ -442,21 +442,27 @@ Two requests, one capture pass.
 ### The pivot
 
 Shed cladding and greebles swung rather than tumbled. Avian turns a body about
-its centre of mass and reads that off the body's colliders, and BOTH finales
-hand out a body with no collider on it: `shed_dead_fixtures` strips the shape
-because debris is not material, and `detach_destroyed_body` waits on
-`ChunkGrace` for its own. With nothing to derive from, the centre falls back to
-the entity ORIGIN - which is nowhere near the piece. A fixture is authored
-around the face it mounts on: `plate_collider` hangs its box at
-`-REACH + volume * 0.5`, half a cell clear of a thin plate, and `decor_collider`
-stands a greeble's box on a foot at `y = 0`. So a plate orbited a point up to
-5 m off itself at 2-6 rad/s, which is 20 m/s of swing on top of a 15-40 m/s
-kick.
+its `ComputedCenterOfMass`, and both finales hand out a body with no collider
+on it: `shed_dead_fixtures` strips the shape because debris is not material,
+and `detach_destroyed_body` waits on `ChunkGrace` for its own.
 
-Both now read the centre off the collider on the way out and state it as an
-explicit `CenterOfMass`. The section half also fixes a pop that shipped in
-0.12.0: a wreck piece pivoted about its origin for the whole grace and snapped
-straight the moment `ChunkGrace` handed it a collider.
+The first reading of this was wrong, and a live probe against the real solver
+is what corrected it. Removing a `Collider` does NOT remove
+`ColliderMassProperties` or `ColliderTransform` - both outlive it, and that
+transform still holds the pose the piece had **in the ship's frame**. Avian
+keeps averaging them in. A plate two units up the hull came out with a centre
+of mass 1.94 units the other side of it; on a real hull, where a plate stands
+tens of meters off the ship origin, that is a pivot out in open space, which is
+exactly the wire-swing that was on screen.
+
+An explicit `CenterOfMass` alone did not fix it - it was averaged in with the
+stale props and the greebles still riding the plate. Both paths now state the
+collider's own centre AND mark it `NoAutoCenterOfMass`, which is the documented
+switch for "this value is the whole answer".
+
+Measured through the solver over 30 steps: the seat's path bends 5e-7 off
+straight while the origin corkscrews 0.0985 around it. Before the fix, the seat
+wandered 2.54 and growing.
 
 ### The real-speed cut
 

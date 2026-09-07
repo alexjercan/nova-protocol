@@ -16,7 +16,8 @@
 use std::ops::Range;
 
 use avian3d::prelude::{
-    AngularVelocity, CenterOfMass, Collider, ComputeMassProperties3d, LinearVelocity, RigidBody,
+    AngularVelocity, CenterOfMass, Collider, ComputeMassProperties3d, LinearVelocity,
+    NoAutoCenterOfMass, RigidBody,
 };
 use bevy::prelude::*;
 use bevy_rand::prelude::{GlobalRng, WyRand};
@@ -130,14 +131,19 @@ pub struct ShedFixtureMarker(pub Entity);
 /// it. Flying through a sheet of tumbling cladding costs the read nothing.
 ///
 /// The shape is still needed for one number: the PIVOT. Avian turns a body
-/// about its centre of mass, and a fixture is authored around the face it MOUNTS
-/// ON rather than around its middle - a plate hangs off the floor of its cell,
-/// a greeble stands with its foot at the origin - so a body left to the default
-/// centre swings about a point up to half a cell clear of the piece. That reads
-/// as cladding on a wire, not cladding tumbling. The collider already carries
-/// the answer, so its centre is copied onto the body as an explicit
-/// [`CenterOfMass`] on the way out, and a colliderless body still spins about
-/// itself.
+/// about its centre of mass, and taking the collider away does not take the
+/// centre with it: `ColliderMassProperties` and `ColliderTransform` OUTLIVE a
+/// removed `Collider`, and that transform is the pose the plate held in the
+/// SHIP's frame. So a piece cut loose from a hull inherits a centre of mass
+/// tens of meters away, out where the hull's origin used to be, and swings
+/// around it on a wire.
+///
+/// The fix is to state the centre and to say that it is the whole answer: the
+/// collider's own centre, read before it goes, plus [`NoAutoCenterOfMass`] so
+/// the stale props and the greebles still riding the plate are not averaged
+/// back in. A fixture is authored around the face it MOUNTS ON rather than its
+/// middle - a plate hangs off the floor of its cell, a greeble stands with its
+/// foot at the origin - so that centre is not the entity origin either.
 pub(crate) fn shed_dead_fixtures(
     mut commands: Commands,
     q_dead: Query<
@@ -175,6 +181,7 @@ pub(crate) fn shed_dead_fixtures(
                 transform,
                 RigidBody::Kinematic,
                 CenterOfMass(collider.center_of_mass()),
+                NoAutoCenterOfMass,
                 LinearVelocity(drift + away * rng.random_range(SHED_KICK)),
                 AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(SHED_SPIN)),
                 TempEntity(SHED_LIFETIME_SECS),
@@ -377,6 +384,126 @@ mod tests {
         assert!(
             pivot.distance(seat) < 1.0e-4,
             "shed cladding spins about {pivot} instead of the plate at {seat}",
+        );
+    }
+
+    /// A shed plate turns about its own seat, not about the hull it came off.
+    ///
+    /// The live solver, because this cannot be seen without it. Taking a
+    /// `Collider` away leaves `ColliderMassProperties` and `ColliderTransform`
+    /// behind, still holding the pose the plate had in the SHIP's frame, and
+    /// avian averages those into the body's centre of mass. Unchecked, a plate
+    /// two units up the hull pivots about a point two units further up again -
+    /// and on a real hull that is tens of meters, which reads as debris
+    /// swinging on a wire.
+    #[test]
+    fn a_shed_plate_turns_about_its_seat_and_not_about_the_hull_it_left() {
+        use avian3d::prelude::ComputedCenterOfMass;
+        use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
+        app.add_systems(Update, shed_dead_fixtures);
+        app.finish();
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Collider::cuboid(1.0, 1.0, 1.0),
+                LinearVelocity(Vec3::X * 10.0),
+                Transform::default(),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((ChildOf(ship), Transform::default()))
+            .id();
+        // A plate standing two units up the hull, clad the way the skin lays
+        // one: the box hangs off the floor of its cell, not on the entity.
+        let seat = Vec3::Y * -0.4;
+        let plate = app
+            .world_mut()
+            .spawn((
+                ChildOf(section),
+                SectionFixture,
+                Health::new(10.0),
+                Collider::compound(vec![(
+                    seat,
+                    Quat::IDENTITY,
+                    Collider::cuboid(1.0, 0.2, 1.0),
+                )]),
+                Transform::from_translation(Vec3::Y * 2.0),
+            ))
+            .id();
+        // A greeble rides it out. Its own stale collider props would otherwise
+        // be averaged into the plate's centre alongside the plate's.
+        app.world_mut().spawn((
+            ChildOf(plate),
+            SectionFixture,
+            Health::new(5.0),
+            Collider::cuboid(0.2, 0.2, 0.2),
+            Transform::from_translation(Vec3::Y * 0.1),
+        ));
+        settle(&mut app);
+
+        kill(&mut app, plate);
+
+        assert!(
+            app.world()
+                .get::<ComputedCenterOfMass>(plate)
+                .expect("a shed plate is not a solver body")
+                .0
+                .distance(seat)
+                < 1.0e-3,
+            "the plate turns about the hull's frame, not its own seat",
+        );
+
+        let pose = |app: &App| {
+            app.world()
+                .get::<GlobalTransform>(plate)
+                .expect("the shed plate went away")
+                .compute_transform()
+        };
+
+        // How far a path bends away from the straight line between its own
+        // ends. Measured this way rather than against `velocity * elapsed`
+        // because physics runs on its own fixed step: a kick sampled per app
+        // frame does not predict where the solver actually put the body, and
+        // the question here is only whether the path is STRAIGHT.
+        let bend = |path: &[Vec3]| {
+            let (Some(first), Some(last)) = (path.first(), path.last()) else {
+                return 0.0;
+            };
+            let Ok(along) = Dir3::new(*last - *first) else {
+                return 0.0;
+            };
+            path.iter()
+                .map(|at| (*at - *first).reject_from(*along).length())
+                .fold(0.0, f32::max)
+        };
+
+        let mut seat_path = vec![pose(&app).transform_point(seat)];
+        let mut origin_path = vec![pose(&app).translation];
+        for _ in 0..30 {
+            app.update();
+            seat_path.push(pose(&app).transform_point(seat));
+            origin_path.push(pose(&app).translation);
+        }
+
+        // Asserted as a PAIR. The seat runs straight because the plate turns
+        // around it; the origin corkscrews because it is the thing being swung
+        // through a radius of 0.4. Testing only the first half would pass a
+        // plate that never turned at all.
+        assert!(
+            bend(&seat_path) < 1.0e-4,
+            "the plate's seat bends {} off the line it was kicked along",
+            bend(&seat_path),
+        );
+        assert!(
+            bend(&origin_path) > 0.05,
+            "the plate did not turn: its origin ran straight, bending only {}",
+            bend(&origin_path),
         );
     }
 
