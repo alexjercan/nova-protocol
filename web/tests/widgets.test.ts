@@ -10,6 +10,11 @@ import {
     engineMeters,
     engineMetersPerSec,
     engineMetersPerSec2,
+    GUNSHIP_ARM_U,
+    GUNSHIP_CELLS,
+    GUNSHIP_COMPUTERS,
+    GUNSHIP_MATES,
+    hullState,
     kilometers,
     kineticDamageMultiplier,
     lanceCorridor,
@@ -19,6 +24,7 @@ import {
     metersPerSec2,
     METERS_PER_UNIT,
     reachLadder,
+    severedParts,
     structuralCeiling,
     weaveFade,
 } from "../src/widgets";
@@ -44,26 +50,97 @@ const HP = 200;
 {
     assert.equal(METERS_PER_UNIT, 10);
     assert.equal(engineMeters(30), "300 m", "30 u is a 300 m blast radius");
-    assert.equal(engineMeters(2.76, 1), "27.6 m", "the corvette's arm");
+    assert.equal(engineMeters(5.52, 1), "55.2 m", "the gunship's arm");
     assert.equal(engineKilometers(328.6, 1), "3.3 km", "a planetoid SOI");
     assert.equal(engineMetersPerSec(100), "1,000 m/s", "the reference speed");
     assert.equal(engineMetersPerSec2(64, 0), "640 m/s^2", "one bare drive");
 }
 
 // The attitude model's one crossing: the arm arrives in world units off the
-// collider boxes and the 8 G limit is SI, so 2.76 u is 27.6 m and the ceiling
-// is 78.48 / 27.6 - the same rad/s^2 the game reads.
+// collider boxes and the 8 G limit is SI, so 5.52 u is 55.2 m and the ceiling
+// is 78.48 / 55.2 - the same rad/s^2 the game reads.
 {
-    const ceiling = structuralCeiling(2.76);
+    const ceiling = structuralCeiling(GUNSHIP_ARM_U);
     assert.ok(
-        Math.abs(ceiling - (8 * 9.81) / 27.6) < 1e-9,
-        `the corvette's structural ceiling, got ${ceiling}`
+        Math.abs(ceiling - (8 * 9.81) / 55.2) < 1e-9,
+        `the gunship's structural ceiling, got ${ceiling}`
     );
     assert.ok(
-        Math.abs(ceiling - 2.844) < 5e-3,
-        `~2.84 rad/s^2 as the widget prints it, got ${ceiling}`
+        Math.abs(ceiling - 1.422) < 5e-3,
+        `~1.42 rad/s^2 as the widget prints it, got ${ceiling}`
     );
     assert.equal(structuralCeiling(0), Infinity, "a point mass has no arm");
+}
+
+// ---- the Patrol Gunship ---------------------------------------------------
+
+// `GUNSHIP_ARM_U` is a constant because the GOTO scope needs it before the cell
+// table exists. It has to be the arm that table derives, or the two widgets
+// fly different ships.
+{
+    const state = hullState(GUNSHIP_CELLS);
+    assert.ok(
+        Math.abs(state.arm - GUNSHIP_ARM_U) < 5e-3,
+        `the constant against the derived arm, got ${state.arm}`
+    );
+    // assets/base/ships/base.content.ron, block_gunship: 53 sections and the
+    // volume of their boxes, with nothing anywhere authoring a mass.
+    assert.equal(GUNSHIP_CELLS.length, 53, "block_gunship's section count");
+    assert.ok(
+        Math.abs(state.mass - 64.75) < 1e-9,
+        `block_gunship's mass, got ${state.mass}`
+    );
+}
+
+// The structural graph is derived off the grid rather than authored, so every
+// cell has to reach a flight computer on the intact hull - a cell that mates
+// to nothing would silently sever the moment the widget is touched.
+{
+    const whole = severedParts(
+        GUNSHIP_CELLS,
+        GUNSHIP_MATES,
+        new Set<string>(),
+        GUNSHIP_COMPUTERS
+    );
+    assert.equal(whole.held.length, 53, "the intact hull is one body");
+    assert.equal(whole.adrift.length, 0, "and nothing is adrift on it");
+}
+
+// Losing one of the two computers keeps the ship; losing both ends it, and
+// every section left is a wreck rather than a hull with a long arm.
+{
+    const one = severedParts(
+        GUNSHIP_CELLS,
+        GUNSHIP_MATES,
+        new Set(["bridge"]),
+        GUNSHIP_COMPUTERS
+    );
+    assert.equal(one.held.length, 52, "the aft computer still flies it");
+    const none = severedParts(
+        GUNSHIP_CELLS,
+        GUNSHIP_MATES,
+        new Set(GUNSHIP_COMPUTERS),
+        GUNSHIP_COMPUTERS
+    );
+    assert.equal(none.held.length, 0, "no computer, no ship");
+    assert.equal(none.adrift.length, 51, "all of it is adrift");
+}
+
+// Shooting the bow spur off shortens the arm and RAISES the turn ceiling,
+// which is the whole claim the controller-arm widget makes.
+{
+    const bow = GUNSHIP_CELLS.filter((part) => part.group === "bow");
+    const cut = severedParts(
+        GUNSHIP_CELLS,
+        GUNSHIP_MATES,
+        new Set(bow.map((part) => part.id)),
+        GUNSHIP_COMPUTERS
+    );
+    assert.equal(cut.adrift.length, 0, "the bow is the last thing out there");
+    assert.ok(
+        hullState(cut.held).arm < GUNSHIP_ARM_U,
+        "the arm shortens without the bow"
+    );
 }
 
 // The damage curves stay in world units per second, because damage.rs does:
@@ -109,7 +186,7 @@ assert.equal(LANCE_RAKE_RADIUS_CELLS, 1, "10 m of rake is one build cell");
     assert.equal(wide.removed, 5600, "wider is not more");
 }
 
-// The corvette line, three across and one tall: the needle takes the column,
+// A hull line three across and one tall: the needle takes the column,
 // the shipped rake takes the pods beside it, and neither binds the budget.
 {
     const needle = lanceCorridor(0, HP, 3, 1, 4);

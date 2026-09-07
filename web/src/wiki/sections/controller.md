@@ -24,7 +24,7 @@ A hurt computer cracks and, past about a third of its health gone, throws sparks
 
 ## What sets how hard a ship turns
 
-<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 2.76 u (27.6 m) on the shipped corvette :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The corvette the widgets fly is The Ledger's (webmods/the-ledger/ledger_ships.content.ron, with its part prototypes in webmods/the-ledger/ledger_sections.content.ron) with the shared PDC's own cube on its two mount points (sections/standard.rs:71,:240-242) and 1501 of torque per computer (standard.rs:376); density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:376). Severing on a disconnected graph: crates/nova_ship/src/sections/integrity.rs:231-349. -->
+<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 5.52 u (55.2 m) on the base Patrol Gunship :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The hull the widgets fly is block_gunship in assets/base/ships/base.content.ron - 53 authored cells, two flight computers at 1501 of torque each (crates/nova_authoring/src/base_content/sections/standard.rs:701,:718) - and web/tests/widgets.test.ts holds the widget's cell table to that ship's section count, mass and arm. Density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:470-471). Severing on a disconnected graph, and the rank that picks which body keeps the ship: crates/nova_ship/src/sections/integrity.rs:231-349,:345-385. -->
 
 The computer does not decide it on its own. A ship turns as hard as the lower of two limits allows:
 
@@ -32,25 +32,25 @@ The computer does not decide it on its own. A ship turns as hard as the lower of
 - **Its structure.** Hull metal takes 8 G and no more. The further the ship's furthest section sits from its balance point, the gentler the hardest turn that metal survives.
 
 <div class="widget" data-widget="controller-arm">
-<p>The Ledger's corvette carries its mass over a 27.6 m arm - balance point to the outer face of its furthest section, which is one of its drives. Hull metal takes 8 G, so that arm allows 2.84 rad/s^2 and no more, while the one flight computer in its fuselage could push 41.9 - fifteen times as hard. Shoot the nose off and the balance point slides aft: the arm drops to 24.3 m, the ceiling climbs to 3.23 rad/s^2, and the wreck flips 180 degrees in 1.97 s where the whole ship took 2.10 s. Both guns hang off that nose, so they sever away with it.</p>
+<p>The base Patrol Gunship carries its mass over a 55.2 m arm - balance point to the outer face of its furthest section, which is the tip of its bow spur. Hull metal takes 8 G, so that arm allows 1.42 rad/s^2 and no more, while its two flight computers together could push 8.74 - six times as hard. Shoot the bow off and the balance point slides aft: the arm drops to 41.6 m, the ceiling climbs to 1.89 rad/s^2, and the wreck flips 180 degrees in 2.58 s where the whole ship took 2.97 s. Cut the spine instead and only the dorsal ridge and the two computers on it are still one ship: twenty sections sever away as wreckage.</p>
 </div>
 
-Every ship in the game today is held by the second one, with a wide margin on the first. Nothing authors the result - it falls out of the shape you built. A short craft swings on a short arm and whips around. A long hauler swings on a long arm and handles like the freighter it is.
+Every ship in the base fleet but one is held by the second, with a wide margin on the first. The exception is the carrier: 2,081 sections and enough inertia that its ten computers run out first, so it turns at 0.07 rad/s^2 where its metal would have allowed 0.40. Nothing authors either result - both fall out of the shape you built. A short craft swings on a short arm and whips around. A long hauler swings on a long arm and handles like the freighter it is.
 
 Two things follow that you feel in the cockpit:
 
-- **A wreck turns sharper.** Shoot the nose off and the ship's balance point slides aft, shortening the reach to everything behind it - so what is left of the ship turns harder than the whole ship did. Mid-turn, on the same stick input, the survivor speeds up into it.
+- **A wreck turns sharper.** Shoot the bow off and the ship's balance point slides aft, shortening the reach to everything behind it - so what is left of the ship turns harder than the whole ship did. Mid-turn, on the same stick input, the survivor speeds up into it.
 - **A hard turn spends the margin.** Holding a fast turn already loads the hull. There is less left to turn harder with, and past a point there is none at all: the ship holds that rate for as long as you hold the stick, and no amount of input tightens it further. Ease off and the margin comes back.
 
 <div class="widget" data-widget="controller-margin">
-<p>The 8 G limit is one acceleration at the hull's furthest point, and the load that holds a curve and the load that tightens it add as a vector rather than being counted separately. So the corvette still has 97% of its 2.84 rad/s2 in hand at 48 deg/s, 83% at 72 deg/s, and nothing at all at 97 deg/s - the rate at which holding the turn spends the whole budget on its own. Authority does not taper off; it holds, then falls away.</p>
+<p>The 8 G limit is one acceleration at the hull's furthest point, and the load that holds a curve and the load that tightens it add as a vector rather than being counted separately. So the gunship still has 97% of its 1.42 rad/s2 in hand at 34 deg/s, 83% at 51 deg/s, and nothing at all at 68 deg/s - the rate at which holding the turn spends the whole budget on its own. Authority does not taper off; it holds, then falls away.</p>
 </div>
 
 ## Stacking controllers
 
 A big hull can mount more than one. They do not each steer it: they share one steering loop, and their torque adds into it.
 
-On a ship that is already at its structural limit - which is every shipped ship - that extra torque buys no turn rate at all. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too.
+On a ship that is already at its structural limit - which is every base hull but the carrier - that extra torque buys no turn rate at all. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too. The carrier is the one shipped hull on that side of the line, which is why it carries ten.
 
 <!-- Flown 170 degree flips, printed by crates/nova_ship/src/flight/tests/stacking.rs::size_decides_the_turn_and_stacking_only_helps_a_torque_bound_hull (:314). Light hull = the "fighter" rig, 3 unit cells (:284-290); heavy barge = the "barge" rig, 15 cells at 20x density (:298-304); 5 degree traverse gate :232; stack sizes :306; 170 degree turn :309. -->
 
@@ -85,10 +85,10 @@ The other half of stacking is **redundancy**. Lose one of two and the ship does 
 
 ## Variants
 
-Every shipped flight computer carries the same torque and the same steering lag. What a ship does with them is the ship's own business - its mass and its length decide that. What separates the fuselage computers is how much structure they add to the craft that carries them.
+One flight computer ships, and every hull in the game is steered by copies of it. What a ship does with them is the ship's own business: its mass and its length decide that, and a second one buys redundancy and precision rather than turn rate.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 :31 used :368, steering_lag 0.5 :376, max_torque 1501.0 :384) and webmods/the-ledger/ledger_sections.content.ron (the racer, cargob and cargoa fuselage prototypes: steering lag 0.5 s, max torque 1501.0, health 240, 300 and 350). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 used :701, steering_lag 0.5 :709, max_torque 1501.0 :718). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-controller.png</span></span></span><span class="catalog__title">Controller - shipped prototypes</span></div>
 <table>
 <thead>
@@ -96,12 +96,7 @@ Every shipped flight computer carries the same torque and the same steering lag.
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-fuselage.png</span></span></span></td><td><span class="catalog__name">Racer // Fuselage</span><span class="catalog__id">racer_fuselage</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">240</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-fuselage.png</span></span></span></td><td><span class="catalog__name">CargoB // Fuselage</span><span class="catalog__id">cargob_fuselage</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">300</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-fuselage.png</span></span></span></td><td><span class="catalog__name">CargoA // Fuselage</span><span class="catalog__id">cargoa_fuselage</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">350</td></tr>
 </tbody>
 </table>
 </div>
-
-The craft rows are The Ledger's: a mod that brings modelled craft brings their part prototypes with it, and base references none of them.
 

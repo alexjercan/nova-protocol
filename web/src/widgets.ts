@@ -188,13 +188,13 @@ export function engineMetersPerSec2(
 // (controller_section.rs:487-489).
 const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:17 (MetersPerSecondSquared)
 const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:718
-// The Ledger's corvette: its structural arm, centre of mass to the outer FACE of
+// The Patrol Gunship: its structural arm, centre of mass to the outer FACE of
 // its furthest section (attitude.rs, `structural_arm`). WORLD UNITS - it is measured off
-// avian collider boxes, and the ship part tables below are the same geometry.
-// The GOTO widget flies this hull. `hullState(CARGOA_PARTS)` re-derives it from
-// the craft's own boxes and agrees, which is the check that the assembly model
-// below is the game's.
-const CORVETTE_ARM_U = 2.76;
+// avian collider boxes, and the cell tables below are the same geometry.
+// The GOTO widget flies this hull. `hullState(GUNSHIP_CELLS)` re-derives it
+// from the ship's own cells and agrees, which is the check that the assembly
+// model below is the game's; `web/tests/widgets.test.ts` holds them together.
+export const GUNSHIP_ARM_U = 5.52;
 
 // Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
 // `dt` factor, so a hull's acceleration is its summed magnitude times the tick
@@ -783,12 +783,12 @@ export function gotoSim(
     duration: number;
 } {
     // The whole arrival model: target radius + mover radius + margin. The
-    // corvette this scope flies contributes its own structural arm, so the
+    // gunship this scope flies contributes its own structural arm, so the
     // leg parks its HULL FACE one margin off the target's surface.
     const standoff =
-        ARRIVAL_STANDOFF + Math.max(targetRadius, 0) + CORVETTE_ARM_U;
+        ARRIVAL_STANDOFF + Math.max(targetRadius, 0) + GUNSHIP_ARM_U;
     const park = targetDistance - standoff;
-    const turnRate = hullTurnRate(structuralCeiling(CORVETTE_ARM_U));
+    const turnRate = hullTurnRate(structuralCeiling(GUNSHIP_ARM_U));
     const lead = Math.PI / turnRate + ARRIVAL_SPOOL_PAD; // autopilot.rs:209
     const braking = accel * DECEL_MARGIN;
     const dt = 1 / 60;
@@ -2566,7 +2566,7 @@ function initBlastLayers(host: HTMLElement): void {
     else transport.play();
 }
 
-// ---- modelled hulls (The Ledger) ------------------------------------------
+// ---- built hulls (base) ---------------------------------------------------
 
 type Vec3T = [number, number, number];
 
@@ -2576,253 +2576,226 @@ interface ShipPart {
     health: number;
     center: Vec3T;
     size: Vec3T;
+    /// Which named structure of the ship this cell belongs to. A built hull is
+    /// dozens of identical cells, so the widgets shoot GROUPS - the bow, the
+    /// ridge, a gun - the way a reader would name them.
+    group: string;
 }
 
-// One authored craft part, in the terms the mod's section file writes it in: an
-// origin plus the bounding box the art was cut to. The section sits at the
-// middle of that box and its collider IS the box, so nothing here is re-derived
-// (webmods/the-ledger/ledger_sections.content.ron).
-function shipPart(
+// The base section prototypes a built hull is assembled from
+// (crates/nova_authoring/src/base_content/sections/standard.rs). `cells` is the
+// authored collider box in build-grid cells, and a section's mass IS that
+// volume - density is 1 and not authorable (base_section.rs:470-471), and a
+// prototype with no authored collider falls back to the unit cube
+// (base_section.rs:79-85).
+interface SectionProto {
+    label: string;
+    health: number;
+    cells: Vec3T;
+}
+const HULL_CELL: SectionProto = {
+    // reinforced_hull_section, standard.rs:596 (no collider: the unit cube)
+    label: "HULL",
+    health: 200,
+    cells: [1, 1, 1],
+};
+const CONTROLLER_CELL: SectionProto = {
+    // basic_controller_section, standard.rs:701 (no collider)
+    label: "CTRL",
+    health: 100,
+    cells: [1, 1, 1],
+};
+const VECTOR_DRIVE: SectionProto = {
+    // vector_thruster_section, standard.rs:663-667, collider 3x3x2 (:551-553)
+    label: "DRIVE",
+    health: 480,
+    cells: [3, 3, 2],
+};
+const LIGHT_HULL: SectionProto = {
+    // light_hull_section, standard.rs:744-750 (no collider) - scavenger grade,
+    // a third of a reinforced plate's health for the same box.
+    label: "LIGHT",
+    health: 60,
+    cells: [1, 1, 1],
+};
+const CAPITAL_DRIVE: SectionProto = {
+    // capital_thruster_section, standard.rs:677-691, collider 5x5x3 - the
+    // heaviest thing the base catalog offers, and the least health per mass.
+    label: "CAPITAL",
+    health: 1250,
+    cells: [5, 5, 3],
+};
+const SIEGE_LANCE: SectionProto = {
+    // siege_railgun_lance_section, standard.rs:923-926, collider LANCE_CELLS
+    // 1x1x3 (standard.rs:321,:1131).
+    label: "LANCE",
+    health: 180,
+    cells: [1, 1, 3],
+};
+const HEAVY_BAY: SectionProto = {
+    // heavy_torpedo_section, standard.rs:952-960, collider BAY_CELLS 1x1x2
+    // (standard.rs:318,:963).
+    label: "BAY",
+    health: 100,
+    cells: [1, 1, 2],
+};
+const BASIC_DRIVE: SectionProto = {
+    // basic_thruster_section, standard.rs:611-622 (no collider), magnitude 1.0
+    // (standard.rs:642).
+    label: "DRIVE",
+    health: 70,
+    cells: [1, 1, 1],
+};
+const PDC_MOUNT: SectionProto = {
+    // The shared PDC mount: a 0.5-cell cube that sits ON a hull face rather
+    // than standing in for one (standard.rs:91,:434,:446-448).
+    label: "PDC",
+    health: 130,
+    cells: [0.5, 0.5, 0.5],
+};
+
+// One authored cell of a built hull, in the terms `assets/base/ships/base.content.ron`
+// writes it: a build-grid position and the prototype seated there. Every base
+// section is mounted axis-aligned or is a cube, so the authored rotation
+// changes no box this file reads.
+function cell(
     id: string,
-    label: string,
-    health: number,
-    origin: Vec3T,
-    boxMin: Vec3T,
-    boxMax: Vec3T
+    x: number,
+    y: number,
+    z: number,
+    proto: SectionProto,
+    group: string
 ): ShipPart {
     return {
         id,
-        label,
-        health,
-        center: [
-            origin[0] + (boxMin[0] + boxMax[0]) * 0.5,
-            origin[1] + (boxMin[1] + boxMax[1]) * 0.5,
-            origin[2] + (boxMin[2] + boxMax[2]) * 0.5,
-        ],
-        size: [
-            boxMax[0] - boxMin[0],
-            boxMax[1] - boxMin[1],
-            boxMax[2] - boxMin[2],
-        ],
+        label: proto.label,
+        health: proto.health,
+        center: [x, y, z],
+        size: [...proto.cells],
+        group,
     };
 }
 
-// A turret MOUNT POINT carries no art and no box of its own: the shared PDC
-// fills it, so the section that lands there is the PDC's own cube
-// (sections/standard.rs:71,:228,:240-242).
-const PDC_TURRET_SIZE = 0.5; // standard.rs:91
-const TURRET_BASE_HEALTH = 130; // standard.rs:32
-function turretMount(id: string, label: string, center: Vec3T): ShipPart {
-    return {
-        id,
-        label,
-        health: TURRET_BASE_HEALTH,
-        center,
-        size: [PDC_TURRET_SIZE, PDC_TURRET_SIZE, PDC_TURRET_SIZE],
-    };
+// The Patrol Gunship (`block_gunship` in assets/base/ships/base.content.ron), the
+// military patrol boat and the hull the drydock figures pose. A two-deck
+// fighting spine with a bow spur, a ventral deck, stub wings, a dorsal ridge,
+// one vectoring drive on the stern and six PDC mounts covering both
+// hemispheres. Nothing here is a mesh: every cell is a section on the same
+// build grid a player builds on.
+export const GUNSHIP_CELLS: ShipPart[] = [
+    cell("plate_0", -1, 0, -2, HULL_CELL, "spine"),
+    cell("plate_1", -1, 0, -1, HULL_CELL, "spine"),
+    cell("plate_2", -1, 0, 0, HULL_CELL, "spine"),
+    cell("plate_3", -1, 0, 1, HULL_CELL, "spine"),
+    cell("plate_4", -1, 0, 2, HULL_CELL, "spine"),
+    cell("plate_5", -1, 1, -2, HULL_CELL, "spine"),
+    cell("plate_6", -1, 1, -1, HULL_CELL, "spine"),
+    cell("plate_7", -1, 1, 0, HULL_CELL, "spine"),
+    cell("plate_8", -1, 1, 1, HULL_CELL, "spine"),
+    cell("plate_9", -1, 1, 2, HULL_CELL, "spine"),
+    cell("plate_10", 0, 0, -2, HULL_CELL, "spine"),
+    cell("plate_11", 0, 0, -1, HULL_CELL, "spine"),
+    cell("plate_12", 0, 0, 0, HULL_CELL, "spine"),
+    cell("plate_13", 0, 0, 1, HULL_CELL, "spine"),
+    cell("plate_14", 0, 0, 2, HULL_CELL, "spine"),
+    cell("plate_15", 0, 1, -2, HULL_CELL, "spine"),
+    cell("plate_16", 0, 1, 0, HULL_CELL, "spine"),
+    cell("plate_17", 0, 1, 2, HULL_CELL, "spine"),
+    cell("plate_18", 1, 0, -2, HULL_CELL, "spine"),
+    cell("plate_19", 1, 0, -1, HULL_CELL, "spine"),
+    cell("plate_20", 1, 0, 0, HULL_CELL, "spine"),
+    cell("plate_21", 1, 0, 1, HULL_CELL, "spine"),
+    cell("plate_22", 1, 0, 2, HULL_CELL, "spine"),
+    cell("plate_23", 1, 1, -2, HULL_CELL, "spine"),
+    cell("plate_24", 1, 1, -1, HULL_CELL, "spine"),
+    cell("plate_25", 1, 1, 0, HULL_CELL, "spine"),
+    cell("plate_26", 1, 1, 1, HULL_CELL, "spine"),
+    cell("plate_27", 1, 1, 2, HULL_CELL, "spine"),
+    cell("plate_28", -1, -1, 1, HULL_CELL, "ventral"),
+    cell("plate_29", -1, -1, 2, HULL_CELL, "ventral"),
+    cell("plate_30", 0, -1, 1, HULL_CELL, "ventral"),
+    cell("plate_31", 0, -1, 2, HULL_CELL, "ventral"),
+    cell("plate_32", 1, -1, 1, HULL_CELL, "ventral"),
+    cell("plate_33", 1, -1, 2, HULL_CELL, "ventral"),
+    cell("plate_34", -2, 0, 0, HULL_CELL, "wings"),
+    cell("plate_35", -2, 0, 1, HULL_CELL, "wings"),
+    cell("plate_36", 2, 0, 0, HULL_CELL, "wings"),
+    cell("plate_37", 2, 0, 1, HULL_CELL, "wings"),
+    cell("plate_38", 0, 2, -1, HULL_CELL, "ridge"),
+    cell("plate_39", 0, 2, 0, HULL_CELL, "ridge"),
+    cell("plate_40", 0, 2, 1, HULL_CELL, "ridge"),
+    cell("plate_41", 0, 0, -3, HULL_CELL, "bow"),
+    cell("plate_42", 0, 1, -3, HULL_CELL, "bow"),
+    cell("plate_43", 0, 0, -4, HULL_CELL, "bow"),
+    cell("bridge", 0, 1, -1, CONTROLLER_CELL, "bridge"),
+    cell("control_aft", 0, 1, 1, CONTROLLER_CELL, "control aft"),
+    cell("main_drive", 0, 0, 3.5, VECTOR_DRIVE, "drive"),
+    cell("pdc_forward_port", -1, 1.75, -2, PDC_MOUNT, "bow guns"),
+    cell("pdc_forward_starboard", 1, 1.75, -2, PDC_MOUNT, "bow guns"),
+    cell("pdc_aft_port", -1, 1.75, 1, PDC_MOUNT, "dorsal guns"),
+    cell("pdc_aft_starboard", 1, 1.75, 1, PDC_MOUNT, "dorsal guns"),
+    cell("pdc_ventral_port", -1, -1.75, 2, PDC_MOUNT, "ventral guns"),
+    cell("pdc_ventral_starboard", 1, -1.75, 2, PDC_MOUNT, "ventral guns"),
+];
+
+// The two flight computers. A built hull carries its computers as cells like
+// anything else, and losing all of them is what ends the ship
+// (nova_ship/src/sections/integrity.rs:231-349).
+export const GUNSHIP_COMPUTERS = ["bridge", "control_aft"];
+
+// The structural graph, DERIVED rather than authored. A built hull mates
+// through the link points on the faces its cells press together
+// (`derive_link_point_graph`), so two sections are joined exactly when their
+// authored boxes share a face - which is what this computes. A modelled craft
+// has to author its mates one by one; a built hull cannot, because the grid
+// already says.
+function gridMates(parts: ShipPart[]): [string, string][] {
+    const mates: [string, string][] = [];
+    const span = (part: ShipPart, axis: number): [number, number] => [
+        part.center[axis] - part.size[axis] * 0.5,
+        part.center[axis] + part.size[axis] * 0.5,
+    ];
+    for (let i = 0; i < parts.length; i++) {
+        for (let j = i + 1; j < parts.length; j++) {
+            let touching = 0;
+            let overlapping = 0;
+            for (let axis = 0; axis < 3; axis++) {
+                const [aMin, aMax] = span(parts[i], axis);
+                const [bMin, bMax] = span(parts[j], axis);
+                // A shared face: flush on one axis, overlapping on the other
+                // two. Exact equality is right here - every base box lands on
+                // the build grid or on a grid face.
+                if (aMax === bMin || bMax === aMin) touching++;
+                else if (aMax > bMin && bMax > aMin) overlapping++;
+            }
+            if (touching === 1 && overlapping === 2)
+                mates.push([parts[i].id, parts[j].id]);
+        }
+    }
+    return mates;
 }
 
-// The Ledger's corvette (webmods/the-ledger/ledger_ships.content.ron): two drives on two pods, a
-// nose carrying both guns on its cheeks, a tail, and the fuselage that IS the
-// flight computer.
-const CARGOA_PARTS: ShipPart[] = [
-    shipPart(
-        "engine_starboard",
-        "DRV S",
-        70,
-        [1.0, 0.5, 2.0],
-        [-0.19, -0.2975, -0.5],
-        [0.6, 0.4975, 0.45]
-    ),
-    shipPart(
-        "engine_port",
-        "DRV P",
-        70,
-        [-1.0, 0.5, 2.0],
-        [-0.6, -0.2975, -0.5],
-        [0.19, 0.4975, 0.45]
-    ),
-    shipPart(
-        "pod_starboard",
-        "POD S",
-        350,
-        [1.0, 0.5, 0.5],
-        [-0.19, -0.3, -1.05],
-        [0.6, 0.7, 1.0]
-    ),
-    shipPart(
-        "pod_port",
-        "POD P",
-        350,
-        [-1.0, 0.5, 0.5],
-        [-0.6, -0.3, -1.05],
-        [0.19, 0.7, 1.0]
-    ),
-    shipPart(
-        "nose",
-        "NOSE",
-        180,
-        [0.0, 1.0, -2.0],
-        [-0.8, -0.8, -0.45],
-        [0.8, 0.4, 0.85]
-    ),
-    shipPart(
-        "tail",
-        "TAIL",
-        150,
-        [0.0, 0.5, 2.0],
-        [-0.81, -0.5, -0.5],
-        [0.81, 0.675, 0.45]
-    ),
-    shipPart(
-        "fuselage",
-        "FUSELAGE",
-        350,
-        [0.0, 1.0, 0.0],
-        [-0.81, -1.0, -1.15],
-        [0.81, 0.6, 1.5]
-    ),
-    turretMount("turret_starboard", "T", [0.95, 0.8, -1.8]),
-    turretMount("turret_port", "T", [-0.95, 0.8, -1.8]),
-];
+export const GUNSHIP_MATES = gridMates(GUNSHIP_CELLS);
 
-// The authored structural mates (webmods/the-ledger/ledger_ships.content.ron). Both guns hang off the
-// NOSE, and each drive hangs off its own pod - which is what decides who goes
-// adrift when a part in the middle dies.
-const CARGOA_MATES: [string, string][] = [
-    ["fuselage", "nose"],
-    ["fuselage", "tail"],
-    ["fuselage", "pod_starboard"],
-    ["fuselage", "pod_port"],
-    ["pod_starboard", "engine_starboard"],
-    ["pod_port", "engine_port"],
-    ["nose", "turret_starboard"],
-    ["nose", "turret_port"],
-];
-
-// The Ledger's civilian yacht, which flies UNARMED: the assembly takes the
-// meshed seven and leaves its two mount points empty (webmods/the-ledger/ledger_ships.content.ron).
-const RACER_PARTS: ShipPart[] = [
-    shipPart(
-        "engine_starboard",
-        "DRV S",
-        70,
-        [0.5, 0.5, 1.5],
-        [-0.09, -0.3, -0.3],
-        [0.4, 0.44189, 0.32567]
-    ),
-    shipPart(
-        "engine_port",
-        "DRV P",
-        70,
-        [-0.5, 0.5, 1.5],
-        [-0.4, -0.3, -0.3],
-        [0.09, 0.44189, 0.32567]
-    ),
-    shipPart(
-        "wing_starboard",
-        "WING S",
-        180,
-        [1.0, 0.5, 0.0],
-        [-0.59, -0.5, -0.964329],
-        [0.2, 0.5, 1.2]
-    ),
-    shipPart(
-        "wing_port",
-        "WING P",
-        180,
-        [-1.0, 0.5, 0.0],
-        [-0.2, -0.5, -0.964329],
-        [0.59, 0.5, 1.2]
-    ),
-    shipPart(
-        "nose",
-        "NOSE",
-        120,
-        [0.0, 0.5, -1.5],
-        [-0.4, -0.5, -0.52567],
-        [0.4, 0.72265, 0.5]
-    ),
-    shipPart(
-        "tail",
-        "TAIL",
-        120,
-        [0.0, 1.0, 1.5],
-        [-0.41, -0.8, -0.3],
-        [0.41, 0.5, 0.52567]
-    ),
-    shipPart(
-        "fuselage",
-        "FUSELAGE",
-        240,
-        [0.0, 0.5, 0.0],
-        [-0.41, -0.5, -1.0],
-        [0.41, 0.9, 1.2]
-    ),
-];
-
-// The Ledger's torpedo hauler (webmods/the-ledger/ledger_ships.content.ron). Its two big side pods are the
-// tubes, and its guns stand on their shoulders rather than on the nose.
-const CARGOB_PARTS: ShipPart[] = [
-    shipPart(
-        "engine_starboard",
-        "DRV S",
-        70,
-        [1.0, 0.5, 2.0],
-        [-0.39, -0.3, -0.5],
-        [0.4, 0.7, 0.5]
-    ),
-    shipPart(
-        "engine_port",
-        "DRV P",
-        70,
-        [-1.0, 0.5, 2.0],
-        [-0.4, -0.3, -0.5],
-        [0.39, 0.7, 0.5]
-    ),
-    shipPart(
-        "pod_starboard",
-        "POD S",
-        350,
-        [1.0, 0.5, -0.5],
-        [-0.39, -0.3, -2.0],
-        [0.5, 0.7, 2.0]
-    ),
-    shipPart(
-        "pod_port",
-        "POD P",
-        350,
-        [-1.0, 0.5, -0.5],
-        [-0.5, -0.3, -2.0],
-        [0.39, 0.7, 2.0]
-    ),
-    shipPart(
-        "nose",
-        "NOSE",
-        180,
-        [0.0, 1.0, -2.0],
-        [-0.61, -0.8, -0.5],
-        [0.61, 0.8, 1.0]
-    ),
-    shipPart(
-        "tail",
-        "TAIL",
-        150,
-        [0.0, 0.5, 2.0],
-        [-0.61, -0.5, -0.5],
-        [0.61, 0.8, 0.5]
-    ),
-    shipPart(
-        "fuselage",
-        "FUSELAGE",
-        300,
-        [0.0, 1.0, 0.5],
-        [-0.61, -1.0, -1.5],
-        [0.61, 0.8, 1.0]
-    ),
-    turretMount("turret_starboard", "T", [1.55, 1.2, 0.0]),
-    turretMount("turret_port", "T", [-1.55, 1.2, 0.0]),
-];
+// A hull the widgets only need the WEIGHT of, written as the bill of materials
+// `assets/base/ships/base.content.ron` assembles it from. Mass is not authored
+// anywhere: a section weighs the volume of its own box at density 1
+// (base_section.rs:470-471), so a count of prototypes is the whole of it.
+interface SectionCount {
+    proto: SectionProto;
+    count: number;
+}
+function bomMass(bom: SectionCount[]): number {
+    return bom.reduce(
+        (mass, entry) =>
+            mass +
+            entry.count *
+                entry.proto.cells[0] *
+                entry.proto.cells[1] *
+                entry.proto.cells[2],
+        0
+    );
+}
 
 // The largest eigenvalue of a symmetric 3x3, closed form. This is the
 // "conservative axis" the attitude budget is taken against
@@ -2859,9 +2832,10 @@ interface HullState {
 // structural arm derived off it (attitude.rs, `structural_arm`). Density is 1 and not
 // authorable, so a section's mass is exactly its box volume
 // (base_section.rs:376) - which is why NOTHING in this function reads an
-// authored number. Every section on these craft is mounted axis-aligned except the
-// turret mounts, whose box is a cube and so is the same under any rotation;
-// that is what lets the arm drop the rotation term the Rust carries.
+// authored number. Every cell of a base hull sits axis-aligned on the build
+// grid, and the ones that carry an authored rotation (the PDC mounts) are
+// cubes, the same box under any of them; that is what lets the arm drop the
+// rotation term the Rust carries.
 export function hullState(parts: ShipPart[]): HullState {
     let mass = 0;
     const com: Vec3T = [0, 0, 0];
@@ -2938,37 +2912,74 @@ export function hullState(parts: ShipPart[]): HullState {
 
 // Which sections are still THE SHIP after `destroyed` have been shot off.
 //
-// A cut that disconnects the structural graph severs it: the body carrying the
-// live computers keeps ship identity and every other piece drifts away as an
-// inert wreck (nova_ship/src/sections/integrity.rs:231-349). The fuselage is
-// the only computer on all three of these craft, so the retained body is the
-// one it sits in.
+// A cut that disconnects the structural graph severs it: the body carrying a
+// live flight computer keeps ship identity and every other piece drifts away
+// as an inert wreck (nova_ship/src/sections/integrity.rs:231-349). `computers`
+// names the sections that confer it, so a hull with two of them survives
+// losing one - and losing both leaves no ship at all.
 export function severedParts(
     parts: ShipPart[],
     mates: [string, string][],
-    destroyed: Set<string>
+    destroyed: Set<string>,
+    computers: string[]
 ): { held: ShipPart[]; adrift: ShipPart[] } {
     const live = parts.filter((part) => !destroyed.has(part.id));
-    if (destroyed.has("fuselage")) return { held: [], adrift: live };
-    const reached = new Set<string>(["fuselage"]);
-    for (let pass = 0; pass < live.length; pass++) {
-        for (const [a, b] of mates) {
-            if (destroyed.has(a) || destroyed.has(b)) continue;
-            if (reached.has(a)) reached.add(b);
-            if (reached.has(b)) reached.add(a);
-        }
+    if (!computers.some((id) => !destroyed.has(id)))
+        return { held: [], adrift: live };
+
+    const neighbours = new Map<string, string[]>();
+    for (const part of live) neighbours.set(part.id, []);
+    for (const [a, b] of mates) {
+        if (!neighbours.has(a) || !neighbours.has(b)) continue;
+        neighbours.get(a)?.push(b);
+        neighbours.get(b)?.push(a);
     }
+
+    const seen = new Set<string>();
+    const components: ShipPart[][] = [];
+    for (const part of live) {
+        if (seen.has(part.id)) continue;
+        const stack = [part.id];
+        const ids = new Set<string>([part.id]);
+        seen.add(part.id);
+        while (stack.length) {
+            for (const next of neighbours.get(String(stack.pop())) ?? []) {
+                if (seen.has(next)) continue;
+                seen.add(next);
+                ids.add(next);
+                stack.push(next);
+            }
+        }
+        components.push(live.filter((one) => ids.has(one.id)));
+    }
+
+    // The retained body, ranked the way the game ranks it: most live flight
+    // computers first, then the most BUILT health - the sum of every section's
+    // max, not what is left in them (integrity.rs:349-359). Every other
+    // component drifts away as a wreck.
+    const rank = (component: ShipPart[]): [number, number] => [
+        component.filter((one) => computers.includes(one.id)).length,
+        component.reduce((sum, one) => sum + one.health, 0),
+    ];
+    let held = components[0];
+    for (const component of components.slice(1)) {
+        const [seats, health] = rank(component);
+        const [bestSeats, bestHealth] = rank(held);
+        if (seats > bestSeats || (seats === bestSeats && health > bestHealth))
+            held = component;
+    }
+    if (!rank(held)[0]) return { held: [], adrift: live };
     return {
-        held: live.filter((part) => reached.has(part.id)),
-        adrift: live.filter((part) => !reached.has(part.id)),
+        held,
+        adrift: live.filter((part) => !held.includes(part)),
     };
 }
 
 // ---- controller-arm -------------------------------------------------------
 
-// The corvette in plan view, with the balance point, the structural arm as a
+// The gunship in plan view, with the balance point, the structural arm as a
 // ring, and the ceiling that arm buys read off the 8 G curve beside it. Shoot
-// pieces off and both move - which is the whole model: the ceiling is not
+// structures off and both move - which is the whole model: the ceiling is not
 // authored anywhere, it falls out of where the metal ended up.
 function initControllerArm(host: HTMLElement): void {
     header(
@@ -2976,7 +2987,7 @@ function initControllerArm(host: HTMLElement): void {
         "The arm: what the metal allows",
         "Hull metal takes 8 G at any point on it, so the turn ceiling is " +
             "that limit over the arm from the ship's balance point to its " +
-            "furthest face. Shoot pieces off the corvette and watch the " +
+            "furthest face. Shoot structures off the gunship and watch the " +
             "balance point move, the arm shorten and the ceiling climb."
     );
 
@@ -2985,22 +2996,24 @@ function initControllerArm(host: HTMLElement): void {
     // starboard at +X, so a view from ABOVE with the nose at screen left puts
     // starboard at the TOP - `py` runs against +X, or the caption is lying and
     // every port/starboard label is on the wrong side.
-    const SCALE = 42;
-    const AX = 154;
-    const AY = 144;
+    // Sized so the arm RING fits the panel: the gunship's arm is over five
+    // cells, so the circle it draws is what sets the scale, not the hull.
+    const SCALE = 22;
+    const AX = 140;
+    const AY = 145;
     const px = (z: number): number => AX + z * SCALE;
     const py = (x: number): number => AY - x * SCALE;
 
     // The 8 G curve beside it. Linear on both axes: the two ceilings are a
-    // factor of fifteen apart on this hull, so drawing them as two lines would
+    // factor of six apart on this hull, so drawing them as two lines would
     // need a log scale that flattens the only curve worth seeing.
     const BX0 = 336;
     const BX1 = 548;
     const BY0 = 210;
     const BY1 = 40;
-    const ARM_MIN = 1.0;
-    const ARM_MAX = 3.0;
-    const CEIL_MAX = 8;
+    const ARM_MIN = 4.0;
+    const ARM_MAX = 7.0;
+    const CEIL_MAX = 3;
     const bx = (a: number): number =>
         BX0 +
         ((clamp(a, ARM_MIN, ARM_MAX) - ARM_MIN) / (ARM_MAX - ARM_MIN)) *
@@ -3012,7 +3025,7 @@ function initControllerArm(host: HTMLElement): void {
         viewBox: "0 0 560 280",
         role: "img",
         "aria-label":
-            "Left: the corvette from above, with its balance point, a ring " +
+            "Left: the gunship from above, with its balance point, a ring " +
             "at its structural arm, and any sections shot off or set adrift " +
             "marked. Right: turn ceiling against structural arm, with the " +
             "intact ship and the current wreck marked on the curve.",
@@ -3022,7 +3035,7 @@ function initControllerArm(host: HTMLElement): void {
         svgEl(
             "text",
             { x: "8", y: "16", class: "widget-mark--axis" },
-            "corvette, from above - nose to the left"
+            "gunship, from above - nose to the left"
         )
     );
     svg.appendChild(
@@ -3034,7 +3047,7 @@ function initControllerArm(host: HTMLElement): void {
     );
 
     // --- panel B furniture, drawn once ---
-    for (const c of [2, 4, 6, 8]) {
+    for (const c of [1, 2, 3]) {
         svg.appendChild(
             svgEl("line", {
                 x1: String(BX0),
@@ -3057,7 +3070,7 @@ function initControllerArm(host: HTMLElement): void {
             )
         );
     }
-    for (const a of [1, 1.5, 2, 2.5, 3]) {
+    for (const a of [4, 5, 6, 7]) {
         svg.appendChild(
             svgEl(
                 "text",
@@ -3099,7 +3112,7 @@ function initControllerArm(host: HTMLElement): void {
         )
     );
 
-    const intact = hullState(CARGOA_PARTS);
+    const intact = hullState(GUNSHIP_CELLS);
     // Only drawn once there is damage to compare against: on the intact hull
     // this dot sits exactly under the live one.
     const intactDot = svgEl("circle", {
@@ -3164,22 +3177,36 @@ function initControllerArm(host: HTMLElement): void {
 
     const update = (): void => {
         const { held, adrift } = severedParts(
-            CARGOA_PARTS,
-            CARGOA_MATES,
-            destroyed
+            GUNSHIP_CELLS,
+            GUNSHIP_MATES,
+            destroyed,
+            GUNSHIP_COMPUTERS
         );
         const state = hullState(held);
         const structural = structuralCeiling(state.arm);
-        // ONE computer: the fuselage is the corvette's only Controller part
-        // (webmods/the-ledger/ledger_ships.content.ron), and it is the only one these craft carry.
-        // Torque sums with no curve and no cap (controller_section.rs:385-388),
-        // so with the fuselage gone there is no propulsive ceiling at all -
-        // and no ship, because the fuselage is also what holds it together.
-        const torque = torqueCeiling(CONTROLLER_MAX_TORQUE, state.inertia);
+        // TWO computers, and torque sums with no curve and no cap
+        // (controller_section.rs:385-388), so the gunship offers twice one
+        // cell's twist. Only the seats still ON the retained body count: a
+        // computer that severed away is steering a wreck, not this ship.
+        const seats = held.filter((part) =>
+            GUNSHIP_COMPUTERS.includes(part.id)
+        ).length;
+        const torque = torqueCeiling(
+            seats * CONTROLLER_MAX_TORQUE,
+            state.inertia
+        );
         const ceiling = Math.min(structural, torque);
 
         hullGroup.replaceChildren();
-        for (const part of CARGOA_PARTS) {
+        // Every live cell as a plate, then ONE label per named structure at
+        // its centroid. A built hull is dozens of identical cells and the
+        // spine stacks two decks deep, so labelling each rect would print the
+        // same word over itself six times.
+        const labelled = new Map<
+            string,
+            { x: number; y: number; n: number; dead: boolean }
+        >();
+        for (const part of GUNSHIP_CELLS) {
             if (destroyed.has(part.id)) continue;
             const gone = adrift.includes(part);
             hullGroup.appendChild(
@@ -3192,21 +3219,31 @@ function initControllerArm(host: HTMLElement): void {
                     class: `widget-mark--section${gone ? " is-dead" : ""}`,
                 })
             );
+            const seen = labelled.get(part.group) ?? {
+                x: 0,
+                y: 0,
+                n: 0,
+                dead: true,
+            };
+            seen.x += part.center[2];
+            seen.y += part.center[0];
+            seen.n += 1;
+            seen.dead = seen.dead && gone;
+            labelled.set(part.group, seen);
+        }
+        for (const [group, seen] of labelled) {
             hullGroup.appendChild(
                 svgEl(
                     "text",
                     {
-                        x: String(px(part.center[2])),
-                        // Along the TOP edge of the box rather than through
-                        // its middle: the balance point sits inside the
-                        // fuselage, and a centred label runs straight under it.
-                        y: String(py(part.center[0] + part.size[0] * 0.5) + 11),
+                        x: String(px(seen.x / seen.n)),
+                        y: String(py(seen.y / seen.n) + 4),
                         "text-anchor": "middle",
-                        class: gone
+                        class: seen.dead
                             ? "widget-mark--word is-dead"
                             : "widget-mark--detail",
                     },
-                    part.label
+                    group
                 )
             );
         }
@@ -3240,10 +3277,12 @@ function initControllerArm(host: HTMLElement): void {
             torqueStat.textContent = "0 rad/s^2";
             flipStat.textContent = "-";
             readout.classList.add("is-fault");
-            readout.textContent = destroyed.has("fuselage")
-                ? "The fuselage carried the only flight computer, so nothing " +
-                  "is steering: what is left of the corvette is a drifting, " +
-                  "tumbling derelict, and every piece of it has severed away."
+            readout.textContent = GUNSHIP_CELLS.some(
+                (part) => !destroyed.has(part.id)
+            )
+                ? "Both flight computers are gone, so nothing is steering: " +
+                  "every section still out there is a drifting, tumbling " +
+                  "derelict rather than a ship."
                 : "Nothing left of the ship at all.";
             return;
         }
@@ -3286,13 +3325,13 @@ function initControllerArm(host: HTMLElement): void {
         const gain = (structural / structuralCeiling(intact.arm) - 1) * 100;
         if (!destroyed.size) {
             readout.textContent =
-                `Nine sections, ${engineMeters(state.arm, 1)} of arm. The metal ` +
-                `gives up at ${structural.toFixed(2)} rad/s^2, and the one ` +
-                `flight computer in its fuselage could push ` +
-                `${torque.toFixed(1)} - ${(torque / structural).toFixed(0)} ` +
-                "times as hard. Every one of these craft sits this far clear of " +
-                "its computers, which is why fitting more of them buys no " +
-                "turn rate at all.";
+                `${GUNSHIP_CELLS.length} sections, ` +
+                `${engineMeters(state.arm, 1)} of arm. The metal gives up at ` +
+                `${structural.toFixed(2)} rad/s^2, and the two flight ` +
+                `computers together could push ${torque.toFixed(1)} - ` +
+                `${(torque / structural).toFixed(0)} times as hard. Every base ` +
+                "hull but the carrier sits this far clear of its computers, " +
+                "which is why bolting more of them on buys no turn rate at all.";
         } else if (gain <= -0.5) {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
@@ -3320,40 +3359,44 @@ function initControllerArm(host: HTMLElement): void {
         }
     };
 
-    for (const part of CARGOA_PARTS) {
-        const name =
-            part.id === "turret_starboard"
-                ? "TURRET S"
-                : part.id === "turret_port"
-                  ? "TURRET P"
-                  : part.label;
+    // One button per named structure rather than one per cell: fifty-three
+    // toggles would not fit under the plot, and a reader shoots "the bow",
+    // not "plate_43".
+    const groups: string[] = [];
+    for (const part of GUNSHIP_CELLS)
+        if (!groups.includes(part.group)) groups.push(part.group);
+    const groupCells = new Map<string, ShipPart[]>(
+        groups.map((group) => [
+            group,
+            GUNSHIP_CELLS.filter((part) => part.group === group),
+        ])
+    );
+    for (const group of groups) {
+        const name = group.toUpperCase();
         const btn = el("button", "widget__btn", name);
         btn.type = "button";
         btn.setAttribute("aria-pressed", "false");
         btn.addEventListener("click", () => {
-            if (destroyed.has(part.id)) destroyed.delete(part.id);
-            else destroyed.add(part.id);
-            const out = destroyed.has(part.id);
+            const cells = groupCells.get(group) ?? [];
+            const out = !cells.every((part) => destroyed.has(part.id));
+            for (const part of cells) {
+                if (out) destroyed.add(part.id);
+                else destroyed.delete(part.id);
+            }
             btn.textContent = out ? `${name} OUT` : name;
             btn.classList.toggle("is-hot", out);
             btn.setAttribute("aria-pressed", String(out));
             update();
         });
-        keyButtons.set(part.id, btn);
+        keyButtons.set(group, btn);
         keys.appendChild(btn);
     }
     const rebuild = el("button", "widget__btn", "REBUILD");
     rebuild.type = "button";
     rebuild.addEventListener("click", () => {
         destroyed.clear();
-        for (const [id, btn] of keyButtons) {
-            const part = CARGOA_PARTS.find((p) => p.id === id);
-            btn.textContent =
-                id === "turret_starboard"
-                    ? "TURRET S"
-                    : id === "turret_port"
-                      ? "TURRET P"
-                      : (part?.label ?? id);
+        for (const [group, btn] of keyButtons) {
+            btn.textContent = group.toUpperCase();
             btn.classList.remove("is-hot");
             btn.setAttribute("aria-pressed", "false");
         }
@@ -3368,9 +3411,11 @@ function initControllerArm(host: HTMLElement): void {
             "the reach to the outer FACE of the furthest section, not to its " +
             "centre. Mass is not authored anywhere - a section weighs its " +
             "own authored box - so both the balance point and the arm are " +
-            "read off the corvette's parts and nothing else. Both guns hang " +
-            "off the nose and each drive off its own pod, so killing a part " +
-            "in the middle cuts the pieces beyond it loose."
+            "read off the gunship's own cells and nothing else. The bow spur " +
+            "sets the arm and the drive holds most of the weight, so those " +
+            "two buttons move the reading hardest. Cut the spine and the " +
+            "structures beyond it are no longer attached to a flight " +
+            "computer, so they stop being this ship."
     );
 
     host.appendChild(keys);
@@ -3393,11 +3438,11 @@ function initControllerMargin(host: HTMLElement): void {
         "A hard turn spends the margin",
         "The 8 G limit is one acceleration at the ship's furthest point, " +
             "and a turn already spends part of it just holding the curve. " +
-            "Roll the corvette's turn rate up and watch what is left to " +
+            "Roll the gunship's turn rate up and watch what is left to " +
             "turn HARDER with."
     );
 
-    const arm = hullState(CARGOA_PARTS).arm;
+    const arm = hullState(GUNSHIP_CELLS).arm;
     const structural = structuralCeiling(arm);
     const sustained = sustainedTurnRate(arm);
     const sustainedDeg = (sustained * 180) / Math.PI;
@@ -3571,7 +3616,7 @@ function initControllerMargin(host: HTMLElement): void {
         if (deg < sustainedDeg * 0.5) {
             readout.classList.remove("is-warn");
             readout.textContent =
-                `At ${deg.toFixed(0)} deg/s the corvette has ` +
+                `At ${deg.toFixed(0)} deg/s the gunship has ` +
                 `${Math.round((100 * left) / structural)}% of its budget ` +
                 "still in hand. Below about half the committed rate the " +
                 "sideways load is a rounding error and the ship tightens " +
@@ -3609,7 +3654,7 @@ function initControllerMargin(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "The corvette's own numbers: a " +
+        "The gunship's own numbers: a " +
             `${engineMeters(arm, 1)} arm, so ${structural.toFixed(2)} rad/s^2 ` +
             `of budget and ${sustainedDeg.toFixed(0)} deg/s of committed ` +
             "turn. A longer ship commits earlier and a shorter one later, " +
@@ -4382,7 +4427,7 @@ function initGotoVerb(host: HTMLElement): void {
         );
         // The arrival envelope: the fastest speed the flip still recovers
         // from, drawn against distance travelled.
-        const turnRate = hullTurnRate(structuralCeiling(CORVETTE_ARM_U));
+        const turnRate = hullTurnRate(structuralCeiling(GUNSHIP_ARM_U));
         const lead = Math.PI / turnRate + ARRIVAL_SPOOL_PAD;
         const env: string[] = [];
         for (let p = 0; p <= park; p += targetDistance / 200) {
@@ -4554,10 +4599,10 @@ function initGotoVerb(host: HTMLElement): void {
         "widget__note",
         "Simplified to one dimension: no gravity, one forward drive group " +
             "(so the brake angle is a full 180), a stationary target. The " +
-            "hull is The Ledger's corvette, held by its own structure to " +
-            "2.84 rad/s^2. The envelope, flip line, 85% brake margin, " +
-            "15 m/s approach floor, standoff and RCS settle are the game's " +
-            "own rules."
+            "hull is the base Patrol Gunship, held by its own structure to " +
+            `${structuralCeiling(GUNSHIP_ARM_U).toFixed(2)} rad/s^2. The ` +
+            "envelope, flip line, 85% brake margin, 15 m/s approach floor, " +
+            "standoff and RCS settle are the game's own rules."
     );
 
     host.appendChild(controls);
@@ -6279,18 +6324,48 @@ function initTorpedoRun(host: HTMLElement): void {
 // ---- thruster-mass --------------------------------------------------------
 
 // Thrust is authored per drive; MASS is not authored at all. A section weighs
-// exactly its own box (base_section.rs:376), so the same two drives move three
-// modelled hulls at three different rates and nothing anywhere says so.
+// exactly its own box (base_section.rs:470-471), so the same two drives move
+// three salvage hulls at three different rates and nothing anywhere says so.
+// The three are chosen because they fly the SAME drive fit - two basic
+// thrusters each, in assets/base/ships/base.content.ron - so the only thing
+// separating their curves is how many plates sit behind them.
 interface DriveRig {
     name: string;
     detail: string;
-    parts: ShipPart[];
+    bom: SectionCount[];
     drives: number;
 }
 const DRIVE_RIGS: DriveRig[] = [
-    { name: "racer", detail: "civilian yacht", parts: RACER_PARTS, drives: 2 },
-    { name: "corvette", detail: "cargoa", parts: CARGOA_PARTS, drives: 2 },
-    { name: "hauler", detail: "cargob", parts: CARGOB_PARTS, drives: 2 },
+    {
+        name: "skiff",
+        detail: "block_skiff, 21 sections",
+        bom: [
+            { proto: LIGHT_HULL, count: 18 },
+            { proto: CONTROLLER_CELL, count: 1 },
+            { proto: BASIC_DRIVE, count: 2 },
+        ],
+        drives: 2,
+    },
+    {
+        name: "cutter",
+        detail: "block_cutter, 26 sections",
+        bom: [
+            { proto: HULL_CELL, count: 23 },
+            { proto: CONTROLLER_CELL, count: 1 },
+            { proto: BASIC_DRIVE, count: 2 },
+        ],
+        drives: 2,
+    },
+    {
+        name: "tug",
+        detail: "block_tug, 41 sections",
+        bom: [
+            { proto: LIGHT_HULL, count: 38 },
+            { proto: CONTROLLER_CELL, count: 1 },
+            { proto: BASIC_DRIVE, count: 2 },
+        ],
+        drives: 2,
+    },
 ];
 
 function initThrusterMass(host: HTMLElement): void {
@@ -6303,7 +6378,7 @@ function initThrusterMass(host: HTMLElement): void {
             "authors that. Bolt basic drives on and watch it out."
     );
 
-    const EXTRA_MAX = 8;
+    const EXTRA_MAX = 20;
     const ACCEL_MAX = 700; // m/s^2
     const X0 = 48;
     const X1 = 484;
@@ -6319,7 +6394,7 @@ function initThrusterMass(host: HTMLElement): void {
     // place it crosses into the m/s^2 every reading below is in.
     const accel = (rig: DriveRig, extra: number): number =>
         (((rig.drives + extra) * THRUSTER_MAGNITUDE * FIXED_TICK_HZ) /
-            (hullState(rig.parts).mass + extra)) *
+            (bomMass(rig.bom) + extra)) *
         METERS_PER_UNIT;
     // What one drive carrying only itself would do: the hard ceiling every
     // curve climbs toward, in the same m/s^2.
@@ -6329,9 +6404,9 @@ function initThrusterMass(host: HTMLElement): void {
         viewBox: "0 0 560 230",
         role: "img",
         "aria-label":
-            "Acceleration against drives added, one curve per modelled hull. " +
+            "Acceleration against drives added, one curve per salvage hull. " +
             "All three climb toward the same hard ceiling, and the light " +
-            "yacht starts more than twice as high as the hauler.",
+            "skiff starts nearly twice as high as the tug.",
     });
     for (const a of [0, 200, 400, 600]) {
         svg.appendChild(
@@ -6356,7 +6431,7 @@ function initThrusterMass(host: HTMLElement): void {
             )
         );
     }
-    for (let k = 0; k <= EXTRA_MAX; k += 2) {
+    for (let k = 0; k <= EXTRA_MAX; k += 4) {
         svg.appendChild(
             svgEl(
                 "text",
@@ -6399,8 +6474,8 @@ function initThrusterMass(host: HTMLElement): void {
         )
     );
 
-    // The corvette and the hauler end within 30 m/s^2 of each other, which is
-    // seven pixels: the end labels are pushed apart to a readable gap rather
+    // The skiff and the cutter end within 40 m/s^2 of each other, which is
+    // nine pixels: the end labels are pushed apart to a readable gap rather
     // than left to sit on the curve heights exactly.
     const ends = DRIVE_RIGS.map((rig, index) => ({
         index,
@@ -6444,7 +6519,7 @@ function initThrusterMass(host: HTMLElement): void {
     const update = (): void => {
         const rig = DRIVE_RIGS[Number(rigControl.input.value)];
         const extra = Number(extraControl.input.value);
-        const mass = hullState(rig.parts).mass + extra;
+        const mass = bomMass(rig.bom) + extra;
         const a = accel(rig, extra);
 
         curves.forEach((curve, index) => {
@@ -6470,11 +6545,11 @@ function initThrusterMass(host: HTMLElement): void {
         const stock = DRIVE_RIGS.map((r) => accel(r, 0));
         if (extra === 0) {
             readout.textContent =
-                `Stock, all three of The Ledger's hulls carry two drives ` +
-                `pushing 1.0 each. The ` +
-                `yacht weighs ${hullState(RACER_PARTS).mass.toFixed(2)} and ` +
-                `pulls ${metersPerSec2(stock[0], 0)}; the hauler weighs ` +
-                `${hullState(CARGOB_PARTS).mass.toFixed(2)} and pulls ` +
+                "Stock, all three salvage hulls fly on the same two basic " +
+                `drives, pushing 1.0 each. The skiff weighs ` +
+                `${bomMass(DRIVE_RIGS[0].bom).toFixed(2)} and pulls ` +
+                `${metersPerSec2(stock[0], 0)}; the tug weighs ` +
+                `${bomMass(DRIVE_RIGS[2].bom).toFixed(2)} and pulls ` +
                 `${metersPerSec2(stock[2], 0)}. Nothing authored that gap - it is ` +
                 "the volume of the boxes each hull is built from.";
         } else {
@@ -6531,51 +6606,51 @@ function initThrusterMass(host: HTMLElement): void {
 
 // ---- hull-armour ----------------------------------------------------------
 
-// Health is authored per part; the mass that carries it is NOT. So the
-// catalog's health column and the cost of bolting a part on rank these hull
-// parts in different orders, and only one of those orders is a build decision.
+// Health is authored per section; the mass that carries it is NOT. So the
+// catalog's health column and the cost of bolting a section on rank the base
+// prototypes in OPPOSITE orders, and only one of those is a build decision.
 interface ArmourPart {
     name: string;
     health: number;
     mass: number;
 }
 
-function craftPart(parts: ShipPart[], id: string, name: string): ArmourPart {
-    const part = parts.find((p) => p.id === id);
-    if (!part) throw new Error(`no catalog part ${id}`);
+// One catalog prototype, weighed. Mass is the authored collider box and
+// nothing else, so this reads it straight off the same `SectionProto` the
+// hulls above are assembled from - there is no second source for it.
+function armourPart(proto: SectionProto, name: string): ArmourPart {
     return {
         name,
-        health: part.health,
-        mass: part.size[0] * part.size[1] * part.size[2],
+        health: proto.health,
+        mass: proto.cells[0] * proto.cells[1] * proto.cells[2],
     };
 }
 
-// The two unit-cell hulls author no collider at all (standard.rs:303,:411), so
-// each is the default unit cube - one of mass, exactly
-// (base_section.rs:79-85). Their health is standard.rs:300,:408.
-const CARGOA_NOSE = craftPart(CARGOA_PARTS, "nose", "CargoA // Nose");
-const RACER_TAIL = craftPart(RACER_PARTS, "tail", "Racer // Tail");
+// The base catalog, one row per distinct health-and-box pairing. The two ends
+// of it are the argument: the capital drive tops the health column and sits
+// LAST per mass, and the PDC mount is the other way round.
+const CAPITAL_ROW = armourPart(CAPITAL_DRIVE, "Capital Thruster Section");
+const PDC_ROW = armourPart(PDC_MOUNT, "PDC Turret Section");
 const ARMOUR_PARTS: ArmourPart[] = [
-    { name: "Reinforced Hull Section", health: 200, mass: 1 },
-    { name: "Light Hull Section", health: 60, mass: 1 },
-    craftPart(RACER_PARTS, "wing_starboard", "Racer // Wing"),
-    craftPart(RACER_PARTS, "nose", "Racer // Nose"),
-    RACER_TAIL,
-    craftPart(CARGOA_PARTS, "pod_starboard", "CargoA // Pod"),
-    CARGOA_NOSE,
-    craftPart(CARGOA_PARTS, "tail", "CargoA // Tail"),
-    craftPart(CARGOB_PARTS, "nose", "CargoB // Nose"),
-    craftPart(CARGOB_PARTS, "tail", "CargoB // Tail"),
+    CAPITAL_ROW,
+    armourPart(VECTOR_DRIVE, "Vector Thruster Section"),
+    armourPart(HULL_CELL, "Reinforced Hull Section"),
+    armourPart(SIEGE_LANCE, "Siege Railgun Lance"),
+    PDC_ROW,
+    armourPart(HEAVY_BAY, "Siege Torpedo Bay Section"),
+    armourPart(CONTROLLER_CELL, "Basic Controller Section"),
+    armourPart(BASIC_DRIVE, "Basic Thruster Section"),
+    armourPart(LIGHT_HULL, "Light Hull Section"),
 ];
 
 function initHullArmour(host: HTMLElement): void {
     header(
         host,
         "Armour, and what it costs to carry",
-        "A hull part's mass is its own authored box and nothing else - no " +
-            "part is denser than another. So the health column is not the " +
+        "A section's mass is its own authored box and nothing else - no " +
+            "section is denser than another. So the health column is not the " +
             "order you want when you are picking what to bolt on. Switch " +
-            "the ranking and watch it come apart."
+            "the ranking and watch it turn over."
     );
 
     const rows = el("div");
@@ -6619,21 +6694,21 @@ function initHullArmour(host: HTMLElement): void {
         worstStat.textContent = `${worst.name}, ${(worst.health / worst.mass).toFixed(0)}`;
         spreadStat.textContent = `x${(best.health / best.mass / (worst.health / worst.mass)).toFixed(1)}`;
 
-        const cargoaNose = CARGOA_NOSE;
-        const racerTail = RACER_TAIL;
         readout.textContent = perMass
-            ? `Ranked by what it costs to carry, the ${racerTail.name} beats ` +
-              `the ${cargoaNose.name}: ` +
-              `${(racerTail.health / racerTail.mass).toFixed(0)} against ` +
-              `${(cargoaNose.health / cargoaNose.mass).toFixed(0)}. The nose ` +
-              `is ${cargoaNose.mass.toFixed(2)} of mass to the tail's ` +
-              `${racerTail.mass.toFixed(2)}, and every bit of that mass is ` +
-              "acceleration you do not get."
-            : `Ranked by health alone the ${cargoaNose.name} (` +
-              `${cargoaNose.health}) looks like better armour than the ` +
-              `${racerTail.name} (${racerTail.health}). It is nearly three ` +
-              "times the box, so per unit of mass it is barely half as good. " +
-              "This is the order the catalog table gives you.";
+            ? `Ranked by what it costs to carry, the order INVERTS: the ` +
+              `${PDC_ROW.name} tops it at ` +
+              `${(PDC_ROW.health / PDC_ROW.mass).toFixed(0)} per mass and the ` +
+              `${CAPITAL_ROW.name} is last at ` +
+              `${(CAPITAL_ROW.health / CAPITAL_ROW.mass).toFixed(0)}. The ` +
+              `drive is ${CAPITAL_ROW.mass.toFixed(2)} of mass against the ` +
+              `mount's ${PDC_ROW.mass.toFixed(2)}, and every bit of that mass ` +
+              "is acceleration you do not get."
+            : `Ranked by health alone the ${CAPITAL_ROW.name} (` +
+              `${CAPITAL_ROW.health}) looks like the best armour in the ` +
+              `catalog and the ${PDC_ROW.name} (${PDC_ROW.health}) like the ` +
+              "worst. It is six hundred times the box, so per unit of mass " +
+              "that ranking is exactly backwards. This is the order the " +
+              "catalog table gives you.";
     };
 
     const keys = el("div", "widget__keys");

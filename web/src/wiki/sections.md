@@ -32,7 +32,7 @@ A ship is an assembly of sections, each with one job: hull blocks carry the stru
 - **It lives on a grid.** The build grid is 10 m cells. Most sections fill one; a torpedo tube fills two and the railgun three, and they weigh two and three cells to match. The scopes on these pages count in the same cells.
 - **It bolts on through its faces.** Every section offers faces another can attach through, and the builder seats it so its working end points the right way: a hull block takes neighbours on any side, a thruster attaches by its forward face only so the plume is always clear of the ship.
 - **It has one job, and keeps doing it.** A part does not degrade as it is hurt. A cracked, sparking drive pushes exactly as hard as a fresh one and a battered turret shoots as straight; what changes is what it looks like, until the moment it dies and the whole part comes off. [What damage looks like](../ships/#what-damage-looks-like) has the vocabulary.
-- **Its variants share the kind.** Every kind ships in a handful of prototypes that differ in health and in the one stat the kind is about - the round a turret loads, the torpedo a bay carries - and the base ships' own noses, wings, pods and engines are variants of the same kinds. Each page lists its own at the foot.
+- **Its variants share the kind.** Every kind ships in a handful of prototypes that differ in health and in the one stat the kind is about - the round a turret loads, the torpedo a bay carries, the grade of drive a hull needs. Each page lists its own at the foot.
 
 ## Reading a section page
 
@@ -40,10 +40,10 @@ Every page runs the same course: what the part does and the numbers that decide 
 
 ## The catalog at a glance
 
-The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft modelled parts a mod such as The Ledger brings (noses, wings, pods, fuselages). A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them - the torpedo bays and the railgun are the exceptions, a two-cell tube and a three-cell spine at two and three times the mass.
+The whole shipped catalog at a glance; every child page carries the full per-kind stats. A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them. What breaks the pattern is the mounts that are not unit cells: a PDC turret is a half-cell cube at an eighth of the mass, a torpedo bay a two-cell tube, a railgun a three-cell spine, and the two large drives are 18 and 75 cells of block.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: reinforced hull health 200 :584; basic thruster :611; basic controller :687 (max_torque 1501 :704); light hull 60 :732; cargo hull 200 :757; tank hull 200 :778; pdc_turret_prototype :414 (health 130 :429,:32) with gatling call sites :791-815 at 100/s :67 and twin call sites :816-839 at half per muzzle :75; torpedo bay builder :1144 with call sites :842-861; heavy_torpedo_section :994; both lances from railgun_lance_prototype with their grades at the two call sites in standard_section_prototypes. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: reinforced hull health 200 :596; basic thruster 70 at 1.0 :611-622,:642; vector thruster 480 at 9.0 over 3x3x2 :663-667; capital thruster 1250 at 25.0 over 5x5x3 :677-691; basic controller :701 (max_torque 1501 :718); light hull 60 :744-750; cargo hull 200 :769; tank hull 200 :790; pdc_turret_prototype :414 (health 130 :429,:32) with gatling call sites :791-815 at 100/s :67 and twin call sites :816-839 at half per muzzle :75; torpedo bay builder :1144 with call sites :842-861; heavy_torpedo_section :994; both lances from railgun_lance_prototype with their grades at the two call sites in standard_section_prototypes. -->
 <table>
 <thead>
 <tr><th>Kind</th><th>Variant</th><th>Health</th><th>Signature stat</th></tr>
@@ -55,6 +55,8 @@ The standard unit-cell catalog at a glance - every child page carries the full p
 <tr><td>Hull</td><td><span class="catalog__name">Tank Hull Section</span><span class="catalog__id">tank_hull_section</span></td><td class="catalog__num">200</td><td>structure only</td></tr>
 <tr><td>Controller</td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">100</td><td class="catalog__num">1501 torque</td></tr>
 <tr><td>Thruster</td><td><span class="catalog__name">Basic Thruster Section</span><span class="catalog__id">basic_thruster_section</span></td><td class="catalog__num">70</td><td class="catalog__num">1.0 thrust</td></tr>
+<tr><td>Thruster</td><td><span class="catalog__name">Vector Thruster Section</span><span class="catalog__id">vector_thruster_section</span></td><td class="catalog__num">480</td><td class="catalog__num">9.0 thrust, 3x3x2</td></tr>
+<tr><td>Thruster</td><td><span class="catalog__name">Capital Thruster Section</span><span class="catalog__id">capital_thruster_section</span></td><td class="catalog__num">1250</td><td class="catalog__num">25.0 thrust, 5x5x3</td></tr>
 <tr><td>Turret</td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">4.0 Kinetic at 100/s</td></tr>
 <tr><td>Turret</td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">2.0 Pierce at 100/s</td></tr>
 <tr><td>Turret</td><td><span class="catalog__name">Twin PDC Turret (Kinetic)</span><span class="catalog__id">pdc_twin_kinetic_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">4.0 Kinetic at 2 x 50/s</td></tr>

@@ -80,7 +80,7 @@ A hull carrying a [railgun](../sections/railgun/) has one more instrument, becau
             >assets/wiki-section-railgun-sight.png</span
         >
         <span class="figure__placeholder-note"
-            >The sight line out of the muzzle onto a corvette,
+            >The sight line out of the muzzle onto a gunship,
             a ring on each section the shot would gut.</span
         >
     </div>

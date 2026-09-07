@@ -111,7 +111,7 @@ The scope spaces its layers out so you can read the falloff. A real torpedo goes
         >
         <span class="figure__placeholder-note"
             >The real thing: a Serpent's detonation blowing the
-            outer layers off a corvette.</span
+            outer layers off a gunship.</span
         >
     </div>
 </figure>
@@ -138,7 +138,7 @@ The result scales through geometry rather than a ship-size bonus. A thin small c
 The two normal bays share every number but the torpedo type. The experimental siege bay uses the same six-round rearming rack but launches much faster, tougher, and more destructive Breakers. It is balancing and scenario kit, not a fair alternative for normal play. Ordnance hp is what point defense has to shoot through per torpedo.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: torpedo_bay_prototype :1144 (health :1157, blast radius 300 m :1199, blast damage 750 :1207, projectile_health 10 :1218, rack 6 :1226, rearm 10s/1 :1237-1239); heavy_torpedo_section :994 (editor-visible :1006, radius 450 m :1038, blast 2000 :1039, projectile_health 5000 :1048, rack 6 :1050, rearm 10s/1 :1051-1053, Breaker). Torpedo types: sections/ordnance.rs lance :62-75 (cruise 350 m/s :68, no weave :72-73), breaker :95-108 (cruise 700 m/s :104); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:395-404 (cruise 320 m/s :401, weave :402-403). CargoB pods: webmods/the-ledger/ledger_sections.content.ron (health 350, with the _lance variants beside them). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: torpedo_bay_prototype :1144 (health :1157, blast radius 300 m :1199, blast damage 750 :1207, projectile_health 10 :1218, rack 6 :1226, rearm 10s/1 :1237-1239); heavy_torpedo_section :994 (editor-visible :1006, radius 450 m :1038, blast 2000 :1039, projectile_health 5000 :1048, rack 6 :1050, rearm 10s/1 :1051-1053, Breaker). Torpedo types: sections/ordnance.rs lance :62-75 (cruise 350 m/s :68, no weave :72-73), breaker :95-108 (cruise 700 m/s :104); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:395-404 (cruise 320 m/s :401, weave :402-403). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-torpedo-bay.png</span></span></span><span class="catalog__title">Torpedo bay - shipped prototypes</span></div>
 <table>
 <thead>
@@ -148,11 +148,7 @@ The two normal bays share every number but the torpedo type. The experimental si
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-torpedo-section.png</span></span></span></td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td>Serpent (weaves)</td><td class="catalog__num">320 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">100</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-lance-torpedo-section.png</span></span></span></td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td>Lance (straight)</td><td class="catalog__num">350 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">100</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-heavy-torpedo-section.png</span></span></span></td><td><span class="catalog__name">Siege Torpedo Bay Section<span class="catalog__flag">experimental</span></span><span class="catalog__id">heavy_torpedo_section</span></td><td>Breaker (weaves)</td><td class="catalog__num">700 m/s</td><td class="catalog__num">2000</td><td class="catalog__num">450 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">5000</td><td class="catalog__num">100</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-pod.png</span></span></span></td><td><span class="catalog__name">CargoB // Pod</span><span class="catalog__id">cargob_pod_port + cargob_pod_starboard</span></td><td>Serpent (weaves)</td><td class="catalog__num">320 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">350</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-pod-lance.png</span></span></span></td><td><span class="catalog__name">CargoB // Pod (Lance)</span><span class="catalog__id">cargob_pod_port_lance + cargob_pod_starboard_lance</span></td><td>Lance (straight)</td><td class="catalog__num">350 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">350</td></tr>
 </tbody>
 </table>
 </div>
-
-The craft rows are The Ledger's: a mod that brings modelled craft brings their part prototypes with it, and base references none of them.
 

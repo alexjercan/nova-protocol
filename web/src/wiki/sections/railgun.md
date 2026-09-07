@@ -91,7 +91,7 @@ The shot is readable after it leaves, too. The slug carries its own light with i
         >
         <span class="figure__placeholder-note"
             >The sight line out of the muzzle across the gap
-            onto a corvette's long axis, a ring on each of the
+            onto a gunship's long axis, a ring on each of the
             sections the shot would gut, the line fat with a
             charge nearly run.</span
         >
@@ -129,9 +129,9 @@ How much it takes is one budget: **1800 power**, spent in the toughest each take
 
 | the same shot into | needle (no rake) | shipped corridor | a 40 m sphere |
 |---|---|---|---|
-| a corvette line, 3 x 1 x 4 cells | 4 cells, 800 hp | **12 cells, 2400 hp** | - |
+| a hull line, 3 x 1 x 4 cells | 4 cells, 800 hp | **12 cells, 2400 hp** | - |
 | a wall, 5 x 5 x 4 cells | 4 cells, 800 hp | 28 cells as 9 / 9 / 9 / 1 | 28 cells as 25 / 3 / 0 / 0 |
-| per 13.5 s cycle, corvette line | 59 hp/s | **178 hp/s** | - |
+| per 13.5 s cycle, hull line | 59 hp/s | **178 hp/s** | - |
 
 <figure class="figure">
     <!-- Capture: assets/wiki-section-railgun-corridor.png -->
@@ -154,7 +154,7 @@ How much it takes is one budget: **1800 power**, spent in the toughest each take
 <details class="explain">
 <summary>Show explanation</summary>
 
-Twenty-seven reinforced hull blocks is past the depth of anything that flies, which is exactly why the shot is wide: nothing in the game is thick enough to spend a slug's budget in one column, so the surplus goes sideways instead of out the far side. Against a four-cell corvette line the corridor removes three times what the bare needle did. **Depth is not what this weapon costs you** - the commit, the recoil and the reload are.
+Twenty-seven reinforced hull blocks is past the depth of anything that flies, which is exactly why the shot is wide: nothing in the game is thick enough to spend a slug's budget in one column, so the surplus goes sideways instead of out the far side. Against a four-cell hull line the corridor removes three times what the bare needle did. **Depth is not what this weapon costs you** - the commit, the recoil and the reload are.
 
 Wider is not more. Against a wall dense enough to bind the budget, a sphere four times the shipped radius removes exactly the same total, because both spend the same 1800 - it just spends it across the entry face and stops one layer in, where the shipped corridor bores three cells wide through all four layers and out the back. The radius chooses the shape of the hole; the power decides how much of it you get.
 
@@ -200,4 +200,4 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 </table>
 </div>
 
-Two railguns ship, and they are the same gun at two grades. The standard lance is the one you bolt on yourself in the ship editor; no buildable hull carries either. The siege lance is the campaign's - the stolen warship's two spinal guns, priced to cross a carrier rather than bore a corridor through a corvette, and it is deliberately overpowered for that one scene. See [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.
+Two railguns ship, and they are the same gun at two grades. The standard lance is the one you bolt on yourself in the ship editor; no hull in the base fleet carries it. The siege lance is the campaign's - the stolen warship's two spinal guns, priced to cross a carrier rather than bore a corridor through a gunship, and it is deliberately overpowered for that one scene. See [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.
