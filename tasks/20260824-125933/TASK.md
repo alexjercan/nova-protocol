@@ -410,13 +410,73 @@ the occlusion out itself with apparent-disc trigonometry, correctly, from a
 list that never said any of it - which is a good demonstration that the
 list is both too long and too thin.
 
-So: rethink the block rather than truncate it. Bodies close enough to
-matter, in full; the rest as a summary a pilot would give ("shallow belt,
-28 rocks, nearest 4.2 km"). State the relations the player reads off the
-screen - occluding the lock, inside the GOTO corridor, the well you are in.
-The same question applies to every other list in the view: contacts,
-ordnance, sections, hull plates. This item is the general form of item 2 -
-carry what the pilot needs, drop what is scenery.
+#### The shape: `observe {expand}`
+
+`observe` is already free - the clock does not move - so an expansion costs
+tokens and never game time. The referee is already holding the whole
+snapshot in `self.last`, so an expansion is a second read of a value in
+hand: no game step, no channel line, no protocol change.
+
+Put the expansion on `observe` rather than on a fourth tool. It keeps the
+count at three, which `manual.rs`'s test asserts and which the `baseline`
+and `cmd:` agents never have to learn, and it composes - any block can gain
+an expansion later without another tool.
+
+```
+observe {}                             -> the summary view
+observe {"expand": ["5-10km.astern"]}  -> that group, every record in full
+```
+
+What the agent chose to expand lands in the audit, so "did it look before
+it flew" becomes measurable rather than assumed - the same behavioural
+signal the page-reading tool of item 7 gives.
+
+#### Grouping: a tier per body, computed alone
+
+Not by authored group. At runtime there is no belt: `Belt` is a
+tutorial-local authoring struct, the scenario emits `ScatterObjects` with
+an `id_prefix`, and each rock spawns as an independent object. Grouping on
+a name prefix would be the bench guessing at authored semantics, which the
+project's authoring rule forbids. Teaching the engine a group id was
+considered and dropped: the belt identity is decoration, and the pilot
+question is geometric, not authorial.
+
+Not by k-means either. The view is re-rendered every act, so the binding
+requirement is STABILITY ACROSS OBSERVATIONS, not cluster quality. A k, an
+initialisation and an iteration mean one group can split between two acts
+with nothing having moved, and an agent cannot reason across turns through
+that. Euclidean clustering is also the wrong metric: 800 m off the bow and
+800 m astern are the same distance and completely different facts.
+
+Classify each body INDEPENDENTLY, as a pure function of the body and the
+ship's frame. No k, no seed, no iteration, no cross-frame state; a unit
+test is one body at one range and bearing landing in one tier. It is the
+same kind of derivation `condense` already does for range and bearing, and
+it needs nothing from the engine - position and radius are in the snapshot
+already.
+
+- `near`: surface inside a threshold, or a short time to closest approach
+  along the current velocity. The full record.
+- `in_the_way`: occluding the lock (angular separation below the body's
+  apparent radius) or inside the GOTO corridor. The full record, naming
+  the reason.
+- the rest: summarised, on a FIXED distance ladder crossed with a bearing
+  sector. Fixed edges mean a rock changes group only when it crosses one,
+  and the group reads as a pilot would say it - count, nearest surface,
+  largest radius, sector.
+
+#### The safety rule
+
+Expansion is for detail, NEVER for safety. Progressive disclosure's failure
+mode is that the agent does not know what it does not know: summarise the
+belt and it flies into a rock it never asked about. Anything that can end
+the run belongs in the default view, which is what the first two tiers are
+for. A fact the pilot must act on is not a detail.
+
+The same question applies to every other list in the view - contacts,
+ordnance, sections, hull plates - and the tiering generalises to all of
+them. This item is the general form of item 2: carry what the pilot needs,
+summarise what is scenery, and never hide what bites.
 
 ### 7. Split the manual, and give it a page-reading tool
 
