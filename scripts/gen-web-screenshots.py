@@ -105,8 +105,11 @@ FIGURES = [
     # A hull coming apart: the outer sections blowing off a core still firing.
     ("wiki-ships-damage.png",           None),
     # The part-candidate viewer shows the seven body meshes before functional
-    # modules are mounted by content. Used by the v0.10.0 release post.
-    ("parts-viewer-racer-exploded.png", "parts_viewer"),
+    # modules are mounted by content. v0.10.0 evidence and nothing else: those
+    # craft left base for The Ledger, so this figure is HISTORICAL and is not
+    # re-captured - the news index card and `news-0100-racer-exploded.png` are
+    # its only readers.
+    ("parts-viewer-racer-exploded.png", None),
     ("tutorial-menu.png",               "screenshot_menu"),
     # The other menu states: the Settings panel over the menu, its Controls
     # tab, and the Scenarios picker with a campaign's chapters indented under
@@ -168,23 +171,6 @@ FIGURES = [
     ("feature-editor-events.png",        "screenshot_editor"),
     ("news-0110-damage-levels.png",      "screenshot_damage_levels"),
     ("greeble-catalog.png",              "greeble_catalog"),
-    # Isolated recipe-part cards from the deterministic parts viewer.
-    ("catalog-cargoa-engine.png",         "parts_viewer"),
-    ("catalog-cargoa-fuselage.png",       "parts_viewer"),
-    ("catalog-cargoa-nose.png",           "parts_viewer"),
-    ("catalog-cargoa-pod.png",            "parts_viewer"),
-    ("catalog-cargoa-tail.png",           "parts_viewer"),
-    ("catalog-cargob-engine.png",         "parts_viewer"),
-    ("catalog-cargob-fuselage.png",       "parts_viewer"),
-    ("catalog-cargob-nose.png",           "parts_viewer"),
-    ("catalog-cargob-pod.png",            "parts_viewer"),
-    ("catalog-cargob-pod-lance.png",      "parts_viewer"),
-    ("catalog-cargob-tail.png",           "parts_viewer"),
-    ("catalog-racer-engine.png",          "parts_viewer"),
-    ("catalog-racer-fuselage.png",        "parts_viewer"),
-    ("catalog-racer-nose.png",            "parts_viewer"),
-    ("catalog-racer-tail.png",            "parts_viewer"),
-    ("catalog-racer-wing.png",            "parts_viewer"),
 ]
 
 # Thumbnails are 16:9 too (the post cards size them at 300px wide).
