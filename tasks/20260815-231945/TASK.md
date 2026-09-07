@@ -1,6 +1,6 @@
 # Market research: open-source prior art, technique, and licence positions
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, research, art
 
