@@ -1051,10 +1051,18 @@ fn torpedo_script() -> Script {
         .until(and(the_iris_is_open(true), a_torpedo_is_emerging()))
         .deadline(6.0)
         .add()
+        // ONE launch. The trigger comes off here rather than at the next
+        // beat: a held trigger is a standing order, and the bay was reloading
+        // into a second launch that the door beat then cancelled - an iris
+        // seen starting to reopen and thinking better of it. Released, the
+        // round already in the air flies on and the iris shuts behind it,
+        // which is the cycle this loop is of.
+        //
         // Long enough for the ordnance to run out of the frame under its own
         // drive, short of the ~1.4 s at which this range's 300 m blast reaches
         // back and takes the ship - and the bay - with it.
         .step("let the ordnance run out")
+        .on_enter(release_the_trigger)
         .until(elapsed(0.8))
         .add()
         .step("shut the iris behind it")
@@ -1168,6 +1176,20 @@ fn clear_torpedoes(world: &mut World) {
     }
 }
 
+/// Take the trigger off the bay: stop re-pressing AND release the key.
+///
+/// Both halves, because `hold_inputs` re-presses every frame and never
+/// releases: dropping the flag alone leaves Space down, and a bay reads a
+/// held trigger as a standing order. It reloads, launches again and re-opens
+/// the iris it had just started to shut.
+#[cfg(feature = "debug")]
+fn release_the_trigger(world: &mut World) {
+    world.resource_mut::<HeldInput>().fire = false;
+    world
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::Space);
+}
+
 /// End the door proof: release the trigger and take back the salvo it fired.
 ///
 /// The despawn is the load-bearing half. This range's 300 m blasts out-reach
@@ -1175,17 +1197,12 @@ fn clear_torpedoes(world: &mut World) {
 /// whole SHIP out from under the walk ~1.4 s after launch - which the gate
 /// round itself never notices (its assertions read resources, and the
 /// crossing round loads a fresh ship), but the door proof does: the closing
-/// iris it waits on would despawn with the bay. RELEASE Space too, not
-/// merely stop re-pressing it - `hold_inputs` never releases, and the bay
-/// keeps launching (and so keeps refreshing the door hold) while the key is
-/// down. Not [`clear_torpedoes`]: that one also puts the range into its
-/// comparison-shot [`RangeGizmos`] dressing, which must stay off here.
+/// iris it waits on would despawn with the bay. Not [`clear_torpedoes`]:
+/// that one also puts the range into its comparison-shot [`RangeGizmos`]
+/// dressing, which must stay off here.
 #[cfg(feature = "debug")]
 fn clear_the_door_salvo(world: &mut World) {
-    world.resource_mut::<HeldInput>().fire = false;
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .release(KeyCode::Space);
+    release_the_trigger(world);
     let torpedoes: Vec<Entity> = world
         .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
         .iter(world)
@@ -1269,25 +1286,37 @@ fn frame_the_bay_muzzle(world: &mut World) {
     else {
         return;
     };
-    // transform_point, not translation + offset: it carries the section's
-    // rotation AND any assembly scale into the framing.
-    let muzzle = section.transform_point(Vec3::new(0.0, 0.0, -1.4));
-    // 43 m out, on a bay that is 10 m across its door face and 20 m long: the
-    // lens spans 1.47 times its distance, so the section fills a third of the
-    // frame width and the iris - the SUBJECT - is readable at the size a docs
-    // page draws a 1280-wide loop. It stood at 69 m, where the bay was a
-    // sixth of the frame on a field of black and the upscale made a
-    // correctly-sized recording look like a badly-sized one.
+    // Just off the door face and a little above it, not the muzzle itself:
+    // aiming AT the muzzle hangs the housing off the top-left corner, because
+    // everything the shot is of lies aft of and below the point the ordnance
+    // leaves from. transform_point, not translation + offset: it carries the
+    // section's rotation AND any assembly scale into the framing.
+    let aim = section.transform_point(Vec3::new(0.0, 0.2, -1.2));
+    // 42 m out and ~60 degrees off the bore, ABEAM the pair of bays rather than
+    // in front of them: the ship mounts two side by side, 20 m of door face on
+    // 20 m of length, and the lens spans 1.47 times its distance, so the
+    // housing fills something over a third of the frame width and an iris -
+    // the SUBJECT - is readable at the size a docs page draws a 1280-wide
+    // loop. It stood at 69 m, where the bay was a sixth of the frame on a
+    // field of black and the upscale made a correctly-sized recording look
+    // like a badly-sized one.
     //
-    // Still far enough out that a caught torpedo sits between the bay and the
-    // camera rather than on the near plane: `a_torpedo_is_emerging` catches it
-    // 16 to 32 m past the muzzle, on the cold-launch leg before its drive
-    // lights.
-    let eye = section.transform_point(Vec3::new(1.9, 1.4, -5.0));
+    // The ANGLE is the second thing this framing has had to fix, and it moves
+    // in two directions at once. At 33 degrees the lens stood almost down the
+    // bore: the bays' 20 m of length collapsed into their door face, so the
+    // housing read as a squat box. Swinging out to a three-quarter fixes that
+    // and costs the round, as long as the lens stays IN FRONT of the door -
+    // the ordnance leaves along the bore, straight at a camera parked on that
+    // side of it, and fills the frame from the near plane instead of flying
+    // anywhere. So the lens sits AFT of the door face instead, looking forward
+    // along the hull: the length reads, the petals still fold toward the
+    // camera rather than edge-on, and the torpedo departs across the frame and
+    // away.
+    let eye = section.transform_point(Vec3::new(3.3, 1.8, -4.0));
     nova_protocol::nova_debug::harness::pose_camera(
         world,
         Meters3::from_engine(eye),
-        Meters3::from_engine(muzzle),
+        Meters3::from_engine(aim),
     );
 }
 

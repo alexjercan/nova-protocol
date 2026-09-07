@@ -2414,27 +2414,37 @@ const STRIKE_HIT_RANGE: Meters = Meters(300.0);
 /// combatant is sent to, measured from the subject along the bearing it is
 /// already on.
 ///
-/// 2 km, and the number is the WARHEAD's. A Serpent's pressure sphere is
+/// 1.5 km, and it is squeezed between two numbers that both have to hold.
+///
+/// The FLOOR is the warhead's. A Serpent's pressure sphere is
 /// [`STRIKE_HIT_RANGE`], 300 m across, and an earlier cut staged the pair at
 /// 500 m and let them close: by the end of the recording the two hulls were
 /// inside one sphere, so a single warhead killed both and the loop read as a
-/// mutual annihilation rather than as a duel. At 2 km a hit belongs to the ship
-/// it lands on, with six blast radii to spare, and the gap stays that wide for
-/// the whole recording - [`STRIKE_CLOSING_SPEED`] walks in a tenth of it.
+/// mutual annihilation rather than as a duel. At 1.5 km a hit belongs to the
+/// ship it lands on with five blast radii to spare, and
+/// [`STRIKE_CLOSING_SPEED`] spends under a fifth of the gap across the whole
+/// recording.
+///
+/// The CEILING is the guns'. Every shipped PDC reaches 200 u and the AI holds
+/// its fire outside 0.9 of that - 180 u, `AI_FIRE_RANGE_FACTOR` - so a pair
+/// staged at 2 km stood outside its own mounts' gate and the loop had no
+/// tracers in it at all: two hulls throwing ordnance at each other in silence.
+/// Inside the gate the point-defence batteries work the salvo the tubes threw,
+/// which is the answering half of the exchange.
 ///
 /// The lens cannot hold both hulls at this range and nothing is gained by
-/// trying: it spans 1.47 times its distance, so framing a 2 km spread means
-/// standing 1.4 km off, where a 110 m gunship is a twenty-fifth of the frame
+/// trying: it spans 1.47 times its distance, so framing a 1.5 km spread means
+/// standing a kilometre off, where a 110 m gunship is a fifteenth of the frame
 /// width. The capture stands over the subject's shoulder instead
 /// ([`CINEMA_BACK`]), which puts the rival down the threat axis as a lit
 /// contact in the middle of frame and every round that crosses between them on
 /// a line into the shot.
 ///
-/// What it costs is arrival time: 2 km is about six seconds of torpedo flight,
-/// so a salvo cued at the top of the recording lands during
+/// What it costs is arrival time: 1.5 km is about four seconds of torpedo
+/// flight, so a salvo cued at the top of the recording lands during
 /// [`STRIKE_AFTERMATH_SECS`] rather than between the beats.
 #[cfg(feature = "debug")]
-const STRIKE_STAGE_RANGE: f32 = 200.0;
+const STRIKE_STAGE_RANGE: f32 = 150.0;
 /// The range the recording is staged at, engine world units: the walk parks the
 /// merge the first moment the two sides are this close.
 ///
@@ -2446,14 +2456,14 @@ const STRIKE_STAGE_RANGE: f32 = 200.0;
 /// It used to be the tuned number, back when the staging was knife range and
 /// POINT DEFENSE decided everything: parked and held at 550 m the two hulls
 /// shot down all thirty-six warheads of a two-wave strike. That is still true
-/// and is no longer a failure - at 2 km the mounts get most of a salvo, and
+/// and is no longer a failure - at 1.5 km the mounts get part of a salvo, and
 /// what the recording is of is the exchange, not the kill.
 #[cfg(feature = "debug")]
-const STRIKE_CLOSE_BAND: f32 = 210.0;
+const STRIKE_CLOSE_BAND: f32 = 160.0;
 /// How near [`STRIKE_STAGE_RANGE`] the staged move has to park before the
 /// recording opens, engine world units.
 ///
-/// 200 m on 2 km. The move order parks on its own arrival standoff and two
+/// 200 m on 1.5 km. The move order parks on its own arrival standoff and two
 /// hulls drifting at [`STRIKE_CLOSING_SPEED`] are never exactly anywhere, so
 /// the test is a band; it is tight enough that "staged" still means the range
 /// the framing and the warhead were both chosen against.
@@ -2726,7 +2736,8 @@ fn install_strike_order(world: &mut World, ship: Entity, key: &str, directive: S
 }
 
 /// Pick the hull the capture frames, put every combatant's bore on its nearest
-/// hostile and hold it there, and cut the camera in behind the subject.
+/// hostile and hold it there, disarm every lance but the subject's, and cut the
+/// camera in behind the subject.
 ///
 /// The bearing is read off transforms and handed to a directive that is
 /// compared against avian positions, so both ends are ENGINE world units and
@@ -2738,6 +2749,7 @@ fn stage_the_strike(world: &mut World) {
     world.resource_mut::<Strike>().subject = Some(subject);
     world.insert_resource(Vantage::Cinema(CINEMA_SLOT));
     settle_the_fight(world, &combatants);
+    disarm_the_rival_lances(world, subject);
 
     let tolerance = STRIKE_ALIGN_TOLERANCE_DEGREES.to_radians();
     for &(ship, team, position, _) in &combatants {
@@ -2768,7 +2780,7 @@ fn stage_the_strike(world: &mut World) {
 /// And SLOW, because the first cut of this closed at 50 m/s and spent 350 m of
 /// the gap it was given - the pair ended the loop nose to nose, which is the
 /// framing the closure was added to fix. Thirty a second is under 300 m across
-/// the whole recording, a seventh of [`STRIKE_STAGE_RANGE`]: motion the eye
+/// the whole recording, a fifth of [`STRIKE_STAGE_RANGE`]: motion the eye
 /// reads, and a gap that is still a gap at the end of it.
 #[cfg(feature = "debug")]
 const STRIKE_CLOSING_SPEED: f32 = 1.5;
@@ -2840,7 +2852,7 @@ fn strike_targets(combatants: &[(Entity, usize, Vec3, Option<usize>)]) -> BTreeM
         .collect()
 }
 
-/// Run the charge on every lance that has a target.
+/// Run the charge on the SUBJECT's lance.
 ///
 /// The lance is cued FIRST and on its own beat, because the two weapons are on
 /// different clocks and the shorter one buries the longer: the charge is 1.5 s,
@@ -2849,21 +2861,56 @@ fn strike_targets(combatants: &[(Entity, usize, Vec3, Option<usize>)]) -> BTreeM
 /// first, the slug leaves while both hulls are whole and the salvo arrives
 /// behind it.
 ///
+/// The subject's alone, because a spinal lance is not a thing a picture can
+/// hold twice. It is one flash and a slug that crosses 1.5 km in a tenth of a
+/// second, so the near hull's shot is three frames of the loop and the rival's
+/// is three frames of a contact the frame is a kilometre and a half away from
+/// - unreadable in itself, and it takes the near hull's bow out from under the
+/// camera on arrival. [`disarm_the_rival_lances`] is what makes that true of
+/// the AI's own trigger as well as of this cue.
+///
 /// The shipped scripted-weapon seam, not a new fire path - `ScriptedRailgunOrder`
 /// is the component `ForceRailgunFire` installs - and it is ONE-SHOT: it retires
 /// itself on the discharge, so this is a cue and not a held trigger.
 #[cfg(feature = "debug")]
 fn cue_the_lances(world: &mut World) {
     let combatants = combatant_roots(world);
-    let targets = strike_targets(&combatants);
+    let (subject, _) = strike_subject(&combatants);
     let lances: Vec<Entity> = world
         .query_filtered::<(Entity, &ChildOf), With<RailgunSectionMarker>>()
         .iter(world)
-        .filter(|(_, ChildOf(parent))| targets.contains_key(parent))
+        .filter(|(_, ChildOf(parent))| *parent == subject)
         .map(|(section, _)| section)
         .collect();
     for lance in lances {
         world.entity_mut(lance).insert(ScriptedRailgunOrder);
+    }
+}
+
+/// Leave the framed hull the only lance in the arena.
+///
+/// Every hull the arena collapses carries a bow gun - that is what the tile set
+/// is for - and the AI pulls its own lance trigger the moment the bore comes on
+/// and the target is inside 0.6 of an 18 km reach, which at the staged range is
+/// always. So not cueing the rival's lance does not keep it quiet;
+/// `SectionInactiveMarker` does. It is the shipped "this section is not
+/// working" component, and BOTH fire paths already read it - the AI's trigger
+/// system and `charge_and_fire_railgun` alike skip a section carrying it - so a
+/// disarmed lance is a lance that cannot fire rather than one nothing happens
+/// to be asking.
+///
+/// A staging cut, like [`settle_the_fight`]: it lands before the loop opens, on
+/// a hull a kilometre and a half away, and nothing on film changes when it does.
+#[cfg(feature = "debug")]
+fn disarm_the_rival_lances(world: &mut World, subject: Entity) {
+    let lances: Vec<Entity> = world
+        .query_filtered::<(Entity, &ChildOf), With<RailgunSectionMarker>>()
+        .iter(world)
+        .filter(|(_, ChildOf(parent))| *parent != subject)
+        .map(|(section, _)| section)
+        .collect();
+    for lance in lances {
+        world.entity_mut(lance).insert(SectionInactiveMarker);
     }
 }
 
@@ -2924,7 +2971,7 @@ const STRIKE_ALIGN_SECS: f32 = 4.0;
 ///
 /// Cueing the lance first is what stops the salvo burying it: the charge is
 /// 1.5 s, so a second of head start puts the slug downrange before the tubes
-/// clear. The slug crosses [`STRIKE_STAGE_RANGE`] in a fraction of the six
+/// clear. The slug crosses [`STRIKE_STAGE_RANGE`] in a fraction of the four
 /// seconds the warheads behind it need, which is the order the two weapons are
 /// meant to read in.
 #[cfg(feature = "debug")]
@@ -2953,7 +3000,7 @@ const STRIKE_WINDOW_SECS: f32 = 4.0;
 /// inside the loop instead of being cut off by it.
 ///
 /// It carries the crossing as well now. At [`STRIKE_STAGE_RANGE`] a salvo cued
-/// at the top of the recording needs about six seconds to arrive, which is
+/// at the top of the recording needs about four seconds to arrive, which is
 /// after the salvo beats have run - so this is what the point defense answering
 /// it is recorded in.
 #[cfg(feature = "debug")]
@@ -3050,7 +3097,7 @@ fn arena_script(
         .step("open the arena loop")
         .on_enter(move |world: &mut World| loop_start(world, loop_name))
         .add()
-        .step("the lances fire")
+        .step("the lance fires")
         .on_enter(cue_the_lances)
         .until(or(
             resource_where::<Strike>(Strike::shot),

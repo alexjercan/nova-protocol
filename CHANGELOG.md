@@ -309,9 +309,12 @@ does NOT get an entry - and it is the only place they are written down.
 - Every living still and loop is re-shot from a clean install: section-built
   ships throughout, new railgun figures, and the menu, the arrival and the
   damage sequence re-framed onto their subjects.
-- The section pages show the mechanism close up: a PDC deploying and stowing,
-  a railgun loop that runs on into the wreck, and a torpedo run-in shot
-  broadside so the round and its target both read.
+- The section pages show the mechanism close up: a PDC deploying and stowing, a
+  railgun loop that runs on into the wreck, a bay shot from abeam through one
+  launch, and a torpedo run-in shot broadside.
+- The landing loops are gun fights: the hulls stand 1.5 km apart, inside
+  point-defence reach, so tracer streams answer every salvo, and only the
+  framed ship carries a lance.
 
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,

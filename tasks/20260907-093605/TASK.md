@@ -346,3 +346,65 @@ lens with its attacker eclipsed dead centre BEHIND it, under the fps bar.
 - 36 loops packaged, all under the 3 MB budget. `gen-web-screenshots.py`: 59
   copied, 4 pending (unchanged).
 - `cd web && npm run ci`: green.
+
+## Follow-up round three, 2026-09-07
+
+### The landing duel had no guns in it
+
+The hero and 2v2 loops were two hulls throwing torpedoes at each other in
+silence: the whole exchange, and not one tracer.
+
+The staging range was the cause. Every shipped PDC reaches 200 u and the AI
+holds its fire outside 0.9 of that - 180 u, `AI_FIRE_RANGE_FACTOR` - so a pair
+parked at the 2 km the warhead wanted stood outside its own mounts' gate and
+the batteries never opened. `STRIKE_STAGE_RANGE` comes in to 1.5 km, which is
+inside the gate and still five blast radii clear of the 300 m warhead sphere
+the range was set against in the first place. What the loops show now is the
+answering half of the strike: tracer streams both ways, point defence working
+the salvo, and blocks coming off the hulls that take one.
+
+### One lance, on the hull the camera is behind
+
+Every arena hull collapses with a bow gun - that is what the tile set is for -
+and the AI pulls its own lance trigger whenever the bore comes on, so both
+sides fired one. A spinal lance is not a thing a picture can hold twice: the
+slug crosses 1.5 km in a tenth of a second, so the near hull's shot is three
+frames and the rival's is three frames of a contact a kilometre and a half
+away, arriving in the near hull's bow.
+
+`disarm_the_rival_lances` marks every lance but the subject's
+`SectionInactiveMarker` at staging, which both fire paths already read, so the
+rival's gun cannot fire rather than merely not being asked. A staging cut like
+`settle_the_fight`: it lands before the loop opens and nothing on film changes.
+
+### The bay loop launched twice and stood square to the door
+
+Two faults, one frame.
+
+- The trigger was a HELD input and nothing took it off until the door beat.
+  The bay reloaded inside the 0.8 s run-out, launched again, and the door beat
+  then cancelled it - an iris seen starting to reopen and thinking better of
+  it. `release_the_trigger` now runs at the top of the run-out, so the loop is
+  one launch and the iris shuts behind the round that is already away.
+- The lens stood 33 degrees off the bore, which is almost down it: the bays'
+  20 m of length collapsed into their door face and the housing read as a squat
+  box in the top-left corner. It swings out to a three-quarter at ~60 degrees
+  and 42 m, and the aim point comes off the muzzle - everything the shot is of
+  lies aft of and below the point the ordnance leaves from.
+
+Swinging out has a limit the first cut found: past about 55 degrees, with the
+lens still IN FRONT of the door, the ordnance leaves along the bore straight at
+the camera and fills the frame from the near plane. The pose that works sits
+aft of the door face looking forward along the hull, so the round departs
+across the frame and away.
+
+### Verified
+
+- `cargo check --example wfc_arena --example system_torpedo_launch --features
+  debug` and `cargo fmt --check`: clean.
+- Contact sheets read for `hero-wfc-duel`, `landing-wfc-2v2` and
+  `loop-section-torpedo-bay`, plus full-resolution frames of the hero mid-loop
+  and its close.
+- 36 loops re-packaged, all under the 3 MB budget (`landing-wfc-2v2` is the
+  heaviest at 2.9 MB).
+- `cd web && npm run ci`: green.

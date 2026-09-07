@@ -1,15 +1,15 @@
-# captured at commit a16270a7a on master
+# captured at commit b111fb91c on master
 # a frozen row shipped with an earlier post and predates that commit
 # file<TAB>example<TAB>duration_s<TAB>bytes<TAB>state
-hero-wfc-duel.webm	wfc_arena	10.1	982899	fresh
-landing-wfc-2v2.webm	wfc_arena	10.1	1677235	fresh
+hero-wfc-duel.webm	wfc_arena	10.1	1903707	fresh
+landing-wfc-2v2.webm	wfc_arena	10.1	3018702	fresh
 torpedo-blast.webm	loop_torpedo_blast	3.2	343050	fresh
 spine-cut.webm	loop_spine_cut	5.3	175449	fresh
 goto-arrival.webm	loop_goto_arrival	11.1	809670	fresh
 landing-player-flight.webm	loop_player_flight	4.8	483726	fresh
 news-0110-derived-skin.webm	loop_derived_skin	6.9	114029	frozen
 news-0110-round-types.webm	loop_round_types	15.0	1036973	frozen
-loop-section-torpedo-bay.webm	system_torpedo_launch	3.7	117385	fresh
+loop-section-torpedo-bay.webm	system_torpedo_launch	2.7	95944	fresh
 news-0110-torpedo-types.webm	system_torpedo_launch	4.1	111627	frozen
 loop-section-turret.webm	stress_point_defense	4.1	545231	fresh
 loop-section-turret-stow.webm	loop_turret_stow	6.4	93594	fresh
