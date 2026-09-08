@@ -2,9 +2,14 @@
 """Render the five authored crew portrait concepts; --check verifies saved SVGs."""
 
 import argparse
+import sys
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from nova_illustration.faces import JONAH_FACE
 
 
 @dataclass(frozen=True)
@@ -31,14 +36,10 @@ PORTRAITS = (
         role="WORKSHIP CAPTAIN",
         skin="#b58e72", shadow="#695346", light="#dec0a1",
         hair="#39332f", coat="#4a5a64",
-        head="M221 184Q229 137 295 139Q354 140 371 186L365 291L350 337L317 365L276 363L241 334L225 290Z",
-        back_hair='<path d="M213 236L207 177Q218 117 280 120Q337 110 375 153L382 229L363 255H226Z"/>',
-        front_hair='<path d="M212 205L215 169Q234 125 279 133L290 120L313 129L333 125L355 143L369 144L377 196L357 220L351 173L312 163L271 176L238 168L231 216L218 248Z"/><path d="M239 316L258 337L285 344L310 343L336 335L354 312L350 337L317 365L276 363L241 334Z" opacity="0.48"/>',
-        features='''<path d="M241 227L263 222L277 227M314 227L334 220L350 224" fill="none" stroke="#43392e" stroke-width="6"/>
-<path d="M241 242Q258 232 277 242Q259 251 241 242M315 241Q333 231 350 240Q334 250 315 241" fill="#c5bda5"/>
-<g fill="#30352f"><circle cx="261" cy="241" r="5"/><circle cx="330" cy="240" r="5"/></g>
-<path d="M299 238L288 282L302 288L313 280M269 317Q296 312 326 314" fill="none" stroke="#725645" stroke-width="3" stroke-linecap="round"/>
-<path d="M280 326L310 325M237 251L250 255M340 253L354 248" stroke="#997356" stroke-width="2"/>''',
+        head=JONAH_FACE.head,
+        back_hair=JONAH_FACE.back_hair,
+        front_hair=JONAH_FACE.front_hair,
+        features=JONAH_FACE.features,
         collar='<path d="M253 401L297 447L270 484L220 415M347 401L297 447L323 484L382 416" fill="#728088" stroke="#34454e" stroke-width="3"/><path d="M297 452V590" stroke="#a7aaa0" stroke-width="3"/>',
     ),
     Portrait(
