@@ -205,12 +205,16 @@ impl RailgunWakeArt {
 /// Build both wake graphs when a scene comes up, rather than on the first slug
 /// of the session.
 ///
-/// Two `EffectAsset` graphs, two WGSL generations and six pipeline compiles is
-/// a bad thing to pay for on the frame a lance fires: synchronous on web and
-/// macOS, and late enough on native to lose the head of a 1.2 s slug's wake. A
-/// scene load already has a loading screen over it, so it is the cheapest
-/// place to pay it - and a tier with particles off still builds nothing, which
-/// is what the lazy build was really protecting.
+/// The graphs alone: adding an `EffectAsset` to the store generates no WGSL,
+/// because `bevy_hanabi` mints a shader from a spawned INSTANCE. Building the
+/// two graphs is still work worth moving off the frame a lance fires - a scene
+/// load already has a loading screen over it, and a tier with particles off
+/// builds nothing here either, which is what the lazy build was really
+/// protecting - but the shader generation and the pipeline compiles are NOT
+/// what this moves. Those are still paid on the first slug, which is
+/// synchronous on web and macOS and late enough on native to lose the head of a
+/// 1.2 s wake. `pyre`'s warm-up spawns a hidden instance per graph, which is
+/// what mints a shader; this one does not.
 pub(super) fn warm_railgun_wake_art(
     budget: Option<Res<GraphicsBudget>>,
     mut art: ResMut<RailgunWakeArt>,

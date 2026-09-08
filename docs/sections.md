@@ -323,6 +323,14 @@ neighbours. The same structure always gives the same skin.
   colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
   claim `spew` makes for its shards - because a hull wears hundreds of plates
   and a dynamic body per plate is the cost a dying section already refuses.
+- The shed is CAPPED and runs on the FIXED STEP. `SHED_TICK_CAP` bounds it to
+  24 fixtures a tick; the rest are deferred, never dropped, because shedding is
+  what removes the `ChildOf` a plate is matched by, so a deferred one matches
+  again on the next tick. On the fixed step the drain rate is 64 a second
+  whatever the renderer is managing, which matters because a hull loses its
+  skin in exactly the frames a collapse has already made the longest. A
+  deferred plate still wears its collider, so a piercing round crossing it
+  still burns a layer.
 - `ShipSkinPlugin { render }` is split at the render line, not at the look line:
   the derivation and the shed are gameplay and run headless, and `render` gates
   only the meshes hung on each plate by the `dress_skin_plate` observer.
@@ -502,11 +510,23 @@ spawn queue - there is nothing left to ration.
 The FIREBALL is the other half, and it is a separate plugin because it rations
 what `explode` does not. `pyre.rs` observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
-burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`. Particles are minted, so
-this half DOES need a budget: `PYRE_FRAME_CAP` bounds how many fireballs one
-frame lights, and a root's own is never the one dropped, because that is the
-one the whole death reads as. Material has the last word - `IntegrityDestroyMarker`
-is a shared seam that an exhausted asteroid also raises, and rock does not burn.
+burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`.
+
+Nothing about those graphs is built at the death. `warm_the_pyres` runs on
+entering `Playing` - under the loading screen, and late enough that the
+graphics tier a player picked in the menu is settled - and it does the whole
+job: the four graphs, the shared soft-dot mask, and one hidden instance of each
+graph. The instance is the part that matters, because `bevy_hanabi` generates a
+shader from a spawned INSTANCE and never from an asset, so a warm-up that only
+filled the asset store left the WGSL to be generated on the collapse frame.
+Those four are silent, invisible, and despawned the next frame. A tier with
+particles off builds none of it and lights nothing.
+
+What a death still mints is instances, so this half DOES need a budget:
+`PYRE_FRAME_CAP` bounds how many fireballs one frame lights, and a root's own is
+never the one dropped, because that is the one the whole death reads as.
+Material has the last word - `IntegrityDestroyMarker` is a shared seam that an
+exhausted asteroid also raises, and rock does not burn.
 
 Four properties follow from that, and each is load-bearing:
 
@@ -1033,7 +1053,7 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_gameplay/src/integrity/chunk.rs`.
 - How a body comes apart: `detach_destroyed_body`, `DetachedPieceMarker` -
   `crates/nova_gameplay/src/integrity/explode.rs`; the fireball over it,
-  `SECTION_PYRE`, `HULK_PYRE`, `PYRE_FRAME_CAP` -
+  `SECTION_PYRE`, `HULK_PYRE`, `PYRE_FRAME_CAP`, `warm_the_pyres` -
   `crates/nova_gameplay/src/integrity/pyre.rs`.
 - Authored damage looks: `DamageEffect`, `fit_damage_effects` -
   `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
@@ -1045,6 +1065,8 @@ per contact. A symmetric rule - ram damage - wants both.
   envelope: `crates/nova_ship/src/input/ai/railgun.rs`.
 - Derived skin and styles: `ShipSkinPlugin` -
   `crates/nova_ship/src/sections/shell_skin.rs`; `ShipStyleConfig` -
-  `crates/nova_ship/src/sections/skin_style.rs`.
+  `crates/nova_ship/src/sections/skin_style.rs`; the shed and its cap,
+  `shed_dead_fixtures`, `SHED_TICK_CAP` -
+  `crates/nova_ship/src/sections/fixture.rs`.
 - API detail: `cargo doc --open -p nova_ship` (integrity and damage:
   `-p nova_gameplay`).

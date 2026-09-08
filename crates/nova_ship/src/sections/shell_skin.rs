@@ -1135,16 +1135,17 @@ impl Plugin for ShipSkinPlugin {
         app.init_resource::<GameStyles>();
         app.add_systems(
             Update,
-            (
-                // After the graph so structure is settled before it is dressed,
-                // and before the integrity set so a plate is never spawned onto
-                // a section the same frame that set takes it away.
-                spawn_ship_skin
-                    .after(build_ship_integrity_graph)
-                    .before(IntegritySystems),
-                shed_dead_fixtures,
-            ),
+            // After the graph so structure is settled before it is dressed,
+            // and before the integrity set so a plate is never spawned onto a
+            // section the same frame that set takes it away.
+            spawn_ship_skin
+                .after(build_ship_integrity_graph)
+                .before(IntegritySystems),
         );
+        // On the fixed step, which is the clock the damage that empties a
+        // plate's health resolves on - see `shed_dead_fixtures`. Nothing to
+        // order it against: `IntegritySystems` is an `Update` set.
+        app.add_systems(FixedUpdate, shed_dead_fixtures);
 
         if self.render {
             app.register_type::<SkinSurfaceMarker>();
@@ -1197,7 +1198,13 @@ mod tests {
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
-        app.add_systems(Update, (spawn_ship_skin, shed_dead_fixtures));
+        app.add_systems(Update, spawn_ship_skin);
+        // The drain is on the fixed step, and real deltas between test frames
+        // are microseconds - a frame is stated to be one timestep so that it is
+        // also exactly one drain.
+        app.add_systems(FixedUpdate, shed_dead_fixtures);
+        let timestep = app.world().resource::<Time<Fixed>>().timestep();
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(timestep));
         // The first tick of a manual clock is dt 0, so anything spawned before
         // one has passed lives in a frame that never advanced.
         app.update();

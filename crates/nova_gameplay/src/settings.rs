@@ -39,7 +39,7 @@ use crate::juice::prelude::JuiceSettings;
 pub mod prelude {
     pub use super::{
         harness_env_active, seed_from_env, GraphicsBudget, GraphicsQuality, HarnessMute,
-        MasterVolume, NovaSettingsPlugin, HARNESS_ENVS, MUTE_ENV, SEED_ENV,
+        MasterVolume, NovaSettingsPlugin, SettingsSystems, HARNESS_ENVS, MUTE_ENV, SEED_ENV,
     };
 }
 
@@ -321,6 +321,15 @@ impl Default for GraphicsBudget {
     }
 }
 
+/// System set holding every apply pass, so a plugin that reads a derived
+/// setting can order against the point it settles.
+///
+/// It spans two schedules on purpose: the `PostStartup` pass is the one that
+/// makes the derived state true before the first frame, and the `Update` pass
+/// is the one that keeps it true while the menu changes it.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SettingsSystems;
+
 /// Registers the settings resources and the systems that apply them live.
 /// Added by [`crate::plugin::NovaGameplayPlugin`] so every app (menu or not)
 /// has the resources and the apply wiring; the menu adds persistence on top.
@@ -336,16 +345,31 @@ impl Plugin for NovaSettingsPlugin {
         app.register_type::<GraphicsQuality>();
         app.register_type::<GraphicsBudget>();
 
-        // Apply on change only. `resource_changed` is true on the first frame
-        // too (a freshly-inserted resource counts as changed), so the defaults
-        // - and any persisted values a startup load writes in - are pushed onto
-        // the engine exactly once without a dedicated startup system.
+        // `PostStartup` and not `Startup`: the persisted preset is loaded by
+        // one of `nova_menu`'s own `Startup` systems, and two systems in the
+        // same schedule have no order between them. `PostStartup` runs after
+        // every `Startup` system, so this is the first point at which the
+        // quality the run will actually use is known - and it is still before
+        // the first `Update`, which is what makes the derived
+        // `GraphicsBudget` true for anything that reads it in frame one. A
+        // budget that only settles on the first `Update` reads as full quality
+        // until then, so a Low-tier run builds the effect graphs it exists to
+        // skip.
+        app.add_systems(
+            PostStartup,
+            (apply_master_volume, apply_graphics_quality).in_set(SettingsSystems),
+        );
+        // Then on change, for as long as the run lasts. `resource_changed` is
+        // true on the first frame too (a freshly-inserted resource counts as
+        // changed), so the `PostStartup` pass is repeated once and the two
+        // agree; both are idempotent writes of the same derivation.
         app.add_systems(
             Update,
             (
                 apply_master_volume.run_if(resource_changed::<MasterVolume>),
                 apply_graphics_quality.run_if(resource_changed::<GraphicsQuality>),
-            ),
+            )
+                .in_set(SettingsSystems),
         );
         // Startup, not build: the game binary's `--mute` inserts the resource
         // AFTER this plugin, so only a system can read the value the run
@@ -453,6 +477,38 @@ mod tests {
             app.world().resource::<GlobalVolume>().volume,
             bevy::audio::Volume::Linear(0.3),
             "changing MasterVolume pushes onto GlobalVolume"
+        );
+    }
+
+    /// The derived budget has to be true before anything reads it IN a frame,
+    /// not after the first `Update` has been through. The Low tier is
+    /// spawn-less, and a warm-up reading the budget a frame early builds the
+    /// effect graphs the tier exists to skip. The persisted preset arrives in
+    /// one of `nova_menu`'s `Startup` systems, which the `Startup` writer here
+    /// stands in for.
+    #[test]
+    fn the_derived_budget_is_settled_before_the_first_update_reads_it() {
+        #[derive(Resource, Default)]
+        struct SeenInFrameOne(Option<bool>);
+
+        let mut app = app();
+        app.init_resource::<SeenInFrameOne>();
+        app.add_systems(Startup, |mut quality: ResMut<GraphicsQuality>| {
+            *quality = GraphicsQuality::Low;
+        });
+        app.add_systems(
+            Update,
+            (|budget: Res<GraphicsBudget>, mut seen: ResMut<SeenInFrameOne>| {
+                seen.0.get_or_insert(budget.particles);
+            })
+            .before(SettingsSystems),
+        );
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<SeenInFrameOne>().0,
+            Some(false),
+            "frame one read full quality, so the spawn-less tier's gate was never false",
         );
     }
 

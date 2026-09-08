@@ -65,6 +65,10 @@
 //! invent. A body that says nothing is plate, so every ship stayed correct
 //! without being touched.
 //!
+//! Read through [`inherited_material`], never off the spewing entity alone: a
+//! carve is announced against the mesh NODE that carries the damage marks,
+//! while an asteroid declares its material on the root above it.
+//!
 //! Metal is also HOT. A chip is cut, not picked up, so it leaves near-white and
 //! cools to gunmetal in under a second - which is the difference between debris
 //! and litter, and what the cold grey cube got wrong.
@@ -88,9 +92,10 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use super::carve::prelude::CarveSpew;
 use crate::{damage::prelude::DamageType, prelude::TempEntity};
 
-/// `CarveDebris`, `CarveShardMarker` and `CarveSpewPlugin`.
+/// `CarveDebris`, `CarveShardMarker`, `CarveSpewPlugin` and the walk that
+/// reads a body's material.
 pub mod prelude {
-    pub use super::{CarveDebris, CarveShardMarker, CarveSpewPlugin};
+    pub use super::{inherited_material, CarveDebris, CarveShardMarker, CarveSpewPlugin};
 }
 
 /// What a body is MADE OF, read off the body a carve took material from.
@@ -141,6 +146,39 @@ impl CarveDebris {
             // piece of plate does, and it is what makes rock read as heavy.
             Self::Rock => 0.55,
         }
+    }
+}
+
+/// What a body is made of, from the nearest ancestor that says, `entity`
+/// itself included.
+///
+/// A WALK and not a lookup, and the difference is player-visible. An asteroid
+/// declares [`CarveDebris::Rock`] on its root while everything that announces a
+/// carve names the mesh NODE beneath it - the node is where `DamageMarks` ride,
+/// so it is the entity a crater is announced against and the entity a severed
+/// crumb hangs off. Read flat, every one of those came back as the
+/// [`CarveDebris::Metal`] default and shooting a rock threw hot gunmetal chips.
+///
+/// Anything silent all the way up is plate, which is what keeps every ship
+/// correct without being touched.
+///
+/// One home for two callers: this and
+/// [`pyre`](super::pyre), which asks the same question to decide that a rock
+/// has no hull mass to vaporise and so no fireball.
+pub fn inherited_material(
+    entity: Entity,
+    q_debris: &Query<&CarveDebris>,
+    q_parents: &Query<&ChildOf>,
+) -> CarveDebris {
+    let mut current = entity;
+    loop {
+        if let Ok(debris) = q_debris.get(current) {
+            return *debris;
+        }
+        let Ok(parent) = q_parents.get(current) else {
+            return CarveDebris::Metal;
+        };
+        current = parent.0;
     }
 }
 
@@ -497,6 +535,7 @@ fn spew_carved_material(
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     q_body: Query<&GlobalTransform>,
     q_debris: Query<&CarveDebris>,
+    q_parents: Query<&ChildOf>,
 ) {
     // The class decides first, so a warhead costs nothing at all here.
     let Some(look) = shard_look(spew.kind) else {
@@ -518,8 +557,9 @@ fn spew_carved_material(
         (spew.at - frame.translation()).normalize_or(Vec3::Y)
     });
 
-    // The body decides what it is made of; anything silent is plate.
-    let debris = q_debris.get(spew.entity).copied().unwrap_or_default();
+    // The body decides what it is made of; anything silent is plate. A walk,
+    // because a rock says so on its root and is carved on the node beneath it.
+    let debris = inherited_material(spew.entity, &q_debris, &q_parents);
     let look = debris.shape(look);
 
     // Drawn before anything is minted, so a frame already at its ceiling costs
@@ -980,6 +1020,42 @@ mod tests {
             Some(CarveDebris::Rock),
         );
         assert!(shards(&mut rock_app).len() > shards(&mut plate_app).len());
+    }
+
+    /// The split a flat lookup on the spewing entity cannot see, and the one
+    /// every asteroid in the game is shaped like: the material is declared on
+    /// the ROOT, while carves are announced against the mesh node beneath it -
+    /// the node is where the damage marks ride, and where a severed crumb hangs
+    /// off. Read flat, every crater on a rock threw hot gunmetal.
+    #[test]
+    fn a_carve_announced_from_a_child_of_a_rock_still_throws_rock() {
+        let mut rock = spew_app();
+        let root = rock.world_mut().spawn(CarveDebris::Rock).id();
+        let node = rock
+            .world_mut()
+            .spawn((ChildOf(root), GlobalTransform::IDENTITY))
+            .id();
+        rock.world_mut().trigger(CarveSpew {
+            entity: node,
+            at: Vec3::X * 3.0,
+            radius: 0.6,
+            kind: DamageType::Kinetic,
+        });
+        rock.update();
+
+        let mut plate = spew_app();
+        carve_body(&mut plate, DamageType::Kinetic, 0.6, None);
+        assert!(
+            shards(&mut rock).len() > shards(&mut plate).len(),
+            "the crater on the rock threw a plate's chip count",
+        );
+
+        let hot = rock
+            .world_mut()
+            .query_filtered::<(), (With<CarveShardMarker>, With<ShardCooling>)>()
+            .iter(rock.world())
+            .count();
+        assert_eq!(hot, 0, "shooting the asteroid sprayed hot gunmetal off it");
     }
 
     /// Only a material with a ramp carries the cooling component, so rock costs

@@ -39,8 +39,9 @@ pub mod prelude {
 /// plate leave and lose it against the stars.
 const SHED_LIFETIME_SECS: f32 = 12.0;
 
-/// How fast a fixture is pushed off the hull, in world units per second, on top
-/// of whatever the ship was already doing.
+/// How fast a fixture is pushed off the hull, on top of whatever the ship was
+/// already doing. World units per second at the physics boundary this feeds,
+/// so 30 to 70 m/s.
 ///
 /// OVER a section's kick, because a plate has to clear a silhouette a section
 /// does not: one hit strips dozens of plates off a single hull, and below a
@@ -50,19 +51,35 @@ const SHED_LIFETIME_SECS: f32 = 12.0;
 /// same blast throws it further.
 const SHED_KICK: Range<f32> = 3.0..7.0;
 
-/// How many fixtures may come off in one frame.
+/// How many fixtures may come off in one TICK.
 ///
 /// Shedding a plate is cheap to decide and expensive to APPLY: each one leaves
-/// its parent, gains four components and drops a collider, which is an
-/// archetype move per plate. A hull wears hundreds, and a torpedo can kill
-/// dozens of them inside one frame.
+/// its parent, drops its collider and gains eight components - a marker, a
+/// world pose, a body, a stated centre of mass and the flag that pins it, a
+/// velocity, a spin and a despawn timer - which is an archetype move per plate.
+/// A hull wears hundreds: a shipped arena logs one clad in 166 plates carrying
+/// 97 pieces of decor, and decor is a fixture too. A torpedo can kill dozens of
+/// them at once.
 ///
 /// Overflow is DEFERRED, never dropped - a plate whose health hit zero must
 /// come off eventually or the hull keeps wearing a dead one. Nothing extra is
 /// needed to make that happen: shedding is what removes `ChildOf`, so a
-/// fixture this frame skipped still matches the query on the next. At sixty
-/// frames a second the backlog drains far faster than the eye reads it.
-const SHED_FRAME_CAP: usize = 24;
+/// fixture one tick skipped still matches the query on the next.
+///
+/// The cap is per FIXED-STEP tick, and that is what bounds the backlog in
+/// TIME. Health empties on the fixed step, so draining there too means 64
+/// drains a second whatever the renderer is managing: a hull stripped to the
+/// last of those 263 fixtures clears in about a sixth of a second, on a
+/// software rasteriser drawing a second a frame just as much as at 120 Hz. Per
+/// FRAME it was the renderer that set the rate, and a collapse window - the
+/// exact window this backlog forms in - is measured on this project's own
+/// captures at 15 ms a frame and worse.
+///
+/// A deferred plate is not only a queue entry either. It keeps its `Collider`
+/// until it is shed, so a piercing round crossing it still burns one of its
+/// layers and pays that plate's MAX health over the pierce multiplier, dead or
+/// not. The backlog is charged in rounds as well as in ticks.
+const SHED_TICK_CAP: usize = 24;
 
 /// How fast a shed fixture tumbles as it leaves, in radians per second.
 ///
@@ -161,6 +178,15 @@ pub struct ShedFixtureMarker(pub Entity);
 /// back in. A fixture is authored around the face it MOUNTS ON rather than its
 /// middle - a plate hangs off the floor of its cell, a greeble stands with its
 /// foot at the origin - so that centre is not the entity origin either.
+///
+/// # On the fixed step, because that is the clock the deaths arrive on
+///
+/// Health empties on the fixed step, so this drains on it too and the rate is
+/// the TICK rate. In `Update` the drain rate was the frame rate, and the frames
+/// a backlog forms in are the worst ones the game has - see [`SHED_TICK_CAP`]
+/// for what that costs. No ordering against `IntegritySystems` is stated or
+/// needed: that set is in `Update`, and every write below is already a `try_`,
+/// which covers the race an ordering would.
 pub(crate) fn shed_dead_fixtures(
     mut commands: Commands,
     q_dead: Query<
@@ -171,8 +197,11 @@ pub(crate) fn shed_dead_fixtures(
     q_children: Query<&Children>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
+    // Held across ticks rather than allocated per fixture: the descendant walk
+    // below sits inside a loop the cap already lets reach two dozen plates.
+    mut greebles: Local<Vec<Entity>>,
 ) {
-    for (fixture, frame, ChildOf(section), collider) in q_dead.iter().take(SHED_FRAME_CAP) {
+    for (fixture, frame, ChildOf(section), collider) in q_dead.iter().take(SHED_TICK_CAP) {
         let transform = frame.compute_transform();
         // Outward from the middle of the ship, which for cladding is the way it
         // already faces: a plate stands on the hull's outer surface, so this is
@@ -192,9 +221,9 @@ pub(crate) fn shed_dead_fixtures(
             .entity(fixture)
             // Dropping `ChildOf` is what sheds it, and it is also the guard:
             // a fixture already off the ship has no parent to leave and so
-            // never matches this query again.
-            .try_remove::<ChildOf>()
-            .try_remove::<Collider>()
+            // never matches this query again. Both go in one removal, which is
+            // one archetype move rather than two.
+            .try_remove::<(ChildOf, Collider)>()
             .try_insert((
                 ShedFixtureMarker(*section),
                 // The world pose it was standing at, now that there is no
@@ -212,14 +241,14 @@ pub(crate) fn shed_dead_fixtures(
         // avian attaches every collider under a body to that body, and a plate
         // that kept its dressing's shapes would be a debris body carrying a
         // compound per piece.
-        let mut stack: Vec<Entity> = q_children
-            .get(fixture)
-            .map(|children| children.iter().collect())
-            .unwrap_or_default();
-        while let Some(node) = stack.pop() {
+        greebles.clear();
+        if let Ok(children) = q_children.get(fixture) {
+            greebles.extend(children.iter());
+        }
+        while let Some(node) = greebles.pop() {
             commands.entity(node).try_remove::<Collider>();
             if let Ok(grandchildren) = q_children.get(node) {
-                stack.extend(grandchildren.iter());
+                greebles.extend(grandchildren.iter());
             }
         }
     }
@@ -227,6 +256,7 @@ pub(crate) fn shed_dead_fixtures(
 
 #[cfg(test)]
 mod tests {
+    use bevy::time::TimeUpdateStrategy;
     use bevy_rand::prelude::EntropyPlugin;
     use nova_gameplay::prelude::{Health, HealthApplyDamage, NovaHealthPlugin};
 
@@ -234,11 +264,18 @@ mod tests {
 
     /// A ship-shaped rig: a moving rigid body, a section under it, and a
     /// fixture bolted to the section a metre out along `offset`.
+    ///
+    /// The clock is stated, because the drain is on the fixed step and real
+    /// deltas between test frames are microseconds - left alone, `app.update()`
+    /// would run no tick at all. One frame's manual delta is one timestep, so
+    /// a frame here is exactly one drain and the cap can be counted.
     fn shed_app(offset: Vec3) -> (App, Entity, Entity) {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, TransformPlugin, NovaHealthPlugin));
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
-        app.add_systems(Update, shed_dead_fixtures);
+        app.add_systems(FixedUpdate, shed_dead_fixtures);
+        let timestep = app.world().resource::<Time<Fixed>>().timestep();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(timestep));
 
         let ship = app
             .world_mut()
@@ -424,7 +461,7 @@ mod tests {
 
         let mut app = unfinished_integrity_physics_app();
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
-        app.add_systems(Update, shed_dead_fixtures);
+        app.add_systems(FixedUpdate, shed_dead_fixtures);
         app.finish();
 
         let ship = app
@@ -546,13 +583,13 @@ mod tests {
         );
     }
 
-    /// The cap bounds the work in a frame without ever losing a plate: a hull
-    /// that loses its whole skin at once sheds it over several frames, and the
+    /// The cap bounds the work in a tick without ever losing a plate: a hull
+    /// that loses its whole skin at once sheds it over several ticks, and the
     /// count that comes off is the count that was killed.
     #[test]
-    fn a_hull_stripped_all_at_once_sheds_over_several_frames_and_loses_nothing() {
+    fn a_hull_stripped_all_at_once_sheds_over_several_ticks_and_loses_nothing() {
         let (mut app, section, _) = shed_app(Vec3::Y * 2.0);
-        let plates: Vec<Entity> = (0..SHED_FRAME_CAP * 2 + 3)
+        let plates: Vec<Entity> = (0..SHED_TICK_CAP * 2 + 3)
             .map(|i| {
                 app.world_mut()
                     .spawn((
@@ -578,24 +615,36 @@ mod tests {
             });
         }
 
+        let shed_so_far = |app: &App| {
+            plates
+                .iter()
+                .filter(|plate| app.world().get::<ShedFixtureMarker>(**plate).is_some())
+                .count()
+        };
+
         app.update();
-        let shed_in_one_frame = plates
-            .iter()
-            .filter(|plate| app.world().get::<ShedFixtureMarker>(**plate).is_some())
-            .count();
         assert_eq!(
-            shed_in_one_frame, SHED_FRAME_CAP,
-            "a frame with more dead plates than the cap sheds exactly the cap",
+            shed_so_far(&app),
+            SHED_TICK_CAP,
+            "a tick with more dead plates than the cap sheds exactly the cap",
         );
 
-        for _ in 0..plates.len() {
+        // Exactly the ticks the cap needs and not one more, so this asserts
+        // the drain RATE rather than outlasting it.
+        let ticks = plates.len().div_ceil(SHED_TICK_CAP);
+        for _ in 2..ticks {
             app.update();
         }
-        for plate in &plates {
-            assert!(
-                app.world().get::<ShedFixtureMarker>(*plate).is_some(),
-                "a plate the cap deferred was never shed at all",
-            );
-        }
+        assert!(
+            shed_so_far(&app) < plates.len(),
+            "the hull was stripped in fewer ticks than the cap allows",
+        );
+
+        app.update();
+        assert_eq!(
+            shed_so_far(&app),
+            plates.len(),
+            "a plate the cap deferred was never shed at all",
+        );
     }
 }

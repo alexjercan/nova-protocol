@@ -14,12 +14,14 @@
 //! serve a white-hot detonation core and a dim muzzle flash without either
 //! having to agree on a colour.
 //!
-//! # Why a lazy resource
+//! # Why an empty slot and not a `FromWorld`
 //!
-//! Built on the first effect that asks, not at startup, on the same terms as
-//! the effect assets it is bound to: an app running with particles off, and a
-//! headless test app with no `Assets<Image>` at all, must not pay for - or
-//! panic on - a texture nothing will sample.
+//! The mask is built by whichever effect asks for it first, on the same terms
+//! as the effect assets it is bound to. In a shipping app that is a warm-up
+//! running as a scene comes up, so it is not lazy in practice; what the empty
+//! slot buys is the two apps that never ask. A tier with particles off does
+//! not, and a headless test app with no `Assets<Image>` has nothing to ask
+//! WITH - so neither pays for, or panics on, a texture nothing will sample.
 
 use bevy::{
     asset::RenderAssetUsages,

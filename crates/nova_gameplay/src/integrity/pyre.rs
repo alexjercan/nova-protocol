@@ -52,11 +52,12 @@ use bevy_hanabi::prelude::*;
 
 use super::components::prelude::*;
 use crate::{
-    integrity::spew::prelude::CarveDebris,
+    integrity::spew::prelude::{inherited_material, CarveDebris},
     lifetime::TempEntity,
     settings::prelude::GraphicsBudget,
     soft_dot::prelude::{declare_soft_dot_slot, soft_dot_modifier, SoftDot},
     transient_light::prelude::LightFlash,
+    GameStates,
 };
 
 /// `PyrePlugin` and the marker its instances carry.
@@ -69,6 +70,14 @@ pub mod prelude {
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct PyreEffectMarker;
+
+/// Tags a throwaway instance the warm-up spawned to mint a shader.
+///
+/// Its own marker and not [`PyreEffectMarker`], because a range counting live
+/// fireballs must never see one: these draw nothing, emit nothing, and are
+/// gone the frame after they are made.
+#[derive(Component, Clone, Copy, Debug)]
+struct PyreWarmMarker;
 
 /// How many deaths one frame may light.
 ///
@@ -93,15 +102,43 @@ struct PyreBudget(u32);
 
 /// The shared graphs. Two per size: the core and its ejecta.
 ///
-/// Warmed at startup by [`warm_the_pyres`] rather than built by [`FromWorld`],
-/// so an app with no asset stores and one running at a graphics tier with
-/// particles off still build nothing. The slots stay optional because that is
-/// what lets those two apps hold the resource without paying for it, and
-/// because the warm-up is a system and not a constructor.
+/// Warmed on entering [`GameStates::Playing`] by [`warm_the_pyres`] rather than
+/// built by [`FromWorld`], so an app with no asset stores and one running at a
+/// graphics tier with particles off still build nothing. The slots stay
+/// optional because that is what lets those two apps hold the resource without
+/// paying for it, and because the warm-up is a system and not a constructor.
 #[derive(Resource, Default, Debug)]
 struct PyreEffects {
     section: Option<PyrePair>,
     hulk: Option<PyrePair>,
+}
+
+/// Which of the two scales a death burns at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PyreSize {
+    /// A compartment going up.
+    Section,
+    /// A whole hull letting go.
+    Hulk,
+}
+
+impl PyreSize {
+    /// The scale a death of this size is authored at.
+    fn scale(self) -> PyreScale {
+        match self {
+            Self::Section => SECTION_PYRE,
+            Self::Hulk => HULK_PYRE,
+        }
+    }
+
+    /// The stem the two graph names are built from, which is also what a
+    /// `bevy_hanabi=debug` log prints when a shader is minted.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Section => "section",
+            Self::Hulk => "hulk",
+        }
+    }
 }
 
 /// The two graphs one death spawns.
@@ -200,16 +237,18 @@ const SECTION_PYRE: PyreScale = PyreScale {
     linger: 0.9,
 };
 
-/// The whole hull letting go. Sized against a shipped gunship - 110 m stem to
-/// stern, 11 units - so the core covers the wreck without swallowing the
+/// The whole hull letting go. Sized against a shipped gunship - 85 m stem to
+/// stern, 8.5 units - so the core covers the wreck without swallowing the
 /// frame: a death the camera cannot see THROUGH is a death nobody can read,
 /// and the sections thrown out of it are half of what makes it one.
 ///
 /// The fragments carry it after that, and they are most of the picture: the
 /// flash is over in a third of a second, while at up to 8 units per second for
-/// 1.7 s these cross about 13 units, 130 m - a hull length of debris still
-/// leaving the wreck when the light has gone out, which is the order a vacuum
-/// burst happens in.
+/// 1.7 s these cross about 13 units, 130 m - half again the length of the hull
+/// they came off, still leaving the wreck when the light has gone out, which
+/// is the order a vacuum burst happens in. Wider than the wreck on purpose: a
+/// field of debris that stopped at the hull's own silhouette would read as the
+/// ship having merely broken rather than having been destroyed.
 const HULK_PYRE: PyreScale = PyreScale {
     core: PyreCore {
         size: 1.30,
@@ -234,11 +273,11 @@ const HULK_PYRE: PyreScale = PyreScale {
 
 impl PyreEffects {
     /// The pair for a death, building it on the first one that needs it.
-    fn pair(&mut self, root: bool, effects: &mut Assets<EffectAsset>) -> (PyrePair, PyreScale) {
-        let (slot, scale, name) = if root {
-            (&mut self.hulk, HULK_PYRE, "hulk")
-        } else {
-            (&mut self.section, SECTION_PYRE, "section")
+    fn pair(&mut self, size: PyreSize, effects: &mut Assets<EffectAsset>) -> (PyrePair, PyreScale) {
+        let (scale, name) = (size.scale(), size.name());
+        let slot = match size {
+            PyreSize::Section => &mut self.section,
+            PyreSize::Hulk => &mut self.hulk,
         };
         let pair = slot
             .get_or_insert_with(|| PyrePair {
@@ -442,32 +481,96 @@ fn refill_pyre_budget(mut budget: ResMut<PyreBudget>) {
     budget.0 = 0;
 }
 
-/// Build the graphs and the mask before anything needs them.
+/// The two asset stores a fireball needs, or nothing at all.
 ///
-/// These are two `ExprWriter` graphs and a 128-texel texture per size, and
-/// building them on demand put all of it on the first frame anything died -
-/// which is the most-watched frame in the game, and during a hull collapse is
-/// the same flush frame that is already doing the most work. The cost does not
-/// change; only which frame pays it.
+/// Two refusals with one answer, because they have the same consequence. A
+/// world with no asset stores has nothing to build a graph in and nothing that
+/// could see the result: a headless server, or a test app that added the
+/// integrity plugin for its health pipeline alone. A tier with particles off is
+/// the spawn-less low-end mode, which is a policy rather than a limitation. An
+/// ABSENT budget is a settings-less app, which means full quality. Deaths still
+/// happen in all three, they just go unlit.
+fn drawable<'w>(
+    tier: Option<Res<GraphicsBudget>>,
+    effects: Option<ResMut<'w, Assets<EffectAsset>>>,
+    images: Option<ResMut<'w, Assets<Image>>>,
+) -> Option<(ResMut<'w, Assets<EffectAsset>>, ResMut<'w, Assets<Image>>)> {
+    if !tier.as_deref().is_none_or(|tier| tier.particles) {
+        return None;
+    }
+    Some((effects?, images?))
+}
+
+/// Mint the graphs, the mask AND the shaders before anything needs them.
 ///
-/// Both stores are optional on the same terms as the observer's: a world that
-/// cannot draw builds nothing, and neither does a tier with particles off.
+/// Four `ExprWriter` graphs and the one 128x128 soft-dot mask all four sample -
+/// built once here and shared, not per size. Those assets are not the expensive
+/// half and never were. `bevy_hanabi` generates a WGSL source from a
+/// `CompiledParticleEffect`, and `compile_effects` only visits spawned
+/// INSTANCES - adding an [`EffectAsset`] to the store generates nothing.
+/// Measured on a hull collapse with `bevy_hanabi=debug`, an asset-only warm-up
+/// left five `pyre_section_*` shaders to be minted INSIDE the collapse window,
+/// 1.68 ms of main-thread WGSL generation on that frame, and the hulk pair
+/// unminted entirely. That frame is the most-watched one in the game and is
+/// already doing the most work in it.
+///
+/// So this spawns one throwaway instance per graph, which is what hanabi's own
+/// documentation calls compiling in the background. Each is invisible and free:
+/// [`Visibility::Hidden`] so nothing draws, and an [`EffectSpawner`] held
+/// inactive so nothing is emitted - the assets are `once` spawners with
+/// emit-on-start, so an instance left to its own settings would fire its whole
+/// burst on its first tick. They live until [`cool_the_warm_pyres`] takes them
+/// away on the next frame's `Update`, which is the earliest point at which
+/// `PostUpdate`'s compile and the render world's extract have both had them.
+///
+/// On entering [`GameStates::Playing`] rather than at startup, for two reasons:
+/// the state is never `Playing` on frame one, so the graphics tier a player
+/// chose in the menu is settled before this reads it; and a scene load already
+/// has a loading screen over it. The sibling
+/// `warm_railgun_wake_art` is wired the same way.
 fn warm_the_pyres(
+    mut commands: Commands,
     effects: Option<ResMut<Assets<EffectAsset>>>,
     images: Option<ResMut<Assets<Image>>>,
     mut pyres: ResMut<PyreEffects>,
     mut soft_dot: ResMut<SoftDot>,
     tier: Option<Res<GraphicsBudget>>,
 ) {
-    if !tier.as_deref().is_none_or(|tier| tier.particles) {
-        return;
-    }
-    let (Some(mut effects), Some(mut images)) = (effects, images) else {
+    let Some((mut effects, mut images)) = drawable(tier, effects, images) else {
         return;
     };
-    soft_dot.handle(&mut images);
-    for root in [false, true] {
-        pyres.pair(root, &mut effects);
+    let dot = soft_dot.handle(&mut images);
+    for size in [PyreSize::Section, PyreSize::Hulk] {
+        let (pair, _) = pyres.pair(size, &mut effects);
+        for handle in [pair.core, pair.ejecta] {
+            commands.spawn((
+                Name::new("Pyre Warm-Up"),
+                PyreWarmMarker,
+                ParticleEffect::new(handle),
+                EffectMaterial {
+                    images: vec![dot.clone()],
+                },
+                EffectProperties::default(),
+                EffectSpawner::default().with_active(false),
+                Visibility::Hidden,
+            ));
+        }
+    }
+}
+
+/// Take the warm-up's throwaway instances away again.
+///
+/// In `Update` and not in the same frame's `PostUpdate` or `Last`: hanabi
+/// compiles in `PostUpdate` and the render world extracts after the whole main
+/// schedule, so an instance spawned from `OnEnter` has to survive its own frame
+/// to be both compiled and specialized. [`Ref::is_added`] is what draws that
+/// line - on the frame they were spawned these are still new, on the next they
+/// are not.
+fn cool_the_warm_pyres(mut commands: Commands, warm: Query<(Entity, Ref<PyreWarmMarker>)>) {
+    for (entity, marker) in &warm {
+        if !marker.is_added() {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
@@ -495,36 +598,27 @@ fn light_the_pyre(
     q_parents: Query<&ChildOf>,
     q_debris: Query<&CarveDebris>,
 ) {
-    // Low graphics tier is spawn-less. Absent budget (a settings-less app)
-    // means full quality.
-    if !tier.as_deref().is_none_or(|tier| tier.particles) {
-        return;
-    }
-
-    // A world with no asset stores has nothing to build a graph in and nothing
-    // that could see the result: a headless server, or a test app that added
-    // the integrity plugin for its health pipeline alone. Deaths still happen
-    // there, they just go unlit.
-    let (Some(mut effects), Some(mut images)) = (effects, images) else {
+    let Some((mut effects, mut images)) = drawable(tier, effects, images) else {
         return;
     };
 
     let entity = add.entity;
-
-    // Rock does not burn. `IntegrityDestroyMarker` is a shared seam - an
-    // exhausted asteroid raises it to reuse the destruction cue without opting
-    // into the health graph behind it - so the material has the last word on
-    // whether a death is a fireball at all. What this throws is a hull's own
-    // vaporised mass, and there is none of that in a rock.
-    if inherited_material(entity, &q_debris, &q_parents) == CarveDebris::Rock {
-        return;
-    }
-
     let Ok((frame, root)) = q_dead.get(entity) else {
         // Nothing that carries no transform: a health node hanging off a
         // section, which the section's own fireball already covers.
         return;
     };
+
+    // Rock does not burn. `IntegrityDestroyMarker` is a shared seam - an
+    // exhausted asteroid raises it to reuse the destruction cue without opting
+    // into the health graph behind it - so the material has the last word on
+    // whether a death is a fireball at all. What this throws is a hull's own
+    // vaporised mass, and there is none of that in a rock. Asked before the
+    // budget is spent: a rock must not cost a section its place in the frame.
+    if inherited_material(entity, &q_debris, &q_parents) == CarveDebris::Rock {
+        return;
+    }
+
     // The root's fireball is the one the whole death reads as, so it is never
     // the one the cap drops.
     if !root && budget.0 >= PYRE_FRAME_CAP {
@@ -532,7 +626,12 @@ fn light_the_pyre(
     }
     budget.0 += 1;
 
-    let (pair, scale) = pyres.pair(root, &mut effects);
+    let size = if root {
+        PyreSize::Hulk
+    } else {
+        PyreSize::Section
+    };
+    let (pair, scale) = pyres.pair(size, &mut effects);
     let drift = inherited_drift(entity, &q_drift, &q_parents);
     let at = frame.translation();
     let dot = soft_dot.handle(&mut images);
@@ -562,28 +661,6 @@ fn light_the_pyre(
         range: scale.light_range,
         duration: scale.light_secs,
     });
-}
-
-/// What the dead body is made of, from the nearest ancestor that says.
-///
-/// A walk for the same reason as [`inherited_drift`]: a rock states its
-/// material on the ROOT and dies on the carve node beneath it. Anything silent
-/// is ship, which is the assumption the rest of this module is written under.
-fn inherited_material(
-    entity: Entity,
-    q_debris: &Query<&CarveDebris>,
-    q_parents: &Query<&ChildOf>,
-) -> CarveDebris {
-    let mut current = entity;
-    loop {
-        if let Ok(debris) = q_debris.get(current) {
-            return *debris;
-        }
-        let Ok(parent) = q_parents.get(current) else {
-            return CarveDebris::Metal;
-        };
-        current = parent.0;
-    }
 }
 
 /// The velocity the dead body was carrying, from the nearest ancestor that has
@@ -625,8 +702,9 @@ impl Plugin for PyrePlugin {
         // no armed section still dies, so the pyre cannot rely on a turret
         // having been here.
         app.init_resource::<SoftDot>();
-        app.add_systems(Startup, warm_the_pyres);
+        app.add_systems(OnEnter(GameStates::Playing), warm_the_pyres);
         app.add_systems(First, refill_pyre_budget);
+        app.add_systems(Update, cool_the_warm_pyres);
         app.add_observer(light_the_pyre);
     }
 }
@@ -634,6 +712,7 @@ impl Plugin for PyrePlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::prelude::GraphicsQuality;
 
     /// The plugin, plus the two asset stores it builds its graphs in. No render
     /// app: an [`EffectAsset`] is data, and what is under test is which
@@ -642,12 +721,56 @@ mod tests {
     /// Built from [`PyrePlugin`] rather than by repeating its wiring, so a
     /// resource the plugin forgets to register fails HERE instead of in the
     /// first crate that adds the plugin for real.
+    ///
+    /// It is handed to the tests already in `Playing` and one frame past the
+    /// transition, which is the state a death happens in: the warm-up runs on
+    /// entering it, and its throwaway instances are gone by the time a test
+    /// asks what a death spawned.
     fn pyre_app() -> App {
+        let mut app = playing_pyre_app();
+        app.update();
+        app
+    }
+
+    /// The same app stopped one frame earlier, on the transition frame itself,
+    /// for the tests that are about the warm-up.
+    fn playing_pyre_app() -> App {
+        playing_pyre_app_at(None)
+    }
+
+    /// `tier` is the graphics budget the app runs at. `None` is a
+    /// settings-less app, which is the only case the rest of this module's
+    /// tests exercise and which means full quality.
+    fn playing_pyre_app_at(tier: Option<GraphicsBudget>) -> App {
         let mut app = App::new();
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<GameStates>();
         app.insert_resource(Assets::<EffectAsset>::default());
         app.insert_resource(Assets::<Image>::default());
+        if let Some(tier) = tier {
+            app.insert_resource(tier);
+        }
         app.add_plugins(PyrePlugin);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
         app
+    }
+
+    /// The graphs and the mask standing in the two stores.
+    fn built(app: &App) -> (usize, usize) {
+        (
+            app.world().resource::<Assets<EffectAsset>>().len(),
+            app.world().resource::<Assets<Image>>().len(),
+        )
+    }
+
+    fn warm_instances(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<(), With<PyreWarmMarker>>()
+            .iter(app.world())
+            .count()
     }
 
     /// A body the pipeline can kill: it carries the transform the fireball is
@@ -726,14 +849,7 @@ mod tests {
     #[test]
     fn the_graphs_are_ready_before_the_first_death_and_no_death_mints_more() {
         let mut app = pyre_app();
-        app.update();
 
-        let built = |app: &App| {
-            (
-                app.world().resource::<Assets<EffectAsset>>().len(),
-                app.world().resource::<Assets<Image>>().len(),
-            )
-        };
         assert_eq!(
             built(&app),
             (4, 1),
@@ -750,6 +866,88 @@ mod tests {
             (4, 1),
             "the graphs are shared - a death must not mint its own pair"
         );
+    }
+
+    /// The half an asset-only warm-up missed. `bevy_hanabi` mints a shader from
+    /// a spawned INSTANCE and never from an asset, so a warm-up that only fills
+    /// the store leaves the WGSL generation to the collapse frame.
+    #[test]
+    fn the_warm_up_spawns_an_instance_per_graph_and_takes_them_away_the_next_frame() {
+        let mut app = playing_pyre_app();
+
+        assert_eq!(
+            warm_instances(&mut app),
+            4,
+            "an instance per graph is what mints the four shaders",
+        );
+        assert!(
+            bursts(&mut app).is_empty(),
+            "a warm instance reached the query a range counts live fireballs with",
+        );
+
+        app.update();
+
+        assert_eq!(
+            warm_instances(&mut app),
+            0,
+            "the warm-up's instances outlived the frame they were compiled in",
+        );
+    }
+
+    /// The warm instances draw nothing and emit nothing. The assets are `once`
+    /// spawners with emit-on-start, so an instance left to the asset's own
+    /// settings fires its whole burst on its first tick.
+    #[test]
+    fn a_warm_instance_is_hidden_and_its_spawner_is_held_shut() {
+        let mut app = playing_pyre_app();
+        let warm: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<Entity, With<PyreWarmMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(warm.len(), 4, "delivery guard: the warm-up ran");
+
+        for instance in warm {
+            let world = app.world();
+            assert_eq!(
+                world.get::<Visibility>(instance),
+                Some(&Visibility::Hidden),
+                "a warm instance is drawn",
+            );
+            assert!(
+                !world
+                    .get::<EffectSpawner>(instance)
+                    .expect("a warm instance states its spawner rather than taking the asset's")
+                    .active,
+                "a warm instance emits particles",
+            );
+        }
+    }
+
+    /// The spawn-less low tier. Every other test here runs settings-less,
+    /// which means FULL quality, so the gate itself went untested - and until
+    /// the budget settled before the first frame it was never false in a
+    /// shipping app either.
+    #[test]
+    fn the_low_tier_builds_no_graph_no_mask_and_no_instance() {
+        let mut app = playing_pyre_app_at(Some(GraphicsBudget::for_quality(GraphicsQuality::Low)));
+
+        assert_eq!(
+            built(&app),
+            (0, 0),
+            "the spawn-less tier built the graphs and uploaded the mask it will never sample",
+        );
+        assert_eq!(warm_instances(&mut app), 0, "and warmed them up as well");
+
+        let body = a_body(&mut app);
+        kill(&mut app, body);
+        app.update();
+
+        assert!(
+            bursts(&mut app).is_empty(),
+            "the spawn-less tier lit a death",
+        );
+        assert_eq!(built(&app), (0, 0), "and built the graphs to do it with");
     }
 
     #[test]
