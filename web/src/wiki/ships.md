@@ -36,7 +36,7 @@ The health bar on your combat lock's readout measures a target against the hull 
 
 ## What damage looks like
 
-A ship never changes shape from being shot. Sections keep the shape they were built in right up to the moment they die; then the whole part comes off the ship, tumbles away, and the wreckage clears after a while. Nothing on a hull is eaten away, and nothing turns red.
+A ship never changes shape from being shot. Sections keep the shape they were built in right up to the moment they die; then the part goes up in a white flash, throws burning fragments that outlive it, and comes off the ship to tumble away until the wreckage clears. A whole hull letting go burns bigger than a single compartment does. Nothing on a hull is eaten away, and nothing turns red.
 
 What you read instead is two different things at once.
 
