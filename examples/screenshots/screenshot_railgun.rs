@@ -20,6 +20,10 @@
 //! is a handful of frames and the flight is none. Slowing gameplay time is what
 //! turns each beat into a framing that can be posed, settled and shot.
 //!
+//! The flight stays none, at any scale - see [`SHOT_TIME_SCALE`]. The third
+//! beat is the gap at the moment the slug LANDS, which is a world instant a
+//! slow clock can be held at, not a crossing spread over frames.
+//!
 //! The RECORDING is the exception. `NOVA_RAILGUN_LIVE=1` hands the clock back
 //! at the moment the loop opens and records the shot at real speed under its
 //! own name - see [`LIVE_ENV`]. The stills and the slowed loop are unaffected;
@@ -111,10 +115,17 @@ const CHARGE_TIME_SCALE: f32 = 0.25;
 
 /// How fast gameplay time runs from the last of the charge onward.
 ///
-/// The slug leaves at 15,000 m/s and the target is 320 m away, so at any speed
-/// worth charging at the whole flight falls inside one rendered frame. A
-/// twentieth of real time spreads it over roughly a dozen, which is what lets
-/// the wide shot land on a hull that is opening rather than on one that has
+/// This buys the AFTERMATH, not the flight. The slug leaves at 15,000 m/s and
+/// the target is 320 m away, so its whole crossing is 21 ms of world - under
+/// two fixed steps. A round advances in `FixedPostUpdate` and carries no
+/// transform interpolation, so it is written at one or two poses and
+/// despawned; a slower clock holds each of those poses for more frames, it
+/// does not add poses between them. The shot arrives, as it should.
+///
+/// What a twentieth of real time does spread is everything after: the entry
+/// blowing out, the corridor opening down the hull and the sections letting
+/// go. That is a hundred fixed steps of world, and it is the difference
+/// between a wide shot landing on a hull that is opening and one that has
 /// already finished coming apart.
 #[cfg(feature = "debug")]
 const SHOT_TIME_SCALE: f32 = 0.05;
@@ -829,9 +840,11 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .deadline(STEP_DEADLINE_SECS)
         .add()
         // A tenth of a second of world, which at a twentieth of real time is
-        // about two and a half seconds of footage: the muzzle flash, the slug
-        // crossing the gap, the entry blowing out and the corridor opening
-        // down the hull behind it. The stills are the frame this beat ends on,
+        // about two and a half seconds of footage: the entry blowing out, the
+        // wake hanging where the slug went and the corridor opening down the
+        // hull behind it. The crossing itself is not in there and cannot be
+        // (see [`SHOT_TIME_SCALE`]) - the shot is already home when this beat
+        // opens. The stills are the frame this beat ends on,
         // so the shots pass stops here; the loops pass sets `AFTERMATH_ENV`
         // and rides the same walk on into the debris cloud.
         .step("watch the corridor open")
