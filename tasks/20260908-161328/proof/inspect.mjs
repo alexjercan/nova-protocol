@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';
 import {readFile, writeFile, mkdtemp, mkdir, rm} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
-const work=fileURLToPath(new URL('./first-panel-card/',import.meta.url));
+const work=fileURLToPath(new URL('./expressions/',import.meta.url));
 const root=new URL('../comic-opening-poc/',import.meta.url).href;
 await mkdir(work,{recursive:true});
 const profile=await mkdtemp('/tmp/nova-story-preview-');
@@ -22,7 +22,7 @@ try {
  socket.addEventListener('message',event=>{const m=JSON.parse(event.data);if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);if(m.method==='Network.requestWillBeSent')requests.push(m.params.request.url);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);m.error?reject(m.error):resolve(m.result)}});
  const send=(method,params={})=>new Promise((resolve,reject)=>{const next=++id;pending.set(next,{resolve,reject});socket.send(JSON.stringify({id:next,method,params}))});
  const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value};
- const navigate=async file=>{await send('Page.navigate',{url:root+file});for(let i=0;i<100;i++){if(await evaluate(`location.href===${JSON.stringify(root+file)}&&document.readyState==='complete'`))break;await delay(60)}await evaluate('document.fonts.ready');await delay(100)};
+ const navigate=async file=>{const url=new URL(file,root).href;await send('Page.navigate',{url});for(let i=0;i<100;i++){if(await evaluate(`location.href===${JSON.stringify(url)}&&document.readyState==='complete'`))break;await delay(60)}assert(await evaluate(`location.href===${JSON.stringify(url)}&&document.readyState==='complete'`));await evaluate('document.fonts.ready');await delay(100)};
  const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png'});await writeFile(`${work}/${name}.png`,Buffer.from(r.data,'base64'))};
  await send('Page.enable');await send('Runtime.enable');await send('Network.enable');await send('Page.bringToFront');
  await send('Emulation.setDeviceMetricsOverride',{width:1500,height:1000,deviceScaleFactor:1,mobile:false});
@@ -32,7 +32,18 @@ try {
   if(n===1||n===4)assert(await evaluate("document.querySelector('.title-card').closest('[role=group]')===document.querySelector('[role=group]')"),'The orientation card is in the first panel');
   const overflow=await evaluate(`(()=>{const bad=[];for(const box of document.querySelectorAll('.dialogue,.title-card')){const frame=box.querySelector('path,rect').getBBox();for(const t of box.querySelectorAll('text')){const b=t.getBBox();if(b.x<frame.x+10||b.x+b.width>frame.x+frame.width-10||b.y<frame.y||b.y+b.height>frame.y+frame.height)bad.push(t.textContent)}}return bad})()`);
   assert.deepEqual(overflow,[],`Page ${n} lettering fits its boxes`);
+  const expressions=await evaluate("[...document.querySelectorAll('[data-expression]')].map(n=>[n.dataset.face,n.dataset.expression])");
+  assert.deepEqual(expressions,n===1?[['rina','amused'],['jonah','wry']]:[],'Only the page-1 pair uses new expressions');
   await shot(`page-0${n}`);
+ }
+ for(const scheme of ['comic','lore']){
+  await navigate(`../expression-study/expressions-${scheme}.svg`);
+  assert.equal(await evaluate("document.querySelectorAll('[data-gaze=forward]').length"),4);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-expression]')].map(n=>[n.dataset.face,n.dataset.expression])"),[['rina','amused'],['jonah','wry']]);
+  assert.equal(await evaluate("document.querySelectorAll('filter').length"),scheme==='lore'?4:0);
+  assert(await evaluate("(()=>{const ids=[...document.querySelectorAll('[id]')].map(n=>n.id);return ids.length===new Set(ids).size})()"));
+  assert(await evaluate("[...document.querySelectorAll('[data-face]')].every(n=>{const b=n.getBoundingClientRect();return b.left>=0&&b.top>=0&&b.right<=innerWidth&&b.bottom<=innerHeight})"));
+  await shot(`expressions-${scheme}`);
  }
  const reports=[];
  for(const width of [1440,390]){
@@ -72,8 +83,8 @@ try {
  }
  assert.equal(errors.length,0,JSON.stringify(errors));
  assert(requests.length>0&&requests.every(url=>url.startsWith('file:')),JSON.stringify(requests));
- await writeFile(`${work}/browser-checks.json`,JSON.stringify({reports,errors,requests,checks:['direct file loading','raw SVGs','page navigation','keyboard','art toggle','contact sheet','mobile transcripts','no overflow','local comparison links','orientation cards in first panels','cards and artwork remain visible under Art only']},null,2));
- console.log('Four SVG pages and eight page/viewport views inspected. Navigation, keyboard, art toggle, contact sheet and transcripts pass. No script exceptions.');
+ await writeFile(`${work}/browser-checks.json`,JSON.stringify({reports,errors,requests,checks:['direct file loading','raw SVGs','page navigation','keyboard','art toggle','contact sheet','mobile transcripts','no overflow','local comparison links','orientation cards in first panels','cards and artwork remain visible under Art only','only page-1 Rina and Jonah use expression overrides','original/variant comparison sheets in comic and lore colors','comparison IDs are unique and heads fit the canvas']},null,2));
+ console.log('Four SVG pages, two expression sheets, and eight page/viewport views inspected. Navigation, keyboard, art toggle, contact sheet and transcripts pass. No script exceptions.');
 }finally{
  socket?.close();browser.kill('SIGTERM');await writeFile(`${work}/browser.log`,log);
  for(let i=0;i<50&&browser.exitCode===null&&browser.signalCode===null;i++)await delay(100);

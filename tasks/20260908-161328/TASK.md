@@ -74,9 +74,10 @@ Do not create a second maintained story specification in the task.
 - Baikal's orientation card belongs on its first exterior picture. Kaveri's
   stays at the move aboard. Calendar dates and precise orbital relationships
   remain provisional; the card design does not settle them.
-- Character-specific expression variants remain a desired illustration
-  follow-up. The suggested page-1 trial has not been drawn. Scope it when
-  illustration work resumes; it does not block writing the season.
+- The user accepted the page-1 expression trial and requested its commit.
+  Rina uses an amused expression and Jonah a wry half-smile for the coffee
+  exchange. Original defaults and other appearances are unchanged.
+  Further expression work is not a prerequisite for writing the season.
 - Visual acceptance does not establish dimensions, capacity, physical livery,
   ages, biographies, or final character likenesses.
 
@@ -87,6 +88,8 @@ Do not create a second maintained story specification in the task.
 - [Clean-line style trial](clean-line-study/index.html), with shared-source ships
   and a Lore colors preview.
 - [Style, library, palette, and reference review](STYLE-REVIEW.md).
+- [Expression comparisons](expression-study/README.md) and
+  [expression trial review](EXPRESSION-REVIEW.md).
 - [Review and verification record](REVIEW.md).
 - [Requested commits](COMMIT-REVIEW.md) and [four-page restyle review](RESTYLE-REVIEW.md).
 - [Frozen previous four-page version](proof/before-clean-line-opening/index.html).
@@ -100,9 +103,9 @@ this story work stay in this task. Do not move unrelated design studies:
 
 ## Scope and constraints
 
-1. The current request commits the reviewed card move and updates this task.
-   The writing plan is the next work, not a claim that the season was drafted
-   during this task update.
+1. The reviewed card move and writing-task update are committed. The current
+   follow-up adds reusable expressions and tries them on page 1. It does not
+   draft new season scenes or authorize publication.
 2. Preserve the accepted studies, comparison copies, and evidence. New scripts
    and reviews stay with this task. Keep generated art and its sources together.
 3. Keep the production outline unpublished. Public subject histories follow
@@ -143,6 +146,7 @@ this story work stay in this task. Do not move unrelated design studies:
 - [x] Check unchanged dialogue/cards, regeneration, rendered pages, and isolation.
 - [x] Obtain feedback on the restyled four-page staging.
 - [x] Put Baikal's unchanged card on the first exterior picture and review it.
+- [x] Add reusable Rina/Jonah expressions and obtain approval of the page-1 trial.
 
 ## Intake
 

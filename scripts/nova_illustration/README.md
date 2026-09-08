@@ -10,7 +10,8 @@ its scene composition and color presentation. It is not a game asset pipeline.
 | `colors.py` | Named palette constants, character colors, material colors, and lore channel settings. |
 | `styles.py` | `comic` and `lore` presentation. Color changes do not change geometry. |
 | `ships.py` | One plated shape proposal each for `kaveri` and `ebro`, with industrial fixtures and named projected views. |
-| `faces.py` | Original forward-facing heads for Elena, Jonah, Leila, Rina, and Tomas. |
+| `faces.py` | Forward-facing head identities, expression selection, and the original features for Elena, Leila, and Tomas. |
+| `expressions.py` | Original and variant facial features for Jonah and Rina, with character-specific linework. |
 | `portraits.py` | Close and conversational poses plus work-jacket busts, using shared frontal heads. |
 | `scenery.py` | The provisional Baikal silhouette, Saturn, and a repeatable star field. |
 | `svg.py` | Shared SVG primitives in illustration coordinates. |
@@ -30,6 +31,38 @@ The current comic treatment uses the original frontal heads, not profiles or
 three-quarter faces. Body poses, necks, clothing folds, and local framing can
 change without replacing a character's face. New head angles require separately
 authored drawings and visual approval; a flat head cannot rotate automatically.
+
+## Facial expressions
+
+```python
+from nova_illustration.faces import expression_names, frontal_head
+from nova_illustration.portraits import jonah_listener, work_portrait
+
+assert expression_names('rina') == ('original', 'amused')
+rina = work_portrait('rina', expression='amused')
+jonah = jonah_listener(expression='wry')
+head_only = frontal_head('jonah', expression='wry')
+```
+
+All portrait helpers accept `expression`, which defaults to `original`. This
+means the retained drawing, not a universal neutral mood. Omitting it keeps
+existing default renders byte-for-byte unchanged. SVG heads mark only an
+explicit variant with `data-expression`.
+
+Rina currently has `original` and `amused`; Jonah has `original` and `wry`.
+Elena, Leila, and Tomas currently have only `original`. Unknown heads or
+expression names raise `KeyError`, including a known expression not authored
+for that character. Samir is not yet a registered shared head.
+
+Variants replace brows, eyes, mouth, and nearby acting lines. They reuse the
+same nose, head contour, hair, ears, shadow planes, and body pose. Author each
+character's features in `expressions.py`; do not paste a generic smile over the
+old mouth or distort the entire head. These are selected drawings, not a face
+rig, automatic head rotation, or a complete emotion catalog. The original
+Jonah/Rina features also live there, so public portraits and scenes share them.
+
+Use `present` on the resulting artwork for comic or lore colors. Expression
+selection does not change the palette or include lettering.
 
 ## Shared assets versus local scene work
 

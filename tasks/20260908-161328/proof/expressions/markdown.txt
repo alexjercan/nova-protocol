@@ -1,0 +1,6 @@
+Rendered and checked: scripts/nova_illustration/README.md
+Rendered and checked: tasks/20260908-161328/TASK.md
+Rendered and checked: tasks/20260908-161328/EXPRESSION-REVIEW.md
+Rendered and checked: tasks/20260908-161328/comic-opening-poc/README.md
+Rendered and checked: tasks/20260908-161328/expression-study/README.md
+Five Markdown documents and 38 local links pass. No task-artifact link in the library README.

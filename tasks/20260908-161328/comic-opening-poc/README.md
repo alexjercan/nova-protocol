@@ -8,6 +8,11 @@ The user requested this restyle after accepting the frontal-face and industrial
 ship treatment. Compare the [previous four-page version](../proof/before-clean-line-opening/index.html)
 or the [accepted three-shot study](../clean-line-study/index.html).
 
+The requested [expression trial](../expression-study/README.md) now uses Rina's
+amused expression and Jonah's wry half-smile on page 1. All other appearances
+retain their original features. The user accepted these variants and requested
+their commit. Frontal head shapes, body staging, dialogue, and cards are unchanged.
+
 ## What changed
 
 - Closer human framing with the original frontal heads, light shadow planes,
@@ -38,7 +43,8 @@ signs and orientation cards. Printing includes all four landscape pages.
 
 Use the full-size SVGs to zoom and the text transcripts on small screens.
 The scaled landscape overview is not a final mobile reading experience.
-[Restyle review and checks](../RESTYLE-REVIEW.md) records the current evidence.
+[Restyle review and checks](../RESTYLE-REVIEW.md) records the accepted staging.
+[Expression review and checks](../EXPRESSION-REVIEW.md) records the current trial.
 
 ## Source and regeneration
 
@@ -59,10 +65,10 @@ From the repository root:
 python3 tasks/20260908-161328/comic-opening-poc/generate.py
 python3 tasks/20260908-161328/comic-opening-poc/generate.py --check
 node tasks/20260908-161328/proof/inspect.mjs
-python3 tasks/20260908-161328/proof/check-opening-restyle.py
+python3 tasks/20260908-161328/proof/check-expressions.py
 ```
 
 The generator writes only `index.html` and `page-01.svg` through `page-04.svg`.
-The Chromium check writes current evidence under `../proof/first-panel-card/` and stops
+The Chromium check writes current evidence under `../proof/expressions/` and stops
 its owned browser. Do not hand-edit generated outputs or overwrite the frozen
 comparison files. Keep this draft outside public discovery and website copying.

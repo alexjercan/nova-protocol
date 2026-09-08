@@ -12,7 +12,8 @@ sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(SCRIPTS))
 from nova_illustration.colors import ELENA, MATERIALS
-from nova_illustration.faces import FACES, frontal_head
+from nova_illustration.expressions import EXPRESSIONS, facial_features
+from nova_illustration.faces import FACES, expression_names, frontal_head
 from nova_illustration.portraits import elena_close, elena_gesture, jonah_listener, work_portrait
 from nova_illustration.ships import Face, MODELS, VIEWS, bounds, contour_segments, dot, hull_segment, normal, painter_order, render_ship, split_surface, sub
 from nova_illustration.styles import present
@@ -119,6 +120,74 @@ class IllustrationTests(unittest.TestCase):
                 work_portrait(name)
         with self.assertRaises(KeyError):
             work_portrait('elena')
+
+    def test_omitted_expression_keeps_the_original_features(self):
+        for name, face in FACES.items():
+            drawing = frontal_head(name)
+            self.assertEqual(drawing,frontal_head(name,'original'))
+            self.assertIn(face.features,drawing)
+            self.assertNotIn('data-expression',drawing)
+        for name in EXPRESSIONS:
+            self.assertEqual(FACES[name].features,facial_features(name,'original'))
+
+    def test_expressions_replace_features_without_replacing_the_likeness(self):
+        for name, variants in EXPRESSIONS.items():
+            original = frontal_head(name)
+            for expression, features in variants.items():
+                with self.subTest(name=name,expression=expression):
+                    drawing = frontal_head(name,expression)
+                    self.assertEqual(drawing,frontal_head(name,expression))
+                    self.assertEqual(drawing.count(features),1)
+                    retained = drawing.replace(features,'FEATURES',1)
+                    retained = retained.replace(f' data-expression="{expression}"','')
+                    self.assertEqual(retained,original.replace(FACES[name].features,'FEATURES',1))
+                    root = ET.fromstring(drawing)
+                    self.assertEqual(root.get('data-gaze'),'forward')
+                    if expression != 'original':
+                        self.assertNotEqual(features,FACES[name].features)
+                        self.assertNotIn(FACES[name].features,drawing)
+                        self.assertEqual(root.get('data-expression'),expression)
+
+    def test_body_helpers_pass_expressions_without_changing_the_pose(self):
+        poses = [('elena',elena_close),('elena',elena_gesture),('jonah',jonah_listener)]
+        poses += [(name,lambda expression='original', name=name: work_portrait(name,expression)) for name in ('leila','rina','tomas')]
+        for name, pose in poses:
+            for expression in expression_names(name):
+                head = frontal_head(name,expression)
+                drawing = pose(expression=expression)
+                self.assertIn(head,drawing)
+                self.assertEqual(drawing.replace(head,'HEAD',1),pose().replace(frontal_head(name),'HEAD',1))
+
+    def test_expression_instances_keep_geometry_under_color_changes_and_do_not_collide(self):
+        for name in FACES:
+            for expression in expression_names(name):
+                drawing = frontal_head(name,expression)
+                comic = ET.fromstring('<svg>'+present(drawing,'comic','comic')+'</svg>')
+                lore = ET.fromstring('<svg>'+present(drawing,'lore','left')+present(drawing,'lore','right')+'</svg>')
+                self.assertEqual(ET.tostring(comic.find('.//*[@data-face]')),ET.tostring(lore.find('.//*[@data-face]')))
+                ids = [n.get('id') for n in lore.iter() if 'id' in n.attrib]
+                self.assertEqual(len(ids),len(set(ids)))
+                self.assertEqual(len(lore.findall('.//filter')),2)
+
+    def test_expression_names_are_character_specific_and_unknown_pairs_fail(self):
+        self.assertEqual(expression_names('rina'),('original','amused'))
+        self.assertEqual(expression_names('jonah'),('original','wry'))
+        for name in ('elena','leila','tomas'):
+            self.assertEqual(expression_names(name),('original',))
+        for name in ('unknown','samir'):
+            with self.assertRaises(KeyError):
+                expression_names(name)
+        for name, expression in [('rina','wry'),('jonah','amused'),('elena','amused'),('leila','focused'),('tomas','attentive'),('rina',''),('jonah','typo')]:
+            with self.assertRaises(KeyError):
+                frontal_head(name,expression)
+        with self.assertRaises(KeyError):
+            jonah_listener(expression='amused')
+        with self.assertRaises(KeyError):
+            work_portrait('rina',expression='wry')
+        with self.assertRaises(TypeError):
+            EXPRESSIONS['rina'] = {}
+        with self.assertRaises(TypeError):
+            EXPRESSIONS['rina']['amused'] = 'replacement'
 
     def test_unknown_ship_view_scheme_and_unsafe_instance_are_errors(self):
         for args in [('unknown','top'),('kaveri','unknown')]:

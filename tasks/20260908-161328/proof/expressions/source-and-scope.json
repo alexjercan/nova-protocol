@@ -1,0 +1,76 @@
+{
+  "baseline": "b716d27b0618b914885cf512bc6bfb2b7463b6f2",
+  "checked_head": "faffdc56b38827f53c926c338c8e9e9a53623329",
+  "checks": [
+    "five default heads and all body helpers byte-identical",
+    "only page-1 Rina/Jonah features change; retained likenesses match",
+    "board only substitutes page-1 SVG; pages 2-4 byte-identical",
+    "public sources, exporters, accepted study and earlier evidence unchanged",
+    "six SVGs parse, use safe elements, and have unique resolved IDs",
+    "bounded working changes; empty index"
+  ],
+  "default_head_sha256": {
+    "elena": "f102fa2106121c346abd08f8ff14e5c19e2174008d378d1e7c478cb7eeb8687c",
+    "jonah": "aaf922a370ec4d4b71f37f8fa596911fdcf7726db6c4b57bed6b76a7075e9f3d",
+    "leila": "02523330493a4a6dbdf6d4386f4326d01ee9872f195bd29c40b84079566b7f77",
+    "rina": "4ee57052ddb043f94416eb879bc21f8f7737dbc99c4c526ac45ac60b4d4b8f22",
+    "tomas": "8932dea98ba49eaaf77d94404abaca44f7361daef895ef65c6490d8d83d808e7"
+  },
+  "public_art_sha256": {
+    "web/src/assets/lore/aquila-exterior-concept.svg": "41c565f3aab2102c93f88356e85cb726e7397102cc742f738616acff01a756a8",
+    "web/src/assets/lore/baikal-exterior-concept.svg": "fd53b8c60df39a15229053cfce3323338bdaa0be77c1ab0afcaa83485428abf4",
+    "web/src/assets/lore/clearwell-brand-concept.svg": "c08d818422bd30680d68a80a8ac960db2507b235d0e3be72771b4d9c0270e324",
+    "web/src/assets/lore/corporate-relationships.svg": "a2d5aeb9236a8384cfdc9a79814d3a61fa85f22e6c972dbf830d19cfc0043c43",
+    "web/src/assets/lore/earthworks-brand-concept.svg": "15f000dabe41304f9af711fdb93ebccf46f55bb6c78aa1277eea18b3b20b1000",
+    "web/src/assets/lore/ebro-design-concept.svg": "eeae3468eab8f827d6a19413a4674f3418ac8dddd3af25c796f3e39409400d0b",
+    "web/src/assets/lore/elena-ward-portrait-concept.svg": "ad6adc6c31cc9af488b3a1e8df2afb5613baf33b1fdfa8473d5cebe5654388c3",
+    "web/src/assets/lore/farspan-brand-concept.svg": "7a848c75d6d5adf14a49a7a44bea4fdff3b10ccb9e74f185013c40cff434b8df",
+    "web/src/assets/lore/freight-and-station-rivalry.svg": "2d90d0bf6e8f8a73c002777fec692e0a076fd4621814b102c64fc9f3c27e5a7d",
+    "web/src/assets/lore/industrial-station-concept.svg": "a4bf77625414e81fe0742872b38e98ca9380de7a1092997394c4c92964dae497",
+    "web/src/assets/lore/jonah-mercer-portrait-concept.svg": "831760ac275f592780759f22201615329c8baeda8acb620670133f1fe4446345",
+    "web/src/assets/lore/kaveri-design-concept.svg": "fa18c3bc8ea2a3c87be302427212681cf74554e8d1ccad2e32dcf8ffa3662f03",
+    "web/src/assets/lore/keystone-exterior-concept.svg": "e8708a41e6e560c3ce841ed7397b2494016d19b78e608e1c3913ba0bdce83c43",
+    "web/src/assets/lore/leila-haddad-portrait-concept.svg": "bd95313b6d91dc9de5984974971714e3b63ea8e231a971130969228f5621fe10",
+    "web/src/assets/lore/rina-okafor-portrait-concept.svg": "131c8b689e1e5a54236a9a04b0af73de266853b5d66ef8476bd709014e2df85a",
+    "web/src/assets/lore/samir-bell-portrait-concept.svg": "6bc0efed535d887d53577111ddba9a22b98dfb9d9b9ba7c8d3e73c505cd53f0b",
+    "web/src/assets/lore/saturn-settlement-concept.svg": "3c6f90c93dabefed14a437aef7b0691be72b76d9a0f57770e61c9222a46fa5a7",
+    "web/src/assets/lore/tomas-vega-portrait-concept.svg": "1abebf9c57d8bb5d229dcb551cff203162ff2dc6cbb9476614f22e6f83f3079a",
+    "web/src/assets/lore/travel-phases.svg": "61f3c33336d9b21441d7a57eb78c953d2bac997aabbad6a5b971a235c3291295",
+    "web/src/assets/lore/usable-supply.svg": "d1e5b33c13f67ac06d1ad3d02afdf42cee09b5b5ad950bcfa46dbfa2616397d7"
+  },
+  "svg_paths": [
+    "tasks/20260908-161328/comic-opening-poc/page-01.svg",
+    "tasks/20260908-161328/comic-opening-poc/page-02.svg",
+    "tasks/20260908-161328/comic-opening-poc/page-03.svg",
+    "tasks/20260908-161328/comic-opening-poc/page-04.svg",
+    "tasks/20260908-161328/expression-study/expressions-comic.svg",
+    "tasks/20260908-161328/expression-study/expressions-lore.svg"
+  ],
+  "protected_paths": [
+    "web/src",
+    "web/webpack.config.js",
+    "web/comic-build.js",
+    "scripts/gen-lore-designs.py",
+    "scripts/gen-lore-portraits.py",
+    "scripts/nova_illustration/__init__.py",
+    "scripts/nova_illustration/colors.py",
+    "scripts/nova_illustration/ships.py",
+    "scripts/nova_illustration/styles.py",
+    "scripts/nova_illustration/scenery.py",
+    "scripts/nova_illustration/svg.py",
+    "scripts/nova_illustration/lettering.py",
+    "tasks/20260908-161328/clean-line-study",
+    "tasks/20260908-161328/opening_props.py",
+    "tasks/20260908-161328/proof/baseline",
+    "tasks/20260908-161328/proof/revised",
+    "tasks/20260908-161328/proof/before-clean-line-opening",
+    "tasks/20260908-161328/proof/restyled",
+    "tasks/20260908-161328/proof/first-panel-card",
+    "tasks/20260908-161328/proof/clean-line",
+    "tasks/20260908-161328/proof/clean-line-initial",
+    "tasks/20260908-161328/proof/clean-line-before-frontal"
+  ],
+  "excluded_unrelated_paths_not_validated": [
+    "tasks/20260908-230019/TASK.md"
+  ]
+}
