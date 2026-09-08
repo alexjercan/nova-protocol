@@ -1,5 +1,9 @@
 # Story draft review
 
+This records the earlier move, dialogue, and card pass. Its four pages are
+[frozen for comparison](proof/before-clean-line-opening/index.html). See the
+[later restyle review](RESTYLE-REVIEW.md) for the current draft and checks.
+
 ## Intake: visual direction accepted
 
 The user approved the four-page PoC's visuals and requested:
@@ -99,4 +103,6 @@ such as years since Keystone's founding. Earth-calendar dates are recommended
 for a shared Earth-Saturn chronology; a settlement epoch would emphasize the
 colony's age but need more explanation. No option has been adopted yet.
 
-The task remains OPEN. No publication or commit was requested.
+The task remained OPEN at this review. Commits and a four-page restyle were
+subsequently requested; see [COMMIT-REVIEW.md](COMMIT-REVIEW.md). No publication
+was requested.

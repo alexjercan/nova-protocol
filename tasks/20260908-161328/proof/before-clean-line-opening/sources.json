@@ -1,0 +1,30 @@
+{
+  "tasks/20260908-161328/comic-opening-poc/page-01.svg": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/page-01.svg",
+    "sha256": "040cad0f2a43cd286f09e4f9922568b5421320aa8a7dd0017bf3572f27ef08dd"
+  },
+  "tasks/20260908-161328/comic-opening-poc/page-03.svg": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/page-03.svg",
+    "sha256": "2eae526611eff0f92606cdf3ee9689d28f30f791b50b3a3e01c39390727528d9"
+  },
+  "tasks/20260908-161328/comic-opening-poc/generate.py": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/generate.py.txt",
+    "sha256": "83a444f936b84aac32b293f71c4ba0e8a1de42d02db85b1a222f2f8e6312b73d"
+  },
+  "tasks/20260908-161328/comic-opening-poc/README.md": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/README.md.txt",
+    "sha256": "a2ad17c5781088cf878dc0c13a7d3109cb2848342fb6e1a950686324e7d27ac5"
+  },
+  "tasks/20260908-161328/comic-opening-poc/index.html": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/index.html",
+    "sha256": "768a635fff4dfd0d214d4558c3b016240e3a007d2396f900991b1fd9b6da88b9"
+  },
+  "tasks/20260908-161328/comic-opening-poc/page-02.svg": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/page-02.svg",
+    "sha256": "fa081bf777896a64dee7efc361d6af41ee2278883d3ccf8cf8a73d425bc4fb65"
+  },
+  "tasks/20260908-161328/comic-opening-poc/page-04.svg": {
+    "copy": "tasks/20260908-161328/proof/before-clean-line-opening/page-04.svg",
+    "sha256": "49e176454e81118791a6443857cc01d0aa38d62e63b5db5aeda5e17e1df50a62"
+  }
+}

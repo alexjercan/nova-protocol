@@ -10,8 +10,8 @@ its scene composition and color presentation. It is not a game asset pipeline.
 | `colors.py` | Named palette constants, character colors, material colors, and lore channel settings. |
 | `styles.py` | `comic` and `lore` presentation. Color changes do not change geometry. |
 | `ships.py` | One plated shape proposal each for `kaveri` and `ebro`, with industrial fixtures and named projected views. |
-| `faces.py` | Original forward-facing head contours, hair, and features for Jonah and Elena. |
-| `portraits.py` | Close and conversational body poses, using the shared frontal heads. |
+| `faces.py` | Original forward-facing heads for Elena, Jonah, Leila, Rina, and Tomas. |
+| `portraits.py` | Close and conversational poses plus work-jacket busts, using shared frontal heads. |
 | `scenery.py` | The provisional Baikal silhouette, Saturn, and a repeatable star field. |
 | `svg.py` | Shared SVG primitives in illustration coordinates. |
 | `lettering.py` | Speech balloons built from authored lines, separate from colored artwork. |
@@ -21,9 +21,9 @@ Elena's poses share one palette; the ship models share material roles. These
 colors remain art choices, not approved skin tones or company livery.
 
 The original five encyclopedia portraits retain their template in
-`../gen-lore-portraits.py`. That exporter now imports Jonah's face from
-`faces.py`; its five rendered assets remain byte-for-byte unchanged. The other
-four heads and legacy template colors have not been migrated. This package does
+`../gen-lore-portraits.py`. It imports Jonah, Leila, Rina, and Tomas from
+`faces.py`; all five rendered assets remain byte-for-byte unchanged. Samir's
+head and the legacy template colors have not been migrated. This package does
 not claim a complete cast library.
 
 The current comic treatment uses the original frontal heads, not profiles or
@@ -37,7 +37,8 @@ Keep recurring characters, named ships, and recurring locations in the library.
 Scene generators own framing, dialogue, one-off background details, and incidental
 props. A mug and the hand holding it belong with their scene, not in the portrait
 module. Drawing an object twice within one conversation does not give it a
-series-wide identity.
+series-wide identity. Local studies of the same opening can share a task-local
+prop source without promoting it into this package.
 
 Add a shared props module only when an established recurring prop needs a
 consistent design across independent scenes. Keep that module separate from

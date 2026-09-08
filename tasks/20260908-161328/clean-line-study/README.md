@@ -1,14 +1,15 @@
 # Clean-line style study
 
 Open [index.html](index.html) directly in a browser. This is an unpublished
-three-shot trial of clean-line graphic realism. It does not replace the
-[four-page opening PoC](../comic-opening-poc/index.html) or add story events.
+three-shot trial of clean-line graphic realism. Its SVGs remain unchanged after
+acceptance. Compare the [previous four-page PoC](../proof/before-clean-line-opening/index.html)
+or the [restyled four-page opening](../comic-opening-poc/index.html).
 
 ## Selected for trial
 
-The user approved testing the recommended direction, not adopting a final comic
-style. The goals are closer character acting, useful objects, and occasional
-wide views of the working world. Keep the broader palette and green accents.
+The user accepted the frontal/plated revision as the working visual direction.
+The goals are closer character acting, useful objects, and occasional wide
+views of the working world. Keep the broader palette and green accents.
 
 - Deliberate outlines, with lighter lines for facial features and small details.
 - Flat base colors and limited shadow planes on people and machinery.
@@ -44,7 +45,7 @@ Only Kaveri and Ebro appear as ships. Kaveri is unarmed; its folded recovery arm
 is not a weapon. The departure precedes the Aquila pickup, so the work deck has
 no replacement assembly aboard. No attack, pursuit, route, year, or moon is
 added. These images neither introduce nor replace the opening's location/time
-cards; those remain in the unchanged four-page draft.
+cards; those remain in both four-page versions.
 
 ## Not yet canon or finished art
 
@@ -55,22 +56,16 @@ specification, station layout, or simulation diagram.
 
 Elena's new public portrait uses the same close-up drawing with lore colors.
 The original five crew portraits and earlier draft's heads remain unchanged.
-Review likeness, anatomy, hands, eyelines, expression, and perspective
-before deciding whether this style can carry longer conversations and action.
-
-Questions for the next review:
-
-1. Does the restored frontal face treatment work at these close scales?
-2. Does the close-up feel sufficiently developed without needing more texture?
-3. Does Ebro still make the window shot feel connected to the outside world?
-4. Do the people and machinery belong in one comic?
+The accepted treatment now carries into the four-page draft at the user's
+request. Review its page rhythm and staging there; this comparison does not
+reopen the rejected angled-face treatment.
 
 ## Regeneration and review
 
 `generate.py` owns scene composition, dialogue placement, the three SVGs, and
-the offline review sheet. The mug-and-hand drawing is local to this study; it
-uses shared character/material colors but is not a library asset. Recurring
-props can get their own module when needed, separate from portraits.
+the offline review sheet. `../opening_props.py` supplies the same incidental
+mug-and-hand drawing to this study and the four-page draft. It uses shared
+colors but remains task-local, not a series-wide library asset.
 The scene generator imports the maintained
 [illustration library](../../../scripts/nova_illustration/README.md), not the old
 PoC. That library owns the shared palette, poses, ship models, and color

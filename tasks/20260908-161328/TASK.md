@@ -45,7 +45,7 @@ Do not create a second maintained story specification in the task.
   strings plus placement/duration. This is a visual analogy, not a new runtime
   contract or a copy of gameplay values.
 - Keep the clean-line trial's zoom, frames, camera placement, backgrounds, necks,
-  and body staging. The user rejected its angled faces; restore the original
+  and body staging. The user rejected its angled faces and accepted the original
   forward-facing portrait treatment with light shadows and linework.
 - Keep the ship-sheet layout and green lore shader. Revise the hulls toward the
   game's faceted plating and industrial greebles, using local screenshots and
@@ -66,6 +66,8 @@ Do not create a second maintained story specification in the task.
   and a Lore colors preview.
 - [Style, library, palette, and reference review](STYLE-REVIEW.md).
 - [Review and verification record](REVIEW.md).
+- [Requested commits](COMMIT-REVIEW.md) and [four-page restyle review](RESTYLE-REVIEW.md).
+- [Frozen previous four-page version](proof/before-clean-line-opening/index.html).
 - `proof/` holds inspected images and verification evidence, including the
   visual baseline before the dialogue/card revision.
 
@@ -88,7 +90,8 @@ this story work stay in this task. Do not move unrelated design studies:
 5. Keep the production outline unpublished. Public subject histories follow
    released comic or campaign events, with spoiler scope and release links.
 6. Do not edit wiki pages, gameplay code, unrelated media, or other tasks. No
-   full workspace Rust checks, automatic publication, or commit is implied.
+   full workspace Rust checks or automatic publication are implied. The user
+   explicitly requested the reviewed-work and four-page restyle commits.
 7. Durable documentation must not link to task artifacts. Use an active
    `TODO(<task-id>)` where a work pointer is useful, not a replacement task URL.
 
@@ -106,6 +109,10 @@ this story work stay in this task. Do not move unrelated design studies:
 - [x] Obtain feedback on the clean-line trial and shared ship forms.
 - [x] Review restored frontal faces and revised industrial plating in the same shots.
   The user accepted this pass as the working visual direction.
+- [x] Commit the reviewed library, lore, shared story, drafts, and evidence.
+- [x] Apply the accepted style to the four pages; preserve the prior version.
+- [x] Check unchanged dialogue/cards, regeneration, rendered pages, and isolation.
+- [ ] Obtain feedback on the restyled four-page staging.
 - [ ] Choose the calendar/date convention and any location precision needed by
   the opening before treating those labels as established story facts.
 - [ ] Continue toward an approved opening script/storyboard and campaign brief

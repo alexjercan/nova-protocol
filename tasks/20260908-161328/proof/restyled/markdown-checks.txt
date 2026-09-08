@@ -1,0 +1,11 @@
+scripts/nova_illustration/README.md: Reusable illustration sources
+tasks/20260908-161328/COMMIT-REVIEW.md: Reviewed commits and four-page restyle
+tasks/20260908-161328/REVIEW.md: Story draft review
+tasks/20260908-161328/STYLE-REVIEW.md: Frontal faces and industrial plating
+tasks/20260908-161328/TASK.md: Develop the shared season-one story and comic visual drafts
+tasks/20260908-161328/clean-line-study/README.md: Clean-line style study
+tasks/20260908-161328/comic-opening-poc/README.md: Four-page opening: clean-line draft
+web/src/lore/README.md: Lore encyclopedia
+tasks/20260908-161328/RESTYLE-REVIEW.md: Four-page clean-line adaptation
+tasks/20260908-161328/proof/before-clean-line-opening/README.md: Four-page version before the clean-line restyle
+10 Markdown documents rendered; 91 local links passed.

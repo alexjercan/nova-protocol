@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Draw the unpublished four-page opening color PoC; --check verifies outputs."""
+"""Render the four-page opening in the accepted frontal, clean-line treatment."""
 
 import argparse
-import importlib.util
 import math
 import sys
 from html import escape
@@ -10,373 +9,215 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 OUTPUT = Path(__file__).resolve().parent
-SPEC = importlib.util.spec_from_file_location("lore_portraits", ROOT / "scripts/gen-lore-portraits.py")
-PORTRAITS = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = PORTRAITS
 sys.dont_write_bytecode = True
-SPEC.loader.exec_module(PORTRAITS)
-FACES = {p.name.split()[0]: p for p in PORTRAITS.PORTRAITS}
-FACES["Elena"] = PORTRAITS.Portrait(
-    name="Elena Ward", role="RESIDENT MANAGER", skin="#b98b72", shadow="#79534a",
-    light="#edc3a1", hair="#484451", coat="#487c69",
-    head="M224 192Q235 145 300 146Q354 149 370 197L364 288Q350 340 306 364L277 357Q242 337 229 292Z",
-    back_hair='<path d="M208 290L204 183Q210 119 287 117Q365 107 389 179L389 310L345 339L240 327Z"/>',
-    front_hair='<path d="M210 239L214 179Q229 122 294 128Q353 115 379 179L378 241L358 219L350 169Q309 209 236 188L232 240Z"/><path d="M235 164Q271 134 315 142M246 177Q307 170 342 145" fill="none" stroke="#c5b9a4" stroke-width="9"/>',
-    features='<path d="M243 227L277 224M315 225L348 230" fill="none" stroke="#534147" stroke-width="5"/><path d="M244 242Q261 235 277 244M315 244Q333 235 351 243" fill="none" stroke="#342d3b" stroke-width="5"/><path d="M299 244L288 281L307 286M269 315Q298 331 329 310M242 265L258 270M335 270L351 262" fill="none" stroke="#79534a" stroke-width="3"/>',
-    collar="",
-)
-INK = "#192236"
-PAPER = "#fff2d9"
-GREEN = "#69cda3"
-COATS = {"Jonah": "#50778e", "Leila": "#728662", "Rina": "#ca8758", "Tomas": "#395c78", "Elena": "#427d6d"}
-
-
-def tag(name, body="", **attrs):
-    """Build escaped SVG markup from explicit authored attributes."""
-    attributes = " ".join(f'{key.rstrip("_").replace("_", "-")}="{escape(str(value), quote=True)}"' for key, value in attrs.items())
-    return f"<{name} {attributes}>{body}</{name}>"
-
-
-def rect(x, y, w, h, fill, stroke="none", width=2, radius=0, **attrs):
-    """Draw a rectangle in illustration coordinates, not world units."""
-    return tag("rect", x=x, y=y, width=w, height=h, fill=fill, stroke=stroke, stroke_width=width, rx=radius, **attrs)
-
-
-def path(d, fill="none", stroke=INK, width=3, **attrs):
-    """Draw an inked path."""
-    return tag("path", d=d, fill=fill, stroke=stroke, stroke_width=width, stroke_linejoin="round", stroke_linecap="round", **attrs)
-
-
-def ellipse(x, y, rx, ry, fill, stroke="none", width=2, **attrs):
-    """Draw an ellipse."""
-    return tag("ellipse", cx=x, cy=y, rx=rx, ry=ry, fill=fill, stroke=stroke, stroke_width=width, **attrs)
-
-
-def text(x, y, value, size=22, fill=PAPER, **attrs):
-    """Draw lettering with a locally available font fallback."""
-    return tag("text", escape(value), x=x, y=y, font_size=size, fill=fill, font_family="DejaVu Sans, sans-serif", **attrs)
-
-
-def group(body, transform="", **attrs):
-    """Group shapes with a shared transform."""
-    return tag("g", body, transform=transform, **attrs)
+sys.path.insert(0, str(ROOT/'scripts'))
+sys.path.insert(0, str(OUTPUT.parent))
+from nova_illustration.colors import INK, PAPER, CREAM, JADE, MINT, INTERIOR, SKY, SATURN, WORK, FOLIO, REVIEW
+from nova_illustration.portraits import elena_close, elena_gesture, jonah_listener, work_portrait
+from nova_illustration.scenery import stars, saturn, baikal
+from nova_illustration.ships import render_ship
+from nova_illustration.svg import ellipse, group, path, rect, tag, text
+from opening_props import mug_hand
 
 
 def definitions():
-    """Shared full-color fills; there is deliberately no green-tint filter."""
-    result = '''<linearGradient id="space" x2="0.8" y2="1"><stop stop-color="#223c60"/><stop offset="0.55" stop-color="#222439"/><stop offset="1" stop-color="#503850"/></linearGradient>
-<linearGradient id="planet" x2="0.8" y2="0.7"><stop stop-color="#f9dba1"/><stop offset="0.5" stop-color="#c49472"/><stop offset="1" stop-color="#615267"/></linearGradient>
-<linearGradient id="metal" x2="0.4" y2="1"><stop stop-color="#f5dfae"/><stop offset="0.35" stop-color="#c4c6ab"/><stop offset="0.65" stop-color="#659e92"/><stop offset="1" stop-color="#2b5667"/></linearGradient>
-<linearGradient id="wall" x2="0.6" y2="1"><stop stop-color="#426b72"/><stop offset="1" stop-color="#253b52"/></linearGradient>
-<linearGradient id="warm-wall" x2="0.8" y2="1"><stop stop-color="#d0a777"/><stop offset="0.65" stop-color="#92675c"/><stop offset="1" stop-color="#414454"/></linearGradient>
-<radialGradient id="lamp"><stop stop-color="#ffd4a0" stop-opacity="0.4"/><stop offset="1" stop-color="#ffd4a0" stop-opacity="0"/></radialGradient>
-<linearGradient id="exhaust" x1="1" x2="0"><stop stop-color="#bdeed9"/><stop offset="0.2" stop-color="#66b9d2" stop-opacity="0.75"/><stop offset="1" stop-color="#5581c0" stop-opacity="0"/></linearGradient>
-<pattern id="hatch" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0 9L9 0" stroke="#172137" stroke-width="0.8" opacity="0.15"/></pattern>
-<pattern id="grain" width="31" height="29" patternUnits="userSpaceOnUse"><circle cx="4" cy="9" r="0.65" fill="#fff3d9" opacity="0.2"/><circle cx="22" cy="23" r="0.6" fill="#152034" opacity="0.25"/></pattern>'''
-    for name, face in FACES.items():
-        result += f'<linearGradient id="skin-{name}" x2="1" y2="0.3"><stop stop-color="{face.light}"/><stop offset="0.4" stop-color="{face.skin}"/><stop offset="1" stop-color="{face.shadow}"/></linearGradient>'
-    return tag("defs", result)
+    """Supply the shared scenery's sky, planet lighting, and globe clip."""
+    sky = tag('linearGradient',''.join(tag('stop',stop_color=SKY[k],offset=o) for k,o in [('top',0),('middle',.6),('bottom',1)]),id='space',x2='.8',y2='1')
+    planet = tag('linearGradient',''.join(tag('stop',stop_color=SATURN[k],offset=o) for k,o in [('light',0),('middle',.58),('shadow',1)]),id='planet',x2='.9',y2='.6')
+    return tag('defs',sky+planet+tag('clipPath',tag('circle',r=310),id='globe'))
 
 
-def stars(w, h):
-    """Draw a repeatable, sparse star field without gameplay randomness."""
-    return "".join(ellipse((i * 137 + 19) % w, (i * 73 + 33) % h, 0.8 + (i % 3) * 0.3, 0.8 + (i % 3) * 0.3, "#d9ddca", opacity=0.35 + (i % 4) * 0.15) for i in range(75))
-
-
-def saturn(x, y, scale):
-    """Draw a provisional Saturn composition, not an orbital diagram."""
-    back = ellipse(0, 0, 370, 96, "none", "#caa997", 27, opacity=0.65)
-    globe = ellipse(0, 0, 187, 187, "url(#planet)", "#2d344b", 2)
-    bands = path("M-153 -90Q0 -39 153 -90M-180 -35Q0 25 180 -35M-180 33Q0 93 180 33M-147 103Q0 147 147 103", stroke="#f4d3a1", width=13, opacity=0.18)
-    front = path("M-370 0A370 96 0 0 0 370 0", stroke="#d3b79d", width=27, opacity=0.86)
-    front += path("M-394 0A394 104 0 0 0 394 0", stroke="#ead6b3", width=4, opacity=0.5)
-    return group(back + globe + bands + front, f"translate({x} {y}) rotate(-18) scale({scale})")
-
-
-def station(x, y, scale, angle=-10):
-    """Draw Baikal's ring-and-processing silhouette as a new provisional study."""
-    art = path("M-360 -9H340V28H-360Z", "url(#metal)")
-    art += path("M-357 14H337M-310 14L-270 -6L-230 14L-190 -6L-150 14L-110 -6L-70 14L-30 -6L10 14L50 -6L90 14L130 -6L170 14L210 -6L250 14L290 -6", stroke="#20344b", width=6)
-    for tx in [-135, -15, 105]:
-        art += rect(tx - 44, -158, 88, 143, "url(#metal)", INK, 3)
-        art += ellipse(tx, -158, 44, 15, "#ecdbad", INK, 3)
-        art += path(f"M{tx-44} -110H{tx+44}M{tx-44} -42H{tx+44}", stroke="#487b79", width=11)
-        art += path(f"M{tx-23} -153V-20", stroke="#f7e6b7", width=3)
-        art += path(f"M{tx} -175V-193H{tx-49}V-7", stroke="#d9a46e", width=7)
-    for tx in [-148, -7, 134]:
-        art += path(f"M{tx} 27V64", stroke="#658887", width=16)
-        art += path(f"M{tx-47} 66L{tx-31} 51H{tx+53}L{tx+40} 66Z", "#ead5a1")
-        art += rect(tx - 47, 66, 87, 52, "#578d82", INK, 3)
-        art += rect(tx - 26, 80, 42, 9, "#fad099")
-    art += ellipse(-286, 0, 65, 164, "none", INK, 33)
-    art += path("M-286 -150V150M-345 0H-227M-328 -105L-244 105M-328 105L-244 -105", stroke="#77a196", width=6)
-    art += ellipse(-291, -5, 65, 164, "none", "url(#metal)", 24)
-    art += ellipse(-291, -5, 65, 164, "none", "#263f54", 11)
-    art += ellipse(-291, -5, 65, 164, "none", "#edc484", 4, stroke_dasharray="5 11")
-    art += path("M208 -3V-201H334M283 10V-128H436", stroke="#648b95", width=9)
-    for px, py, pw in [(243, -242, 147), (346, -158, 120)]:
-        art += rect(px, py, pw, 73, "#34486c", "#9aaca8", 3)
-        art += "".join(path(f"M{px+j} {py}V{py+73}", stroke="#6d8094", width=1) for j in range(12, pw, 16))
-        art += path(f"M{px} {py+36}H{px+pw}", stroke="#86979f", width=2)
-    art += path("M320 26V143H254", stroke="#a9b8a0", width=8)
-    art += text(-58, 11, "BAIKAL", 12, INK, font_weight="bold", letter_spacing=2)
-    for tx, ty in [(-345, 0), (338, 6), (256, 144)]:
-        art += ellipse(tx, ty, 4, 4, GREEN)
-    return group(art, f"translate({x} {y}) rotate({angle}) scale({scale})")
-
-
-def ship(name, x, y, scale, angle=0, thrust=False):
-    """Draw the named unarmed workship or water hauler; no other craft are added."""
-    art = ""
-    if thrust:
-        art += path("M-165 -31Q-269 -49 -397 -27Q-272 -6 -165 -7Z", "url(#exhaust)", "none")
-        art += path("M-165 26Q-267 11 -385 37Q-278 51 -165 49Z", "url(#exhaust)", "none")
-    art += path("M-153 -33L-104 -61H86L165 -12L138 44H-130Z", "url(#metal)", INK, 4)
-    art += path("M-130 11H153L138 44H-130Z", "#315569", INK, 3)
-    art += path("M-110 -53H45L89 -28H-112Z", "#e7d7af", INK, 3)
-    art += path("M88 -50L136 -20H65L55 -38Z", "#223a51", INK, 3)
-    art += path("M77 -40L107 -26H79", stroke="#73c2b1", width=4)
-    art += rect(-130, -2, 171, 16, "#57a48c", INK, 2)
-    for xx in [-88, -40, 8]:
-        art += path(f"M{xx} -41V36", stroke="#233a4c", width=3)
-        art += path(f"M{xx+5} -40V35", stroke="#ece0bd", width=2)
-    art += rect(-173, -41, 52, 32, "#3c4b64", INK, 3)
-    art += rect(-173, 21, 52, 32, "#3c4b64", INK, 3)
-    art += path("M-167 -34V-16M-167 28V46", stroke="#86cfc1" if thrust else "#75677d", width=5)
-    if name == "Ebro":
-        for xx in [-86, -24, 38]:
-            art += rect(xx, -111, 53, 79, "#d0c2a1", INK, 3, 12)
-            art += ellipse(xx+26.5, -105, 24, 10, "#f1d6a4", INK, 2)
-            art += path(f"M{xx} -62H{xx+53}", stroke="#519781", width=10)
-    else:
-        art += path("M-84 -64L-64 -92H16L42 -64Z", "#b99a76", INK, 3)
-        art += path("M-68 -70H23M-28 -86V-67", stroke="#294557", width=3)
-        art += path("M-35 45L-35 75L53 75L78 53", stroke="#d49c66", width=9)
-        art += path("M-35 45L-35 75L53 75L78 53", stroke=INK, width=2)
-    art += text(-76, 9, name.upper(), 12, "#122c37", font_weight="bold", letter_spacing=2)
-    art += ellipse(148, -9, 3, 3, "#a0ead0")
-    return group(art, f"translate({x} {y}) rotate({angle}) scale({scale})")
-
-
-def person(name, x, y, scale=1, pose="rest", mirror=False):
-    """Stage a civilian figure with a reusable portrait-concept head and posed arms."""
-    face = FACES[name]
-    coat = COATS[name]
-    art = path("M-51 188L-59 326H-16L1 235L20 326H63L51 188Z", "#26364b", INK, 3)
-    art += path("M-61 316H-15L-10 342H-76L-74 332ZM20 316H63L79 339H19Z", "#1b293b", INK, 3)
-    art += path("M-19 27V69H23V27Z", f"url(#skin-{name})", INK, 2)
-    art += path("M-22 56L-64 72L-68 190Q0 211 68 190L64 73L23 56L0 85Z", coat, INK, 3)
-    art += path("M0 85L23 56L32 72L17 111L1 99L-17 111L-36 74L-22 56Z", "#d2c5a0", INK, 2)
-    art += path("M1 102V198M-51 123L-48 184M45 124L49 181", stroke="#203b49", width=2)
-    art += rect(20, 125, 29, 24, "#304e5a", INK, 1, 2)
-    art += rect(-41, 118, 27, 7, GREEN, radius=1)
-    art += path("M9 98L23 116L12 192H65L63 72L36 64Z", "#233c50", "none", opacity=0.22)
-    if pose == "point":
-        art += path("M-61 77Q-91 115 -72 165L-52 181L-35 164L-48 133L-41 94Z", coat, INK, 3)
-        art += path("M58 78L96 112L139 98L150 121L91 148L46 115Z", coat, INK, 3)
-        art += path("M137 100L169 84L187 85L163 101L180 99L182 107L148 124Z", face.skin, INK, 2)
-        art += ellipse(-43, 174, 15, 19, face.skin, INK, 2)
-    elif pose in ("mug", "tablet"):
-        art += path("M-60 75Q-101 115 -71 163L-12 153L-15 132L-53 129L-38 91Z", coat, INK, 3)
-        art += path("M58 75Q89 106 83 157L36 177L20 155L57 139L38 96Z", coat, INK, 3)
-        if pose == "mug":
-            art += ellipse(18, 145, 29, 14, face.skin, INK, 2)
-            art += rect(-21, 111, 42, 43, "#e9d5ab", INK, 3, 5)
-            art += path("M22 118H34Q45 132 33 142H22", stroke="#d5c3a0", width=8)
-            art += rect(-16, 125, 32, 6, "#479d80")
-            art += ellipse(0, 110, 20, 5, "#52413d", INK, 2)
-        else:
-            art += group(rect(-49, 113, 99, 57, "#192b43", INK, 4, 5) + rect(-40, 121, 80, 38, "#6eaa9d", radius=2) + path("M-31 133H18M-31 143H1", stroke="#d4e6c0", width=3), "rotate(-8 0 141)")
-            art += ellipse(-39, 153, 17, 11, face.skin, INK, 2)
-            art += ellipse(43, 151, 15, 11, face.skin, INK, 2)
-    else:
-        art += path("M-62 74L-84 179L-63 189L-39 103ZM63 73L85 179L64 188L40 103Z", coat, INK, 3)
-        art += ellipse(-73, 194, 13, 21, face.skin, INK, 2)
-        art += ellipse(75, 194, 13, 21, face.skin, INK, 2)
-    head = group(face.back_hair, fill=face.hair)
-    head += ellipse(221, 253, 14, 25, f"url(#skin-{name})", face.shadow, 2)
-    head += ellipse(368, 253, 14, 25, f"url(#skin-{name})", face.shadow, 2)
-    head += path(face.head, f"url(#skin-{name})", face.shadow, 2)
-    head += group(face.front_hair, fill=face.hair) + face.features
-    art += group(head, "translate(-120 -105) scale(0.4)")
-    return group(art, f"translate({x} {y}) scale({-scale if mirror else scale} {scale})")
-
-
-def corridor(w, h, warm=True):
-    """Draw a lived-in interior with depth, plants, and practical lighting."""
-    art = rect(0, 0, w, h, "url(#warm-wall)" if warm else "url(#wall)")
-    art += path(f"M0 0H{w}L{w*.77} {h*.18}H{w*.23}Z", "#293c4c")
-    art += path(f"M0 {h}L{w*.3} {h*.57}H{w*.76}L{w} {h}Z", "#3d5660")
-    art += path(f"M0 {h*.83}H{w}M0 {h*.95}H{w}", stroke="#97aaa0", width=2, opacity=0.35)
-    for k in [0.1, 0.33, 0.63, 0.89]:
-        art += path(f"M{w*k} {h}L{w*(.42+k*.28)} {h*.57}", stroke="#1c3448", width=3)
-    art += rect(w*.09, h*.1, w*.27, h*.56, "#2c6a63", INK, 5, 16)
-    art += rect(w*.115, h*.125, w*.22, h*.49, "#3b7e70", "#9abe9e", 2, 10)
-    art += rect(w*.26, h*.33, w*.04, h*.15, "#293c4d", "#b3c1a1", 2, 5)
-    art += path(f"M{w*.03} {h*.08}H{w*.93}", stroke="#171f35", width=18)
-    art += path(f"M{w*.03} {h*.08}H{w*.93}", stroke="#82c8a9", width=5)
-    art += ellipse(w*.65, h*.13, w*.4, h*.8, "url(#lamp)")
-    art += rect(w*.76, h*.23, w*.17, h*.27, "#b66f58", INK, 3, 3)
-    art += rect(w*.785, h*.26, w*.12, h*.16, "#e4cea1", radius=1)
-    art += text(w*.795, h*.305, "GAME", 18, "#3f514f", font_weight="bold")
-    art += text(w*.795, h*.355, "NIGHT", 18, "#3f514f", font_weight="bold")
-    art += rect(w*.755, h*.64, w*.19, h*.05, "#d8b784", INK, 3)
-    art += path(f"M{w*.91} {h*.64}L{w*.88} {h*.51}H{w*.96}L{w*.94} {h*.64}Z", "#b76e55", INK, 2)
-    art += path(f"M{w*.92} {h*.54}Q{w*.84} {h*.28} {w*.91} {h*.43}Q{w*.93} {h*.2} {w*.94} {h*.45}Q{w*1.01} {h*.3} {w*.96} {h*.53}Z", "#75a47b", "#2d5954", 2)
+def warm_room(w, h):
+    """Place the exchange with cropped wall panels and a work surface, not an empty hall."""
+    art = rect(0,0,w,h,INTERIOR['wall'])
+    art += path(f'M0 0H{w*.58}L{w*.43} {h}H0Z',INTERIOR['wall_light'],'none')
+    art += path(f'M{w*.84} 0H{w}V{h}H{w*.89}Z',INTERIOR['panel'],width=2)
+    art += path(f'M{w*.87} 0V{h}M{w*.85} {h*.68}H{w}',stroke=INTERIOR['panel_line'],width=1.8)
+    art += path(f'M0 {h*.84}L{w*.3} {h*.7}L{w*.67} {h}H0Z',INTERIOR['worktop'],width=2)
+    art += path(f'M0 {h*.86}L{w*.3} {h*.72}L{w*.48} {h*.87}',stroke=INTERIOR['edge'],width=2)
     return art
 
 
-def pump_room(w, h):
-    """Draw isolated machinery with no explosion or residential emergency."""
-    art = rect(0, 0, w, h, "url(#wall)")
-    art += path(f"M0 {h*.8}L{w*.47} {h*.58}L{w} {h*.75}V{h}H0Z", "#23384e")
-    for xx in range(75, int(w), 142):
-        art += path(f"M{xx} 0V{h*.66}", stroke="#172b43", width=40)
-        art += path(f"M{xx-8} 0V{h*.66}", stroke="#7aa39d", width=9)
-    art += rect(35, 38, w-70, 20, "#243444", INK, 3)
-    art += rect(50, 44, w-100, 7, "#82c7b3")
-    art += path(f"M-30 {h*.6}H{w*.28}V{h*.39}H{w*.59}", stroke="#182a41", width=111)
-    art += path(f"M-30 {h*.6}H{w*.28}V{h*.39}H{w*.59}", stroke="#759d9b", width=88)
-    art += path(f"M-30 {h*.58}H{w*.25}V{h*.37}H{w*.57}", stroke="#b6c5af", width=11)
-    art += ellipse(w*.4, h*.61, w*.235, h*.195, "#21354b", INK, 5)
-    art += ellipse(w*.37, h*.57, w*.235, h*.195, "#c28d66", INK, 5)
-    art += ellipse(w*.37, h*.57, w*.176, h*.147, "#dbb37f", INK, 4)
-    art += ellipse(w*.37, h*.57, w*.127, h*.107, "#375e69", INK, 3)
+def machinery_wall(w, h):
+    """Use sparse service pipes as anchors behind the people and stopped pump."""
+    art = rect(0,0,w,h,WORK['wall'])
+    art += path(f'M0 0H{w*.36}L{w*.18} {h}H0Z',WORK['wall_shadow'],'none')
+    for x in (48,w*.38,w*.88):
+        art += path(f'M{x} 0V{h}',stroke=WORK['wall_shadow'],width=25)
+        art += path(f'M{x-6} 0V{h}',stroke=WORK['pipe'],width=6)
+    art += path(f'M0 {h*.65}H{w}',stroke=WORK['wall_shadow'],width=12)
+    return art
+
+
+def pump(x, y, scale):
+    """Return rear pipes and a foreground housing for this scene's painter order."""
+    art = path('M-320-30H-90V-205H248',stroke=INK,width=96)
+    art += path('M-320-30H-90V-205H248',stroke=WORK['pipe'],width=80)
+    art += path('M-320-50H-109V-219H248',stroke=WORK['pipe_light'],width=8)
+    pipes = art
+    art = rect(-178,111,350,39,WORK['wall_shadow'],INK,3)
+    art += ellipse(28,0,195,158,WORK['wall_shadow'],INK,3)
+    art += ellipse(0,0,195,158,WORK['pump'],INK,3)
+    art += ellipse(0,0,156,127,WORK['pump_light'],INK,2.5)
+    art += ellipse(0,0,114,92,WORK['wall_shadow'],INK,2.5)
+    art += ellipse(0,0,88,72,WORK['pipe'],INK,2)
     for i in range(10):
         a = math.tau*i/10
-        art += ellipse(w*.37 + math.cos(a)*w*.202, h*.57 + math.sin(a)*h*.167, 6, 6, "#263f51", "#ecd1a0", 2)
-    art += rect(w*.18, h*.77, w*.37, h*.07, "#31485b", INK, 3)
-    art += path(f"M{w*.2} {h*.79}H{w*.49}", stroke="#dda96b", width=4, stroke_dasharray="12 13")
-    art += rect(w*.6, h*.24, w*.29, h*.17, "#1b3449", INK, 4, 7)
-    art += text(w*.62, h*.29, "LINE ISOLATED", 18, "#f6be7f", font_weight="bold")
-    art += path(f"M{w*.63} {h*.34}H{w*.83}", stroke="#e7b676", width=5)
-    return art
+        art += ellipse(math.cos(a)*177,math.sin(a)*143,5,5,INK,WORK['pipe_light'],1.5)
+    art += path('M-166 132H160',stroke=WORK['warning'],width=6,stroke_dasharray='12 12')
+    art += rect(-68,-48,136,96,WORK['screen'],INK,2,6)
+    art += path('M-47-22H46M-47 0H15M-47 22H35',stroke=WORK['pipe_light'],width=3)
+    transform = f'translate({x} {y}) scale({scale})'
+    return group(pipes,transform),group(art,transform)
 
 
 class Panel:
-    """One composed illustration and its authored dialogue transcript."""
+    """A clipped scene with separate dialogue and orientation-card layers."""
 
     def __init__(self, key, x, y, w, h, title, art):
-        self.key, self.x, self.y, self.w, self.h = key, x, y, w, h
-        self.title, self.art, self.lines = title, art, []
+        self.key, self.x, self.y, self.w, self.h = key,x,y,w,h
+        self.title, self.art, self.lines, self.lettering = title,art,[],''
 
-    def say(self, x, y, w, speaker, lines, tip, tone="#416959"):
-        """Place a speech balloon with explicit line breaks and tail destination."""
-        h = 42 + 27 * len(lines)
-        tx, ty = tip
-        anchor = max(x+25, min(x+w-30, tx))
-        dx, dy = tx-anchor, ty-(y+h)
-        length = math.hypot(dx, dy)
+    def say(self, x, y, w, speaker, lines, tip):
+        """Keep explicit wrapping and speaker labels, including comms and off-panel voices."""
+        h = 42+27*len(lines)
+        tx,ty = tip
+        anchor = max(x+25,min(x+w-30,tx))
+        dx,dy = tx-anchor,ty-y-h
+        length = math.hypot(dx,dy)
         if length > 65:
-            tx, ty = anchor + dx*65/length, y+h + dy*65/length
-        shape = path(f"M{x+18} {y}H{x+w-18}Q{x+w} {y} {x+w} {y+18}V{y+h-18}Q{x+w} {y+h} {x+w-18} {y+h}H{anchor+18}L{tx} {ty}L{anchor-5} {y+h}H{x+18}Q{x} {y+h} {x} {y+h-18}V{y+18}Q{x} {y} {x+18} {y}Z", PAPER, INK, 2.5)
-        shape += text(x+18, y+25, speaker.upper(), 13, tone, font_weight="bold", letter_spacing=1.3)
-        shape += "".join(text(x+18, y+52+i*27, line, 22, INK) for i, line in enumerate(lines))
-        self.art += group(shape, class_="dialogue")
-        self.lines.append((speaker, " ".join(lines)))
+            tx,ty = anchor+dx*65/length,y+h+dy*65/length
+        shape = path(f'M{x+24} {y}H{x+w-24}Q{x+w} {y} {x+w} {y+24}V{y+h-24}Q{x+w} {y+h} {x+w-24} {y+h}H{anchor+18}L{tx} {ty}L{anchor-5} {y+h}H{x+24}Q{x} {y+h} {x} {y+h-24}V{y+24}Q{x} {y} {x+24} {y}Z',CREAM,width=2.5)
+        shape += text(x+18,y+25,speaker.upper(),13,FOLIO['title'],font_weight='bold',letter_spacing=1.3)
+        shape += ''.join(text(x+18,y+52+i*27,line,22,INK) for i,line in enumerate(lines))
+        self.lettering += group(shape,class_='dialogue',data_x=x,data_y=y,data_width=w,data_height=h)
+        self.lines.append((speaker,' '.join(lines)))
         return self
 
     def title_card(self, x, y, w, name, place, date, note):
-        """Introduce a place and time; unresolved calendar dates stay explicit."""
-        art = rect(x, y, w, 137, "#1c3543", "#7bae97", 1, 2, opacity=0.97)
-        art += rect(x, y, 5, 137, GREEN)
-        art += text(x+21, y+34, name, 26, "#f4deb0", font_weight="bold", letter_spacing=2.5)
-        art += text(x+21, y+62, place, 16, "#a6d4bd")
-        art += text(x+21, y+89, date, 13, "#e5b985", letter_spacing=0.4)
-        art += text(x+21, y+116, note, 15, "#d6e2cd")
-        self.art += group(art, class_="title-card")
-        self.lines.append(("Location and time", f"{name}. {place}. {date}. {note}"))
+        """Retain the established orientation text and its explicit provisional date."""
+        art = rect(x,y,w,137,WORK['screen'],WORK['card_border'],1,2,opacity=.97)
+        art += rect(x,y,5,137,MINT)
+        art += text(x+21,y+34,name,26,WORK['card_title'],font_weight='bold',letter_spacing=2.5)
+        art += text(x+21,y+62,place,16,MINT)
+        art += text(x+21,y+89,date,13,WORK['warning'],letter_spacing=.4)
+        art += text(x+21,y+116,note,15,WORK['card_text'])
+        self.lettering += group(art,class_='title-card')
+        self.lines.append(('Location and time',f'{name}. {place}. {date}. {note}'))
         return self
 
     def render(self):
-        """Clip the illustration and keep each page's panel order accessible."""
-        clip = tag("defs", tag("clipPath", rect(0, 0, self.w, self.h, "white"), id=f"clip-{self.key}"))
-        art = self.art + rect(0, 0, self.w, self.h, "url(#grain)", pointer_events="none")
-        return group(clip + group(art, clip_path=f"url(#clip-{self.key})") + rect(0, 0, self.w, self.h, "none", INK, 3), f"translate({self.x} {self.y})", role="group", aria_label=self.title)
+        """Keep page frames and text outside scene art; clip without a grain overlay."""
+        clip = tag('defs',tag('clipPath',rect(0,0,self.w,self.h,'white'),id=f'clip-{self.key}'))
+        art = group(self.art,class_='scene-art')+self.lettering
+        return group(clip+group(art,clip_path=f'url(#clip-{self.key})')+rect(0,0,self.w,self.h,'none',INK,2.5),f'translate({self.x} {self.y})',role='group',aria_label=self.title)
 
 
 def pages():
-    """Author four page compositions through Kaveri's departure from Baikal."""
+    """Retain the four-page sequence and dialogue while restaging its ten panels."""
     w = 1416
-    a = Panel("1a", 42, 86, w, 430, "Baikal's working station above Saturn; Ebro and Kaveri are berthed.", rect(0, 0, w, 430, "url(#space)") + stars(w, 430) + saturn(1175, 73, 1.03) + station(682, 256, 0.9) + ship("Ebro", 950, 356, 0.4) + ship("Kaveri", 520, 358, 0.28))
-    b = Panel("1b", 42, 536, w, 407, "In Baikal's inhabited ring, a location card introduces Clearwell's base before Rina and Jonah's conversation.", corridor(w, 407) + rect(80, 315, 417, 39, "#c5a581", INK, 3) + rect(130, 258, 48, 56, "#bad0b0", INK, 3, 8) + person("Rina", 653, 229, 1.25, "tablet") + person("Jonah", 953, 217, 1.25, "mug", True))
-    b.title_card(25, 24, 400, "BAIKAL", "Saturn system", "Opening day / calendar date TBD", "Clearwell Waterworks' main base")
-    b.say(461, 20, 420, "Rina", ["Coffee's still hot. Take a minute", "before somebody finds you", "another job."], (621, 232))
-    b.say(981, 20, 409, "Jonah", ["I'll settle for half a minute."], (977, 224))
-    b.say(1066, 258, 326, "Leila / comms", ["Jonah? Processing line's", "stopped. Can you", "come down?"], (1342, 406), "#456b84")
-    page1 = ("A place to come back to", "Warm habitation against a cool, enormous sky.", [a, b])
+    art = rect(0,0,w,360,'url(#space)')+stars(w,360)+saturn(1210,-83,.9)
+    art += baikal(644,227,.63)+render_ship('ebro','forward-quarter',845,304,.23,False)+render_ship('kaveri','forward-quarter',440,308,.19,False)
+    a = Panel('1a',42,86,w,360,'Baikal at work, with Ebro and Kaveri berthed against Saturn.',art)
+    art = warm_room(w,477)
+    art += rect(50,210,204,114,WORK['screen'],INK,2,4)+text(72,249,'GAME NIGHT',19,MINT,letter_spacing=1)+path('M72 270H214M72 290H163',stroke=INTERIOR['edge'],width=3)
+    art += group(work_portrait('rina'),'translate(470 161) scale(.87)')
+    art += group(jonah_listener(),'translate(952 161) scale(.87)')+mug_hand(942,421,.87)
+    b = Panel('1b',42,466,w,477,'Rina and Jonah share a coffee break in Baikal before Leila calls from processing.',art)
+    b.title_card(25,24,365,'BAIKAL','Saturn system','Opening day / calendar date TBD',"Clearwell Waterworks' main base")
+    b.say(426,20,500,'Rina',["Coffee's still hot. Take a minute",'before somebody finds you','another job.'],(620,215))
+    b.say(982,20,409,'Jonah',["I'll settle for half a minute."],(1128,214))
+    b.say(25,320,365,'Leila / comms',["Jonah? Processing line's",'stopped. Can you','come down?'],(12,472))
+    page1 = ('A place to come back to','An inhabited workplace, a coffee break, and an ordinary call from processing.',[a,b])
 
-    a = Panel("2a", 42, 86, 836, 857, "Leila and Jonah inspect the stopped circulation pump. The processing line is safely isolated.", pump_room(836, 857) + person("Leila", 520, 594, 1.34, "point", True) + person("Jonah", 732, 521, 1.4, "rest", True))
-    a.say(50, 99, 426, "Leila", ["Circulation pump's failed.", "We've isolated the line.", "The others are still running."], (491, 575))
-    b = Panel("2b", 898, 86, 560, 364, "A machine status display separates the stopped industrial line from normal residential supplies.", rect(0, 0, 560, 364, "#40586c") + path("M-30 10L560 280M-30 130L560 400", stroke="#79908d", width=9) + rect(38, 29, 484, 306, "#132b3c", INK, 6, 13) + rect(62, 56, 436, 119, "#593f3a", "#ce9365", 2, 5) + text(83, 89, "INDUSTRIAL PROCESSING", 17, "#dcad82", letter_spacing=1) + text(83, 129, "LINE ISOLATED", 29, "#ffdc9b", font_weight="bold") + rect(62, 190, 436, 118, "#285d51", "#74b99a", 2, 5) + text(83, 224, "RESIDENTIAL SUPPLIES", 17, "#a4d6b6", letter_spacing=1) + text(83, 266, "NORMAL", 30, "#d4edbb", font_weight="bold"))
-    b.lines.extend([("Display", "Industrial processing: line isolated."), ("Display", "Residential supplies: normal.")])
-    c = Panel("2c", 898, 470, 560, 473, "Leila weighs an overhaul against a replacement assembly.", rect(0, 0, 560, 473, "url(#wall)") + path("M29 0V473M450 0V473", stroke="#7c9895", width=24) + person("Leila", 440, 325, 2.0, "tablet"))
-    c.say(24, 27, 330, "Jonah / off-panel", ["Can you rebuild it here?"], (4, 173))
-    c.say(24, 159, 340, "Leila", ["Yes. But we'd lose more", "production waiting on", "the overhaul. A replacement", "gets us running sooner."], (400, 328))
-    page2 = ("One line down", "Amber means interrupted work, not a threat to the residents.", [a, b, c])
+    art = machinery_wall(836,857)
+    pipes,housing = pump(174,639,1.36)
+    art += pipes+group(work_portrait('leila'),'translate(362 185) scale(1.06)')
+    art += housing+group(jonah_listener(),'translate(555 474) scale(1.05)')
+    a = Panel('2a',42,86,836,857,'Leila and Jonah assess the safely isolated circulation assembly, close to the machinery.',art)
+    a.say(30,24,513,'Leila',["Circulation pump's failed.","We've isolated the line.",'The others are still running.'],(548,286))
+    art = machinery_wall(560,364)+rect(38,29,484,306,WORK['screen'],INK,4,13)
+    art += rect(62,56,436,119,WORK['warning_back'],WORK['pump'],2,5)+text(83,89,'INDUSTRIAL PROCESSING',17,WORK['warning'],letter_spacing=1)+text(83,129,'LINE ISOLATED',29,WORK['warning'],font_weight='bold')
+    art += rect(62,190,436,118,WORK['safe_back'],JADE,2,5)+text(83,224,'RESIDENTIAL SUPPLIES',17,WORK['safe'],letter_spacing=1)+text(83,266,'NORMAL',30,WORK['safe'],font_weight='bold')
+    b = Panel('2b',898,86,560,364,'The industrial line is stopped; residential supplies remain normal.',art)
+    b.lines.extend([('Display','Industrial processing: line isolated.'),('Display','Residential supplies: normal.')])
+    c = Panel('2c',898,470,560,473,'Leila explains why replacing the assembly is quicker than an overhaul.',machinery_wall(560,473)+group(work_portrait('leila'),'translate(265 164) scale(1.02)'))
+    c.say(18,18,314,'Jonah / off-panel',['Can you rebuild it here?'],(3,158))
+    c.say(18,144,314,'Leila',["Yes. But we'd lose",'more production waiting','on the overhaul.','A replacement gets us','running sooner.'],(403,317))
+    page2 = ('One line down','A repair judgment, not a residential life-support crisis.',[a,b,c])
 
-    art = corridor(w, 421) + rect(523, 17, 499, 273, "#1d324b", "#d9b68b", 12, 66) + saturn(883, 115, 0.4) + ship("Ebro", 770, 218, 0.53, -5) + path("M566 16V289M976 16V289", stroke="#688d8d", width=12)
-    art += person("Elena", 463, 235, 1.35, "tablet") + person("Jonah", 1095, 247, 1.3, "mug", True)
-    a = Panel("3a", 42, 86, w, 421, "Elena and Jonah plan the replacement pickup, with Ebro visible outside.", art)
-    a.say(32, 27, 418, "Elena", ["Aquila has a replacement", "assembly. Can Kaveri", "collect it?"], (430, 237))
-    a.say(1020, 24, 366, "Jonah", ["Yes. We can leave as soon", "as everyone's aboard."], (1081, 249))
-    b = Panel("3b", 42, 527, 680, 416, "The waiting water delivery is tied to restoring production, not a life-support deadline.", rect(0, 0, 680, 416, "url(#warm-wall)") + person("Elena", 514, 281, 1.75, "tablet") + group(rect(-120, -65, 240, 153, "#213b4c", INK, 5, 7) + text(-98, -25, "EBRO", 29, "#c9e7c1", font_weight="bold") + text(-98, 11, "WATER DELIVERY", 17, "#a9c1b2") + text(-98, 52, "FOUNDATION", 21, "#efc697"), "translate(177 291) rotate(-8)"))
-    b.say(26, 27, 410, "Elena", ["EarthWorks is expecting Ebro's", "load aboard Foundation.", "We need that line back", "to have it ready on time."], (480, 281))
-    b.lines.append(("Delivery record", "Ebro. Water delivery for Foundation."))
-    c = Panel("3c", 742, 527, 716, 416, "A small joke about a borrowed mug closes the business exchange.", corridor(716, 416) + person("Elena", 214, 272, 1.5, "rest") + person("Jonah", 547, 261, 1.5, "mug", True))
-    c.say(24, 25, 350, "Elena", ["And bring the mug back.", "We haven't budgeted", "for a replacement."], (214, 272))
-    c.say(430, 25, 261, "Jonah", ["I'll put it on", "the cargo list."], (547, 261))
-    page3 = ("A useful job", "Human warmth, a real commitment, no corporate lecture.", [a, b, c])
+    art = warm_room(w,415)
+    view = rect(425,16,990,337,'url(#space)')+stars(w,353)
+    view += path('M440 349L714 282L759 259',stroke=INTERIOR['structure'],width=18)
+    view += path('M444 344L714 276L759 254',stroke=INTERIOR['structure_light'],width=4)
+    view += render_ship('ebro','forward-quarter',846,254,.64,False)
+    art += tag('defs',tag('clipPath',rect(425,16,990,337,'white',radius=72),id='window'))+group(view,clip_path='url(#window)')
+    art += rect(419,10,1002,349,'none',INK,21,78)+rect(421,12,998,345,'none',INTERIOR['window_frame'],13,76)
+    art += path('M476 322V110Q476 61 515 61M1378 19V350',stroke=INTERIOR['window_light'],width=3)
+    art += path('M410 372H1416',stroke=INTERIOR['panel'],width=19)
+    art += group(elena_gesture(),'translate(163 146) scale(.64)')+group(jonah_listener(),'translate(1067 136) scale(.91)')
+    a = Panel('3a',42,86,w,415,'Elena and Jonah arrange the Aquila pickup, with the waiting Ebro framed by the window.',art)
+    a.say(25,20,430,'Elena',['Aquila has a replacement','assembly. Can Kaveri','collect it?'],(270,245))
+    a.say(958,20,433,'Jonah',['Yes. We can leave as soon',"as everyone's aboard."],(1237,210))
+    art = warm_room(680,422)+group(elena_close(),'translate(340 126) scale(.94)')
+    record = rect(-120,-65,240,153,WORK['screen'],INK,3,7)+text(-98,-25,'EBRO',29,MINT,font_weight='bold')+text(-98,11,'WATER DELIVERY',17,INTERIOR['edge'])+text(-98,52,'FOUNDATION',21,WORK['warning'])
+    art += group(record,'translate(164 312) rotate(-8)')
+    b = Panel('3b',42,521,680,422,'A delivery record connects Ebro and Foundation while Elena explains the commitment.',art)
+    b.say(20,20,322,'Elena',['EarthWorks is expecting',"Ebro's load aboard",'Foundation. We need that','line back to have it','ready on time.'],(463,300))
+    b.lines.append(('Delivery record','Ebro. Water delivery for Foundation.'))
+    art = warm_room(716,422)+group(elena_close(),'translate(322 131)')+mug_hand(177,340,.9)
+    c = Panel('3c',742,521,716,422,'Elena closes the exchange with the borrowed-mug joke; Jonah answers from the foreground.',art)
+    c.say(22,20,352,'Elena',['And bring the mug back.',"We haven't budgeted",'for a replacement.'],(463,253))
+    c.say(24,177,247,'Jonah',["I'll put it on",'the cargo list.'],(0,340))
+    page3 = ('A useful job','The same pickup, delivery commitment, and borrowed-mug exchange, framed closer.',[a,b,c])
 
-    art = rect(0, 0, w, 323, "#28364f") + rect(134, -24, 1141, 279, "url(#space)", INK, 16, 55) + stars(w, 220) + station(457, 106, 0.32, -12)
-    art += path("M102 0L211 242H1199L1315 0M702 0L730 242", stroke="#738986", width=12)
-    art += person("Tomas", 713, 214, 1.1, "point", True) + person("Jonah", 1135, 202, 1.05, "rest", True)
-    art += path("M0 303L175 244H600L882 323H0Z", "#152a3c", INK, 5)
-    art += path("M224 263H437L461 297H202Z", "#42746d", INK, 3)
-    art += path("M247 281H400M501 280H548M579 280H646", stroke="#81cbb0", width=4)
-    a = Panel("4a", 42, 86, w, 323, "A card introduces Kaveri departing Baikal; Tomas reports readiness and Jonah gives the order.", art)
-    a.title_card(25, 20, 405, "KAVERI", "Departing Baikal", "Later that day / calendar date TBD", "Clearwell Waterworks' workship")
-    a.say(479, 20, 430, "Tomas", ["All aboard. Cargo space is", "clear, and the Aquila course", "is ready."], (682, 216))
-    a.say(1052, 20, 335, "Jonah", ["All right. Take us out."], (1127, 204))
-    b = Panel("4b", 42, 429, w, 514, "Kaveri departs. Baikal and the waiting Ebro recede behind it. No attack or pursuit appears.", rect(0, 0, w, 514, "url(#space)") + stars(w, 514) + saturn(1317, -110, 1.6) + station(360, 209, 0.51, -12) + ship("Ebro", 509, 266, 0.24, -12) + ship("Kaveri", 1011, 326, 1.48, -13, True))
-    page4 = ("Outbound", "Let the last image breathe. Aquila is the next destination, not an arrival shown here.", [a, b])
-    return [page1, page2, page3, page4]
+    art = rect(0,0,w,407,WORK['wall_shadow'])+rect(113,-35,1190,352,'url(#space)',INK,18,60)+stars(w,300)+baikal(522,159,.29)
+    art += path('M107 0L207 326H1220L1324 0M874 0L852 326',stroke=INTERIOR['structure_light'],width=12)
+    art += group(work_portrait('tomas'),'translate(482 147) scale(.74)')+group(jonah_listener(),'translate(1034 141) scale(.86)')
+    art += path('M0 407L192 368H551L876 407Z',WORK['screen'],width=3)
+    art += path('M244 378H455L478 400H222Z',INTERIOR['panel'],width=2)+path('M268 389H421M507 389H549M580 389H632',stroke=MINT,width=3)
+    a = Panel('4a',42,86,w,407,'A Kaveri location card introduces the move aboard. Tomas reports readiness and Jonah gives the departure order.',art)
+    a.title_card(25,20,390,'KAVERI','Departing Baikal','Later that day / calendar date TBD',"Clearwell Waterworks' workship")
+    a.say(455,20,472,'Tomas',['All aboard. Cargo space is','clear, and the Aquila course','is ready.'],(636,215))
+    a.say(999,20,389,'Jonah',['All right. Take us out.'],(1197,210))
+    art = rect(0,0,w,430,'url(#space)')+stars(w,430)+saturn(1260,-158,1.2)+baikal(285,197,.46)
+    art += render_ship('ebro','forward-quarter',421,257,.16,False)+render_ship('kaveri','aft-quarter',1031,279,1.15,True)
+    b = Panel('4b',42,513,w,430,'Kaveri departs with its cradle empty and handling arm stowed. Baikal and Ebro recede. No attack or pursuit appears.',art)
+    page4 = ('Outbound','A silent departure. Aquila is the next destination, not an arrival shown here.',[a,b])
+    return [page1,page2,page3,page4]
 
 
 def render_page(number, title, panels):
-    """Render a complete, independently viewable page and namespace its SVG IDs."""
-    art = definitions() + rect(0, 0, 1500, 1000, "#e9e2d1")
-    art += text(43, 48, "NOVA PROTOCOL", 21, "#2d5f50", font_weight="bold", letter_spacing=4)
-    art += text(412, 48, "OPENING / COLOR & COMPOSITION STUDY", 13, "#626964", letter_spacing=2)
-    art += text(1456, 48, f"{number:02}", 24, INK, text_anchor="end", font_weight="bold")
-    art += "".join(panel.render() for panel in panels)
-    art += text(43, 977, "VISUAL POC / DESIGNS AND DIALOGUE PROVISIONAL / NOT A RELEASED COMIC", 12, "#60665f", letter_spacing=1.4)
-    art += text(1456, 977, title.upper(), 12, "#386653", text_anchor="end", letter_spacing=1.5)
-    art = art.replace('id="', f'id="p{number}-').replace('url(#', f'url(#p{number}-')
-    label = f"Page {number}: {title}. " + " ".join(panel.title for panel in panels)
+    """Render a complete page with unique IDs and the accepted warm-paper frame."""
+    art = definitions()+rect(0,0,1500,1000,PAPER)
+    art += text(43,48,'NOVA PROTOCOL',21,FOLIO['title'],font_weight='bold',letter_spacing=3.5)
+    art += text(412,48,'OPENING / CLEAN-LINE DRAFT',13,FOLIO['muted'],letter_spacing=2)
+    art += text(1456,48,f'{number:02}',24,INK,text_anchor='end',font_weight='bold')
+    art += ''.join(panel.render() for panel in panels)
+    art += text(43,977,'PRIVATE COMIC DRAFT / DESIGNS AND DIALOGUE PROVISIONAL',12,FOLIO['muted'],letter_spacing=1.2)
+    art += text(1456,977,title.upper(),12,FOLIO['title'],text_anchor='end',letter_spacing=1.5)
+    art = art.replace('id="',f'id="p{number}-').replace('url(#',f'url(#p{number}-')
+    label = f'Page {number}: {title}. '+' '.join(panel.title for panel in panels)
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000" role="img" aria-labelledby="page-{number}-title page-{number}-description"><title id="page-{number}-title">{escape(title)}</title><desc id="page-{number}-description">{escape(label)}</desc>{art}</svg>\n'
 
 
 def render_review(authored, svgs):
-    """Build a local review board, not another public comic reader."""
+    """Keep the private four-page board, its controls, and text transcripts."""
     cards = []
-    for number, ((title, purpose, panels), svg) in enumerate(zip(authored, svgs), 1):
-        transcript = "".join(f'<li><strong>{escape(speaker)}:</strong> {escape(line)}</li>' for panel in panels for speaker, line in panel.lines)
-        cards.append(f'<section class="page" id="page-{number}" aria-labelledby="heading-{number}"{ " hidden" if number > 1 else ""}><div class="page-heading"><h2 id="heading-{number}"><span>{number:02}</span> {escape(title)}</h2><a href="page-{number:02}.svg" target="_blank" rel="noopener">Open full-size SVG</a></div>{svg}<div class="page-notes"><p>{escape(purpose)}</p><details><summary>Read dialogue as text</summary><ol>{transcript}</ol><p>{escape(panels[-1].title) if not panels[-1].lines else ""}</p></details></div></section>')
-    navigation = "".join(f'<a href="#page-{n}" data-number="{n}" aria-label="Page {n}: {escape(title)}"{ " aria-current=\"page\"" if n == 1 else ""}>{n:02}</a>' for n, (title, _, _) in enumerate(authored, 1))
+    for number,((title,purpose,panels),svg) in enumerate(zip(authored,svgs),1):
+        transcript = ''.join(f'<li><strong>{escape(speaker)}:</strong> {escape(line)}</li>' for panel in panels for speaker,line in panel.lines)
+        hidden = ' hidden' if number>1 else ''
+        cards.append(f'<section class="page" id="page-{number}" aria-labelledby="heading-{number}"{hidden}><div class="page-heading"><h2 id="heading-{number}">{number:02} {escape(title)}</h2><a href="page-{number:02}.svg">Full-size SVG</a></div>{svg}<div class="page-notes"><p>{escape(purpose)}</p><details><summary>Read dialogue as text</summary><ol>{transcript}</ol><p>{escape(panels[-1].title) if not panels[-1].lines else ""}</p></details></div></section>')
+    navigation = ''.join(f'<a href="#page-{n}" data-number="{n}" aria-label="Page {n}: {escape(title)}">{n:02}</a>' for n,(title,_,_) in enumerate(authored,1))
+    theme = ';'.join(f'--{key.replace("_","-")}:{value}' for key,value in REVIEW.items())
     return '''<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Baikal / Opening visual PoC</title>
-<style>
-:root{color-scheme:dark;--paper:#f1e8d5;--green:#8bd6b1;--ink:#121e2b}*{box-sizing:border-box}body{margin:0;background:#121e2b;color:var(--paper);font:16px/1.6 system-ui,sans-serif}a{color:var(--green)}button,a{touch-action:manipulation}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #e8bd7e;outline-offset:5px}.top{max-width:1500px;margin:auto;padding:24px 32px 16px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.eyebrow{margin:0;color:var(--green);letter-spacing:.2em;font-size:11px;font-weight:700}h1{font-size:clamp(22px,3vw,36px);font-weight:500;letter-spacing:-.03em;margin:2px 0}.subtitle{color:#adbcb9;font-size:13px;margin:0}.swatches{display:flex;gap:6px}.swatches i{width:22px;height:22px;border-radius:50%;border:1px solid #ffffff30}.controls{border-block:1px solid #ffffff18;background:#172634;position:sticky;top:0;z-index:2}.control-inner{max-width:1500px;margin:auto;padding:10px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}nav{display:flex;gap:5px;margin-right:auto}nav a,button{font:600 12px/1.2 system-ui,sans-serif;background:transparent;border:1px solid #789a923f;border-radius:4px;color:#dce4d6;min-height:38px;padding:10px 14px;text-decoration:none;cursor:pointer}nav a[aria-current],button[aria-pressed="true"]{background:var(--green);color:var(--ink);border-color:var(--green)}button:disabled{opacity:.3;cursor:default}main{max-width:1500px;margin:0 auto;padding:20px 32px 8px}.page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 10px}h2{font-weight:500;font-size:18px;line-height:1.3;margin:0}h2 span{color:var(--green);font-size:12px;margin-right:12px}.page-heading a{font-size:12px;white-space:nowrap}.page>svg{display:block;width:100%;height:auto;box-shadow:0 12px 45px #0005}.page-notes{padding:8px 0 24px;color:#bdc9c1;font-size:13px}.page-notes p{margin:8px 0}.page-notes details{background:#213340;padding:10px 16px;border-radius:4px}summary{cursor:pointer;color:var(--paper)}ol{font-size:16px;max-width:65ch;padding-left:25px}li{margin-block:9px}.art-only .dialogue{visibility:hidden}.contact main{display:grid;grid-template-columns:1fr 1fr;gap:25px}.contact .page-heading a{display:none}.contact .page-notes details{display:none}.contact .page-notes{padding-bottom:0}footer{max-width:1500px;margin:auto;padding:8px 32px 28px;color:#98aca6;font-size:12px}footer a{margin-left:10px}.direction{color:#b5c3b9}#counter{font-size:12px;color:#9fb6ac;margin-right:8px}@media(max-width:700px){.top{padding:16px 16px 12px}.swatches{display:none}.control-inner{padding:8px 16px;gap:6px}button,nav a{padding:9px 11px}.contact main{grid-template-columns:1fr}main{padding:16px}.page-heading{align-items:start}h2{font-size:16px}.page-heading a{font-size:11px}footer{padding:8px 16px 20px}#counter{display:none}.page-notes{font-size:14px}ol{font-size:16px}.direction{max-width:30ch}}@media(prefers-reduced-motion:no-preference){button,a{transition:background .12s ease}}@media print{body{background:white}.top,.controls,footer,.page-heading,.page-notes{display:none!important}main,.contact main{display:block;padding:0;max-width:none}.page,.page[hidden]{display:block!important;break-after:page}.page>svg{box-shadow:none}@page{size:landscape;margin:0}}
-</style></head><body>
-<header class="top"><div><p class="eyebrow">NOVA PROTOCOL / PRIVATE PRODUCTION STUDY</p><h1>Baikal, before the trouble.</h1><p class="subtitle">Four pages to test color, framing, people, and pace. Not finished art.</p></div><div class="swatches" aria-label="Palette: jade, mint, indigo, ochre, coral, warm paper"><i style="background:#427d6d"></i><i style="background:#8bd6b1"></i><i style="background:#394b77"></i><i style="background:#d8ae75"></i><i style="background:#ba715b"></i><i style="background:#f1e8d5"></i></div></header>
-<div class="controls"><div class="control-inner"><nav aria-label="Draft pages">''' + navigation + '''</nav><span id="counter" aria-live="polite">Page 1 of 4</span><button id="previous" type="button" aria-label="Previous page" disabled>Previous</button><button id="next" type="button" aria-label="Next page">Next</button><button id="contact" type="button" aria-pressed="false">Contact sheet</button><button id="art" type="button" aria-pressed="false">Art only</button></div></div>
-<main>''' + "".join(cards) + '''</main><footer><span class="direction">Green is an accent and a recurring material, not a filter over the world.</span><a href="README.md">Scope and open choices</a><p>Ship and station forms, character designs, clothing, colors, interiors, and dialogue are provisional. These are review pages, not an episode boundary or released story. On a small screen, open the SVG to zoom or expand the dialogue transcript.</p></footer>
-<script>
-const pages=[...document.querySelectorAll('.page')];const links=[...document.querySelectorAll('[data-number]')];const previous=document.getElementById('previous');const next=document.getElementById('next');const contact=document.getElementById('contact');const art=document.getElementById('art');let current=1;let sheet=false;
-function show(value){current=Math.max(1,Math.min(4,value));pages.forEach((page,i)=>{page.hidden=!sheet&&i!==current-1});links.forEach((link,i)=>{if(i===current-1)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current')});previous.disabled=current===1;next.disabled=current===4;document.getElementById('counter').textContent=`Page ${current} of 4`;}
-function fromHash(){const match=location.hash.match(/^#page-([1-4])$/);show(match?Number(match[1]):1);}
-function step(delta){location.hash=`page-${Math.max(1,Math.min(4,current+delta))}`;}
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Baikal / Opening comic draft</title><style>
+:root{'''+theme+''';color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--text);font:16px/1.6 system-ui,sans-serif}a{color:var(--mint)}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:4px}header,.control-inner,main,footer{max-width:1500px;margin:auto;padding:24px 32px}header{padding-bottom:12px}h1{font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:500;margin:8px 0 16px}.eyebrow{color:var(--mint);font-size:11px;letter-spacing:.2em;font-weight:700}p{max-width:85ch;color:var(--paragraph)}.controls{background:var(--surface);position:sticky;top:0;z-index:2;border-block:1px solid var(--border)}.control-inner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-block:10px}nav{display:flex;gap:5px;margin-right:auto}nav a,button{font:600 12px/1.2 system-ui,sans-serif;background:var(--button);border:1px solid var(--border);border-radius:4px;color:var(--text);min-height:38px;padding:10px 14px;text-decoration:none;cursor:pointer}nav a[aria-current],button[aria-pressed="true"]{background:var(--mint);color:var(--button-text)}button:disabled{opacity:.3;cursor:default}.page-heading{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:12px}h2{font-size:21px;font-weight:500;line-height:1.25;margin:0}.page-heading a{font-size:13px;white-space:nowrap}.page>svg{display:block;width:100%;height:auto}.page-notes{padding:8px 0 24px;font-size:14px}details{background:var(--surface);padding:12px 18px;border-radius:4px}summary{cursor:pointer}li{margin:8px 0}ol{font-size:16px;max-width:70ch}.art-only .dialogue{visibility:hidden}.contact main{display:grid;grid-template-columns:1fr 1fr;gap:25px}.contact .page-heading a,.contact details{display:none}footer{font-size:13px;border-top:1px solid var(--border)}#counter{font-size:12px;color:var(--paragraph)}@media(max-width:700px){header,.control-inner,main,footer{padding-left:16px;padding-right:16px}.contact main{grid-template-columns:1fr}.control-inner{gap:6px}button,nav a{padding:9px 11px}h2{font-size:18px}.page-heading a{font-size:11px}#counter{display:none}}@media print{header,.controls,footer,.page-heading,.page-notes{display:none!important}main,.contact main{display:block;padding:0;max-width:none}.page,.page[hidden]{display:block!important;break-after:page}@page{size:landscape;margin:0}}
+</style></head><body><header><p class="eyebrow">NOVA PROTOCOL / PRIVATE COMIC DRAFT</p><h1>Baikal, before the trouble.</h1><p>The same four opening pages in the accepted style: frontal faces, closer framing, and shared industrial ships.</p><p><a href="../proof/before-clean-line-opening/index.html">Compare the previous four-page version</a> / <a href="../clean-line-study/index.html">Accepted three-shot study</a></p></header><div class="controls"><div class="control-inner"><nav aria-label="Draft pages">'''+navigation+'''</nav><span id="counter" aria-live="polite">Page 1 of 4</span><button id="previous" type="button" disabled>Previous</button><button id="next" type="button">Next</button><button id="contact" type="button" aria-pressed="false">Contact sheet</button><button id="art" type="button" aria-pressed="false">Art only</button></div></div><main>'''+''.join(cards)+'''</main><footer><p>Working designs and dialogue, not released story or an episode boundary. No calendar year or nearby moon has been chosen. Use full-size SVGs or transcripts on a small screen.</p><p><a href="README.md">Scope and regeneration</a></p></footer><script>
+const pages=[...document.querySelectorAll('.page')],links=[...document.querySelectorAll('[data-number]')],previous=document.getElementById('previous'),next=document.getElementById('next'),contact=document.getElementById('contact'),art=document.getElementById('art');let current=1,sheet=false;
+function show(value){current=Math.max(1,Math.min(4,value));pages.forEach((page,i)=>page.hidden=!sheet&&i!==current-1);links.forEach((link,i)=>{if(i===current-1)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current')});previous.disabled=current===1;next.disabled=current===4;document.getElementById('counter').textContent=`Page ${current} of 4`}
+function fromHash(){const match=location.hash.match(/^#page-([1-4])$/);show(match?Number(match[1]):1)}
+function step(delta){location.hash=`page-${Math.max(1,Math.min(4,current+delta))}`}
 previous.addEventListener('click',()=>step(-1));next.addEventListener('click',()=>step(1));window.addEventListener('hashchange',fromHash);
 contact.addEventListener('click',()=>{sheet=!sheet;document.body.classList.toggle('contact',sheet);contact.setAttribute('aria-pressed',String(sheet));show(current)});
 art.addEventListener('click',()=>{const active=document.body.classList.toggle('art-only');art.setAttribute('aria-pressed',String(active))});
@@ -386,24 +227,24 @@ window.addEventListener('keydown',event=>{if(event.target.closest('button,a,summ
 
 
 def main():
-    """Write only the review outputs, or check them without modifying files."""
+    """Write only this private board's four SVGs and HTML, or verify their saved bytes."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true")
+    parser.add_argument('--check',action='store_true')
     args = parser.parse_args()
     authored = pages()
-    svgs = [render_page(n, title, panels) for n, (title, _, panels) in enumerate(authored, 1)]
-    outputs = {f"page-{n:02}.svg": svg for n, svg in enumerate(svgs, 1)}
-    outputs["index.html"] = render_review(authored, svgs)
-    for filename, content in outputs.items():
-        destination = OUTPUT / filename
-        encoded = content.encode("utf-8")
+    svgs = [render_page(n,title,panels) for n,(title,_,panels) in enumerate(authored,1)]
+    outputs = {f'page-{n:02}.svg':svg for n,svg in enumerate(svgs,1)}
+    outputs['index.html'] = render_review(authored,svgs)
+    for filename,content in outputs.items():
+        destination = OUTPUT/filename
+        encoded = content.encode('utf-8')
         if args.check:
-            if not destination.exists() or destination.read_bytes() != encoded:
-                raise SystemExit(f"Out of date: {destination}")
+            if not destination.exists() or destination.read_bytes()!=encoded:
+                raise SystemExit(f'Out of date: {destination}')
         else:
             destination.write_bytes(encoded)
-    print(f"{'Verified' if args.check else 'Rendered'} four pages and the unpublished review board")
+    print(f"{'Verified' if args.check else 'Rendered'} four clean-line pages and the private review board")
 
 
-if __name__ == "__main__":
+if __name__=='__main__':
     main()

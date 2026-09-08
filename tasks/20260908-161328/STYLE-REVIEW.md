@@ -1,5 +1,9 @@
 # Frontal faces and industrial plating
 
+This records the accepted three-shot revision. The later requested commits and
+four-page adaptation are recorded in [COMMIT-REVIEW.md](COMMIT-REVIEW.md) and
+[RESTYLE-REVIEW.md](RESTYLE-REVIEW.md). The checks below describe this earlier pass.
+
 ## User direction
 
 The user accepted the clean-line trial's zoom, frames, camera placement,
@@ -20,7 +24,8 @@ needed yet.
 
 [Open the three-shot study](clean-line-study/index.html): close-up, window
 exchange, and departure, with Art only and Lore colors controls. The
-[original four-page PoC](comic-opening-poc/index.html) remains unchanged.
+[previous four-page PoC](proof/before-clean-line-opening/index.html) remains
+preserved unchanged as comparison evidence.
 
 - Elena and Jonah use their original frontal head contours and hair. Elena has
   open, forward-facing eyes. Light shadow planes and detail lines remain.
@@ -153,8 +158,8 @@ and color-only lore presentation. Keep this combination in later drafts.
 This accepts the visual treatment, not unstated physical specifications,
 chronology, or approval to replace the original four pages automatically.
 
-## Next decision
+## Follow-up scope
 
-Choose the next drafting scope before expanding the pose library or revising
-the four-page opening. The calendar and location-precision decisions remain
-open. No artwork changed while recording this review.
+The user subsequently requested commits and adaptation of the four-page opening
+to this style. That work is separate from the approval recorded above; see the
+[restyle review](RESTYLE-REVIEW.md). Calendar and location precision remain open.

@@ -11,13 +11,15 @@ ROOT = Path(__file__).resolve().parents[3]
 OUTPUT = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0,str(ROOT/'scripts'))
-from nova_illustration.colors import INK, PAPER, JADE, JONAH, MATERIALS, INTERIOR, FOLIO, SKY, SATURN, REVIEW
+sys.path.insert(0,str(OUTPUT.parent))
+from opening_props import mug_hand
+from nova_illustration.colors import INK, PAPER, INTERIOR, FOLIO, SKY, SATURN, REVIEW
 from nova_illustration.lettering import speech
 from nova_illustration.portraits import elena_close, elena_gesture, jonah_listener
 from nova_illustration.scenery import baikal, saturn, stars
 from nova_illustration.ships import render_ship
 from nova_illustration.styles import lore_filter
-from nova_illustration.svg import ellipse, group, path, rect, tag, text
+from nova_illustration.svg import group, path, rect, tag, text
 
 
 @dataclass(frozen=True)
@@ -38,25 +40,6 @@ def definitions():
     return tag('defs',sky+planet+'''<clipPath id="panel"><rect width="1416" height="840"/></clipPath>
 <clipPath id="window"><rect x="423" y="24" width="991" height="612" rx="105"/></clipPath>
 <clipPath id="globe"><circle r="310"/></clipPath>''')
-
-
-def mug_hand(x, y, scale):
-    """Draw this scene's borrowed mug and gripping hand, not a recurring asset."""
-    art = path("M-245 119L-120 38L-60 35L-8 91L-129 186H-245Z", JONAH['coat'], width=3)
-    art += path("M-237 157L-108 73L-61 91L-129 186H-245Z", JONAH['coat_shadow'], "none")
-    art += path("M-113 38L-78 26L-35 74L-62 97Z", JONAH['shirt'], width=2)
-    art += path("M-71 33L-48 11Q-41 5-25 14L7 43L8 65L-14 91L-44 83L-68 67Z", JONAH['skin'], width=2.2)
-    art += path("M-7 11Q-67-6-71 41Q-72 70-22 77", stroke=INK, width=17)
-    art += path("M-7 11Q-67-6-71 41Q-72 70-22 77", stroke=MATERIALS['ceramic_edge'], width=11)
-    art += path("M-25-17L98-17L91 107Q41 128-16 107Z", MATERIALS['ceramic'], width=2.6)
-    art += path("M64-16L98-17L91 107Q75 115 57 116Z", MATERIALS['ceramic_shadow'], "none")
-    art += path("M-22 33Q38 50 95 32L94 46Q35 66-20 48Z", JADE, "none")
-    art += ellipse(36, -17, 61, 16, MATERIALS['ceramic_highlight'], INK, 2.5)
-    art += ellipse(36, -15, 49, 9, MATERIALS['dark_brown'])
-    art += path("M-57 29Q-46 20-29 34L-12 53Q-10 64-18 65L-38 47L-48 47Q-30 53-19 70Q-17 77-24 80L-46 65L-52 67L-32 82Q-30 91-40 92L-63 77L-71 54Z", JONAH['light'], width=2)
-    art += path("M-51 36L-38 46M-54 55L-46 63", stroke=JONAH['lines'], width=1.3)
-    art += path("M-19 85L-14 104", stroke=MATERIALS['ceramic_highlight'], width=2)
-    return group(art, f"translate({x} {y}) scale({scale})")
 
 
 def studies():
@@ -127,7 +110,7 @@ def render_review(authored,svgs):
     return '''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nova / Clean-line style study</title><style>
 :root{'''+theme+''';color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--text);font:16px/1.6 system-ui,sans-serif}header,nav,main,footer{max-width:1500px;margin:auto;padding:24px 32px}header{padding-bottom:8px}h1{font-size:clamp(26px,4vw,44px);line-height:1.15;font-weight:500;margin:8px 0 16px}p{max-width:80ch;color:var(--paragraph)}.eyebrow{color:var(--mint);font-size:11px;letter-spacing:.2em;font-weight:700;margin:0}a{color:var(--mint)}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:4px}nav{display:flex;align-items:center;gap:12px 22px;flex-wrap:wrap;padding-top:8px;padding-bottom:16px}nav a{font-size:13px}button{font:inherit;font-size:13px;padding:9px 16px;border:1px solid var(--border);border-radius:4px;background:var(--button);color:var(--text);cursor:pointer}button[aria-pressed="true"]{background:var(--mint);color:var(--button-text)}main{padding-top:0}section{scroll-margin-top:18px;margin:16px 0 56px}.heading{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:12px}h2{font-size:21px;font-weight:500;line-height:1.25;margin:0}.heading a{white-space:nowrap;font-size:13px}section>svg{width:100%;height:auto;display:block}details{padding:12px 18px;background:var(--surface);border-radius:4px;max-width:85ch}summary{cursor:pointer}details li{margin:8px 0}.art-only .speech{visibility:hidden}footer{font-size:13px;padding-top:0;border-top:1px solid var(--border)}@media(max-width:700px){header,nav,main,footer{padding-left:16px;padding-right:16px}h2{font-size:18px}.heading{align-items:start}.heading a{font-size:11px}section{margin-bottom:36px}p{font-size:15px}}@media print{body{background:white}header,nav,footer,.heading,section>p,details{display:none}main{padding:0;max-width:none}section{margin:0;break-after:page}@page{size:landscape;margin:0}}
-</style></head><body><header><p class="eyebrow">NOVA PROTOCOL / PRIVATE STYLE STUDY</p><h1>People close. A world beyond them.</h1><p>Three shot tests using existing dialogue and events, not new story pages. Ships now share a solid model between every scene and design-sheet view.</p><p><a href="../comic-opening-poc/index.html">Compare with the unchanged four-page PoC</a></p></header><nav aria-label="Study shots">''' + links + '''<button type="button" id="art" aria-pressed="false">Art only</button><button type="button" id="scheme" aria-pressed="false">Lore colors</button></nav><main>''' + ''.join(sections) + '''</main><footer><p>The Lore colors switch applies the same color transform used by the encyclopedia exports. It changes no geometry and does not tint the speech balloons or page labels.</p><p>Shared-source lore proposals: <a href="../../../web/src/assets/lore/kaveri-design-concept.svg">Kaveri design sheet</a> / <a href="../../../web/src/assets/lore/ebro-design-concept.svg">Ebro design sheet</a> / <a href="../../../web/src/assets/lore/elena-ward-portrait-concept.svg">Elena portrait</a>.</p><p>All appearances, dimensions, construction, and framing remain proposals. On a small screen, open an SVG to zoom or expand the text description. This is not a final mobile comic reader.</p><p><a href="README.md">Scope and regeneration</a></p></footer><script>
+</style></head><body><header><p class="eyebrow">NOVA PROTOCOL / PRIVATE STYLE STUDY</p><h1>People close. A world beyond them.</h1><p>Three shot tests using existing dialogue and events, not new story pages. Ships now share a solid model between every scene and design-sheet view.</p><p><a href="../proof/before-clean-line-opening/index.html">Compare with the previous four-page PoC</a> / <a href="../comic-opening-poc/index.html">Restyled four-page opening</a></p></header><nav aria-label="Study shots">''' + links + '''<button type="button" id="art" aria-pressed="false">Art only</button><button type="button" id="scheme" aria-pressed="false">Lore colors</button></nav><main>''' + ''.join(sections) + '''</main><footer><p>The Lore colors switch applies the same color transform used by the encyclopedia exports. It changes no geometry and does not tint the speech balloons or page labels.</p><p>Shared-source lore proposals: <a href="../../../web/src/assets/lore/kaveri-design-concept.svg">Kaveri design sheet</a> / <a href="../../../web/src/assets/lore/ebro-design-concept.svg">Ebro design sheet</a> / <a href="../../../web/src/assets/lore/elena-ward-portrait-concept.svg">Elena portrait</a>.</p><p>All appearances, dimensions, construction, and framing remain proposals. On a small screen, open an SVG to zoom or expand the text description. This is not a final mobile comic reader.</p><p><a href="README.md">Scope and regeneration</a></p></footer><script>
 document.getElementById('art').addEventListener('click',event=>{const active=document.body.classList.toggle('art-only');event.currentTarget.setAttribute('aria-pressed',String(active))});
 document.getElementById('scheme').addEventListener('click',event=>{const active=event.currentTarget.getAttribute('aria-pressed')!=='true';event.currentTarget.setAttribute('aria-pressed',String(active));document.querySelectorAll('.scene-art').forEach(art=>{if(active)art.setAttribute('filter',art.dataset.loreFilter);else art.removeAttribute('filter')})});
 </script></body></html>

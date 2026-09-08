@@ -1,7 +1,7 @@
 """Forward-facing portraits on the close and conversational body staging."""
 
 from .colors import ELENA, JONAH, JADE
-from .faces import frontal_head
+from .faces import FACE_COLORS, frontal_head
 from .svg import group, path
 
 
@@ -50,3 +50,21 @@ def jonah_listener():
     art += path("M88 334Q41 357 26 390M267 327Q307 342 324 369M194 371L223 427M24 436L-5 550M322 403L352 491", stroke=JONAH['coat_light'], width=2)
     art += group(frontal_head('jonah'), 'translate(-160 -139) scale(1.12)')
     return art
+
+
+def work_portrait(name):
+    """Stage Leila, Rina, or Tomas with a frontal head and a resting work-jacket bust."""
+    if name not in ('leila', 'rina', 'tomas'):
+        raise KeyError(name)
+    c = FACE_COLORS[name]
+    art = path('M125 209L211 210L211 276L240 297L170 348L97 297L126 267Z',c['skin'],width=2.2)
+    art += path('M126 226Q170 251 211 224L211 266L168 291L126 269Z',c['shadow'],'none',opacity=.75)
+    art += path('M114 277L70 299Q14 314-14 374L-56 567H339L314 387Q303 331 248 305L210 276L169 310Z',c['coat'],width=2.8)
+    art += path('M210 277L248 305Q303 331 314 387L339 567H219L209 347Z',c['coat_shadow'],'none')
+    art += path('M114 278L169 310L211 277L225 303L190 347L143 339L96 304Z',c['shirt'],width=2.2)
+    art += path('M114 278L135 327L117 347L85 313M211 277L194 327L218 347L244 309',c['coat'],width=2.2)
+    art += path('M132 349L134 561M75 315Q33 331 18 359M245 315Q276 330 287 354M12 390L-8 490M273 402L291 501',stroke=c['coat_light'],width=2)
+    art += path('M184 395H252V452H184Z',c['coat_shadow'],width=1.8)
+    art += path('M190 403H246',stroke=c['coat_light'],width=1.4)
+    art += group(frontal_head(name),'translate(-130 -121)')
+    return group(art,data_character=name,data_pose='work-bust')

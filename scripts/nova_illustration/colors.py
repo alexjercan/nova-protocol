@@ -23,6 +23,27 @@ JONAH = MappingProxyType({
     'iris': '#30352f', 'eye': '#c5bda5', 'detail': '#997356', 'coat': '#56798d',
     'coat_shadow': '#3b566b', 'coat_light': '#8fa8ac', 'shirt': '#a8b1a9',
 })
+LEILA = MappingProxyType({
+    'skin': '#b39577', 'shadow': '#6f5746', 'light': '#dfc5a1',
+    'hair': '#35312d', 'hair_line': '#807665', 'brow': '#514030',
+    'eye': '#d2c5ab', 'iris': '#3b4137', 'lines': '#785c49', 'detail': '#99785a',
+    'coat': '#728662', 'coat_shadow': '#4c6249', 'coat_light': '#aec19b',
+    'shirt': '#b1ab8f',
+})
+RINA = MappingProxyType({
+    'skin': '#8b6755', 'shadow': '#4d3c33', 'light': '#c09a78',
+    'hair': '#292b2a', 'hair_line': '#625b4e', 'brow': '#41322a',
+    'eye': '#c6b799', 'iris': '#2c342e', 'lines': '#554035', 'detail': '#b38a69',
+    'lip': '#795346', 'ink': '#4c3830', 'coat': '#ca8758',
+    'coat_shadow': '#956347', 'coat_light': '#e5b685', 'shirt': '#b8ab86',
+})
+TOMAS = MappingProxyType({
+    'skin': '#be9c83', 'shadow': '#715a4b', 'light': '#e0c5a9',
+    'hair': '#3e3e3a', 'hair_line': '#a3a398', 'brow': '#4a4137',
+    'eye': '#cabfa7', 'iris': '#36443d', 'lines': '#785c48', 'detail': '#a48165',
+    'coat': '#395c78', 'coat_shadow': '#293f56', 'coat_light': '#86a4b4',
+    'shirt': '#87928d',
+})
 MATERIALS = MappingProxyType({
     'paint': '#b4b9b5', 'metal': '#84979b', 'jade': '#5c8e79',
     'tank': '#c7c7b5', 'shadow': '#52616c', 'dark': '#29313b',
@@ -55,6 +76,13 @@ INTERIOR = MappingProxyType({
     'panel_line': '#88a68c', 'worktop': '#597e70', 'edge': '#b2c2a1',
     'window_frame': '#ded0ab', 'window_light': '#f1dfb6',
     'structure': '#546c77', 'structure_light': '#a4b6aa',
+})
+WORK = MappingProxyType({
+    'wall': '#59727a', 'wall_shadow': '#304c58', 'pipe': '#91aba8',
+    'pipe_light': '#c5cbb5', 'pump': '#c79468', 'pump_light': '#e0b986',
+    'screen': '#193442', 'warning': '#f0c783', 'warning_back': '#604f43',
+    'safe': '#b2dfb9', 'safe_back': '#315e50', 'card_border': '#7bae97',
+    'card_title': '#f4deb0', 'card_text': '#d6e2cd',
 })
 LORE = MappingProxyType({
     'background': '#101e1a', 'grid': '#20352a', 'centerline': '#40543e',

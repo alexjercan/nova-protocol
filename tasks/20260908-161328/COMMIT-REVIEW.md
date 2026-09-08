@@ -32,6 +32,17 @@ the same operation; verify the index is empty before each operation.
 No full Rust workspace checks are relevant to these Python, web, and story
 changes. No commit implies deployment or publication of a private draft.
 
+## Completed reviewed-work commits
+
+- `ca1ccaef6`: Add shared comic illustrations and lore design exports.
+- `8ca7c24f3`: Establish the named Saturn cast and shared opening story.
+- `7e8095fd8`: Preserve the opening comic and accepted visual studies.
+
+The four-page adaptation is a separate follow-up commit. Its current source,
+rendered evidence, preservation checks, and review are in
+[RESTYLE-REVIEW.md](RESTYLE-REVIEW.md). The later `.scufris.toml` commits
+`675ce45c6` and `489aeeb35` are concurrent work and are preserved. Nothing was pushed.
+
 ## Four-page restyle scope
 
 Preserve a byte-for-byte comparison copy of the existing pages and generator.

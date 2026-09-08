@@ -1,0 +1,57 @@
+{
+  "reports": [
+    {
+      "width": 1440,
+      "page": 1
+    },
+    {
+      "width": 1440,
+      "page": 2
+    },
+    {
+      "width": 1440,
+      "page": 3
+    },
+    {
+      "width": 1440,
+      "page": 4
+    },
+    {
+      "width": 390,
+      "page": 1
+    },
+    {
+      "width": 390,
+      "page": 2
+    },
+    {
+      "width": 390,
+      "page": 3
+    },
+    {
+      "width": 390,
+      "page": 4
+    }
+  ],
+  "errors": [],
+  "requests": [
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-01.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-02.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-03.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-04.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/index.html"
+  ],
+  "checks": [
+    "direct file loading",
+    "raw SVGs",
+    "page navigation",
+    "keyboard",
+    "art toggle",
+    "contact sheet",
+    "mobile transcripts",
+    "no overflow",
+    "local comparison links",
+    "cards and artwork remain visible under Art only"
+  ]
+}

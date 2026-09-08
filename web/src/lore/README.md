@@ -182,9 +182,9 @@ Character portraits are likewise appearance studies, not fixed ages,
 ancestries, clothing, or likenesses. They have no military rank insignia.
 
 The original five crew portraits share a drawing template in
-`../../../scripts/gen-lore-portraits.py`. Jonah's frontal face is shared with the
-illustration library; the other four heads remain in that exporter. Their saved
-portrait assets remain unchanged.
+`../../../scripts/gen-lore-portraits.py`. Heads used by the comic are shared with
+the illustration library; see its ownership notes for the current scope. The
+five saved portrait assets remain unchanged.
 Run `python3 scripts/gen-lore-portraits.py` from the repository root to render them,
 or add `--check` to verify the saved SVGs without writing. Keep the generator and
 its outputs together.
@@ -193,8 +193,8 @@ Reusable scene and design-sheet drawings live in
 [`scripts/nova_illustration/`](../../../scripts/nova_illustration/README.md).
 Each named ship has one unscaled shape model for scene and orthographic views.
 Character poses are authored drawings, not automatic rotations of a portrait.
-The current scene treatment reuses the original frontal heads for Jonah and
-Elena, with separate body staging and light shadow planes. Ship proposals use
+The current scene treatment reuses original frontal heads, with separate body
+staging and light shadow planes. Ship proposals use
 faceted plating and selected industrial fixtures as visual cues, not copied
 engineering or gameplay specifications.
 `colors.py` owns the shared palette; `styles.py` applies the color-only comic or

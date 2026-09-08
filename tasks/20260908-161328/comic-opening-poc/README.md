@@ -1,90 +1,67 @@
-# Opening comic visual PoC
+# Four-page opening: clean-line draft
 
-An unpublished four-page color and composition study. Open `index.html` in a
-browser. No server, website build, or network connection is required.
+Open [index.html](index.html) directly in a browser. No server, website build,
+or network connection is needed. This remains a private review board, not a
+registered comic or a second maintained story specification.
 
-This is a review board, not a second comic reader or a registered story. The
-public archive still contains the Reader demo. Do not add this directory to the
-website's copy rules or comic discovery roots.
+The user requested this restyle after accepting the frontal-face and industrial
+ship treatment. Compare the [previous four-page version](../proof/before-clean-line-opening/index.html)
+or the [accepted three-shot study](../clean-line-study/index.html).
 
-## What this tests
+## What changed
 
-- A broader palette: jade and mint accents, indigo space, warm ochre light,
-  coral interiors, and natural skin tones. No all-green filter or CRT bezel
-  covers the artwork.
-- A working community before the crisis. People, machinery, and exteriors share
-  the page; this is not a sequence of interface cards.
-- Fuller conversations that show professional judgment and working
-  relationships, readable speech balloons, and room for silent images.
-- Cinematic-style location/time/context cards inside Baikal on page 1 and
-  aboard Kaveri on page 4. Relative day labels are draft staging; the calendar
-  date is explicitly marked TBD. No moon is assigned to Baikal.
-- Four draft pages through Kaveri's departure from Baikal, not a fixed episode
-  boundary. The rescue and the Aquila encounter are outside this sample.
+- Closer human framing with the original frontal heads, light shadow planes,
+  visible necks, fine clothing lines, and separately staged bodies.
+- One shared Kaveri and Ebro model in exteriors, the window shot, and lore sheets.
+- Cropped work surfaces, service pipes, machinery, and window structure instead
+  of distant figures in empty rooms. Elena retains the open working gesture.
+- Full comic color: warm interiors, cool space, industrial gray, varied clothing,
+  and green accents. No grain overlay or all-green presentation.
 
-The shared production source is
-[`season-1.md`](../../../web/src/lore/seasons/season-1.md#work-and-a-costly-rescue).
-The page beats are Baikal at work, the safely isolated processing line, the
-replacement pickup and Ebro commitment, then departure for Aquila. Page 3 names
-Foundation on the delivery record and connects the order to EarthWorks through
-Elena's explanation, without a separate exposition scene.
+The four page titles, ten panel beats, 130 spoken words, display/record text,
+and Baikal/Kaveri orientation cards stay. The line stops safely; residential
+supplies remain normal. Elena connects Ebro's EarthWorks order to Foundation.
+The draft ends with departure for Aquila. No pickup, rescue, combat, pursuit,
+or pirate viewpoint is added. Four pages are not an episode boundary.
+
+The [shared production outline](../../../web/src/lore/seasons/season-1.md#work-and-a-costly-rescue)
+remains the continuity source. No calendar year, moon, orbit, dimensions,
+capacity, engineering plan, or game interaction is established by this art.
+Apparent ages, clothing, colors, interiors, and scene props remain proposals.
 
 ## Review
 
-Use the page links or Previous / Next. Left and right arrows also work when a
-control does not have focus. Contact sheet compares the compositions. Art only
-hides the speech balloons, not physical signs or the location/time cards.
+Use the page links, Previous / Next, or arrow keys when a control has no focus.
+Contact sheet compares the pages. Art only hides speech but keeps physical
+signs and orientation cards. Printing includes all four landscape pages.
 
-Open a full-size SVG to zoom or inspect individual details. Each page has a
-plain-text dialogue transcript. On a small screen the page overview is for
-composition; use zoom or the transcript to read, rather than treating scaled
-lettering as the final mobile reading experience. Printing includes all four
-pages in landscape.
-
-Look for these decisions, rather than polish:
-
-1. Does green still feel like Nova when the world has other colors?
-2. Does Baikal look inhabited and useful, rather than bleak or abandoned?
-3. Do the people and their conversations belong in the same visual world as
-   the ships?
-4. Does the quiet opening earn its space? Would a different panel rhythm read
-   better?
-5. Do the fuller conversations stay readable, and do the cards make changes of
-   place and time clear without covering the people?
-
-## Provisional, not canon
-
-All drawn ship and station geometry, relative scale, orbital framing, interiors,
-faces, apparent ages, clothing, colors, signs, and dialogue are concepts. No
-measurements or travel schedule are established. The in-scene machine displays
-are illustrative props, not specifications for game UI.
-
-Only Kaveri and Ebro appear as ships. Kaveri is unarmed. The warm corridor is a
-habitation concept; the exterior's ring does not approve a final Baikal design.
-No attack, pursuit, or pirate viewpoint is added. Residential supplies stay
-normal while the industrial line is stopped. The protagonist crew remains
-competent.
-
-The existing portrait source supplies the five Kaveri crew head studies without
-its encyclopedia filter. Elena's head and all body poses are new provisional
-studies. These do not settle public character designs. The mug and game-night
-notice are draft staging, not separately approved lore.
+Use the full-size SVGs to zoom and the text transcripts on small screens.
+The scaled landscape overview is not a final mobile reading experience.
+[Restyle review and checks](../RESTYLE-REVIEW.md) records the current evidence.
 
 ## Source and regeneration
 
-`generate.py` owns the illustrations, lettering, transcripts, and review board.
-It uses only the Python standard library and the existing portrait source at
-`scripts/gen-lore-portraits.py`. It does not modify that source or its assets.
-Do not edit the generated HTML or SVGs by hand.
+`generate.py` owns composition, local backgrounds, the pump and record props,
+lettering, transcripts, and the board. It imports the maintained
+[illustration library](../../../scripts/nova_illustration/README.md) for recurring
+heads, bodies, ships, scenery, colors, and SVG primitives. The mug-and-hand
+source is task-local in `../opening_props.py`, also used by the comparison study.
+It is not a series-wide prop asset. Public exporters never import task files.
+
+The library now supplies the needed Leila, Rina, and Tomas frontal heads as well
+as Jonah and Elena. The five existing public crew portraits remain unchanged.
+Samir's head and the legacy portrait template colors have not been migrated.
 
 From the repository root:
 
 ```bash
 python3 tasks/20260908-161328/comic-opening-poc/generate.py
 python3 tasks/20260908-161328/comic-opening-poc/generate.py --check
+node tasks/20260908-161328/proof/inspect.mjs
+python3 tasks/20260908-161328/proof/check-opening-restyle.py
 ```
 
-The generator produces `index.html` and `page-01.svg` through `page-04.svg`.
-Keep these outputs with the source so the study opens directly. Accepted
-compositions can later be adapted into typed comic pages and their artwork;
-this PoC does not change the public renderer or its content contract.
+The generator writes only `index.html` and `page-01.svg` through `page-04.svg`.
+The Chromium check writes current evidence under `../proof/restyled/` and stops
+its owned browser. Do not hand-edit generated outputs or overwrite the frozen
+comparison files. Keep this draft outside public discovery and website copying.

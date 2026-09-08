@@ -12,8 +12,8 @@ sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(SCRIPTS))
 from nova_illustration.colors import ELENA, MATERIALS
-from nova_illustration.faces import ELENA_FACE, JONAH_FACE, frontal_head
-from nova_illustration.portraits import elena_close, elena_gesture, jonah_listener
+from nova_illustration.faces import FACES, frontal_head
+from nova_illustration.portraits import elena_close, elena_gesture, jonah_listener, work_portrait
 from nova_illustration.ships import Face, MODELS, VIEWS, bounds, contour_segments, dot, hull_segment, normal, painter_order, render_ship, split_surface, sub
 from nova_illustration.styles import present
 
@@ -94,10 +94,31 @@ class IllustrationTests(unittest.TestCase):
         face = frontal_head('elena')
         self.assertIn(face, elena_close())
         self.assertIn(face, elena_gesture())
-        for name, drawing in [('elena', ELENA_FACE), ('jonah', JONAH_FACE)]:
+        for name, drawing in FACES.items():
             root = ET.fromstring(frontal_head(name))
             self.assertEqual(root.get('data-gaze'), 'forward')
             self.assertIn(drawing.head, [p.get('d') for p in root.findall('.//path')])
+
+    def test_work_busts_reuse_frontal_heads_and_only_change_color_under_lore_presentation(self):
+        for name in ('leila', 'rina', 'tomas'):
+            drawing = work_portrait(name)
+            self.assertEqual(drawing,work_portrait(name))
+            self.assertIn(frontal_head(name),drawing)
+            root = ET.fromstring(drawing)
+            self.assertEqual(root.get('data-character'),name)
+            comic = ET.fromstring('<svg>'+present(drawing,'comic','color')+'</svg>')
+            lore = ET.fromstring('<svg>'+present(drawing,'lore','green')+'</svg>')
+            paths = lambda root: [n.attrib for n in root.findall('.//path')]
+            self.assertEqual(paths(comic),paths(lore))
+
+    def test_unregistered_heads_and_work_busts_are_errors(self):
+        for name in ('unknown','samir'):
+            with self.assertRaises(KeyError):
+                frontal_head(name)
+            with self.assertRaises(KeyError):
+                work_portrait(name)
+        with self.assertRaises(KeyError):
+            work_portrait('elena')
 
     def test_unknown_ship_view_scheme_and_unsafe_instance_are_errors(self):
         for args in [('unknown','top'),('kaveri','unknown')]:
