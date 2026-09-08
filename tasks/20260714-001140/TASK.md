@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 55
-- TAGS: v0.13.0,input,gamepad
+- TAGS: v0.14.0,input,gamepad
 
 Rescoped 2026-08-31 for v0.13.0. The mobile virtual pad (old Part B) split
 to `20260831-145917` and stays backlog, so its layout targets interactions
