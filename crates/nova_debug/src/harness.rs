@@ -106,7 +106,7 @@ use nova_gameplay::{
     prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
     GameStates,
 };
-use nova_hud::prelude::HudVisibility;
+use nova_hud::prelude::{HudTier, HudVisibility};
 use nova_input::prelude::{dispatch, InputPhase};
 use nova_os_ui::{
     nova_os::prelude::{NovaOsTerminal, TerminalMode},
@@ -686,6 +686,29 @@ pub fn hide_dev_overlays(world: &mut World) {
 pub fn hide_hud(world: &mut World) {
     if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
         *hud = HudVisibility::Cinematic;
+    }
+}
+
+/// Take the fps/version status bar out of shot WITHOUT lowering the HUD.
+///
+/// [`hide_hud`] clears every tier, which is the wrong tool for a capture whose
+/// subject IS the flight instruments: those captures kept the HUD up and shipped
+/// the bar with it. The bar is the one widget that must never reach a recording -
+/// its version item names the commit a debug build came from, so every re-shoot
+/// bakes a different hash into the footage, and its fps item puts the capture
+/// rig's cadence on the page.
+///
+/// Despawned rather than hidden because `apply_hud_visibility` re-asserts
+/// visibility from the level every frame; a capture process is throwaway, so
+/// taking the widget out of the world is the version that holds.
+pub fn hide_status_bar(world: &mut World) {
+    let bars: Vec<Entity> = world
+        .query::<(Entity, &HudTier)>()
+        .iter(world)
+        .filter_map(|(entity, tier)| (*tier == HudTier::Status).then_some(entity))
+        .collect();
+    for bar in bars {
+        world.entity_mut(bar).despawn();
     }
 }
 

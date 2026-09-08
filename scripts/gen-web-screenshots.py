@@ -106,7 +106,9 @@ def frozen(name):
 # reports them as pending and skips them, so it stays useful as coverage grows.
 FIGURES = [
     # name                              example
+    # The Drydock drift beauty shots.
     ("wiki-sections.png",               "screenshot_hero_ship"),
+    ("feature-gravity.png",             "screenshot_gravity"),
     # A hull coming apart: the outer sections blowing off a core still firing.
     ("wiki-ships-damage.png",           "loop_damage_sequence"),
     # The part-candidate viewer shows the seven body meshes before functional
@@ -1099,13 +1101,32 @@ def main():
     thumb = process_group(THUMBNAILS, "Thumbnails", args.stage_dir, FIGURE_ASPECT)
     all_failed += thumb[2]
 
+    # A name can be staged by a producer and yet live only in ALIASES - it has
+    # no FIGURES row, so neither pass above has seen it. Without this the alias
+    # loop's "a distinct capture exists" guard skips it on the strength of a
+    # capture nothing installed, and the shot is silently discarded: the run
+    # prints no line for the name at all, and NOVA_UNFREEZE on it does nothing.
+    handled = {name for name, _ in FIGURES} | {name for name, _ in THUMBNAILS}
+    alias_only = [
+        (alias, None)
+        for alias in ALIASES
+        if alias not in handled
+        and os.path.exists(os.path.join(args.stage_dir, alias))
+    ]
+    if alias_only:
+        extra = process_group(
+            alias_only, "Alias-only captures", args.stage_dir, FIGURE_ASPECT
+        )
+        all_failed += extra[2]
+        handled |= {name for name, _ in alias_only}
+
     # Wiki mechanic pages reuse a captured shot of the same subject, unless a
     # distinct capture for them was staged (then that already won, above).
     print("\nAliases (wiki pages reusing a captured shot):")
     aliased = 0
     for alias, source in ALIASES.items():
-        if os.path.exists(os.path.join(args.stage_dir, alias)):
-            continue  # a distinct capture exists; process_group handled it
+        if alias in handled and os.path.exists(os.path.join(args.stage_dir, alias)):
+            continue  # a distinct capture exists; a process_group pass took it
         if frozen(alias):
             print(f"  frozen  {alias} (shipped with its post)")
             continue

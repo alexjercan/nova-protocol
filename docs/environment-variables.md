@@ -174,8 +174,14 @@ names its own root on `SettingsStorePlugin` instead.
 ## Not on the roster
 
 - **Example-local knobs.** `NOVA_STRESS_PD_*`, `NOVA_EDITOR_FRAMELOG`,
-  `NOVA_SOAK_SCENARIO`, `NOVA_SOAK_SECS`, `NOVA_VFX_RANGE_BARE_SLUG` belong to
-  one example each and stay literals beside the range that reads them.
+  `NOVA_SOAK_SCENARIO`, `NOVA_SOAK_SECS`, `NOVA_VFX_RANGE_BARE_SLUG`,
+  `NOVA_RAILGUN_AFTERMATH`, `NOVA_RAILGUN_LIVE` belong to one example each and
+  stay literals beside the range that reads them. The two railgun names pick
+  which of the shipped loops `screenshot_railgun` records - the aftermath cut,
+  and the real-speed pass against the default slowed clock - and
+  `scripts/capture-web-media.sh` sets them. An unset variable reads as `false`
+  silently, so a re-record that forgets one ships two identical loops labelled
+  "slowed" and "real speed".
 - **`NOVA_OS_*`.** Around 180 of these exist and NONE is an environment
   variable: they are `const Color`, layout and volume values in `nova_os_ui`,
   `nova_os` and `nova_gameplay::audio`. A grep for `NOVA_[A-Z_]*` is dominated

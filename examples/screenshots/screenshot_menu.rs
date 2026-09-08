@@ -49,9 +49,9 @@ const BACKDROP_SHIP_ID: &str = "gauntlet_ship";
 /// and a world-axis offset photographs whatever end the current leg presents -
 /// the first cut of this shot came out stern-on, a drive bell filling the
 /// middle of the menu. Riding the hull always gives the same three-quarter
-/// bow. A `block_gunship` is roughly 110 m stem to stern, and 170 m of
-/// standoff makes a frame 250 m wide: the sections and their mounts stay
-/// separable, with the rock band still around them.
+/// bow. A `block_gunship` is 85 m stem to stern, and 170 m of standoff makes a
+/// frame 250 m wide: the hull is about a third of it, so the sections and their
+/// mounts stay separable, with the rock band still around them.
 #[cfg(feature = "debug")]
 const BACKDROP_EYE: Meters3 = Meters3::new(130.0, 50.0, -95.0);
 

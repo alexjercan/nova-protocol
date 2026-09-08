@@ -162,7 +162,10 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .deadline(30.0)
         .add()
         .step("settle at the start")
-        .on_enter(ring::hud_instrument)
+        .on_enter(|world: &mut World| {
+            ring::hud_instrument(world);
+            nova_protocol::nova_debug::harness::hide_status_bar(world);
+        })
         .until(elapsed(1.0))
         .add()
         // Something for the shell to drop OVER. The insertion burn is the

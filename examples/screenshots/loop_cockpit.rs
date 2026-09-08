@@ -63,7 +63,9 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 /// than behind the hull silhouetting it.
 ///
 /// The stand-off is the house number for this set: the lens spans 1.47 times
-/// its distance at 16:9, so 150 m puts a 110 m hull across half the frame.
+/// its distance at 16:9, so 150 m makes the frame 220 m wide. This loop flies
+/// the Utility Cutter, which is 70 m long, 50 m in the beam and 20 m tall, so
+/// it crosses a little under a third of that.
 #[cfg(feature = "debug")]
 fn frame_against_the_world(world: &mut World) {
     ring::leg(
@@ -81,7 +83,7 @@ fn frame_against_the_world(world: &mut World) {
 /// beacon is 7.6 km straight up: once the travel computer has the ship pointed
 /// at it the track is five sixths of the way onto Y, the 85 m of `up` stops
 /// being height and becomes more lead, and the lens ends up looking down the
-/// hull's own length from above - a 110 m ship reads as its 30 m beam. Putting
+/// hull's own length from above - a 70 m ship reads as its 50 m beam. Putting
 /// nearly the whole stand-off on `side`, which [`ring::lit_side`] guarantees is
 /// perpendicular to the track whatever the track is, keeps the departure
 /// broadside and the drive plume across the frame.
@@ -106,7 +108,11 @@ fn cockpit_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("settle without a maneuver")
         .on_enter(|world: &mut World| {
+            // The HUD IS the subject here, so this loop cannot use `hide_hud`.
+            // The status bar still has to go: it carries the commit a debug
+            // build came from, and this footage is on the landing page.
             ring::hud_instrument(world);
+            nova_protocol::nova_debug::harness::hide_status_bar(world);
             frame_against_the_world(world);
         })
         .until(elapsed(0.8))

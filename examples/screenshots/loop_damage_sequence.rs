@@ -124,10 +124,11 @@ const STILL_EYE: Vec3 = Vec3::new(-1.0, 0.3, -0.35);
 
 /// How far the still's lens stands off the hull, meters.
 ///
-/// The gunship is about 110 m stem to stern and the lens is across its beam,
-/// so the whole length is in frame: at this range that is a little under two
-/// thirds of the frame width, which leaves the silhouette room without
-/// shrinking the cracks it is here to show. The pod freed by the last beat is
+/// The gunship is 85 m stem to stern and the lens is across its beam, so the
+/// whole length is in frame: the lens spans 1.47 times its distance, so at this
+/// range the frame is about 198 m wide and the hull is a little over two fifths
+/// of it, which leaves the silhouette room without shrinking the cracks it is
+/// here to show. The pod freed by the last beat is
 /// 90 m clear by the time the loop closes and may fall outside; the framing
 /// keeps the SHIP, because the hole the pod left is the readable half of the
 /// story and a pod at that range is four pixels. The chapter's figure note
@@ -241,8 +242,8 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // inside its own subject: the loop showed a drive bell and a piece of
         // plating, and the severed deck crossed the lens close enough to fill
         // it. The hull is shot from the port QUARTER, so it presents about
-        // 60 m rather than its 110 m length; held at 115 m that silhouette is
-        // a third of the frame, which leaves the freed deck room to drift
+        // 60 m rather than its 85 m length; held at 115 m that silhouette is
+        // a little over a third of the frame, which leaves the freed deck room to drift
         // without leaving the shot, and a crack is still a crack.
         .step("frame the port flank")
         .on_enter(|world| {

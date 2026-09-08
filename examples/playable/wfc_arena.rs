@@ -1753,7 +1753,7 @@ fn report_score(
 ///
 /// The FLOOR is what the frame settles to when the ships merge, and it used to
 /// be 55 - 550 m of standoff at knife range, where the whole fight was a fifth
-/// of the frame and each 110 m hull about a fourteenth of it. At 20 the pass
+/// of the frame and each 85 m hull about a tenth of it. At 20 the pass
 /// itself is the shot.
 const CAMERA_DIRECTION: Vec3 = Vec3::new(0.0, 0.45, 1.0);
 const CAMERA_BASE: f32 = 20.0;
@@ -1780,7 +1780,7 @@ const FOLLOW_LEAD: f32 = 12.0;
 /// axis, out to one side of it and lifted, in engine world units.
 ///
 /// ~320 m out, against the frame vantage's kilometre. The lens spans 1.47 times
-/// its distance, so the shot is ~470 m wide: a 110 m hull fills a quarter of it
+/// its distance, so the shot is ~470 m wide: an 85 m hull fills a fifth of it
 /// - close enough to read the plating, the open irises and a muzzle flash - and
 /// a 300 m warhead going off on that hull still fits. Standing BEHIND the
 /// subject on the threat axis is what puts incoming ordnance on a line into the
@@ -2444,8 +2444,8 @@ const STRIKE_HIT_RANGE: Meters = Meters(300.0);
 ///
 /// The lens cannot hold both hulls at this range and nothing is gained by
 /// trying: it spans 1.47 times its distance, so framing a 1.5 km spread means
-/// standing a kilometre off, where a 110 m gunship is a fifteenth of the frame
-/// width. The capture stands over the subject's shoulder instead
+/// standing a kilometre off, where an 85 m gunship is a seventeenth of the
+/// frame width. The capture stands over the subject's shoulder instead
 /// ([`CINEMA_BACK`]), which puts the rival down the threat axis as a lit
 /// contact in the middle of frame and every round that crosses between them on
 /// a line into the shot.

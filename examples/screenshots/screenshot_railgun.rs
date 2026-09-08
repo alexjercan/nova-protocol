@@ -612,8 +612,8 @@ const SIGHT: RangeShot = RangeShot {
 /// was a few sparks around a silhouette.
 ///
 /// So: off the starboard bow instead, 150 m out. The lens spans 1.47 times its
-/// distance, so the frame is some 220 m wide and the 110 m hull fills half of
-/// it. The slug crosses from the right, the entry is on a face the camera can
+/// distance, so the frame is some 220 m wide and the 85 m hull fills about two
+/// fifths of it. The slug crosses from the right, the entry is on a face the camera can
 /// see, and the sections the rake condemns die down the spine AWAY from the
 /// lens - a chain of fireballs walking into the hull, which is the one thing a
 /// still of a lance hit has to say.

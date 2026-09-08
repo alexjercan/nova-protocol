@@ -81,7 +81,7 @@ const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 /// Where the lens stands, as an offset from what it frames.
 ///
 /// From BELOW the target, looking up the salvo's bearing, sky behind the hull.
-/// 320 m out, against a 110 m hull: the lens spans 1.47 times its distance, so
+/// 320 m out, against an 85 m hull: the lens spans 1.47 times its distance, so
 /// the frame is some 470 m wide. That holds the fireball (110 m at its peak),
 /// the sections thrown out of it, and the drift they have picked up by the end
 /// of the tail - the whole reason this framing does not need a camera move.
