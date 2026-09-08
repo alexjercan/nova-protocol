@@ -90,11 +90,28 @@ yet, so do not go looking for them.
 """
 
 [briefings.nightly]
-description = "Review the day's commits and fix what is worth fixing."
-keywords = { harness = "claude", model = "Opus", thinking = "xhigh", policy = "repair" }
+description = "Review the day's commits and report what is worth fixing."
+keywords = { harness = "claude", model = "Opus", thinking = "xhigh" }
 guidance = """
-Review the commits that landed today and fix what is worth fixing. You work
-directly on master in this checkout, and you have the night.
+Review the commits that landed today and report what is worth fixing. You have
+the night, and you change nothing: no edit, no commit, no push, no release.
+The report is the whole of the work. Scufris reads it in the morning and puts
+the fixes in front of Alex, who decides which ones are done and where.
+
+## You have one turn
+
+This is one non-interactive run. The process ends when you stop writing, and
+there is no later turn to come back in. Nothing you say is read by anyone who
+can answer you.
+
+- Never stop to wait. Waiting ends the run.
+- Every lane you dispatch must have answered before you write the envelope. A
+  lane still running when you stop dies with you, and its work is lost.
+- The only answer is the JSON envelope. Never finish with prose, a status line
+  or a promise to continue.
+- When the night runs short, report the groups you reached and name the ones
+  you did not. A partial report is a good night; a promise to continue is a
+  lost one.
 
 The order below is what keeps the night narrow. Do not collapse it.
 
@@ -102,12 +119,12 @@ The order below is what keeps the night narrow. Do not collapse it.
 
 Run `tatr new "Nightly review" -p 70 -t review` first, before reading anything.
 Append to its `TASK.md` as you go: the groups before you review any of them,
-each group's findings as they are adjudicated, each fix as it lands, and
-anything you leave undone.
+and each group's findings as they are adjudicated.
 
 Append as it happens, never at the end. This session will be compacted, and it
 may be killed outright before morning. A half-written task is a readable night;
-a task written at the end is nothing.
+a task written at the end is nothing. The task is also where the detail lives:
+the envelope carries counts and the worst of it, and the task carries the rest.
 
 ## 2. Group the day's commits
 
@@ -130,37 +147,25 @@ For each group, highest risk first:
   run; protocol, docs and benchmark work does not need them and should not pay
   for them. Say in the task which groups got it and why.
 
-One group at a time. Waiting for a group to finish before starting the next is
-what keeps the night to a few agents rather than a crowd, and it is worth more
-than finishing early. Append each group's adjudicated findings to the task
-before you start the next group.
-
-## 4. Fix only when every group is reviewed
-
-Change nothing until the last group is reviewed. Repairing from the whole
-night's findings beats repairing from the first group's.
-
-- Fix what the findings support and the checks can show.
-- Leave anything that needs a judgement Alex has not made. Name it in the task
-  rather than attempting it.
-- Run this project's own checks before each commit. A night that leaves master
-  red is worse than a night that fixed nothing.
-- Commit to master with explicit paths and no AI attribution, one
-  self-contained commit for each fix. Never push, tag, publish or release.
+One group at a time, and a group is not finished until every lane it dispatched
+has reported. Append the adjudicated findings to the task before you start the
+next group. Reviewing in sequence is what keeps the night to a few agents rather
+than a crowd, and it is worth more than finishing early.
 
 ## What to report
 
-Facts are counts: commits today, groups reviewed, findings, fixes landed,
-findings left.
+Facts are counts: commits today, groups reviewed, groups not reached, findings
+by severity.
 
-Name the task ID in the body, so the morning briefing can read the whole night
-from it. Say which groups you did not reach, if any.
+Name the task ID in the body, so the morning can read the whole night from it.
+Give the worst findings by path and say what is wrong with each. Say which
+groups you did not reach.
 
-Use `status = "attention"` when something needs Alex: a finding you could not
-fix, a check left red, or a night that did not finish its groups. Use `ok` when
-the night finished and master is green.
+Use `status = "attention"` when something needs Alex: any finding worth fixing,
+a check already red on master, or a night that did not reach every group. Use
+`ok` when the night finished every group and found nothing worth doing.
 
-Every finding you left becomes an offer. The label says what to fix and the
-detail says where it is and why you did not do it. What you already fixed is not
-an offer.
+Every finding worth fixing is an offer. The label says what to fix and the
+detail says where it is and why it matters, in enough words that somebody can
+brief a worker from it without reopening the diff.
 """
