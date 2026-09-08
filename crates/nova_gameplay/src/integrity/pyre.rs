@@ -452,8 +452,8 @@ fn refill_pyre_budget(mut budget: ResMut<PyreBudget>) {
 fn light_the_pyre(
     add: On<Add, IntegrityDestroyMarker>,
     mut commands: Commands,
-    mut effects: ResMut<Assets<EffectAsset>>,
-    mut images: ResMut<Assets<Image>>,
+    effects: Option<ResMut<Assets<EffectAsset>>>,
+    images: Option<ResMut<Assets<Image>>>,
     mut pyres: ResMut<PyreEffects>,
     mut soft_dot: ResMut<SoftDot>,
     mut budget: ResMut<PyreBudget>,
@@ -467,6 +467,15 @@ fn light_the_pyre(
     if !tier.as_deref().is_none_or(|tier| tier.particles) {
         return;
     }
+
+    // A world with no asset stores has nothing to build a graph in and nothing
+    // that could see the result: a headless server, or a test app that added
+    // the integrity plugin for its health pipeline alone. Deaths still happen
+    // there, they just go unlit.
+    let (Some(mut effects), Some(mut images)) = (effects, images) else {
+        return;
+    };
+
     let entity = add.entity;
     let Ok((frame, root)) = q_dead.get(entity) else {
         // Nothing that carries no transform: a health node hanging off a
@@ -546,6 +555,11 @@ impl Plugin for PyrePlugin {
         app.register_type::<PyreEffectMarker>();
         app.init_resource::<PyreEffects>();
         app.init_resource::<PyreBudget>();
+        // The mask is shared with the weapon effects, and whichever plugin
+        // asks for it first is the one that builds the slot. A ship carrying
+        // no armed section still dies, so the pyre cannot rely on a turret
+        // having been here.
+        app.init_resource::<SoftDot>();
         app.add_systems(First, refill_pyre_budget);
         app.add_observer(light_the_pyre);
     }
@@ -555,18 +569,18 @@ impl Plugin for PyrePlugin {
 mod tests {
     use super::*;
 
-    /// The observer, the budget it spends and the two asset stores it builds
-    /// its graphs in. No render app: an [`EffectAsset`] is data, and what is
-    /// under test is which instances a death spawns, not how they draw.
+    /// The plugin, plus the two asset stores it builds its graphs in. No render
+    /// app: an [`EffectAsset`] is data, and what is under test is which
+    /// instances a death spawns, not how they draw.
+    ///
+    /// Built from [`PyrePlugin`] rather than by repeating its wiring, so a
+    /// resource the plugin forgets to register fails HERE instead of in the
+    /// first crate that adds the plugin for real.
     fn pyre_app() -> App {
         let mut app = App::new();
         app.insert_resource(Assets::<EffectAsset>::default());
         app.insert_resource(Assets::<Image>::default());
-        app.init_resource::<PyreEffects>();
-        app.init_resource::<PyreBudget>();
-        app.init_resource::<SoftDot>();
-        app.add_systems(First, refill_pyre_budget);
-        app.add_observer(light_the_pyre);
+        app.add_plugins(PyrePlugin);
         app
     }
 
@@ -747,5 +761,22 @@ mod tests {
                 "a fireball that stays where the ship WAS reads as a second, unrelated event"
             );
         }
+    }
+
+    /// The case every other test here is blind to, because they all hand the
+    /// app the two asset stores first: a crate that adds the integrity plugin
+    /// for its HEALTH pipeline and never renders anything.
+    #[test]
+    fn a_death_in_a_world_with_no_asset_stores_is_unlit_and_not_fatal() {
+        let mut app = App::new();
+        app.add_plugins(PyrePlugin);
+        let body = a_body(&mut app);
+        kill(&mut app, body);
+        app.update();
+
+        assert!(
+            bursts(&mut app).is_empty(),
+            "there is nothing to build a graph in and nobody to see it"
+        );
     }
 }

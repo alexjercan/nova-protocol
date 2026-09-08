@@ -167,14 +167,18 @@ pub(crate) fn shed_dead_fixtures(
         let away =
             Dir3::new(transform.translation - centre).unwrap_or(Dir3::new(toss).unwrap_or(Dir3::Y));
 
+        // Every write here is a `try_`: the section this plate hangs off may
+        // have died in the same frame, and `explode` despawns what it takes
+        // with it. The query saw a live fixture, the command lands after that
+        // despawn, and a plate that went down with its section needs no send-off.
         commands
             .entity(fixture)
             // Dropping `ChildOf` is what sheds it, and it is also the guard:
             // a fixture already off the ship has no parent to leave and so
             // never matches this query again.
-            .remove::<ChildOf>()
-            .remove::<Collider>()
-            .insert((
+            .try_remove::<ChildOf>()
+            .try_remove::<Collider>()
+            .try_insert((
                 ShedFixtureMarker(*section),
                 // The world pose it was standing at, now that there is no
                 // parent frame to be local to.
