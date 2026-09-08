@@ -154,10 +154,11 @@ use crate::capabilities::{frametime::prelude::*, timeline::stamp};
 /// meaning or disappears; adding a field does not need a bump, because a reader
 /// that does not know a key ignores it.
 ///
-/// `2` drops `applied[].state` from the lines the channel merges in, and makes
-/// `radar.dwell_fill` null when no dwell is running where it used to read 1.0.
-/// Both are exactly the case the rule above names, and a driver reading a
-/// snapshot has no other field to tell the two shapes apart by.
+/// `2` drops `applied[].state` from the lines the channel merges in: a field a
+/// v0.12.0 driver reads is gone, which is exactly the case the rule above
+/// names. The `radar.dwell_fill` gate landed in the same commit and does NOT
+/// earn a bump - that field never shipped, so no reader outside this tree has
+/// seen the shape it replaced.
 pub const SNAPSHOT_SCHEMA: u32 = 2;
 
 /// Decimals every float in a snapshot is rounded to. See the module docs for
@@ -1862,6 +1863,45 @@ mod tests {
         assert_eq!(
             snapshot["beacons"][1]["position"],
             serde_json::json!([-50.0, 8.0, 90.0])
+        );
+    }
+
+    /// The three shapes `dwell_fill` has to tell apart, over the gate that
+    /// tells them apart. A driver holds until the fill reaches 1, so "no dwell
+    /// is running" must not read as 1.0 (which `dwell_fraction` returns for a
+    /// non-positive `needed`) and the completed dwell must still report 1.0 -
+    /// which is why the gate is the existence of a dwell and not
+    /// `is_dwelling`, that goes false on the very frame the reader waits for.
+    #[test]
+    fn dwell_fill_is_null_without_a_dwell_and_one_when_the_dwell_completes() {
+        let mut world = World::new();
+        let mark = world.spawn(EntityId::new("mark")).id();
+        let ship = world.spawn(RadarState::default()).id();
+
+        let record = radar_record(&world, ship);
+        assert_eq!(record["dwell_fill"], serde_json::Value::Null);
+        assert_eq!(record["dwell_target"], serde_json::Value::Null);
+
+        world.entity_mut(ship).insert(RadarState {
+            dwell_target: Some(mark),
+            dwell_secs: 0.5,
+            dwell_needed: 2.0,
+            ..default()
+        });
+        let record = radar_record(&world, ship);
+        assert_eq!(record["dwell_target"], "mark");
+        assert_eq!(record["dwell_fill"], serde_json::json!(0.25));
+
+        world.entity_mut(ship).insert(RadarState {
+            dwell_target: Some(mark),
+            dwell_secs: 2.0,
+            dwell_needed: 2.0,
+            ..default()
+        });
+        assert_eq!(
+            radar_record(&world, ship)["dwell_fill"],
+            serde_json::json!(1.0),
+            "the completed dwell is exactly the 1.0 a holding driver waits for"
         );
     }
 

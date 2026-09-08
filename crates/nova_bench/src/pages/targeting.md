@@ -22,9 +22,11 @@ Put the target near bearing `[0, 0]`, hold `targeting.radar_hold`, and WATCH
 The dwell GROWS WITH RANGE: about a second inside a kilometre, about 60 ticks
 at 2500 m. That is why holding for a fixed 40 ticks and reading no lock proves
 nothing - read `dwell_fill` instead and hold until it reaches 1, or until
-`combat_lock` / `travel_lock` names the target. A `null` `dwell_fill` means
-the ray is on nothing lockable, so holding longer will not help: re-aim. Release once locked; the lock
-sticks on its own.
+`combat_lock` / `travel_lock` names the target. A `null` `dwell_fill` means no
+dwell is charging - either the hold has not crossed its threshold yet (the
+first 15 ticks of every hold do nothing but search), or the ray is on nothing
+lockable. `candidate` tells you which: a name means keep holding, `null` means
+re-aim. Release once locked; the lock sticks on its own.
 
 `me.radar` is `null` whenever the gesture is not held. Nothing is charging
 then, and nothing is being searched for.

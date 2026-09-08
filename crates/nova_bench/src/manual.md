@@ -98,7 +98,8 @@ Each gesture is one object with one verb:
 - `{"release": "<wire>"}`: let it go.
 - `{"tap": "<wire>"}`: press for one tick.
 - `{"aim": "<wire>", "delta": [x, y], "ticks": k}`: feed an axis input
-  `delta` per tick for `k` ticks.
+  `delta` per tick for `k` ticks. `k` is a whole number from 1 to 3600 (a
+  minute of game time); anything else is refused, not clamped.
 - `{"command": "<line>"}`: type a line at the ship's computer. The answer
   arrives in `commands` on the next view. `help` lists what it knows.
 

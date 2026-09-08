@@ -106,6 +106,18 @@ mod tests {
         assert!(page_names().contains("targeting"));
     }
 
+    /// The cap `parse_gesture` enforces, stated in the manual the agent is
+    /// handed. Without it a driver meets the bound only as a refusal, having
+    /// spent a turn to find it.
+    #[test]
+    fn the_manual_states_the_aim_tick_cap_the_parser_enforces() {
+        let cap = crate::prelude::MAX_AIM_TICKS;
+        assert!(
+            MANUAL.contains(&format!("1 to {cap}")),
+            "the manual does not state the {cap}-tick cap on `aim`"
+        );
+    }
+
     /// The relay is resolved by path at run time, so nothing else would catch
     /// a tool or a page that exists on one side of the socket and not the
     /// other. This is that check.

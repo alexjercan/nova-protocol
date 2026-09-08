@@ -102,19 +102,28 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
         &focuses(snapshot, me),
         expand,
     );
-    let me_id = me.map(|me| me["id"].clone()).unwrap_or(Value::Null);
-    let (inbound, outbound) = snapshot["ordnance"]
-        .as_array()
-        .map(|ordnance| {
-            ordnance
-                .iter()
-                .fold((0u64, 0u64), |(inbound, outbound), round| {
-                    if round["owner"] == me_id {
-                        (inbound, outbound + 1)
-                    } else {
-                        (inbound + 1, outbound)
-                    }
+    // Split by IDENTITY, so it needs an identity to split by. With no player
+    // the id would be `Value::Null`, and a snapshot writes `owner: null` for
+    // any round whose owner entity has despawned - so on the last view of a
+    // lost run, where a raider died too, that raider's rounds in flight would
+    // be counted as the dead player's outbound. No player, no ordnance of
+    // one's own.
+    let (inbound, outbound) = me
+        .map(|me| {
+            snapshot["ordnance"]
+                .as_array()
+                .map(|ordnance| {
+                    ordnance
+                        .iter()
+                        .fold((0u64, 0u64), |(inbound, outbound), round| {
+                            if round["owner"] == me["id"] {
+                                (inbound, outbound + 1)
+                            } else {
+                                (inbound + 1, outbound)
+                            }
+                        })
                 })
+                .unwrap_or_default()
         })
         .unwrap_or_default();
     let comms: Vec<Value> = mission["comms"]
@@ -1025,12 +1034,19 @@ mod tests {
     }
 
     /// The last snapshot of a lost run: the player's root was despawned in the
-    /// frame it died, so the only ship left is the one that killed it.
+    /// frame it died, so the only ship left is the one that killed it - and
+    /// the player's own rounds, orphaned by the same despawn, are written
+    /// `owner: null`. Neither the hull nor the count may be attributed.
     #[test]
     fn a_run_that_lost_its_hull_reports_no_me_rather_than_the_enemys() {
         let mut snapshot = snapshot();
         let ships = snapshot["ships"].as_array_mut().expect("ships");
         ships.retain(|ship| ship["controller"] != "Player");
+        for round in snapshot["ordnance"].as_array_mut().expect("ordnance") {
+            if round["owner"] == "player" {
+                round["owner"] = Value::Null;
+            }
+        }
         let view = condense(&snapshot, &BTreeSet::new(), &[]);
 
         assert!(
@@ -1042,6 +1058,11 @@ mod tests {
             view["contacts"].as_array().map(Vec::len),
             Some(1),
             "the surviving raider is a contact, not the point of view"
+        );
+        assert_eq!(
+            view["ordnance"],
+            json!({ "inbound": 0, "outbound": 0 }),
+            "an orphaned round matched the null id and was flown by a dead player"
         );
     }
 }

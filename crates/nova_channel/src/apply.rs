@@ -652,4 +652,49 @@ mod tests {
             "the release was swallowed with the context and the drive stayed on"
         );
     }
+
+    /// The same invariant on the SECTION lane, whose press-only gate is a copy
+    /// of the one above: a driver holds a mount's trigger in Flight, opens
+    /// NOVA OS, and stops. The stop must reach the bound source, or the mount
+    /// is left firing the moment Flight comes back up.
+    #[test]
+    fn a_section_stop_under_a_lowered_context_still_lifts_the_trigger() {
+        use nova_input::prelude::{ActionContext, ActiveContexts};
+
+        let mut world = ack_world();
+        world.init_resource::<ButtonInput<MouseButton>>();
+        let mut contexts = ActiveContexts::default();
+        contexts.set(ActionContext::Flight, true);
+        world.insert_resource(contexts);
+
+        let ship = world
+            .spawn((PlayerSpaceshipMarker, SpaceshipRootMarker))
+            .id();
+        world.spawn((
+            SectionMarker,
+            EntityId::new("port_turret"),
+            SpaceshipTurretInputBinding(vec![InputSource::Mouse(MouseButton::Left)]),
+            ChildOf(ship),
+        ));
+
+        apply_section(&mut world, 1, "port_turret", InputPhase::Press, "start");
+        assert!(
+            world
+                .resource::<ButtonInput<MouseButton>>()
+                .pressed(MouseButton::Left),
+            "the press never reached the mount"
+        );
+
+        world
+            .resource_mut::<ActiveContexts>()
+            .set(ActionContext::Flight, false);
+        apply_section(&mut world, 2, "port_turret", InputPhase::Release, "stop");
+
+        assert!(
+            !world
+                .resource::<ButtonInput<MouseButton>>()
+                .pressed(MouseButton::Left),
+            "the stop was swallowed with the context and the mount stayed hot"
+        );
+    }
 }

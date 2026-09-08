@@ -50,10 +50,10 @@ pub mod prelude {
         agent::{pi::PI_ENV, AgentSpec, SOCKET_ENV},
         audit::{BenchEvent, Bus, Ui},
         game::{GameChannel, GameConfig, GameProcess, ScenarioTarget},
-        gesture::{expand, parse_gestures, Gesture},
+        gesture::{expand, parse_gestures, Gesture, MAX_AIM_TICKS},
         movie::{stitch, Movie},
         observation::condense,
-        referee::{Budget, Referee},
+        referee::{Budget, Referee, TICKS_PER_SECOND},
         score::Score,
     };
 }

@@ -10,18 +10,20 @@ use std::collections::BTreeSet;
 
 use serde_json::{json, Value};
 
+use crate::prelude::TICKS_PER_SECOND;
+
 /// The longest an `aim` may be held, in ticks.
 ///
-/// A minute of game time at `TICKS_PER_SECOND`, which is already far longer
-/// than any gesture a run has a use for. The bound exists because `ticks`
-/// arrives straight off the model through a schema that types it as `Any`, and
-/// `expand` writes ONE WIRE LINE PER TICK: a plausible unit slip - ticks given
-/// as milliseconds - turns a single aim into millions of lines written to the
-/// game's stdin and mirrored to the audit log, with no deadline check in the
-/// send loop to interrupt it. Refused rather than clamped, so the model is told
-/// what it got wrong instead of silently aiming for a different span than it
-/// asked for.
-pub const MAX_AIM_TICKS: u64 = 60 * 60;
+/// A minute of game time, derived from [`TICKS_PER_SECOND`] so the figure and
+/// the claim cannot drift apart - already far longer than any gesture a run
+/// has a use for. The bound exists because `ticks` arrives straight off the
+/// model through a schema that types it as `Any`, and `expand` writes ONE WIRE
+/// LINE PER TICK: a plausible unit slip - ticks given as milliseconds - turns
+/// a single aim into millions of lines written to the game's stdin and
+/// mirrored to the audit log, with no deadline check in the send loop to
+/// interrupt it. Refused rather than clamped, so the model is told what it got
+/// wrong instead of silently aiming for a different span than it asked for.
+pub const MAX_AIM_TICKS: u64 = 60 * TICKS_PER_SECOND;
 
 /// One thing the agent does. The wire name conventions are the channel's:
 /// `<group>.<name>` for a registered action, `section.<id>` for a mount.
