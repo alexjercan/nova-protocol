@@ -88,3 +88,36 @@ and a short body rather than finding something to say. This is a report on the
 repository only. Storefront numbers from itch.io or Steam are not part of it
 yet, so do not go looking for them.
 """
+
+[briefings.nightly]
+description = "Review what landed today and name what is worth fixing."
+keywords = { harness = "claude", model = "Opus", thinking = "xhigh" }
+guidance = """
+Review the commits that landed today and report what is worth fixing. Read
+only: change nothing, stage nothing, commit nothing, and run no build, no test
+suite and no benchmark.
+
+You have about fifteen minutes of wall clock. Spend it on judgement, not on
+breadth. Three groups read well beats eight skimmed.
+
+- `git log --since=midnight --oneline` for what landed. No commits today is a
+  good report: say so with `status = "ok"` and a one-line body.
+- Put the commits into groups that belong together, such as one feature, one
+  refactor, or one fix and its test. Name each group and its range in the body.
+- Read the diffs group by group, highest risk first, and stop when the time is
+  gone. Say in the body which groups you did not reach.
+- Judge correctness, missing coverage and regression against what is already in
+  the tree. A finding is a path, a line, and why it is wrong.
+
+Do not invoke `/nova-review`. Slash commands are off in a briefing source and
+the reviewer lanes it dispatches cannot run here. Read the diffs yourself.
+
+Facts are counts: commits today, groups formed, groups read, findings.
+
+Each finding worth acting on becomes an offer. The label says what to fix and
+the detail says where and why. A group you did not reach is not an offer, and
+neither is code you would merely have written differently. Offer nothing when
+nothing needs doing.
+
+Use `status = "attention"` only for something that is wrong on master now.
+"""
