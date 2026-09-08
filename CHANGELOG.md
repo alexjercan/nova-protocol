@@ -354,8 +354,8 @@ does NOT get an entry - and it is the only place they are written down.
   palette, strata and specular over a triplanar surface, so a belt reads as
   several materials instead of one repeated rock.
 - A death burns: a white flash, then incandescent fragments that outlive it and
-  keep travelling, and light thrown on the hulls nearby. A section going up is a
-  compartment; a whole hull letting go covers the wreck.
+  keep travelling, and light on the hulls nearby. A section going up is a
+  compartment; a hull letting go covers the wreck.
 - A torpedo's detonation is twice the size and burns three times as long: a
   bigger core, ejecta thrown out past 100 m, and a flash that reaches 1.4 km.
 
@@ -388,9 +388,12 @@ does NOT get an entry - and it is the only place they are written down.
 - A GOTO that ends at a planetoid reports its arrival, and parks itself in
   orbit only where the ship's computer grants ORBIT - one withholding the verb
   hands the ship back at the standoff instead.
-- Debris turns about its own shape. A piece cut off a hull kept a centre of
-  mass measured in the SHIP's frame, so wreckage and cladding swung around a
-  point out where the hull had been.
+- Debris turns about its own shape. A piece cut off a hull spun about the
+  section's origin until its collider landed, so an off-centre part swung wide
+  and then snapped straight.
+- Shooting a rock throws rock. An asteroid states its material on the body
+  while a crater is cut into the mesh beneath it, so every chip came off as the
+  white-hot ship plate a hull sheds.
 
 ### Internals & Tooling
 - One TABLE declares the action vocabulary. A row generates the enum arm, the
@@ -407,10 +410,9 @@ does NOT get an entry - and it is the only place they are written down.
   The per-event detail moved to `trace`.
 - `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch
   fields a new matchup; `--seed` replays one and a scripted run stays pinned.
-- Under capture only, `wfc_arena` stages its strike: the pair is brought to
-  1.5 km and left closing slowly, the subject's lance is cued a beat before two
-  salvos while every rival lance stands down, and the result screen is
-  suppressed. A hand-run fights exactly as before.
+- Under capture only, `wfc_arena` stages its strike: the pair closes slowly
+  from 1.5 km, the subject's lance is cued a beat before two salvos while every
+  rival stands down, and the result screen is off.
 - The ring loops now stand where the world is: the cockpit view frames the ice
   planet and re-aims for the climb, and the GOTO arrival montage shoots back
   down the track instead of at empty sky.
@@ -453,17 +455,11 @@ does NOT get an entry - and it is the only place they are written down.
   would type, answered with the same result the screen prints. `action` is
   refused for good and points at it.
 - **(breaking)** An input ack is an ECHO of what a frame consumed - `line`,
-  `input`, `phase`, `tick`, no verdict. Every gate sits above the input layer,
-  so read the effect off the world. `schema` is `2`, which is also how a driver
-  tells the two ack shapes apart.
-- **(breaking)** `radar.dwell_fill` is null when no dwell is running. It used
-  to read 1.0 - indistinguishable from a completed lock - the whole time the
-  radar was held on empty space, so an agent told to hold until it reaches 1
-  released immediately and took no lock.
-- A `stop` sent while the action's context is lowered now lifts the key.
-  Previously only the press was swallowed with the context but the release was
-  too, so a drive pressed in flight and released with NOVA OS open came back
-  nailed on.
+  `input`, `phase`, `tick`, no verdict. Read the effect off the world;
+  `schema` is `2`, which tells the two shapes apart.
+- A `stop` sent while the action's context is lowered now lifts the key. The
+  release used to be swallowed with the press, so a drive pressed in flight and
+  released with NOVA OS open came back nailed on.
 - A snapshot's `input` block lists `shared`: the pairs of actions that read one
   physical key, from the bindings themselves, so a driver can avoid sending
   both without keeping a table of its own.
@@ -498,11 +494,11 @@ does NOT get an entry - and it is the only place they are written down.
   objectives, outcome, comms, the objective log, the scene playing and whether
   it is skippable, and the cheat mark.
 - The world snapshot lists every asteroid and planet under `bodies` - kind,
-  position, the derived radius a carve shrinks - and reports the ship's
-  autopilot, dominant gravity well and the radar dwell.
+  position, the radius a carve shrinks - plus the ship's autopilot, gravity
+  well and radar dwell, null while nothing charges.
 - A `range` bench fixture with no objective: a planetoid, two rocks, a beacon
-  and an unarmed hostile derelict, for goals given on the command line -
-  orbit, park, destroy - and graded from the score's `end` block.
+  and an unarmed derelict, for goals given on the command line - orbit, park,
+  destroy - graded from the score's `end` block.
 
 ## [0.12.0] - 2026-08-31
 
