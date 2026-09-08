@@ -128,7 +128,8 @@ second and degrees:
   `turn_rate_dps`, `health`, `weapons_hot`, `combat_lock`, `travel_lock`,
   `radar` (the acquisition dwell while the radar gesture is held: the
   candidate, the dwell target, `dwell_secs` of `dwell_needed` and the
-  `dwell_fill` a player watches on the ring; null otherwise), `autopilot`
+  `dwell_fill` a player watches on the ring, itself null when no dwell is
+  running; null otherwise), `autopilot`
   (`engaged`: action, target and phase, or null; `completed`: the last action
   that finished), `gravity_well` (the dominant well's id), `sections` (the
   bridge, the drives, each mount with its `weapon`: kind, ammo, `on_target`,

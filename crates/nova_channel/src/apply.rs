@@ -229,9 +229,19 @@ fn apply_input(world: &mut World, line: usize, wire: &str, phase: InputPhase) {
     let Some(context) = known else {
         return refuse(world, line, format!("no action named `{wire}`"));
     };
-    // A lowered context swallows the press exactly as it swallows a player's
+    // A lowered context swallows the PRESS exactly as it swallows a player's
     // key. `input.live` is what says so; the ack only ever echoes the line.
-    if !world.resource::<ActiveContexts>().is_live(context) {
+    //
+    // A RELEASE is never swallowed. bevy clears only the `just_*` edges, so a
+    // key this channel pressed stays down across frames: dropping its release
+    // because NOVA OS happened to be open leaves the drive nailed on the
+    // moment Flight comes back up, and no field on the wire says so. Releasing
+    // unconditionally is also idempotent - `held_source` resolves the source
+    // the press pushed, falling back to the action's own binding, and releasing
+    // a button that is already up writes nothing anyone can observe. That is
+    // what keeps the invariant this module opens with: every synthesized event
+    // gets its Released twin.
+    if phase == InputPhase::Press && !world.resource::<ActiveContexts>().is_live(context) {
         return ack(world, entry(line, wire, phase_word));
     }
     match dispatch::apply(world, name, phase) {
@@ -252,9 +262,11 @@ fn apply_section(world: &mut World, line: usize, id: &str, phase: InputPhase, ph
     let Some(source) = section_source(world, id) else {
         return refuse(world, line, format!("no section `{id}` on the ship"));
     };
-    if !world
-        .resource::<ActiveContexts>()
-        .is_live(nova_input::prelude::ActionContext::Flight)
+    // Press only, for the reason `apply_input` states above it.
+    if phase == InputPhase::Press
+        && !world
+            .resource::<ActiveContexts>()
+            .is_live(nova_input::prelude::ActionContext::Flight)
     {
         return ack(world, entry(line, &wire, phase_word));
     }
@@ -594,6 +606,50 @@ mod tests {
             serde_json::json!({
                 "line": 4, "input": "flight.main_drive", "phase": "start", "tick": 61
             })
+        );
+    }
+
+    /// The invariant this module opens with, over the seam that used to break
+    /// it: a driver presses the drive in Flight, opens NOVA OS, and releases.
+    /// The release must land even though the context that took the press is
+    /// down, or the drive is nailed on the moment Flight comes back up.
+    #[test]
+    fn a_release_sent_while_the_context_is_down_still_lifts_the_key() {
+        use nova_input::prelude::{
+            ActionBinding, ActionContext, ActiveContexts, InputBindings, InputSource,
+        };
+
+        let mut world = ack_world();
+        world.insert_resource(InputBindings::from_actions([ActionBinding::new(
+            "main_drive",
+            "FLIGHT",
+            "Main Drive",
+        )
+        .context(ActionContext::Flight)
+        .keyboard([InputSource::Keyboard(KeyCode::KeyW)])]));
+        world.init_resource::<ButtonInput<KeyCode>>();
+        let mut contexts = ActiveContexts::default();
+        contexts.set(ActionContext::Flight, true);
+        world.insert_resource(contexts);
+
+        apply_input(&mut world, 1, "flight.main_drive", InputPhase::Press);
+        assert!(
+            world
+                .resource::<ButtonInput<KeyCode>>()
+                .pressed(KeyCode::KeyW),
+            "the press never reached the key"
+        );
+
+        world
+            .resource_mut::<ActiveContexts>()
+            .set(ActionContext::Flight, false);
+        apply_input(&mut world, 2, "flight.main_drive", InputPhase::Release);
+
+        assert!(
+            !world
+                .resource::<ButtonInput<KeyCode>>()
+                .pressed(KeyCode::KeyW),
+            "the release was swallowed with the context and the drive stayed on"
         );
     }
 }

@@ -153,7 +153,12 @@ use crate::capabilities::{frametime::prelude::*, timeline::stamp};
 /// Wire-format version of a snapshot object. Bump it when a field changes
 /// meaning or disappears; adding a field does not need a bump, because a reader
 /// that does not know a key ignores it.
-pub const SNAPSHOT_SCHEMA: u32 = 1;
+///
+/// `2` drops `applied[].state` from the lines the channel merges in, and makes
+/// `radar.dwell_fill` null when no dwell is running where it used to read 1.0.
+/// Both are exactly the case the rule above names, and a driver reading a
+/// snapshot has no other field to tell the two shapes apart by.
+pub const SNAPSHOT_SCHEMA: u32 = 2;
 
 /// Decimals every float in a snapshot is rounded to. See the module docs for
 /// why the number is fixed rather than "whatever the float prints as".
@@ -615,18 +620,27 @@ fn body_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
 /// `null` whenever the radar is not held: [`RadarState`] lives on the ship
 /// only for the length of one gesture. Without the dwell a reader cannot tell
 /// "the lock is charging" from "this contact cannot be locked", which is the
-/// difference the ring shows a player at a glance.
+/// difference the ring shows a player at a glance. `dwell_fill` is itself
+/// `null` when no dwell is running, for the reason stated on it below.
 fn radar_record(world: &World, entity: Entity) -> serde_json::Value {
     let Some(radar) = world.get::<RadarState>(entity) else {
         return serde_json::Value::Null;
     };
+    // `dwell_fill` is a FRACTION OF A DWELL, so it says nothing when there is no
+    // dwell: `dwell_fraction` returns 1.0 for a non-positive `needed`, which
+    // published unguarded reads as "locked" the whole time the radar is held on
+    // empty space - and the manual tells an agent to hold until it reaches 1.
+    // The gate is the existence of a dwell and NOT `is_dwelling`, which also
+    // goes false the instant the dwell completes: that moment is exactly the
+    // 1.0 the reader is waiting for. The HUD's ring makes the same distinction.
+    let dwelling = radar.dwell_target.is_some() && radar.dwell_needed > 0.0;
     serde_json::json!({
         "slot": radar.engaged.map(|slot| format!("{slot:?}")),
         "candidate": label_of(world, radar.candidate),
         "dwell_target": label_of(world, radar.dwell_target),
         "dwell_secs": num(radar.dwell_secs),
         "dwell_needed": num(radar.dwell_needed),
-        "dwell_fill": num(radar.dwell_fill()),
+        "dwell_fill": dwelling.then(|| num(radar.dwell_fill())),
     })
 }
 

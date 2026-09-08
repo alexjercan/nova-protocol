@@ -7,9 +7,11 @@
 //! merged in: `applied` (every consumed line, echoed back with its tick - an
 //! echo, never a verdict: see [`apply::AppliedEntry`]),
 //! `input` (what may be pressed THIS tick) and - inside the snapshot itself -
-//! `ui` (the screen a GUI player sees, as data). The design record is
-//! `tasks/20260820-174148/nova-channel.html`; the executable schema reference
-//! is `tasks/20260820-174148/poc/mock_game.py`.
+//! `ui` (the screen a GUI player sees, as data). The wire reference is
+//! `docs/agent-bench.md`, which tracks this crate; the design record is
+//! `tasks/20260820-174148/nova-channel.html`, which is the argument as it
+//! stood and is NOT maintained against the wire - it and the `mock_game.py`
+//! beside it still show the `state` verdict this lane no longer emits.
 //!
 //! ## Where it writes
 //!

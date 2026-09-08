@@ -15,13 +15,15 @@ Put the target near bearing `[0, 0]`, hold `targeting.radar_hold`, and WATCH
 
 - `dwell_target` is the contact the acquisition is charging on.
 - `dwell_secs` of `dwell_needed` is how far it has charged; `dwell_fill` is
-  the same as a fraction. This is the ring a player watches fill.
+  the same as a fraction, and is `null` when nothing is charging at all. This
+  is the ring a player watches fill.
 - `candidate` is what is under the ray, whether or not it is charging.
 
 The dwell GROWS WITH RANGE: about a second inside a kilometre, about 60 ticks
 at 2500 m. That is why holding for a fixed 40 ticks and reading no lock proves
 nothing - read `dwell_fill` instead and hold until it reaches 1, or until
-`combat_lock` / `travel_lock` names the target. Release once locked; the lock
+`combat_lock` / `travel_lock` names the target. A `null` `dwell_fill` means
+the ray is on nothing lockable, so holding longer will not help: re-aim. Release once locked; the lock
 sticks on its own.
 
 `me.radar` is `null` whenever the gesture is not held. Nothing is charging

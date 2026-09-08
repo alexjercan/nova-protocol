@@ -453,7 +453,16 @@ does NOT get an entry - and it is the only place they are written down.
   refused for good and points at it.
 - **(breaking)** An input ack is an ECHO of what a frame consumed - `line`,
   `input`, `phase`, `tick`, no verdict. Every gate sits above the input layer,
-  so read the effect off the world.
+  so read the effect off the world. `schema` is `2`, which is also how a driver
+  tells the two ack shapes apart.
+- **(breaking)** `radar.dwell_fill` is null when no dwell is running. It used
+  to read 1.0 - indistinguishable from a completed lock - the whole time the
+  radar was held on empty space, so an agent told to hold until it reaches 1
+  released immediately and took no lock.
+- A `stop` sent while the action's context is lowered now lifts the key.
+  Previously only the press was swallowed with the context but the release was
+  too, so a drive pressed in flight and released with NOVA OS open came back
+  nailed on.
 - A snapshot's `input` block lists `shared`: the pairs of actions that read one
   physical key, from the bindings themselves, so a driver can avoid sending
   both without keeping a table of its own.
