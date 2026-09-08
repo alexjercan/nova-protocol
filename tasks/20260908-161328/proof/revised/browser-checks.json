@@ -1,0 +1,47 @@
+{
+  "reports": [
+    {
+      "width": 1440,
+      "page": 1
+    },
+    {
+      "width": 1440,
+      "page": 2
+    },
+    {
+      "width": 1440,
+      "page": 3
+    },
+    {
+      "width": 1440,
+      "page": 4
+    },
+    {
+      "width": 390,
+      "page": 1
+    },
+    {
+      "width": 390,
+      "page": 2
+    },
+    {
+      "width": 390,
+      "page": 3
+    },
+    {
+      "width": 390,
+      "page": 4
+    }
+  ],
+  "errors": [],
+  "checks": [
+    "direct file loading",
+    "raw SVGs",
+    "page navigation",
+    "keyboard",
+    "art toggle",
+    "contact sheet",
+    "mobile transcripts",
+    "no overflow"
+  ]
+}

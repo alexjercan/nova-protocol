@@ -1,0 +1,10 @@
+{
+  "baseline_revision": "e3291f373a65a6da81786e749f8c56193956abfa",
+  "unexpected_changes": [],
+  "ui_pocs_copied_byte_for_byte": true,
+  "comic_archive": [
+    "demo"
+  ],
+  "task_artifacts_absent_from_public_build": true,
+  "old_comic_design_directory_removed": true
+}

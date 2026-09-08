@@ -1,0 +1,119 @@
+{
+  "views": [
+    {
+      "width": 1440,
+      "study": "01-close-up"
+    },
+    {
+      "width": 1440,
+      "study": "02-window"
+    },
+    {
+      "width": 1440,
+      "study": "03-exterior"
+    },
+    {
+      "width": 390,
+      "study": "01-close-up"
+    },
+    {
+      "width": 390,
+      "study": "02-window"
+    },
+    {
+      "width": 390,
+      "study": "03-exterior"
+    }
+  ],
+  "publicViews": [
+    {
+      "width": 1440,
+      "slug": "ships/kaveri"
+    },
+    {
+      "width": 1440,
+      "slug": "ships/ebro"
+    },
+    {
+      "width": 1440,
+      "slug": "characters/elena-ward"
+    },
+    {
+      "width": 390,
+      "slug": "ships/kaveri"
+    },
+    {
+      "width": 390,
+      "slug": "ships/ebro"
+    },
+    {
+      "width": 390,
+      "slug": "characters/elena-ward"
+    }
+  ],
+  "errors": [],
+  "privateRequests": [
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/01-close-up.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/02-window.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/03-exterior.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/index.html",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/kaveri-design-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/ebro-design-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/elena-ward-portrait-concept.svg"
+  ],
+  "requests": [
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/01-close-up.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/02-window.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/03-exterior.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/clean-line-study/index.html",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/kaveri-design-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/ebro-design-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/elena-ward-portrait-concept.svg",
+    "http://127.0.0.1:46369/nova-protocol/lore/ships/kaveri/",
+    "http://127.0.0.1:46369/nova-protocol/docs.js",
+    "http://127.0.0.1:46369/nova-protocol/assets/lore/kaveri-design-concept.svg",
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+    "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2",
+    "http://127.0.0.1:46369/nova-protocol/favicon.svg",
+    "http://127.0.0.1:46369/nova-protocol/lore/ships/ebro/",
+    "http://127.0.0.1:46369/nova-protocol/docs.js",
+    "http://127.0.0.1:46369/nova-protocol/assets/lore/ebro-design-concept.svg",
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+    "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2",
+    "http://127.0.0.1:46369/nova-protocol/lore/characters/elena-ward/",
+    "http://127.0.0.1:46369/nova-protocol/docs.js",
+    "http://127.0.0.1:46369/nova-protocol/assets/lore/elena-ward-portrait-concept.svg",
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+    "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2",
+    "http://127.0.0.1:46369/nova-protocol/lore/ships/kaveri/",
+    "http://127.0.0.1:46369/nova-protocol/docs.js",
+    "http://127.0.0.1:46369/nova-protocol/assets/lore/kaveri-design-concept.svg",
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+    "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2",
+    "http://127.0.0.1:46369/nova-protocol/lore/ships/ebro/",
+    "http://127.0.0.1:46369/nova-protocol/docs.js",
+    "http://127.0.0.1:46369/nova-protocol/assets/lore/ebro-design-concept.svg",
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+    "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2",
+    "http://127.0.0.1:46369/nova-protocol/lore/characters/elena-ward/",
+    "http://127.0.0.1:46369/nova-protocol/docs.js",
+    "http://127.0.0.1:46369/nova-protocol/assets/lore/elena-ward-portrait-concept.svg",
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+    "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2"
+  ],
+  "checks": [
+    "Three standalone SVGs",
+    "Lettering bounds",
+    "Six section/viewport views",
+    "Unique inline IDs",
+    "Anchor navigation",
+    "Art-only toggle and keyboard activation",
+    "Text descriptions and dialogue",
+    "No horizontal overflow",
+    "No network dependencies",
+    "Color-only lore preview with unchanged geometry and separate lettering",
+    "Three standalone lore exports"
+  ]
+}
