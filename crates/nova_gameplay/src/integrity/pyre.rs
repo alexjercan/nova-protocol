@@ -91,11 +91,13 @@ const PYRE_FRAME_CAP: u32 = 6;
 #[derive(Resource, Default, Debug)]
 struct PyreBudget(u32);
 
-/// The shared graphs, built on the first death that needs one. Two per size:
-/// the core and its ejecta.
+/// The shared graphs. Two per size: the core and its ejecta.
 ///
-/// Lazy rather than [`FromWorld`], so an app that never destroys anything - and
-/// one running at a graphics tier with particles off - builds nothing.
+/// Warmed at startup by [`warm_the_pyres`] rather than built by [`FromWorld`],
+/// so an app with no asset stores and one running at a graphics tier with
+/// particles off still build nothing. The slots stay optional because that is
+/// what lets those two apps hold the resource without paying for it, and
+/// because the warm-up is a system and not a constructor.
 #[derive(Resource, Default, Debug)]
 struct PyreEffects {
     section: Option<PyrePair>,
@@ -440,6 +442,35 @@ fn refill_pyre_budget(mut budget: ResMut<PyreBudget>) {
     budget.0 = 0;
 }
 
+/// Build the graphs and the mask before anything needs them.
+///
+/// These are two `ExprWriter` graphs and a 128-texel texture per size, and
+/// building them on demand put all of it on the first frame anything died -
+/// which is the most-watched frame in the game, and during a hull collapse is
+/// the same flush frame that is already doing the most work. The cost does not
+/// change; only which frame pays it.
+///
+/// Both stores are optional on the same terms as the observer's: a world that
+/// cannot draw builds nothing, and neither does a tier with particles off.
+fn warm_the_pyres(
+    effects: Option<ResMut<Assets<EffectAsset>>>,
+    images: Option<ResMut<Assets<Image>>>,
+    mut pyres: ResMut<PyreEffects>,
+    mut soft_dot: ResMut<SoftDot>,
+    tier: Option<Res<GraphicsBudget>>,
+) {
+    if !tier.as_deref().is_none_or(|tier| tier.particles) {
+        return;
+    }
+    let (Some(mut effects), Some(mut images)) = (effects, images) else {
+        return;
+    };
+    soft_dot.handle(&mut images);
+    for root in [false, true] {
+        pyres.pair(root, &mut effects);
+    }
+}
+
 /// Throw the fireball a death earns.
 ///
 /// Reacts to the destroy marker rather than to a death event of its own, on the
@@ -594,6 +625,7 @@ impl Plugin for PyrePlugin {
         // no armed section still dies, so the pyre cannot rely on a turret
         // having been here.
         app.init_resource::<SoftDot>();
+        app.add_systems(Startup, warm_the_pyres);
         app.add_systems(First, refill_pyre_budget);
         app.add_observer(light_the_pyre);
     }
@@ -692,24 +724,31 @@ mod tests {
     }
 
     #[test]
-    fn a_second_death_reuses_the_graphs_the_first_one_built() {
+    fn the_graphs_are_ready_before_the_first_death_and_no_death_mints_more() {
         let mut app = pyre_app();
-        let first = a_body(&mut app);
-        kill(&mut app, first);
-        app.update();
-        let second = a_body(&mut app);
-        kill(&mut app, second);
         app.update();
 
+        let built = |app: &App| {
+            (
+                app.world().resource::<Assets<EffectAsset>>().len(),
+                app.world().resource::<Assets<Image>>().len(),
+            )
+        };
         assert_eq!(
-            app.world().resource::<Assets<EffectAsset>>().len(),
-            2,
-            "the graphs are shared - a death must not mint its own pair"
+            built(&app),
+            (4, 1),
+            "a core and an ejecta for each of the two sizes, and the one shared mask,              all standing before anything has died"
         );
+
+        for _ in 0..2 {
+            let body = a_body(&mut app);
+            kill(&mut app, body);
+            app.update();
+        }
         assert_eq!(
-            app.world().resource::<Assets<Image>>().len(),
-            1,
-            "and so is the mask they draw through"
+            built(&app),
+            (4, 1),
+            "the graphs are shared - a death must not mint its own pair"
         );
     }
 
