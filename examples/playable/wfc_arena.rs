@@ -2756,7 +2756,20 @@ fn install_strike_order(world: &mut World, ship: Entity, key: &str, directive: S
 fn stage_the_strike(world: &mut World) {
     let combatants = combatant_roots(world);
     let (subject, _) = strike_subject(&combatants);
-    world.resource_mut::<Strike>().subject = Some(subject);
+    // Zeroed, not just pointed: both counters run from app start, and the walk
+    // only reaches here after the AI has fought its way into
+    // `STRIKE_CLOSE_BAND` - up to `FIGHT_DEADLINE_SECS` of free fighting. One
+    // lance shot or one stray warhead during the approach would otherwise
+    // satisfy the beats below on their first evaluation, collapsing
+    // `STRIKE_CHARGE_SECS` and `STRIKE_SALVO_GAP_SECS` to a single frame each.
+    // Zeroing here is the whole fix because `disarm_the_rival_lances` runs a
+    // line later: from this frame on, the subject's is the only lance that can
+    // fire at all.
+    *world.resource_mut::<Strike>() = Strike {
+        subject: Some(subject),
+        hits: 0,
+        shots: 0,
+    };
     world.insert_resource(Vantage::Cinema(CINEMA_SLOT));
     settle_the_fight(world, &combatants);
     disarm_the_rival_lances(world, subject);

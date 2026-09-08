@@ -407,8 +407,9 @@ does NOT get an entry - and it is the only place they are written down.
 - `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch
   fields a new matchup; `--seed` replays one and a scripted run stays pinned.
 - Under capture only, `wfc_arena` stages its strike: the pair is brought to
-  500 m and left closing slowly, the lances are cued a beat before two salvos,
-  and the result screen stands down. A hand-run fights exactly as before.
+  1.5 km and left closing slowly, the subject's lance is cued a beat before two
+  salvos while every rival lance stands down, and the result screen is
+  suppressed. A hand-run fights exactly as before.
 - The ring loops now stand where the world is: the cockpit view frames the ice
   planet and re-aims for the climb, and the GOTO arrival montage shoots back
   down the track instead of at empty sky.
