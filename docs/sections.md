@@ -454,7 +454,7 @@ by its own share, and `x0 of 0` is a filter that matches nothing this hull has.
 The destruction stack is nova's own, in
 `crates/nova_gameplay/src/integrity/`, with the ship adapter in
 `crates/nova_ship/src/sections/integrity.rs`. `NovaIntegrityPlugin` composes
-eight generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
+nine generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
 
 - `health.rs` - the hit-point store: `Health`, `HealthApplyDamage` and the
   `HealthZeroMarker` its observer adds at zero.
@@ -465,12 +465,14 @@ eight generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
 - `spew.rs` (`CarveSpewPlugin`) and `chunk.rs` (`CarvedChunkPlugin`) - what a
   carve leaves behind: dust from every carve, and a real rigid body wherever a
   cut actually severed material.
-- Ship-owned `ShipIntegrityPlugin` (`nova_ship`, not one of the eight) - derives
+- Ship-owned `ShipIntegrityPlugin` (`nova_ship`, not one of the nine) - derives
   the section graph, handles disabled sections, rolls section health up to the
   ship root, and collapses a root that falls below its
   `StructuralCollapseThreshold`.
-- `explode.rs` (`ExplodablePlugin`) - what a destroyed body DOES, and it
-  detaches. See [How a body comes apart](#how-a-body-comes-apart) below.
+- `explode.rs` (`ExplodablePlugin`) and `pyre.rs` (`PyrePlugin`) - what a
+  destroyed body DOES and what it LOOKS like: the wreckage that drifts away,
+  and the fireball it drifts out of. See
+  [How a body comes apart](#how-a-body-comes-apart) below.
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
   being a threat.
 
@@ -496,6 +498,15 @@ art and the collider it already had, takes an outward kick and a spin, and
 despawns on a timer (`PIECE_LIFETIME_SECS`). A death moves entities and clones
 one collider handle, which is why the module has no fragment budget and no
 spawn queue - there is nothing left to ration.
+
+The FIREBALL is the other half, and it is a separate plugin because it rations
+what `explode` does not. `pyre.rs` observes the same destroy marker and spawns
+two hanabi instances - a core and its ejecta - at two authored sizes: a section
+burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`. Particles are minted, so
+this half DOES need a budget: `PYRE_FRAME_CAP` bounds how many fireballs one
+frame lights, and a root's own is never the one dropped, because that is the
+one the whole death reads as. Material has the last word - `IntegrityDestroyMarker`
+is a shared seam that an exhausted asteroid also raises, and rock does not burn.
 
 Four properties follow from that, and each is load-bearing:
 
@@ -1021,7 +1032,9 @@ per contact. A symmetric rule - ram damage - wants both.
   `spawn_carved_chunk`, `CHUNK_MIN_VOLUME` -
   `crates/nova_gameplay/src/integrity/chunk.rs`.
 - How a body comes apart: `detach_destroyed_body`, `DetachedPieceMarker` -
-  `crates/nova_gameplay/src/integrity/explode.rs`.
+  `crates/nova_gameplay/src/integrity/explode.rs`; the fireball over it,
+  `SECTION_PYRE`, `HULK_PYRE`, `PYRE_FRAME_CAP` -
+  `crates/nova_gameplay/src/integrity/pyre.rs`.
 - Authored damage looks: `DamageEffect`, `fit_damage_effects` -
   `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
   `damage_cracks.rs`, `damage_sparks.rs` and `damage_plume.rs`.
