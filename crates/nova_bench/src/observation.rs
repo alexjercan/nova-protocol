@@ -65,10 +65,15 @@ fn expands(expand: &[String], block: &str, key: &str) -> bool {
 /// names the body groups to open in full (`all` opens every one).
 pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) -> Value {
     let ships = snapshot["ships"].as_array().cloned().unwrap_or_default();
-    let me = ships
-        .iter()
-        .find(|ship| ship["controller"] == "Player")
-        .or_else(|| ships.first());
+    // The player's hull or nobody. A destroyed integrity root is despawned in
+    // the frame its marker lands, so the last snapshot of a lost run carries no
+    // Player ship at all - and falling back to the first ship there reframed
+    // the whole observation onto the ENEMY: its health reported as `me.health`,
+    // its nose as the origin every bearing is measured from, and the player's
+    // own round in flight re-attributed as inbound. `Scorer::observe_me`
+    // already requires the same thing, so this is also what keeps the score and
+    // the view agreeing about who the player is. `me: None` degrades honestly.
+    let me = ships.iter().find(|ship| ship["controller"] == "Player");
     let frame = me.map(Frame::of);
     let mission = &snapshot["mission"];
 
@@ -1017,5 +1022,26 @@ mod tests {
         );
         assert_eq!(view["ordnance"], json!({ "inbound": 0, "outbound": 0 }));
         assert!(bodies_of(&view).is_empty());
+    }
+
+    /// The last snapshot of a lost run: the player's root was despawned in the
+    /// frame it died, so the only ship left is the one that killed it.
+    #[test]
+    fn a_run_that_lost_its_hull_reports_no_me_rather_than_the_enemys() {
+        let mut snapshot = snapshot();
+        let ships = snapshot["ships"].as_array_mut().expect("ships");
+        ships.retain(|ship| ship["controller"] != "Player");
+        let view = condense(&snapshot, &BTreeSet::new(), &[]);
+
+        assert!(
+            view["me"].is_null(),
+            "the enemy was reported as the player's own hull: {}",
+            view["me"]
+        );
+        assert_eq!(
+            view["contacts"].as_array().map(Vec::len),
+            Some(1),
+            "the surviving raider is a contact, not the point of view"
+        );
     }
 }
