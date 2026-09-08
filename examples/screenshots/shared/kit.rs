@@ -226,3 +226,44 @@ pub fn section_health(world: &mut World, ship: &str, section: &str) -> Option<En
         .into_iter()
         .find(|&child| world.get::<Health>(child).is_some())
 }
+
+/// Every cladding fixture bolted to `section`, at any depth, and nothing
+/// belonging to a section mounted on it.
+///
+/// A clad hull's outer surface is FIXTURES, not the section mesh: the plates
+/// and the greebles bolted to them are what a camera sees, and a round from
+/// outside arrives at their colliders first. A producer staging a hit on a
+/// clad section needs them by name.
+///
+/// The descent stops at a nested [`SectionMarker`], because a turret bolted to
+/// this cell owns its own skin: stripping it here would answer a broadside on
+/// the plating by undressing the gun.
+pub fn section_fixtures(world: &mut World, ship: &str, section: &str) -> Vec<Entity> {
+    let Some(owner) = section_entity(world, ship, section) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    let mut stack = vec![owner];
+    while let Some(node) = stack.pop() {
+        if node != owner && world.get::<SectionMarker>(node).is_some() {
+            continue;
+        }
+        if let Some(children) = world.get::<Children>(node) {
+            stack.extend(children.iter());
+        }
+        if node != owner && world.get::<SectionFixture>(node).is_some() {
+            found.push(node);
+        }
+    }
+    found
+}
+
+/// The section entity itself, by authored id, under `ship`'s root.
+pub fn section_entity(world: &mut World, ship: &str, section: &str) -> Option<Entity> {
+    let root = ship_root(world, ship)?;
+    world
+        .query_filtered::<(Entity, &EntityId, &ChildOf), With<SectionMarker>>()
+        .iter(world)
+        .find(|(_, id, parent)| id.0 == section && parent.parent() == root)
+        .map(|(entity, _, _)| entity)
+}

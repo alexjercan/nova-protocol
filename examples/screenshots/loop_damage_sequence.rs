@@ -136,6 +136,26 @@ const STILL_EYE: Vec3 = Vec3::new(-1.0, 0.3, -0.35);
 #[cfg(feature = "debug")]
 const STILL_STANDOFF: f32 = 135.0;
 
+/// Where the LOOP's lens sits, in the hull's own frame, as a direction.
+///
+/// The port quarter from astern - far enough round to hold both the flank the
+/// beats walk and the deck the last one frees, without the drive bell in the
+/// middle of it.
+#[cfg(feature = "debug")]
+const LOOP_EYE: Vec3 = Vec3::new(-0.68, 0.23, 0.70);
+
+/// How far the loop's lens stands off the hull, meters.
+///
+/// The stand-off is the SHIP's, not the crack's. At 76 m this lens was inside
+/// its own subject: the loop showed a drive bell and a piece of plating, and
+/// the severed deck crossed close enough to fill the frame. The hull is shot
+/// from the port QUARTER, so it presents about 60 m rather than its 85 m
+/// length; held here that silhouette is a little over a third of the frame,
+/// which leaves the freed deck room to drift without leaving the shot, and a
+/// crack is still a crack.
+#[cfg(feature = "debug")]
+const LOOP_STANDOFF: f32 = 115.0;
+
 /// The slow tumble the hull carries into the sequence, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
 #[cfg(feature = "debug")]
@@ -238,21 +258,16 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // read as four clips; the row's claim is that this is one continuous
         // thing happening to one ship, so the camera does not move.
         //
-        // The stand-off is the SHIP's, not the crack's. At 76 m this lens was
-        // inside its own subject: the loop showed a drive bell and a piece of
-        // plating, and the severed deck crossed the lens close enough to fill
-        // it. The hull is shot from the port QUARTER, so it presents about
-        // 60 m rather than its 85 m length; held at 115 m that silhouette is
-        // a little over a third of the frame, which leaves the freed deck room to drift
-        // without leaving the shot, and a crack is still a crack.
+        // Resolved in the HULL's frame and then held, for the reason
+        // `frame_the_wreck` states: the subject is authored with a yaw and a
+        // constant world pose lands on whichever side that yaw happens to
+        // present - the drive bell, with every beat's damage on the far side.
+        // Solved once here, before the spin, so the camera still does not move
+        // while the hull tumbles under it.
         .step("frame the port flank")
         .on_enter(|world| {
             hide_hud(world);
-            pose_camera(
-                world,
-                Meters3::new(-88.0, 32.0, 81.0),
-                Meters3::new(-10.0, 6.0, 1.0),
-            );
+            frame_from_hull(world, LOOP_EYE, LOOP_STANDOFF);
         })
         .until(elapsed(0.8))
         .add()
@@ -341,6 +356,21 @@ fn frame_the_wreck(world: &mut World) {
     {
         angular.0 = Vec3::ZERO;
     }
+    frame_from_hull(world, STILL_EYE, STILL_STANDOFF);
+}
+
+/// Put the lens `standoff` meters off the subject along `eye`, read in the
+/// HULL's frame rather than the world's.
+///
+/// Both framings in this file need it and for the same reason: the subject is
+/// authored with a yaw and then set tumbling, so a direction written in world
+/// axes photographs whichever side happens to be turned that way.
+#[cfg(feature = "debug")]
+fn frame_from_hull(world: &mut World, eye: Vec3, standoff: f32) {
+    let Some(subject) = kit::ship_root(world, SUBJECT_ID) else {
+        warn!("damage loop: no subject to frame on");
+        return;
+    };
     let Some(hull) = world.get::<GlobalTransform>(subject).copied() else {
         warn!("damage loop: subject carries no global transform");
         return;
@@ -349,7 +379,7 @@ fn frame_the_wreck(world: &mut World) {
     // harness takes is meters, so the position crosses over once. The rotation
     // is unitless and turns the meter offset as it is.
     let at = Meters3::from_engine(hull.translation()).get();
-    let eye = at + hull.rotation() * STILL_EYE.normalize() * STILL_STANDOFF;
+    let eye = at + hull.rotation() * eye.normalize() * standoff;
     let meters = |v: Vec3| Meters3::new(v.x, v.y, v.z);
     pose_camera(world, meters(eye), meters(at));
 }
@@ -369,7 +399,8 @@ fn spin_subject(world: &mut World) {
     }
 }
 
-/// Take most of the plating off three sections along the flank in one volley.
+/// Walk a volley along the flank: the plating comes off three cells and the
+/// hull cracks underneath.
 #[cfg(feature = "debug")]
 fn spread_cracks(world: &mut World) {
     let ships = world.resource::<GameShips>().clone();
@@ -387,7 +418,28 @@ fn spread_cracks(world: &mut World) {
             source: None,
             amount,
         });
-        info!("damage loop: cracked '{section}' for {amount:.1}");
+        // And take the SKIN off it. Cracks are never drawn on a fixture -
+        // `owning_section` ends its walk at one deliberately, because a
+        // fixture's damage read is that it comes off, and fresh cladding
+        // graded by a dying hull would read shattered. So a clad cell cracked
+        // alone cracks UNDER its plating and photographs as an untouched ship.
+        // Killing the plating is not a workaround for that, it is the volley:
+        // a round from outside meets the plate's collider first, and a
+        // broadside heavy enough to crack the cell behind takes the plates off
+        // on the way in.
+        let plates = kit::section_fixtures(world, SUBJECT_ID, &section);
+        for plate in &plates {
+            let fatal = world.get::<Health>(*plate).map_or(0.0, |health| health.max);
+            world.trigger(HealthApplyDamage {
+                entity: *plate,
+                source: None,
+                amount: fatal,
+            });
+        }
+        info!(
+            "damage loop: cracked '{section}' for {amount:.1}, stripped {} plate(s)",
+            plates.len()
+        );
     }
 }
 
