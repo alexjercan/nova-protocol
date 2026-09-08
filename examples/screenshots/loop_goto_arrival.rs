@@ -137,15 +137,30 @@ fn drive_cut_camera(world: &mut World) {
 ///
 /// Still a leg camera, not a pin - "parked" is the autopilot's word for a ship
 /// that has stopped closing, not for one that has stopped moving.
+///
+/// A CHASE, and side-dominant, unlike every cut before it. The montage cuts
+/// are all `along`-heavy: sixteen degrees off the track is a ship coming at
+/// the lens under power, and a burn is the one thing worth shooting nose-on.
+/// Arrival is the opposite - the drive is out, and a hull held nose-on with
+/// nothing coming out of it is a shape. Standing off the quarter puts the ship
+/// across the frame and still holds the bell, which is where the last of the
+/// plume is.
+///
+/// The bearing is the HULL's here and not the track's, and that is
+/// [`ring::ship_heading`]'s doing rather than this beat's: an arrived ship
+/// keeps a few meters a second of drift in whatever direction the brake left
+/// it, and below the speed floor the rig stops treating that as a track. This
+/// loop used to end on two seconds of a drive bell aimed at the lens for
+/// exactly that reason.
 #[cfg(feature = "debug")]
 fn settle_camera(world: &mut World) {
     world.remove_resource::<CutCamera>();
-    ring::leg(
+    ring::chase(
         world,
-        Meters(40.0),
-        Meters(140.0),
-        Meters(15.0),
-        Meters(-20.0),
+        Meters(120.0),
+        Meters(80.0),
+        Meters(28.0),
+        Meters::ZERO,
     );
 }
 

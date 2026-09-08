@@ -607,20 +607,39 @@ pub fn ship_position(world: &mut World) -> Meters3 {
         .unwrap_or_else(start_position)
 }
 
+/// Below this speed the ship has no track and the hull answers instead.
+///
+/// A ship that has arrived is not a ship at rest: it holds a few meters a
+/// second of residual drift, in whatever direction the last of the brake left
+/// it. `try_normalize` is happy to hand that back as a unit vector, and a leg
+/// camera then hangs its whole bearing on it - which is how the arrival loop
+/// came to end on two seconds of a drive bell pointed at the lens. Ten meters
+/// a second is an order of magnitude under the slowest deliberate manoeuvre
+/// in this set and two orders under a transfer, so nothing under way can
+/// reach it.
+#[cfg(feature = "debug")]
+const TRACK_SPEED_FLOOR: Meters = Meters(10.0);
+
 /// The direction the ship is travelling: its velocity, because on a ring the
 /// track and the nose are not the same thing (the hull leads its own turn), and
 /// the chase camera is a camera on the TRACK. Falls back to the hull's forward
-/// while the ship is still at rest.
+/// below [`TRACK_SPEED_FLOOR`], which covers both a ship still at rest and one
+/// that has arrived and is only drifting.
 #[cfg(feature = "debug")]
 pub fn ship_heading(world: &mut World) -> Vec3 {
     let Some(player) = player_root(world) else {
         return Vec3::NEG_Z;
     };
+    // Engine boundary: `LinearVelocity` is avian's, in world units per second,
+    // and the floor is authored in meters.
     let velocity = world
         .get::<avian3d::prelude::LinearVelocity>(player)
         .map(|velocity| velocity.0)
         .unwrap_or(Vec3::ZERO);
-    velocity.try_normalize().unwrap_or_else(|| {
+    let track = (velocity.length() >= TRACK_SPEED_FLOOR.to_engine())
+        .then(|| velocity.try_normalize())
+        .flatten();
+    track.unwrap_or_else(|| {
         world
             .get::<GlobalTransform>(player)
             .map(|transform| transform.forward().as_vec3())
