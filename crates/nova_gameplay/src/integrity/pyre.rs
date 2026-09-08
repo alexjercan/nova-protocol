@@ -52,6 +52,7 @@ use bevy_hanabi::prelude::*;
 
 use super::components::prelude::*;
 use crate::{
+    integrity::spew::prelude::CarveDebris,
     lifetime::TempEntity,
     settings::prelude::GraphicsBudget,
     soft_dot::prelude::{declare_soft_dot_slot, soft_dot_modifier, SoftDot},
@@ -447,7 +448,7 @@ fn refill_pyre_budget(mut budget: ResMut<PyreBudget>) {
 /// observer changes the look and inherits the cap for free.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one observer assembling a hanabi instance: the graph store, the mask, the frame budget, the tier gate and the two queries that place it"
+    reason = "one observer assembling a hanabi instance: the graph store, the mask, the frame budget, the tier gate and the queries that place it and say what it is made of"
 )]
 fn light_the_pyre(
     add: On<Add, IntegrityDestroyMarker>,
@@ -461,6 +462,7 @@ fn light_the_pyre(
     q_dead: Query<(&GlobalTransform, Has<IntegrityRoot>), With<IntegrityDestroyMarker>>,
     q_drift: Query<&avian3d::prelude::LinearVelocity>,
     q_parents: Query<&ChildOf>,
+    q_debris: Query<&CarveDebris>,
 ) {
     // Low graphics tier is spawn-less. Absent budget (a settings-less app)
     // means full quality.
@@ -477,6 +479,16 @@ fn light_the_pyre(
     };
 
     let entity = add.entity;
+
+    // Rock does not burn. `IntegrityDestroyMarker` is a shared seam - an
+    // exhausted asteroid raises it to reuse the destruction cue without opting
+    // into the health graph behind it - so the material has the last word on
+    // whether a death is a fireball at all. What this throws is a hull's own
+    // vaporised mass, and there is none of that in a rock.
+    if inherited_material(entity, &q_debris, &q_parents) == CarveDebris::Rock {
+        return;
+    }
+
     let Ok((frame, root)) = q_dead.get(entity) else {
         // Nothing that carries no transform: a health node hanging off a
         // section, which the section's own fireball already covers.
@@ -519,6 +531,28 @@ fn light_the_pyre(
         range: scale.light_range,
         duration: scale.light_secs,
     });
+}
+
+/// What the dead body is made of, from the nearest ancestor that says.
+///
+/// A walk for the same reason as [`inherited_drift`]: a rock states its
+/// material on the ROOT and dies on the carve node beneath it. Anything silent
+/// is ship, which is the assumption the rest of this module is written under.
+fn inherited_material(
+    entity: Entity,
+    q_debris: &Query<&CarveDebris>,
+    q_parents: &Query<&ChildOf>,
+) -> CarveDebris {
+    let mut current = entity;
+    loop {
+        if let Ok(debris) = q_debris.get(current) {
+            return *debris;
+        }
+        let Ok(parent) = q_parents.get(current) else {
+            return CarveDebris::Metal;
+        };
+        current = parent.0;
+    }
 }
 
 /// The velocity the dead body was carrying, from the nearest ancestor that has
@@ -778,5 +812,34 @@ mod tests {
             bursts(&mut app).is_empty(),
             "there is nothing to build a graph in and nobody to see it"
         );
+    }
+
+    /// An exhausted asteroid raises the same destroy marker a section does, to
+    /// reuse the cue seam. It must not get the fireball with it.
+    #[test]
+    fn a_rock_running_out_lights_nothing() {
+        let mut app = pyre_app();
+        let root = app.world_mut().spawn(CarveDebris::Rock).id();
+        let node = a_body(&mut app);
+        app.world_mut().entity_mut(node).insert(ChildOf(root));
+        kill(&mut app, node);
+        app.update();
+
+        assert!(
+            bursts(&mut app).is_empty(),
+            "a rock has no hull mass to vaporise, so it has no fireball"
+        );
+    }
+
+    /// The other half of the same rule: anything that does not say what it is
+    /// made of is ship, which is what every section in the game relies on.
+    #[test]
+    fn a_body_that_names_no_material_still_burns() {
+        let mut app = pyre_app();
+        let body = a_body(&mut app);
+        kill(&mut app, body);
+        app.update();
+
+        assert_eq!(bursts(&mut app).len(), 2, "a core and its ejecta");
     }
 }
