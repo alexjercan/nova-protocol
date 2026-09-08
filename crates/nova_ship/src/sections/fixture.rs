@@ -42,10 +42,27 @@ const SHED_LIFETIME_SECS: f32 = 12.0;
 /// How fast a fixture is pushed off the hull, in world units per second, on top
 /// of whatever the ship was already doing.
 ///
-/// Under a section's kick. A plate is a sheet coming away from the frame it was
-/// bolted to, not a compartment letting go, so it drifts off the hull rather
-/// than being thrown clear of it.
-const SHED_KICK: Range<f32> = 1.5..4.0;
+/// OVER a section's kick, because a plate has to clear a silhouette a section
+/// does not: one hit strips dozens of plates off a single hull, and below a
+/// section's speed they hang on the surface they came from as a crust the ship
+/// cannot be read through for about a second - which is exactly the second a
+/// player is reading the target. A sheet is the lighter thing anyway, so the
+/// same blast throws it further.
+const SHED_KICK: Range<f32> = 3.0..7.0;
+
+/// How many fixtures may come off in one frame.
+///
+/// Shedding a plate is cheap to decide and expensive to APPLY: each one leaves
+/// its parent, gains four components and drops a collider, which is an
+/// archetype move per plate. A hull wears hundreds, and a torpedo can kill
+/// dozens of them inside one frame.
+///
+/// Overflow is DEFERRED, never dropped - a plate whose health hit zero must
+/// come off eventually or the hull keeps wearing a dead one. Nothing extra is
+/// needed to make that happen: shedding is what removes `ChildOf`, so a
+/// fixture this frame skipped still matches the query on the next. At sixty
+/// frames a second the backlog drains far faster than the eye reads it.
+const SHED_FRAME_CAP: usize = 24;
 
 /// How fast a shed fixture tumbles as it leaves, in radians per second.
 ///
@@ -155,7 +172,7 @@ pub(crate) fn shed_dead_fixtures(
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
-    for (fixture, frame, ChildOf(section), collider) in &q_dead {
+    for (fixture, frame, ChildOf(section), collider) in q_dead.iter().take(SHED_FRAME_CAP) {
         let transform = frame.compute_transform();
         // Outward from the middle of the ship, which for cladding is the way it
         // already faces: a plate stands on the hull's outer surface, so this is
@@ -527,5 +544,58 @@ mod tests {
             velocity,
             "shed cladding was kicked a second time",
         );
+    }
+
+    /// The cap bounds the work in a frame without ever losing a plate: a hull
+    /// that loses its whole skin at once sheds it over several frames, and the
+    /// count that comes off is the count that was killed.
+    #[test]
+    fn a_hull_stripped_all_at_once_sheds_over_several_frames_and_loses_nothing() {
+        let (mut app, section, _) = shed_app(Vec3::Y * 2.0);
+        let plates: Vec<Entity> = (0..SHED_FRAME_CAP * 2 + 3)
+            .map(|i| {
+                app.world_mut()
+                    .spawn((
+                        ChildOf(section),
+                        SectionFixture,
+                        Health::new(10.0),
+                        Collider::cuboid(1.0, 1.0, 1.0),
+                        #[expect(
+                            clippy::cast_precision_loss,
+                            reason = "a test index spread along an axis"
+                        )]
+                        Transform::from_translation(Vec3::Y * (2.0 + i as f32)),
+                    ))
+                    .id()
+            })
+            .collect();
+        app.update();
+        for plate in &plates {
+            app.world_mut().trigger(HealthApplyDamage {
+                entity: *plate,
+                source: None,
+                amount: 1000.0,
+            });
+        }
+
+        app.update();
+        let shed_in_one_frame = plates
+            .iter()
+            .filter(|plate| app.world().get::<ShedFixtureMarker>(**plate).is_some())
+            .count();
+        assert_eq!(
+            shed_in_one_frame, SHED_FRAME_CAP,
+            "a frame with more dead plates than the cap sheds exactly the cap",
+        );
+
+        for _ in 0..plates.len() {
+            app.update();
+        }
+        for plate in &plates {
+            assert!(
+                app.world().get::<ShedFixtureMarker>(*plate).is_some(),
+                "a plate the cap deferred was never shed at all",
+            );
+        }
     }
 }
