@@ -1058,11 +1058,13 @@ fn torpedo_script() -> Script {
         .until(frames(2))
         .add()
         // The same wait as `catch a torpedo in the open iris`, on a longer
-        // clock: a deadline counts REAL seconds, every frame of an open loop
-        // pays a window capture, and the bay may have just started a reload
-        // interval when the trigger goes down. Measured at 1.6 s for the still
-        // on the software floor, where a loop frame costs about twice a plain
-        // one.
+        // clock: a deadline counts REAL seconds and the bay may have just
+        // started a reload interval when the trigger goes down. Measured at
+        // 1.6 s for the still on the software floor. The extra room is for the
+        // UNARMED walk, where `Time<Real>` is wall clock and a slow frame is
+        // charged in full; armed, the capture pins that clock to the frame
+        // step and the draw costs the budget nothing - see "What a step
+        // deadline counts" in `nova_debug::harness`.
         .step("fire through the iris for the loop")
         .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
         .until(and(the_iris_is_open(true), a_torpedo_is_emerging()))

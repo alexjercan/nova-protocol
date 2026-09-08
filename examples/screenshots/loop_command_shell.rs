@@ -71,11 +71,13 @@ const FRAMES_PER_CHARACTER: u32 = 3;
 ///
 /// Its own number because the beat is FRAME-clocked and a deadline counts REAL
 /// seconds. The typing is [`FRAMES_PER_CHARACTER`] per character of
-/// [`COMMAND`] - sixteen frames with the entry one - and a recorded frame of
-/// this scene costs about three quarters of a second under CI's software
-/// renderer against a sixtieth of one on a real adapter. That is twelve
-/// seconds where the ten this used to hold assumed well under one; this is the
-/// same budget with room over it, and still a backstop no healthy walk reaches.
+/// [`COMMAND`] - sixteen frames with the entry one - which on the ARMED path
+/// is sixteen thirtieths of a real second, because a loop capture pins
+/// `Time<Real>` to the frame step (see "What a step deadline counts" in
+/// `nova_debug::harness`), and on the unarmed path is sixteen wall frames of
+/// a scene that costs about three quarters of a second each under CI's
+/// software renderer. This is sized for the slower of the two with room over
+/// it, and is a backstop no healthy walk reaches on either.
 #[cfg(feature = "debug")]
 const TYPING_DEADLINE_SECS: f32 = 45.0;
 
@@ -174,10 +176,7 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .deadline(30.0)
         .add()
         .step("settle at the start")
-        .on_enter(|world: &mut World| {
-            ring::hud_instrument(world);
-            nova_protocol::nova_debug::harness::hide_status_bar(world);
-        })
+        .on_enter(ring::hud_instrument)
         .until(elapsed(1.0))
         .add()
         // Something for the shell to drop OVER. The insertion burn is the

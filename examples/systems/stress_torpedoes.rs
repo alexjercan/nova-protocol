@@ -129,9 +129,14 @@ const TEARDOWN_SETTLE_SECS: f32 = 0.5;
 /// speed, so a bound of N sim seconds needs about 5N real ones.
 ///
 /// They are HANG detectors, sized to outlast the slowest healthy step rather
-/// than to police the frame rate; the sweep's own `NOVA_AUTOPILOT_DEADLINE` is
-/// the outer backstop, and a step that expires here names itself in the log
-/// instead of being killed anonymously.
+/// than to police the frame rate. The four sum to 240 s, so a step that
+/// expires here names ITSELF in the log only while the run's outer completion
+/// deadline is above that sum. CI provides it: the probe step sets
+/// `NOVA_AUTOPILOT_DEADLINE: 280` (`.github/workflows/ci.yaml`). Probe does
+/// not - it sizes a deadline for an fps window only - so a bare local
+/// `probe run systems --correctness-only` gets `HarnessCompletion`'s 120 s
+/// default and dies naming the completion collector rather than the step.
+/// Export the variable to get the named failure locally.
 #[cfg(feature = "debug")]
 const SPAWN_DEADLINE_SECS: f32 = 45.0;
 #[cfg(feature = "debug")]

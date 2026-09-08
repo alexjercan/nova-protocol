@@ -21,6 +21,31 @@
 //! is inert unless `NOVA_CAPTURE` is, so an example wires them permanently and
 //! pays nothing in a normal run.
 //!
+//! ## What a step deadline counts
+//!
+//! A step's `deadline` is `Time<Real>` seconds and an `elapsed()` predicate is
+//! simulated ones, so the two are different clocks - and on a capturing walk
+//! `Time<Real>` is not wall clock either:
+//!
+//! - ARMED (`NOVA_CAPTURE`), with [`LoopCapturePlugin`]: the plugin pins
+//!   `TimeUpdateStrategy::ManualDuration` at the profile's frame step, from
+//!   plugin build on and not just while a loop is open, and that strategy
+//!   drives `Time<Real>` as well as the simulation. One app update is then
+//!   exactly one frame step on BOTH clocks, however long the frame took to
+//!   draw. So a deadline here counts frames, no frame reaches
+//!   `Time<Virtual>`'s max-delta clamp, and the wall cost of a slow renderer
+//!   does not spend the budget.
+//! - UNARMED: the capture plugin returns before it arms anything, so nothing
+//!   is recorded and no frame pays for a recording; [`shoot`] writes nothing
+//!   and `shot_written` holds immediately, so a shot beat is one polled frame.
+//!   `Time<Real>` is ordinary wall clock, and the simulation runs under
+//!   `Time<Virtual>`'s clamp.
+//!
+//! A bound argued from "a captured frame is expensive" is therefore still a
+//! safe backstop on both paths, but not for the reason it gives: on the armed
+//! path the deadline is a frame count, and on the unarmed one there is no
+//! capture to pay for.
+//!
 //! ## Why the autopilot does not force `Playing`
 //!
 //! Nova's `Loading -> Playing` transition is *asset-gated*: the loader flips it
@@ -849,8 +874,8 @@ pub mod prelude {
         assert_scenario_loaded, editor_filter_focused, editor_gallery_closed, editor_gallery_open,
         editor_gallery_selected, editor_part_armed, editor_placement_clear,
         editor_placement_refused, editor_placement_solved, editor_tool_is,
-        force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud, nova_autopilot,
-        nova_screenshot, player_ship_present, pose_camera, scenario_camera_present,
+        force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud, hide_status_bar,
+        nova_autopilot, nova_screenshot, player_ship_present, pose_camera, scenario_camera_present,
         scenario_variable_is, script_reports_done, section_gone, shoot, LoopCapturePlugin,
         LoopProfile, ScenarioLoadedAssertPlugin, NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP,
         NOVA_SCREENSHOT_PATH, REACHED_PLAYING, SETTLE_FRAMES, SHOT_DEADLINE_SECS,

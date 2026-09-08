@@ -17,8 +17,9 @@
 //!   [`cell_section`], the id of the section one block hull carries at a cell.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
 //!   actually be in frame.
-//! - [`ship_root`] and [`section_health`]: the two lookups a scene needs to
-//!   drive production damage at a named section of a named ship.
+//! - [`ship_root`], [`section_entity`], [`section_health`] and
+//!   [`section_fixtures`]: the lookups a scene needs to drive production damage
+//!   at a named section of a named ship, and to reach the cladding over it.
 //!
 //! Scene layout (where the planetoid sits, where the ships are posed, how the
 //! camera is framed) stays with each producer - this is the kit, not the set.
@@ -209,12 +210,7 @@ pub fn ship_root(world: &mut World, id: &str) -> Option<Entity> {
 /// instead of writing a health value directly and skipping every system that
 /// reacts to a hit.
 pub fn section_health(world: &mut World, ship: &str, section: &str) -> Option<Entity> {
-    let root = ship_root(world, ship)?;
-    let owner = world
-        .query_filtered::<(Entity, &EntityId, &ChildOf), With<SectionMarker>>()
-        .iter(world)
-        .find(|(_, id, parent)| id.0 == section && parent.parent() == root)
-        .map(|(entity, _, _)| entity)?;
+    let owner = section_entity(world, ship, section)?;
     if world.get::<Health>(owner).is_some() {
         return Some(owner);
     }

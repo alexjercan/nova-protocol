@@ -179,9 +179,14 @@ names its own root on `SettingsStorePlugin` instead.
   stay literals beside the range that reads them. The two railgun names pick
   which of the shipped loops `screenshot_railgun` records - the aftermath cut,
   and the real-speed pass against the default slowed clock - and
-  `scripts/capture-web-media.sh` sets them. An unset variable reads as `false`
-  silently, so a re-record that forgets one ships two identical loops labelled
-  "slowed" and "real speed".
+  `scripts/capture-web-media.sh` sets them. Neither goes wrong quietly.
+  `NOVA_RAILGUN_AFTERMATH` is a duration: unset it falls back to the
+  producer's own window, and a value that is not a positive number of seconds
+  panics. A row that forgets `NOVA_RAILGUN_LIVE=1` records the SLOWED loop
+  name, so the live row's file never appears - and the script `rm -f`s that
+  file before the run and hard-checks it after, so the capture aborts naming
+  the missing loop, having overwritten the already-staged slowed row on the
+  way.
 - **`NOVA_OS_*`.** Around 180 of these exist and NONE is an environment
   variable: they are `const Color`, layout and volume values in `nova_os_ui`,
   `nova_os` and `nova_gameplay::audio`. A grep for `NOVA_[A-Z_]*` is dominated

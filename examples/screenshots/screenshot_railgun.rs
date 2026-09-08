@@ -742,17 +742,17 @@ fn pause_the_clock(world: &mut World) {
 /// Let gameplay time run again, at whatever scale is set.
 ///
 /// The other half of holding the charge still. Between the commit and the loop
-/// opening, this walk spends beats that do not watch the gun: two PNG writes,
-/// each acked after however many frames the readback takes, and a
-/// thirty-frame camera settle. Those cost WORLD time in proportion to what a
-/// frame costs to render, because `Time<Virtual>` clamps a slow frame to its
-/// max delta rather than to zero - a quarter of a second under CI's software
-/// renderer against a sixtieth on a real adapter. At that rate the settle
-/// alone burned a quarter of the charge bar, the gun fired somewhere inside a
-/// capture, and `run the charge out` then waited out its deadline for a charge
-/// that had already been spent. So the clock runs in the beats that wait on
-/// the charge and nowhere else, which makes the walk read the same on any
-/// adapter.
+/// opening this walk spends beats that do not watch the gun, and the one that
+/// costs is the thirty-frame camera settle: `Time<Virtual>` clamps a slow
+/// frame to its max delta rather than to zero - a quarter of a second under
+/// CI's software renderer against a sixtieth on a real adapter - so at the
+/// shot scale the settle alone burned a quarter of the charge bar, the gun
+/// fired somewhere inside a capture, and `run the charge out` then waited out
+/// its deadline for a charge that had already been spent. The two PNG writes
+/// beside it are NOT a sink: a capture ack is a frame or two of readback
+/// armed, and holds immediately unarmed. So the clock runs in the beats that
+/// wait on the charge and nowhere else, which makes the walk read the same on
+/// any adapter.
 #[cfg(feature = "debug")]
 fn resume_the_clock(world: &mut World) {
     world.resource_mut::<Time<Virtual>>().unpause();
@@ -780,10 +780,12 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
                       path: &'static str| {
         script
             .step(format!("shoot {path}"))
-            // A capture never advances the world: the ack costs however many
-            // frames the readback takes, and before the shot those frames
-            // would be charge. A no-op for the aftermath stills, which are
-            // taken off an already-frozen world.
+            // The settle beat below is what actually spends charge; a shot
+            // ack is a frame or two of readback armed and no wait at all
+            // unarmed. Paused here anyway so that EVERY beat between the
+            // commit and `run the charge out` holds the same frozen clock,
+            // instead of one of them being the exception. A no-op for the
+            // aftermath stills, which are taken off an already-frozen world.
             .on_enter(move |world: &mut World| {
                 pause_the_clock(world);
                 shoot(world, path);
@@ -864,8 +866,11 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // Its own number, because this beat waits on a clock the walk has
         // deliberately slowed: the last fifth of the charge is a fifth of a
         // second of world, and at a twentieth of real time that is four
-        // seconds of a healthy adapter's wall clock and about sixteen of the
-        // software renderer's. A backstop over both, and far under the beat
+        // seconds of the clock a deadline counts. Armed, that clock is the
+        // recorded frame step and the figure holds on any adapter; unarmed it
+        // is wall time, and the software floor spends about sixteen seconds
+        // reaching the same point (see "What a step deadline counts" in
+        // `nova_debug::harness`). A backstop over both, and far under the beat
         // that follows it.
         .deadline(60.0)
         .add()

@@ -307,12 +307,20 @@ pub fn ship(
     })
 }
 
-/// Put the HUD on (the contextual rules decide what is actually in shot).
+/// Put the HUD on (the contextual rules decide what is actually in shot) and
+/// take the fps/version status bar back out.
+///
+/// The bar is not part of the instrument set a shot is showing: its version
+/// item names the commit the debug build came from, so every re-shoot bakes a
+/// different hash into the image, and its fps item puts the capture rig's
+/// cadence on the page. Dropped here rather than at each call site, so a
+/// producer cannot ship the bar by forgetting a line.
 #[cfg(feature = "debug")]
 pub fn hud_instrument(world: &mut World) {
     if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
         *hud = HudVisibility::On;
     }
+    hide_status_bar(world);
 }
 
 /// Clean the screen, for the beats whose camera has left the player's ship.

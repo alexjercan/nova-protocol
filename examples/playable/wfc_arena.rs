@@ -2756,15 +2756,15 @@ fn install_strike_order(world: &mut World, ship: Entity, key: &str, directive: S
 fn stage_the_strike(world: &mut World) {
     let combatants = combatant_roots(world);
     let (subject, _) = strike_subject(&combatants);
-    // Zeroed, not just pointed: both counters run from app start, and the walk
-    // only reaches here after the AI has fought its way into
-    // `STRIKE_CLOSE_BAND` - up to `FIGHT_DEADLINE_SECS` of free fighting. One
-    // lance shot or one stray warhead during the approach would otherwise
-    // satisfy the beats below on their first evaluation, collapsing
-    // `STRIKE_CHARGE_SECS` and `STRIKE_SALVO_GAP_SECS` to a single frame each.
-    // Zeroing here is the whole fix because `disarm_the_rival_lances` runs a
-    // line later: from this frame on, the subject's is the only lance that can
-    // fire at all.
+    // This picks the SUBJECT; the counters are scoped by the beats that read
+    // them. Both run from app start and only count up, and the walk reaches
+    // here after up to `FIGHT_DEADLINE_SECS` of free fighting, so one lance
+    // shot or one stray warhead during the approach would satisfy a beat on
+    // its first evaluation. `shots` is zeroed by `cue_the_lances` and `hits`
+    // by `cue_the_tubes`, each on entry to the beat whose `until` reads it -
+    // which is what the two consecutive salvo beats need, since they read the
+    // same predicate one after the other. The zeroes here are the baseline the
+    // subject is installed with, not the fix.
     *world.resource_mut::<Strike>() = Strike {
         subject: Some(subject),
         hits: 0,
@@ -2897,6 +2897,10 @@ fn strike_targets(combatants: &[(Entity, usize, Vec3, Option<usize>)]) -> BTreeM
 /// itself on the discharge, so this is a cue and not a held trigger.
 #[cfg(feature = "debug")]
 fn cue_the_lances(world: &mut World) {
+    // The beat this cues waits on `Strike::shot`, and `shots` only ever
+    // counts up. Zeroed HERE, on entry to that beat, so the predicate reads
+    // this cue's discharge and not one from earlier in the walk.
+    world.resource_mut::<Strike>().shots = 0;
     let combatants = combatant_roots(world);
     let (subject, _) = strike_subject(&combatants);
     let lances: Vec<Entity> = world
@@ -2950,6 +2954,12 @@ fn disarm_the_rival_lances(world: &mut World, subject: Entity) {
 /// range rather than a fight.
 #[cfg(feature = "debug")]
 fn cue_the_tubes(world: &mut World) {
+    // Two beats cue the tubes and both wait on `Strike::hit`, which only ever
+    // counts up. Zeroed HERE, on entry to each of them, so the second salvo
+    // waits on a warhead of ITS OWN: reading the monotonic count instead left
+    // the second beat true on its first evaluation, because the first had
+    // just ended on a hit, and collapsed the salvo to a single frame.
+    world.resource_mut::<Strike>().hits = 0;
     let combatants = combatant_roots(world);
     let targets = strike_targets(&combatants);
     let bays: Vec<(Entity, Entity)> = world

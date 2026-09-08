@@ -109,10 +109,10 @@ fn cockpit_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("settle without a maneuver")
         .on_enter(|world: &mut World| {
             // The HUD IS the subject here, so this loop cannot use `hide_hud`.
-            // The status bar still has to go: it carries the commit a debug
-            // build came from, and this footage is on the landing page.
+            // The status bar still goes: `hud_instrument` drops it, because
+            // this footage is on the landing page and the bar carries the
+            // commit a debug build came from.
             ring::hud_instrument(world);
-            nova_protocol::nova_debug::harness::hide_status_bar(world);
             frame_against_the_world(world);
         })
         .until(elapsed(0.8))
