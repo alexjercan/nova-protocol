@@ -729,12 +729,33 @@ fn set_time_scale(world: &mut World, scale: f32) {
 
 /// Stop gameplay time.
 ///
-/// The firing beat is over by here and every framing left is a still of what it
-/// left behind. A running clock would carry the debris out of frame between the
-/// poses, and each shot would be of a different wreck.
+/// Used for the aftermath stills - the firing beat is over by then and every
+/// framing left is a still of what it left behind, so a running clock would
+/// carry the debris out of frame between the poses and each shot would be of a
+/// different wreck - and, before the shot, to hold the CHARGE still through
+/// the beats that are not waiting on it. See [`resume_the_clock`].
 #[cfg(feature = "debug")]
 fn pause_the_clock(world: &mut World) {
     world.resource_mut::<Time<Virtual>>().pause();
+}
+
+/// Let gameplay time run again, at whatever scale is set.
+///
+/// The other half of holding the charge still. Between the commit and the loop
+/// opening, this walk spends beats that do not watch the gun: two PNG writes,
+/// each acked after however many frames the readback takes, and a
+/// thirty-frame camera settle. Those cost WORLD time in proportion to what a
+/// frame costs to render, because `Time<Virtual>` clamps a slow frame to its
+/// max delta rather than to zero - a quarter of a second under CI's software
+/// renderer against a sixtieth on a real adapter. At that rate the settle
+/// alone burned a quarter of the charge bar, the gun fired somewhere inside a
+/// capture, and `run the charge out` then waited out its deadline for a charge
+/// that had already been spent. So the clock runs in the beats that wait on
+/// the charge and nowhere else, which makes the walk read the same on any
+/// adapter.
+#[cfg(feature = "debug")]
+fn resume_the_clock(world: &mut World) {
+    world.resource_mut::<Time<Virtual>>().unpause();
 }
 
 /// Commit the shot on the range's lance.
@@ -759,7 +780,14 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
                       path: &'static str| {
         script
             .step(format!("shoot {path}"))
-            .on_enter(move |world: &mut World| shoot(world, path))
+            // A capture never advances the world: the ack costs however many
+            // frames the readback takes, and before the shot those frames
+            // would be charge. A no-op for the aftermath stills, which are
+            // taken off an already-frozen world.
+            .on_enter(move |world: &mut World| {
+                pause_the_clock(world);
+                shoot(world, path);
+            })
             .until(shot_written(path))
             .deadline(SHOT_DEADLINE_SECS)
             .add()
@@ -799,7 +827,10 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
 
     script = script
         .step("frame the sight")
-        .on_enter(|world: &mut World| frame(world, &SIGHT))
+        .on_enter(|world: &mut World| {
+            frame(world, &SIGHT);
+            resume_the_clock(world);
+        })
         .until(charge_at_least(SIGHT_CHARGE))
         .deadline(STEP_DEADLINE_SECS)
         .add();
@@ -814,6 +845,12 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .on_enter(|world: &mut World| {
             frame(world, &GAP);
             set_time_scale(world, SHOT_TIME_SCALE);
+            // The settle is a camera pose reaching the screen. Thirty frames
+            // of it at the shot scale is a quarter of the charge bar on the
+            // software renderer, which fires the gun here instead of in the
+            // beat below; the scale is still set here, so the clock the next
+            // beat hands back is the shot one.
+            pause_the_clock(world);
         })
         .until(frames(SETTLE_FRAMES))
         .add()
@@ -822,8 +859,15 @@ fn range_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // seconds of wall clock, and that used to be the first half of the
         // loop: a static frame with a lit bore in the corner of it.
         .step("run the charge out")
+        .on_enter(resume_the_clock)
         .until(charge_at_least(loop_open_charge()))
-        .deadline(STEP_DEADLINE_SECS)
+        // Its own number, because this beat waits on a clock the walk has
+        // deliberately slowed: the last fifth of the charge is a fifth of a
+        // second of world, and at a twentieth of real time that is four
+        // seconds of a healthy adapter's wall clock and about sixteen of the
+        // software renderer's. A backstop over both, and far under the beat
+        // that follows it.
+        .deadline(60.0)
         .add()
         // The clock changes HERE, not at the framing beat: the live cut runs
         // real time, and a frame of real time is a twentieth of the charge that

@@ -194,11 +194,25 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(report_skip)
                 .add()
                 // The finish handler started the second scene, which is
-                // authored unskippable: its first beat is up and the prompt has
-                // gone quiet.
+                // authored unskippable: its beats are running and the prompt
+                // has gone quiet.
+                //
+                // `debrief_beat` is a COUNTER, not one of this scenario's
+                // one-way latches, so the wait is "has left zero" and not
+                // `scenario_variable_is(.., 1.0)`. Beat 1 holds for
+                // `DEBRIEF_GAP` of scenario clock, which is a couple of frames
+                // on the software renderer - fewer than the two steps between
+                // the finish and this wait can spend, and the equality then
+                // waits forever on a beat the scene is already past. Beat 2
+                // witnesses the takeover exactly as well.
                 .step("the unskippable scene takes over")
                 .until(and(
-                    scenario_variable_is("debrief_beat", 1.0),
+                    resource_where::<NovaEventWorld>(|events| {
+                        matches!(
+                            events.get_variable("debrief_beat"),
+                            Some(VariableLiteral::Number(beat)) if *beat >= 1.0
+                        )
+                    }),
                     resource_where::<CinematicPrompt>(|prompt| prompt.skip_action.is_none()),
                 ))
                 .deadline(20.0)

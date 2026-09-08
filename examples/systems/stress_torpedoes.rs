@@ -121,20 +121,36 @@ const HOLD_SECS: f32 = 2.0;
 #[cfg(feature = "debug")]
 const TEARDOWN_SETTLE_SECS: f32 = 0.5;
 
-/// Deadlines, in the clamped sim seconds every gate here counts in. Generous
-/// for llvmpipe, where a frame of this scene is hundreds of milliseconds, and
-/// still summing well under the 120 s harness completion backstop.
+/// Deadlines, in the REAL seconds a step deadline is measured in - not the sim
+/// seconds `elapsed()` counts, which is what [`HOLD_SECS`] and
+/// [`TEARDOWN_SETTLE_SECS`] are in. The distinction decides every number here:
+/// under CI's lavapipe a frame of this scene costs about a second, and
+/// `Time<Virtual>`'s 0.25 s clamp then runs the sim at roughly a fifth of wall
+/// speed, so a bound of N sim seconds needs about 5N real ones.
+///
+/// They are HANG detectors, sized to outlast the slowest healthy step rather
+/// than to police the frame rate; the sweep's own `NOVA_AUTOPILOT_DEADLINE` is
+/// the outer backstop, and a step that expires here names itself in the log
+/// instead of being killed anonymously.
 #[cfg(feature = "debug")]
 const SPAWN_DEADLINE_SECS: f32 = 45.0;
 #[cfg(feature = "debug")]
 const HOT_DEADLINE_SECS: f32 = 15.0;
+/// Two hundred tubes launching once a second reach the range's scale in one
+/// lane flight (~5 s of sim), so the true bound is ~30 real seconds on the
+/// software floor. Measured at 29.0 s there, against the 40 s this used to
+/// hold - a margin too thin to survive a slower runner.
 #[cfg(feature = "debug")]
-const FILL_DEADLINE_SECS: f32 = 40.0;
-/// Above the ~5 s a lane takes at the Serpent's cruise, which is the true bound
-/// once the tubes close: nothing new launches, so every torpedo left flies its
-/// lane out and fuzes. Generous by a factor the weave and the fan can spend.
+const FILL_DEADLINE_SECS: f32 = 90.0;
+/// The ~5 s a lane takes at the Serpent's cruise is the true bound once the
+/// tubes close: nothing new launches, so every torpedo left flies its lane out
+/// and fuzes. That is ~30 real seconds on the software floor, which is exactly
+/// what the old 30 s deadline gave it - the drain was three seconds and a
+/// handful of rounds from done when it expired. A torpedo that is genuinely
+/// stuck is a dumb-fire round flying its full 100 s lifetime, so nothing
+/// healthy comes anywhere near this bound and nothing broken hides under it.
 #[cfg(feature = "debug")]
-const DRAIN_DEADLINE_SECS: f32 = 30.0;
+const DRAIN_DEADLINE_SECS: f32 = 90.0;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();

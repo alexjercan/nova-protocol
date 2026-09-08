@@ -67,6 +67,18 @@ const COMMAND: &str = "ships";
 #[cfg(feature = "debug")]
 const FRAMES_PER_CHARACTER: u32 = 3;
 
+/// Real seconds the typed command gets before the walk aborts naming the beat.
+///
+/// Its own number because the beat is FRAME-clocked and a deadline counts REAL
+/// seconds. The typing is [`FRAMES_PER_CHARACTER`] per character of
+/// [`COMMAND`] - sixteen frames with the entry one - and a recorded frame of
+/// this scene costs about three quarters of a second under CI's software
+/// renderer against a sixtieth of one on a real adapter. That is twelve
+/// seconds where the ten this used to hold assumed well under one; this is the
+/// same budget with room over it, and still a backstop no healthy walk reaches.
+#[cfg(feature = "debug")]
+const TYPING_DEADLINE_SECS: f32 = 45.0;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     // NovaMenuPlugin explicitly: the `:` gesture lives in nova_menu, and
@@ -233,7 +245,7 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             resource_where::<Typewriter>(Typewriter::idle),
             the_prompt_reads(COMMAND),
         ))
-        .deadline(10.0)
+        .deadline(TYPING_DEADLINE_SECS)
         .add()
         .step("hold before committing it")
         .until(frames(11))

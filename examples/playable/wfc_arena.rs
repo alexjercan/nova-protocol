@@ -1780,11 +1780,11 @@ const FOLLOW_LEAD: f32 = 12.0;
 /// axis, out to one side of it and lifted, in engine world units.
 ///
 /// ~320 m out, against the frame vantage's kilometre. The lens spans 1.47 times
-/// its distance, so the shot is ~470 m wide: an 85 m hull fills a fifth of it
-/// - close enough to read the plating, the open irises and a muzzle flash - and
-/// a 300 m warhead going off on that hull still fits. Standing BEHIND the
-/// subject on the threat axis is what puts incoming ordnance on a line into the
-/// middle of frame instead of across a corner of it.
+/// its distance, so the shot is ~470 m wide: an 85 m hull fills a fifth of it -
+/// close enough to read the plating, the open irises and a muzzle flash - and a
+/// 300 m warhead going off on that hull still fits. Standing BEHIND the subject
+/// on the threat axis is what puts incoming ordnance on a line into the middle
+/// of frame instead of across a corner of it.
 #[cfg(feature = "debug")]
 const CINEMA_BACK: f32 = 25.0;
 #[cfg(feature = "debug")]
@@ -2887,8 +2887,8 @@ fn strike_targets(combatants: &[(Entity, usize, Vec3, Option<usize>)]) -> BTreeM
 /// The subject's alone, because a spinal lance is not a thing a picture can
 /// hold twice. It is one flash and a slug that crosses 1.5 km in a tenth of a
 /// second, so the near hull's shot is three frames of the loop and the rival's
-/// is three frames of a contact the frame is a kilometre and a half away from
-/// - unreadable in itself, and it takes the near hull's bow out from under the
+/// is three frames of a contact the frame is a kilometre and a half away from -
+/// unreadable in itself, and it takes the near hull's bow out from under the
 /// camera on arrival. [`disarm_the_rival_lances`] is what makes that true of
 /// the AI's own trigger as well as of this cue.
 ///

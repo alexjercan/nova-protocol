@@ -1020,8 +1020,19 @@ fn torpedo_script() -> Script {
         .until(shot_written("bay-doors-open.png"))
         .deadline(5.0)
         .add()
+        // EVERY frame, not just the entry one. The bay launches on its own
+        // reload clock, and a launch that lands in the same frame as the entry
+        // despawn is fired by a system ordered after this one - it survives,
+        // arms, and takes the ship down with it ~1.4 s later. The still that
+        // follows never noticed, but the loop cycle below needs the bay it
+        // just blew up. Keeping the trigger off cannot prevent that round;
+        // taking it back on the next frame can.
         .step("let the iris close")
         .on_enter(clear_the_door_salvo)
+        .each(|world: &mut World, elapsed: f32, frame: u32| {
+            hold_inputs(world, elapsed, frame);
+            clear_the_door_salvo(world);
+        })
         .until(the_iris_is_open(false))
         .deadline(8.0)
         .add()
@@ -1046,10 +1057,16 @@ fn torpedo_script() -> Script {
         })
         .until(frames(2))
         .add()
+        // The same wait as `catch a torpedo in the open iris`, on a longer
+        // clock: a deadline counts REAL seconds, every frame of an open loop
+        // pays a window capture, and the bay may have just started a reload
+        // interval when the trigger goes down. Measured at 1.6 s for the still
+        // on the software floor, where a loop frame costs about twice a plain
+        // one.
         .step("fire through the iris for the loop")
         .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
         .until(and(the_iris_is_open(true), a_torpedo_is_emerging()))
-        .deadline(6.0)
+        .deadline(20.0)
         .add()
         // ONE launch. The trigger comes off here rather than at the next
         // beat: a held trigger is a standing order, and the bay was reloading
@@ -1200,6 +1217,9 @@ fn release_the_trigger(world: &mut World) {
 /// iris it waits on would despawn with the bay. Not [`clear_torpedoes`]:
 /// that one also puts the range into its comparison-shot [`RangeGizmos`]
 /// dressing, which must stay off here.
+///
+/// Idempotent, and run every frame of the closing step rather than once: see
+/// the step for the same-frame launch that outlives a single sweep.
 #[cfg(feature = "debug")]
 fn clear_the_door_salvo(world: &mut World) {
     release_the_trigger(world);
