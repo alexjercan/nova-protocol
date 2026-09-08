@@ -449,13 +449,14 @@ campaign; the player continues to act through the whole ship.
 
 Give the comic's conversations room for professional judgment and working
 relationships, rather than limiting them to the shortest game-style cues.
-Introduce the first Baikal interior and the move aboard Kaveri with a
+Introduce Baikal's opening exterior and the move aboard Kaveri with a
 where/when/context card. Baikal is in the Saturn system and is Clearwell's main
 base; do not assign it a particular moon or calendar date before those choices
 are made. Draft relative-time labels do not establish the final chronology.
 
-TODO(20260908-161328): Refine the opening comic pages, dialogue, and orientation
-cards. Keep visual drafts and review evidence with the task, not in the public
+TODO(20260908-161328): Write the full season's shared story, scene sequence,
+comic dialogue, and campaign story brief from the approved progression. Keep
+scripts, visual drafts, and review evidence with the task, not in the public
 archive. Draft page counts and staging do not establish episode boundaries.
 
 Before finalizing scripts or mission briefs, choose:

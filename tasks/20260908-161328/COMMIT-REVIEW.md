@@ -50,3 +50,33 @@ Keep the story beats, dialogue, orientation-card facts, and departure endpoint.
 Use the accepted frontal faces, close framing, necks and linework, broader
 palette, and shared industrial ships. Keep required scene props local. Do not
 add the rescue, invent dates or specifications, or register the comic publicly.
+
+## Card approval and season-writing task
+
+The user accepted the card placement and requested a commit. This follow-up
+commits the card-only page change, its updated checks and evidence, and the
+refocused task. Task `20260908-161328` is now "Write the shared season-one story";
+it stays OPEN at priority 50 with `v0.13.0,story,comic` tags.
+
+The writing plan covers the complete causal outline, scene sequence, comic
+scene action/dialogue, matching campaign story brief, and continuity review.
+The four-page draft and accepted art are groundwork, not the task's final goal.
+Expression variants are recorded as later illustration work; none were drawn.
+No season scenes were written or new plot choices made in this task update.
+
+The production outline only corrects its card-placement note and updates its
+active task pointer. It remains unregistered. No public article, wiki, gameplay,
+shared illustration, changelog, other task, or publication input changes.
+
+Pre-commit proof is kept in `proof/first-panel-card/`: deterministic generation
+checks, the card-only XML comparison, current browser checks, Markdown rendering
+and links, and full website CI. The last includes the site build, not Rust or
+campaign-runtime validation. Earlier evidence stays intact. Nothing is pushed.
+
+Reports: [generation](proof/first-panel-card/pre-commit-generation.txt),
+[15 illustration tests](proof/first-panel-card/pre-commit-unit-tests.txt),
+[website CI](proof/first-panel-card/pre-commit-web-ci.txt),
+[Markdown](proof/first-panel-card/pre-commit-markdown.txt), and
+[commit checks and explicit scope](proof/first-panel-card/commit-checks.json).
+Another task appeared concurrently; its paths are recorded as excluded, not
+checked or staged as part of this work.

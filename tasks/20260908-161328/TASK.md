@@ -1,15 +1,19 @@
-# Develop the shared season-one story and comic visual drafts
+# Write the shared season-one story
 
 - STATUS: OPEN
 - PRIORITY: 50
-- TAGS: v0.13.0,story,comic
+- TAGS: v0.13.0, story, comic
 
 ## Goal
 
-Develop one coherent season-one story for Nova Protocol's mainline campaign and
-comic. Use visual drafts to test the opening, then refine the shared events,
-characters, dialogue, and presentation. Keep this request and its follow-up work
-in one task.
+Write the complete first-season story for Nova Protocol's mainline campaign and
+comic, from the approved opening through the season ending. Develop the causal
+sequence, character decisions, scenes, and dialogue as one shared continuity,
+not a separate novel. Keep this request and its follow-up work in this task.
+
+The user accepted the four-page visual direction and Baikal card placement.
+Story writing is now the main work; more illustration trials are not a
+prerequisite. The season story itself is not yet complete or approved.
 
 The current release tag schedules this development work. It is not a promise to
 ship the whole comic season or a playable campaign in that release.
@@ -25,38 +29,56 @@ Keep approved world facts and shared continuity in those sources. Keep draft
 artwork, page experiments, scripts, working dialogue, reviews, and proof here.
 Do not create a second maintained story specification in the task.
 
-## Current direction
+## Writing plan
+
+1. Develop the existing season progression into a complete causal outline.
+   Connect its major turns through motivations, decisions, and consequences.
+   Review unresolved choices instead of silently treating proposals as canon.
+2. Break the whole season into scenes. Give each scene a viewpoint, active
+   people and ships, purpose, decision or change, and consequence for the next
+   scene. Propose episode and mission boundaries after the sequence works.
+3. Draft scene action and dialogue for the comic. Show professional judgment,
+   distinct voices, and relationships without lore lectures or crew roll calls.
+   Keep scripts with this task and approved shared events in the production
+   outline; do not maintain two competing accounts of the story.
+4. Develop the corresponding campaign story brief. Map the same events to
+   whole-ship objectives and narrative cues. Identify interaction needs without
+   claiming that unverified mechanics are implemented.
+5. Review continuity, character arcs, setups and payoffs, ship whereabouts,
+   travel and rescue logic, and the credibility of the ending. Resolve only the
+   dates, locations, biographies, and technical details the story needs.
+
+## Story constraints
 
 - Comic and campaign share major events, decisions, and outcomes. The player
   operates the whole ship; comic interiors do not imply on-foot gameplay.
-- The opening follows Kaveri's competent crew. Baikal's industrial line stops
-  safely; Kaveri collects a replacement at Aquila and later diverts to rescue
-  Gantry. No opening combat, pirate cutaway, or pursuit is added.
-- The four-page PoC stops at departure from Baikal. It is not an episode
+- The opening follows Kaveri's competent civilian crew through useful work and
+  a costly noncombat rescue. Keep the approved sequence in the production
+  outline. No opening combat, pirate cutaway, or pursuit is added.
+- Establish recurring people, ships, and communities through work and
+  dependencies before loss. Name deliberately authored ships. Hull loss and
+  crew survival are separate decisions.
+- Preserve the distinction between approved direction and open choices in the
+  production outline. Do not invent completeness or technical specifications.
+- The four-page draft stops at departure from Baikal. It is not an episode
   boundary, released comic, or implementation of a campaign mission.
-- The user likes the visual direction: broader color, green accents, warm
-  interiors, and cool space, not an all-green filter. Individual designs,
-  apparent ages, clothing, geometry, and small staging details remain concepts.
-- Expand dialogue beyond the first sparse pass. Show professional judgment and
-  working relationships without a lore lecture, a crew roll call, or tutorial
-  instruction for an inexperienced captain.
-- Add cinematic-style where/when/context cards at the first Baikal interior and
-  the move aboard Kaveri. The game action has `location`, `date`, and `note`
-  strings plus placement/duration. This is a visual analogy, not a new runtime
-  contract or a copy of gameplay values.
-- Keep the clean-line trial's zoom, frames, camera placement, backgrounds, necks,
-  and body staging. The user rejected its angled faces and accepted the original
-  forward-facing portrait treatment with light shadows and linework.
-- Keep the ship-sheet layout and green lore shader. Revise the hulls toward the
-  game's faceted plating and industrial greebles, using local screenshots and
-  recipes as references, not fictional dimensions or game-ship identities.
-- Reuse one proposed design per ship across scenes and lore sheets. Keep
-  portrait poses reusable, and all color constants in `colors.py`. Use full
-  color for comic art and a color-only green treatment for lore. Keep incidental
-  props local to a scene; only recurring props belong in a separate shared module.
-- Baikal's precise orbit or moon association and the calendar date are not
-  chosen. Do not turn the user's example wording into canon. Draft temporal
-  labels must be visibly provisional until those decisions are made.
+
+## Visual baseline and later work
+
+- Keep the accepted frontal heads, close framing, body staging, light shadows,
+  fine linework, and game-inspired industrial plating. The rejected angled
+  faces are not the default for later drafts.
+- Comic art uses broader color with green accents. Lore uses the color-only
+  green treatment. Shared sources own recurring characters, ships, locations,
+  and the palette; incidental props stay local.
+- Baikal's orientation card belongs on its first exterior picture. Kaveri's
+  stays at the move aboard. Calendar dates and precise orbital relationships
+  remain provisional; the card design does not settle them.
+- Character-specific expression variants remain a desired illustration
+  follow-up. The suggested page-1 trial has not been drawn. Scope it when
+  illustration work resumes; it does not block writing the season.
+- Visual acceptance does not establish dimensions, capacity, physical livery,
+  ages, biographies, or final character likenesses.
 
 ## Artifacts
 
@@ -78,24 +100,31 @@ this story work stay in this task. Do not move unrelated design studies:
 
 ## Scope and constraints
 
-1. Move the opening comic PoC out of `web/design/` without changing the public
-   archive, website copy rules, or unrelated design files.
-2. Expand the four-page dialogue and add readable location/time/context cards.
-   Keep dialogue transcripts and source-generated art consistent.
-3. Review color, composition, lettering, pacing, and character staging at useful
-   reading sizes. Keep small-screen transcripts and full-size SVG inspection.
-4. Resolve only story and visual choices that the next draft needs. Do not
-   invent missing ship specifications, a calendar, an orbital map, or biographies
-   for completeness.
-5. Keep the production outline unpublished. Public subject histories follow
+1. The current request commits the reviewed card move and updates this task.
+   The writing plan is the next work, not a claim that the season was drafted
+   during this task update.
+2. Preserve the accepted studies, comparison copies, and evidence. New scripts
+   and reviews stay with this task. Keep generated art and its sources together.
+3. Keep the production outline unpublished. Public subject histories follow
    released comic or campaign events, with spoiler scope and release links.
-6. Do not edit wiki pages, gameplay code, unrelated media, or other tasks. No
-   full workspace Rust checks or automatic publication are implied. The user
-   explicitly requested the reviewed-work and four-page restyle commits.
-7. Durable documentation must not link to task artifacts. Use an active
+4. Do not edit wiki pages, gameplay code, unrelated media, or other tasks.
+   Writing a campaign brief does not authorize implementing its mechanics.
+   No automatic publication or release is implied.
+5. Durable documentation must not link to task artifacts. Use an active
    `TODO(<task-id>)` where a work pointer is useful, not a replacement task URL.
 
-## Acceptance
+## Writing acceptance
+
+- [ ] Complete and review the whole-season causal outline in the maintained source.
+- [ ] Draft the season's scene sequence and propose episode/mission boundaries.
+- [ ] Draft and review scene action and dialogue with distinct character voices.
+- [ ] Prepare a campaign story brief that preserves the same major events and outcomes.
+- [ ] Check character arcs, setups/payoffs, logistics, ship continuity, and the ending.
+- [ ] Resolve story-critical open choices; keep unnecessary detail explicitly open.
+- [ ] Obtain approval of the complete season story and record decisions in the
+  maintained production outline without creating a separate novel.
+
+## Completed visual groundwork
 
 - [x] Store the opening PoC source and generated artifacts under this task.
 - [x] Preserve the user's approved visual baseline as task evidence.
@@ -112,11 +141,8 @@ this story work stay in this task. Do not move unrelated design studies:
 - [x] Commit the reviewed library, lore, shared story, drafts, and evidence.
 - [x] Apply the accepted style to the four pages; preserve the prior version.
 - [x] Check unchanged dialogue/cards, regeneration, rendered pages, and isolation.
-- [ ] Obtain feedback on the restyled four-page staging.
-- [ ] Choose the calendar/date convention and any location precision needed by
-  the opening before treating those labels as established story facts.
-- [ ] Continue toward an approved opening script/storyboard and campaign brief
-  without creating contradictory histories or a second novel.
+- [x] Obtain feedback on the restyled four-page staging.
+- [x] Put Baikal's unchanged card on the first exterior picture and review it.
 
 ## Intake
 

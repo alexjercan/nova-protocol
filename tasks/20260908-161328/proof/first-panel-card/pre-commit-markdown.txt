@@ -1,0 +1,6 @@
+tasks/20260908-161328/TASK.md: Write the shared season-one story
+tasks/20260908-161328/RESTYLE-REVIEW.md: Four-page clean-line adaptation
+tasks/20260908-161328/COMMIT-REVIEW.md: Reviewed commits and four-page restyle
+tasks/20260908-161328/comic-opening-poc/README.md: Four-page opening: clean-line draft
+web/src/lore/seasons/season-1.md: Season 1: The water-station arc
+5 Markdown files rendered; 64 local links passed.

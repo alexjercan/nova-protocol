@@ -42,7 +42,9 @@ def main():
     old = load((ARCHIVE/'generate.py.txt').read_text(),'opening_before').pages()
     new = load(LIVE.read_text(),'opening_after').pages()
     assert [page[0] for page in old]==[page[0] for page in new]
-    assert [[panel.lines for panel in page[2]] for page in old]==[[panel.lines for panel in page[2]] for page in new]
+    assert [[line for panel in page[2] for line in panel.lines] for page in old]==[[line for panel in page[2] for line in panel.lines] for page in new]
+    assert new[0][2][0].lines[0][0]=='Location and time'
+    assert all(speaker!='Location and time' for speaker,_ in new[0][2][1].lines)
     assert [len(page[2]) for page in new]==[2,3,3,2]
     nonspoken = {'Location and time','Display','Delivery record'}
     words = sum(len(line.split()) for _,_,panels in new for p in panels for speaker,line in p.lines if speaker not in nonspoken)
@@ -90,10 +92,10 @@ def main():
         'comic-opening-poc/page-01.svg','comic-opening-poc/page-02.svg','comic-opening-poc/page-03.svg','comic-opening-poc/page-04.svg',
         'proof/inspect.mjs','proof/check-opening-restyle.py',
     ]
-    allowed = {'scripts/gen-lore-portraits.py','web/src/lore/README.md'}
+    allowed = {'scripts/gen-lore-portraits.py','web/src/lore/README.md','web/src/lore/seasons/season-1.md'}
     allowed.update(f'scripts/nova_illustration/{name}' for name in ('README.md','colors.py','faces.py','portraits.py','test_illustration.py'))
     allowed.update(f'tasks/20260908-161328/{name}' for name in task_files)
-    for folder in ('before-clean-line-opening','restyled'):
+    for folder in ('before-clean-line-opening','restyled','first-panel-card'):
         allowed.update(str(p.relative_to(ROOT)) for p in (TASK/'proof'/folder).rglob('*') if p.is_file())
     changed = set(git('diff',BASE,'--no-renames','--name-only').decode().splitlines())
     changed.update(git('ls-files','--others','--exclude-standard').decode().splitlines())
@@ -101,6 +103,8 @@ def main():
     for filename in concurrent:
         assert (ROOT/filename).read_bytes()==git('show',f'HEAD:{filename}'),filename
     changed -= concurrent
+    other_tasks = sorted(p for p in changed if p.startswith('tasks/') and not p.startswith('tasks/20260908-161328/'))
+    changed.difference_update(other_tasks)
     assert not changed-allowed,sorted(changed-allowed)
     assert not git('diff','--cached','--name-only')
     subprocess.run(['git','diff','--check'],cwd=ROOT,check=True)
@@ -108,14 +112,16 @@ def main():
         'baseline':BASE,'checked_head':git('rev-parse','HEAD').decode().strip(),
         'frozen_original_files':len(records),'pages':4,'panels':10,'spoken_words':words,
         'all_dialogue_display_record_and_card_text_unchanged':True,
+        'baikal_card_in_first_panel':True,
         'protected_files_unchanged':protected,'comic_discovery':catalog,
         'public_exports_copied_exactly':True,'private_markers_absent_from_build':True,
         'palette_and_svg_checks':True,'changed_paths':sorted(changed),'unexpected_paths':[],
         'concurrent_committed_paths_preserved':sorted(concurrent),
+        'other_task_paths_outside_this_check':other_tasks,
         'changelog_unchanged':(ROOT/'CHANGELOG.md').read_bytes()==git('show',f'{BASE}:CHANGELOG.md'),
     }
     assert report['changelog_unchanged']
-    (TASK/'proof/restyled/source-and-scope.json').write_text(json.dumps(report,indent=2)+'\n')
+    (TASK/'proof/first-panel-card/source-and-scope.json').write_text(json.dumps(report,indent=2)+'\n')
     print('Four pages, ten panels, 130 spoken words; dialogue, cards, frozen/public assets, palette, and publication boundaries passed.')
     print(f'{len(changed)} scoped paths; no unexpected changes. Index empty.')
 

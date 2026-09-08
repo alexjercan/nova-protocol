@@ -1,0 +1,22 @@
+{
+  "baseline": "5cefb2d753db0a4747ca5ca8665c478ced95b673",
+  "baikal_card_moved_from_panel": 2,
+  "baikal_card_moved_to_panel": 1,
+  "card_markup_unchanged": true,
+  "remaining_page_1_svg_identical": true,
+  "board_only_replaces_page_1_svg": true,
+  "pages_2_to_4_identical": true,
+  "earlier_evidence_and_accepted_study_unchanged": true,
+  "browser_exited": 1625399,
+  "changed_tracked_paths": [
+    "tasks/20260908-161328/RESTYLE-REVIEW.md",
+    "tasks/20260908-161328/TASK.md",
+    "tasks/20260908-161328/comic-opening-poc/README.md",
+    "tasks/20260908-161328/comic-opening-poc/generate.py",
+    "tasks/20260908-161328/comic-opening-poc/index.html",
+    "tasks/20260908-161328/comic-opening-poc/page-01.svg",
+    "tasks/20260908-161328/proof/check-opening-restyle.py",
+    "tasks/20260908-161328/proof/inspect.mjs"
+  ],
+  "commit_created": false
+}

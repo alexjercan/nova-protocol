@@ -64,8 +64,25 @@ Concurrent `.scufris.toml` commits were inspected and preserved. The index was
 empty between commit operations. No Rust checks, new game capture, push, or
 publication was performed.
 
+## Follow-up: Baikal's first picture
+
+At the user's request, Baikal's unchanged orientation card now appears on the
+opening exterior instead of the following interior. Kaveri's card stays where
+it was. No faces, scene art, dialogue, or other page layouts changed.
+
+The [new page 1](proof/first-panel-card/page-01.png),
+[browser checks](proof/first-panel-card/browser-checks.json), and
+[card-only comparison](proof/first-panel-card/change-checks.json) record this
+follow-up. Regeneration, lettering, first-panel placement, and desktop/mobile
+checks passed. The earlier restyle evidence remains untouched. That card-move
+pass used affected checks only, with no commit or publication.
+
+The user then said "looks good", requested a commit, and asked to focus the
+existing task on writing season one. The accepted art remains the working
+baseline. See [COMMIT-REVIEW.md](COMMIT-REVIEW.md) for the commit checks.
+
 ## Next
 
-Review the four-page staging and reading rhythm. The accepted frontal treatment
-remains the baseline. The task stays OPEN; calendar/location precision, the
-later opening scenes, and the campaign brief remain separate decisions.
+Write the shared season story under [the existing task](TASK.md), starting from
+the approved progression. Character-specific expressions remain a proposed
+illustration follow-up, not a completed pass or a prerequisite for writing.

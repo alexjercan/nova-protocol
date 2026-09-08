@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';
 import {readFile, writeFile, mkdtemp, mkdir, rm} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
-const work=fileURLToPath(new URL('./restyled/',import.meta.url));
+const work=fileURLToPath(new URL('./first-panel-card/',import.meta.url));
 const root=new URL('../comic-opening-poc/',import.meta.url).href;
 await mkdir(work,{recursive:true});
 const profile=await mkdtemp('/tmp/nova-story-preview-');
@@ -29,6 +29,7 @@ try {
  for(let n=1;n<=4;n++){
   await navigate(`page-0${n}.svg`);
   assert.equal(await evaluate("document.querySelectorAll('.title-card').length"),n===1||n===4?1:0);
+  if(n===1||n===4)assert(await evaluate("document.querySelector('.title-card').closest('[role=group]')===document.querySelector('[role=group]')"),'The orientation card is in the first panel');
   const overflow=await evaluate(`(()=>{const bad=[];for(const box of document.querySelectorAll('.dialogue,.title-card')){const frame=box.querySelector('path,rect').getBBox();for(const t of box.querySelectorAll('text')){const b=t.getBBox();if(b.x<frame.x+10||b.x+b.width>frame.x+frame.width-10||b.y<frame.y||b.y+b.height>frame.y+frame.height)bad.push(t.textContent)}}return bad})()`);
   assert.deepEqual(overflow,[],`Page ${n} lettering fits its boxes`);
   await shot(`page-0${n}`);
@@ -71,7 +72,7 @@ try {
  }
  assert.equal(errors.length,0,JSON.stringify(errors));
  assert(requests.length>0&&requests.every(url=>url.startsWith('file:')),JSON.stringify(requests));
- await writeFile(`${work}/browser-checks.json`,JSON.stringify({reports,errors,requests,checks:['direct file loading','raw SVGs','page navigation','keyboard','art toggle','contact sheet','mobile transcripts','no overflow','local comparison links','cards and artwork remain visible under Art only']},null,2));
+ await writeFile(`${work}/browser-checks.json`,JSON.stringify({reports,errors,requests,checks:['direct file loading','raw SVGs','page navigation','keyboard','art toggle','contact sheet','mobile transcripts','no overflow','local comparison links','orientation cards in first panels','cards and artwork remain visible under Art only']},null,2));
  console.log('Four SVG pages and eight page/viewport views inspected. Navigation, keyboard, art toggle, contact sheet and transcripts pass. No script exceptions.');
 }finally{
  socket?.close();browser.kill('SIGTERM');await writeFile(`${work}/browser.log`,log);

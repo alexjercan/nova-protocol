@@ -19,7 +19,8 @@ or the [accepted three-shot study](../clean-line-study/index.html).
   and green accents. No grain overlay or all-green presentation.
 
 The four page titles, ten panel beats, 130 spoken words, display/record text,
-and Baikal/Kaveri orientation cards stay. The line stops safely; residential
+and Baikal/Kaveri orientation text stay. Baikal's card is on the first exterior
+picture; Kaveri's stays at the move aboard. The line stops safely; residential
 supplies remain normal. Elena connects Ebro's EarthWorks order to Foundation.
 The draft ends with departure for Aquila. No pickup, rescue, combat, pursuit,
 or pirate viewpoint is added. Four pages are not an episode boundary.
@@ -62,6 +63,6 @@ python3 tasks/20260908-161328/proof/check-opening-restyle.py
 ```
 
 The generator writes only `index.html` and `page-01.svg` through `page-04.svg`.
-The Chromium check writes current evidence under `../proof/restyled/` and stops
+The Chromium check writes current evidence under `../proof/first-panel-card/` and stops
 its owned browser. Do not hand-edit generated outputs or overwrite the frozen
 comparison files. Keep this draft outside public discovery and website copying.
