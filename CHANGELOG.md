@@ -284,8 +284,9 @@ does NOT get an entry - and it is the only place they are written down.
   freighter line beside the warship.
 
 ### Web & Platform
-- The `/lore/` encyclopedia adds illustrated world articles, Clearwell station
-  and company, and a five-person crew. Comic and campaign share one story reference.
+- The `/lore/` encyclopedia adds illustrated world articles, named places,
+  companies, eight ships, two workship crews, and Clearwell's co-founder, with
+  reusable portraits and ship-design proposals.
 - The site gets a spoiler-marked Story archive. Campaigns open as full-screen
   digital HUD comics with fitted pages, contents, progress, and snapped page controls.
 - The Story archive opens on a one-page reader demo poster that holds the

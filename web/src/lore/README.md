@@ -17,15 +17,26 @@ build. `index.md` is the short setting introduction and categorized directory.
   [EarthWorks Industrial](organizations/earthworks-industrial.md),
   [Farspan Logistics](organizations/farspan-logistics.md), and the locally founded
   [Clearwell Waterworks](organizations/clearwell-waterworks.md).
-- `characters/` contains the five approved crew members:
+- `ships/` contains named vessels: Kaveri, Ebro, Gantry, Bastion, Foundation,
+  Altair, and the pirate pair Redress and Windfall. Articles hold their
+  established identities, not unreleased events or invented specifications.
+- `characters/` contains Kaveri's five crew members:
   [Jonah Mercer](characters/jonah-mercer.md),
   [Leila Haddad](characters/leila-haddad.md), [Tomas Vega](characters/tomas-vega.md),
   [Rina Okafor](characters/rina-okafor.md), and [Samir Bell](characters/samir-bell.md).
-  These articles establish their starting identities, not their unreleased outcomes.
+  Gantry's crew is [Nadia Sen](characters/nadia-sen.md),
+  [Owen Park](characters/owen-park.md), and [Ivo Marin](characters/ivo-marin.md).
+  [Elena Ward](characters/elena-ward.md) is Clearwell's co-founder and Baikal's
+  resident manager. These articles establish starting identities, not unreleased
+  injuries or outcomes.
 - `seasons/` contains shared production outlines, starting with the
   [Season 1 water-station arc](seasons/season-1.md). It records the approved
-  direction, character arcs, working proposals, and open decisions. This outline
-  is not registered for public website publication yet.
+  direction, character arcs, working proposals, and open decisions. These are
+  production sources, not public encyclopedia articles.
+- Keep unpublished comic page studies, generators, renders, and review evidence
+  with the active story task, outside the public archive and website copy rules.
+  TODO(20260908-161328): Develop the shared story and opening comic drafts.
+  Draft designs, dialogue, and staging are not additions to the released story.
 
 Add individual companies, places, and institutions as their identities are
 approved. Create new subject directories and navigation sections only when they
@@ -59,6 +70,59 @@ game dialogue. Longer comic conversations and interiors can become comms and
 cinematic exterior shots in the campaign. Do not infer an on-foot game from a
 scene inside a ship or station.
 
+## Production and publication
+
+Keep season and scene outlines as shared production references. Adapt their
+approved beats into comic scripts, storyboards, and finished pages at `/story/`,
+and into campaign mission briefs and playable scenarios. Do not publish the
+outline verbatim as a lore article or discard it when adaptation begins. It
+continues to hold continuity, decisions, and unresolved work.
+
+Record planned events in the production outline now. Add a public article's
+`History` section when the relevant event first appears in a released comic
+installment or campaign mission; do not wait for both adaptations. State the
+spoiler scope and link to the released installment. Keep the article's current
+status and tense consistent with the story point its history covers.
+
+Select events that matter to each subject. Gantry's history can describe its
+attack and evacuation, while Kaveri's briefly records its part in the rescue.
+Character histories hold their relevant consequences. Do not copy the full
+season chronology onto every related page, add empty History sections, or
+invent calendar dates before the chronology is established. Ordinary Markdown
+sections and links are sufficient; there is no separate timeline system.
+
+Unpublished means absent from the website, not secret. The production sources
+remain readable in the repository.
+
+## Ships as a recurring cast
+
+Name every ship deliberately authored into the shared story, not only the main
+ship and large opponents. Important vessels have identities and relationships
+comparable to stations. A name introduced just before a destruction is not a
+substitute for familiarity: show useful work, recurring visits, recognizable
+crews, and the people who depend on a vessel.
+
+This includes ships acting off-screen, such as the vessels that attack Gantry
+before Kaveri arrives. Give them names and record their involvement in the shared
+production outline, even if their names are not spoken in that installment.
+A ship's identity and later appearances must not depend on whether the camera
+showed its earlier action. Do not force names into dialogue just to register them.
+
+Company articles own their naming conventions. Ship articles hold stable
+identities and regular port associations. The unpublished season or episode
+outline tracks whereabouts at specific story turns, departures, damage,
+capture, and loss. Do not present a regular port as a current berth or infer
+crew deaths from a destroyed hull. Redress and Windfall have approved
+pirate-chosen names. Their trial business origin and ship financing live in the
+[season outline](seasons/season-1.md#former-working-outfit), not the public
+articles. Earlier names and operators remain open. These two pirate names do
+not establish an automatic renaming rule for every sale or capture.
+
+Designs, dimensions, equipment, service histories, exact berths, and additional
+crew identities still need approval. Unassigned craft in the station concept
+art are not automatically the newly named ships. Do not add a complete fleet
+or biographies merely to fill out an operator's roster.
+
 ## Lore and wiki ownership
 
 Lore describes the world, its people, and the consequences of its physical and
@@ -89,8 +153,9 @@ Register public pages in `LORE_PAGES` and the `lore` section of
 [`../docs-manifest.js`](../docs-manifest.js). That manifest owns publication,
 URLs, sidebar navigation, search, and related articles. Keep the categorized
 links in `index.md` aligned with that public page list. `README.md` is an authoring
-guide and is not registered or published. Register an outline only when it is
-intended to be public, with its draft and spoiler status stated explicitly.
+guide and is not registered or published. Season and scene outlines also remain
+unregistered. Publish their adapted story, not the production documents; follow
+the publication policy above for article histories.
 
 Article links are relative to their published directory URL, not their source
 file. For example, `/lore/places/keystone/` links to `../../economy/` and
@@ -113,14 +178,33 @@ Named place articles carry separate exterior studies, and company infoboxes
 carry emblem and wordmark proposals. Caption relationship diagrams as references
 and artwork as visual concepts. Concepts do not establish a location, design,
 scale, construction history, or official branding without separate approval.
-The five character portraits are likewise appearance studies, not fixed ages,
+Character portraits are likewise appearance studies, not fixed ages,
 ancestries, clothing, or likenesses. They have no military rank insignia.
 
-The crew portraits share a drawing template with individually authored face,
-hair, clothing, and palette geometry in `../../../scripts/gen-lore-portraits.py`.
+The original five crew portraits share a drawing template in
+`../../../scripts/gen-lore-portraits.py`. Jonah's frontal face is shared with the
+illustration library; the other four heads remain in that exporter. Their saved
+portrait assets remain unchanged.
 Run `python3 scripts/gen-lore-portraits.py` from the repository root to render them,
 or add `--check` to verify the saved SVGs without writing. Keep the generator and
-its outputs together. Other current images are directly authored SVGs.
+its outputs together.
+
+Reusable scene and design-sheet drawings live in
+[`scripts/nova_illustration/`](../../../scripts/nova_illustration/README.md).
+Each named ship has one unscaled shape model for scene and orthographic views.
+Character poses are authored drawings, not automatic rotations of a portrait.
+The current scene treatment reuses the original frontal heads for Jonah and
+Elena, with separate body staging and light shadow planes. Ship proposals use
+faceted plating and selected industrial fixtures as visual cues, not copied
+engineering or gameplay specifications.
+`colors.py` owns the shared palette; `styles.py` applies the color-only comic or
+lore presentation without changing geometry. Public lore does not depend on task
+artifacts.
+
+Run `python3 scripts/gen-lore-designs.py` to regenerate Kaveri's and Ebro's
+proposal sheets and Elena's portrait, or add `--check` to verify them. Those
+sheets are external-form concepts, not game loadouts, measured plans, or approved
+construction details. Other current images are directly authored SVGs.
 
 Use images for the subject: portrait studies for people, exterior studies for
 places, identity concepts for companies, and diagrams for physical or supply
@@ -139,16 +223,20 @@ as the encyclopedia's palette reference: green-black backgrounds, sage and
 olive surfaces, pale green highlights, and restrained amber accents. This
 applies to both place illustrations and company identity proposals.
 
-The comic's art direction is restrained full color, with green as a recurring
-accent tied to the CRT visual language. It is not tinted green throughout.
-Approved designs remain consistent between formats; the encyclopedia treatment
-does not define physical paint, company livery, skin tones, or planetary colors.
+The comic uses a broader full-color palette, with green as a recurring accent
+tied to the CRT visual language. It is not tinted green throughout. Warm
+interiors and skin tones contrast with cool space, with jade and mint accents.
+Approved designs remain consistent between formats; the encyclopedia
+treatment does not define physical paint, company livery, skin tones, or
+planetary colors.
 
-The exterior, branding, and portrait SVGs retain their underlying color values. An
-embedded `encyclopedia-green` filter on the inner `artwork` group supplies the
-encyclopedia's presentation, including when the image is opened directly. Keep the
-filter off the root SVG: Firefox does not apply it there. A full-color export
-can omit the artwork group's `filter` attribute without changing the drawing
-or its base colors. Those colors remain working art choices, not approved world
+The exterior, branding, and portrait SVGs retain their underlying color values.
+Earlier images use an embedded `encyclopedia-green` filter on the inner
+`artwork` group. Shared-library exports apply the same channel treatment with
+instance-specific filter IDs, so several drawings can share one SVG safely.
+Keep the filter on an inner artwork group, not the root SVG: Firefox does not
+apply it there. Lettering and diagram labels stay outside the treated artwork.
+A full-color export omits that group's `filter` attribute without changing the
+drawing or its base colors. Those colors remain working art choices, not approved world
 specifications. The unassigned station concept and reference diagrams already
 use the green palette and do not need this treatment.

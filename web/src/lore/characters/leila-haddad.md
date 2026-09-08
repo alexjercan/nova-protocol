@@ -12,7 +12,7 @@
 </table>
 
 **Leila Haddad** is the chief engineer aboard
-[Jonah Mercer's](../jonah-mercer/) workship for
+[Kaveri](../../ships/kaveri/), [Jonah Mercer's](../jonah-mercer/) workship for
 [Clearwell Waterworks](../../organizations/clearwell-waterworks/). Leila has
 made a life at Saturn, not merely found a tolerable posting.
 
@@ -22,7 +22,7 @@ Leila's future is already taking shape here.
 
 ## Beyond the machinery
 
-At [Clearwell](../../places/clearwell/), Leila is part of a community rather
+At [Baikal](../../places/baikal/), Leila is part of a community rather
 than just the person called when equipment fails. Sociable off duty, Leila runs
 a fiercely competitive station game night. Work is important, but it is not the
 whole of life.
@@ -44,7 +44,8 @@ means something more.
 ## Related subjects
 
 - [Jonah Mercer](../jonah-mercer/)
-- [Clearwell station](../../places/clearwell/)
+- [Kaveri](../../ships/kaveri/)
+- [Baikal](../../places/baikal/)
 - [Clearwell Waterworks](../../organizations/clearwell-waterworks/)
 - [Society and settlement](../../society/)
 - [Encyclopedia directory](../../)

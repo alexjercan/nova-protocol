@@ -9,13 +9,13 @@
 <tr><th scope="row">Type</th><td>Independent water-processing company</td></tr>
 <tr><th scope="row">Origin</th><td>Saturn</td></tr>
 <tr><th scope="row">Founders</th><td>Former EarthWorks staff</td></tr>
-<tr><th scope="row">Principal business</th><td>Clearwell water station</td></tr>
+<tr><th scope="row">Principal business</th><td>Baikal water station</td></tr>
 <tr><th scope="row">Earth parent</th><td>None</td></tr>
 </table>
 
 **Clearwell Waterworks** is a small company founded at Saturn by former
 [EarthWorks Industrial](../earthworks-industrial/) staff. Its principal business
-is [Clearwell](../../places/clearwell/), an inhabited water-processing station.
+is [Baikal](../../places/baikal/), an inhabited water-processing station.
 
 Where the major operators extend businesses built on Earth, Clearwell's founders
 have made their own business at Saturn. Their old employer is a professional
@@ -23,6 +23,10 @@ connection, not a parent company. Clearwell is an example of lawful independence
 already taking root in the settlement network.
 
 ## Work worth keeping
+
+Co-founder [Elena Ward](../../characters/elena-ward/) manages Baikal and lives
+at the station. Its commercial problems affect the same community in which
+Elena lives and works.
 
 Clearwell is a genuinely decent employer. Its people have useful work, decent
 conditions, and a station that is also home to a small permanent community.
@@ -44,9 +48,19 @@ need it.
 Its water station is its principal business. Whether Clearwell has any other
 operations, and the details of its customer contracts, remain open.
 
+## Names and ships
+
+Clearwell names its ships after Earth rivers and its stations after Earth lakes
+or seas. Baikal is the community's name; Clearwell Waterworks is its employer
+and operator. The naming tradition does not imply a chain of other stations.
+
+[Kaveri](../../ships/kaveri/) is a workship for maintenance, recovery, and small
+cargo jobs. [Ebro](../../ships/ebro/) is a water hauler. Both serve Baikal's
+operation and are unarmed civilian ships.
+
 ## The workship crew
 
-[Jonah Mercer](../../characters/jonah-mercer/) captains a Clearwell workship with
+[Jonah Mercer](../../characters/jonah-mercer/) captains Kaveri with
 [Leila Haddad](../../characters/leila-haddad/),
 [Tomas Vega](../../characters/tomas-vega/),
 [Rina Okafor](../../characters/rina-okafor/), and
@@ -55,7 +69,10 @@ company's founders or the owners of their ship.
 
 ## Related subjects
 
-- [Clearwell station](../../places/clearwell/)
+- [Elena Ward](../../characters/elena-ward/)
+- [Baikal](../../places/baikal/)
+- [Kaveri](../../ships/kaveri/)
+- [Ebro](../../ships/ebro/)
 - [EarthWorks Industrial](../earthworks-industrial/)
 - [Independent operators and salvage](../../economy/#independent-operators-and-salvage)
 - [Law and power](../../law-and-power/)

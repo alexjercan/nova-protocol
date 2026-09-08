@@ -12,13 +12,14 @@
 </table>
 
 **Rina Okafor** leads work operations aboard
-[Jonah Mercer's](../jonah-mercer/) Clearwell workship. Cargo transfers, recovery
+[Kaveri](../../ships/kaveri/), [Jonah Mercer's](../jonah-mercer/) Clearwell
+workship. Cargo transfers, recovery
 equipment, and external work turn the ship's arrival into something useful for
 the people waiting at the other end.
 
 ## People behind the work
 
-Rina knows [Clearwell's](../../places/clearwell/) residents personally. Their
+Rina knows [Baikal's](../../places/baikal/) residents personally. Their
 needs do not arrive as anonymous demands on the crew's time. That connection
 makes Rina the strongest advocate for helping when people are in trouble.
 
@@ -40,6 +41,7 @@ less important.
 
 - [Tomas Vega](../tomas-vega/)
 - [Jonah Mercer](../jonah-mercer/)
-- [Clearwell station](../../places/clearwell/)
+- [Kaveri](../../ships/kaveri/)
+- [Baikal](../../places/baikal/)
 - [Clearwell Waterworks](../../organizations/clearwell-waterworks/)
 - [Encyclopedia directory](../../)

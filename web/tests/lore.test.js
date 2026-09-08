@@ -18,6 +18,85 @@ const pages = new Map([
 const slugs = new Set(lore.pages.map((page) => page.slug));
 assert.equal(slugs.size, lore.pages.length, "article URLs are unique");
 
+for (const [slug, title] of [
+    ["places/keystone", "Keystone"],
+    ["places/aquila", "Aquila"],
+    ["places/baikal", "Baikal"],
+    ["ships/kaveri", "Kaveri"],
+    ["ships/ebro", "Ebro"],
+    ["ships/gantry", "Gantry"],
+    ["ships/bastion", "Bastion"],
+    ["ships/foundation", "Foundation"],
+    ["ships/altair", "Altair"],
+    ["ships/redress", "Redress"],
+    ["ships/windfall", "Windfall"],
+    ["characters/nadia-sen", "Nadia Sen"],
+    ["characters/owen-park", "Owen Park"],
+    ["characters/ivo-marin", "Ivo Marin"],
+    ["characters/elena-ward", "Elena Ward"],
+]) {
+    const page = lore.pages.find((entry) => entry.slug === slug);
+    assert.equal(page?.title, title, `${slug} uses its approved name`);
+    assert.equal(
+        pages.get(slug + "/").title,
+        title,
+        `${slug} has its approved article title`
+    );
+}
+for (const crew of ["nadia-sen", "owen-park", "ivo-marin"]) {
+    assert(
+        pages
+            .get("ships/gantry/")
+            .html.includes(`href="../../characters/${crew}/"`),
+        `Gantry links to ${crew}'s identity`
+    );
+    assert(
+        pages
+            .get(`characters/${crew}/`)
+            .html.includes('href="../../ships/gantry/"'),
+        `${crew}'s identity links back to Gantry`
+    );
+}
+for (const subject of [
+    "organizations/clearwell-waterworks/",
+    "places/baikal/",
+    "characters/jonah-mercer/",
+]) {
+    const founder = "characters/elena-ward/";
+    for (const [from, to] of [
+        [founder, subject],
+        [subject, founder],
+    ]) {
+        const href = path.posix.relative(from, to) + "/";
+        assert(
+            pages.get(from).html.includes(`href="${href}"`),
+            `${from} links to ${to}'s identity`
+        );
+    }
+}
+for (const [ship, partner] of [
+    ["redress", "windfall"],
+    ["windfall", "redress"],
+]) {
+    assert(
+        pages.get(`ships/${ship}/`).html.includes(`href="../${partner}/"`),
+        `${ship} links to its working partner`
+    );
+}
+for (const slug of ["places/junction", "places/clearwell"]) {
+    assert(!slugs.has(slug), `${slug} is not a current article`);
+    assert(
+        !fs.existsSync(path.join(source, slug + ".md")),
+        `${slug} has no duplicate source`
+    );
+}
+assert(
+    !lore.pages.some(
+        (page) => page.md === "README.md" || page.md.startsWith("seasons/")
+    ),
+    "authoring guidance and unreleased season outcomes stay unpublished"
+);
+
 for (const category of lore.categories) {
     const heading = landing.headings.find((entry) => entry.text === category);
     assert(heading, `the directory includes ${category}`);
@@ -53,7 +132,7 @@ for (const page of lore.pages) {
             `${page.title} has its searchable heading ${heading}`
         );
     }
-    if (/^(places|organizations|characters)\//.test(page.slug)) {
+    if (/^(places|organizations|ships|characters)\//.test(page.slug)) {
         assert(
             !introduction.includes(page.title),
             `${page.title} belongs in the directory, not the abstract introduction`

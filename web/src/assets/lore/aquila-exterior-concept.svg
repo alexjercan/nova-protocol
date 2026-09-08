@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title description">
-  <title id="title">Junction: exterior concept</title>
-  <desc id="description">An atmospheric, original freight-port proposal. Rotating residential sections rise above a broad handling spine. Cargo blocks, berthing arms and two freighters occupy the foreground, with Saturn's limb and rings behind. Station and ship forms, scale and orbital position are proposals. The image does not decide whether Junction began as a planned town or grew around a terminal. The green tint is an encyclopedia presentation treatment, not a world color specification.</desc>
+  <title id="title">Aquila: exterior concept</title>
+  <desc id="description">An atmospheric, original freight-port proposal. Rotating residential sections rise above a broad handling spine. Cargo blocks, berthing arms and two freighters occupy the foreground, with Saturn's limb and rings behind. Station and ship forms, scale and orbital position are proposals. The image does not decide whether Aquila began as a planned town or grew around a terminal. The green tint is an encyclopedia presentation treatment, not a world color specification.</desc>
   <defs>
     <filter id="encyclopedia-green" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="800" color-interpolation-filters="sRGB">
       <feColorMatrix type="matrix" values="1.4 -0.45 -0.15 0 0
@@ -164,7 +164,7 @@
   <rect y="655" width="1280" height="145" fill="url(#footer)"/>
   <path d="M40 714H160" stroke="#83c1d1" stroke-width="3"/>
   <g font-family="DejaVu Sans, sans-serif">
-    <text x="40" y="755" fill="#e1ebeb" font-size="30" letter-spacing="5">JUNCTION</text>
+    <text x="40" y="755" fill="#e1ebeb" font-size="30" letter-spacing="5">AQUILA</text>
     <text x="40" y="780" fill="#95b4c5" font-size="15" letter-spacing="2">EXTERIOR CONCEPT / NOT AN ESTABLISHED DESIGN</text>
   </g>
 </g>

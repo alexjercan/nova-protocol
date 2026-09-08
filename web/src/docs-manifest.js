@@ -898,7 +898,7 @@ const LORE_PAGES = [
         tags: ["settlement", "homes", "migration", "stations"],
         summary:
             "Arrivals, station homes, working lives, and communities in Saturn's developing settlement network.",
-        related: ["places/keystone", "places/junction", "law-and-power"],
+        related: ["places/keystone", "places/aquila", "law-and-power"],
         headings: [
             "Arrivals and generations",
             "Homes and working lives",
@@ -936,6 +936,7 @@ const LORE_PAGES = [
         related: ["economy", "society", "organizations/farspan-logistics"],
         headings: [
             "Working ships",
+            "Names and regular ports",
             "Thrust and momentum",
             "Gravity and rendezvous",
             "Commercial journeys",
@@ -953,20 +954,21 @@ const LORE_PAGES = [
         summary:
             "Saturn's first permanent station, founded as a construction and supply hub and now a substantial home.",
         related: [
-            "places/junction",
+            "places/aquila",
             "organizations/earthworks-industrial",
-            "society",
+            "ships/foundation",
         ],
         headings: [
             "Establishment and growth",
             "Homes and working lives",
+            "Name and working ships",
             "Details still open",
         ],
     },
     {
-        slug: "places/junction",
-        md: "places/junction.md",
-        title: "Junction",
+        slug: "places/aquila",
+        md: "places/aquila.md",
+        title: "Aquila",
         category: "Places",
         tags: ["stations", "farspan", "freight"],
         summary:
@@ -974,26 +976,33 @@ const LORE_PAGES = [
         related: [
             "places/keystone",
             "organizations/farspan-logistics",
-            "society",
+            "ships/altair",
         ],
         headings: [
             "Freight and competition",
             "Homes and work",
+            "Name and shipping",
             "Details still open",
         ],
     },
     {
-        slug: "places/clearwell",
-        md: "places/clearwell.md",
-        title: "Clearwell",
+        slug: "places/baikal",
+        md: "places/baikal.md",
+        title: "Baikal",
         category: "Places",
         tags: ["stations", "water", "clearwell", "home"],
         summary:
             "An independent water-processing station: a workplace and home to a small permanent community.",
-        related: ["organizations/clearwell-waterworks", "economy", "society"],
+        related: [
+            "organizations/clearwell-waterworks",
+            "characters/elena-ward",
+            "ships/kaveri",
+            "ships/ebro",
+        ],
         headings: [
             "Water as useful supply",
             "A small permanent home",
+            "Name and working ships",
             "Details still open",
         ],
     },
@@ -1015,6 +1024,7 @@ const LORE_PAGES = [
             "Transport dependence",
             "Employment and public authority",
             "Independent founders",
+            "Names and ships",
             "Details still open",
         ],
     },
@@ -1025,15 +1035,16 @@ const LORE_PAGES = [
         category: "Companies and institutions",
         tags: ["companies", "farspan", "freight"],
         summary:
-            "An Earth-Saturn freight carrier and Junction's operator, both a supplier and competitor to EarthWorks.",
+            "An Earth-Saturn freight carrier and Aquila's operator, both a supplier and competitor to EarthWorks.",
         related: [
-            "places/junction",
+            "places/aquila",
             "organizations/earthworks-industrial",
-            "ships-and-travel",
+            "ships/altair",
         ],
         headings: [
             "Freight and station operations",
             "Relationship with EarthWorks",
+            "Names and ships",
             "Details still open",
         ],
     },
@@ -1045,12 +1056,126 @@ const LORE_PAGES = [
         tags: ["companies", "clearwell", "water", "independence"],
         summary:
             "A decent, locally founded water operator, started by former EarthWorks staff without an Earth parent.",
-        related: ["places/clearwell", "characters/jonah-mercer", "economy"],
+        related: [
+            "places/baikal",
+            "characters/elena-ward",
+            "ships/kaveri",
+            "ships/ebro",
+        ],
         headings: [
             "Work worth keeping",
             "Water and the settlement network",
+            "Names and ships",
             "The workship crew",
         ],
+    },
+    {
+        slug: "ships/kaveri",
+        md: "ships/kaveri.md",
+        title: "Kaveri",
+        category: "Ships",
+        tags: ["ships", "clearwell", "work", "crew"],
+        summary:
+            "Jonah Mercer's five-person Clearwell workship, serving Baikal through maintenance, recovery, and small cargo jobs.",
+        related: ["places/baikal", "characters/jonah-mercer", "ships/ebro"],
+        headings: ["Work and crew", "Name"],
+    },
+    {
+        slug: "ships/ebro",
+        md: "ships/ebro.md",
+        title: "Ebro",
+        category: "Ships",
+        tags: ["ships", "clearwell", "water", "cargo"],
+        summary:
+            "Clearwell's civilian water hauler, serving Baikal's operation alongside the workship Kaveri.",
+        related: [
+            "places/baikal",
+            "organizations/clearwell-waterworks",
+            "ships/kaveri",
+        ],
+        headings: [],
+    },
+    {
+        slug: "ships/gantry",
+        md: "ships/gantry.md",
+        title: "Gantry",
+        category: "Ships",
+        tags: ["ships", "earthworks", "work", "supply"],
+        summary:
+            "An unarmed EarthWorks workship associated with Keystone, crewed by Nadia Sen, Owen Park, and Ivo Marin.",
+        related: [
+            "characters/nadia-sen",
+            "characters/owen-park",
+            "characters/ivo-marin",
+        ],
+        headings: ["Crew"],
+    },
+    {
+        slug: "ships/bastion",
+        md: "ships/bastion.md",
+        title: "Bastion",
+        category: "Ships",
+        tags: ["ships", "earthworks", "security", "escort"],
+        summary:
+            "An EarthWorks security and escort vessel associated with Keystone, distinct from the state navy.",
+        related: [
+            "places/keystone",
+            "organizations/earthworks-industrial",
+            "law-and-power",
+        ],
+        headings: [],
+    },
+    {
+        slug: "ships/foundation",
+        md: "ships/foundation.md",
+        title: "Foundation",
+        category: "Ships",
+        tags: ["ships", "earthworks", "construction", "repair"],
+        summary:
+            "A large EarthWorks construction and repair support ship whose regular regional port is Keystone.",
+        related: [
+            "places/keystone",
+            "organizations/earthworks-industrial",
+            "ships/bastion",
+        ],
+        headings: [],
+    },
+    {
+        slug: "ships/altair",
+        md: "ships/altair.md",
+        title: "Altair",
+        category: "Ships",
+        tags: ["ships", "farspan", "freight", "earth"],
+        summary:
+            "A large Farspan Earth-Saturn carrier, named for a navigational star and regularly calling at Aquila.",
+        related: [
+            "places/aquila",
+            "organizations/farspan-logistics",
+            "ships-and-travel",
+        ],
+        headings: [],
+    },
+    {
+        slug: "ships/redress",
+        md: "ships/redress.md",
+        title: "Redress",
+        category: "Ships",
+        tags: ["ships", "pirates", "raider", "escort"],
+        summary:
+            "A former escort used as an armed pirate raider alongside Windfall, with a crew-chosen name that presents piracy as redress.",
+        related: ["ships/windfall", "ships-and-travel", "law-and-power"],
+        headings: ["Escort and raider", "Name"],
+    },
+    {
+        slug: "ships/windfall",
+        md: "ships/windfall.md",
+        title: "Windfall",
+        category: "Ships",
+        tags: ["ships", "pirates", "cargo", "workship"],
+        summary:
+            "A converted work/cargo vessel that knowingly carries stolen loads alongside Redress, named for opportunity and gain.",
+        related: ["ships/redress", "ships-and-travel", "law-and-power"],
+        headings: ["Cargo work", "Name"],
     },
     {
         slug: "characters/jonah-mercer",
@@ -1059,13 +1184,18 @@ const LORE_PAGES = [
         category: "Characters",
         tags: ["crew", "clearwell", "captain"],
         summary:
-            "Clearwell's workship captain: competent, restrained, and expecting to return to Earth after the posting.",
+            "Kaveri's captain, employed by Clearwell: competent, restrained, and expecting to return to Earth after the posting.",
         related: [
             "characters/leila-haddad",
             "characters/tomas-vega",
-            "organizations/clearwell-waterworks",
+            "characters/elena-ward",
+            "ships/kaveri",
         ],
-        headings: ["A posting with an end", "Trust aboard"],
+        headings: [
+            "A posting with an end",
+            "Trust aboard",
+            "A shore counterpart",
+        ],
     },
     {
         slug: "characters/leila-haddad",
@@ -1074,8 +1204,8 @@ const LORE_PAGES = [
         category: "Characters",
         tags: ["crew", "clearwell", "engineer", "home"],
         summary:
-            "Chief engineer and the captain's trusted counterpart, with a settled life and a competitive game night at Clearwell.",
-        related: ["characters/jonah-mercer", "places/clearwell", "society"],
+            "Kaveri's chief engineer and the captain's trusted counterpart, with a settled life and a competitive game night at Baikal.",
+        related: ["characters/jonah-mercer", "places/baikal", "ships/kaveri"],
         headings: ["Beyond the machinery", "Trust and different futures"],
     },
     {
@@ -1104,7 +1234,7 @@ const LORE_PAGES = [
         related: [
             "characters/tomas-vega",
             "characters/jonah-mercer",
-            "places/clearwell",
+            "places/baikal",
         ],
         headings: ["People behind the work", "Obligations aboard"],
     },
@@ -1122,6 +1252,66 @@ const LORE_PAGES = [
             "organizations/clearwell-waterworks",
         ],
         headings: ["What the records support", "Care aboard"],
+    },
+    {
+        slug: "characters/nadia-sen",
+        md: "characters/nadia-sen.md",
+        title: "Nadia Sen",
+        category: "Characters",
+        tags: ["crew", "earthworks", "gantry", "captain", "pilot"],
+        summary:
+            "Gantry's captain and pilot: professional and composed, with clear expectations of EarthWorks' obligations to its workers.",
+        related: [
+            "ships/gantry",
+            "characters/owen-park",
+            "characters/ivo-marin",
+        ],
+        headings: [],
+    },
+    {
+        slug: "characters/owen-park",
+        md: "characters/owen-park.md",
+        title: "Owen Park",
+        category: "Characters",
+        tags: ["crew", "earthworks", "gantry", "engineer"],
+        summary:
+            "Gantry's engineer, contributing technical judgment to a three-person, cross-trained civilian crew.",
+        related: [
+            "ships/gantry",
+            "characters/nadia-sen",
+            "characters/ivo-marin",
+        ],
+        headings: [],
+    },
+    {
+        slug: "characters/ivo-marin",
+        md: "characters/ivo-marin.md",
+        title: "Ivo Marin",
+        category: "Characters",
+        tags: ["crew", "earthworks", "gantry", "operations"],
+        summary:
+            "Gantry's work operations technician, responsible for practical work and attentive to the people aboard.",
+        related: [
+            "ships/gantry",
+            "characters/nadia-sen",
+            "characters/owen-park",
+        ],
+        headings: [],
+    },
+    {
+        slug: "characters/elena-ward",
+        md: "characters/elena-ward.md",
+        title: "Elena Ward",
+        category: "Characters",
+        tags: ["clearwell", "baikal", "founder", "manager", "home"],
+        summary:
+            "Clearwell's co-founder and Baikal's resident manager: practical, approachable, and careful with money without treating cost as the only measure of a decision.",
+        related: [
+            "organizations/clearwell-waterworks",
+            "places/baikal",
+            "characters/jonah-mercer",
+        ],
+        headings: ["Work and judgment", "Working with Jonah Mercer"],
     },
 ];
 
@@ -1180,6 +1370,7 @@ const DOC_SECTIONS = [
             "World background",
             "Places",
             "Companies and institutions",
+            "Ships",
             "Characters",
         ],
         pages: LORE_PAGES,

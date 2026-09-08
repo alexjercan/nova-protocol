@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="900" viewBox="0 0 800 900" role="img" aria-labelledby="title description">
-  <title id="title">EarthWorks, Farspan, Keystone and Junction</title>
-  <desc id="description">Farspan Logistics supplies Earth-Saturn freight services to EarthWorks Industrial. EarthWorks is Keystone's founding operator. Farspan operates Junction. Keystone and Junction compete for traffic and local business. These are selected commercial relationships, not an orbital map or a chart of property ownership.</desc>
+  <title id="title">EarthWorks, Farspan, Keystone and Aquila</title>
+  <desc id="description">Farspan Logistics supplies Earth-Saturn freight services to EarthWorks Industrial. EarthWorks is Keystone's founding operator. Farspan operates Aquila. Keystone and Aquila compete for traffic and local business. These are selected commercial relationships, not an orbital map or a chart of property ownership.</desc>
   <defs>
     <marker id="service-arrow" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto" markerUnits="userSpaceOnUse">
       <path d="M2 2L18 10L2 18" fill="none" stroke="#7fdda4" stroke-width="3"/>
@@ -48,7 +48,7 @@
 
     <g fill="#c0ffd4" font-size="36">
       <text x="176" y="592">Keystone</text>
-      <text x="624" y="592">Junction</text>
+      <text x="624" y="592">Aquila</text>
     </g>
     <g fill="#aad4b9" font-size="26">
       <text x="176" y="633">Construction</text>

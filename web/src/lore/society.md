@@ -77,7 +77,7 @@ history, or gravity levels without separate approval.
 ## Related subjects
 
 - [Keystone](../places/keystone/)
-- [Junction](../places/junction/)
+- [Aquila](../places/aquila/)
 - [Economy](../economy/)
 - [Law and power](../law-and-power/)
 - [Ships and travel](../ships-and-travel/)

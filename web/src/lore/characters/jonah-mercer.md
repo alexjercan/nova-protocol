@@ -11,7 +11,7 @@
 <tr><th scope="row">Intention</th><td>Return to Earth after the posting</td></tr>
 </table>
 
-**Jonah Mercer** captains a workship for
+**Jonah Mercer** captains [Kaveri](../../ships/kaveri/), a workship for
 [Clearwell Waterworks](../../organizations/clearwell-waterworks/). An established
 employee rather than a newcomer, Jonah knows the work and the people who depend
 on a competent captain. The ship and the company belong to neither the captain
@@ -44,9 +44,17 @@ attention to what the records actually support.
 They are five working people with different reasons to be aboard, not a captain
 and four interchangeable hands.
 
+## A shore counterpart
+
+[Elena Ward](../elena-ward/), Clearwell's co-founder and Baikal's resident manager,
+is Jonah's shore contact. Elena handles the station's needs and company
+commitments, treating Jonah as a trusted professional rather than an apprentice.
+
 ## Related subjects
 
-- [Clearwell station](../../places/clearwell/)
+- [Elena Ward](../elena-ward/)
+- [Kaveri](../../ships/kaveri/)
+- [Baikal](../../places/baikal/)
 - [Clearwell Waterworks](../../organizations/clearwell-waterworks/)
 - [Ships and travel](../../ships-and-travel/)
 - [Encyclopedia directory](../../)

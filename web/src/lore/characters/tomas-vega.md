@@ -12,7 +12,8 @@
 </table>
 
 **Tomas Vega** is the pilot and navigator aboard
-[Jonah Mercer's](../jonah-mercer/) Clearwell workship. Precision, rather than
+[Kaveri](../../ships/kaveri/), [Jonah Mercer's](../jonah-mercer/) Clearwell
+workship. Precision, rather than
 recklessness, defines the job. Tomas wants the crew to arrive where it intends
 to go, with a workable plan for what happens next.
 
@@ -38,6 +39,7 @@ their common future is being spent.
 
 ## Related subjects
 
+- [Kaveri](../../ships/kaveri/)
 - [Jonah Mercer](../jonah-mercer/)
 - [Rina Okafor](../rina-okafor/)
 - [Clearwell Waterworks](../../organizations/clearwell-waterworks/)

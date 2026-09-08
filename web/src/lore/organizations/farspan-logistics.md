@@ -9,7 +9,7 @@
 <tr><th scope="row">Short name</th><td>Farspan</td></tr>
 <tr><th scope="row">Type</th><td>Freight carrier and station operator</td></tr>
 <tr><th scope="row">Transport role</th><td>Earth-Saturn freight</td></tr>
-<tr><th scope="row">Saturn base</th><td>Junction</td></tr>
+<tr><th scope="row">Saturn base</th><td>Aquila</td></tr>
 <tr><th scope="row">EarthWorks relationship</th><td>Freight supplier and competitor</td></tr>
 <tr><th scope="row">Market position</th><td>One of several outside carriers</td></tr>
 </table>
@@ -18,7 +18,7 @@
 carrier and station operator in Saturn's developing settlement network. It
 supplies Earth-Saturn freight services to
 [EarthWorks Industrial](../earthworks-industrial/) while operating
-[Junction](../../places/junction/), a newer freight-hub town that competes with
+[Aquila](../../places/aquila/), a newer freight-hub town that competes with
 [Keystone](../../places/keystone/).
 
 The company combines transport services with its own station operations. Its
@@ -27,12 +27,12 @@ competition, rather than a simple division between allies and rivals.
 
 ## Freight and station operations
 
-Farspan operates Junction, one of the network's major station towns, established
+Farspan operates Aquila, one of the network's major station towns, established
 after Keystone. This is its own freight hub, not merely leased facilities within
 another operator's station. The town is a home as well as a working port,
 within the wider settlement model of rotating residential sections.
 
-Junction competes with Keystone for traffic and local business. It is not a
+Aquila competes with Keystone for traffic and local business. It is not a
 compulsory gateway for other ships entering the settlement network. Neither the
 station nor Farspan's freight role gives the company an absolute monopoly.
 
@@ -43,7 +43,7 @@ carriers for Earth-Saturn freight. Farspan is one of those suppliers, not its
 sole carrier. Available transport capacity and commercial priorities give
 carriers leverage over EarthWorks' delivery schedules and expansion plans.
 
-At the same time, Junction competes with Keystone's businesses and
+At the same time, Aquila competes with Keystone's businesses and
 settlement operations. Supplying freight to EarthWorks does not remove that
 competition. Rivalry does not make Farspan benevolent or establish a permanent
 alliance with anyone opposing EarthWorks.
@@ -54,16 +54,27 @@ including Earth law, public oversight, and the distinction between company
 security and state military power.
 
 <figure class="plate">
-<a href="../../../assets/lore/freight-and-station-rivalry.svg"><img src="../../../assets/lore/freight-and-station-rivalry.svg" width="800" height="900" alt="Farspan supplies EarthWorks with Earth-Saturn freight. EarthWorks is Keystone's founding operator. Farspan operates Junction. The two stations compete for traffic and local business."></a>
+<a href="../../../assets/lore/freight-and-station-rivalry.svg"><img src="../../../assets/lore/freight-and-station-rivalry.svg" width="800" height="900" alt="Farspan supplies EarthWorks with Earth-Saturn freight. EarthWorks is Keystone's founding operator. Farspan operates Aquila. The two stations compete for traffic and local business."></a>
 <figcaption><strong>Reference diagram.</strong> Farspan supplies freight to
-EarthWorks while Junction competes with Keystone. Arrows show selected
+EarthWorks while Aquila competes with Keystone. Arrows show selected
 commercial relationships, not property ownership or orbital positions.
 <a href="../../../assets/lore/freight-and-station-rivalry.svg">Open diagram</a>.</figcaption>
 </figure>
 
+## Names and ships
+
+Farspan names its ships after navigational stars and its stations after
+constellations. The tradition connects its freight business to the navigation
+of long passages.
+
+[Altair](../../ships/altair/) is a large Earth-Saturn carrier whose regular
+Saturn port is Aquila. Altair is the brightest star in that constellation.
+This pairing does not require every ship to match its regular port's
+constellation or remain there between journeys.
+
 ## Details still open
 
-Junction's exact orbit, population, layout, and local administrative arrangements
+Aquila's exact orbit, population, layout, and local administrative arrangements
 remain open.
 
 The company's earlier history, headquarters, leadership, fleet composition,
@@ -72,7 +83,8 @@ yet been established.
 
 ## Related subjects
 
-- [Junction](../../places/junction/)
+- [Aquila](../../places/aquila/)
+- [Altair](../../ships/altair/)
 - [EarthWorks Industrial](../earthworks-industrial/)
 - [Keystone](../../places/keystone/)
 - [Competing companies](../../law-and-power/#competing-companies)

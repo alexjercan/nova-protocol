@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title description">
-  <title id="title">Clearwell: water-station exterior concept</title>
+  <title id="title">Baikal: water-station exterior concept</title>
   <desc id="description">A small inhabited industrial station: storage vessels and processing modules occupy a utility spine, separated from a rotating residential section. Service panels and an unarmed workship complete the scene. Layout, equipment, capacity, scale and orbit are visual proposals, not established specifications. The green treatment does not establish physical colors.</desc>
   <defs>
     <filter id="encyclopedia-green" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="800" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1.4 -0.45 -0.15 0 0 -0.1 1 0.1 0 0 0.05 0.65 0.05 0 0 0 0 0 1 0"/></filter>
@@ -76,6 +76,6 @@
     </g>
     <rect y="655" width="1280" height="145" fill="url(#fade)"/>
     <path d="M40 713H160" stroke="#84b5ba" stroke-width="3"/>
-    <g font-family="DejaVu Sans, sans-serif"><text x="40" y="754" fill="#e0e6d5" font-size="31" letter-spacing="5">CLEARWELL</text><text x="40" y="780" fill="#95b4bc" font-size="15" letter-spacing="2">WATER-STATION EXTERIOR STUDY / NOT AN ESTABLISHED DESIGN</text></g>
+    <g font-family="DejaVu Sans, sans-serif"><text x="40" y="754" fill="#e0e6d5" font-size="31" letter-spacing="5">BAIKAL</text><text x="40" y="780" fill="#95b4bc" font-size="15" letter-spacing="2">WATER-STATION EXTERIOR STUDY / NOT AN ESTABLISHED DESIGN</text></g>
   </g>
 </svg>

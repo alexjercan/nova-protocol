@@ -14,6 +14,24 @@ are workplaces and transport links, while stations remain the main permanent
 homes. Ordinary civilian and industrial ships are unarmed; security and escort
 forces have a separate role.
 
+## Names and regular ports
+
+A ship belongs to the life of the places it serves without remaining there.
+[Baikal](../places/baikal/) is the regular port of [Kaveri](../ships/kaveri/) and
+[Ebro](../ships/ebro/). [Altair](../ships/altair/) calls at
+[Aquila](../places/aquila/) on its Earth-Saturn route. A large working vessel
+such as [Foundation](../ships/foundation/) provides support on which other
+operations depend, without being a capital warship.
+
+Operators give ships names from recognizable traditions. Clearwell's river names,
+Farspan's navigational stars, and EarthWorks' built structures express different
+relationships to the work. The company articles describe those traditions.
+
+[Redress](../ships/redress/) and [Windfall](../ships/windfall/) instead use names
+chosen for their pirate identities. The former escort and converted work/cargo
+vessel operate together, providing armed force and cargo capacity. Their current
+names do not establish who previously operated either hull.
+
 ## Thrust and momentum
 
 A ship does not need to keep its engine lit simply to keep moving. Thrust changes
@@ -80,10 +98,13 @@ not simply between a cheap drive and a better one.
 Drive technology, propellant chemistry, quantified ship budgets, and normal and
 exceptional travel schedules have not been established. Communications technology
 and operating delays, long-voyage accommodation, and crew endurance arrangements
-also remain open.
+also remain open. Named ships' exact berths, transfer arrangements, and positions
+at particular times are not fixed by their regular port associations.
 
 ## Related subjects
 
+- [Redress](../ships/redress/)
+- [Windfall](../ships/windfall/)
 - [Society and settlement](../society/)
 - [Economy](../economy/)
 - [State authority and security](../law-and-power/#state-authority-and-security)

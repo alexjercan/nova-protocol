@@ -12,7 +12,8 @@
 </table>
 
 **Samir Bell** is the systems technician aboard
-[Jonah Mercer's](../jonah-mercer/) Clearwell workship. Communications, sensors,
+[Kaveri](../../ships/kaveri/), [Jonah Mercer's](../jonah-mercer/) Clearwell
+workship. Communications, sensors,
 and diagnostics make Samir attentive to what reaches the crew, what the ship
 reports, and where the two disagree.
 
@@ -38,6 +39,7 @@ it has to work with before the captain commits it to more.
 
 ## Related subjects
 
+- [Kaveri](../../ships/kaveri/)
 - [Jonah Mercer](../jonah-mercer/)
 - [Leila Haddad](../leila-haddad/)
 - [Rina Okafor](../rina-okafor/)

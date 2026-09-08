@@ -46,7 +46,7 @@ Keystone's growth is part of a continuing development boom, not the aftermath
 of an economic collapse. New installations and settlement projects continue to
 create demand for construction, supplies, and transport.
 
-[Junction](../junction/), a newer freight-hub town, competes with Keystone for
+[Aquila](../aquila/), a newer freight-hub town, competes with Keystone for
 traffic and local business. Its operator,
 [Farspan Logistics](../../organizations/farspan-logistics/), is one of the outside
 carriers on which EarthWorks depends for Earth-Saturn freight, making it both a
@@ -70,6 +70,15 @@ operators use safety and operational requirements to restrict choices in
 practice. Recognized workplace representation does not settle the separate
 question of residents' rights to govern their community.
 
+## Name and working ships
+
+Keystone's name belongs to EarthWorks' architectural and engineering tradition:
+structures that support, connect, and protect. The same family includes
+[Foundation](../../ships/foundation/), a large construction and repair support
+ship, [Gantry](../../ships/gantry/), a workship, and
+[Bastion](../../ships/bastion/), a security vessel. Keystone is their regular
+regional port, not a claim that all three are always docked there.
+
 ## Details still open
 
 EarthWorks' precise holdings and Keystone's local administrative arrangements
@@ -82,7 +91,10 @@ separate, unassigned station concept.
 
 ## Related subjects
 
-- [Junction](../junction/)
+- [Aquila](../aquila/)
+- [Foundation](../../ships/foundation/)
+- [Gantry](../../ships/gantry/)
+- [Bastion](../../ships/bastion/)
 - [The settlement network](../../society/#the-settlement-network)
 - [EarthWorks Industrial](../../organizations/earthworks-industrial/)
 - [Farspan Logistics](../../organizations/farspan-logistics/)

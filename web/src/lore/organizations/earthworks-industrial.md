@@ -52,10 +52,10 @@ EarthWorks' demand for equipment and supplies. This relationship does not give
 any single carrier an absolute monopoly.
 
 [Farspan Logistics](../farspan-logistics/), one of these carriers, operates
-[Junction](../../places/junction/), its own newer freight-hub town at Saturn.
+[Aquila](../../places/aquila/), its own newer freight-hub town at Saturn.
 Farspan competes with Keystone for traffic and local business while supplying
 freight services to EarthWorks. The relationship combines commercial dependence
-with competition; Junction is not a compulsory gateway for other ships.
+with competition; Aquila is not a compulsory gateway for other ships.
 
 ## Employment and public authority
 
@@ -81,6 +81,18 @@ EarthWorks staff. It operates an inhabited water-processing station as an
 independent local company, without an Earth parent. Its founders' employment
 history does not make Clearwell an EarthWorks subsidiary.
 
+## Names and ships
+
+EarthWorks names ships and stations from architecture, infrastructure, and
+fortifications: things that support, connect, and protect. Keystone and
+[Foundation](../../ships/foundation/) express the construction side of that
+tradition. [Gantry](../../ships/gantry/) is a working vessel, while
+[Bastion](../../ships/bastion/) serves security and escort duties.
+
+These are related names, not a rigid classification system. A fortification
+name does not establish a ship's weapons or make it part of a state navy.
+Foundation is a large industrial support vessel, not a capital warship.
+
 ## Details still open
 
 The company's earlier Earth history, leadership, precise holdings, and
@@ -93,7 +105,10 @@ have not yet been chosen.
 - [Farspan Logistics](../farspan-logistics/)
 - [Clearwell Waterworks](../clearwell-waterworks/)
 - [Keystone](../../places/keystone/)
-- [Junction](../../places/junction/)
+- [Aquila](../../places/aquila/)
+- [Foundation](../../ships/foundation/)
+- [Gantry](../../ships/gantry/)
+- [Bastion](../../ships/bastion/)
 - [Competing companies](../../law-and-power/#competing-companies)
 - [Economy](../../economy/)
 - [Rights and company control](../../law-and-power/#rights-and-company-control)

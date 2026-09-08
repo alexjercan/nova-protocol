@@ -36,8 +36,8 @@ established station design.</figcaption>
 
 - [Keystone](places/keystone/): the first permanent station, built as a
   construction and supply hub and now a substantial home.
-- [Junction](places/junction/): a newer freight-hub town and a competing port.
-- [Clearwell](places/clearwell/): an independent water-processing station and
+- [Aquila](places/aquila/): a newer freight-hub town and a competing port.
+- [Baikal](places/baikal/): an independent water-processing station and
   home to a small permanent community.
 
 ## Companies and institutions
@@ -45,13 +45,26 @@ established station design.</figcaption>
 - [EarthWorks Industrial](organizations/earthworks-industrial/): Keystone's
   founding operator, rooted in construction, supply, and infrastructure.
 - [Farspan Logistics](organizations/farspan-logistics/): an Earth-Saturn freight
-  carrier and Junction's operator, both a supplier and competitor to EarthWorks.
+  carrier and Aquila's operator, both a supplier and competitor to EarthWorks.
 - [Clearwell Waterworks](organizations/clearwell-waterworks/): a locally founded
   water operator, started by former EarthWorks staff without an Earth parent.
 
+## Ships
+
+- [Kaveri](ships/kaveri/): Clearwell's workship, captained by Jonah Mercer.
+- [Ebro](ships/ebro/): Clearwell's water hauler, serving Baikal's operation.
+- [Gantry](ships/gantry/): an EarthWorks workship associated with Keystone.
+- [Bastion](ships/bastion/): an EarthWorks security and escort vessel.
+- [Foundation](ships/foundation/): a large EarthWorks construction and repair
+  support ship.
+- [Altair](ships/altair/): a Farspan Earth-Saturn carrier that calls at Aquila.
+- [Redress](ships/redress/): a former escort now used as an armed pirate raider.
+- [Windfall](ships/windfall/): a converted work/cargo vessel carrying stolen
+  loads alongside Redress.
+
 ## Characters
 
-- [Jonah Mercer](characters/jonah-mercer/): workship captain, expecting to return
+- [Jonah Mercer](characters/jonah-mercer/): Kaveri's captain, expecting to return
   to Earth after the posting.
 - [Leila Haddad](characters/leila-haddad/): chief engineer, already at home at Saturn.
 - [Tomas Vega](characters/tomas-vega/): pilot and navigator, careful about risks
@@ -60,6 +73,14 @@ established station design.</figcaption>
   station residents.
 - [Samir Bell](characters/samir-bell/): systems technician and first-aider,
   attentive to what the records support.
+- [Nadia Sen](characters/nadia-sen/): Gantry's captain and pilot, professional
+  and composed, with clear expectations of the employer's obligations.
+- [Owen Park](characters/owen-park/): Gantry's engineer, contributing technical
+  judgment to a small cross-trained crew.
+- [Ivo Marin](characters/ivo-marin/): Gantry's work operations technician,
+  responsible for practical work and attentive to crewmates' needs.
+- [Elena Ward](characters/elena-ward/): Clearwell's co-founder and Baikal's
+  resident manager, practical and approachable, with dry humour.
 
 The [Story archive](../story/) presents the comic. The comic and mainline campaign
 share one story; these articles provide optional depth to its world and people.

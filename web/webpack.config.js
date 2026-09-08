@@ -217,6 +217,8 @@ const redirectHtml = (to) =>
 const REDIRECTS = [
     ["lore/setting", "lore"],
     ["lore/contents", "lore"],
+    ["lore/places/junction", "lore/places/aquila"],
+    ["lore/places/clearwell", "lore/places/baikal"],
     ["blog", "news"],
     ["changelog", "news"],
     ["blog/devlog-1-modular-ships-and-first-combat", "news/0.1.0"],
