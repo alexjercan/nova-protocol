@@ -90,34 +90,77 @@ yet, so do not go looking for them.
 """
 
 [briefings.nightly]
-description = "Review what landed today and name what is worth fixing."
-keywords = { harness = "claude", model = "Opus", thinking = "xhigh" }
+description = "Review the day's commits and fix what is worth fixing."
+keywords = { harness = "claude", model = "Opus", thinking = "xhigh", policy = "repair" }
 guidance = """
-Review the commits that landed today and report what is worth fixing. Read
-only: change nothing, stage nothing, commit nothing, and run no build, no test
-suite and no benchmark.
+Review the commits that landed today and fix what is worth fixing. You work
+directly on master in this checkout, and you have the night.
 
-You have about fifteen minutes of wall clock. Spend it on judgement, not on
-breadth. Three groups read well beats eight skimmed.
+The order below is what keeps the night narrow. Do not collapse it.
 
-- `git log --since=midnight --oneline` for what landed. No commits today is a
-  good report: say so with `status = "ok"` and a one-line body.
-- Put the commits into groups that belong together, such as one feature, one
-  refactor, or one fix and its test. Name each group and its range in the body.
-- Read the diffs group by group, highest risk first, and stop when the time is
-  gone. Say in the body which groups you did not reach.
-- Judge correctness, missing coverage and regression against what is already in
-  the tree. A finding is a path, a line, and why it is wrong.
+## 1. Open a task and keep it current
 
-Do not invoke `/nova-review`. Slash commands are off in a briefing source and
-the reviewer lanes it dispatches cannot run here. Read the diffs yourself.
+Run `tatr new "Nightly review" -p 70 -t review` first, before reading anything.
+Append to its `TASK.md` as you go: the groups before you review any of them,
+each group's findings as they are adjudicated, each fix as it lands, and
+anything you leave undone.
 
-Facts are counts: commits today, groups formed, groups read, findings.
+Append as it happens, never at the end. This session will be compacted, and it
+may be killed outright before morning. A half-written task is a readable night;
+a task written at the end is nothing.
 
-Each finding worth acting on becomes an offer. The label says what to fix and
-the detail says where and why. A group you did not reach is not an offer, and
-neither is code you would merely have written differently. Offer nothing when
-nothing needs doing.
+## 2. Group the day's commits
 
-Use `status = "attention"` only for something that is wrong on master now.
+`git log --since=midnight --oneline` for what landed. No commits is a good
+night: report `status = "ok"` with a one-line body and stop here.
+
+Put the commits into groups worth reviewing together, such as one feature, one
+refactor, or one fix and its test. `/nova-review` refuses a range above 2000
+changed lines, so read `git diff --stat` for each group and split one that is
+too wide rather than giving up on it. Write the groups and their ranges into the
+task before reviewing any of them.
+
+## 3. Review one group at a time
+
+For each group, highest risk first:
+
+- `/nova-review <base>..<head>` for the range.
+- `/nova-review --play <base>..<head>` when the group touches rendering, input,
+  UI or feel. `--play` adds the Red team and Feel lanes, which want a rendered
+  run; protocol, docs and benchmark work does not need them and should not pay
+  for them. Say in the task which groups got it and why.
+
+One group at a time. Waiting for a group to finish before starting the next is
+what keeps the night to a few agents rather than a crowd, and it is worth more
+than finishing early. Append each group's adjudicated findings to the task
+before you start the next group.
+
+## 4. Fix only when every group is reviewed
+
+Change nothing until the last group is reviewed. Repairing from the whole
+night's findings beats repairing from the first group's.
+
+- Fix what the findings support and the checks can show.
+- Leave anything that needs a judgement Alex has not made. Name it in the task
+  rather than attempting it.
+- Run this project's own checks before each commit. A night that leaves master
+  red is worse than a night that fixed nothing.
+- Commit to master with explicit paths and no AI attribution, one
+  self-contained commit for each fix. Never push, tag, publish or release.
+
+## What to report
+
+Facts are counts: commits today, groups reviewed, findings, fixes landed,
+findings left.
+
+Name the task ID in the body, so the morning briefing can read the whole night
+from it. Say which groups you did not reach, if any.
+
+Use `status = "attention"` when something needs Alex: a finding you could not
+fix, a check left red, or a night that did not finish its groups. Use `ok` when
+the night finished and master is green.
+
+Every finding you left becomes an offer. The label says what to fix and the
+detail says where it is and why you did not do it. What you already fixed is not
+an offer.
 """
