@@ -249,11 +249,20 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
         // The radar instrument as its own subject: the same latched nav sweep
         // from a tighter, lower camera.
+        //
+        // The lens distance is set by the SUBJECT'S SIZE, not by taste. Clad,
+        // `block_gunship` is 85 x 50 x 48 m - a 54.7 m bounding radius - and
+        // an eye inside that is a close-up of hull plating with the ship's own
+        // drive and cockpit out of frame. This sits ~141 m out, about two and
+        // a half times the radius, which holds the whole corvette with the
+        // beacon's lock bracket beside it. Re-measure it if the hull is
+        // re-clad: the framing that came before this one was measured against
+        // the bare cell list and did not survive the skin.
         .step("frame the radar instrument")
         .on_enter(|world| {
             pose(
                 world,
-                START_POSITION + Meters3::new(-36.0, 10.0, 60.0),
+                START_POSITION + Meters3::new(-72.0, 20.0, 120.0),
                 START_POSITION + Meters3::new(0.0, 3.0, -100.0),
             )
         })
