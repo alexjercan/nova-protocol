@@ -15,6 +15,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-09
+
 ### Gameplay & Flight
 - RCS reaches 100 m/s at a mass-independent 5 G, one speed budget and one
   acceleration budget for every direction; STOP below that speed brakes on RCS
@@ -27,10 +29,9 @@ does NOT get an entry - and it is the only place they are written down.
   position still has no size.
 - A GOTO at a planetoid arrives on a ring ORBIT accepts, so the parking handoff
   no longer burns the ship back outward to reach a legal orbit.
-- GOTO holds its margin. The leg is flown from the hull's centre of mass, the
-  flip is budgeted with the hull's settle onto the brake attitude, and the RCS
-  settle brakes at full deflection: a light hull no longer parks tens of
-  meters inside its standoff.
+- GOTO holds its margin: the leg flies from the hull's centre of mass, the
+  flip is budgeted with its settle onto the brake attitude, and the RCS settle
+  brakes full. A light hull parks where it was sent.
 - The ORBIT park and the AI patrol's advance gate read the ship's own arrival
   standoff instead of the global one, so a hull authored to park close is
   flown that way throughout.
@@ -64,95 +65,6 @@ does NOT get an entry - and it is the only place they are written down.
   a planetoid cannot be locked, and cover drifting across a held lock breaks
   it. Hostiles lose you the same way.
 
-### Scenarios & Objectives
-- Nav beacons are radar-acquirable within 12 km by default, up from 6 km.
-- A scenario's spawn queue may take a fifth of each frame, so a machine drawing
-  slow frames lands its scatter in a few frames instead of one object a frame.
-- **(breaking)** A scenario places a `Planet`: a type and a seed draw a world
-  with terrain, biomes and a cap. A planetoid authored as a big `Asteroid` is
-  now a rock - re-author it at its true radius.
-- A `Planet` must author `invulnerable: true`. A destructible one is a lint
-  error and refuses to load: nothing carves a planet, so it would sit there
-  taking hits and never break.
-- New Game starts Basic Training: a Fleet gunnery range where Range Control
-  talks a cadet through the helm verbs, GOTO and ORBIT out to a planetoid and
-  back, the gun, five hulks and two drones that go live.
-- **(breaking)** The game ships no campaign: the `nova_protocol` campaign and
-  its `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
-  `final_tally` chapters are gone, and the story is being rewritten. Retarget a
-  mod that named one.
-- The sandbox's farthest picket mounts a railgun. It wakes like the others, but
-  a shot that lines up on you crosses your whole ship.
-- Every main-menu backdrop flies the block fleet now: the waystation's
-  freighters, the weave's runner, the gauntlet's stand and both duellists. No
-  backdrop needs a modelled ship.
-- A menu duellist that leaves the arena forfeits: it goes neutral, and the
-  survivor drops the chase and comes back to the middle of the shot instead of
-  trading fire past the frame edge.
-- A COMPLETED helm order gives back the `arrival_standoff` it staged, as a
-  canceled or interrupted one already did, so tight staging cannot retune every
-  later GOTO the hull flies.
-- **(breaking)** An asteroid's `material` names its KIND and is now required:
-  `rock`, `metal`, `ice`, `carbon` or `plain`. A rock without one fails to
-  load, and an id nobody ships is a lint error.
-- `ScatterObjects` takes `asteroid_kinds`, a weighted mix drawn from the
-  scatter's own seed, so one field is mostly rock with a little metal. An
-  asteroid template must author one.
-
-### Interface & HUD
-- Base content ships two comms portraits, the player's own label and Range
-  Control's face, reachable by any mod as `dep://base/portraits/<name>.png`.
-- A comms card is drawn in its channel: work traffic in transmission blue, the
-  crew in phosphor, and a guard-channel catch faint, amber and tagged GUARD.
-- Comms use screen-relative cards with 20 px text and distinct speaker headers.
-  A new line fades in without growing across the screen edge or the transcript,
-  and objective guidance reads over clutter.
-- A completed objective no longer ghosts green down the right of the screen.
-  Its chip leaving the top of the stack, under the completion chime, is the
-  whole cue.
-- A railgun carries the same ammo gauge as a turret or a bay, drawn in the
-  slug's pierce blue, so a spent shell and its long reload read at a glance.
-- With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
-  the bore ringing every section the shot would destroy, dimmed but still there
-  through the twelve-second reload.
-- File > New Scenario asks which world to start from: the free-flight range,
-  a duelling arena of rock rings around an empty middle, or nothing at all.
-- The editor generates a HULL into the ship you are inside: name a seed, tick
-  which sections the collapse draws from, and it replaces what that ship holds.
-- The biggest drive you tick is seeded as the generated hull's main engine and
-  the biggest railgun as its bow gun, and the grid grows to hold both. A HULL
-  PLAN line names what the ticks chose.
-- A ticked row carries a zone chip: press it to cycle where the collapse may
-  stand that section - anywhere, bow, mid, stern, dorsal, ventral or flank.
-  A hull the game's lint refuses never lands.
-- A weapon takes its own key when it is placed or generated - Space thrusts,
-  LMB the PDCs, `F` the torpedoes, `R` the railgun - so a generated ship set to
-  Player flies without rebinding a thing.
-- File > Save As names the file. Type a name, and the window says which slot it
-  derives and whether a range you already saved is there. File > Open lists
-  what there is, and a row opens it.
-- A document remembers its file: the first Save asks for a name, every later
-  one writes back to it, and New Scenario forgets it so a fresh range cannot
-  land on the last one.
-- The editor places a rock by KIND. The inspector's Material row is a pick list
-  of the shipped kinds, and the body on the stage is rebuilt in whichever one
-  you pick.
-- The editor's inspector and gallery read and write lengths and speeds in
-  meters, the unit the file itself now holds, and a section's own mesh rows
-  read in build-grid cells.
-- Press `:` anywhere - menu, editor, flight, pause screen - and the ship
-  computer opens on a second shell. One CRT, two languages: `commands`
-  switches, and each keeps its own transcript and history.
-- The command shell reads the run and writes your settings: 27 commands in
-  four classes. `help` and Tab completion come from one registry, and Tab
-  offers the ship and section ids the world holds now.
-- Cheats are refused until you run `cheats enable`, which marks the run one
-  way and turns the header amber. A fresh scenario is a fresh run and clears
-  the mark.
-- Settings > Controls gains a MOUSE group: separate look, RCS and free-camera
-  sensitivity sliders that reach a ship already flying. Mouse look now defaults
-  to two-thirds of its old gain.
-
 ### Ships & Sections
 - The 8 G turn limit is now a limit: holding the stick pins a ship at the
   hardest turn its hull survives, and a ship that loses its nose speeds up to
@@ -185,6 +97,40 @@ does NOT get an entry - and it is the only place they are written down.
 - Cladding shot off a hull FLIES. A spent skin plate comes away where it
   stood, takes its greebles and tumbles clear on the ship's own motion,
   instead of vanishing the frame it died.
+
+### Scenarios & Objectives
+- Nav beacons are radar-acquirable within 12 km by default, up from 6 km.
+- A scenario's spawn queue may take a fifth of each frame, so a machine drawing
+  slow frames lands its scatter in a few frames instead of one object a frame.
+- **(breaking)** A scenario places a `Planet`: a type and a seed draw a world
+  with terrain, biomes and a cap. A planetoid authored as a big `Asteroid` is
+  now a rock - re-author it at its true radius.
+- A `Planet` must author `invulnerable: true`. A destructible one is a lint
+  error and refuses to load: nothing carves a planet, so it would sit there
+  taking hits and never break.
+- New Game starts Basic Training: a Fleet gunnery range where Range Control
+  talks a cadet through the helm verbs, GOTO and ORBIT out to a planetoid, the
+  gun, five hulks and two live drones.
+- **(breaking)** The game ships no campaign: `nova_protocol` and its
+  `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
+  `final_tally` chapters are gone. Retarget a mod that named one.
+- The sandbox's farthest picket mounts a railgun. It wakes like the others, but
+  a shot that lines up on you crosses your whole ship.
+- Every main-menu backdrop flies the block fleet now: the waystation's
+  freighters, the weave's runner, the gauntlet's stand and both duellists. No
+  backdrop needs a modelled ship.
+- A menu duellist that leaves the arena forfeits: it goes neutral, and the
+  survivor drops the chase and comes back to the middle of the shot instead of
+  trading fire past the frame edge.
+- A COMPLETED helm order gives back the `arrival_standoff` it staged, as a
+  canceled or interrupted one already did, so tight staging cannot retune every
+  later GOTO the hull flies.
+- **(breaking)** An asteroid's `material` names its KIND and is now required:
+  `rock`, `metal`, `ice`, `carbon` or `plain`. A rock without one fails to
+  load, and an id nobody ships is a lint error.
+- `ScatterObjects` takes `asteroid_kinds`, a weighted mix drawn from the
+  scatter's own seed, so one field is mostly rock with a little metal. An
+  asteroid template must author one.
 
 ### Modding & Mod Portal
 - A catalog entry can set `enabled_by_default`: a fresh install with no saved
@@ -258,7 +204,7 @@ does NOT get an entry - and it is the only place they are written down.
   handler has to take it down.
 - **(breaking)** `StoryMessage` is `NarrativeCue`, and every line authors a
   `channel` id: `"comms"` for traffic sent to you, `"crew"` for the cabin,
-  `"guard"` for what you overheard. Rename and add the field.
+  `"guard"` for overheard. Rename and add the field.
 - `PlaySound` plays one authored cue in the cockpit, on the `Interface` or
   `Hull` route, with an optional gain between 0 and 1. Positional sound stays
   on the object that makes it.
@@ -286,6 +232,60 @@ does NOT get an entry - and it is the only place they are written down.
 - The editor's Generate block picks a HULL LINE: a row per grammar in the merged
   content, and the draw list re-ticks to the picked one. The example mod ships a
   freighter line beside the warship.
+
+### Interface & HUD
+- Base content ships two comms portraits, the player's own label and Range
+  Control's face, reachable by any mod as `dep://base/portraits/<name>.png`.
+- A comms card is drawn in its channel: work traffic in transmission blue, the
+  crew in phosphor, and a guard-channel catch faint, amber and tagged GUARD.
+- Comms use screen-relative cards with 20 px text and distinct speaker headers.
+  A new line fades in without growing across the screen edge or the transcript,
+  and objective guidance reads over clutter.
+- A completed objective no longer ghosts green down the right of the screen.
+  Its chip leaving the top of the stack, under the completion chime, is the
+  whole cue.
+- A railgun carries the same ammo gauge as a turret or a bay, drawn in the
+  slug's pierce blue, so a spent shell and its long reload read at a glance.
+- With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
+  the bore ringing every section the shot would destroy, dimmed but still there
+  through the twelve-second reload.
+- File > New Scenario asks which world to start from: the free-flight range,
+  a duelling arena of rock rings around an empty middle, or nothing at all.
+- The editor generates a HULL into the ship you are inside: name a seed, tick
+  which sections the collapse draws from, and it replaces what that ship holds.
+- The biggest drive you tick is seeded as the generated hull's main engine and
+  the biggest railgun as its bow gun, and the grid grows to hold both. A HULL
+  PLAN line names what the ticks chose.
+- A ticked row carries a zone chip: press it to cycle where the collapse may
+  stand that section - anywhere, bow, mid, stern, dorsal, ventral or flank.
+  A hull the game's lint refuses never lands.
+- A weapon takes its own key when it is placed or generated - Space thrusts,
+  LMB the PDCs, `F` the torpedoes, `R` the railgun - so a generated ship set to
+  Player flies without rebinding a thing.
+- File > Save As names the file. Type a name, and the window says which slot it
+  derives and whether a range you already saved is there. File > Open lists
+  what there is, and a row opens it.
+- A document remembers its file: the first Save asks for a name, every later
+  one writes back to it, and New Scenario forgets it so a fresh range cannot
+  land on the last one.
+- The editor places a rock by KIND. The inspector's Material row is a pick list
+  of the shipped kinds, and the body on the stage is rebuilt in whichever one
+  you pick.
+- The editor's inspector and gallery read and write lengths and speeds in
+  meters, the unit the file itself now holds, and a section's own mesh rows
+  read in build-grid cells.
+- Press `:` anywhere - menu, editor, flight, pause screen - and the ship
+  computer opens on a second shell. One CRT, two languages: `commands`
+  switches, and each keeps its own transcript and history.
+- The command shell reads the run and writes your settings: 27 commands in
+  four classes. `help` and Tab completion come from one registry, and Tab
+  offers the ship and section ids the world holds now.
+- Cheats are refused until you run `cheats enable`, which marks the run one
+  way and turns the header amber. A fresh scenario is a fresh run and clears
+  the mark.
+- Settings > Controls gains a MOUSE group: separate look, RCS and free-camera
+  sensitivity sliders that reach a ship already flying. Mouse look now defaults
+  to two-thirds of its old gain.
 
 ### Web & Platform
 - The `/lore/` encyclopedia adds illustrated world articles, named places,
@@ -2093,7 +2093,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.12.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/alexjercan/nova-protocol/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/alexjercan/nova-protocol/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/alexjercan/nova-protocol/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/alexjercan/nova-protocol/compare/v0.9.1...v0.10.0
