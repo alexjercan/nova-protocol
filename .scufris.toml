@@ -80,8 +80,33 @@ suites, and change nothing.
 - The Unreleased section of `CHANGELOG.md`, for whether there is a release
   worth cutting.
 
+## Last night's review
+
+A `nightly` source reviews the day's commits at 23:00 and writes its run beside
+this one, under yesterday's date. Read it before you report. With
+`night=$(date -d yesterday +%F)` and `runs=~/.local/state/scufris/briefings`:
+
+- `$runs/$night/nightly/manifest.json` for the run: its `state`, and this
+  project's entry under `sources` with the status, headline and facts the night
+  reported.
+- `$runs/$night/nightly/contributions/personal-nova-protocol.json`
+  for the body it wrote and the offers it made.
+- The tatr task the night names in that body, which holds every group it
+  reviewed and every finding. That task is where the detail is; the envelope
+  only carries the worst of it.
+
+Report what the night found, what still stands this morning, and what needs
+Alex. Check a finding against the tree before you carry it: a night's finding
+is a claim from yesterday, not a fact about today. Each one that still stands
+and that nobody has acted on is an offer, so it reaches him numbered and he can
+start it by number. He decides which are done; a fix he picks runs as a job in
+a Sprout worktree, never on master and never by the night itself.
+
+A night that did not run, or came back `stale` or `failed`, is one line saying
+so. An absent night is news and not silence.
+
 Facts are counts: failing workflows, uncommitted files, open tasks, Unreleased
-entries.
+entries, findings left over from last night.
 
 A green master with a clean tree is a good morning. Say so with `status = "ok"`
 and a short body rather than finding something to say. This is a report on the
