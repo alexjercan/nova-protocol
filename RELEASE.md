@@ -1,6 +1,8 @@
 # Release checklist
 
-Release from `master`. Use semantic versions and tags in the form `vX.Y.Z`.
+Release the game from `master`. Use semantic versions and tags in the form
+`vX.Y.Z`. Comic publication uses separate `comic-*` tags and does not bump the
+game version. See the [comic publishing procedure](web/src/comics/README.md#publishing-the-comic).
 
 ## Prepare
 
@@ -29,4 +31,4 @@ Release from `master`. Use semantic versions and tags in the form `vX.Y.Z`.
 - [ ] Check the final commit and create the `vX.Y.Z` tag on it.
 - [ ] Push `master` and the tag. The tag starts the GitHub release workflow.
 - [ ] Confirm the macOS, Linux, Windows, and web assets are attached to the GitHub release.
-- [ ] Run the GitHub Pages deploy workflow, then verify the published site and download links.
+- [ ] Run the current GitHub Pages deploy workflow, which preserves the independently published comic. Complete the comic bootstrap before the first site-only deployment. Verify the published site and download links.

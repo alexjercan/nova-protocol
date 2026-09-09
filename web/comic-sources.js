@@ -228,7 +228,7 @@ function compileComics({
                 if (!fs.existsSync(file))
                     throw new Error(`Missing generated asset: ${file}`);
                 assets.set(
-                    `assets/story/${comic.path}/${episode.id}/${name}`,
+                    `story/assets/${comic.path}/${episode.id}/${name}`,
                     file
                 );
                 retained.add(file);

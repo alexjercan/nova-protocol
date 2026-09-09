@@ -1040,6 +1040,42 @@ Adding a post touches three places (mirror an existing post such as
    otherwise the `.post-card__ph` placeholder naming `assets/thumb-news-<version>.png`.
 4. Rebuild and check it: `cd web && npm run ci` (format check, lint, test, build).
 
+### Comic deployment
+
+`npm --prefix web run build:story` builds only released comics into
+`web/dist-story/story/`. Its local scripts, images, favicon, and font assets
+stay under `/story/`. Shared theme/header sources are compiled into that
+snapshot; unrelated website pages are neither built nor published. The shared
+Google Fonts import remains external. Normal serving still uses the complete
+website and labelled drafts; there is no second development server.
+
+Pushing a `comic-*` tag starts `deploy-comic`. A manual run accepts an existing
+comic tag for a retry or rollback. The workflow resolves the tag to a commit,
+builds once, and passes the artifact and exact commit to its publisher. The tag
+names a library snapshot, not a filter: publication metadata selects episodes.
+Game `vX.Y.Z` tags and version numbers remain separate. The comic authoring
+README owns the publishing procedure and first-rollout checklist.
+
+The full Pages workflow uses `build:site`, which does not execute or emit comics.
+Both publishers use `scripts/deploy-pages.py`. It fetches the latest `gh-pages`
+under a shared `github-pages-publish` job lock, builds a temporary Git index and
+working tree, and commits a scoped merge without changing the source checkout's
+index. A comic deployment replaces only `story/`; a site deployment preserves
+it. Both preserve `CNAME` and ensure `.nojekyll`. Non-fast-forward pushes fail.
+Pages hosting must use the `gh-pages` branch root. Both jobs explicitly request
+and wait for a Pages API build with a write-scoped Pages token.
+
+Bootstrap the new comic directory before a site-only deployment can remove old
+root-level reader files. The guard requires `story/release.json`, which records
+the comic tag and source commit. Use the current site's workflow, not a workflow
+from an older game tag that predates the ownership split. Serial publishing is
+not a FIFO release queue; wait for one deployment before starting another.
+
+`npm --prefix web run test:deploy` checks isolated builds with released/draft
+fixtures and local bare-Git publishing with mocked HTTP. It never publishes to
+GitHub. Normal `npm run build` still builds the complete released-only website
+for checks; it is not the input to either scoped publisher.
+
 ### Writing a story comic
 
 `web/src/comics/` is the single home for maintained comic sources. Each season

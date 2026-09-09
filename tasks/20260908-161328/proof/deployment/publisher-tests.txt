@@ -1,0 +1,23 @@
+.....To /tmp/tmps28m3swu/remote.git
+ * [new branch]      195eec8cb64575f2246a4e3301bb9796a479d5cf -> gh-pages
+From /tmp/tmps28m3swu/remote
+ * branch            gh-pages   -> FETCH_HEAD
+To /tmp/tmps28m3swu/remote.git
+   195eec8..e67aa4f  e67aa4fd348379803f8b886f340853cd6a4f0fb2 -> gh-pages
+From /tmp/tmps28m3swu/remote
+ * branch            gh-pages   -> FETCH_HEAD
+From /tmp/tmps28m3swu/remote
+ * branch            gh-pages   -> FETCH_HEAD
+To /tmp/tmps28m3swu/remote.git
+   e67aa4f..f19f58e  f19f58e47e114ad43538b65c99c17284e10dd256 -> gh-pages
+From /tmp/tmps28m3swu/remote
+ * branch            gh-pages   -> FETCH_HEAD
+....
+----------------------------------------------------------------------
+Ran 9 tests in 0.202s
+
+OK
+Published site: 195eec8cb64575f2246a4e3301bb9796a479d5cf
+Published story: e67aa4fd348379803f8b886f340853cd6a4f0fb2
+Published files are already current
+Published site: f19f58e47e114ad43538b65c99c17284e10dd256

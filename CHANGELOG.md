@@ -326,6 +326,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The Railgun page runs the same shot twice: the slowed cut that separates the
   flash from the corridor, and a second loop at real speed, where the hull is
   open in the frame after the muzzle flash.
+- Comic tags publish only `/story/`, without rebuilding the game or other site
+  pages. Full-site deployments preserve the comic; both publishers record exact
+  revisions and share a deployment lock.
 
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,

@@ -31,7 +31,7 @@ function htmlPage(filename, title, summary, body, publicPath, reader = false) {
         templateContent: `<!doctype html><html lang="en"><head><meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>${escapeHtml(title)} - Nova Protocol</title><meta name="description" content="${escapeHtml(summary)}" />
-<link rel="icon" href="${publicPath}favicon.svg" /></head><body${reader ? ' class="comic-body"' : ""}>
+<link rel="icon" href="${publicPath}story/favicon.svg" /></head><body${reader ? ' class="comic-body"' : ""}>
 ${reader ? "" : '<div id="header"></div>'}${body}${reader ? "" : '<div id="footer"></div>'}</body></html>`,
     });
 }
@@ -50,7 +50,7 @@ function episodeList(comic, publicPath) {
             (
                 episode
             ) => `<li><a class="story-episode" href="${episodeUrl(comic, episode, publicPath)}">
-<img src="${publicPath}assets/story/${comic.path}/${escapeHtml(episode.cover)}" alt="${escapeHtml(episode.coverAlt)}" loading="lazy" />
+<img src="${publicPath}story/assets/${comic.path}/${escapeHtml(episode.cover)}" alt="${escapeHtml(episode.coverAlt)}" loading="lazy" />
 <span class="story-row__body"><span class="story-meta">Episode ${String(episode.number).padStart(2, "0")}</span>
 <strong>${escapeHtml(episode.title)}</strong><span class="story-meta">${isDraft(episode) ? `<span class="story-draft-label">Draft</span> - ${episode.pages.length} of ${episode.pageCount} pages illustrated` : countLabel(episode.pages.length, "page")}</span><span>${escapeHtml(episode.summary)}</span></span></a></li>`
         )
@@ -59,7 +59,7 @@ function episodeList(comic, publicPath) {
 function seasonRow(comic, publicPath) {
     const drafts = comic.episodes.filter(isDraft).length;
     return `<li><a class="story-season" href="${seasonUrl(comic, publicPath)}">
-<img src="${publicPath}assets/story/${comic.path}/${escapeHtml(comic.cover)}" alt="${escapeHtml(comic.coverAlt)}" loading="lazy" />
+<img src="${publicPath}story/assets/${comic.path}/${escapeHtml(comic.cover)}" alt="${escapeHtml(comic.coverAlt)}" loading="lazy" />
 <span class="story-row__body"><strong>${escapeHtml(comic.title)}</strong>
 <span class="story-meta">${countLabel(comic.episodes.length, "episode")}${drafts ? ` / <span class="story-draft-label">${countLabel(drafts, "draft")}</span>` : ""}</span>
 <span>${escapeHtml(comic.summary)}</span></span></a></li>`;

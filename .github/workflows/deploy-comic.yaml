@@ -1,0 +1,81 @@
+name: deploy-comic
+
+on:
+  push:
+    tags: ["comic-*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing comic-* tag to publish or restore"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PUBLIC_PATH: /nova-protocol/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.name }}
+      revision: ${{ steps.revision.outputs.sha }}
+    steps:
+      - name: Validate requested tag
+        id: tag
+        env:
+          COMIC_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$COMIC_TAG" =~ ^comic-[a-z0-9][a-z0-9.-]*$ ]]; then
+            echo 'Expected a comic-* tag, not a branch or arbitrary ref' >&2
+            exit 1
+          fi
+          echo "name=$COMIC_TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.name }}
+      - name: Record exact source commit
+        id: revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build released comics only
+        working-directory: web
+        run: |
+          npm ci
+          python3 ../scripts/test_deploy_pages.py
+          npm run build:story
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comic
+          path: web/dist-story/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+    concurrency:
+      group: github-pages-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.revision }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: comic
+          path: built-comic
+      - name: Publish only the comic directory
+        env:
+          COMIC_TAG: ${{ needs.build.outputs.tag }}
+          COMIC_REVISION: ${{ needs.build.outputs.revision }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python3 scripts/deploy-pages.py --kind story --source built-comic
+          --tag "$COMIC_TAG" --revision "$COMIC_REVISION" --github-pages

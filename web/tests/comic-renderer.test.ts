@@ -181,7 +181,7 @@ const byClass = (name: string) => (node: FakeNode) =>
     assert.equal(article.children[0].tagName, "img");
     assert.equal(
         article.children[0].src,
-        "/nova/assets/story/example/page-01.svg"
+        "/nova/story/assets/example/page-01.svg"
     );
     assert.equal(article.id, "the-page");
 }
@@ -273,7 +273,7 @@ assert.throws(
         )
     );
     const picture = one(article, (node) => node.tagName === "img");
-    assert.equal(picture.src, "/nova/assets/story/example/boards/the-yard.svg");
+    assert.equal(picture.src, "/nova/story/assets/example/boards/the-yard.svg");
     assert.equal(picture.alt, "The yard.");
     assert.equal(picture.dataset.focus, "left");
 }

@@ -1,0 +1,179 @@
+
+> nova-protocol-web@1.0.0 build:site
+> webpack --config webpack.config.js --env target=site --mode production --output-path .cache/story/deployment-site
+
+assets by path assets/ 186 MiB 255 assets
+assets by path nova-hud/ 606 KiB 118 assets
+assets by path *.js 3.94 MiB 70 assets
+assets by path lore/ 146 KiB 32 assets
+assets by path wiki/ 276 KiB 22 assets
+assets by path create/ 595 KiB 19 assets
+assets by path news/ 372 KiB
+  asset news/0.13.0/index.html 72.4 KiB [emitted]
+  + 13 assets
+assets by path changelog/ 3.19 KiB 12 assets
+assets by path blog/ 1.58 KiB
+  asset blog/devlog-1-modular-ships-and-first-combat/index.html 274 bytes [emitted]
+  + 5 assets
++ 4 assets
+orphan modules 2.02 MiB [orphan] 1331 modules
+runtime modules 10.1 KiB 24 modules
+cacheable modules 7.84 MiB (javascript) 75.3 KiB (asset)
+  modules by path ./node_modules/ 7.05 MiB 232 modules
+  modules by path ./src/ 819 KiB (javascript) 75.3 KiB (asset)
+    modules by path ./src/*.ts 677 KiB
+      ./src/index.ts + 4 modules 9.69 KiB [built] [code generated]
+      ./src/docs.ts + 4 modules 340 KiB [built] [code generated]
+      ./src/news.ts + 3 modules 328 KiB [built] [code generated]
+    modules by path ./src/*.css 94.1 KiB
+      ./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.3 KiB [built] [code generated]
+      ./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/lore.css 2.75 KiB [built] [code generated]
+    ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+    ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+
+WARNING in asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+This can impact web performance.
+Assets: 
+  docs.js (313 KiB)
+  news.js (271 KiB)
+  2300.js (666 KiB)
+  2130.js (256 KiB)
+  8731.js (658 KiB)
+  165.js (422 KiB)
+  assets/banner.png (1.9 MiB)
+  assets/catalog-basic-controller-section.png (1.75 MiB)
+  assets/catalog-basic-thruster-section.png (1.71 MiB)
+  assets/catalog-capital-thruster-section.png (1.83 MiB)
+  assets/catalog-cargo-hull-section.png (1.88 MiB)
+  assets/catalog-heavy-torpedo-section.png (1.76 MiB)
+  assets/catalog-lance-torpedo-section.png (1.76 MiB)
+  assets/catalog-light-hull-section.png (1.66 MiB)
+  assets/catalog-pdc-kinetic-turret-section.png (1.68 MiB)
+  assets/catalog-pdc-pierce-turret-section.png (1.68 MiB)
+  assets/catalog-pdc-twin-kinetic-turret-section.png (1.8 MiB)
+  assets/catalog-pdc-twin-pierce-turret-section.png (1.8 MiB)
+  assets/catalog-railgun-lance-section.png (1.75 MiB)
+  assets/catalog-reinforced-hull-section.png (1.66 MiB)
+  assets/catalog-siege-railgun-lance-section.png (1.57 MiB)
+  assets/catalog-tank-hull-section.png (1.9 MiB)
+  assets/catalog-torpedo-section.png (1.76 MiB)
+  assets/catalog-vector-thruster-section.png (1.83 MiB)
+  assets/feature-autopilot.png (1.19 MiB)
+  assets/feature-combat.png (2.37 MiB)
+  assets/feature-editor.png (1.22 MiB)
+  assets/greeble-catalog-industrial.png (1.97 MiB)
+  assets/greeble-catalog.png (1.91 MiB)
+  assets/news-0100-autopilot.png (1.42 MiB)
+  assets/news-0100-combat.png (2.27 MiB)
+  assets/news-0110-collider-after.png (1.43 MiB)
+  assets/news-0110-collider-before-after.png (297 KiB)
+  assets/news-0110-collider-before.png (1.41 MiB)
+  assets/news-0110-damage-levels.png (1.71 MiB)
+  assets/news-0110-greeble-atlas.png (1.91 MiB)
+  assets/news-0110-scenarios.png (1.29 MiB)
+  assets/news-0120-controls.png (1.16 MiB)
+  assets/news-0120-drives.png (1.72 MiB)
+  assets/news-0120-editor.png (1.16 MiB)
+  assets/news-0120-range.png (1.66 MiB)
+  assets/news-0120-thruster-bell.png (1.65 MiB)
+  assets/news-0130-asteroid-kinds.png (2.34 MiB)
+  assets/news-0130-block-fleet.png (967 KiB)
+  assets/news-0130-comms-channels.png (1.73 MiB)
+  assets/news-0130-editor-meters.png (1.22 MiB)
+  assets/news-0130-editor-save-as.png (1.36 MiB)
+  assets/news-0130-hull-builds.png (1.67 MiB)
+  assets/news-0130-hull-plan.png (1.42 MiB)
+  assets/news-0130-hull-row.png (1.29 MiB)
+  assets/news-0130-menu-backdrop.png (1.7 MiB)
+  assets/news-0130-planet-types.png (1.47 MiB)
+  assets/news-0130-railgun-sight.png (1.45 MiB)
+  assets/news-0130-volume-sliders.png (1.28 MiB)
+  assets/news-090-combat-readability.png (2.27 MiB)
+  assets/news-090-contextual-hud.png (2.27 MiB)
+  assets/news-090-nova-os-apps.png (1.29 MiB)
+  assets/news-090-nova-os-terminal.png (1.38 MiB)
+  assets/news-090-scenario-campaigns.png (508 KiB)
+  assets/thumb-news-0.11.0.png (1.64 MiB)
+  assets/thumb-news-0.12.0.png (1.16 MiB)
+  assets/thumb-news-0.13.0.png (1.45 MiB)
+  assets/tutorial-combat-lock.png (2.37 MiB)
+  assets/tutorial-menu.png (1.7 MiB)
+  assets/tutorial-orbit.png (2.06 MiB)
+  assets/tutorial-radar-lock.png (2.02 MiB)
+  assets/wiki-combat-aftermath.png (2.25 MiB)
+  assets/wiki-combat-railgun.png (1.68 MiB)
+  assets/wiki-combat-torpedo.png (1.99 MiB)
+  assets/wiki-combat.png (2.17 MiB)
+  assets/wiki-controls.png (1.26 MiB)
+  assets/wiki-first-scenario-picker.png (362 KiB)
+  assets/wiki-flight.png (1.56 MiB)
+  assets/wiki-gravity.png (2.06 MiB)
+  assets/wiki-hud.png (2.09 MiB)
+  assets/wiki-nova-os-map.png (1.26 MiB)
+  assets/wiki-nova-os-ship.png (1.34 MiB)
+  assets/wiki-nova-os-terminal.png (1.4 MiB)
+  assets/wiki-radar.png (2.13 MiB)
+  assets/wiki-sandbox-range.png (1.63 MiB)
+  assets/wiki-scenarios-picker.png (378 KiB)
+  assets/wiki-section-capital-drive.png (1.83 MiB)
+  assets/wiki-section-controller.png (1.75 MiB)
+  assets/wiki-section-drives.png (1.71 MiB)
+  assets/wiki-section-hull-cargo.png (1.88 MiB)
+  assets/wiki-section-hull-tank.png (1.9 MiB)
+  assets/wiki-section-hull.png (1.66 MiB)
+  assets/wiki-section-railgun-corridor.png (1.82 MiB)
+  assets/wiki-section-railgun-sight.png (1.45 MiB)
+  assets/wiki-section-railgun.png (1.75 MiB)
+  assets/wiki-section-thruster.png (1.71 MiB)
+  assets/wiki-section-torpedo-bay.png (1.76 MiB)
+  assets/wiki-section-turret-twin.png (1.8 MiB)
+  assets/wiki-section-turret.png (1.68 MiB)
+  assets/wiki-section-vector-drive.png (1.83 MiB)
+  assets/wiki-sections.png (2.23 MiB)
+  assets/wiki-settings.png (1.28 MiB)
+  assets/wiki-ships-damage.png (1.85 MiB)
+  assets/lore/ebro-design-concept.svg (1.38 MiB)
+  assets/lore/gantry-design-concept.svg (605 KiB)
+  assets/lore/kaveri-design-concept.svg (1.02 MiB)
+  assets/loops/goto-arrival.webm (813 KiB)
+  assets/loops/hero-wfc-duel.webm (1.83 MiB)
+  assets/loops/landing-cockpit.webm (1.01 MiB)
+  assets/loops/landing-damage-sequence.webm (270 KiB)
+  assets/loops/landing-player-flight.webm (478 KiB)
+  assets/loops/landing-wfc-2v2.webm (2.11 MiB)
+  assets/loops/loop-section-railgun-live.webm (656 KiB)
+  assets/loops/loop-section-railgun.webm (462 KiB)
+  assets/loops/loop-section-thruster.webm (478 KiB)
+  assets/loops/loop-section-turret.webm (544 KiB)
+  assets/loops/news-0110-point-defense.webm (405 KiB)
+  assets/loops/news-0110-round-types.webm (1010 KiB)
+  assets/loops/news-0120-point-defense.webm (471 KiB)
+  assets/loops/news-0120-vfx-range.webm (607 KiB)
+  assets/loops/news-0130-agent-run.webm (688 KiB)
+  assets/loops/news-0130-basic-training.webm (383 KiB)
+  assets/loops/news-0130-belt-before-after.webm (1.2 MiB)
+  assets/loops/news-0130-block-duel.webm (1.83 MiB)
+  assets/loops/news-0130-cinematic.webm (379 KiB)
+  assets/loops/news-0130-cladding.webm (270 KiB)
+  assets/loops/news-0130-helm-orders.webm (436 KiB)
+  assets/loops/news-0130-hull-collapse.webm (2.43 MiB)
+  assets/loops/news-0130-hull-generate.webm (271 KiB)
+  assets/loops/news-0130-railgun-commit.webm (462 KiB)
+  assets/loops/news-0130-railgun-corridor.webm (656 KiB)
+  assets/loops/news-0130-rcs-box.webm (290 KiB)
+  assets/loops/news-0130-release-lead.webm (1.83 MiB)
+  assets/loops/news-0130-sections-before-after.webm (805 KiB)
+  assets/loops/news-0130-torpedo-blast.webm (403 KiB)
+  assets/loops/nova-os-open.webm (935 KiB)
+  assets/loops/torpedo-blast.webm (403 KiB)
+  assets/loops/vfx-range.webm (836 KiB)
+  nova-hud/assets/input-prompts/keyboard/Alt/T_Keyboard_Mouse_Key_Alt_Sprite.svg (272 KiB)
+
+WARNING in entrypoint size limit: The following entrypoint(s) combined asset size exceeds the recommended limit (244 KiB). This can impact web performance.
+Entrypoints:
+  docs (313 KiB)
+      docs.js
+  news (271 KiB)
+      news.js
+
+webpack 5.108.4 compiled with 2 warnings in 7324 ms

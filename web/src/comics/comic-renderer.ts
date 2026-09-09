@@ -55,7 +55,7 @@ function assetUrl(context: RenderPageContext, source: string): string {
     if (!ASSET_SOURCE.test(source) || source.includes("..")) {
         throw new Error(`Comic asset source is not allowed: ${source}`);
     }
-    return `${context.basePath}assets/story/${context.comicPath}/${source}`;
+    return `${context.basePath}story/assets/${context.comicPath}/${source}`;
 }
 
 function image(

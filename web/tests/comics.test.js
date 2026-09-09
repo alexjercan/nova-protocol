@@ -18,13 +18,18 @@ assert.throws(
         storyBuild({ serving: true, mode: "development", outputPath: "dist" }),
     /isolated/
 );
-assert.deepEqual(
-    storyBuild({ serving: false, mode: "development" }).comics(),
-    []
+const releasedCatalog = storyBuild({
+    serving: false,
+    mode: "development",
+}).comics();
+assert(
+    releasedCatalog.every((season) =>
+        season.episodes.every((episode) => episode.publication === "released")
+    )
 );
 assert.deepEqual(
     storyBuild({ serving: true, mode: "production" }).comics(),
-    []
+    releasedCatalog
 );
 const html = (p) => p.userOptions.templateContent;
 
@@ -508,9 +513,9 @@ for (const mutate of [
     mutate(invalid);
     assert.throws(() => validatePageDefinition(invalid, asset));
 }
-assert.deepEqual(
-    discoverComics().map((c) => [c.path, c.episodes.map((e) => e.publication)]),
-    [["season-1", ["draft"]]]
+assert(
+    discoverComics().length > 0,
+    "Repository metadata can be discovered independently of publication state"
 );
 assert(
     !fs

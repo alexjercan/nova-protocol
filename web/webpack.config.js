@@ -3,14 +3,12 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
-const { docPage, newsPostPage } = require("./markdown");
 const {
     comicIndexPage,
     comicSeasonPage,
     comicReaderPage,
     comicRoutes,
 } = require("./comic-build");
-const { DOC_SECTIONS } = require("./src/docs-manifest");
 const getPort = require("get-port");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
@@ -65,6 +63,7 @@ const validateSection = (section) => {
     }
 };
 const sectionDocPages = (section) => {
+    const { docPage } = require("./markdown");
     validateSection(section);
     const bySlug = new Map(section.pages.map((p) => [p.slug, p]));
     const pages = section.pages
@@ -204,7 +203,11 @@ const NEWS_POSTS = [
     },
 ];
 const newsPage = (p) =>
-    newsPostPage({ ...p, mdPath: `src/news/${p.slug}.md`, publicPath });
+    require("./markdown").newsPostPage({
+        ...p,
+        mdPath: `src/news/${p.slug}.md`,
+        publicPath,
+    });
 
 // Retired entry pages and merged news URLs emit a tiny meta-refresh + canonical
 // page (no chunks, no header/footer) so old links and bookmarks keep resolving.
@@ -274,18 +277,26 @@ const resolveUiPort = async () => {
 };
 
 module.exports = async (env, argv) => {
-    // Only `webpack serve` needs a port; skipping the scan keeps `npm run build`
-    // (and CI) from probing sockets it will never listen on.
-    const uiPort = env && env.WEBPACK_SERVE ? await resolveUiPort() : undefined;
+    const target = env?.target ?? "all";
+    if (!["all", "story", "site"].includes(target))
+        throw new Error(`Unknown website build target: ${target}`);
+    const DOC_SECTIONS =
+        target === "story" ? [] : require("./src/docs-manifest").DOC_SECTIONS;
     const serving = env?.WEBPACK_SERVE === true;
-    const story = storyBuild({
-        serving,
-        mode: argv.mode,
-        outputPath: argv.outputPath,
-    });
-    const COMICS = story.comics();
+    if (serving && target !== "all")
+        throw new Error("Use normal serving to review the complete website");
+    const uiPort = serving ? await resolveUiPort() : undefined;
+    const story =
+        target === "site"
+            ? null
+            : storyBuild({
+                  serving,
+                  mode: argv.mode,
+                  outputPath: argv.outputPath,
+              });
+    const COMICS = story ? story.comics() : [];
     const catalog = () => {
-        const current = story.comics();
+        const current = story ? story.comics() : [];
         if (
             JSON.stringify(comicRoutes(current).sort()) !==
             JSON.stringify(comicRoutes(COMICS).sort())
@@ -295,25 +306,31 @@ module.exports = async (env, argv) => {
             );
         return current;
     };
-    const storyPages = [
-        (all) => comicIndexPage(all, publicPath),
-        ...COMICS.flatMap((comic) => [
-            (all) =>
-                comicSeasonPage(
-                    all.find((c) => c.path === comic.path),
-                    publicPath
-                ),
-            ...comic.episodes.map((episode) => (all) => {
-                const current = all.find((c) => c.path === comic.path);
-                return comicReaderPage(
-                    current,
-                    current.episodes.find((e) => e.id === episode.id),
-                    publicPath,
-                    all
-                );
-            }),
-        ]),
-    ].map(
+    const storyPages = (
+        story
+            ? [
+                  (all) => comicIndexPage(all, publicPath),
+                  ...COMICS.flatMap((comic) => [
+                      (all) =>
+                          comicSeasonPage(
+                              all.find((c) => c.path === comic.path),
+                              publicPath
+                          ),
+                      ...comic.episodes.map((episode) => (all) => {
+                          const current = all.find(
+                              (c) => c.path === comic.path
+                          );
+                          return comicReaderPage(
+                              current,
+                              current.episodes.find((e) => e.id === episode.id),
+                              publicPath,
+                              all
+                          );
+                      }),
+                  ]),
+              ]
+            : []
+    ).map(
         (render) =>
             new HtmlWebpackPlugin({
                 ...render(COMICS).userOptions,
@@ -325,58 +342,93 @@ module.exports = async (env, argv) => {
 
     return {
         entry: {
-            index: "./src/index.ts",
-            docs: "./src/docs.ts",
-            news: "./src/news.ts",
-            story: "./src/story.ts",
+            ...(target === "story"
+                ? {}
+                : {
+                      index: "./src/index.ts",
+                      docs: "./src/docs.ts",
+                      news: "./src/news.ts",
+                  }),
+            ...(story
+                ? {
+                      story: {
+                          import: "./src/story.ts",
+                          filename: "story/reader.js",
+                      },
+                  }
+                : {}),
         },
         output: {
-            path: serving ? story.site : path.resolve(__dirname, "dist"),
+            path: serving
+                ? story.site
+                : path.resolve(
+                      __dirname,
+                      target === "story" ? "dist-story" : "dist"
+                  ),
             filename: "[name].js",
-            assetModuleFilename: "assets/[name][ext]",
+            assetModuleFilename:
+                target === "story"
+                    ? "story/assets/[name][ext]"
+                    : "assets/[name][ext]",
             clean: true,
             publicPath: publicPath,
         },
         plugins: [
-            story.plugin,
-            page("index", "src/index.html", "index.html"),
-            page("docs", "src/wiki.html", "wiki/index.html"),
-            ...DOC_SECTIONS.flatMap(sectionDocPages),
-            page("news", "src/news.html", "news/index.html"),
-            ...storyPages,
-            ...NEWS_POSTS.map(newsPage),
-            ...REDIRECTS.map(redirectPage),
-            new CopyPlugin({
-                patterns: [
-                    { from: "src/assets", to: "assets" },
-                    { from: "src/favicon.svg", to: "favicon.svg" },
-                    // Easter egg: the self-contained UI-rework PoCs live in
-                    // `web/design/` (their source of truth). Copy them verbatim into
-                    // the build at secret, unlinked routes rather than committing a
-                    // second copy under `src/`. The 5x brand-click (src/site.ts) opens
-                    // `/nova-menu/`; New Game -> `/nova-hud/`; the HUD's NOVA OS button
-                    // -> `/nova-os/`. The menu + CRT PoCs have no relative asset refs
-                    // and render as-is under any publicPath; the HUD PoC references the
-                    // input-prompt key glyphs, which live in the game asset tree
-                    // (`assets/input-prompts/`), so that folder is copied alongside.
-                    {
-                        from: "design/nova_ui_rework_poc.html",
-                        to: "nova-menu/index.html",
-                    },
-                    {
-                        from: "design/hud_rework_poc.html",
-                        to: "nova-hud/index.html",
-                    },
-                    {
-                        from: "../assets/input-prompts",
-                        to: "nova-hud/assets/input-prompts",
-                    },
-                    {
-                        from: "design/nova_os_terminal_poc.html",
-                        to: "nova-os/index.html",
-                    },
-                ],
-            }),
+            ...(story
+                ? [
+                      story.plugin,
+                      ...storyPages,
+                      new CopyPlugin({
+                          patterns: [
+                              {
+                                  from: "src/favicon.svg",
+                                  to: "story/favicon.svg",
+                              },
+                          ],
+                      }),
+                  ]
+                : []),
+            ...(target === "story"
+                ? []
+                : [
+                      page("index", "src/index.html", "index.html"),
+                      page("docs", "src/wiki.html", "wiki/index.html"),
+                      ...DOC_SECTIONS.flatMap(sectionDocPages),
+                      page("news", "src/news.html", "news/index.html"),
+                      ...NEWS_POSTS.map(newsPage),
+                      ...REDIRECTS.map(redirectPage),
+                      new CopyPlugin({
+                          patterns: [
+                              { from: "src/assets", to: "assets" },
+                              { from: "src/favicon.svg", to: "favicon.svg" },
+                              // Easter egg: the self-contained UI-rework PoCs live in
+                              // `web/design/` (their source of truth). Copy them verbatim into
+                              // the build at secret, unlinked routes rather than committing a
+                              // second copy under `src/`. The 5x brand-click (src/site.ts) opens
+                              // `/nova-menu/`; New Game -> `/nova-hud/`; the HUD's NOVA OS button
+                              // -> `/nova-os/`. The menu + CRT PoCs have no relative asset refs
+                              // and render as-is under any publicPath; the HUD PoC references the
+                              // input-prompt key glyphs, which live in the game asset tree
+                              // (`assets/input-prompts/`), so that folder is copied alongside.
+                              {
+                                  from: "design/nova_ui_rework_poc.html",
+                                  to: "nova-menu/index.html",
+                              },
+                              {
+                                  from: "design/hud_rework_poc.html",
+                                  to: "nova-hud/index.html",
+                              },
+                              {
+                                  from: "../assets/input-prompts",
+                                  to: "nova-hud/assets/input-prompts",
+                              },
+                              {
+                                  from: "design/nova_os_terminal_poc.html",
+                                  to: "nova-os/index.html",
+                              },
+                          ],
+                      }),
+                  ]),
             new HtmlPartialsPlugin({ basePath: publicPath }),
         ],
         resolve: {
@@ -386,7 +438,12 @@ module.exports = async (env, argv) => {
             rules: [
                 {
                     test: /\.tsx?$/,
-                    use: "ts-loader",
+                    use: {
+                        loader: "ts-loader",
+                        options: {
+                            onlyCompileBundledFiles: target === "story",
+                        },
+                    },
                     exclude: /node_modules/,
                 },
                 {

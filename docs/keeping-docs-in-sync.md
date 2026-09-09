@@ -90,6 +90,7 @@ creator pages on the site; linked names are chapters of this book.
 | Content CLI: gen/lint subcommands, the base content builders (`nova_authoring`, the game binary's `content` subcommand) | | `/create/author-a-scenario/`, `/create/sections/`, [Add a ship section](guide-add-section.md), `/create/publish-a-mod/`, `/create/mod-files/`, [Scenario engine](scenario-system.md), [Ship sections internals](sections.md), `/create/base-content/` (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there) | CHANGELOG |
 | Packaging: the nix package, the desktop entry, the icon (`flake.nix`) | | [Building and running](development.md) ("The nix package", "The desktop entry") | README.md quick start, CHANGELOG (Internals) |
 | The website itself (`web/`) | | [Building and running](development.md), this page | |
+| Comic/site deployment (`deploy-comic.yaml`, `deploy-page.yaml`, `scripts/deploy-pages.py`, webpack targets) | | [Building and running](development.md#comic-deployment), `web/src/comics/README.md` publishing procedure | Preserve separate `/story/` ownership, tag/commit provenance, and draft exclusion; keep the two publishers on one lock |
 | Local dev servers (`scripts/serve-web.sh`, `scripts/serve-mods.sh`, `scripts/preview-web.sh`, `web/webpack.config.js`, `Trunk.toml`) | | [Building and running](development.md) ("Local web preview"), `/create/publish-a-mod/` ("Preview the repository portal") | README.md quick start + scripts table |
 
 ### "Check" means re-derive, not grep

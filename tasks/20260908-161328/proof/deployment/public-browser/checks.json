@@ -1,0 +1,14 @@
+{
+  "noServer": true,
+  "ownedResources": true,
+  "releasedFixture": false,
+  "seasonLibrary": true,
+  "episodeLists": true,
+  "browserHistory": true,
+  "modalChecks": false,
+  "noLayoutUi": true,
+  "base": "/",
+  "reports": [],
+  "pixels": [],
+  "errors": []
+}

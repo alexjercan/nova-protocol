@@ -84,6 +84,15 @@ iteration. [Season browser review](SEASON-BROWSER-REVIEW.md) records the checks.
   [art review](GANTRY-REVIEW.md).
 - [Aquila pages 5-7](aquila-pages/index.html) and [batch review](AQUILA-REVIEW.md).
 
+## Comic publishing follow-up
+
+The user approved independent `comic-*` releases. Comic-only builds own
+`/story/`; full-site publishing preserves that directory. Both publishers use
+one lock and exact source commits. The first rollout needs an empty-library
+bootstrap before legacy root-level reader files can be removed. No release tag
+or live deployment was created. [Deployment review](DEPLOYMENT-REVIEW.md) records
+the build, publisher, and browser checks. The eighteen-page episode stays draft.
+
 ## Writing plan
 
 1. Develop the existing season progression into a complete causal outline.

@@ -1,0 +1,23 @@
+
+> nova-protocol-web@1.0.0 build:story
+> webpack --config webpack.config.js --env target=story --mode production --output-path .cache/story/deployment-public-prefix
+
+asset story/reader.js 127 KiB [emitted] [minimized] (name: story)
+asset story/assets/promptfont.woff2 75.3 KiB [emitted] [from: src/assets/promptfont.woff2] (auxiliary name: story)
+asset story/index.html 1.98 KiB [emitted]
+asset story/favicon.svg 891 bytes [emitted] [from: src/favicon.svg] [copied]
+orphan modules 48.6 KiB [orphan] 8 modules
+runtime modules 1.62 KiB 6 modules
+cacheable modules 153 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./node_modules/ 8.73 KiB
+    modules by path ./node_modules/style-loader/dist/runtime/*.js 5.84 KiB 6 modules
+    modules by path ./node_modules/css-loader/dist/runtime/*.js 2.89 KiB
+      ./node_modules/css-loader/dist/runtime/noSourceMaps.js 64 bytes [built] [code generated]
+      + 2 modules
+  modules by path ./src/ 145 KiB (javascript) 75.3 KiB (asset)
+    modules by path ./src/*.css 95.1 KiB
+      ./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.3 KiB [built] [code generated]
+      ./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/story.css 3.79 KiB [built] [code generated]
+    ./src/story.ts + 8 modules 49.5 KiB [built] [code generated]
+    ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 1678 ms

@@ -1,0 +1,1 @@
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty

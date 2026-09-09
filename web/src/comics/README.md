@@ -150,6 +150,57 @@ never supply a public cover dependency. Release follows completion and approval:
 change `publication`, then build normally. No source move is needed. Comic
 publication is independent of campaign readiness.
 
+## Publishing the comic
+
+Comic releases do not change the game version. A `comic-*` tag marks the exact
+source snapshot of the whole released library, not an episode selector.
+`comic-s01e01` and `comic-season-1` are examples. Keep tags immutable; use a new
+tag such as `comic-s01e01-r2` for a correction.
+
+1. Finish and review the episode's art, text, navigation, and exports.
+2. Set its `publication` to `released`. Every authored page must be illustrated.
+   A season batch marks each finished episode released. Reading order remains a
+   global released prefix; drafts cannot appear between released episodes.
+3. Run `npm --prefix web run test:deploy` and
+   `PUBLIC_PATH=/nova-protocol/ npm --prefix web run build:story`.
+4. Review `web/dist-story/story/`. Commit the approved sources, then create and
+   push the chosen `comic-*` tag. This starts `deploy-comic` automatically.
+5. Verify `/story/`, the episode, and `/story/release.json`. The record contains
+   the tag and exact source commit. Creating a tag does not change publication
+   fields or make an incomplete episode publishable.
+
+`deploy-comic` can also run manually with an existing comic tag, including to
+restore an earlier library snapshot. It checks out that tag, builds only the
+comic, and replaces only `story/` on `gh-pages`. No game, wiki, News, developer
+book, or mod-portal build is part of that workflow. Repository-owned reader
+scripts, images, favicon, and font assets are inside `/story/`; the shared
+Google Fonts import remains external. This is not an offline-site guarantee.
+
+The ordinary Pages workflow uses `build:site` and preserves the independently
+published `story/`. Both publish jobs share a lock, fetch the latest `gh-pages`
+tip after acquiring it, and push without force. Concurrent outside changes fail
+instead of being overwritten. Both explicitly request and wait for a Pages
+build: a push made with `GITHUB_TOKEN` alone does not start one.
+
+### First rollout and hosting
+
+Keep Pages configured to deploy from the **gh-pages branch root**, not the
+Actions-artifact source. The workflows require `contents: write` and
+`pages: write` in their publish jobs; the build jobs have read-only tokens.
+`CNAME` is preserved, and `.nojekyll` remains present.
+
+First publish an empty-library bootstrap tag, such as `comic-reader-1`, from a
+commit containing this workflow. Drafts stay excluded. Do this before the first
+site-only deployment: an older Story page may still depend on root-level reader
+files. The publisher refuses to replace the surrounding site until a comic
+release record establishes the new ownership boundary. Run the full-site
+workflow from current `master`; old workflow revisions lack this protection.
+
+GitHub serializes running publishers but does not promise FIFO execution of
+pending jobs. Wait for a release to finish before queuing another. A failed
+Pages request can be retried by rerunning the workflow; unchanged artifacts do
+not create another branch commit.
+
 ## Shared build and review engine
 
 `web/comic-sources.js` validates metadata and selects publication BEFORE
@@ -163,7 +214,7 @@ Generated files live under
 `SCRIPT.md` there is a derived reading copy of every TS page. It is not copied
 to the site. Unchanged generated files retain their timestamps; stale files
 are removed. The build embeds only selected illustrated page definitions and
-emits only referenced images under `/assets/story/<season>/<episode>/`.
+emits only referenced images under `/story/assets/<season>/<episode>/`.
 Excluded episode code, future script pages, and source paths never enter the
 reader bundle or source maps. There is no recursive page-module import or
 whole-directory asset copy.

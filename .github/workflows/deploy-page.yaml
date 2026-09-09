@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 # Publishes a combined site to GitHub Pages:
 #   /            -> the marketing/content site (web/, webpack) at the project
@@ -28,10 +28,15 @@ env:
 jobs:
   build-web:
     runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.revision.outputs.sha }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Record exact source commit
+        id: revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # --- landing/content site (web/) ---
       - name: Set up Node
@@ -42,7 +47,7 @@ jobs:
         working-directory: web
         run: |
           npm ci
-          npm run build
+          npm run build:site
 
       # --- Bevy WASM game ---
       - name: Install rust toolchain
@@ -115,8 +120,33 @@ jobs:
             --shipped assets/mods.catalog.ron \
             --out site/mods
 
-      - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4.2.5
+      - name: Store site artifact
+        uses: actions/upload-artifact@v4
         with:
-          branch: gh-pages
-          folder: site
+          name: website
+          path: site/
+          include-hidden-files: true
+
+  publish:
+    needs: build-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+    concurrency:
+      group: github-pages-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build-web.outputs.revision }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: website
+          path: built-site
+      - name: Publish site while preserving the comic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_REVISION: ${{ needs.build-web.outputs.revision }}
+        run: python3 scripts/deploy-pages.py --kind site --source built-site --revision "$SITE_REVISION" --github-pages
