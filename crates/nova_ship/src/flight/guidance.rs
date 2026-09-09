@@ -346,6 +346,63 @@ pub(crate) fn hull_turn_rate(max_angular_acceleration: f32, settings: &FlightSet
     (optimum * settings.turn_rate_scale).clamp(lo, hi)
 }
 
+/// How much of the hull's turn rate a correction slews its attitude command
+/// with, for the velocity error it corrects. Full rate for a real burn; down
+/// to a quarter as the error shrinks to crumbs (multiples of `crumb_band`),
+/// so the last re-aims of a rest leg swing gently and the hull is released
+/// with little residual spin. The planned arrival flip is not a correction
+/// and does not use this: it turns at the full rate its lead was budgeted
+/// with. Pure for unit testing.
+pub(crate) fn slew_urgency(burn_ahead: f32, crumb_band: f32) -> f32 {
+    (burn_ahead / (crumb_band.max(1e-3) * 8.0)).clamp(0.25, 1.0)
+}
+
+/// Seconds of un-braked travel the arrival plan budgets for its flip: the
+/// brake group's turn through `brake_angle` at `turn_rate`, the hull's settle
+/// onto the brake attitude behind that command, and `spool_pad` for the
+/// engines. The hull trails a turning command by `tracking_lag` seconds of
+/// turn (the PD's `kd / kp`, never more than the turn itself) and closes the
+/// lag exponentially with the same time constant, and the burn lights only
+/// inside the firing cone (`align_cos`): the settle is the time from the lag
+/// angle down to the cone. Pure for unit testing.
+pub(crate) fn flip_lead(
+    brake_angle: f32,
+    turn_rate: f32,
+    tracking_lag: f32,
+    align_cos: f32,
+    spool_pad: f32,
+) -> f32 {
+    let turn_rate = turn_rate.max(1e-3);
+    let lag_angle = (turn_rate * tracking_lag).min(brake_angle);
+    let cone = align_cos.clamp(-1.0, 1.0).acos().max(1e-3);
+    let settle = if lag_angle > cone {
+        tracking_lag * (lag_angle / cone).ln()
+    } else {
+        0.0
+    };
+    brake_angle / turn_rate + settle + spool_pad
+}
+
+/// The velocity a drive still delivers along its burn once its throttle is
+/// commanded to zero, u/s: the exponential wind-down (see `spool`, `rate` per
+/// second) of a burn pushing `accel` u/s^2 now, net of a standing `pull`
+/// u/s^2 against it. In free space the whole tail lands, `accel / rate`.
+/// Against a pull the tail only gains while it still out-pushes the pull and
+/// a drive that is merely holding the ship up delivers nothing: cut, it hands
+/// the ship to the well. Pure for unit testing.
+pub(crate) fn spool_tail(accel: f32, pull: f32, rate: f32) -> f32 {
+    if rate <= 0.0 || accel <= 0.0 {
+        return 0.0;
+    }
+    if pull <= 0.0 {
+        return accel / rate;
+    }
+    if accel <= pull {
+        return 0.0;
+    }
+    (accel - pull - pull * (accel / pull).ln()) / rate
+}
+
 /// The ship-level turn rate from the live computers' acceleration authority.
 /// `None` with no live computer - every caller's "adrift" case.
 ///
@@ -422,6 +479,53 @@ mod tests {
         assert!((strong - settings.turn_rate_max_deg.to_radians()).abs() < 1e-5);
         assert!(hull_turn_rate(0.5, &settings) > weak);
         assert!(hull_turn_rate(0.0, &settings).is_finite());
+    }
+
+    #[test]
+    fn slew_urgency_is_full_for_a_real_burn_and_gentle_for_crumbs() {
+        let band = 0.75;
+        assert_eq!(slew_urgency(8.0, band), 1.0);
+        assert_eq!(slew_urgency(100.0, band), 1.0);
+        assert_eq!(slew_urgency(0.0, band), 0.25);
+        let mid = slew_urgency(3.0, band);
+        assert!(
+            mid > 0.25 && mid < 1.0,
+            "mid burn slews at a fraction: {mid}"
+        );
+        assert!(slew_urgency(3.0, band) > slew_urgency(1.5, band));
+    }
+
+    #[test]
+    fn flip_lead_budgets_the_turn_the_settle_and_the_spool() {
+        use core::f32::consts::PI;
+        let turn = PI + 0.5;
+        assert!((flip_lead(PI, 1.0, 0.0, 0.95, 0.5) - turn).abs() < 1e-5);
+        // A lag inside the firing cone needs no settle.
+        assert!((flip_lead(PI, 1.0, 0.2, 0.95, 0.5) - turn).abs() < 1e-5);
+        // A lag past the cone settles down to it: 0.6 rad behind, into an
+        // 18 deg cone, at a 0.6 s time constant.
+        let settle = 0.6 * (0.6 / 0.95f32.acos()).ln();
+        assert!((flip_lead(PI, 1.0, 0.6, 0.95, 0.5) - turn - settle).abs() < 1e-5);
+        // A retro group already on the brake line turns and settles nothing.
+        assert!((flip_lead(0.0, 1.0, 0.6, 0.95, 0.5) - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn spool_tail_lands_in_free_space_and_nothing_from_a_hover() {
+        assert!((spool_tail(10.0, 0.0, 10.0) - 1.0).abs() < 1e-6);
+        assert_eq!(spool_tail(3.0, 3.0, 10.0), 0.0);
+        assert_eq!(spool_tail(2.0, 3.0, 10.0), 0.0);
+        assert_eq!(spool_tail(0.0, 0.0, 10.0), 0.0);
+        assert_eq!(spool_tail(10.0, 0.0, 0.0), 0.0);
+        let against = spool_tail(10.0, 3.0, 10.0);
+        assert!(
+            against > 0.0 && against < 1.0,
+            "a pull eats part of the tail, got {against}"
+        );
+        assert!(
+            (spool_tail(10.0, 1e-6, 10.0) - 1.0).abs() < 1e-4,
+            "a vanishing pull is free space"
+        );
     }
 
     #[test]

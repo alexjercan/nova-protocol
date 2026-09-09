@@ -14,9 +14,9 @@ use nova_gameplay::prelude::*;
 
 use super::{
     guidance::{
-        arrival_eta, goto_desired_velocity, goto_flip_point, orbit_band_floor,
+        arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
-        ship_turn_rate, slew_rotation, stop_rest_distance,
+        ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance,
     },
     state::RcsReference,
     thrusters::{
@@ -40,6 +40,13 @@ use crate::prelude::*;
 /// fraction has to move with it. The menu planetoid's ~2.2 u/s^2 pull far
 /// exceeds `rcs_accel * 0.15 = 0.74`, so its orbits stay on the main drive.
 const RCS_GRAVITY_AUTHORITY: f32 = 0.15;
+
+/// The RCS deflection an RCS settle may still be pushing at when a rest leg
+/// releases, as a fraction of full deflection - the same wind-down the main
+/// drive's throttle is held to before release. The settle is proportional
+/// (`residual / crumb band`), so this is a residual of a twentieth of the
+/// band: a rest the drive's own epsilon cannot promise.
+const RCS_RELEASE_DEFLECTION: f32 = 0.05;
 
 /// The autopilot. One rule flies every maneuver: compute the desired velocity
 /// for the goal, rotate the *cheapest engine group* onto the velocity error
@@ -133,9 +140,12 @@ pub(super) fn autopilot_system(
     // The size resolve takes the LARGEST size a target publishes - a solid
     // body's BodyRadius, a hull's HullRadius, or the well radius read below -
     // so it never grows a per-target-kind branch. An unsized mark stays a
-    // point, which is honest.
+    // point, which is honest. A hull's radius is measured from its centre of
+    // mass, so a hull target is flown to at its centre of mass too.
     q_target: Query<(
         Option<&Position>,
+        Option<&Rotation>,
+        Option<&ComputedCenterOfMass>,
         &GlobalTransform,
         Option<&BodyRadius>,
         Option<&HullRadius>,
@@ -174,6 +184,17 @@ pub(super) fn autopilot_system(
         // The mover's half of the model. Every centre distance below is
         // `target radius + this + margin`.
         let mover_radius = hull_radius.map_or(0.0, |radius| **radius);
+        // The point the leg flies: the centre of mass, whose velocity is the
+        // avian LinearVelocity and which coasts straight while the hull turns
+        // about it. The body origin swings around it with attitude - on the
+        // block warship, 49 m aft of the origin, a flip walked the origin's
+        // distance 100 m off its own velocity, the plan un-planned the flip
+        // halfway, and the park set the origin at the margin with the face
+        // (measured from the COM, see HullRadius) 50 m inside it. Body-local;
+        // lifted to world with rotation + translation (never render scale).
+        let com_world = com
+            .map(|c| rotation.mul_vec3(c.0) + position.0)
+            .unwrap_or(position.0);
         // No flight computer, no autopilot - the ship is adrift on manual.
         let Some(turn_rate) = ship_turn_rate(
             q_computer
@@ -185,6 +206,29 @@ pub(super) fn autopilot_system(
             debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");
             commands.entity(ship).remove::<Autopilot>();
             continue;
+        };
+        // How far behind a turning command the hull trails, for the arrival
+        // plan: the slowest loop's, when several disagree.
+        let tracking_lag = q_computer
+            .iter()
+            .filter(|(_, &ChildOf(parent), _)| parent == ship)
+            .map(|(pd, _, _)| pd.tracking_lag())
+            .fold(0.0f32, f32::max);
+
+        // The velocity error the leg treats as a crumb. Legs that END AT REST
+        // (STOP, GOTO, GotoPos) use the wider settle band: the endgame of a
+        // translation leg lives in sub-u/s errors - the brake tail, the
+        // boundary creep, the doorstep residual - and chasing those with
+        // attitude swings was the "wobbles on GOTO" playtest. Scoping by LEG,
+        // not by desired == 0, is deliberate: the hunt's onset is in the brake
+        // tail where desired is still nonzero - the desired-zero scoping was
+        // tried and left the terminal spin bit-for-bit unchanged. Only ORBIT
+        // keeps the tight band: station-keeping is the one regime whose job is
+        // chasing small errors forever. The band is also the RCS settle's
+        // full deflection, so it is chosen before the settle.
+        let crumb_band = match autopilot.action {
+            AutopilotAction::Orbit { .. } => settings.attitude_deadband,
+            _ => settings.settle_deadband.max(settings.attitude_deadband),
         };
 
         // Every live engine as (world thrust direction, magnitude), plus how
@@ -217,8 +261,11 @@ pub(super) fn autopilot_system(
         // The arrival curve is planned with the group the computer would
         // actually brake with: its authority sets the deceleration, its
         // rotation distance sets the lead (a retro-equipped ship brakes late
-        // and flat; a main-drive-only ship budgets its 180). Shared by GOTO
-        // and ORBIT's ring correction.
+        // and flat; a main-drive-only ship budgets its 180) at the full turn
+        // rate, which is the rate the flip below is flown at, plus the hull's
+        // settle onto the brake attitude behind that command (unbudgeted, it
+        // ate the spool pad and the block gunship crossed its standoff at 45
+        // m/s) and the spool pad. Shared by GOTO and ORBIT's ring correction.
         let braking_plan = |brake_dir: Vec3, brake_speed: f32| -> (f32, f32) {
             let brake = choose_group(
                 &groups,
@@ -237,7 +284,13 @@ pub(super) fn autopilot_system(
             } else {
                 0.0
             };
-            let lead = brake_angle / turn_rate.max(1e-3) + settings.arrival_spool_pad;
+            let lead = flip_lead(
+                brake_angle,
+                turn_rate,
+                tracking_lag,
+                settings.align_cos,
+                settings.arrival_spool_pad,
+            );
             (accel, lead)
         };
 
@@ -253,7 +306,7 @@ pub(super) fn autopilot_system(
                 q_target
                     .get(well_entity)
                     .ok()
-                    .and_then(|(_, _, r, _)| r.map(|r| **r))
+                    .and_then(|(_, _, _, _, r, _)| r.map(|r| **r))
                     .unwrap_or(0.0),
             );
             well
@@ -269,7 +322,7 @@ pub(super) fn autopilot_system(
                 commands.entity(ship).remove::<Autopilot>();
                 continue;
             };
-            let r_vec = position.0 - well_position.0;
+            let r_vec = com_world - well_position.0;
             let Some(radius) = orbit_target_radius(
                 r_vec.length(),
                 &band_well(well, well_data),
@@ -332,7 +385,7 @@ pub(super) fn autopilot_system(
             |goal: Vec3, target_radius: f32, floor: f32| -> (Vec3, ManeuverTelemetry) {
                 let radii = target_radius.max(0.0) + mover_radius;
                 let standoff = (radii + arrival_standoff).max(floor);
-                let to_target = goal - position.0;
+                let to_target = goal - com_world;
                 let distance = to_target.length();
                 // Zero only if the ship sits exactly on the goal center; the
                 // else branch below has distance > standoff > 0, so there the
@@ -443,7 +496,7 @@ pub(super) fn autopilot_system(
             .map(|(well_position, well)| {
                 well_accel(
                     well.mu,
-                    (well_position.0 - position.0).length(),
+                    (well_position.0 - com_world).length(),
                     well.body_radius,
                     well.soi_radius,
                     gravity_settings.fade_fraction,
@@ -480,12 +533,12 @@ pub(super) fn autopilot_system(
                     // (yet-unknown) rest point - honest enough for a
                     // telemetry-only prediction, and the leg replans every
                     // tick anyway.
-                    let gravity = gravity_along(position.0, velocity.normalize());
+                    let gravity = gravity_along(com_world, velocity.normalize());
                     let effective = (accel * settings.decel_margin - gravity).max(0.0);
                     if let Some(rest) =
                         stop_rest_distance(speed, accel * settings.decel_margin, lead, gravity)
                     {
-                        let goal = position.0 + velocity.normalize() * rest;
+                        let goal = com_world + velocity.normalize() * rest;
                         telemetry = Some(ManeuverTelemetry {
                             goal,
                             goal_entity: None,
@@ -504,8 +557,14 @@ pub(super) fn autopilot_system(
                 Vec3::ZERO
             }
             AutopilotAction::Goto { target } => {
-                let Ok((target_position, target_transform, body_radius, target_hull)) =
-                    q_target.get(target)
+                let Ok((
+                    target_position,
+                    target_rotation,
+                    target_com,
+                    target_transform,
+                    body_radius,
+                    target_hull,
+                )) = q_target.get(target)
                 else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
                     commands.entity(ship).remove::<Autopilot>();
@@ -529,9 +588,13 @@ pub(super) fn autopilot_system(
                 let floor = q_wells.get(target).map_or(0.0, |(_, well)| {
                     orbit_band_floor(&band_well(target, well), &gravity_settings, &settings)
                 });
-                let goal_position = target_position
-                    .map(|p| p.0)
-                    .unwrap_or_else(|| target_transform.translation());
+                let goal_position = target_position.map_or_else(
+                    || target_transform.translation(),
+                    |p| {
+                        let com = target_com.map_or(Vec3::ZERO, |c| c.0);
+                        p.0 + target_rotation.map_or(com, |r| r.mul_vec3(com))
+                    },
+                );
                 let (desired, mut numbers) = arrival_desired(goal_position, target_radius, floor);
                 // Arrived means INSIDE the park envelope, not merely
                 // "wants zero velocity": the degraded no-stopping-plan
@@ -568,7 +631,7 @@ pub(super) fn autopilot_system(
                 // defensive only.
                 let Some(plan) = plan else { continue };
                 is_orbit = true;
-                let r_vec = position.0 - well_position.0;
+                let r_vec = com_world - well_position.0;
                 let to_ring = orbit_ring_offset(r_vec, &plan);
                 let brake_dir = -to_ring
                     .try_normalize()
@@ -668,18 +731,23 @@ pub(super) fn autopilot_system(
         // so a stale orbital reference never lingers into a settle or the
         // player.
         let rcs_reference_v = if use_rcs_orbit { desired } else { Vec3::ZERO };
-        // The residual that counts as full deflection. A SETTLE brakes from up
-        // to the cap, so the cap is its scale. An ORBIT trim is a different
-        // job: it holds a band against the well's STANDING inward pull, and a
-        // proportional law parks at an offset proportional to its own scale.
-        // Referenced to the manual cap that offset is wider than the hold band
-        // itself, so the trim keeps the ring and never reports Hold - and it
-        // widens again every time the manual RCS feel is retuned. The band the
-        // orbit must hold to is the scale that answers for it.
+        // The residual that counts as full deflection - the band the branch
+        // must hold to, never the manual cap. A proportional law brakes with
+        // a time constant of `scale / rcs_accel`, and coasts that long again
+        // in distance: scaled to the 100 m/s manual cap the settle took two
+        // seconds to kill each m/s it was handed, and a GOTO crossing its
+        // standoff at approach speed parked 30 m inside it (an entry at 40
+        // m/s, 80 m). Scaled to the crumb band the settle brakes at full
+        // deflection down to the crumbs the drive left it and fades inside
+        // them; the manual feel (cap, taper) is untouched. An ORBIT trim holds
+        // a band against the well's STANDING inward pull, and parks at an
+        // offset proportional to its scale - referenced to the manual cap
+        // that offset was wider than the hold band itself, so the trim never
+        // reported Hold. The band the orbit must hold to is its scale.
         let rcs_scale = if use_rcs_orbit {
             settings.orbit_hold_enter
         } else {
-            rcs_cap
+            crumb_band
         };
         // Proportional command toward `desired`, scaled so a scale-sized
         // residual is full deflection; fades to zero as the residual does (no
@@ -710,12 +778,7 @@ pub(super) fn autopilot_system(
         // boundary): they define the deliverable authority and receive the
         // demand. Everything else - laterals, retros - is a counter-torque
         // candidate the balancer may recruit when the primary set cannot
-        // balance itself (the single damage-shifted main drive). The COM is
-        // body-local; lift it to world with rotation + translation (never
-        // render scale).
-        let com_world = com
-            .map(|c| rotation.mul_vec3(c.0) + position.0)
-            .unwrap_or(position.0);
+        // balance itself (the single damage-shifted main drive).
         let mut firing_authority = 0.0f32;
         let mut allocation: Vec<(Entity, BalanceEngine)> = Vec::new();
         if let Some(error_dir) = error_dir {
@@ -768,35 +831,90 @@ pub(super) fn autopilot_system(
             }
         }
 
-        // Within the deadband the leftover is a crumb: never re-aim the hull
-        // for it - any engine already on the error finishes it, and a residual
-        // only a rotation could remove is accepted. This is what stops the ship
-        // twitching after perfection. Legs that END AT REST (STOP, GOTO,
-        // GotoPos) use the wider settle band: the endgame of a translation leg
-        // lives in sub-u/s errors - the brake tail, the boundary creep, the
-        // doorstep residual - and chasing those with attitude swings was the
-        // "wobbles on GOTO" playtest. Scoping by LEG, not by desired == 0, is
-        // deliberate: the hunt's onset is in the brake tail where desired is
-        // still nonzero - the desired-zero scoping was tried and left the
-        // terminal spin bit-for-bit unchanged. Only ORBIT keeps the tight band:
-        // station-keeping is the one regime whose job is chasing small errors
-        // forever.
-        let crumb_band = match autopilot.action {
-            AutopilotAction::Orbit { .. } => settings.attitude_deadband,
-            _ => settings.settle_deadband.max(settings.attitude_deadband),
-        };
-        let fine = error_speed <= crumb_band;
+        // Within the crumb band (chosen with the plan above) the leftover is a
+        // crumb: never re-aim the hull for it - any engine already on the
+        // error finishes it, and a residual only a rotation could remove is
+        // accepted. This is what stops the ship twitching after perfection.
+        //
+        // The brake is never a crumb. A leg that ends at rest and is past its
+        // flip point is committed to the brake, and the tick's error there
+        // starts at zero (the ship is on the curve) and grows only as fast as
+        // the curve falls - a band's worth of it is half a second at speed,
+        // and half a second of coast at 82 m/s is 40 m of park point. The
+        // plan says when the brake is due (no flip point left, still closing,
+        // a stopping plan in hand); the band decides nothing there. The
+        // brake leg holds one attitude: the group the plan chose, against
+        // the velocity the leg owes - the whole of it, lateral included, the
+        // way STOP brakes. Not the tick's error: at the flip point that is a
+        // crumb pointing anywhere, and down the burn it is the lateral crumb
+        // the drive itself leaves while the hull settles - aimed at that, a
+        // single drive swings off the brake to chase it, leaves the retro
+        // error to grow, swings back, and saws down the whole burn at 0.4
+        // rad/s. Not the closing line either: a burn along the line leaves
+        // the lateral crumb alone, and the line turns under a ship passing
+        // its mark, so the crumb grows into a sideways entry. The drive
+        // fires only when the error is in its cone (below), so a ship under
+        // the curve coasts instead of flipping prograde, and the doorstep
+        // settle kills what is left, torque-free. The flip (the brake group
+        // not yet facing the burn) turns at the full rate the plan budgeted
+        // the lead with.
+        let brake = telemetry.and_then(|numbers| {
+            let due = numbers.flip_point.is_none()
+                && numbers.brake_accel > 0.0
+                && numbers.closing_speed > settings.stop_speed_epsilon;
+            let brake_dir = -velocity.normalize_or_zero();
+            (due && brake_dir != Vec3::ZERO).then(|| {
+                (
+                    brake_dir,
+                    velocity.length().max(settings.min_approach_speed),
+                )
+            })
+        });
+        let flip_pending = brake.is_some_and(|(brake_dir, brake_speed)| {
+            choose_group(
+                &groups,
+                brake_dir,
+                brake_speed,
+                mass.value(),
+                dt,
+                turn_rate,
+                settings.rotation_bias,
+            )
+            .is_some_and(|group| group.world_dir.dot(brake_dir) < settings.align_cos)
+        });
+        let fine = error_speed <= crumb_band && brake.is_none();
 
         // Done: the goal wants rest here and the ship is at rest - exactly,
-        // or within the deadband with no engine on the residual. Release
-        // only once the engines have wound down: a still-hot, spooling-down
-        // drive would push the ship off again. ORBIT never completes: an
-        // orbit is not a destination, the computer station-keeps until
-        // breakout, Z, or a capability loss.
+        // or within the deadband with no engine on the residual. ORBIT never
+        // completes: an orbit is not a destination, the computer
+        // station-keeps until breakout, Z, or a capability loss.
         let done = !matches!(autopilot.action, AutopilotAction::Orbit { .. })
             && desired == Vec3::ZERO
             && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
-        if done && hottest_input <= 0.05 {
+        // Release only once every actuator has wound down. A still-hot,
+        // spooling-down drive would push the ship off again. An RCS settle
+        // still pushing at more than a crumb of deflection has not rested
+        // yet: it has no spool tail and fades with the residual, so the rest
+        // it hands back in free space is a fraction of the drive's epsilon,
+        // not the whole of it (released at the epsilon, the block gunship
+        // drifted half a hull length while its escort was still arriving).
+        // Inside a well the settle converges on the deflection that holds
+        // the standing pull and never below it, so that hold - with room for
+        // the approach - is the release there: the ship is handed back
+        // falling as slowly as the RCS could make it, never held forever.
+        let rcs_rested = !use_rcs_settle
+            || rcs_command.length()
+                <= RCS_RELEASE_DEFLECTION.max(2.0 * local_gravity_accel / settings.rcs_accel);
+        // A drive holding the ship against a well the RCS cannot is not a
+        // spool tail: released, its wind-down hands the ship to the pull it
+        // was holding and delivers nothing. The rest at such a well is a
+        // hover, and the throttle that hover takes is allowed on release.
+        let hover_input = error_dir
+            .filter(|_| firing_authority > 0.0)
+            .map_or(0.0, |error_dir| {
+                gravity_along(com_world, -error_dir) * mass.value() * dt / firing_authority
+            });
+        if done && hottest_input <= 0.05 + hover_input && rcs_rested {
             // A GOTO that arrived at a well body parks into orbit instead of
             // handing back a ship that immediately starts falling: the one-key
             // parking flow becomes zero-key when the computer was already told
@@ -824,7 +942,7 @@ pub(super) fn autopilot_system(
                 if goto_arrived && verb_granted(FlightVerb::Orbit) {
                     if let Ok((well_position, well_data)) = q_wells.get(target) {
                         let well = band_well(target, well_data);
-                        let r_vec = position.0 - well_position.0;
+                        let r_vec = com_world - well_position.0;
                         let park = well.body_radius + mover_radius + arrival_standoff;
                         if let Some(radius) = orbit_target_radius(
                             park.max(r_vec.length()),
@@ -878,11 +996,16 @@ pub(super) fn autopilot_system(
             // never needs an attitude change. Keep the current helm bearing
             // while RCS handles a low-speed STOP, terminal settle, or orbit
             // trim; only a main-drive correction chooses and faces an engine.
+            // The brake leg aims the plan's brake group at the plan's brake
+            // direction for the speed the plan chose it with, so execution
+            // and plan agree on which engine flies the arrival; every other
+            // rotation aims at this tick's error.
+            let (aim_dir, burn_ahead) = brake.unwrap_or((error_dir, error_speed));
             if !fine && !use_rcs {
                 if let Some(chosen) = choose_group(
                     &groups,
-                    error_dir,
-                    error_speed,
+                    aim_dir,
+                    burn_ahead,
                     mass.value(),
                     dt,
                     turn_rate,
@@ -901,20 +1024,29 @@ pub(super) fn autopilot_system(
                     // Turn gently when little burn remains: the ending turn is
                     // what the hull is still spinning with at release, and a
                     // slow final swing keeps that residual under
-                    // RELEASE_SPIN_EPSILON. Keyed to the same regime-scoped
+                    // RELEASE_SPIN_EPSILON. Scaled by the same regime-scoped
                     // crumb band as `fine`: on a rest leg the brake tail's
                     // few-u/s corrections must swing the hull GENTLY or each
                     // re-aim overshoots and seeds the next (the arrival hunt
                     // cascade). NOTE: the deadband A/B moved this
                     // denominator together with the band - keying only the
-                    // band left the terminal spin unchanged.
-                    let urgency = (error_speed / (crumb_band * 8.0)).clamp(0.25, 1.0);
+                    // band left the terminal spin unchanged. The planned
+                    // flip is not a correction: it turns at the full rate
+                    // the plan budgeted its lead with (keyed to the tick's
+                    // error, which is a crumb at the flip point, it started
+                    // at a quarter rate and the block gunship parked 165 m
+                    // inside its point from 82 m/s).
+                    let urgency = if flip_pending {
+                        1.0
+                    } else {
+                        slew_urgency(error_speed, crumb_band)
+                    };
                     let max_step = turn_rate * dt * urgency;
                     for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
                         if parent == ship {
                             let command = **input;
                             let command_dir = command.mul_vec3(local_dir);
-                            let goal = Quat::from_rotation_arc(command_dir, error_dir) * command;
+                            let goal = Quat::from_rotation_arc(command_dir, aim_dir) * command;
                             **input = slew_rotation(command, goal, max_step);
                         }
                     }
@@ -927,17 +1059,34 @@ pub(super) fn autopilot_system(
             // recruiting off-axis engines when the firing set cannot.
             //
             // Spool-tail cutoff for legs ending at rest: a throttle commanded
-            // to zero still delivers ~magnitude * input^2 / (2 *
-            // spool_down_rate * dt) of impulse while it winds down, so a
-            // finishing burn that keeps demanding until the error reads zero
-            // integrates THROUGH zero - the ship exits its own standoff
-            // backwards, the re-entry error re-aims the hull, and the arrival
-            // bounces on the boundary in a limit cycle (previously masked by
-            // the accidental dither of the cross-clock command handoff). Once
-            // the wind-down tail alone covers the remaining error, the correct
-            // demand is zero: cut and coast to rest.
+            // to zero winds down exponentially (see `spool`) and still
+            // delivers magnitude * input / (spool_down_rate * dt) of impulse
+            // on the way, so a burn that keeps demanding until the error
+            // reads zero integrates THROUGH zero. At the finish the ship
+            // exits its own standoff backwards, the re-entry error re-aims
+            // the hull, and the arrival bounces on the boundary in a limit
+            // cycle (previously masked by the accidental dither of the
+            // cross-clock command handoff). On the way out, the accelerating
+            // burn carries the ship over the arrival curve by the same tail -
+            // several m/s on a hot drive - and every one of them is brake
+            // distance the plan never budgeted. Once the wind-down tail alone
+            // covers the remaining error, the correct demand is zero: cut and
+            // coast onto the curve, or to rest. Only those two burns land on
+            // a velocity the ship then keeps. The brake burn rides a curve
+            // that keeps falling: cut there, the drive chatters on and off
+            // around the tail (every relight re-aimed the hull, a 0.35 rad/s
+            // sawtooth down the whole brake) - it modulates instead. ORBIT's
+            // desired velocity is a ring speed to hold, never a curve to
+            // coast onto. Inside a well the tail is net of the pull against
+            // the burn: the part of the throttle that is holding the ship up
+            // delivers no velocity when cut, it hands the ship to the well.
+            // Counted whole, a hover's tail read above the rest epsilon and
+            // the cutoff chopped the hover into a fall-and-relight cycle that
+            // never rested.
+            let lands = desired == Vec3::ZERO || error.dot(**velocity) > 0.0;
             let mut tail_dv = 0.0;
-            if desired == Vec3::ZERO && dt > 0.0 && mass.value() > 0.0 {
+            if lands && !is_orbit && dt > 0.0 && mass.value() > 0.0 {
+                let mut push = 0.0;
                 for (_, input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
                     if parent != ship {
                         continue;
@@ -945,16 +1094,19 @@ pub(super) fn autopilot_system(
                     let dir = rotation
                         .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
                         .normalize();
-                    tail_dv += dir.dot(error_dir).max(0.0) * **magnitude * **input * **input
-                        / (2.0 * settings.spool_down_rate * dt)
-                        / mass.value();
+                    push += dir.dot(error_dir).max(0.0) * **magnitude * **input / dt / mass.value();
                 }
+                tail_dv = spool_tail(
+                    push,
+                    gravity_along(com_world, -error_dir),
+                    settings.spool_down_rate,
+                );
             }
             let demand = if use_rcs {
                 // The RCS COM push is braking the last meters; the main drive
                 // spools down so the two never double-push.
                 0.0
-            } else if desired == Vec3::ZERO && error_speed <= tail_dv {
+            } else if lands && !is_orbit && error_speed <= tail_dv {
                 0.0
             } else {
                 firing_authority * burn_input(error_speed * mass.value(), firing_authority)

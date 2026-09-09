@@ -30,6 +30,29 @@ pub struct PDController {
     pub sustained_angular_speed: f32,
 }
 
+impl PDController {
+    /// Seconds of turn the hull trails a command that turns at a steady rate.
+    /// The loop settles at the lag angle where its proportional torque
+    /// matches its damping torque, `kd / kp` times the rate, and closes that
+    /// lag with the same time constant once the command stops.
+    pub fn tracking_lag(&self) -> f32 {
+        let (kp, kd) = pd_gains(self.frequency, self.damping_ratio);
+        if kp > 0.0 {
+            kd / kp
+        } else {
+            0.0
+        }
+    }
+}
+
+/// The proportional and damping gains of a loop, from its frequency in Hz
+/// and its damping ratio.
+fn pd_gains(frequency: f32, damping_ratio: f32) -> (f32, f32) {
+    let kp = (6.0 * frequency).powi(2) * 0.25;
+    let kd = 4.5 * frequency * damping_ratio;
+    (kp, kd)
+}
+
 /// Input rotation for the PD controller.
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
 pub struct PDControllerInput(pub Quat);
@@ -145,8 +168,7 @@ fn compute_pd_torque(
     inertia_principal: Vec3,
     inertia_local_frame: Quat,
 ) -> Vec3 {
-    let kp = (6.0 * frequency).powi(2) * 0.25;
-    let kd = 4.5 * frequency * damping_ratio;
+    let (kp, kd) = pd_gains(frequency, damping_ratio);
 
     let mut delta = to_rotation * from_rotation.conjugate();
     if delta.w < 0.0 {
@@ -222,6 +244,23 @@ mod tests {
     use bevy::time::TimeUpdateStrategy;
 
     use super::*;
+
+    #[test]
+    fn tracking_lag_is_the_damping_over_the_proportional_gain() {
+        let loop_ = PDController {
+            frequency: 2.0,
+            damping_ratio: 1.0,
+            max_angular_acceleration: 1.0,
+            sustained_angular_speed: f32::INFINITY,
+        };
+        // kp = (6 * 2)^2 / 4 = 36, kd = 4.5 * 2 * 1 = 9.
+        assert!((loop_.tracking_lag() - 0.25).abs() < 1e-6);
+        let dead = PDController {
+            frequency: 0.0,
+            ..loop_
+        };
+        assert_eq!(dead.tracking_lag(), 0.0);
+    }
 
     /// The world-space inertia tensor the PD must scale by, built by the
     /// dependency that defines the convention (bevy_heavy via avian) rather

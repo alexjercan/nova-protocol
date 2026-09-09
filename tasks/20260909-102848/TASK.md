@@ -480,7 +480,7 @@ and prettier are green. The owner reviews the placeholders next.
 - `news-0130-volume-sliders.png` - Image planned
 - `news-0130-editor-meters.png` - Image planned
 - `loops/news-0130-rcs-box.webm` - Loop planned
-- `loops/news-0130-goto-standoff.webm` - Loop planned
+- `loops/news-0130-goto-standoff.webm` - captured (11.2 s, 167 KB)
 - `loops/news-0130-basic-training.webm` - Loop planned
 - `news-0130-comms-channels.png` - Image planned
 - `news-0130-menu-backdrop.png` - Image planned
@@ -635,13 +635,14 @@ included. Of the 22 loops the post names, 18 exist; four rows in
 
 ### Still pending
 
-- `news-0130-goto-standoff.webm`: `loop_goto_standoff` records the approach,
-  but GOTO's arrival creep parks the gunship inside the standoff orb at any
-  margin the frame can show (block warship +86 m / block gunship -15 m at a
-  150 m margin; -21 / -47 m at 60 m; the range's park log prints them).
-  `FlightSpeedCap` is read only by manual flight, so capping the run did
-  nothing. A flight-computer fix, not a capture fix; the row stays pending
-  with that reason in `scripts/capture-web-media.sh`.
+- `news-0130-goto-standoff.webm` landed once the arrival creep was fixed in
+  the flight computer (the RCS settle scaled to the manual cap, the spool
+  tail counted as a linear wind-down, the leg flown from the body origin
+  instead of the centre of mass, the flip slewed at crumb urgency, and the
+  hull's settle onto the brake attitude left out of the flip lead). The
+  range's park log now reads the block warship at 146 m and the block
+  gunship at 143 m off the orb's face for a 150 m margin, from +86 / -15 m
+  before; the residual is the crumb the RCS settles at the standoff.
 - A bespoke release lead: `news-0130-release-lead` is still the
   `hero-wfc-duel` alias shared with `news-0130-block-duel`.
 

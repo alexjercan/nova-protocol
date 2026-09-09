@@ -350,7 +350,8 @@ pub struct FlightSettings {
     /// hull snaps hard but does not teleport.
     pub turn_rate_max_deg: f32,
     /// Extra seconds of un-braked travel the arrival plan budgets for engine
-    /// spool-up on top of the brake group's rotation time.
+    /// spool-up on top of the brake group's rotation and the hull's settle
+    /// onto the brake attitude.
     pub arrival_spool_pad: f32,
     /// Velocity errors at or below this are "crumbs": the computer stops
     /// re-aiming the hull for them (it finishes axially if the nose is

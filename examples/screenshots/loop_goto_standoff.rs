@@ -47,14 +47,12 @@ const GUNSHIP_BEARING: Vec3 = Vec3::new(0.2756, 0.0, 0.9613);
 /// visible fraction of the frame rather than a rounding error on a long
 /// standoff.
 ///
-/// What the take actually shows, from the park log this producer writes: the
-/// computer's arrival plan is tracked with lag, and a hull carries past the
-/// park boundary by an amount that grows with the speed it arrives at. At a
-/// 60 m margin the warship came to rest 21 m inside the orb's face and the
-/// gunship 47 m inside it; at 150 m the warship stops 86 m clear and the
-/// gunship still 15 m inside. Until the arrival holds its margin on a light
-/// hull, this loop is a reproduction of the creep and not a figure of the
-/// rule, which is why the site does not ship it yet.
+/// The park log this producer writes is the proof of the rule: both hulls
+/// rest within a few meters of this margin, the residual being the crumb of
+/// speed the computer lets the RCS settle at the standoff. The margin is
+/// measured from the centre of mass, which is where the hull radius is
+/// measured from, so the log reads the gap the same way. `NOVA_STANDOFF_TRACE`
+/// prints both legs against the plan while they fly.
 const ARRIVAL_MARGIN: Meters = Meters(150.0);
 
 fn main() -> bevy::app::AppExit {
@@ -66,6 +64,9 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(standoff_script());
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        if std::env::var_os(TRACE_ENV).is_some() {
+            app.add_systems(Update, trace_the_legs);
+        }
     }
 
     app.run()
@@ -269,6 +270,138 @@ fn both_parked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate
     })
 }
 
+/// Set to trace both legs while they fly: the plan the computer publishes
+/// beside what the hull does, five times a second of world time.
+const TRACE_ENV: &str = "NOVA_STANDOFF_TRACE";
+
+/// The leg trace behind [`TRACE_ENV`]: per hull, the centre distance and the
+/// gap the computer reads, the closing speed against the deceleration it
+/// plans, where it means to flip, the phase, how far the nose is off the
+/// closing line (cosine) and the hottest engine input. Everything printed in
+/// meters and seconds; the components are engine units.
+#[cfg(feature = "debug")]
+fn trace_the_legs(
+    time: Res<Time>,
+    mut next: Local<f32>,
+    q_ship: Query<(
+        Entity,
+        &EntityId,
+        &avian3d::prelude::Position,
+        &avian3d::prelude::Rotation,
+        &avian3d::prelude::LinearVelocity,
+        &avian3d::prelude::AngularVelocity,
+        Option<&avian3d::prelude::ComputedCenterOfMass>,
+        Option<&Autopilot>,
+        Option<&ManeuverTelemetry>,
+    )>,
+    q_thruster: Query<
+        (
+            &ThrusterSectionInput,
+            &ThrusterSectionMagnitude,
+            &Transform,
+            &ChildOf,
+        ),
+        With<ThrusterSectionMarker>,
+    >,
+    q_computer: Query<
+        (&PDController, &ControllerSectionRotationInput, &ChildOf),
+        With<ControllerSectionMarker>,
+    >,
+    mut described: Local<HashSet<Entity>>,
+) {
+    let t = time.elapsed_secs();
+    if t < *next {
+        return;
+    }
+    *next = t + 0.2;
+    for (ship, id, position, rotation, velocity, angular, com, autopilot, telemetry) in &q_ship {
+        if id.0 != WARSHIP_ID && id.0 != GUNSHIP_ID {
+            continue;
+        }
+        let Some(autopilot) = autopilot else {
+            continue;
+        };
+        if described.insert(ship) {
+            let engines: Vec<String> = q_thruster
+                .iter()
+                .filter(|(_, _, _, &ChildOf(parent))| parent == ship)
+                .map(|(_, magnitude, transform, _)| {
+                    let dir = transform.rotation.mul_vec3(Vec3::NEG_Z);
+                    format!(
+                        "({:.2} {:.2} {:.2}) x{:.1}",
+                        dir.x, dir.y, dir.z, magnitude.0
+                    )
+                })
+                .collect();
+            let computers: Vec<String> = q_computer
+                .iter()
+                .filter(|(_, _, &ChildOf(parent))| parent == ship)
+                .map(|(pd, _, _)| {
+                    format!(
+                        "f {:.2} Hz zeta {:.2} alpha {:.3} rad/s2 sustained {:.3} rad/s",
+                        pd.frequency,
+                        pd.damping_ratio,
+                        pd.max_angular_acceleration,
+                        pd.sustained_angular_speed
+                    )
+                })
+                .collect();
+            let com = com.map_or(Vec3::ZERO, |com| com.0);
+            info!(
+                "trace {id} engines [{}] computers [{}] com ({:.1} {:.1} {:.1}) m",
+                engines.join(", "),
+                computers.join(", "),
+                Meters::from_engine(com.x).0,
+                Meters::from_engine(com.y).0,
+                Meters::from_engine(com.z).0,
+                id = id.0
+            );
+        }
+        let centre = Meters::from_engine(position.0.length()).0;
+        let com_world = position.0 + rotation.0.mul_vec3(com.map_or(Vec3::ZERO, |com| com.0));
+        let com_centre = Meters::from_engine(com_world.length()).0;
+        let closing_dir = (-com_world).normalize_or_zero();
+        let nose = rotation.0.mul_vec3(Vec3::NEG_Z).dot(closing_dir);
+        let closing = MetersPerSecond::from_engine(velocity.0.dot(closing_dir)).0;
+        let hottest = q_thruster
+            .iter()
+            .filter(|(_, _, _, &ChildOf(parent))| parent == ship)
+            .map(|(input, _, _, _)| input.0)
+            .fold(0.0f32, f32::max);
+        // The helm command's lead over the hull: how far the computer has
+        // already swung the commanded attitude ahead of where the hull is.
+        let command_lead = q_computer
+            .iter()
+            .filter(|(_, _, &ChildOf(parent))| parent == ship)
+            .map(|(_, command, _)| command.0.angle_between(rotation.0).to_degrees())
+            .fold(0.0f32, f32::max);
+        let spin = angular.0.length();
+        let plan = telemetry.map_or_else(
+            || "no telemetry".to_string(),
+            |telemetry| {
+                format!(
+                    "gap {:.0} m brake {:.1} m/s2 flip {} eta {}",
+                    Meters::from_engine(telemetry.distance).0,
+                    Meters::from_engine(telemetry.brake_accel).0,
+                    telemetry.flip_point.map_or("-".to_string(), |flip| {
+                        format!("{:.0} m", Meters::from_engine(flip.length()).0)
+                    }),
+                    telemetry
+                        .eta
+                        .map_or("-".to_string(), |eta| format!("{eta:.1} s")),
+                )
+            },
+        );
+        info!(
+            "trace {id} t {t:.1} centre {centre:.0} m com {com_centre:.0} m closing {closing:.1} \
+             m/s {plan} phase {:?} nose {nose:.2} lead {command_lead:.0} deg spin {spin:.2} \
+             rad/s input {hottest:.2}",
+            autopilot.phase,
+            id = id.0,
+        );
+    }
+}
+
 /// Log where each hull came to rest against the rule it was flown under:
 /// centre distance, hull radius, and the gap left between skin and orb face.
 #[cfg(feature = "debug")]
@@ -278,11 +411,20 @@ fn report_the_park_points(world: &mut World) {
             continue;
         };
         let entity = world.entity(ship);
-        // Engine boundary: the avian position and the hull radius are both
-        // world units, converted here for the log.
+        // Engine boundary: the avian position, the centre of mass and the hull
+        // radius are all world units, converted here for the log. The radius
+        // is measured from the centre of mass, so the gap is too.
         let centre = entity
             .get::<avian3d::prelude::Position>()
-            .map_or(0.0, |position| Meters::from_engine(position.0.length()).0);
+            .map_or(0.0, |position| {
+                let rotation = entity
+                    .get::<avian3d::prelude::Rotation>()
+                    .map_or(Quat::IDENTITY, |rotation| rotation.0);
+                let com = entity
+                    .get::<avian3d::prelude::ComputedCenterOfMass>()
+                    .map_or(Vec3::ZERO, |com| com.0);
+                Meters::from_engine((position.0 + rotation.mul_vec3(com)).length()).0
+            });
         let radius = entity
             .get::<HullRadius>()
             .map_or(0.0, |radius| Meters::from_engine(**radius).0);

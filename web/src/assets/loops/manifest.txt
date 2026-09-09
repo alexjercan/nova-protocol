@@ -54,7 +54,7 @@ news-0130-belt-before-after.webm	loop_belt_compare	9.0	1263224	fresh
 news-0130-death-before-after.webm	loop_death_compare	6.6	177140	fresh
 news-0130-hull-generate.webm	loop_hull_generate	8.7	277856	fresh
 news-0130-rcs-box.webm	bench-replay	4.4	296696	frozen
-news-0130-goto-standoff.webm	-	0.0	0	pending
+news-0130-goto-standoff.webm	loop_goto_standoff	11.2	167175	fresh
 news-0130-basic-training.webm	bench-replay	4.8	392104	frozen
 news-0130-cinematic.webm	bench-replay	5.7	387943	frozen
 news-0130-agent-run.webm	bench-replay	7.7	704999	frozen

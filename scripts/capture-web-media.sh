@@ -80,6 +80,7 @@ LOOPS=(
     "loop_torpedo_blast|torpedo-blast||"
     "loop_spine_cut|spine-cut||"
     "loop_goto_arrival|goto-arrival||"
+    "loop_goto_standoff|news-0130-goto-standoff||"
     "loop_player_flight|landing-player-flight||"
     "loop_derived_skin|news-0110-derived-skin||"
     "loop_round_types|news-0110-round-types||"
@@ -161,9 +162,7 @@ done
 # packaged into nothing; it only reports. Empty: every loop a page asks for has
 # a producer.
 #   loop|why
-PENDING=(
-    "news-0130-goto-standoff|loop_goto_standoff records it, but GOTO's arrival creep parks the gunship inside the orb at any margin the frame can show (its park log has the numbers)"
-)
+PENDING=()
 
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
 # nova_autopilot::loops); a loop over budget FAILS the run - re-cut it or

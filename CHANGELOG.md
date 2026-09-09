@@ -27,6 +27,10 @@ does NOT get an entry - and it is the only place they are written down.
   position still has no size.
 - A GOTO at a planetoid arrives on a ring ORBIT accepts, so the parking handoff
   no longer burns the ship back outward to reach a legal orbit.
+- GOTO holds its margin. The leg is flown from the hull's centre of mass, the
+  flip is budgeted with the hull's settle onto the brake attitude, and the RCS
+  settle brakes at full deflection: a light hull no longer parks tens of
+  meters inside its standoff.
 - The ORBIT park and the AI patrol's advance gate read the ship's own arrival
   standoff instead of the global one, so a hull authored to park close is
   flown that way throughout.
