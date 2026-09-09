@@ -1,0 +1,27 @@
+assets by status 202 MiB [compared for emit] 568 assets
+assets by status 1.52 MiB [emitted]
+  assets by path *.js 1.32 MiB
+    asset docs.js 552 KiB [emitted] (name: docs)
+    asset news.js 472 KiB [emitted] (name: news)
+    asset story.js 190 KiB [emitted] (name: story)
+    asset index.js 134 KiB [emitted] (name: index)
+  assets by path assets/loops/ 167 KiB
+    asset assets/loops/news-0130-goto-standoff.webm 163 KiB [emitted] [from: src/assets/loops/news-0130-goto-standoff.webm] [copied]
+    asset assets/loops/manifest.txt 3.71 KiB [emitted] [from: src/assets/loops/manifest.txt] [copied]
+  asset story/season-1/episode-1/index.html 39.7 KiB [emitted]
+orphan modules 613 KiB [orphan] 490 modules
+runtime modules 12.4 KiB 33 modules
+modules by path ./node_modules/ 7.47 MiB 1067 modules
+modules by path ./src/ 532 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./src/*.ts 351 KiB
+    ./src/index.ts 257 bytes [built] [code generated]
+    + 8 modules
+  modules by path ./src/*.css 103 KiB
+    ./src/style.css 1.19 KiB [built] [code generated]
+    + 5 modules
+  modules by path ./src/comics/*.ts 30.6 KiB
+    ./src/comics/comic-catalog.ts 328 bytes [built] [code generated]
+    + 3 modules
+  ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+  ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 8129 ms

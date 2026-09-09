@@ -1,0 +1,131 @@
+{
+  "baseline": "62043f3b531f3ac7ec4b9d684150466b7efbb181",
+  "checked_head": "62043f3b531f3ac7ec4b9d684150466b7efbb181",
+  "page_count": 18,
+  "panel_count": 50,
+  "spoken_words": 745,
+  "retained_spoken_words": 130,
+  "new_script_pages": [
+    {
+      "page": 5,
+      "panels": 3,
+      "spoken_words": 44
+    },
+    {
+      "page": 6,
+      "panels": 3,
+      "spoken_words": 50
+    },
+    {
+      "page": 7,
+      "panels": 3,
+      "spoken_words": 32
+    },
+    {
+      "page": 8,
+      "panels": 3,
+      "spoken_words": 60
+    },
+    {
+      "page": 9,
+      "panels": 3,
+      "spoken_words": 81
+    },
+    {
+      "page": 10,
+      "panels": 3,
+      "spoken_words": 69
+    },
+    {
+      "page": 11,
+      "panels": 2,
+      "spoken_words": 19
+    },
+    {
+      "page": 12,
+      "panels": 3,
+      "spoken_words": 60
+    },
+    {
+      "page": 13,
+      "panels": 3,
+      "spoken_words": 26
+    },
+    {
+      "page": 14,
+      "panels": 3,
+      "spoken_words": 46
+    },
+    {
+      "page": 15,
+      "panels": 3,
+      "spoken_words": 22
+    },
+    {
+      "page": 16,
+      "panels": 2,
+      "spoken_words": 32
+    },
+    {
+      "page": 17,
+      "panels": 3,
+      "spoken_words": 30
+    },
+    {
+      "page": 18,
+      "panels": 3,
+      "spoken_words": 44
+    }
+  ],
+  "checks": [
+    "retained art, generators, shared library and prior proof unchanged",
+    "four existing pages remain the source of their dialogue",
+    "fourteen new pages have ordered panel IDs and known speakers",
+    "public archive is demo-only; private script markers absent",
+    "built public lore art equals source",
+    "task remains OPEN with seven writing checks; index empty"
+  ],
+  "public_lore_asset_sha256": {
+    "web/src/assets/lore/tomas-vega-portrait-concept.svg": "1abebf9c57d8bb5d229dcb551cff203162ff2dc6cbb9476614f22e6f83f3079a",
+    "web/src/assets/lore/usable-supply.svg": "d1e5b33c13f67ac06d1ad3d02afdf42cee09b5b5ad950bcfa46dbfa2616397d7",
+    "web/src/assets/lore/jonah-mercer-portrait-concept.svg": "831760ac275f592780759f22201615329c8baeda8acb620670133f1fe4446345",
+    "web/src/assets/lore/farspan-brand-concept.svg": "7a848c75d6d5adf14a49a7a44bea4fdff3b10ccb9e74f185013c40cff434b8df",
+    "web/src/assets/lore/travel-phases.svg": "61f3c33336d9b21441d7a57eb78c953d2bac997aabbad6a5b971a235c3291295",
+    "web/src/assets/lore/elena-ward-portrait-concept.svg": "ad6adc6c31cc9af488b3a1e8df2afb5613baf33b1fdfa8473d5cebe5654388c3",
+    "web/src/assets/lore/samir-bell-portrait-concept.svg": "6bc0efed535d887d53577111ddba9a22b98dfb9d9b9ba7c8d3e73c505cd53f0b",
+    "web/src/assets/lore/aquila-exterior-concept.svg": "41c565f3aab2102c93f88356e85cb726e7397102cc742f738616acff01a756a8",
+    "web/src/assets/lore/clearwell-brand-concept.svg": "c08d818422bd30680d68a80a8ac960db2507b235d0e3be72771b4d9c0270e324",
+    "web/src/assets/lore/corporate-relationships.svg": "a2d5aeb9236a8384cfdc9a79814d3a61fa85f22e6c972dbf830d19cfc0043c43",
+    "web/src/assets/lore/leila-haddad-portrait-concept.svg": "bd95313b6d91dc9de5984974971714e3b63ea8e231a971130969228f5621fe10",
+    "web/src/assets/lore/saturn-settlement-concept.svg": "3c6f90c93dabefed14a437aef7b0691be72b76d9a0f57770e61c9222a46fa5a7",
+    "web/src/assets/lore/industrial-station-concept.svg": "a4bf77625414e81fe0742872b38e98ca9380de7a1092997394c4c92964dae497",
+    "web/src/assets/lore/keystone-exterior-concept.svg": "e8708a41e6e560c3ce841ed7397b2494016d19b78e608e1c3913ba0bdce83c43",
+    "web/src/assets/lore/earthworks-brand-concept.svg": "15f000dabe41304f9af711fdb93ebccf46f55bb6c78aa1277eea18b3b20b1000",
+    "web/src/assets/lore/kaveri-design-concept.svg": "fa18c3bc8ea2a3c87be302427212681cf74554e8d1ccad2e32dcf8ffa3662f03",
+    "web/src/assets/lore/baikal-exterior-concept.svg": "fd53b8c60df39a15229053cfce3323338bdaa0be77c1ab0afcaa83485428abf4",
+    "web/src/assets/lore/ebro-design-concept.svg": "eeae3468eab8f827d6a19413a4674f3418ac8dddd3af25c796f3e39409400d0b",
+    "web/src/assets/lore/freight-and-station-rivalry.svg": "2d90d0bf6e8f8a73c002777fec692e0a076fd4621814b102c64fc9f3c27e5a7d",
+    "web/src/assets/lore/rina-okafor-portrait-concept.svg": "131c8b689e1e5a54236a9a04b0af73de266853b5d66ef8476bd709014e2df85a"
+  },
+  "protected_paths": [
+    "scripts/nova_illustration",
+    "scripts/gen-lore-portraits.py",
+    "scripts/gen-lore-designs.py",
+    "web/src/assets/lore",
+    "web/src/assets/story",
+    "tasks/20260908-161328/comic-opening-poc",
+    "tasks/20260908-161328/clean-line-study",
+    "tasks/20260908-161328/expression-study",
+    "tasks/20260908-161328/opening_props.py",
+    "tasks/20260908-161328/proof/baseline",
+    "tasks/20260908-161328/proof/revised",
+    "tasks/20260908-161328/proof/before-clean-line-opening",
+    "tasks/20260908-161328/proof/restyled",
+    "tasks/20260908-161328/proof/first-panel-card",
+    "tasks/20260908-161328/proof/clean-line",
+    "tasks/20260908-161328/proof/clean-line-initial",
+    "tasks/20260908-161328/proof/clean-line-before-frontal",
+    "tasks/20260908-161328/proof/expressions"
+  ],
+  "unrelated_paths_not_validated": []
+}

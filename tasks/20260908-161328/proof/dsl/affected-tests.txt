@@ -1,0 +1,5 @@
+story-reader.test.ts: all assertions passed
+comic-page.test.ts: all assertions passed
+comic-renderer.test.ts: all assertions passed
+Comic DSL validation, selected TS/Python execution, script derivation, and cache isolation passed.
+assets: news namespace held across 128 source files

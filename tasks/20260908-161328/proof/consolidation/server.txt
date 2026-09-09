@@ -1,0 +1,111 @@
+<i> [webpack-dev-server] [HPM] Proxy created: /play  -> http://localhost:8080
+<i> [webpack-dev-server] [HPM] Proxy rewrite rule created: "^/play" ~> ""
+<i> [webpack-dev-server] [HPM] Proxy created: /mods  -> http://localhost:9000
+<i> [webpack-dev-server] Project is running at:
+<i> [webpack-dev-server] Loopback: http://127.0.0.1:7001/
+<i> [webpack-dev-server] Content not from webpack is served from '/home/alex/personal/nova-protocol/book' directory
+<i> [webpack-dev-server] 404s will fallback to '/index.html'
+assets by path assets/ 192 MiB 262 assets
+assets by path nova-hud/ 606 KiB 118 assets
+assets by path *.js 11.4 MiB 71 assets
+assets by path lore/ 159 KiB 32 assets
+assets by path wiki/ 287 KiB 22 assets
+assets by path create/ 604 KiB 19 assets
+assets by path news/ 404 KiB 14 assets
+assets by path changelog/ 4.01 KiB 12 assets
+assets by path blog/ 1.99 KiB
+  asset blog/devlog-1-modular-ships-and-first-combat/index.html 344 bytes [emitted]
+  + 5 assets
+assets by path story/ 27.3 KiB
+  asset story/season-1/episode-1/index.html 21.7 KiB [emitted]
+  + 2 assets
++ 4 assets
+orphan modules 613 KiB [orphan] 490 modules
+runtime modules 12.6 KiB 37 modules
+modules by path ./node_modules/ 7.58 MiB 1079 modules
+modules by path ./src/ 524 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./src/*.ts 350 KiB
+    ./src/index.ts 257 bytes [built] [code generated]
+    + 8 modules
+  modules by path ./src/*.css 102 KiB
+    ./src/style.css 1.19 KiB [built] [code generated]
+    + 5 modules
+  modules by path ./src/comics/*.ts 24.6 KiB
+    ./src/comics/comic-catalog.ts 328 bytes [built] [code generated]
+    + 2 modules
+  ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+  ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 7628 ms
+assets by status 196 MiB [cached] 445 assets
+assets by path . 9.5 MiB
+  assets by path lore/ 159 KiB 32 assets
+  assets by path wiki/ 283 KiB 21 assets
+  assets by path create/ 604 KiB 19 assets
+  assets by path news/ 379 KiB 13 assets
+  assets by path changelog/ 4.01 KiB 12 assets
+  assets by path assets/ 6.26 MiB 8 assets
+  assets by path blog/ 1.99 KiB 6 assets
+  assets by path *.js 1.81 MiB
+    asset docs.js 682 KiB [emitted] (name: docs)
+    + 3 assets
+  assets by path story/ 27.3 KiB
+    asset story/season-1/episode-1/index.html 21.7 KiB [emitted]
+    + 2 assets
+cached modules 8.6 MiB (javascript) 75.3 KiB (asset) [cached] 1588 modules
+runtime modules 12.6 KiB 37 modules
+./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.7 KiB [built]
+webpack 5.108.4 compiled successfully in 2487 ms
+assets by status 196 MiB [cached] 445 assets
+assets by path . 9.5 MiB
+  assets by path lore/ 159 KiB 32 assets
+  assets by path wiki/ 283 KiB 21 assets
+  assets by path create/ 604 KiB 19 assets
+  assets by path news/ 379 KiB 13 assets
+  assets by path changelog/ 4.01 KiB 12 assets
+  assets by path assets/ 6.26 MiB 8 assets
+  assets by path blog/ 1.99 KiB 6 assets
+  assets by path *.js 1.81 MiB
+    asset docs.js 682 KiB [emitted] (name: docs)
+    + 3 assets
+  assets by path story/ 27.3 KiB
+    asset story/season-1/episode-1/index.html 21.7 KiB [emitted]
+    + 2 assets
+cached modules 8.6 MiB (javascript) 75.3 KiB (asset) [cached] 1588 modules
+runtime modules 12.6 KiB 37 modules
+./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.7 KiB [built]
+webpack 5.108.4 compiled successfully in 2432 ms
+assets by status 198 MiB [cached] 449 assets
+assets by path . 7.68 MiB
+  assets by path lore/ 159 KiB 32 assets
+  assets by path wiki/ 283 KiB 21 assets
+  assets by path create/ 604 KiB 19 assets
+  assets by path news/ 379 KiB 13 assets
+  assets by path changelog/ 4.01 KiB 12 assets
+  assets by path assets/ 6.26 MiB 8 assets
+  assets by path blog/ 1.99 KiB
+    asset blog/devlog-1-modular-ships-and-first-combat/index.html 344 bytes [emitted]
+    + 5 assets
+  assets by path story/ 27.3 KiB
+    asset story/season-1/episode-1/index.html 21.7 KiB [emitted]
+    + 2 assets
+cached modules 8.6 MiB (javascript) 75.3 KiB (asset) 12.6 KiB (runtime) [cached] 1625 modules
+./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.7 KiB [built]
+webpack 5.108.4 compiled successfully in 2439 ms
+assets by status 198 MiB [cached] 449 assets
+assets by path . 7.68 MiB
+  assets by path lore/ 159 KiB 32 assets
+  assets by path wiki/ 283 KiB 21 assets
+  assets by path create/ 604 KiB 19 assets
+  assets by path news/ 379 KiB 13 assets
+  assets by path changelog/ 4.01 KiB 12 assets
+  assets by path assets/ 6.26 MiB 8 assets
+  assets by path blog/ 1.99 KiB
+    asset blog/devlog-1-modular-ships-and-first-combat/index.html 344 bytes [emitted]
+    + 5 assets
+  assets by path story/ 27.3 KiB
+    asset story/season-1/episode-1/index.html 21.7 KiB [emitted]
+    + 2 assets
+cached modules 8.6 MiB (javascript) 75.3 KiB (asset) 12.6 KiB (runtime) [cached] 1625 modules
+./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.7 KiB [built]
+webpack 5.108.4 compiled successfully in 2533 ms
+<i> [webpack-dev-server] Gracefully shutting down. To force exit, press ^C again. Please wait...

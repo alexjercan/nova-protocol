@@ -1,0 +1,156 @@
+/* Serial reading order, in the shared phosphor shell. Artwork stays full color. */
+.story-meta {
+    display: block;
+    color: var(--phosphor-dim);
+    font: 0.72rem/1.6 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.story-back {
+    display: inline-block;
+    margin-bottom: 20px;
+}
+.story-seasons,
+.story-episodes {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.story-season,
+.story-episode {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 24px;
+    align-items: center;
+    padding: 20px;
+    border: 1px solid var(--edge);
+    background: var(--panel-face);
+    color: var(--text);
+    text-decoration: none;
+    margin-bottom: 12px;
+}
+.story-season:hover,
+.story-season:focus-visible,
+.story-episode:hover,
+.story-episode:focus-visible {
+    background: var(--fill-hot);
+    border-color: var(--phosphor);
+}
+.story-season img,
+.story-episode img {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: contain;
+    background: var(--screen-0);
+}
+.story-row__body {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+.story-season strong,
+.story-episode strong {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--phosphor);
+}
+.story-draft-label {
+    color: var(--amber);
+    font: 0.74rem/1.6 var(--font-mono);
+}
+.comic-art-page > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+.comic-art-page {
+    position: relative;
+}
+.comic-reader[data-art-only="true"] .comic-lettering {
+    visibility: hidden;
+}
+.comic-reader [aria-pressed="true"] {
+    color: var(--ink);
+    background: var(--phosphor);
+}
+.comic-reader__tool--compact {
+    padding: 4px 6px;
+    border-color: transparent;
+}
+.comic-reader-dialog {
+    width: min(52rem, calc(100% - 32px));
+    max-height: calc(100svh - 32px);
+    margin: auto;
+    padding: 0;
+    color: var(--text);
+    background: var(--screen-0);
+    border: 1px solid var(--edge);
+    font-family: var(--font-mono);
+}
+.comic-reader-dialog[open] {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+}
+.comic-reader-dialog::backdrop {
+    background: rgb(0 0 0 / 72%);
+}
+.comic-reader-dialog > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--edge);
+}
+.comic-reader-dialog h2 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--phosphor);
+}
+.comic-reader-dialog__page {
+    margin: 12px 20px 0;
+    font-size: 0.75rem;
+    color: var(--phosphor-dim);
+}
+.comic-reader-dialog__body {
+    padding: 16px 20px 20px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    overflow-wrap: anywhere;
+    font-size: 0.85rem;
+    line-height: 1.65;
+}
+.comic-reader-dialog [data-page-transcript] {
+    margin: 0;
+    white-space: pre-wrap;
+}
+.comic-reader-dialog ul {
+    margin: 0;
+    padding-left: 20px;
+}
+.comic-reader-dialog li + li {
+    margin-top: 10px;
+}
+.comic-reader-dialog li a {
+    display: inline-block;
+    margin-left: 8px;
+}
+@media (max-width: 760px) {
+    .story-season,
+    .story-episode {
+        grid-template-columns: 80px minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px;
+    }
+    .story-season strong,
+    .story-episode strong {
+        font-size: 1.05rem;
+    }
+    .story-row__body > span:last-child {
+        font-size: 0.86rem;
+    }
+    .comic-reader__toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}

@@ -1,0 +1,1 @@
+node_modules/mermaid/dist/diagram-api/types.d.ts(2,47): error TS2307: Cannot find module 'type-fest' or its corresponding type declarations.

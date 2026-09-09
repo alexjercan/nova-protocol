@@ -5,9 +5,10 @@ const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
 const { docPage, newsPostPage } = require("./markdown");
 const {
-    discoverComics,
     comicIndexPage,
+    comicSeasonPage,
     comicReaderPage,
+    comicRoutes,
 } = require("./comic-build");
 const { DOC_SECTIONS } = require("./src/docs-manifest");
 const getPort = require("get-port");
@@ -17,7 +18,7 @@ const getPort = require("get-port");
 // the subpath. The Bevy game is published as a sibling of these pages at
 // `<PUBLIC_PATH>play/` (built separately by Trunk); the "Play" links point there.
 const publicPath = process.env.PUBLIC_PATH || "/";
-const COMICS = discoverComics();
+const { storyBuild } = require("./story-build");
 
 // One HtmlWebpackPlugin per page. `filename` with a trailing `index.html` gives
 // clean directory URLs (/news/, /wiki/, ...). `basePath` is read by the
@@ -276,6 +277,51 @@ module.exports = async (env, argv) => {
     // Only `webpack serve` needs a port; skipping the scan keeps `npm run build`
     // (and CI) from probing sockets it will never listen on.
     const uiPort = env && env.WEBPACK_SERVE ? await resolveUiPort() : undefined;
+    const serving = env?.WEBPACK_SERVE === true;
+    const story = storyBuild({
+        serving,
+        mode: argv.mode,
+        outputPath: argv.outputPath,
+    });
+    const COMICS = story.comics();
+    const catalog = () => {
+        const current = story.comics();
+        if (
+            JSON.stringify(comicRoutes(current).sort()) !==
+            JSON.stringify(comicRoutes(COMICS).sort())
+        )
+            throw new Error(
+                "Story episode or collection routes changed; restart the dev server"
+            );
+        return current;
+    };
+    const storyPages = [
+        (all) => comicIndexPage(all, publicPath),
+        ...COMICS.flatMap((comic) => [
+            (all) =>
+                comicSeasonPage(
+                    all.find((c) => c.path === comic.path),
+                    publicPath
+                ),
+            ...comic.episodes.map((episode) => (all) => {
+                const current = all.find((c) => c.path === comic.path);
+                return comicReaderPage(
+                    current,
+                    current.episodes.find((e) => e.id === episode.id),
+                    publicPath,
+                    all
+                );
+            }),
+        ]),
+    ].map(
+        (render) =>
+            new HtmlWebpackPlugin({
+                ...render(COMICS).userOptions,
+                cache: false,
+                templateContent: () =>
+                    render(catalog()).userOptions.templateContent,
+            })
+    );
 
     return {
         entry: {
@@ -285,19 +331,19 @@ module.exports = async (env, argv) => {
             story: "./src/story.ts",
         },
         output: {
-            path: path.resolve(__dirname, "dist"),
+            path: serving ? story.site : path.resolve(__dirname, "dist"),
             filename: "[name].js",
             assetModuleFilename: "assets/[name][ext]",
             clean: true,
             publicPath: publicPath,
         },
         plugins: [
+            story.plugin,
             page("index", "src/index.html", "index.html"),
             page("docs", "src/wiki.html", "wiki/index.html"),
             ...DOC_SECTIONS.flatMap(sectionDocPages),
             page("news", "src/news.html", "news/index.html"),
-            comicIndexPage(COMICS, publicPath),
-            ...COMICS.map((comic) => comicReaderPage(comic, publicPath)),
+            ...storyPages,
             ...NEWS_POSTS.map(newsPage),
             ...REDIRECTS.map(redirectPage),
             new CopyPlugin({
@@ -351,13 +397,16 @@ module.exports = async (env, argv) => {
         },
         mode: "development",
         devServer: {
+            host: "127.0.0.1",
+            hot: false,
+            liveReload: true,
             // The developer book is a sibling build (mdbook, repo-root book/)
             // served under /dev/ like the deploy. Static entries resolve before
             // historyApiFallback, so book files never fall through to the SPA
             // fallback. Guarded: a bare `npm run serve` without a book build
             // still starts; `scripts/serve-web.sh` builds and watches it.
             static: [
-                path.join(__dirname, "dist"),
+                ...(serving ? [] : [path.join(__dirname, "dist")]),
                 ...(fs.existsSync(path.join(__dirname, "..", "book"))
                     ? [
                           {
@@ -432,9 +481,9 @@ module.exports = async (env, argv) => {
                         to: "/news/" + slug + "/index.html",
                     })),
                     { from: /^\/news/, to: "/news/index.html" },
-                    ...COMICS.map((comic) => ({
-                        from: new RegExp(`^/story/${comic.path}`),
-                        to: `/story/${comic.path}/index.html`,
+                    ...comicRoutes(COMICS).map((route) => ({
+                        from: new RegExp(`^/${route}(?:/|$)`),
+                        to: `/${route}/index.html`,
                     })),
                     { from: /^\/story/, to: "/story/index.html" },
                     // Retired sections: the physical redirect stubs under

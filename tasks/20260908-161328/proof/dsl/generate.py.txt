@@ -1,0 +1,21 @@
+"""Compose episode one's illustrated pages from their maintained scene sources."""
+
+import opening
+import aquila
+
+
+def pages():
+    """Return only illustrated pages, in reading order."""
+    return opening.pages()+aquila.pages()
+
+
+def render_page(number, title, panels):
+    """Keep the accepted page frame and scene composition."""
+    return opening.render_page(number,title,panels)
+
+
+def cover(authored):
+    """Use the opening's Baikal establishing shot without speech or title cards."""
+    first = authored[0][2][0]
+    art = opening.definitions()+first.art
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {first.w} {first.h}"><title>Baikal at work</title>{art}</svg>\n'

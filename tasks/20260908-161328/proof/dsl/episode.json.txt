@@ -1,0 +1,8 @@
+{
+    "title": "A useful job",
+    "summary": "An ordinary replacement pickup becomes a rescue with a cost.",
+    "publication": "draft",
+    "pageCount": 18,
+    "generator": "generate.py",
+    "coverAlt": "Baikal at the start of an ordinary working day."
+}

@@ -1,0 +1,99 @@
+# Episode one and the season reader
+
+This records the first draft and the archive implementation. The user then
+accepted the eighteen-page arc with specific revisions. See
+[episode feedback](EPISODE-FEEDBACK.md) for the current opening and script checks.
+The first draft's [source snapshots](proof/before-episode-feedback/sources.json)
+and `proof/episode-1/` evidence are retained, not overwritten.
+
+## Authorized scope
+
+The user approved a season/episode archive and a first-episode script for review.
+This batch changes the website and its build generator, not gameplay. The script
+is private. No new comic installment, portrait, or ship sheet is published, and
+no commit was requested for this batch.
+
+Work began at `62043f3b531f3ac7ec4b9d684150466b7efbb181`. Concurrent Rust and other
+task work remains outside this scope. The existing story task stays OPEN.
+
+## First script draft
+
+The working title was **A useful job**. The counts and observations in this
+section describe the first draft, before the approved feedback below.
+
+- Eighteen landscape pages, fifty panels, and 745 spoken words.
+- Pages 1-4 retain the accepted artwork and all 130 spoken words. The review
+  generator reads that dialogue from the existing opening generator, rather
+  than keeping another authored copy in the new script.
+- Pages 5-7: Aquila, the replacement assembly, Nadia and Gantry, then departure.
+- Pages 8-10: distress, feasibility, cost, refusal, and the funded diversion.
+- Pages 11-15: intercept, port checks, docking, assisted transfer, all three safe.
+- Pages 16-18: survivors' reactions, homecoming, restored production, and the bill.
+
+The script tests a complete opening instead of committing to a diversion
+cliffhanger. More dialogue falls on pages 9-10, where the choice is made;
+journey and separation panels give it breathing room. The mug returns on the
+last page without cancelling the financial consequence.
+
+There is no attack cutaway, returning pirate, pursuit, combat, sacrificed
+replacement, destroyed Gantry, miraculous cure, or instant Clearwell bankruptcy.
+Tomas asks for informed consent, not abandonment. Nadia asks for the record
+without immediately rejecting her employer. Samir's record proves this refusal,
+not the later conspiracy. The player still operates the whole ship.
+
+Aquila's loading/access arrangement and Gantry-first departure are script
+proposals. Exact travel/endurance figures, communications timing, docking
+hardware, and injury staging still need review before illustration. No new
+calendar date, moon, engineering specification, or later fate is selected.
+The season's later commercial pressure and ending still need their own writing.
+
+## Website and generator
+
+- `/story/` introduces the series. Start reading and Latest episode use only
+  released season episodes, never demonstrations.
+- `/story/<season>/` lists its episodes. `/story/<season>/<episode>/` reads one
+  episode, with page fragments and previous/next episode navigation across seasons.
+- The manifest owns `kind`, numeric reading sequence, summaries/covers, episodes,
+  page modules, and page transcripts. Unknown fields, including the old chapter
+  state, are errors. Publication is no longer labelled by game availability.
+- The demo now has its own contents page and nested reader. It remains visibly
+  separate from story canon. Production still has no released season-one page.
+- `artPage` fits a complete authored image without crop, folio, scanline, shade,
+  or color overlay. The older typed HUD drawing tools remain available.
+- Page text is separate from the fitted artwork. Open image uses the browser's
+  image viewer and native zoom. Hidden contents are removed from keyboard access;
+  Ctrl-wheel and multi-touch do not become ordinary page-turn commands.
+
+Phone fitting remains an overview. Full-size image zoom or the transcript is
+needed for small landscape lettering. A panel-by-panel mobile adaptation is not
+claimed. No campaign runtime or save-state behavior changed.
+
+During inspection, the first desktop card render exposed a missing thumbnail
+wrapper that pushed its text out of the card. The wrapper and card-bound checks
+were added. Singular page/episode counts were also corrected.
+
+## Evidence
+
+- [Website CI](proof/episode-1/web-ci.txt): formatting, lint, tests, and root build.
+- [Project-prefix build](proof/episode-1/prefix-build.txt).
+- [Developer book](proof/episode-1/mdbook.txt): passes with the existing
+  mdbook-mermaid version warning, not a new broken-link warning.
+- [Regeneration checks](proof/episode-1/generation.txt): existing opening, accepted
+  three-shot study, expression study, portraits, design exports, and new review.
+- [Browser report](proof/episode-1/browser-checks.json): root/prefix public views,
+  synthetic season/episode navigation, complete-art CSS, and private script.
+- [Source and script checks](proof/episode-1/source-and-script.json).
+- [Markdown and local links](proof/episode-1/markdown.txt).
+
+The browser fixture populates only a temporary prefixed build. It reuses the
+compiled demo module to test two-page navigation and the accepted page as a CSS
+fixture for `artPage`; renderer unit tests verify that DOM shape. It is not a
+release preview of eighteen illustrated pages. Production `web/dist` and its
+source manifest remain demo-only. Public exporters never import the task.
+
+## First-draft review handoff
+
+Review the script's pacing, Nadia's introduction, the refusal, and the ending
+before drawing pages 5-18. The next new illustration subjects are Gantry and its
+crew; Samir's existing head also needs shared-library reuse. The other requested
+lore portraits and ship sheets remain follow-up work, not completed by this batch.

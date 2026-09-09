@@ -29,6 +29,58 @@ Keep approved world facts and shared continuity in those sources. Keep draft
 artwork, page experiments, scripts, working dialogue, reviews, and proof here.
 Do not create a second maintained story specification in the task.
 
+## Current batch: episode-one script and reader structure
+
+The user approved organizing `/story/` as a series landing, season contents,
+and episode reader. Comic publication is separate from campaign availability;
+unreleased scripts stay private. A normal episode targets 12-16 landscape
+pages, with room for a longer opening that completes the rescue and homecoming.
+
+The user accepted the eighteen-page opening arc, with clarity and staging
+revisions. The opening is in 2078. Page 2 introduces Samir checking residential
+supplies while Leila examines the pump; the original dialogue and coffee/window
+beats remain. Leila inspects the replacement in person at Aquila. The funding
+refusal is simpler, and the docked evacuation is staged in freefall. Gantry's
+before/after introduction and first departure remain; timing stays qualitative.
+The user accepted the revised opening, Gantry's intact/stranded model, and
+Nadia/Owen/Ivo as working likenesses. They then chose the pressurized,
+non-rotating transfer hall for Aquila: handholds, restrained cargo, exterior
+berths, and a freight lock feeding Kaveri's external cradle. Pages 5-7 now have
+private artwork. The complete script review includes seven illustrated pages;
+pages 8-18 remain script. The user accepted these pages and chose the real
+website reader as the working preview, with a featured current season and
+ordered episode lists. Maintained page/script sources now live under
+`web/src/comics/season-1/episode-1/`. Normal local serving includes the draft;
+deployable builds exclude it. The user requested this single source home and
+removal of the demo. Task-local page boards and their `.txt` source
+snapshots are frozen evidence, not parallel readers. The wider season and its
+critical choices are incomplete.
+
+The approved authoring refactor gives every page a TS script and leaves Python
+with named panel artwork only. The shared engine owns composition, lettering,
+transcripts, and exports. Panels and Transcript now use compact toolbar buttons
+and modals; the user removed Layout checks UI. All seven page exports remain
+pixel-identical to the accepted reader output. No server was started.
+
+The user clarified the browsing hierarchy: Story lists seasons only, and each
+season opens a separate episode list. There are no duplicate reading shortcuts
+or repeated season covers. Story returns to the library; the reader returns to
+its episode list through the season title. This replaces the grouped-library
+iteration. [Season browser review](SEASON-BROWSER-REVIEW.md) records the checks.
+
+- [Maintained episode-one script](../../web/src/comics/season-1/episode-1/episode.ts).
+- [TS/panel refactor and modal review](DSL-REVIEW.md).
+- [Real-reader authoring workflow](../../web/src/comics/README.md),
+  [initial reader review](READER-REVIEW.md), and
+  [source consolidation review](SOURCE-REVIEW.md).
+- [Frozen complete script review](episode-1/index.html), from before the
+  real-reader migration.
+- [Episode and archive review](EPISODE-REVIEW.md).
+- [Approved feedback and revised-opening review](EPISODE-FEEDBACK.md).
+- [Gantry and crew design board](gantry-study/index.html) and
+  [art review](GANTRY-REVIEW.md).
+- [Aquila pages 5-7](aquila-pages/index.html) and [batch review](AQUILA-REVIEW.md).
+
 ## Writing plan
 
 1. Develop the existing season progression into a complete causal outline.
@@ -39,8 +91,8 @@ Do not create a second maintained story specification in the task.
    scene. Propose episode and mission boundaries after the sequence works.
 3. Draft scene action and dialogue for the comic. Show professional judgment,
    distinct voices, and relationships without lore lectures or crew roll calls.
-   Keep scripts with this task and approved shared events in the production
-   outline; do not maintain two competing accounts of the story.
+   Keep scripts with the comic sources, proof with this task, and approved shared
+   events in the production outline; do not maintain competing story accounts.
 4. Develop the corresponding campaign story brief. Map the same events to
    whole-ship objectives and narrative cues. Identify interaction needs without
    claiming that unverified mechanics are implemented.
@@ -72,8 +124,8 @@ Do not create a second maintained story specification in the task.
   green treatment. Shared sources own recurring characters, ships, locations,
   and the palette; incidental props stay local.
 - Baikal's orientation card belongs on its first exterior picture. Kaveri's
-  stays at the move aboard. Calendar dates and precise orbital relationships
-  remain provisional; the card design does not settle them.
+  stays at the move aboard. The approved year is 2078 on Earth's calendar;
+  day, month, and precise orbital relationships remain open.
 - The user accepted the page-1 expression trial and requested its commit.
   Rina uses an amused expression and Jonah a wry half-smile for the coffee
   exchange. Original defaults and other appearances are unchanged.
@@ -103,9 +155,9 @@ this story work stay in this task. Do not move unrelated design studies:
 
 ## Scope and constraints
 
-1. The reviewed card move and writing-task update are committed. The current
-   follow-up adds reusable expressions and tries them on page 1. It does not
-   draft new season scenes or authorize publication.
+1. The opening artwork and reusable-expression work are committed. The current
+   request authorizes the season/episode website structure and first-episode
+   script. It does not authorize publishing the draft or implementing missions.
 2. Preserve the accepted studies, comparison copies, and evidence. New scripts
    and reviews stay with this task. Keep generated art and its sources together.
 3. Keep the production outline unpublished. Public subject histories follow

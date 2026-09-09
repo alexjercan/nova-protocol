@@ -1,0 +1,72 @@
+{
+  "images": [
+    "gantry-conditions.svg",
+    "crew-comic.svg",
+    "crew-lore.svg",
+    "../../../web/src/assets/lore/gantry-design-concept.svg",
+    "../../../web/src/assets/lore/nadia-sen-portrait-concept.svg",
+    "../../../web/src/assets/lore/owen-park-portrait-concept.svg",
+    "../../../web/src/assets/lore/ivo-marin-portrait-concept.svg"
+  ],
+  "privateRequests": [
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/gantry-conditions.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/crew-comic.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/crew-lore.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/gantry-design-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/nadia-sen-portrait-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/owen-park-portrait-concept.svg",
+    "file:///home/alex/personal/nova-protocol/web/src/assets/lore/ivo-marin-portrait-concept.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/gantry-conditions.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/crew-comic.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/crew-lore.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/gantry-conditions.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/crew-comic.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/gantry-study/crew-lore.svg"
+  ],
+  "publicViews": [
+    {
+      "width": 1440,
+      "slug": "ships/gantry"
+    },
+    {
+      "width": 1440,
+      "slug": "characters/nadia-sen"
+    },
+    {
+      "width": 1440,
+      "slug": "characters/owen-park"
+    },
+    {
+      "width": 1440,
+      "slug": "characters/ivo-marin"
+    },
+    {
+      "width": 390,
+      "slug": "ships/gantry"
+    },
+    {
+      "width": 390,
+      "slug": "characters/nadia-sen"
+    },
+    {
+      "width": 390,
+      "slug": "characters/owen-park"
+    },
+    {
+      "width": 390,
+      "slug": "characters/ivo-marin"
+    }
+  ],
+  "errors": [],
+  "checks": [
+    "seven standalone SVGs",
+    "text and face bounds",
+    "distinct frontal crew identities",
+    "comic/lore crew geometry identical",
+    "damage present only in private comparison",
+    "local-only private review",
+    "desktop/phone review and public articles"
+  ]
+}

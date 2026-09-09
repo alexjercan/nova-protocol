@@ -1,0 +1,82 @@
+{
+  "starting_head": "f4ea1bce429a585cb49b9280f963b88ba4a033db",
+  "checked_head": "f4ea1bce429a585cb49b9280f963b88ba4a033db",
+  "changed_existing_paths": [
+    "scripts/nova_illustration/README.md",
+    "scripts/nova_illustration/colors.py",
+    "scripts/nova_illustration/faces.py",
+    "scripts/nova_illustration/portraits.py",
+    "scripts/nova_illustration/ships.py",
+    "scripts/nova_illustration/test_illustration.py",
+    "tasks/20260908-161328/EPISODE-FEEDBACK.md",
+    "tasks/20260908-161328/TASK.md",
+    "web/src/lore/README.md",
+    "web/src/lore/characters/ivo-marin.md",
+    "web/src/lore/characters/nadia-sen.md",
+    "web/src/lore/characters/owen-park.md",
+    "web/src/lore/ships/gantry.md",
+    "web/tests/lore.test.js"
+  ],
+  "protected_file_count": 556,
+  "retained_render_count": 37,
+  "new_svgs": [
+    {
+      "path": "web/src/assets/lore/gantry-design-concept.svg",
+      "faces": [],
+      "sha256": "aa553ac3068d823a929e07f765a7777db3bffb975c793b6fe9968f026ea87fc9"
+    },
+    {
+      "path": "web/src/assets/lore/nadia-sen-portrait-concept.svg",
+      "faces": [
+        "nadia"
+      ],
+      "sha256": "c0a2eb6783cecc084e277a8fce782445c9c75210283a023a99b89022649dde55"
+    },
+    {
+      "path": "web/src/assets/lore/owen-park-portrait-concept.svg",
+      "faces": [
+        "owen"
+      ],
+      "sha256": "1f729b5bb3a11d2402611a52cb56e92781d1dbfc966cfab72357e52329ea5140"
+    },
+    {
+      "path": "web/src/assets/lore/ivo-marin-portrait-concept.svg",
+      "faces": [
+        "ivo"
+      ],
+      "sha256": "b165f45ed6990f45862cf6016d81d4d1e9d7a6c2f847aad5aa2abd0bd90f5c03"
+    },
+    {
+      "path": "tasks/20260908-161328/gantry-study/gantry-conditions.svg",
+      "faces": [],
+      "sha256": "13377c0067f3c02a90c56a060a01563c30d2b5a4928e3c796d0e118c601be61c"
+    },
+    {
+      "path": "tasks/20260908-161328/gantry-study/crew-comic.svg",
+      "faces": [
+        "nadia",
+        "owen",
+        "ivo"
+      ],
+      "sha256": "4a92738cfb51011d78ff66806fe8a7aba476649269dfbf6ea633dba2b0a87934"
+    },
+    {
+      "path": "tasks/20260908-161328/gantry-study/crew-lore.svg",
+      "faces": [
+        "nadia",
+        "owen",
+        "ivo"
+      ],
+      "sha256": "021259786f98d003f0ebc96c1a999307af02e17804885fa6430d534a1257d6f3"
+    }
+  ],
+  "checks": [
+    "37 prior head/body/ship renders remain exact",
+    "accepted episode script and four-page opening unchanged",
+    "old public art, accepted studies and old proof unchanged",
+    "only four new public lore SVGs; all 24 match the build",
+    "public SVGs exclude future damage; private study excluded from site",
+    "safe IDs, frontal identities, and local filter references",
+    "public story remains demo-only; index empty"
+  ]
+}

@@ -1,0 +1,9 @@
+----------------------------------------------------------------------
+Ran 31 tests in 8.780s
+
+OK
+Verified three ship design sheets and four portraits
+Verified 5 crew portraits
+Verified three shared-source studies and their offline review sheet
+Verified two private expression comparison sheets
+Verified Gantry condition and crew studies

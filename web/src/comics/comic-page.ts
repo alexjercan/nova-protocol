@@ -1,14 +1,14 @@
 /**
- * Typed page language for HUD comics.
+ * Reader page data and lower-level typed illustration helpers.
  *
  * Page modules build data with these helpers only. Class names, markup and
  * attribute strings live in the renderer, so a page module cannot inject
  * anything into the document.
  */
 
+import type { PanelPage } from "./comic-script";
+
 export type ComicTone = "default" | "amber" | "danger" | "muted" | "blue";
-/** Where a chapter stands: playable in the game, planned, or comic frame matter. */
-export type ChapterState = "playable" | "planned" | "frame";
 export type Corner = "bottom-right" | "bottom-left" | "top-left" | "top-right";
 export type Channel = "open" | "cabin" | "rec" | "feed" | "guard";
 export type Focus = "left" | "center" | "right";
@@ -168,7 +168,29 @@ export type ComicNode =
           children: SvgNode[];
       };
 
+/** Scene art and independently measured dialogue, in authored page coordinates. */
+export interface LetteredPage {
+    layout: "lettered";
+    image: string;
+    alt: string;
+    width: number;
+    height: number;
+    palette: { ink: string; balloon: string; speaker: string };
+    balloons: {
+        x: number;
+        y: number;
+        width: number;
+        speaker: string;
+        text: string;
+        tip: [number, number];
+        side: "top" | "bottom" | "left" | "right";
+    }[];
+}
+
 export type ComicPage =
+    | PanelPage
+    | LetteredPage
+    | { layout: "art"; image: string; alt: string }
     | { layout: "standard"; children: ComicNode[] }
     | {
           layout: "bleed";
@@ -193,6 +215,11 @@ export type ComicPage =
           body: string;
           action?: { label: string; href: string };
       };
+
+/** A complete authored image, fitted without a crop, color filter, or text overlay. */
+export function artPage(options: { image: string; alt: string }): ComicPage {
+    return { layout: "art", ...options };
+}
 
 /** A page with a header and a panel grid. */
 export function comicPage(...children: ComicNode[]): ComicPage {

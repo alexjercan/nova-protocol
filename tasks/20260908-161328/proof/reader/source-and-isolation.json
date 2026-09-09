@@ -1,0 +1,69 @@
+{
+  "protectedFilesRetained": 384,
+  "exactSourceSnapshots": [
+    "comic-opening-poc/generate.py",
+    "aquila-pages/generate.py",
+    "aquila-pages/props.py",
+    "opening_props.py",
+    "episode-1/SCRIPT.md",
+    "episode-1/generate.mjs"
+  ],
+  "authoredPageFunctionsUnchanged": [
+    "opening.py",
+    "aquila.py"
+  ],
+  "pages5Through18ScriptUnchanged": true,
+  "generatedFiles": 16,
+  "illustratedPages": 7,
+  "stableRegenerationAndStaleCleanup": true,
+  "publicBuilds": {
+    "web/dist": {
+      "routes": [
+        "story/demo/episode-1/index.html",
+        "story/demo/index.html",
+        "story/index.html"
+      ],
+      "filesScanned": 210
+    },
+    "web/.cache/story-preview/public-prefix": {
+      "routes": [
+        "story/demo/episode-1/index.html",
+        "story/demo/index.html",
+        "story/index.html"
+      ],
+      "filesScanned": 210
+    }
+  },
+  "indexEmpty": true,
+  "preExistingPathsChanged": [
+    "scripts/nova_illustration/README.md",
+    "tasks/20260908-161328/TASK.md",
+    "tasks/20260908-161328/aquila-pages/README.md",
+    "tasks/20260908-161328/aquila-pages/generate.py",
+    "tasks/20260908-161328/aquila-pages/props.py",
+    "tasks/20260908-161328/clean-line-study/README.md",
+    "tasks/20260908-161328/clean-line-study/generate.py",
+    "tasks/20260908-161328/comic-opening-poc/README.md",
+    "tasks/20260908-161328/comic-opening-poc/generate.py",
+    "tasks/20260908-161328/episode-1/SCRIPT.md",
+    "tasks/20260908-161328/episode-1/generate.mjs",
+    "tasks/20260908-161328/opening_props.py",
+    "web/comic-build.js",
+    "web/package.json",
+    "web/src/assets/loops/manifest.txt",
+    "web/src/comics/comic-catalog.ts",
+    "web/src/comics/comic-page.ts",
+    "web/src/comics/comic-renderer.ts",
+    "web/src/comics/demo/comic.json",
+    "web/src/news/0.13.0.md",
+    "web/src/story-reader.ts",
+    "web/src/story.ts",
+    "web/src/style.css",
+    "web/src/widgets.ts",
+    "web/tests/comic-page.test.ts",
+    "web/tests/comics.test.js",
+    "web/tests/widgets.test.ts",
+    "web/webpack.config.js"
+  ],
+  "scopeNote": "The changed-path list includes concurrent media, news, and widget work; it is not a staging allowlist."
+}

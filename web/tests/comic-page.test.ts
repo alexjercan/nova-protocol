@@ -1,4 +1,19 @@
 import { strict as assert } from "node:assert";
+import { wrapDialogue } from "../src/comics/comic-lettering";
+
+assert.deepEqual(
+    wrapDialogue("Keep the protective covers on.", 20, (text) => text.length),
+    ["Keep the protective", "covers on."]
+);
+assert.deepEqual(
+    wrapDialogue("Keep the\ncovers on.", 40, (text) => text.length),
+    ["Keep the", "covers on."]
+);
+assert.deepEqual(
+    wrapDialogue("unsplittable", 4, (text) => text.length),
+    ["unsplittable"],
+    "An oversized word remains intact for the overflow diagnostic"
+);
 import {
     ComicNode,
     SvgNode,

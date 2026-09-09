@@ -34,9 +34,10 @@ a campaign about earning enough money to buy a station.
 
 ## Starting situation
 
-The story takes place in Saturn's developing settlement network, roughly 10-15
-years after the first permanent station. The central tension remains: Saturn is
-being sold as a permanent home, but administered as a temporary worksite.
+The story opens in 2078 on Earth's calendar, in Saturn's developing settlement
+network, roughly 10-15 years after the first permanent station. No exact founding
+date is selected. The central tension remains: Saturn is being sold as a
+permanent home, but administered as a temporary worksite.
 
 The protagonist is Jonah Mercer, the established, employed captain of
 [Kaveri](../ships/kaveri.md). Jonah is already competent at leadership, is not a
@@ -338,9 +339,16 @@ Introduce a working colleague and a recognizable vessel, not an impending victim
 or an invented old friendship. When Gantry's distress call arrives during
 Kaveri's return to Baikal, its captain is a familiar voice.
 
-The exchange's dialogue, cargo-handling arrangements, and exact departure order
-remain open, as do Gantry's specific supplies and destination. Choosing the
-pickup port does not fix the intercept geometry, travel times, or ship designs.
+The pickup uses a pressurized, non-rotating transfer hall, with windows onto the
+two exterior berths. People use handholds; restrained cargo moves in freefall.
+Leila inspects the covered assembly in person. A sealed freight lock and exterior
+handling gear move it into Kaveri's external cradle. This is local scene staging,
+not a full station layout, physical capacity claim, or campaign mechanic.
+
+Gantry departs first; Kaveri leaves with the intact assembly afterward. Gantry's
+specific supplies and destination remain open. Choosing the pickup port does
+not fix the intercept geometry or travel times. The approved ship forms remain
+unscaled working designs.
 
 #### Gantry's damage and endurance
 
@@ -451,22 +459,42 @@ Give the comic's conversations room for professional judgment and working
 relationships, rather than limiting them to the shortest game-style cues.
 Introduce Baikal's opening exterior and the move aboard Kaveri with a
 where/when/context card. Baikal is in the Saturn system and is Clearwell's main
-base; do not assign it a particular moon or calendar date before those choices
-are made. Draft relative-time labels do not establish the final chronology.
+base. Its first card gives the year 2078; Kaveri's departure card says "Later
+that day." No day, month, particular moon, or local calendar era is selected.
 
 TODO(20260908-161328): Write the full season's shared story, scene sequence,
 comic dialogue, and campaign story brief from the approved progression. Keep
 scripts, visual drafts, and review evidence with the task, not in the public
 archive. Draft page counts and staging do not establish episode boundaries.
 
+The reviewed comic direction keeps this whole opening as one eighteen-page
+episode. The normal working target is 12-16 landscape pages; the longer opener
+leaves room for the rescue and its commercial consequence. The first four pages
+retain the coffee exchange, window scene, and silent departure. Samir checks
+residential supplies on page 2 while Leila examines the isolated pump.
+
+Leila travels aboard Kaveri with the other four crew and checks the replacement
+in person at Aquila. Gantry's working introduction and first departure establish
+its intact form before the damaged reveal. EarthWorks' funding refusal is a
+plain exchange, not a delay while rescue preparations await permission. Both
+ships coast during the docked transfer; Rina and Ivo guide the supported Owen
+through freefall, and Samir secures him aboard Kaveri.
+
+Keep timing qualitative: Kaveri can arrive before Gantry's reserves run out,
+scheduled recovery cannot, and the diversion delays the repair. This episode
+does not need an exact orbital solution or countdown. The script and staging
+remain private; this is not a released installment or a plan for every later
+episode.
+
 Before finalizing scripts or mission briefs, choose:
 
-- The working exchange with Nadia at Aquila, cargo handling, Gantry's supplies
-  and destination, and the ships' departure order.
-- The calendar convention, opening date, and location precision needed by the
-  comic's orientation cards. Do not invent a year or nearby moon for a caption.
-- The intercept route, travel times, and credible endurance margin. Do not
-  invent coordinates or a countdown merely to fill a scene.
+- Gantry's supplies and destination. The Nadia meeting, Gantry-first departure,
+  and local pressurized/freefall pickup staging are retained. Detailed rescue
+  access still needs drawing; no station blueprint is required.
+- Any more precise locations or dates only if a later scene requires them.
+  Do not invent a nearby moon or a founding anniversary for a caption.
+- Quantified travel or endurance only if later work needs it. Preserve the
+  opening's arrival ordering without inventing coordinates or a countdown.
 - Ebro's relevant crew and any further background needed for the named business
   contacts. Elena Ward, Daniel Reed, and Mara Chen have their opening roles and
   workplaces established.

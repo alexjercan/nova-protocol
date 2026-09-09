@@ -4,6 +4,8 @@
 
 <table class="infobox">
 <caption>Ivo Marin</caption>
+<tr><td colspan="2" class="image"><a href="../../../assets/lore/ivo-marin-portrait-concept.svg"><img src="../../../assets/lore/ivo-marin-portrait-concept.svg" width="700" height="840" alt="Frontal portrait concept of Ivo Marin with swept-up hair, a short beard, and a civilian work vest."></a></td></tr>
+<tr><td colspan="2" class="cap">Portrait concept. Appearance and clothing are not established designs.</td></tr>
 <tr><th scope="row">Role</th><td>Work operations technician</td></tr>
 <tr><th scope="row">Ship</th><td>Gantry</td></tr>
 <tr><th scope="row">Employer</th><td>EarthWorks Industrial</td></tr>

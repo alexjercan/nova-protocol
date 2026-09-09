@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 OUTPUT = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0,str(ROOT/'scripts'))
-sys.path.insert(0,str(OUTPUT.parent))
+sys.path.insert(0,str(ROOT/'web/src/comics/season-1/episode-1/art'))
 from opening_props import mug_hand
 from nova_illustration.colors import INK, PAPER, INTERIOR, FOLIO, SKY, SATURN, REVIEW
 from nova_illustration.lettering import speech

@@ -1,0 +1,26 @@
+{
+  "baseline": "7fdd25222c3790a4430a1ff4f3071c78d1334261",
+  "protectedFilesRetained": 489,
+  "sceneAndCoverHashesRetained": 8,
+  "episodeSourceChanges": "Only root paths and the script documentation link/serve command changed.",
+  "illustratedPages": 7,
+  "completePageCount": 18,
+  "publication": "draft",
+  "publicBuilds": {
+    "web/dist": {
+      "routes": [
+        "story/index.html"
+      ],
+      "filesScanned": 207,
+      "storyAssets": 0
+    },
+    "web/.cache/story/public-prefix": {
+      "routes": [
+        "story/index.html"
+      ],
+      "filesScanned": 207,
+      "storyAssets": 0
+    }
+  },
+  "indexEmpty": true
+}

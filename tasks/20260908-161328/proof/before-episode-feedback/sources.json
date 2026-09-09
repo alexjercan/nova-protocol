@@ -1,0 +1,22 @@
+{
+  "episode-1/SCRIPT.md": {
+    "file": "episode-1--SCRIPT.md.txt",
+    "sha256": "9624caf5d69ad80289480b8bb2c9449436df1edd1b700799a09957c6e9cdde2d"
+  },
+  "episode-1/generate.mjs": {
+    "file": "episode-1--generate.mjs.txt",
+    "sha256": "61f733e199492c4a8410842d73538cb030650c7ee092fc867afed25c90f958bc"
+  },
+  "episode-1/index.html": {
+    "file": "episode-1--index.html.txt",
+    "sha256": "7961a334f3415b6b1841e1e817bd572dcc60dbc44fb06a5f0c08f27088c1adb6"
+  },
+  "EPISODE-REVIEW.md": {
+    "file": "EPISODE-REVIEW.md.txt",
+    "sha256": "9516f2df1185c3820afe076b0d6ebe3ae4a2316964889c384872e903dfac4e86"
+  },
+  "proof/check-episode.py": {
+    "file": "proof--check-episode.py.txt",
+    "sha256": "f145f24ed9db9ce7ed1bfddc79752a4b2589d906004ddc6a14fb05cdbcb13314"
+  }
+}

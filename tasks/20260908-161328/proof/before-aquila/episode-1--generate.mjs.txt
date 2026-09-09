@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {readFile, writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+const {renderMarkdownFile}=require('../../../web/markdown.js');
+const script=fileURLToPath(new URL('./SCRIPT.md',import.meta.url));
+const opening=fileURLToPath(new URL('../comic-opening-poc/generate.py',import.meta.url));
+const extract=spawnSync('python3',['-c',`
+import importlib.util,json,sys
+sys.dont_write_bytecode=True
+spec=importlib.util.spec_from_file_location('opening',sys.argv[1])
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print(json.dumps({'pages':[{'title':title,'panels':[{'action':p.title,'lines':p.lines} for p in panels]} for title,_,panels in module.pages()],'colors':dict(module.REVIEW)}))
+`,opening],{encoding:'utf8'});
+assert.equal(extract.status,0,extract.stderr);
+const {pages,colors}=JSON.parse(extract.stdout);
+const esc=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+const retained=pages.map((page,i)=>`<section class="retained"><h2 id="page-${i+1}">Page ${i+1}: ${esc(page.title)}</h2><p>Current opening artwork and dialogue.</p><a href="../comic-opening-poc/page-0${i+1}.svg"><img src="../comic-opening-poc/page-0${i+1}.svg" alt="${esc(page.title)}" width="1500" height="1000"></a>${page.panels.map((panel,n)=>`<h3>Panel ${i+1}${String.fromCharCode(97+n)}</h3><p>${esc(panel.action)}</p>${panel.lines.map(([speaker,line])=>`<p><strong>${esc(speaker)}:</strong> ${esc(line)}</p>`).join('')}`).join('')}</section>`).join('');
+const rendered=renderMarkdownFile(script);
+assert(rendered.html.includes('<!-- opening-pages -->'));
+const pageHeadings=rendered.headings.filter(h=>/^Page \d+:/.test(h.text));
+assert.equal(pageHeadings.length,14);
+const nav=[...pages.map((page,i)=>({id:`page-${i+1}`,text:`Page ${i+1}: ${page.title}`})),...pageHeadings].map(h=>`<a href="#${h.id}">${esc(h.text)}</a>`).join('');
+const output=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(rendered.title)} / Private script</title><style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:${colors.background};color:${colors.text};font:18px/1.65 system-ui,sans-serif}a{color:${colors.mint}}header,main{max-width:1040px;margin:auto;padding:24px}nav{display:flex;gap:8px 18px;flex-wrap:wrap;font-size:14px;padding:18px 0}h1{line-height:1.2}h2{margin-top:64px;padding-top:20px;border-top:1px solid ${colors.border}}h3{margin-top:32px}img{width:100%;height:auto}p{max-width:80ch}strong{color:${colors.mint}}.retained{padding-bottom:12px}header p{font-size:15px}a:focus-visible{outline:3px solid ${colors.mint};outline-offset:3px}@media print{nav{display:none}body{font-size:12pt;background:white;color:black}h2{break-before:page}a,strong{color:inherit}}
+</style></head><body><header><p>PRIVATE SCRIPT REVIEW / NOT A RELEASED EPISODE</p><h1>${esc(rendered.title)}</h1><p><a href="SCRIPT.md">Script source</a> / <a href="../comic-opening-poc/index.html">Existing four-page artwork</a></p><nav aria-label="Script pages">${nav}</nav></header><main>${rendered.html.replace('<!-- opening-pages -->',retained)}</main></body></html>\n`;
+const target=new URL('./index.html',import.meta.url);
+if(process.argv.includes('--check'))assert.equal(await readFile(target,'utf8'),output,'Regenerate the private script review');
+else await writeFile(target,output);
+console.log(`${process.argv.includes('--check')?'Verified':'Generated'} an 18-page private script review; opening dialogue comes from its existing generator`);

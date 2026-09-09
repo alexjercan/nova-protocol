@@ -1,0 +1,11 @@
+{
+  "noServer": true,
+  "singleLibrary": true,
+  "seasonRedirect": true,
+  "modalChecks": false,
+  "noLayoutUi": true,
+  "base": "/nova-protocol/",
+  "reports": [],
+  "pixels": [],
+  "errors": []
+}

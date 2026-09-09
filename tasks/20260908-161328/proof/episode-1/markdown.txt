@@ -1,0 +1,6 @@
+Rendered and checked docs/development.md
+Rendered and checked tasks/20260908-161328/TASK.md
+Rendered and checked tasks/20260908-161328/EPISODE-REVIEW.md
+Rendered and checked tasks/20260908-161328/episode-1/SCRIPT.md
+Rendered and checked web/src/lore/seasons/season-1.md
+Five Markdown sources, 67 local links, and the generated private review's links/IDs pass.

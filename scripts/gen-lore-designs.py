@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 from nova_illustration.colors import LORE
-from nova_illustration.portraits import elena_close
+from nova_illustration.portraits import elena_close, gantry_portrait
 from nova_illustration.ships import bounds, render_ship
 from nova_illustration.styles import present
 from nova_illustration.svg import group, path, rect, tag, text
@@ -42,10 +42,11 @@ def ship_sheet(name, scheme):
         drawing = render_ship(name,view,x-(lo_x+hi_x)*s/2,y-(lo_y+hi_y)*s/2+11,s,False)
         art += present(drawing,scheme,f'{name}-{view}')
     art += path('M42 938H1458',stroke=LORE['border'],width=1)
-    if name == 'kaveri':
-        notes = ['Raised crew module / side transfer collar','Open work cradle / stowed handling arm','Paired aft engine housings / unarmed']
-    else:
-        notes = ['Three framed pressure-vessel forms','Forward crew module / side transfer collar','Shared industrial detailing / unarmed']
+    notes = {
+        'kaveri': ['Raised crew module / side transfer collar','Open work cradle / stowed handling arm','Paired aft engine housings / unarmed'],
+        'ebro': ['Three framed pressure-vessel forms','Forward crew module / side transfer collar','Shared industrial detailing / unarmed'],
+        'gantry': ['Broad plated cargo body / raised handling frame','Forward crew module / side transfer collar','Single aft engine housing / unarmed'],
+    }[name]
     for n,note in enumerate(notes):
         art += text(44,970+n*27,note,17,LORE['label'])
     art += text(1458,984,'ALL VIEWS SHARE ONE MODEL',14,LORE['label'],text_anchor='end',letter_spacing=1)
@@ -67,13 +68,32 @@ def elena_portrait(scheme):
     return document('Elena Ward: portrait concept','A forward-facing portrait study of Elena Ward. The comic uses this drawing in full color; this lore export applies a green presentation treatment. Appearance and clothing are provisional.',art,700,840)
 
 
+CREW = {'nadia': ('Nadia Sen','CAPTAIN / PILOT'), 'owen': ('Owen Park','ENGINEER'), 'ivo': ('Ivo Marin','WORK OPERATIONS')}
+
+
+def crew_portrait(name, scheme):
+    """Export a starting-identity portrait, never a future injury or scene outcome."""
+    full_name,role = CREW[name]
+    art = rect(0,0,700,840,LORE['background'])
+    art += tag('defs',tag('clipPath',rect(35,100,630,606,'white'),id='portrait-clip'))
+    drawing = rect(35,100,630,606,LORE['portrait_background'])+group(gantry_portrait(name),'translate(68 140) scale(1.7)')
+    art += present(group(drawing,clip_path='url(#portrait-clip)'),scheme,f'{name}-portrait')
+    art += rect(35,100,630,606,'none',LORE['border'],1)
+    art += text(35,57,'NOVA PROTOCOL / PORTRAIT CONCEPT',15,LORE['label'],letter_spacing=1.5)
+    art += text(35,751,full_name.upper(),33,LORE['title'],letter_spacing=2)
+    art += text(35,784,role,15,LORE['label'],letter_spacing=1)
+    art += text(35,814,'Appearance and clothing remain proposals.',14,LORE['label'])
+    return document(f'{full_name}: portrait concept',f'A forward-facing civilian workship portrait study of {full_name}. Head and body are reusable in comic color; this export applies the lore color treatment. No age, biography, rank, or final likeness is established.',art,700,840)
+
+
 def main():
-    """Regenerate only the three named lore assets, or verify them without writes."""
+    """Regenerate the seven named lore assets, or verify them without writes."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check',action='store_true')
     args = parser.parse_args()
-    outputs = {f'{name}-design-concept.svg':ship_sheet(name,'lore') for name in ('kaveri','ebro')}
+    outputs = {f'{name}-design-concept.svg':ship_sheet(name,'lore') for name in ('kaveri','ebro','gantry')}
     outputs['elena-ward-portrait-concept.svg'] = elena_portrait('lore')
+    outputs.update({full_name.lower().replace(' ','-')+'-portrait-concept.svg':crew_portrait(name,'lore') for name,(full_name,_) in CREW.items()})
     for filename,content in outputs.items():
         target = OUTPUT/filename
         encoded = content.encode('utf-8')
@@ -82,7 +102,7 @@ def main():
                 raise SystemExit(f'Out of date: {target}')
         else:
             target.write_bytes(encoded)
-    print(f"{'Verified' if args.check else 'Rendered'} two ship design sheets and Elena's portrait")
+    print(f"{'Verified' if args.check else 'Rendered'} three ship design sheets and four portraits")
 
 
 if __name__=='__main__':

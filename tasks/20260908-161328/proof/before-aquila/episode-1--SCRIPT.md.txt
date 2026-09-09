@@ -1,0 +1,514 @@
+# Season 1, Episode 1: A useful job
+
+**Working script, for review. Not released.** Eighteen landscape pages, including
+the four accepted opening pages. The title and page breaks are proposals. The
+normal episode target is 12-16 pages; this longer opening completes the rescue
+and its commercial consequence rather than stopping at the decision to help.
+
+The [production outline](../../../web/src/lore/seasons/season-1.md) owns shared
+events. This script owns proposed scene action and dialogue. New staging below
+is not an approved ship plan, chronology, biography, or campaign mechanic.
+
+## Pages 1-4: Revised opening
+
+Use the [current four-page opening](../comic-opening-poc/index.html): Baikal in
+2078, the safely stopped pump, Elena's Aquila pickup and Foundation order, then
+departure aboard Kaveri. Samir now checks residential supplies on page 2 while
+Leila examines the housing. The original dialogue, page-1 expressions, window
+scene, borrowed-mug exchange, and silent departure remain. Samir's short report
+replaces the screen-only beat; it does not add another page.
+
+The review generator inserts those four pages and their existing dialogue from
+`comic-opening-poc/generate.py`. Do not maintain a second copy of that dialogue
+here. New script pages begin below.
+
+<!-- opening-pages -->
+
+## Page 5: Arrivals
+
+**Purpose:** Arrive at a working freight town and show the crew sharing the pickup.
+
+### Panel 5a
+
+Aquila from Kaveri's approach. Give the port useful scale and activity without
+adding a roster of identifiable background ships. Kaveri remains the camera's
+anchor. A location card says **AQUILA / Saturn system / Later / Farspan's freight
+hub**; "Later" is a draft stamp, not a fixed travel duration.
+
+**Tomas / comms:** Aquila, Kaveri. Inbound for the Clearwell collection.
+
+### Panel 5b
+
+At the collection area, Leila is beside the assembly, inspecting its connections.
+Rina checks its restraints. Samir compares the identification plate with the
+order and delivery record. Jonah helps keep the work area clear. Leila has
+travelled aboard Kaveri with them; she is not back at Baikal.
+
+**Rina:** This is ours?
+
+**Samir:** Matches the order. Leila?
+
+**Rina:** Before I strap it down.
+
+### Panel 5c
+
+Leila finishes checking the connection faces in person. Samir is beside her,
+ready to complete the receipt; Rina waits for her check before securing the load.
+
+**Leila:** That's the right one. Keep the protective covers on.
+
+**Samir:** Even the awkward one?
+
+**Leila:** Especially the awkward one.
+
+## Page 6: Another crew's work
+
+**Purpose:** Establish Nadia and Gantry as working colleagues, not doomed victims.
+
+### Panel 6a
+
+From beside Kaveri's load, Rina can see Gantry's loading area. Nadia waits for
+Clearwell's assembly to clear their shared working space. Gantry's name is
+visible on the intact hull. Its unarmed workship design should be recognizable
+again at the rescue.
+
+**Nadia:** Gantry here. Are you finished with that space?
+
+**Rina:** Nearly. This end's heavier than it looks.
+
+**Nadia:** I'll keep our load clear.
+
+### Panel 6b
+
+Jonah joins the exchange after the load clears. Nadia is on the nearby working
+access, in Jonah's sight. Do not turn this into a meeting-room conversation.
+
+**Jonah:** Thanks for waiting.
+
+**Nadia:** Easier than picking both loads off the floor. Sen. Gantry.
+
+**Jonah:** Mercer. Kaveri.
+
+### Panel 6c
+
+Rina signals that the assembly is secure. Nadia is already turning back to her
+own job; both crews have somewhere to be.
+
+**Nadia:** Replacement?
+
+**Jonah:** Baikal's lost a processing line.
+
+**Nadia:** Glad you found one.
+
+**Jonah:** So are we. Safe trip.
+
+## Page 7: On the way home
+
+**Purpose:** Close the ordinary pickup before the emergency interrupts it.
+
+### Panel 7a
+
+From Kaveri, Gantry leaves its berth while Rina and Samir finish securing the
+assembly. No threatening shape watches it depart. Gantry leaves first; its
+intact form is familiar before the later damage. No departure interval is printed.
+
+**Rina:** Load's secured. Passage is clear.
+
+**Samir:** And every cover is still on it.
+
+### Panel 7b
+
+Kaveri outbound from Aquila. A quiet, wider panel with the town falling behind.
+No dialogue. No promise that the next panel is only moments later.
+
+### Panel 7c
+
+Later in the return leg. Leila checks the load record near Jonah. The work is
+under control, and her attention can briefly return to home.
+
+**Leila:** I might make game night after all.
+
+**Jonah:** Is that good news for everyone else?
+
+**Leila:** They can practice while I'm away.
+
+## Page 8: A familiar voice
+
+**Purpose:** Replace the routine return with a specific, credible need.
+
+### Panel 8a
+
+Samir at communications. A distress call interrupts the quiet. Jonah turns
+before Samir has finished identifying the sender.
+
+**Nadia / comms:** Gantry, requesting assistance. Main propulsion disabled.
+
+**Samir:** That's the captain from Aquila.
+
+### Panel 8b
+
+Jonah answers. Stay aboard Kaveri; no cutaway to the attack or Gantry's interior.
+
+**Jonah:** Gantry, Kaveri. We hear you. How many aboard?
+
+**Nadia / comms:** Three. All alive. Owen's hurt. We've isolated the damaged spaces.
+
+### Panel 8c
+
+Samir records the report while Tomas begins checking the relative tracks.
+Information comes from Nadia, not an omniscient map labelling every danger.
+
+**Samir:** What's still working?
+
+**Nadia / comms:** Emergency power. Comms, attitude control, limited life support.
+They took the cargo and left us here.
+
+**Jonah:** Send your reserve estimate and the port status. We're checking an intercept.
+
+## Page 9: What it will cost
+
+**Purpose:** Let each crewmember contribute to an informed decision.
+
+### Panel 9a
+
+Tomas brings the revised route to Jonah. No invented numerical countdown is
+printed. The drawing distinguishes Kaveri's possible arrival from Gantry's
+expected endurance. Only the arrival ordering matters here, not a plotted orbit.
+
+**Tomas:** We can reach them before their reserves run out. The scheduled recovery can't.
+
+**Jonah:** And Baikal?
+
+**Tomas:** Later. Enough that we miss the repair plan. Ebro's load won't be ready.
+
+### Panel 9b
+
+Rina and Leila assess the transfer route beside the secured assembly. The
+replacement stays aboard. Make the distinction between preserving cargo and
+clearing an assisted passage visible.
+
+**Rina:** We can bring three people through here. The assembly stays tied down.
+
+**Leila:** If their port is sound, we can dock. We don't need to restart their main bus.
+
+**Rina:** Then let's get them off it.
+
+### Panel 9c
+
+Tomas is not isolated as the scene's unkind person. Jonah takes the warning
+seriously before making a commitment on Clearwell's behalf.
+
+**Tomas:** I want them out too. I want Elena to know what we're spending.
+
+**Jonah:** She will. Keep working the intercept.
+
+## Page 10: The decision
+
+**Purpose:** Refusal changes who pays, not whether preparation proceeds.
+
+### Panel 10a
+
+Elena on Kaveri's comms display. Behind Jonah, Tomas continues the route work.
+
+**Jonah:** Three people. We can reach them. It will put the replacement in late.
+
+**Elena / comms:** Understood. I'll ask EarthWorks to cover the diversion. Keep preparing.
+
+### Panel 10b
+
+Aboard Kaveri, Samir monitors Elena's call with Daniel Reed at EarthWorks
+Operations. Clear speaker labels identify the two ends of the call. Keep the
+panel on that exchange, rather than crowding the other preparations behind him.
+
+**Elena / comms:** Kaveri can reach your crew in time. Will EarthWorks cover the diversion?
+
+**Daniel / comms:** No. We have a recovery scheduled.
+
+**Elena / comms:** Your people won't last that long.
+
+**Daniel / comms:** I'm not approving the cost.
+
+### Panel 10c
+
+Elena speaks to Jonah again. He looks to Tomas, not toward an imaginary approval
+indicator. Leave room around the final instruction.
+
+**Elena / comms:** Clearwell will cover it. Bring them home.
+
+**Jonah:** Tomas. Take the intercept.
+
+## Page 11: Across the gap
+
+**Purpose:** Make the journey and the change of course tangible without a fight.
+
+### Panel 11a
+
+A broad exterior: Kaveri on the new course, its replacement assembly still
+secured. The ship is small against the distance. Do not draw looping jet-fighter
+trails or a continuous burn simply to fill the panel. No dialogue.
+
+### Panel 11b
+
+Later, with Gantry now resolved ahead, Kaveri's crew compares the transmitted
+condition report with what they can see. The hull is stable, not tumbling.
+Damage interrupts the form we saw intact at Aquila.
+
+**Tomas:** Gantry in sight. Matching their motion.
+
+**Nadia / comms:** We can hold attitude. Main drive is out.
+
+**Jonah:** Understood. We come to you.
+
+## Page 12: One way in
+
+**Purpose:** Give the stranded crew useful judgment in their own rescue.
+
+### Panel 12a
+
+Leila studies the port area as Kaveri closes. Do not reveal hidden interior
+systems through an impossible scan. Her questions go to the people aboard.
+
+**Leila:** Gantry, did the electrical fault reach the docking equipment?
+
+**Owen / comms:** Not that branch. We isolated the main distribution. Leave it isolated.
+
+### Panel 12b
+
+Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings
+first-aid equipment. No equipment specification or permanent passenger layout
+is established by this staging.
+
+**Leila / comms:** Agreed. We'll check the connection before anyone crosses.
+
+**Ivo / comms:** The access is clear. Owen needs help moving.
+
+**Rina:** Stay with him. We'll meet you at the opening.
+
+### Panel 12c
+
+Jonah glances toward Samir rather than asking him to perform a miracle.
+
+**Jonah:** Ready for him?
+
+**Samir:** Ready to help him aboard. I'll need their account of the injury.
+
+## Page 13: Hold there
+
+**Purpose:** Let controlled movement, not a surprise failure, carry the tension.
+
+### Panel 13a
+
+Exterior close enough to understand the remaining gap. Gantry's damaged systems
+stay inactive. Kaveri approaches the verified port; keep both hull identities
+clear and do not add a second docking arrangement for this view.
+
+**Tomas / comms:** Holding here for the port check.
+
+**Leila / comms:** Give me the alignment view.
+
+### Panel 13b
+
+Leila and Tomas concentrate on their different parts of the same operation.
+Neither explains basic flight controls to the competent captain.
+
+**Leila:** That's the port we checked. Approach is clear.
+
+**Tomas:** Coming in.
+
+### Panel 13c
+
+The ships connected, their bulk suddenly close. Both coast without thrust;
+the transfer spaces are in freefall. The moment is quiet rather than triumphant.
+Pressure and seal checks occur before the following page's opening; the
+particular transfer hardware remains a design decision.
+
+**Leila / comms:** Connection secure. Checking the seal.
+
+## Page 14: Bring him through
+
+**Purpose:** Rescue people through coordinated work, without an on-foot game promise.
+
+### Panel 14a
+
+After the seal and pressure checks, Rina meets Ivo at the opened passage,
+using a handhold to stop herself. We enter Gantry's space only with Rina.
+Owen is alert but cannot move safely unaided. He is supported and secured for
+the freefall transfer; his exact injury and support equipment remain for
+staging review.
+
+**Rina:** I'm Rina. Tell me what he can manage.
+
+**Ivo:** He's been helping with the checks. Moving is the problem.
+
+**Owen:** I can tell you when to stop.
+
+### Panel 14b
+
+Rina and Ivo guide Owen and his support through the passage, controlling his
+motion with handholds. They do not carry his weight under their arms. Give the
+secured body, their hands, and the clear route enough space to show how they
+start and stop together. Weightlessness does not remove his injury or inertia.
+
+**Rina:** Good. We move together. Ready?
+
+**Owen:** Ready.
+
+### Panel 14c
+
+Samir receives Owen on Kaveri's side. Rina and Ivo keep his motion controlled
+until Samir has secured his support at the receiving position. Nobody lets go
+and expects him to stay put. The scene does not imply he needs no further care.
+
+**Samir:** Owen, I'm Samir. Let's get you supported before we do anything else.
+
+**Owen:** I'd like that.
+
+## Page 15: All three
+
+**Purpose:** Finish the evacuation without inventing a hull destruction.
+
+### Panel 15a
+
+From Kaveri's side of the passage, Jonah sees Nadia cross last. She brings the
+crew's working records, not a conveniently labelled conspiracy file.
+
+**Nadia:** That's everyone. Three aboard Kaveri.
+
+**Jonah:** All accounted for.
+
+### Panel 15b
+
+Rina checks that the passage is clear. Leila prepares the separation. Owen stays
+with Samir; do not crowd everyone onto the flight deck for a group portrait.
+
+**Rina:** Transfer side clear.
+
+**Leila:** Closing and checking.
+
+### Panel 15c
+
+Kaveri separates from Gantry. Hold enough space around the abandoned hull to
+let its loss of usefulness register. It does not explode. No pirates appear.
+
+**Jonah / comms:** Baikal, Kaveri. We have all three. Coming home.
+
+## Page 16: The return
+
+**Purpose:** Let the survivors react differently without instant political conversion.
+
+### Panel 16a
+
+Later aboard Kaveri. Owen rests with support nearby. Ivo has learned of the
+funding refusal. Nadia asks Samir for the actual record rather than joining in
+an accusation she cannot yet support.
+
+**Ivo:** They knew we were alive?
+
+**Samir:** Elena sent them the estimate before the refusal.
+
+**Nadia:** Send me that exchange. I want an answer from Operations.
+
+### Panel 16b
+
+Jonah pauses beside them during the return. A quiet acknowledgement, not a
+speech about what kind of person he is.
+
+**Nadia:** Thank you for coming.
+
+**Jonah:** I'm glad we reached you.
+
+## Page 17: Back to work
+
+**Purpose:** Deliver both the people and the intact part; the community can continue.
+
+### Panel 17a
+
+Kaveri back at Baikal. Elena meets Jonah's crew and Gantry's people at arrival.
+Owen still receives assistance. Keep the welcome practical and relieved rather
+than staging a civic ceremony.
+
+**Elena:** Welcome to Baikal. Let's get you settled.
+
+### Panel 17b
+
+Leila and Rina bring the replacement into processing. Return to the visual
+anchors of page 2: isolated line, surrounding plant still safely operating.
+
+**Rina:** Every cover still on it.
+
+**Leila:** Now we can take them off.
+
+### Panel 17c
+
+Later, with the assembly installed and checks complete, the isolated line
+returns to service. This is a time cut, not an instant repair. Ebro is still
+waiting for the delayed load; restarting a pump does not create the missing
+production immediately.
+
+**Leila / comms:** Line's back. We'll have the load, just not on the old schedule.
+
+## Page 18: The bill
+
+**Purpose:** Put institutional unfairness beside a successful rescue, then end at home.
+
+### Panel 18a
+
+Jonah and Elena at the familiar window. Ebro remains part of their working view.
+Elena has already spoken with Mara; there is no cutaway aboard Foundation.
+
+**Elena:** Mara called from Foundation. She's glad Gantry's people survived.
+
+**Jonah:** And the delivery?
+
+**Elena:** Still late. The penalty stands.
+
+### Panel 18b
+
+Jonah listens while Elena lays out the consequence without passing blame down
+to the crew. This is lost margin and rescheduling, not Clearwell's destruction.
+
+**Jonah:** Can we carry it?
+
+**Elena:** It'll hurt. We can carry it. I told you to bring them home.
+
+### Panel 18c
+
+Jonah puts the borrowed mug back within Elena's reach. Through the window:
+Baikal's ordinary work continuing. End on the object and the people, not an
+ominous pirate silhouette or an invitation to cheer an unpaid bill.
+
+**Jonah:** At least this one's back on budget.
+
+**Elena:** One problem solved.
+
+**End of episode.**
+
+## Approved direction and remaining staging
+
+- The opening is in 2078 on Earth's calendar. No day, month, or local era is
+  needed for the first card; Kaveri's departure card says "Later that day."
+- Keep the four-page opening, with Samir's supply check and Leila's hands-on
+  inspection. All five Kaveri crew travel together; Leila checks the replacement
+  in person at Aquila.
+- Keep the Aquila meeting and Gantry-first departure so the hull is familiar
+  before and after damage. The access/loading layout still needs visual staging.
+  No exact cargo beyond ordinary supplies or Gantry destination is selected.
+  Aquila is a pickup port, not a changed home port.
+- Keep timing qualitative: Kaveri reaches Gantry before its reserves run out,
+  scheduled recovery arrives too late, and the diversion delays Baikal's repair.
+  Nearby communications can be quick; ship travel is not instant. No orbital
+  spreadsheet, exact coordinates, or countdown is required for this episode.
+- Design Gantry's intact form and damaged version from one model. Check its
+  surviving port against Kaveri's transfer arrangement and assisted passage.
+- Stage Owen's injury and continuing care without making Samir a doctor or
+  establishing Baikal as a major medical centre.
+- The wider EarthWorks pressure, Gantry hull recovery, survivors' later careers,
+  and season ending remain open. Nothing in this rescue record proves the later
+  conspiracy. Daniel and Mara are not assigned to it.
+
+## Review questions
+
+Does the working exchange give Nadia enough presence before the distress call?
+Does page 10 earn the commitment without repeating page 9? Does the quiet
+homecoming and mug return land as relief alongside a real cost, rather than
+making the penalty a joke? Review those beats before illustrating pages 5-18.

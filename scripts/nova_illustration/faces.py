@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from .colors import ELENA, JONAH, LEILA, RINA, TOMAS
+from .colors import ELENA, IVO, JONAH, LEILA, NADIA, OWEN, RINA, SAMIR, TOMAS
 from .expressions import EXPRESSIONS, facial_features
 from .svg import ellipse, group, path
 
@@ -60,8 +60,50 @@ TOMAS_FACE = FrontalFace(
 <path d="M251 272L265 278M330 278L349 267M267 205L292 208" fill="none" stroke="{TOMAS['detail']}" stroke-width="2"/>''',
 )
 
-FACES = {'elena': ELENA_FACE, 'jonah': JONAH_FACE, 'leila': LEILA_FACE, 'rina': RINA_FACE, 'tomas': TOMAS_FACE}
-FACE_COLORS = {'elena': ELENA, 'jonah': JONAH, 'leila': LEILA, 'rina': RINA, 'tomas': TOMAS}
+SAMIR_FACE = FrontalFace(
+    head="M225 188Q239 145 300 149Q352 152 370 194L361 291Q347 338 304 372Q268 358 244 330L228 280Z",
+    back_hair='<path d="M217 247Q201 232 205 209Q187 187 205 167Q199 141 227 133Q236 108 265 119Q286 98 310 116Q339 101 359 133Q388 135 389 159Q410 178 391 202Q400 225 375 250Z"/>',
+    front_hair=f'<path d="M216 224L218 173L244 151L270 136L312 126L351 148L381 174L380 221L361 237L357 194Q337 207 326 182Q299 205 286 181Q267 201 253 177L236 198L232 234Z"/><path d="M235 149Q220 170 240 176M270 135Q247 156 269 170M310 133Q286 159 311 176M344 149Q326 168 349 187" fill="none" stroke="{SAMIR["hair_line"]}" stroke-width="4"/>',
+    features=f'''<path d="M242 224L276 226M316 226L349 222" stroke="{SAMIR['brow']}" stroke-width="5"/>
+<path d="M243 243Q260 235 278 244Q260 251 243 243M316 243Q332 234 350 242Q333 252 316 243" fill="{SAMIR['eye']}"/>
+<g fill="{SAMIR['iris']}"><circle cx="261" cy="244" r="5"/><circle cx="333" cy="243" r="5"/></g>
+<g fill="none" stroke="{SAMIR['glasses']}" stroke-width="4"><rect x="233" y="228" width="53" height="35" rx="11"/><rect x="307" y="228" width="53" height="35" rx="11"/><path d="M286 239Q296 232 307 239M222 234L233 238M360 238L370 232"/></g>
+<path d="M299 250L288 286L306 290M273 320Q297 325 323 315M286 336L308 335" fill="none" stroke="{SAMIR['lines']}" stroke-width="3" stroke-linecap="round"/>''',
+)
+
+NADIA_FACE = FrontalFace(
+    head='M226 184Q248 146 295 147Q346 143 368 188L364 278L346 324Q327 349 300 359L271 349L244 324L229 279Z',
+    back_hair='<path d="M215 291L207 193Q200 150 237 130Q265 112 309 121Q364 115 385 162L383 290L355 317L237 316Z"/>',
+    front_hair=f'<path d="M214 251L213 183Q222 134 268 131Q325 114 367 152L378 205L367 245L354 218L353 173Q308 191 263 168Q246 183 234 215L231 257Z"/><path d="M232 173Q244 148 267 145M271 144Q317 128 350 153M355 167L365 195" fill="none" stroke="{NADIA["hair_line"]}" stroke-width="3"/>',
+    features=f'''<path d="M242 223L258 219L279 225M315 225L334 220L350 224" fill="none" stroke="{NADIA['brow']}" stroke-width="4"/>
+<path d="M242 241Q259 230 278 242Q262 252 242 241M315 242Q334 230 350 240Q335 252 315 242" fill="{NADIA['eye']}"/>
+<g fill="{NADIA['iris']}"><ellipse cx="261" cy="241" rx="5" ry="5.5"/><ellipse cx="333" cy="241" rx="5" ry="5.5"/></g>
+<path d="M298 238L287 279Q294 287 305 280M270 310Q297 315 327 308M283 325L309 325M241 263L254 267M337 267L350 261" fill="none" stroke="{NADIA['lines']}" stroke-width="2.8" stroke-linecap="round"/>''',
+)
+
+OWEN_FACE = FrontalFace(
+    head='M223 190Q232 150 294 149Q354 147 372 190L368 279Q365 315 344 340Q324 363 297 365Q266 362 244 337Q225 309 222 271Z',
+    back_hair='<path d="M213 269L204 212Q200 165 227 149Q251 125 294 130Q341 121 374 156L386 215L376 274L360 278L229 281Z"/>',
+    front_hair=f'<path d="M214 245L211 202L222 168L244 152L260 147Q292 130 325 147L344 151L370 176L375 230L364 248L352 210L350 186Q297 176 243 188L238 220L229 250Z"/><path d="M219 190L226 175M226 203L233 179M359 178L367 199M361 203L369 220M273 145L287 141M307 141L322 145" fill="none" stroke="{OWEN["hair_line"]}" stroke-width="3"/>',
+    features=f'''<path d="M240 226Q258 216 279 225M313 225Q333 215 353 227" fill="none" stroke="{OWEN['brow']}" stroke-width="5"/>
+<path d="M242 243Q262 233 280 243Q263 252 242 243M313 243Q333 233 353 243Q332 253 313 243" fill="{OWEN['eye']}"/>
+<g fill="{OWEN['iris']}"><circle cx="262" cy="243" r="5"/><circle cx="333" cy="243" r="5"/></g>
+<path d="M294 245L283 280Q296 292 314 281M268 316Q296 328 327 314M285 337Q299 340 313 335M240 261L259 266M333 267L353 260" fill="none" stroke="{OWEN['lines']}" stroke-width="3" stroke-linecap="round"/>
+<path d="M250 325L256 332M260 335L266 340M274 345L281 348M315 346L322 343M332 334L338 326" fill="none" stroke="{OWEN['hair_line']}" stroke-width="2"/>''',
+)
+
+IVO_FACE = FrontalFace(
+    head='M228 177Q253 142 300 148Q351 150 368 185L365 274L352 320L329 351L303 377L276 363L248 331L232 283Z',
+    back_hair='<path d="M216 251L211 190Q218 148 250 133Q278 118 313 125Q350 115 374 156L382 212L371 259L356 247H232Z"/>',
+    front_hair=f'<path d="M219 229L218 183Q230 146 262 141L271 124L295 133L313 118L335 139L352 134L370 170L371 218L359 230L350 181Q312 189 278 166L240 185L235 226L228 253Z"/><path d="M240 161L253 151M272 146L281 138M297 150L313 139M337 154L347 159" fill="none" stroke="{IVO["hair_line"]}" stroke-width="3"/><path d="M243 301L259 321L278 326L287 343L303 348L320 337L327 320L346 298L346 320L325 351L303 368L280 358L254 332Z" opacity=".7"/>',
+    features=f'''<path d="M243 222L278 229M314 229L349 221" fill="none" stroke="{IVO['brow']}" stroke-width="4.5"/>
+<path d="M243 242Q261 234 278 243Q261 252 243 242M315 244Q333 233 350 241Q333 252 315 244" fill="{IVO['eye']}"/>
+<g fill="{IVO['iris']}"><circle cx="261" cy="242" r="5"/><circle cx="333" cy="242" r="5"/></g>
+<path d="M300 238L291 281L309 285M273 314L295 318L322 311M286 331L312 329M245 268L260 276M334 275L350 264" fill="none" stroke="{IVO['lines']}" stroke-width="2.8" stroke-linecap="round"/>''',
+)
+
+FACES = {'elena': ELENA_FACE, 'jonah': JONAH_FACE, 'leila': LEILA_FACE, 'rina': RINA_FACE, 'samir': SAMIR_FACE, 'tomas': TOMAS_FACE, 'nadia': NADIA_FACE, 'owen': OWEN_FACE, 'ivo': IVO_FACE}
+FACE_COLORS = {'elena': ELENA, 'jonah': JONAH, 'leila': LEILA, 'rina': RINA, 'samir': SAMIR, 'tomas': TOMAS, 'nadia': NADIA, 'owen': OWEN, 'ivo': IVO}
 
 
 def expression_names(name):

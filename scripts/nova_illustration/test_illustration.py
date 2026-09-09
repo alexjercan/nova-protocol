@@ -3,6 +3,7 @@
 import ast
 import math
 import re
+import runpy
 import sys
 import unittest
 from pathlib import Path
@@ -14,8 +15,10 @@ sys.path.insert(0,str(SCRIPTS))
 from nova_illustration.colors import ELENA, MATERIALS
 from nova_illustration.expressions import EXPRESSIONS, facial_features
 from nova_illustration.faces import FACES, expression_names, frontal_head
-from nova_illustration.portraits import elena_close, elena_gesture, jonah_listener, work_portrait
-from nova_illustration.ships import Face, MODELS, VIEWS, bounds, contour_segments, dot, hull_segment, normal, painter_order, render_ship, split_surface, sub
+from nova_illustration.lettering import labelled_speech
+from nova_illustration.portraits import elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait
+from nova_illustration.scenery import aquila, transfer_hall
+from nova_illustration.ships import Face, MODELS, VIEWS, bounds, box, contour_segments, dot, hull_segment, normal, painter_order, render_faces, render_ship, ship_faces, split_surface, sub
 from nova_illustration.styles import present
 
 
@@ -101,7 +104,7 @@ class IllustrationTests(unittest.TestCase):
             self.assertIn(drawing.head, [p.get('d') for p in root.findall('.//path')])
 
     def test_work_busts_reuse_frontal_heads_and_only_change_color_under_lore_presentation(self):
-        for name in ('leila', 'rina', 'tomas'):
+        for name in ('leila', 'rina', 'samir', 'tomas'):
             drawing = work_portrait(name)
             self.assertEqual(drawing,work_portrait(name))
             self.assertIn(frontal_head(name),drawing)
@@ -113,7 +116,7 @@ class IllustrationTests(unittest.TestCase):
             self.assertEqual(paths(comic),paths(lore))
 
     def test_unregistered_heads_and_work_busts_are_errors(self):
-        for name in ('unknown','samir'):
+        for name in ('unknown',''):
             with self.assertRaises(KeyError):
                 frontal_head(name)
             with self.assertRaises(KeyError):
@@ -150,7 +153,7 @@ class IllustrationTests(unittest.TestCase):
 
     def test_body_helpers_pass_expressions_without_changing_the_pose(self):
         poses = [('elena',elena_close),('elena',elena_gesture),('jonah',jonah_listener)]
-        poses += [(name,lambda expression='original', name=name: work_portrait(name,expression)) for name in ('leila','rina','tomas')]
+        poses += [(name,lambda expression='original', name=name: work_portrait(name,expression)) for name in ('leila','rina','samir','tomas')]
         for name, pose in poses:
             for expression in expression_names(name):
                 head = frontal_head(name,expression)
@@ -172,12 +175,12 @@ class IllustrationTests(unittest.TestCase):
     def test_expression_names_are_character_specific_and_unknown_pairs_fail(self):
         self.assertEqual(expression_names('rina'),('original','amused'))
         self.assertEqual(expression_names('jonah'),('original','wry'))
-        for name in ('elena','leila','tomas'):
+        for name in ('elena','leila','samir','tomas'):
             self.assertEqual(expression_names(name),('original',))
-        for name in ('unknown','samir'):
+        for name in ('unknown',''):
             with self.assertRaises(KeyError):
                 expression_names(name)
-        for name, expression in [('rina','wry'),('jonah','amused'),('elena','amused'),('leila','focused'),('tomas','attentive'),('rina',''),('jonah','typo')]:
+        for name, expression in [('rina','wry'),('jonah','amused'),('elena','amused'),('leila','focused'),('samir','amused'),('tomas','attentive'),('rina',''),('jonah','typo')]:
             with self.assertRaises(KeyError):
                 frontal_head(name,expression)
         with self.assertRaises(KeyError):
@@ -188,6 +191,162 @@ class IllustrationTests(unittest.TestCase):
             EXPRESSIONS['rina'] = {}
         with self.assertRaises(TypeError):
             EXPRESSIONS['rina']['amused'] = 'replacement'
+
+    def test_samir_reuses_the_lore_face_and_all_five_public_portraits_stay_exact(self):
+        exporter = runpy.run_path(str(SCRIPTS/'gen-lore-portraits.py'))
+        samir = next(p for p in exporter['PORTRAITS'] if p.name == 'Samir Bell')
+        for field in ('head','back_hair','front_hair','features'):
+            self.assertEqual(getattr(samir,field),getattr(FACES['samir'],field))
+        for portrait in exporter['PORTRAITS']:
+            slug = portrait.name.lower().replace(' ','-')
+            asset = SCRIPTS.parent/f'web/src/assets/lore/{slug}-portrait-concept.svg'
+            self.assertEqual(exporter['render'](portrait),asset.read_text())
+
+    def test_inspection_layers_keep_the_face_and_allow_a_surface_between_body_and_hands(self):
+        for name in ('leila','rina','samir','tomas'):
+            for expression in expression_names(name):
+                body,hands = work_inspection(name,expression)
+                self.assertEqual((body,hands),work_inspection(name,expression))
+                self.assertEqual(body,work_portrait(name,expression))
+                self.assertIn(frontal_head(name,expression),body)
+                self.assertNotIn('data-face',hands)
+                self.assertNotIn('<text',hands)
+                drawing = body+'<rect data-work-surface="true"/>'+hands
+                roots = [ET.fromstring('<svg>'+present(drawing,scheme,scheme)+'</svg>') for scheme in ('comic','lore')]
+                self.assertEqual([n.attrib for n in roots[0].iter('path')],[n.attrib for n in roots[1].iter('path')])
+        with self.assertRaises(KeyError):
+            work_inspection('unknown')
+        with self.assertRaises(KeyError):
+            work_inspection('samir','amused')
+
+    def test_gantry_condition_only_replaces_the_two_authored_service_covers(self):
+        intact = ship_faces('gantry')
+        stranded = ship_faces('gantry','stranded')
+        replaced = {'gantry-service-cover','gantry-service-roof'}
+        self.assertEqual(tuple(f for f in intact if f.component not in replaced),stranded[:len(intact)-sum(f.component in replaced for f in intact)])
+        self.assertTrue(all(f.component not in replaced for f in stranded))
+        for component in ('crew-module','gantry-transfer-collar','gantry-transfer-hatch','gantry-cargo-body','gantry-frame-crossbar'):
+            self.assertEqual([f for f in intact if f.component==component],[f for f in stranded if f.component==component])
+        for f in stranded:
+            self.assertIn(f.material,MATERIALS)
+            n = normal(f.vertices)
+            for v in f.vertices:
+                self.assertTrue(all(math.isfinite(c) for c in v))
+                self.assertAlmostEqual(dot(n,sub(v,f.vertices[0])),0)
+        for view in VIEWS:
+            drawing = render_ship('gantry',view,0,0,1,False,'stranded')
+            self.assertEqual(drawing,render_ship('gantry',view,0,0,1,False,'stranded'))
+            self.assertEqual(ET.fromstring(drawing).get('data-state'),'stranded')
+            self.assertEqual(bounds('gantry',view),bounds('gantry',view,'stranded'))
+            variants = [ET.fromstring('<svg>'+present(drawing,s,s)+'</svg>') for s in ('comic','lore')]
+            self.assertEqual([n.attrib for n in variants[0].iter('polygon')],[n.attrib for n in variants[1].iter('polygon')])
+
+    def test_ship_conditions_and_thrust_are_explicit_and_invalid_pairs_fail(self):
+        for name in MODELS:
+            self.assertEqual(render_ship(name,'side',0,0,1,False),render_ship(name,'side',0,0,1,False,'intact'))
+        for name,state in [('unknown','intact'),('kaveri','stranded'),('ebro','stranded'),('gantry','destroyed'),('gantry','')]:
+            with self.assertRaises(KeyError):
+                ship_faces(name,state)
+            with self.assertRaises(KeyError):
+                render_ship(name,'side',0,0,1,False,state)
+        with self.assertRaises(ValueError):
+            render_ship('gantry','side',0,0,1,True,'stranded')
+        self.assertNotEqual(render_ship('gantry','side',0,0,1,True),render_ship('gantry','side',0,0,1,False))
+
+    def test_gantry_portraits_share_heads_but_have_distinct_civilian_bodies(self):
+        bodies = []
+        for name in ('nadia','owen','ivo'):
+            self.assertEqual(expression_names(name),('original',))
+            drawing = gantry_portrait(name)
+            head = frontal_head(name)
+            self.assertEqual(drawing,gantry_portrait(name,'original'))
+            self.assertEqual(drawing.count(head),1)
+            bodies.append(tuple(n.get('d') for n in ET.fromstring(drawing.replace(head,'')).iter('path')))
+            roots = [ET.fromstring('<svg>'+present(drawing,s,s)+'</svg>') for s in ('comic','lore')]
+            self.assertEqual([n.attrib for n in roots[0].iter('path')],[n.attrib for n in roots[1].iter('path')])
+            with self.assertRaises(KeyError):
+                gantry_portrait(name,'amused')
+        self.assertEqual(len(set(bodies)),3)
+        self.assertEqual(len({FACES[n].head for n in ('nadia','owen','ivo')}),3)
+        with self.assertRaises(KeyError):
+            gantry_portrait('samir')
+
+    def test_public_gantry_exports_contain_only_starting_identities(self):
+        exporter = runpy.run_path(str(SCRIPTS/'gen-lore-designs.py'))
+        sheet = exporter['ship_sheet']('gantry','lore')
+        self.assertNotIn('data-state',sheet)
+        self.assertNotIn('scorch',sheet)
+        self.assertNotIn('stranded',sheet.lower())
+        self.assertEqual(len(ET.fromstring(sheet).findall('.//*[@data-ship="gantry"]')),4)
+        for name in ('nadia','owen','ivo'):
+            drawing = exporter['crew_portrait'](name,'lore')
+            self.assertIn(frontal_head(name),drawing)
+            for marker in ('injury','rescued','stranded','pirate'):
+                self.assertNotIn(marker,drawing.lower())
+
+    def test_props_share_ship_occlusion_without_changing_empty_cargo_renders(self):
+        cargo = tuple(box((-30,0,58),(90,80,40),'accent','test-cargo'))
+        for view in VIEWS:
+            bare = render_ship('kaveri',view,0,0,1,False)
+            self.assertEqual(bare,render_ship('kaveri',view,0,0,1,False,cargo=()))
+            loaded = render_ship('kaveri',view,0,0,1,False,cargo=cargo)
+            self.assertIn('test-cargo',loaded)
+            self.assertNotEqual(bare,loaded)
+            self.assertEqual(loaded,render_ship('kaveri',view,0,0,1,False,cargo=cargo))
+            prop = ET.fromstring(render_faces(cargo,view,0,0,1))
+            self.assertTrue(prop.findall('.//polygon'))
+        self.assertEqual(len(cargo),6)
+
+    def test_invalid_prop_surfaces_and_placement_fail_before_svg_is_written(self):
+        valid = tuple(box((0,0,0),(10,10,10),'metal','prop'))
+        for x,y,scale in ((float('nan'),0,1),(0,float('inf'),1),(0,0,-1),(0,0,0)):
+            with self.assertRaises(ValueError):
+                render_faces(valid,'top',x,y,scale)
+        for vertices in ((),((0,0,0),(1,1,1)),((0,0,0),(1,0,0),(0,float('nan'),0))):
+            with self.assertRaises(ValueError):
+                render_faces((Face(vertices,'metal','bad'),),'top',0,0,1)
+        with self.assertRaises(KeyError):
+            render_faces((Face(valid[0].vertices,'unknown','bad'),),'top',0,0,1)
+        with self.assertRaises(KeyError):
+            render_faces(valid,'unknown',0,0,1)
+
+    def test_handhold_arms_do_not_own_heads_expressions_or_fixtures(self):
+        for name in FACES:
+            for draw in (gripping_arm,reaching_arm):
+                art = draw(name)
+                self.assertEqual(art,draw(name))
+                root = ET.fromstring(art)
+                self.assertEqual(root.get('data-character'),name)
+                for attribute in ('data-face','data-expression','data-prop'):
+                    self.assertFalse(root.findall(f'.//*[@{attribute}]'))
+                self.assertFalse(root.findall('.//text'))
+                self.assertFalse(root.findall('.//filter'))
+            self.assertNotEqual(gripping_arm(name),reaching_arm(name))
+        with self.assertRaises(KeyError):
+            gripping_arm('unknown')
+        with self.assertRaises(KeyError):
+            reaching_arm('unknown')
+
+    def test_aquila_scenery_keeps_ships_out_and_presentation_color_only(self):
+        art = aquila(300,200,.7)+transfer_hall(600,400)
+        comic = ET.fromstring('<svg>'+present(art,'comic','aquila-comic')+'</svg>')
+        lore = ET.fromstring('<svg>'+present(art,'lore','aquila-lore')+'</svg>')
+        places = lambda root: [ET.tostring(n) for n in root.findall('.//*[@data-place]')]
+        self.assertEqual(places(comic),places(lore))
+        self.assertFalse(comic.findall('.//*[@data-ship]'))
+        self.assertFalse(comic.findall('.//*[@data-face]'))
+        self.assertEqual(comic.find('.//*[@data-gravity]').get('data-gravity'),'freefall')
+        self.assertEqual(art,aquila(300,200,.7)+transfer_hall(600,400))
+
+    def test_labelled_balloons_keep_speaker_and_words_with_four_authored_tail_sides(self):
+        for side in ('top','bottom','left','right'):
+            art = labelled_speech(0,0,250,'Rina & Jonah',['Keep it clear.'],(280,70),side)
+            root = ET.fromstring(art)
+            self.assertEqual([n.text for n in root.findall('text')],['RINA & JONAH','Keep it clear.'])
+            self.assertEqual(root.get('data-height'),'69')
+            self.assertEqual(root.get('class'),'dialogue')
+        with self.assertRaises(ValueError):
+            labelled_speech(0,0,250,'Rina',['Keep it clear.'],(0,0),'unknown')
 
     def test_unknown_ship_view_scheme_and_unsafe_instance_are_errors(self):
         for args in [('unknown','top'),('kaveri','unknown')]:

@@ -1,0 +1,30 @@
+
+> nova-protocol-web@1.0.0 story:build
+> webpack --config webpack.config.js --env storyPreview
+
+assets by status 202 MiB [compared for emit]
+  assets by path assets/ 192 MiB 262 assets
+  assets by path nova-hud/ 606 KiB 118 assets
+  assets by path *.js 9.61 MiB
+    assets by chunk 9.5 MiB (id hint: vendors) 40 assets
+    + 27 assets
+  asset nova-os/index.html 75.1 KiB [compared for emit] [from: design/nova_os_terminal_poc.html] [copied]
+  asset nova-menu/index.html 44.7 KiB [compared for emit] [from: design/nova_ui_rework_poc.html] [copied]
+  asset favicon.svg 891 bytes [compared for emit] [from: src/favicon.svg] [copied]
+assets by status 2.79 MiB [emitted] 115 assets
+orphan modules 613 KiB [orphan] 490 modules
+runtime modules 12.4 KiB 33 modules
+modules by path ./node_modules/ 7.47 MiB 1067 modules
+modules by path ./src/ 530 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./src/*.ts 350 KiB
+    ./src/index.ts 257 bytes [built] [code generated]
+    + 8 modules
+  modules by path ./src/*.css 102 KiB
+    ./src/style.css 1.19 KiB [built] [code generated]
+    + 5 modules
+  modules by path ./src/comics/ 31.1 KiB
+    modules by path ./src/comics/*.ts 30.4 KiB 4 modules
+    + 2 modules
+  ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+  ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 7763 ms

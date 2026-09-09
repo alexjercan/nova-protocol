@@ -1,0 +1,1566 @@
+{
+  "files": {
+    "scripts/nova_illustration/styles.py": "785cdfac0ee6570c732a841413af196134545cb1a9809dedff1b9b8ba7624c8f",
+    "scripts/nova_illustration/scenery.py": "8c9944fa7747f69c31e99bb59275d58c2e42fbe0468fdce1b6d36e1e9d7ccbe8",
+    "scripts/nova_illustration/__init__.py": "9fc3d8d6296e5373f94b6bf32fb6e627af95c124bbb1de1c1dfb7794002fe6ca",
+    "scripts/nova_illustration/ships.py": "e451bce7866c335291c35e60394a836545bd41e1a546e9a100e1f76af2c75eb8",
+    "scripts/nova_illustration/colors.py": "1d87db453b80e90347180d409e93346edebf5f4545bfd9b1b8993862b98e2f8d",
+    "scripts/nova_illustration/expressions.py": "bb00cc09de5e0b626f1155180d5f783a956e3a6767e594534f7053c9c26d5f96",
+    "scripts/nova_illustration/faces.py": "f7344c85a5fdb11c7d5e95800f47336e3291beb13e67f2cb60312f0c36e5c6e5",
+    "scripts/nova_illustration/README.md": "bc66a4d6ac710d355f6bf27870c14056c3872fc107ae9107f8edaabe39b9698b",
+    "scripts/nova_illustration/test_illustration.py": "49d644b999dea841d7cedca61dbfd09f35b7d5d0ee8de40812b38299749b95c1",
+    "scripts/nova_illustration/svg.py": "c6ed88b13e0231e35cb6bf47aa513cd773a6c16c18d3e75781806ee0cef507d9",
+    "scripts/nova_illustration/portraits.py": "117fa6ffe14566006ff9b8b67b1b2b8c0532c54b21095d3ab803c0709f101eb6",
+    "scripts/nova_illustration/lettering.py": "6e7ab6cb793254e824d44b5d8b4d4f160324115358c702535698b3ed9dd1688b",
+    "web/src/assets/lore/tomas-vega-portrait-concept.svg": "1abebf9c57d8bb5d229dcb551cff203162ff2dc6cbb9476614f22e6f83f3079a",
+    "web/src/assets/lore/usable-supply.svg": "d1e5b33c13f67ac06d1ad3d02afdf42cee09b5b5ad950bcfa46dbfa2616397d7",
+    "web/src/assets/lore/jonah-mercer-portrait-concept.svg": "831760ac275f592780759f22201615329c8baeda8acb620670133f1fe4446345",
+    "web/src/assets/lore/gantry-design-concept.svg": "aa553ac3068d823a929e07f765a7777db3bffb975c793b6fe9968f026ea87fc9",
+    "web/src/assets/lore/farspan-brand-concept.svg": "7a848c75d6d5adf14a49a7a44bea4fdff3b10ccb9e74f185013c40cff434b8df",
+    "web/src/assets/lore/owen-park-portrait-concept.svg": "1f729b5bb3a11d2402611a52cb56e92781d1dbfc966cfab72357e52329ea5140",
+    "web/src/assets/lore/travel-phases.svg": "61f3c33336d9b21441d7a57eb78c953d2bac997aabbad6a5b971a235c3291295",
+    "web/src/assets/lore/elena-ward-portrait-concept.svg": "ad6adc6c31cc9af488b3a1e8df2afb5613baf33b1fdfa8473d5cebe5654388c3",
+    "web/src/assets/lore/samir-bell-portrait-concept.svg": "6bc0efed535d887d53577111ddba9a22b98dfb9d9b9ba7c8d3e73c505cd53f0b",
+    "web/src/assets/lore/aquila-exterior-concept.svg": "41c565f3aab2102c93f88356e85cb726e7397102cc742f738616acff01a756a8",
+    "web/src/assets/lore/clearwell-brand-concept.svg": "c08d818422bd30680d68a80a8ac960db2507b235d0e3be72771b4d9c0270e324",
+    "web/src/assets/lore/ivo-marin-portrait-concept.svg": "b165f45ed6990f45862cf6016d81d4d1e9d7a6c2f847aad5aa2abd0bd90f5c03",
+    "web/src/assets/lore/nadia-sen-portrait-concept.svg": "c0a2eb6783cecc084e277a8fce782445c9c75210283a023a99b89022649dde55",
+    "web/src/assets/lore/corporate-relationships.svg": "a2d5aeb9236a8384cfdc9a79814d3a61fa85f22e6c972dbf830d19cfc0043c43",
+    "web/src/assets/lore/leila-haddad-portrait-concept.svg": "bd95313b6d91dc9de5984974971714e3b63ea8e231a971130969228f5621fe10",
+    "web/src/assets/lore/saturn-settlement-concept.svg": "3c6f90c93dabefed14a437aef7b0691be72b76d9a0f57770e61c9222a46fa5a7",
+    "web/src/assets/lore/industrial-station-concept.svg": "a4bf77625414e81fe0742872b38e98ca9380de7a1092997394c4c92964dae497",
+    "web/src/assets/lore/keystone-exterior-concept.svg": "e8708a41e6e560c3ce841ed7397b2494016d19b78e608e1c3913ba0bdce83c43",
+    "web/src/assets/lore/earthworks-brand-concept.svg": "15f000dabe41304f9af711fdb93ebccf46f55bb6c78aa1277eea18b3b20b1000",
+    "web/src/assets/lore/kaveri-design-concept.svg": "fa18c3bc8ea2a3c87be302427212681cf74554e8d1ccad2e32dcf8ffa3662f03",
+    "web/src/assets/lore/baikal-exterior-concept.svg": "fd53b8c60df39a15229053cfce3323338bdaa0be77c1ab0afcaa83485428abf4",
+    "web/src/assets/lore/ebro-design-concept.svg": "eeae3468eab8f827d6a19413a4674f3418ac8dddd3af25c796f3e39409400d0b",
+    "web/src/assets/lore/freight-and-station-rivalry.svg": "2d90d0bf6e8f8a73c002777fec692e0a076fd4621814b102c64fc9f3c27e5a7d",
+    "web/src/assets/lore/rina-okafor-portrait-concept.svg": "131c8b689e1e5a54236a9a04b0af73de266853b5d66ef8476bd709014e2df85a",
+    "tasks/20260908-161328/EXPRESSION-REVIEW.md": "a723a376b391aec6fa13221614690ff16004ea79ad716cfd32c4adffee1f3c2c",
+    "tasks/20260908-161328/TASK.md": "a893a82e68fbf49db70b35ba45db102c63c6fa1dcd41d2e216ae915d488b4eca",
+    "tasks/20260908-161328/READER-REVIEW.md": "30c63507d5cfb4292b3e46fff1b16789ca0da6c4cde976a49669daea0d2fb59c",
+    "tasks/20260908-161328/opening_props.py.txt": "98ec9a6efc3ca7fd7989c411485c1a4c19b040a89927ac34da94d005d593442f",
+    "tasks/20260908-161328/EPISODE-FEEDBACK.md": "2fb9ddbbfda9a17a85f77fdaaf0b4e5b7b2d7be1069d59734a8e22b73671d775",
+    "tasks/20260908-161328/GANTRY-REVIEW.md": "46e9909294df4ed74319e3557b2a40d36feaac15121c070694b1bcb10afd7483",
+    "tasks/20260908-161328/STYLE-REVIEW.md": "adbb2b429c9e430975a389e5b19ff98dad3f825a423165e0e3464c959d2f419b",
+    "tasks/20260908-161328/AQUILA-REVIEW.md": "8ec830687708779eda5eac0038089b7febbc8cf1e8517632102793da9b1b8716",
+    "tasks/20260908-161328/SOURCE-REVIEW.md": "f5d85ca9c5d3c7546a09d549f5f5c567f6bb6d6e8b337d96d675045855da792d",
+    "tasks/20260908-161328/EPISODE-REVIEW.md": "3e8caa336313d3e119205d51a856a858e43fbba82f60ae3f387889ef2db2eea7",
+    "tasks/20260908-161328/REVIEW.md": "7f20dc06fdb3c44bb47ffb4c10cc6d70ecdbd8b566c23c72d0e56a2a896f845d",
+    "tasks/20260908-161328/RESTYLE-REVIEW.md": "59ab2df03edb40cf15b1f9e9938cb01d2f14626619ed118dc68c6a1a5810066b",
+    "tasks/20260908-161328/COMMIT-REVIEW.md": "5066f78ea834bf9ab5a7e04a85e1504668600ef0667091a5af4ba87466101240",
+    "tasks/20260908-161328/comic-opening-poc/page-01.svg": "1ad977c1776e655897ebaf28491f29a25094b03645b92eea05c77401238a9778",
+    "tasks/20260908-161328/comic-opening-poc/page-03.svg": "cf65bcf7875f74b33c3bf7125170721a033a3578eaaf3c49e3c6e52f08dea844",
+    "tasks/20260908-161328/comic-opening-poc/generate.py.txt": "1dd946b62ce5104419344e3521e7cdd2f8c55f807adecaf63bd933b9060169c9",
+    "tasks/20260908-161328/comic-opening-poc/README.md": "c0fe75e51feec9cd89ecc2651986544400eb043d2555b6801edd355c9f333560",
+    "tasks/20260908-161328/comic-opening-poc/index.html": "667d003e3ec4d0e57847dc6a59f54aa7d51ff70e63819d5d8741eee4c9d5e578",
+    "tasks/20260908-161328/comic-opening-poc/page-02.svg": "eb5293a95c00c03d4af89e9f09e1a73179cfb93d68620ad899366e1125d21184",
+    "tasks/20260908-161328/comic-opening-poc/page-04.svg": "cf6dee2926466d9ff9ff971ae312e1e445ea4d9f0065e748f58d2f75204078aa",
+    "tasks/20260908-161328/proof/inspect-aquila.mjs": "a06cee1645632851545d7fd97bd1bbe775898866e1deb2a75dfd44f2430f2f08",
+    "tasks/20260908-161328/proof/check-opening-restyle.py": "150dc9e7eaf03347039691f4d77768819a3fd422fe060b6ca748a07d4ef48732",
+    "tasks/20260908-161328/proof/check-gantry.py": "ae063e09bed3e4465891715484cf81e01febcfdbd99513cac19542112190ca2d",
+    "tasks/20260908-161328/proof/inspect-clean-line.mjs": "69e93de4069964919b9bf0c9dff633f01ab06a986962a8392573e5aa1cd27596",
+    "tasks/20260908-161328/proof/check-aquila.py": "8a4f0645e2c171accdec744e9cae458943b5dec6a3ee9a4e5e42346b572f43b3",
+    "tasks/20260908-161328/proof/check-expressions.py": "9c680bd9e78af0ee9c20b007023695d6693bf0ee62d2f104c9645e9a4e06f8a4",
+    "tasks/20260908-161328/proof/publication-and-scope.json": "a057f126b365cfabf9aa0086f1fe81525f967168d7698fec34320badca7c6e84",
+    "tasks/20260908-161328/proof/inspect.mjs": "47f2081957a85b61113526f24854e7d2bd7e30051348881144900c974954867f",
+    "tasks/20260908-161328/proof/check-reader.py": "460461b21fad8377e2981002beb5a1dbe6ee4dac54ae4d6189dab318d82b4b0f",
+    "tasks/20260908-161328/proof/build.log": "9203699898f38dc430be6e7b01ed34322d45c729a53abaa5b331521a07a6bd00",
+    "tasks/20260908-161328/proof/inspect-consolidation.mjs": "a3fae1134d15c91e18bc94d544a0432ae6f9d2b9f9c672f4358ae66ca01dfe83",
+    "tasks/20260908-161328/proof/inspect-opening-feedback.mjs": "3b63ac29ad4faeb31c72551a5e3f75615caf1500125f835037896e0fa4a80740",
+    "tasks/20260908-161328/proof/check-consolidation.py": "66dc502e37146a7aa12b16e3bc6d14ac84b67a4ffdf7c59c8220318b782d2b60",
+    "tasks/20260908-161328/proof/pre-commit-web-ci.log": "e158063e124805b43a874ed0d00b2f50456a96a95ae5b97d692841d1798cb1c0",
+    "tasks/20260908-161328/proof/inspect-reader.mjs": "911958805f22fc8d9de46cd664528392a5f116e84d59eb275a45e561421ade1f",
+    "tasks/20260908-161328/proof/inspect-gantry.mjs": "bfda2e6d25cbcec7a63203af5374bf46b7d23e93ff48a97d6731818267c0ef9c",
+    "tasks/20260908-161328/proof/batch-scope.json": "3aa36051b04e1e2fc18f56ad25c59ba96d7fd3c700612c9d2dc60fbc232853af",
+    "tasks/20260908-161328/proof/check-frontal-revision.py": "27a4c8d9cb52d4768ff74d42a6c64932693494ece6f0204a3a547a42e7fb08b3",
+    "tasks/20260908-161328/proof/revision-metrics.json": "0efed13b736e692170553a7cffdf8b38da7e829b79015eec7a7aaa4b3b353cb4",
+    "tasks/20260908-161328/proof/inspect-episodes.mjs": "20684fe5095a3105cf6a2dfd9d2a72a7f27c62d9aea22a491883b60addf0addb",
+    "tasks/20260908-161328/proof/check-episode.py": "e885c82cd78c80907c2d9191a5092d19cc01fcbfccdd45961467d7d8f5050180",
+    "tasks/20260908-161328/clean-line-study/generate.py": "75e6264f07101df7c57a15857eef9a569704d8e2b0e4db1c459cb6011ff430f4",
+    "tasks/20260908-161328/clean-line-study/02-window.svg": "97383455d33b7f7e3760ed657ef6e5e757b627e687edc7c8ee38369c21909287",
+    "tasks/20260908-161328/clean-line-study/01-close-up.svg": "41c6622db712b5f9bb814083b8c5fc69e63e7e3ccc82f02e5608e32197b4452f",
+    "tasks/20260908-161328/clean-line-study/README.md": "8e4871abda138b4a54e8f55c6de2ca5b706c868d5b4a8d98cabf2dacdcaf6669",
+    "tasks/20260908-161328/clean-line-study/03-exterior.svg": "ba02e4375f4ebf2e52713c6ab5c5336ac18a524af791154e739b1ba0c51e20ab",
+    "tasks/20260908-161328/clean-line-study/index.html": "704dcd47ea74f8a7c9d17bed6543b1d70359b8684c11e81940a4731b5f148a2d",
+    "tasks/20260908-161328/expression-study/generate.py": "beb195a40addd62ca581d574359bb7bf4744be15d0d88a1f14b74468430142a1",
+    "tasks/20260908-161328/expression-study/expressions-lore.svg": "2bbb80e5c60d0697e5a9aa250668cc583f3deb10c9909710b897fe5917decd9f",
+    "tasks/20260908-161328/expression-study/README.md": "d7160959b1c363d6d82f422be2d6313a5ff57e5a5e4582d2ecf5669d6895b8c7",
+    "tasks/20260908-161328/expression-study/expressions-comic.svg": "3750b27035ae9ef736f1edb1bd8e573a014a831522e48283018164d8401a2369",
+    "tasks/20260908-161328/gantry-study/generate.py": "1b31813ee043544057db5066d05cfb6acb54327955f120c5fc44ec82d709b354",
+    "tasks/20260908-161328/gantry-study/crew-lore.svg": "021259786f98d003f0ebc96c1a999307af02e17804885fa6430d534a1257d6f3",
+    "tasks/20260908-161328/gantry-study/README.md": "9d62c6a73ee8fc44a238195eeb94135baa4f9b694c8933b2975291506e7e047d",
+    "tasks/20260908-161328/gantry-study/index.html": "0a30003eed0e6affa6dfeba5d4dad93cf299bd901dea570d2be166a13a8b501e",
+    "tasks/20260908-161328/gantry-study/gantry-conditions.svg": "13377c0067f3c02a90c56a060a01563c30d2b5a4928e3c796d0e118c601be61c",
+    "tasks/20260908-161328/gantry-study/crew-comic.svg": "4a92738cfb51011d78ff66806fe8a7aba476649269dfbf6ea633dba2b0a87934",
+    "tasks/20260908-161328/episode-1/SCRIPT.md.txt": "a39f5ef19b834f97c7580784a9ffa733da25a92b231b783f28c438bad4a41f5e",
+    "tasks/20260908-161328/episode-1/generate.mjs.txt": "95f4e7b0e28590756447e1bba7de5bb87f22ec3cae5b8d8d61fe19dd1ba76c80",
+    "tasks/20260908-161328/episode-1/SCRIPT.md": "05c1dd0eeab806c006fea76f57f1e0ae401ab1b138aeabd7ea3db7e407ebfee3",
+    "tasks/20260908-161328/episode-1/index.html": "3c692b82fc2c87214446c8089059014f830ffd7b4e49d5edb8948f9ec77e0eb3",
+    "tasks/20260908-161328/aquila-pages/page-05.svg": "baf873f264507735e3e7723ef8b2512333932aba5a1914c1e9c62bd9732ec2ea",
+    "tasks/20260908-161328/aquila-pages/props.py.txt": "5bb81604f522295b6a6ff4cff8548ddc00a8bd8132c06d5bb66d65d7623db256",
+    "tasks/20260908-161328/aquila-pages/page-07.svg": "77c244d94179c5e1fbd9f7e2ce087985a1620c92389bf78d02e4783e95043b4a",
+    "tasks/20260908-161328/aquila-pages/page-06.svg": "eb6f535731967231816add8d2614accb0343cdddc843fa30d87aeaac30ee9b59",
+    "tasks/20260908-161328/aquila-pages/generate.py.txt": "44f8cfaffc6cb8c17831094125657a9ecbeda11c1c7f1355a5f0bcd77d6ac59e",
+    "tasks/20260908-161328/aquila-pages/README.md": "3006c73d670d969f4f4b358f91df2687027fd69f9ec7f165e49bfc03e8a40cc6",
+    "tasks/20260908-161328/aquila-pages/index.html": "5d49e374b74bbfa23f99c822984677db7b443b1c31f55c3f67f727a19efbb550",
+    "tasks/20260908-161328/proof/before-aquila/episode-1--generate.mjs.txt": "52edaaf552d472f0e28c79ff5c6a4799a2e87134d048da601791924a161eb979",
+    "tasks/20260908-161328/proof/before-aquila/GANTRY-REVIEW.md.txt": "2ca24bdc7d8b7b88b370f92671959caa66145ec81265917a8d74d0aa3dcc8702",
+    "tasks/20260908-161328/proof/before-aquila/baseline.json": "c3526eb0ec119229691c53802c169497b0b40cb9360eb1032b9696a639925595",
+    "tasks/20260908-161328/proof/before-aquila/episode-1--SCRIPT.md.txt": "5e36f79cdf4abe709851e1c574801f6ea4afd484e88e2ed96aefc18d83da652c",
+    "tasks/20260908-161328/proof/before-aquila/episode-1--index.html.txt": "9f8c751a1df9750659eeb76dfe7b8721084bd4b5363ee8e87ed68bb5789a4733",
+    "tasks/20260908-161328/proof/before-aquila/README.md": "49346905afb6b4ac6f822a010b2c011fd849dd6d0e4f7a2a33d4484ce5041894",
+    "tasks/20260908-161328/proof/before-aquila/gantry-study--README.md.txt": "e69ac2f24a5dddb8749d69faf3aef5eeac63c73fcdccbd38f16ae3816a74d1b9",
+    "tasks/20260908-161328/proof/consolidation/export-page-3.svg": "b48ddb6a71399a0c326a616197753b9836ba7c4f0d586b6e7e92686a80e9d57f",
+    "tasks/20260908-161328/proof/consolidation/mdbook.txt": "31af0a51bd18b89dcc9d4ff7cac9f68e66cdb576ad749c672c9ece494eed793b",
+    "tasks/20260908-161328/proof/consolidation/server.pid": "e798036863d1ee86676e54ccd22a92bafe909c5786b6e989be6d0f2cf8170feb",
+    "tasks/20260908-161328/proof/consolidation/export-page-1.png": "ef917b93aacddf7b918b5259cc31fdb924bf4a008661ad0eda63b147d1bc73e3",
+    "tasks/20260908-161328/proof/consolidation/export-page-3.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/consolidation/1440-page-3.png": "7ee6b6a7caf10c4d58d12fba2ce62900fff9d1ae80d960902e79cc4d17c2fd16",
+    "tasks/20260908-161328/proof/consolidation/browser.pid": "be4ebc3cc4ac9a283a064ad14aced5195c2e3d7b862e3731ea23499191a20363",
+    "tasks/20260908-161328/proof/consolidation/export-page-1.svg": "bf8386437ca42c075b16ad64a29fedf6ba6c5c9296ea9fabd6022447cfd24908",
+    "tasks/20260908-161328/proof/consolidation/390-art-only.png": "dbad01c82437fb3d581c4d6a3bb3560501517da243aa9e9c55fdc6801d94dbf2",
+    "tasks/20260908-161328/proof/consolidation/export-page-2.png": "aad5200cffb88e2f25ed120e12374f1311517dd897e97142f34696837dcfb7fa",
+    "tasks/20260908-161328/proof/consolidation/before.json": "4f575c91860ab2ae7af55458abfb6c53161b191ac8a7e1da0681a842fd6a9203",
+    "tasks/20260908-161328/proof/consolidation/export-page-5.png": "773dd97c630f9a0502faef2d610d34b15053d3208103f4e174ca5fc11442672b",
+    "tasks/20260908-161328/proof/consolidation/390-page-6.png": "f0c538bb9f698aafcea1f76d05236b98800911a07dc1b5936c10c8c36ab1b8e4",
+    "tasks/20260908-161328/proof/consolidation/1440-library.png": "db4ce2754fa6880f517f6fea880d686fdfc37a19cb2402da12e218172a035729",
+    "tasks/20260908-161328/proof/consolidation/browser.txt": "ddc43c65558db0be1349a74bf35104d86fdabb1a41aecddc568edbdda4d909e0",
+    "tasks/20260908-161328/proof/consolidation/web-ci.txt": "fb7e6689eb52ce5766cb1e2237b6ff2e9414f2a4771369363aaee644e2f11848",
+    "tasks/20260908-161328/proof/consolidation/export-page-4.png": "e97cce5b455967880deff576059035647923c33d2a0599726266b2a9615ce369",
+    "tasks/20260908-161328/proof/consolidation/export-page-5.svg": "e36e19ec267a45c3063dfb0f22882ea5820faf2c4414bfacf4c8c909c59f19cc",
+    "tasks/20260908-161328/proof/consolidation/markdown.txt": "fd6287e9d01d71a6a5f388bcb67ee2de9e9ff9c90dab51608d127d06668c44dc",
+    "tasks/20260908-161328/proof/consolidation/390-page-3.png": "f4c61c7f278ceb189b43d3a54cdcf7afd6bffe537899a2693795152d3b38340a",
+    "tasks/20260908-161328/proof/consolidation/export-page-6.svg": "b391d5d1e4079d6a6f16817634bfe6a39603695d0d8796d1d406867ea0127f41",
+    "tasks/20260908-161328/proof/consolidation/390-page-5.png": "546c80c6304198285313494f5483e2f9acbe2ac093194c10fa2553eb67ae1468",
+    "tasks/20260908-161328/proof/consolidation/390-page-2.png": "f8152badd1d6866e06f63008168af76bc3186e36585cdf9b059a5b44362009a7",
+    "tasks/20260908-161328/proof/consolidation/server.txt": "9087190ac81ae2208f3bbb7fdcd8bc0d12efc765090f4e349196843e7a368f35",
+    "tasks/20260908-161328/proof/consolidation/development-prefix-build.txt": "014ec3c8c6e7f38b3f2920197c44b23d61dc889a7267756ff04d18d834f53d01",
+    "tasks/20260908-161328/proof/consolidation/1440-checks.png": "74c85237e305e1de11f747d757da31aa8e4a09e2478070798933818fd07c2769",
+    "tasks/20260908-161328/proof/consolidation/browser-checks.json": "19167075aaff73435ea78205d448c657f888fcdfcc6ef31a8839ba821be1ad1a",
+    "tasks/20260908-161328/proof/consolidation/public-prefix-build.txt": "6e7bc30f4140337d9b97961fc3aadd0d9eedd839380ead9628d09988afeddbd8",
+    "tasks/20260908-161328/proof/consolidation/390-page-7.png": "bf26897aa690432d38a9f400ab0aef86931d33f45c367d07d5fc205ec0bb7a3d",
+    "tasks/20260908-161328/proof/consolidation/export-page-7.svg": "3070a68203be2cf6ab36f58354d52b61e32487685641d220221794c0a57c124a",
+    "tasks/20260908-161328/proof/consolidation/390-transcript.png": "84c0a88e0b69ba011429913a283808ac9818e6b3828a911d2b0257543d755e14",
+    "tasks/20260908-161328/proof/consolidation/1440-page-2.png": "10741fb447263991739939733b3815a2a7edf41562a1130a989f045d9ee36228",
+    "tasks/20260908-161328/proof/consolidation/export-page-2.svg": "b7aea29eaf4ac52c12df25fcf3dc025ee34f959e10c50938a4fdfc7ee5f178b5",
+    "tasks/20260908-161328/proof/consolidation/public-build.txt": "5d02e71efb1014caadd9372452ce886606f34a8613fc3c4754b8fc10d489711f",
+    "tasks/20260908-161328/proof/consolidation/1440-page-4.png": "55819d9adce16efdc6923f06d1818a3c51bac718d8ef5c800ed101f3273222a4",
+    "tasks/20260908-161328/proof/consolidation/390-page-1.png": "c6a54ce8be13517610072c30b57217efeea4650afdce4b0bbdbd19e70ed7e0be",
+    "tasks/20260908-161328/proof/consolidation/390-library.png": "1c89a1b8b5ac2b100f48d54257238bcdee9ddd75270fe1e9372ee889e694cad9",
+    "tasks/20260908-161328/proof/consolidation/1440-page-5.png": "d6c1210f849bb2193f7b142ddf321daaacc5c5503e5edf0a576faeb12878ca20",
+    "tasks/20260908-161328/proof/consolidation/1440-season.png": "4d579ebdb30b9d49ec70d9c3c04564a9927a3c3dc6156d3cba9cd8ec13f9f692",
+    "tasks/20260908-161328/proof/consolidation/390-page-4.png": "ddc1756746679c3720f92c5d488fdfc5c876e7410a1c97da34e596a2901d125c",
+    "tasks/20260908-161328/proof/consolidation/illustration-checks.txt": "a2e7f5fdc0294446e61267e6c4c729717f39aa1bf473412ffaface950a458375",
+    "tasks/20260908-161328/proof/consolidation/export-page-4.svg": "0f10e67dd2c86c83d10f92087b185b82246374e1cebe6c7c3571c87d6a800558",
+    "tasks/20260908-161328/proof/consolidation/390-checks.png": "7ee29250866ac8cf4fb498cbbee54b64b08cdac7ba918d1aef3ac98d3ccc947c",
+    "tasks/20260908-161328/proof/consolidation/1440-transcript.png": "c9e0d8f5ed958ad929b9275b9bf3ede90c6f8b284db78da8845cd0000ae19066",
+    "tasks/20260908-161328/proof/consolidation/source-and-isolation.json": "6b352d959ef73870769b337aebc40445144551425d9fe3850a9f5b758c0717bd",
+    "tasks/20260908-161328/proof/consolidation/export-page-6.png": "bd94c52059853e420f5b1a194fdac40773bde3c76ce190d55205169fa5f1600d",
+    "tasks/20260908-161328/proof/consolidation/1440-page-6.png": "85722d4f5fefa6016c379443229c0ac28f1bdbd8681049ba4aa2fde64eca00f0",
+    "tasks/20260908-161328/proof/consolidation/390-season.png": "db73af7e3a5bbd1ecccad9bd577a4f51d52c8a0eb39c837bead9b794e8698dda",
+    "tasks/20260908-161328/proof/consolidation/1440-page-7.png": "0f79dacc1abd6e6d2b40732f2171401c6a13f91e602bd557954d01ae3ebe7c31",
+    "tasks/20260908-161328/proof/consolidation/1440-page-1.png": "995ef4e310f0f2cfccb55d18ac45605b99723078713d0ac22c35c73f42ccc207",
+    "tasks/20260908-161328/proof/consolidation/export-page-7.png": "8683b3cb104b33df9c5e4c53a7dee1edc6c170aeacd630a634758398b6b03d7d",
+    "tasks/20260908-161328/proof/consolidation/1440-art-only.png": "f4d5d91b53897b2275bad4382e11cb3ac776b5fefb372d700a3e2da41726bfea",
+    "tasks/20260908-161328/proof/reader/export-page-3.svg": "b48ddb6a71399a0c326a616197753b9836ba7c4f0d586b6e7e92686a80e9d57f",
+    "tasks/20260908-161328/proof/reader/server.pid": "7077458098c6acb34d4e4abd8ae188815c0e759ef41137d5b4e8407bf46b043e",
+    "tasks/20260908-161328/proof/reader/export-page-1.png": "ef917b93aacddf7b918b5259cc31fdb924bf4a008661ad0eda63b147d1bc73e3",
+    "tasks/20260908-161328/proof/reader/export-page-3.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/reader/preview-build.txt": "fd6bdd9dfb45f73eb9f5eb5b47e82766e874fb1580bfc4c2304948e191c93b72",
+    "tasks/20260908-161328/proof/reader/1440-page-3.png": "7ee6b6a7caf10c4d58d12fba2ce62900fff9d1ae80d960902e79cc4d17c2fd16",
+    "tasks/20260908-161328/proof/reader/browser.pid": "049daab4cf6946c1727188825e53713007d8ab62367898d351460aecea2fb75f",
+    "tasks/20260908-161328/proof/reader/export-page-1.svg": "bf8386437ca42c075b16ad64a29fedf6ba6c5c9296ea9fabd6022447cfd24908",
+    "tasks/20260908-161328/proof/reader/390-art-only.png": "dbad01c82437fb3d581c4d6a3bb3560501517da243aa9e9c55fdc6801d94dbf2",
+    "tasks/20260908-161328/proof/reader/export-page-2.png": "aad5200cffb88e2f25ed120e12374f1311517dd897e97142f34696837dcfb7fa",
+    "tasks/20260908-161328/proof/reader/before.json": "c683efa17b4e8604b32794148df72de8110378d79bb828cb3c3e79285fdd467c",
+    "tasks/20260908-161328/proof/reader/export-page-5.png": "773dd97c630f9a0502faef2d610d34b15053d3208103f4e174ca5fc11442672b",
+    "tasks/20260908-161328/proof/reader/prefix-build.txt": "258805c624130d0ee879463e7a0cf7db8e6adff4c6b33e6714a70b8a3080660e",
+    "tasks/20260908-161328/proof/reader/390-page-6.png": "f0c538bb9f698aafcea1f76d05236b98800911a07dc1b5936c10c8c36ab1b8e4",
+    "tasks/20260908-161328/proof/reader/typecheck.txt": "5e4093037af6c365fbe5195118d6018726a5b990349698d041fc44ba88ff8f8a",
+    "tasks/20260908-161328/proof/reader/1440-library.png": "b50510774ad44f2257b527089fdcaca284fc6449f79bcaa4556979af487d0315",
+    "tasks/20260908-161328/proof/reader/browser.txt": "2bd2a909f8c3c3aabb7208b1c7f21d9c82e7c3a4ec4a7ee4b18c48b9e0fc3de9",
+    "tasks/20260908-161328/proof/reader/export-page-4.png": "e97cce5b455967880deff576059035647923c33d2a0599726266b2a9615ce369",
+    "tasks/20260908-161328/proof/reader/export-page-5.svg": "e36e19ec267a45c3063dfb0f22882ea5820faf2c4414bfacf4c8c909c59f19cc",
+    "tasks/20260908-161328/proof/reader/markdown.txt": "2a1803b60b91d4e46f885c574729678656226eb1f777fba359a9d5e90fca4ebd",
+    "tasks/20260908-161328/proof/reader/390-page-3.png": "f4c61c7f278ceb189b43d3a54cdcf7afd6bffe537899a2693795152d3b38340a",
+    "tasks/20260908-161328/proof/reader/affected-checks.txt": "506b86b2699b7850fedaf971299e3ab7549d77113bfb8338374e9e0697bbdd5c",
+    "tasks/20260908-161328/proof/reader/export-page-6.svg": "b391d5d1e4079d6a6f16817634bfe6a39603695d0d8796d1d406867ea0127f41",
+    "tasks/20260908-161328/proof/reader/390-page-5.png": "546c80c6304198285313494f5483e2f9acbe2ac093194c10fa2553eb67ae1468",
+    "tasks/20260908-161328/proof/reader/390-page-2.png": "f8152badd1d6866e06f63008168af76bc3186e36585cdf9b059a5b44362009a7",
+    "tasks/20260908-161328/proof/reader/server.txt": "712e0931b903987d4566f49e691294dfa154867d0f081a569ee63fdb1fd3b3f9",
+    "tasks/20260908-161328/proof/reader/1440-checks.png": "74c85237e305e1de11f747d757da31aa8e4a09e2478070798933818fd07c2769",
+    "tasks/20260908-161328/proof/reader/browser-checks.json": "5f5960897a5a80685b3c216888de8d9ba2034f1a65c5d795b07121b9f38a9d90",
+    "tasks/20260908-161328/proof/reader/public-prefix-build.txt": "05b765d3f42b1e3fde3b9d8a71a558e0e26aa7a8ff36d1e986bd8d3c95f5d45b",
+    "tasks/20260908-161328/proof/reader/390-page-7.png": "bf26897aa690432d38a9f400ab0aef86931d33f45c367d07d5fc205ec0bb7a3d",
+    "tasks/20260908-161328/proof/reader/export-page-7.svg": "3070a68203be2cf6ab36f58354d52b61e32487685641d220221794c0a57c124a",
+    "tasks/20260908-161328/proof/reader/390-transcript.png": "84c0a88e0b69ba011429913a283808ac9818e6b3828a911d2b0257543d755e14",
+    "tasks/20260908-161328/proof/reader/1440-page-2.png": "10741fb447263991739939733b3815a2a7edf41562a1130a989f045d9ee36228",
+    "tasks/20260908-161328/proof/reader/export-page-2.svg": "b7aea29eaf4ac52c12df25fcf3dc025ee34f959e10c50938a4fdfc7ee5f178b5",
+    "tasks/20260908-161328/proof/reader/public-build.txt": "dcb3c6fc8c048055adc6c85ae550a440bd038268e37c6b1fb0a8d291e01d0bfc",
+    "tasks/20260908-161328/proof/reader/1440-page-4.png": "55819d9adce16efdc6923f06d1818a3c51bac718d8ef5c800ed101f3273222a4",
+    "tasks/20260908-161328/proof/reader/390-page-1.png": "c6a54ce8be13517610072c30b57217efeea4650afdce4b0bbdbd19e70ed7e0be",
+    "tasks/20260908-161328/proof/reader/390-library.png": "bbeb8ef722f334ccdd325a393b5bf20faa44cedf94260200b94b85cff99abbbb",
+    "tasks/20260908-161328/proof/reader/1440-page-5.png": "d6c1210f849bb2193f7b142ddf321daaacc5c5503e5edf0a576faeb12878ca20",
+    "tasks/20260908-161328/proof/reader/1440-season.png": "26f7564ad925f1345d7bb26a2d942da5661a044b3846997189c44e2e08453608",
+    "tasks/20260908-161328/proof/reader/390-page-4.png": "ddc1756746679c3720f92c5d488fdfc5c876e7410a1c97da34e596a2901d125c",
+    "tasks/20260908-161328/proof/reader/illustration-checks.txt": "6e098ec6c42117b2375ae0bf235511a15233238eb31f9035dfe3ffbbfabddedf",
+    "tasks/20260908-161328/proof/reader/export-page-4.svg": "0f10e67dd2c86c83d10f92087b185b82246374e1cebe6c7c3571c87d6a800558",
+    "tasks/20260908-161328/proof/reader/390-checks.png": "7ee29250866ac8cf4fb498cbbee54b64b08cdac7ba918d1aef3ac98d3ccc947c",
+    "tasks/20260908-161328/proof/reader/1440-transcript.png": "c9e0d8f5ed958ad929b9275b9bf3ede90c6f8b284db78da8845cd0000ae19066",
+    "tasks/20260908-161328/proof/reader/source-and-isolation.json": "7f85367b7d758b41bc9c5d353613da36428ef47abe373f9ef719530522b4b73a",
+    "tasks/20260908-161328/proof/reader/export-page-6.png": "bd94c52059853e420f5b1a194fdac40773bde3c76ce190d55205169fa5f1600d",
+    "tasks/20260908-161328/proof/reader/1440-page-6.png": "85722d4f5fefa6016c379443229c0ac28f1bdbd8681049ba4aa2fde64eca00f0",
+    "tasks/20260908-161328/proof/reader/390-season.png": "15fe34c1f9d5266c279c5ad95231090398f10df7f5d6e89a5fda0a676d597f18",
+    "tasks/20260908-161328/proof/reader/1440-page-7.png": "0f79dacc1abd6e6d2b40732f2171401c6a13f91e602bd557954d01ae3ebe7c31",
+    "tasks/20260908-161328/proof/reader/1440-page-1.png": "995ef4e310f0f2cfccb55d18ac45605b99723078713d0ac22c35c73f42ccc207",
+    "tasks/20260908-161328/proof/reader/export-page-7.png": "8683b3cb104b33df9c5e4c53a7dee1edc6c170aeacd630a634758398b6b03d7d",
+    "tasks/20260908-161328/proof/reader/1440-art-only.png": "f4d5d91b53897b2275bad4382e11cb3ac776b5fefb372d700a3e2da41726bfea",
+    "tasks/20260908-161328/proof/clean-line-initial/01-close-up.png": "c5635ec2e50bbe5220edcaba0da095981d81fdc93f23b5a613748b7bfea86a61",
+    "tasks/20260908-161328/proof/clean-line-initial/02-window.png": "ffbde29dd42d1177fe3efe981cadc1d8074f1b18ab16722e6c98567d76e2b899",
+    "tasks/20260908-161328/proof/clean-line-initial/03-exterior.png": "1dc91f403b205f23c204374a0d663cedee8c4e75172017ac15b9d4f0a46216cd",
+    "tasks/20260908-161328/proof/revised/page-03.png": "254acd6cd2f97e25e8a83115c06b5303ca04e446ad07ecb41b8c06dafc70886b",
+    "tasks/20260908-161328/proof/revised/1440-page-3.png": "588d95ea811fcab505681d1473ce5b0efc66ec1ace37511e87b408176681bc3d",
+    "tasks/20260908-161328/proof/revised/browser.pid": "a74f10ab44af66d99377f7bde515b7b8795fb52d47eccd6dfdc0753143e40566",
+    "tasks/20260908-161328/proof/revised/390-art-only.png": "99eac238de91a51786787c809707fe09cbd1bb052131e47c0bd0a47196be0418",
+    "tasks/20260908-161328/proof/revised/page-04.png": "f9f46c6e8410c9315b04446c450a14215dc56651b22e1e67f08840e1b184483e",
+    "tasks/20260908-161328/proof/revised/390-page-3.png": "5122df35c456c5051710410e155393378562da3eba08cfbfc232336e86680bb3",
+    "tasks/20260908-161328/proof/revised/390-contact-sheet.png": "411b597ffe5c14d6f411686e79d1473a99b88e23bddb4644bf3e571e8021f20e",
+    "tasks/20260908-161328/proof/revised/390-page-2.png": "16411ed6bfb8f9dc0c44f62c0fd56722deeee0ad1a2a6411e1cfeda2fedccf09",
+    "tasks/20260908-161328/proof/revised/page-01.png": "69dbd9b90fd2a9b751beb3c4f1934ae53b1e287d25b510bb492b995e7ad79b63",
+    "tasks/20260908-161328/proof/revised/browser-checks.json": "055c1572f9626165f41e7822d407eb9bb0dbacb3a7043abd5b7001de96205498",
+    "tasks/20260908-161328/proof/revised/390-transcript.png": "fab5d52fdc5c7983cf078a6925de44cdb1e109533ee034aa7d5544dc39137ef2",
+    "tasks/20260908-161328/proof/revised/1440-page-2.png": "b1ec4c2f7d16d9116ecb583ea149f059a29e5a87828aa28fe6679d12a2987086",
+    "tasks/20260908-161328/proof/revised/browser.log": "c13928b5c06848964f6d9bbcf39fc7ed00eb45da7b0c60508e8a94c33ac2dc32",
+    "tasks/20260908-161328/proof/revised/1440-page-4.png": "98d1e71d7b73170cc0c566d29bc1d1f5a0933c9420a90bca247ad3d361ceacb3",
+    "tasks/20260908-161328/proof/revised/390-page-1.png": "75ffadaaaf14239b324a0c23d7b0b429b13cb03bbe0e7944cba40568b92207e4",
+    "tasks/20260908-161328/proof/revised/1440-contact-sheet.png": "0aa9ba28f3f9aa83f970076dd2c9b68070f7165d2a626dffc8ee59c9743478d2",
+    "tasks/20260908-161328/proof/revised/page-02.png": "7cc865ae61c32a83148ba740466fb96772a45ff8fb0b7f2aa66a149a85bb28ec",
+    "tasks/20260908-161328/proof/revised/390-page-4.png": "13a2ddbca16fa2d9fdaf90fe7cfc347725516982905479cdfc121d47d0db52cf",
+    "tasks/20260908-161328/proof/revised/1440-page-1.png": "4134fc32e515d61b1bb65974b3507f5192e1924be093928a8454845ecd8a81e5",
+    "tasks/20260908-161328/proof/revised/1440-art-only.png": "27112b3c1842311452e41437b28600d8274e44a65c7d37d84c0f0d0d88a3b13d",
+    "tasks/20260908-161328/proof/baseline/page-01.svg": "8d51f20d1fe8d0dfdcf273518372a26ee97d870314c483adce44715176e1793d",
+    "tasks/20260908-161328/proof/baseline/page-03.svg": "72ae4b94f46e944203a799cfe66ab258ee300670a63f6904c188d5f014bbb476",
+    "tasks/20260908-161328/proof/baseline/page-03.png": "9d0a361dd0d1fe0d3fdd768178334723ea4ce1cfadf906695aca6dd4ca0d7214",
+    "tasks/20260908-161328/proof/baseline/page-04.png": "b9866b14b0cb4fab2147e23c1a793a5a18fd942e5a2b230ee33172bacffa1fb1",
+    "tasks/20260908-161328/proof/baseline/source-sha256.json": "5cf2ab9f01264599d6380d839694f571e36a0b15e774116868499726c0772b61",
+    "tasks/20260908-161328/proof/baseline/generate.py.txt": "98b21abfc4048f663a86f3a73c0d3fd974baf14dfe5ce64e76a73f97f570b3ae",
+    "tasks/20260908-161328/proof/baseline/README.md": "a7673fe3bbe376cd9e2c1f070bd1a46b042fe7cd054e5f6c08ba0b971981aef8",
+    "tasks/20260908-161328/proof/baseline/page-01.png": "3321fc5df28f8f02e117cf70b805594676248c8fd57a31c0d1c0d9eb78e2e988",
+    "tasks/20260908-161328/proof/baseline/page-02.png": "0e1442819c2f65cedeb88d2570450992a3cd16dc833e38742dfbc049430a7888",
+    "tasks/20260908-161328/proof/baseline/page-02.svg": "fee9113a0895f581f58ba3a6a6bf29c9abf97c05503d517a8101e466ad3ac76c",
+    "tasks/20260908-161328/proof/baseline/page-04.svg": "96ea6292a4d18ee2b2456cb80573cdc4f2123abaeefa092715885ebed50f197c",
+    "tasks/20260908-161328/proof/aquila/page-05.png": "bc2a455f0e91e547d95419f631e47d93975bf1e080ae12c197200ceb263c0808",
+    "tasks/20260908-161328/proof/aquila/generation.txt": "e9c75f702c3e967c78648dc72228553d2d694de5ff2d2325acf7debccc67a0d9",
+    "tasks/20260908-161328/proof/aquila/unit-tests.txt": "adde0c46f96f2501e30546e379cf478ab986de976e6d5ceaa213e1dbc4220ed8",
+    "tasks/20260908-161328/proof/aquila/browser.pid": "5fa38bf6632c54be87a9e356fc299e070385698e36fc5a1e0abefd7d9d941fd2",
+    "tasks/20260908-161328/proof/aquila/390-art-only.png": "c2ab3e55886ad7d2babcbd98fef39943745c4cfed2894fe54ff5e1c8d28c92a7",
+    "tasks/20260908-161328/proof/aquila/390-episode.png": "fbfe14bdf0dab032e4ec8b05952dfda0838f1972e3c72494dc742f639d092d28",
+    "tasks/20260908-161328/proof/aquila/390-page-6.png": "50ac81309e20095bd18f5675ce9d9a9c3268d6f12172ad05c3baad9e20edf8e9",
+    "tasks/20260908-161328/proof/aquila/browser.txt": "847657b10f920a2b3b4f344eb670a62c8042e1476744faab6f47155d29b94f93",
+    "tasks/20260908-161328/proof/aquila/markdown.txt": "fc18e27fdc81b8544fdcbabdb4daf31c282f83535ef83191ba8d15a4e3aae332",
+    "tasks/20260908-161328/proof/aquila/page-06.png": "bd94c52059853e420f5b1a194fdac40773bde3c76ce190d55205169fa5f1600d",
+    "tasks/20260908-161328/proof/aquila/source-and-scope.json": "512225099e3c9eca58d27df80442121a4c217d2d01c94e33a9004876413d6ed7",
+    "tasks/20260908-161328/proof/aquila/1440-episode.png": "24ad6ac0a2a8cd36797b21ef3f50d85c460d0b07429bb570496bedcf948b1db0",
+    "tasks/20260908-161328/proof/aquila/390-page-5.png": "ea0e671168158dbfed7f22d2c35f1b4eafa76ce40f906fa61291c8c3ac205604",
+    "tasks/20260908-161328/proof/aquila/page-07.png": "8683b3cb104b33df9c5e4c53a7dee1edc6c170aeacd630a634758398b6b03d7d",
+    "tasks/20260908-161328/proof/aquila/browser-checks.json": "f61b4ed571c23ddfc3d7b35fc8d9787f9fab79405d4b5b3858e8be9bc3705cf8",
+    "tasks/20260908-161328/proof/aquila/390-board.png": "ff207415685f2a632e141afd0dba8a1909f08021e0d6dbf980278628dfba99ab",
+    "tasks/20260908-161328/proof/aquila/390-page-7.png": "d407f5b58079682328178b8d6217fdfb7032d997d3664db80e90b55c34983217",
+    "tasks/20260908-161328/proof/aquila/390-transcript.png": "87bcdf190d7ec426863d5544d19f44945590a8e451fcd12846322dd3c8a2802e",
+    "tasks/20260908-161328/proof/aquila/1440-board.png": "e882b847f343c00339a582dcc7ef1fe929d2f2075f66521e4024fc3c502128c7",
+    "tasks/20260908-161328/proof/aquila/1440-page-5.png": "734260686d99b878b12e70ed0479d8500e334ecab5168fed72489490732918ea",
+    "tasks/20260908-161328/proof/aquila/1440-transcript.png": "01704b8973190287dbc22e7b44453b70cad7a6bf8a4dd0d79854cc70dc163b8e",
+    "tasks/20260908-161328/proof/aquila/1440-page-6.png": "f84b9a8fe97ade44b134ffc2b33446d9786e2744a27ac830df79eb49bb8c4e6f",
+    "tasks/20260908-161328/proof/aquila/1440-page-7.png": "feef59dd6dfae85d0554d357649d2b92d782496bfd587cd368bcb72c1341612f",
+    "tasks/20260908-161328/proof/aquila/1440-art-only.png": "381246d18736b57481e17ed82bc930ee88ed62ad197d745234b0d0f14035a6ec",
+    "tasks/20260908-161328/proof/clean-line/site-1440-ships-kaveri.png": "4329ec21c0efb190f05e7445f2af9b61ddc36eb8094be115ba0c59f180b36a6a",
+    "tasks/20260908-161328/proof/clean-line/site-390-ships-ebro.png": "4a3e903d6e1553e4ceb7e0d65f3f788edf7147ce1a2741cf3bb76e9ddeb58506",
+    "tasks/20260908-161328/proof/clean-line/unit-tests.log": "cf9cf8476bdbc97a68ee36060cdbfc2e077deea0b2c9bd4fe592045c446a0b61",
+    "tasks/20260908-161328/proof/clean-line/elena-ward-portrait-concept.png": "3662333e2d75030e8eb8d649f7f6bed150b73e977e032bf9fbf79bb090697504",
+    "tasks/20260908-161328/proof/clean-line/1440-01-close-up.png": "6646c37437294bbaef525c06e9fe096b9f0a8d27949b49c51fd3dfa56b17740e",
+    "tasks/20260908-161328/proof/clean-line/browser.pid": "eab72934ee38549825a24de151ab281ecd7d90ed9c31e82ec1986e9e4a02bfac",
+    "tasks/20260908-161328/proof/clean-line/390-art-only.png": "252d9a39953a0ee0decd71abf0cc34302204be5cbf9136285126a8380e0361f5",
+    "tasks/20260908-161328/proof/clean-line/site-390-ships-kaveri.png": "a693bf7260661bc2a4db843bee15598a91d7bf9b90a59021b771f97d40049d69",
+    "tasks/20260908-161328/proof/clean-line/source-and-publication.json": "88e499723fde47f79511fe88555494f08259952ebd6dc2ed3d8ae6450a1f6f07",
+    "tasks/20260908-161328/proof/clean-line/01-close-up.png": "be3bebd085513816c6fbc64796b8bd6e0b85158698b99092e84af12ed9613856",
+    "tasks/20260908-161328/proof/clean-line/site-390-characters-elena-ward.png": "7c94a76ef56cab44a53eb875e03d0bdbeeec10dab8d71555d6eb3f4fbedead30",
+    "tasks/20260908-161328/proof/clean-line/1440-03-exterior.png": "1c89fe73a2c07cc93dd41020ea27688c31fc103c29658db967f50785550dc5ea",
+    "tasks/20260908-161328/proof/clean-line/kaveri-design-concept.png": "1d2ccc9090d8d7973f15a97e244f7421db61faa93ebfaa924801581659264ce5",
+    "tasks/20260908-161328/proof/clean-line/02-window.png": "54c87987f185128e19ea38c4eeecc6cdb590f3353e111641ffa66132a044c9cd",
+    "tasks/20260908-161328/proof/clean-line/site-build.log": "5f66a3859900b8a0c2fd68ab5114a15efee032dab84d3496725998dfefd71f21",
+    "tasks/20260908-161328/proof/clean-line/browser-checks.json": "99eb719b93ed6ac40275713d385b949c548a20adcac32bc95627692a0a6ad3e3",
+    "tasks/20260908-161328/proof/clean-line/site-1440-ships-ebro.png": "e0be5f21d29192690dd0c9b74844e108b3c7eacd7812be143fc62287666779c6",
+    "tasks/20260908-161328/proof/clean-line/ebro-design-concept.png": "de21ebea2fa714076c0e5a19f9692a14204fccc6bd0abaeac6c39a40a818a90d",
+    "tasks/20260908-161328/proof/clean-line/390-01-close-up.png": "86fe49153c0d3b1c96f50b8e08df5789fd41b8d9fc5a8b4202801657ca191a1f",
+    "tasks/20260908-161328/proof/clean-line/390-transcript.png": "c825ba9e382920c8d9d63cbb03ac82e79dfdb366a27291f3c52e7c1beab07f52",
+    "tasks/20260908-161328/proof/clean-line/site-1440-characters-elena-ward.png": "3a2a7458dc4974647dbfa9c309717468490671ee609ca441802565c034300117",
+    "tasks/20260908-161328/proof/clean-line/browser.log": "c809d00afc4cb7f1c8094c42d9c5c0ee64c32499f7ae324813181548cafcd5a4",
+    "tasks/20260908-161328/proof/clean-line/1440-lore-colors.png": "93c540be50e9c0cb89c7b8816bb71dd5390b31c29a4586ebf1ebbbf061f306e1",
+    "tasks/20260908-161328/proof/clean-line/1440-02-window.png": "bf026c34cae99f9b1fa4c9dd6c323bcd5bfd97abff1a06b2db406651d32a21cc",
+    "tasks/20260908-161328/proof/clean-line/batch-scope.json": "88e499723fde47f79511fe88555494f08259952ebd6dc2ed3d8ae6450a1f6f07",
+    "tasks/20260908-161328/proof/clean-line/03-exterior.png": "dc374052a9ba887a8ca42577209a2d9da08c7ab777e860f2a121eb20c2111218",
+    "tasks/20260908-161328/proof/clean-line/390-02-window.png": "eaf35a4a00c3d04bbb02e0af5dde4cc4794747f096fc4b6f0e1edf987b173201",
+    "tasks/20260908-161328/proof/clean-line/390-03-exterior.png": "0a684c5a95ee04f607223f89dac2ca94c3c0af3fb10074f6ebaeba309c72e8e5",
+    "tasks/20260908-161328/proof/clean-line/1440-transcript.png": "c59e39b40477c733602e5a58adbecf2801c1b96c4e24a3146ba0641feb26485a",
+    "tasks/20260908-161328/proof/clean-line/390-lore-colors.png": "2d753c77a2ec327cc28379f5807b11d1f80151cbd3bc2ecc2d3d0b6037a44bdf",
+    "tasks/20260908-161328/proof/clean-line/1440-art-only.png": "d01da84d90eac98fd876f3bbb226404113779fe90f00132d80f8be54eb034f82",
+    "tasks/20260908-161328/proof/before-clean-line-opening/page-01.svg": "040cad0f2a43cd286f09e4f9922568b5421320aa8a7dd0017bf3572f27ef08dd",
+    "tasks/20260908-161328/proof/before-clean-line-opening/README.md.txt": "a2ad17c5781088cf878dc0c13a7d3109cb2848342fb6e1a950686324e7d27ac5",
+    "tasks/20260908-161328/proof/before-clean-line-opening/page-03.svg": "2eae526611eff0f92606cdf3ee9689d28f30f791b50b3a3e01c39390727528d9",
+    "tasks/20260908-161328/proof/before-clean-line-opening/sources.json": "81a11bbd196355bcde6f366dbda3a2976f1ccae6e04587ae7b37f027c0640581",
+    "tasks/20260908-161328/proof/before-clean-line-opening/generate.py.txt": "83a444f936b84aac32b293f71c4ba0e8a1de42d02db85b1a222f2f8e6312b73d",
+    "tasks/20260908-161328/proof/before-clean-line-opening/README.md": "d885877c440968e6125d1faa6602af87f244fd2ed70308be9528fe3ad3311994",
+    "tasks/20260908-161328/proof/before-clean-line-opening/index.html": "768a635fff4dfd0d214d4558c3b016240e3a007d2396f900991b1fd9b6da88b9",
+    "tasks/20260908-161328/proof/before-clean-line-opening/page-02.svg": "fa081bf777896a64dee7efc361d6af41ee2278883d3ccf8cf8a73d425bc4fb65",
+    "tasks/20260908-161328/proof/before-clean-line-opening/page-04.svg": "49e176454e81118791a6443857cc01d0aa38d62e63b5db5aeda5e17e1df50a62",
+    "tasks/20260908-161328/proof/episode-1/mdbook.txt": "31af0a51bd18b89dcc9d4ff7cac9f68e66cdb576ad749c672c9ece494eed793b",
+    "tasks/20260908-161328/proof/episode-1/generation.txt": "ad6f3b0bbd4285abb20462f55548e2f0e3089b87d71641c574db31f81233890f",
+    "tasks/20260908-161328/proof/episode-1/browser.pid": "c4b3ba209fa5e762f38da8ca424350e1c20300ba94b36f06f780e6f7540c9893",
+    "tasks/20260908-161328/proof/episode-1/prefix-390-reader.png": "781463d8d0fd021cbbadc298ddb38ff863d5b726c47c5aa5e3896f983532ad06",
+    "tasks/20260908-161328/proof/episode-1/root-1440-reader.png": "fade2b8eeaccd9fe4b82e9e5694eebb3e7264443ab863999bf6ffc015c110444",
+    "tasks/20260908-161328/proof/episode-1/prefix-390-demo-contents.png": "85dd1e9595ff623abfb4223451b86dd432b31625f3023886892f8e8f38cc09b3",
+    "tasks/20260908-161328/proof/episode-1/source-and-script.json": "f7ca33e4b4ab7ace033611d66f6f834c0660d4b9be7177756937028096a75438",
+    "tasks/20260908-161328/proof/episode-1/prefix-build.txt": "bd44e6a1e32a0f8cc3796e24b00ebef35cbbb3985dc9710e08fcbe5d8b62f38e",
+    "tasks/20260908-161328/proof/episode-1/root-390-archive.png": "9b7794d1002240db043ce81796add09b29752b62455f8d08e321b29f633572c2",
+    "tasks/20260908-161328/proof/episode-1/prefix-1440-demo-contents.png": "6369143cfd0b8092379a003bf0ac20d18f039a6978b5e8000eef52f477716f5e",
+    "tasks/20260908-161328/proof/episode-1/fixture-390-archive.png": "a36f228488b995fb135c697bc6a67b54258eb3d2b2e19529854d0e2c7b945003",
+    "tasks/20260908-161328/proof/episode-1/web-ci.txt": "db8d04297a12b0683492b2abdd5467e050528c07cf762ad094f0a432620ab508",
+    "tasks/20260908-161328/proof/episode-1/prefix-1440-reader.png": "fade2b8eeaccd9fe4b82e9e5694eebb3e7264443ab863999bf6ffc015c110444",
+    "tasks/20260908-161328/proof/episode-1/markdown.txt": "9ce08c4f72d2b505ea96f53ddacee1d6011fd4e9a73b0b0d563c4e8f7860513f",
+    "tasks/20260908-161328/proof/episode-1/prefix-1440-archive.png": "307f4ab1507d1273330d79030bfca55a6ec0450f010c70663b0b6c63a9634840",
+    "tasks/20260908-161328/proof/episode-1/fixture-1440-archive.png": "e48a7b75c1a358c3c833e5426f907491b1c36240fc50b2c1220510644ac12f8c",
+    "tasks/20260908-161328/proof/episode-1/fixture-390-season.png": "e5e4bfd99134a54f0696db3249a69b2ceffec4a7acb4672c283bf71042582ba7",
+    "tasks/20260908-161328/proof/episode-1/browser-checks.json": "b110e932338f6f1622d86fb2be6d044d3d7506516a99f8bec3e2fd9378a4e3da",
+    "tasks/20260908-161328/proof/episode-1/script-review.png": "71b7bce4213b4d2011e186f055926963b4c669d889c85da740ef55b39db4b583",
+    "tasks/20260908-161328/proof/episode-1/fixture-1440-season.png": "4a56c717616603cc3ffd6d7d23bee132f44f00e9f02a1cabbb41b7ca3c27575e",
+    "tasks/20260908-161328/proof/episode-1/fixture-1440-art-reader.png": "85ebb385d66fb8fd0d89971e5a514dfaa43898ea502d02f703593f384964ba27",
+    "tasks/20260908-161328/proof/episode-1/browser.log": "db7abf10600cf5be17cafea27d38333c4a46a64193d1da8e0fd22d3501e6ed0f",
+    "tasks/20260908-161328/proof/episode-1/fixture-390-art-reader.png": "ac17a37d4fe0f5498d631328788e970bfae4e2bd0b30f65fd270a9dcef8fe1e3",
+    "tasks/20260908-161328/proof/episode-1/root-1440-archive.png": "307f4ab1507d1273330d79030bfca55a6ec0450f010c70663b0b6c63a9634840",
+    "tasks/20260908-161328/proof/episode-1/root-390-reader.png": "781463d8d0fd021cbbadc298ddb38ff863d5b726c47c5aa5e3896f983532ad06",
+    "tasks/20260908-161328/proof/episode-1/script-decision.png": "cd6d10ee5d19a71424e2e1c6701b701dc6a582acec01a7fb8c77d3b00cbbe7f6",
+    "tasks/20260908-161328/proof/episode-1/root-1440-demo-contents.png": "6369143cfd0b8092379a003bf0ac20d18f039a6978b5e8000eef52f477716f5e",
+    "tasks/20260908-161328/proof/episode-1/prefix-390-archive.png": "9b7794d1002240db043ce81796add09b29752b62455f8d08e321b29f633572c2",
+    "tasks/20260908-161328/proof/episode-1/root-390-demo-contents.png": "85dd1e9595ff623abfb4223451b86dd432b31625f3023886892f8e8f38cc09b3",
+    "tasks/20260908-161328/proof/restyled/page-03.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/restyled/unit-tests.txt": "9a94d1144484e592c5fec86a0726d0df51fc34a7fb34f45d077b83a7f13e6468",
+    "tasks/20260908-161328/proof/restyled/1440-page-3.png": "26597cc1e5db1de923081908337821df742ee7cbfb3bd96a180ec57ecd8fd6f6",
+    "tasks/20260908-161328/proof/restyled/browser.pid": "ae42e87c5e583e5f027c1036e744be3c514c922619be8122f6e3e0523dbae888",
+    "tasks/20260908-161328/proof/restyled/390-art-only.png": "698a6b32d3392db339293b6091de8c7adba029c0e80013f480f7ec4ac6f50f10",
+    "tasks/20260908-161328/proof/restyled/page-04.png": "fdea1a7739b6f9a73e1dcfd7e2372f045e0e8a1e420c72a1575850100d8e9f61",
+    "tasks/20260908-161328/proof/restyled/web-ci.txt": "5b6789de00d8991f044ffcc2bf3219fe168d36122370d42e0979f46ba62958f4",
+    "tasks/20260908-161328/proof/restyled/390-page-3.png": "7db397b7e697a0d1c85487fe821228e2574bfbff95a46b1708c7e2ef63f1a587",
+    "tasks/20260908-161328/proof/restyled/source-and-scope.json": "1127a28e5a942a20ad6ab96ed91652b06965818f42f51b0d2a62713caa3ed307",
+    "tasks/20260908-161328/proof/restyled/390-contact-sheet.png": "cfc6217d15bcfe665de8a2e3a90c35afe9bc6dc3b4b4d4edc1c2b3e524b8dfb8",
+    "tasks/20260908-161328/proof/restyled/markdown-checks.txt": "ccffb9d6c6689331b6b2ab5b967552fee390d05739b01265f8dcc7ecc4c4618b",
+    "tasks/20260908-161328/proof/restyled/390-page-2.png": "4d233c324a072b72b2ff6be831144b53c28a7998ecfdee9042e82a387721b0b8",
+    "tasks/20260908-161328/proof/restyled/page-01.png": "9d52c731c8af8a0756b88aaa0565ed12c31c877e4735b03427a004a7fd0e6b79",
+    "tasks/20260908-161328/proof/restyled/browser-checks.json": "ff459ed84183cd68d4ba4af16fa40b3b846fbc933b749808a7026edd07a72385",
+    "tasks/20260908-161328/proof/restyled/390-transcript.png": "47ef095262db96791ff4314fd5fa81c05eaff6b5691c06f9fc7f26d2dd69350a",
+    "tasks/20260908-161328/proof/restyled/1440-page-2.png": "4587dbf80d97fdb6286b25cc0d9e238d51276deca54e20745f147d4378259dec",
+    "tasks/20260908-161328/proof/restyled/browser.log": "eb396caec34d52a7cc79f08440738ae7b201887a3c279914a4dd5c362d624f10",
+    "tasks/20260908-161328/proof/restyled/1440-page-4.png": "df771f35572526586761190eaae970b2dff565dbae45d4829451a36c4f0dc0c1",
+    "tasks/20260908-161328/proof/restyled/390-page-1.png": "917b5c5efed6fe3a0cc1d730a2c4fb88d78ba47661dfac9e2c23b04a6f20a6d1",
+    "tasks/20260908-161328/proof/restyled/1440-contact-sheet.png": "f998468d4b376b9c475116c8d106d1165ca702da929189c4bf46451d05cbce17",
+    "tasks/20260908-161328/proof/restyled/page-02.png": "a3163ad660e3c070550517eff149a77d753cd968e140aad8e94439bf7d4e506c",
+    "tasks/20260908-161328/proof/restyled/390-page-4.png": "56437019893ab97ea92968bebd4fde4962a38e34f1470befcf9f37287a09c672",
+    "tasks/20260908-161328/proof/restyled/1440-page-1.png": "b1c5f8654a5b70052839bf98c4d2bb12e99f7df72b6da974eb430691538f889b",
+    "tasks/20260908-161328/proof/restyled/1440-art-only.png": "ee1f6021508e132b84566ec7ba90d0b47b4d0b7739de326aec94f239049fe674",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/elena-ward-portrait-concept.png": "bc9bf726f28343ad6d013eeefc6efdc0fc012db24005f54dcfdd3ea7d0638b88",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/01-close-up.png": "67f3f49d97c578e268849461006db7c5966074270ce642243623f49cc08e1675",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/kaveri-design-concept.png": "b9d1bd5b4b156b1f568fa20761ad8a6d6e246bd659f3a91074a5a3fd0afb44a8",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/02-window.png": "9bd706bd4975a2d636de11001101b7f2f60c5ded82a609eb403499d61ac6f98c",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/README.md": "4d0a405bfceeae570f60d9520a07cd18bfc83db669102ca525817f25a4b1d287",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/ebro-design-concept.png": "b6f97a136f760d9405ad3b96d95101065494038e4504f2d8e0a6d72a55b94c52",
+    "tasks/20260908-161328/proof/clean-line-before-frontal/03-exterior.png": "f2928d2b588205b03c0efe7fd000b0325e65f4275611d715b1053fa75e0c77e9",
+    "tasks/20260908-161328/proof/gantry/site-390-characters-owen-park.png": "e053932b039542e168e41d919d94f078340bcedb52bfb328134c7efc2f22aec5",
+    "tasks/20260908-161328/proof/gantry/generation.txt": "c3a4cfd2be801afba802b6cd633eafb557ed38a571526a0e01af84a02a59da3b",
+    "tasks/20260908-161328/proof/gantry/site-1440-characters-owen-park.png": "5a1465ce8fa9d96d2686710d8f41954ac8bd15340b12957d6d169c47537194f5",
+    "tasks/20260908-161328/proof/gantry/owen-park-portrait-concept.png": "a7106b7151a0ec8cf660479921c54f58e668154eb9c1bdd3873458275f93d999",
+    "tasks/20260908-161328/proof/gantry/site-390-characters-ivo-marin.png": "39444f2689b689b297ed408c0886cbf589726de662e30f119a8f15d090e10638",
+    "tasks/20260908-161328/proof/gantry/unit-tests.txt": "61b1c09b63cb4c096aceecbeb1c09410fb73fba8c61bccaaf89a3cd36590158c",
+    "tasks/20260908-161328/proof/gantry/site-390-ships-gantry.png": "d349e2d5ba7bf9ff0223f9339255a5f5f4212047e3e4abe43c768a8c3c6b5cd5",
+    "tasks/20260908-161328/proof/gantry/browser.pid": "26a63760f444eb7d159f33d119eed02ac417ab3ad6de2c7a86dd255bef9f1038",
+    "tasks/20260908-161328/proof/gantry/gantry-design-concept.png": "b730d634145816852cd00e32613ca5f02f57c135214b051a35a706d2555b7120",
+    "tasks/20260908-161328/proof/gantry/baseline.json": "ff82159492c6ee3b61aa65d5deebe71368de24ff5314269c9cf9d17fb7e6e17f",
+    "tasks/20260908-161328/proof/gantry/site-390-characters-nadia-sen.png": "2d8b18d0cca76bef99f2695f941a06ab9a7d28a16677ac67e338e527129a6763",
+    "tasks/20260908-161328/proof/gantry/crew-lore.png": "705233ace656b475688cc960185c74b7d605b3e415deda5e9c180200925aa4d2",
+    "tasks/20260908-161328/proof/gantry/markdown.txt": "c354607f7250988ce845bc4f149643cff7d6914a3ca47b2df6d97e1f2c7e2fff",
+    "tasks/20260908-161328/proof/gantry/390-review.png": "4f5938a975f6f0fbbc073ea63f6c857c0690fdbeee3c5ee94314ddda4900760f",
+    "tasks/20260908-161328/proof/gantry/source-and-scope.json": "750a8addecedb1dd38719743fcd579efbbb5b38b685de1313287ae491f366adc",
+    "tasks/20260908-161328/proof/gantry/web-tests.txt": "88f8aba4cbc03c9e06c9d1e40046b869aef4c0eafa6dcebb167d82c5d5719fd9",
+    "tasks/20260908-161328/proof/gantry/browser-checks.json": "041e85c5bb4765692ad595cae8238ab634194a6551d35873d17530bb6df773c1",
+    "tasks/20260908-161328/proof/gantry/390-crew.png": "788dd965a963621c66231066aaa0d9fc9f5b111e4e716d082de24ac64b3ad9a8",
+    "tasks/20260908-161328/proof/gantry/1440-review.png": "46315a0f16da3bd061e09f5f055ca96354e14d255ab05aef76a4372f0c106205",
+    "tasks/20260908-161328/proof/gantry/ivo-marin-portrait-concept.png": "9effbcade0a3f822595f053b36a83f17d2f1355e5c9926824983ad4f644246d4",
+    "tasks/20260908-161328/proof/gantry/1440-crew.png": "ef51586db405d4bb99ccc460ba943d0caabc0f5f48c2705db7e62c39d112f4e1",
+    "tasks/20260908-161328/proof/gantry/browser.log": "9f131a50f455ace47688d53fd728b4447280e06757cec31e225b092bca9cd052",
+    "tasks/20260908-161328/proof/gantry/site-1440-characters-nadia-sen.png": "6c9d9c4c08388066b079d015010c468c052680e5daa43ba3923ad70623ca5319",
+    "tasks/20260908-161328/proof/gantry/crew-comic.png": "7344bc9c2aad39b1436ea0a64fb3bba6da4414418447bb42c6c6dc14bb77b815",
+    "tasks/20260908-161328/proof/gantry/site-1440-ships-gantry.png": "9ba01866123a19432a52c07776ece18a81782c0ba75d79e6f5bb51bd8a8cb361",
+    "tasks/20260908-161328/proof/gantry/gantry-conditions.png": "e635293f74558736a37add2325a1a7232471c67861751f4099e1656e6b94ae31",
+    "tasks/20260908-161328/proof/gantry/nadia-sen-portrait-concept.png": "11f4ac4651dd3fa0b8857c59c1c746f74535da43e3236b57cab48f75fa7cbeb6",
+    "tasks/20260908-161328/proof/gantry/web-build.txt": "9b646f5a5b467cbc90ca3312d77e76bf47000703c7fb3429b61edd71c8ab218b",
+    "tasks/20260908-161328/proof/gantry/site-1440-characters-ivo-marin.png": "7cf388f68bbd47841b11830b37cd7a86e004468f8a47d118f7994dc5f4217ac3",
+    "tasks/20260908-161328/proof/first-panel-card/pre-commit-unit-tests.txt": "a6398902e9cc00f6e9bc89361044f5acd93f35e5a0479263caa8cabdd5c11d1e",
+    "tasks/20260908-161328/proof/first-panel-card/page-03.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/first-panel-card/1440-page-3.png": "26597cc1e5db1de923081908337821df742ee7cbfb3bd96a180ec57ecd8fd6f6",
+    "tasks/20260908-161328/proof/first-panel-card/browser.pid": "b43605d42e81ae270d5e47a24094f762213aa0569e5114e556ef9fd647d028ee",
+    "tasks/20260908-161328/proof/first-panel-card/pre-commit-markdown.txt": "38349b1446fdc86f046c494e7c168c9e847ca52c5dcd83c494d827ddd66f6262",
+    "tasks/20260908-161328/proof/first-panel-card/390-art-only.png": "698a6b32d3392db339293b6091de8c7adba029c0e80013f480f7ec4ac6f50f10",
+    "tasks/20260908-161328/proof/first-panel-card/page-04.png": "fdea1a7739b6f9a73e1dcfd7e2372f045e0e8a1e420c72a1575850100d8e9f61",
+    "tasks/20260908-161328/proof/first-panel-card/390-page-3.png": "7db397b7e697a0d1c85487fe821228e2574bfbff95a46b1708c7e2ef63f1a587",
+    "tasks/20260908-161328/proof/first-panel-card/source-and-scope.json": "891391c1e5a94ee4480f4fd859494a33c9d69fceaa9a346c5923ba26de0616dd",
+    "tasks/20260908-161328/proof/first-panel-card/390-contact-sheet.png": "b7beed522b240a2ef89886002f2ee3475fe317a7b9235f47776597429edad808",
+    "tasks/20260908-161328/proof/first-panel-card/390-page-2.png": "4d233c324a072b72b2ff6be831144b53c28a7998ecfdee9042e82a387721b0b8",
+    "tasks/20260908-161328/proof/first-panel-card/page-01.png": "af6f03895c87bbb58e5fe3737ce4abf429847e87ef68179f6d5bee94432e0742",
+    "tasks/20260908-161328/proof/first-panel-card/browser-checks.json": "442814f7fa00539ea658a15375690ce63bee2771a4167d0b757a36f06d60fd4d",
+    "tasks/20260908-161328/proof/first-panel-card/pre-commit-web-ci.txt": "ed19c3be9d654defecb94003b4a91a227537490fc2fc0a871cd785093d93b048",
+    "tasks/20260908-161328/proof/first-panel-card/change-checks.json": "0a00a5db11dff28c2d93d7220dd927dbb8efc030b3d80259003ed5c820e65ac3",
+    "tasks/20260908-161328/proof/first-panel-card/390-transcript.png": "47ef095262db96791ff4314fd5fa81c05eaff6b5691c06f9fc7f26d2dd69350a",
+    "tasks/20260908-161328/proof/first-panel-card/1440-page-2.png": "d3bb511d12566116021f97e1fe3d58392645374e954ecfc01b92184b1b9187c1",
+    "tasks/20260908-161328/proof/first-panel-card/browser.log": "69ccfda3e98d9b23b1967e9bdb64a7e4e7386452e975aadfd872c26cd4ab882e",
+    "tasks/20260908-161328/proof/first-panel-card/1440-page-4.png": "df771f35572526586761190eaae970b2dff565dbae45d4829451a36c4f0dc0c1",
+    "tasks/20260908-161328/proof/first-panel-card/390-page-1.png": "40702cfd589cc1d90658178e1da9843b77ffafb8c06af389819a5394bdf1cabb",
+    "tasks/20260908-161328/proof/first-panel-card/1440-contact-sheet.png": "0e93e6fd83a7f63ca0430cfbebed623327abbc42cce90906c8f190fb05fdf0ec",
+    "tasks/20260908-161328/proof/first-panel-card/commit-checks.json": "cf971eaabf890c778fe5feab03b419092260219fbb7e53ea8616df6635a5c5ad",
+    "tasks/20260908-161328/proof/first-panel-card/page-02.png": "a3163ad660e3c070550517eff149a77d753cd968e140aad8e94439bf7d4e506c",
+    "tasks/20260908-161328/proof/first-panel-card/390-page-4.png": "56437019893ab97ea92968bebd4fde4962a38e34f1470befcf9f37287a09c672",
+    "tasks/20260908-161328/proof/first-panel-card/pre-commit-generation.txt": "0c22d8c36dc390e97aac904ffb41d1c4d917aa3d0bfb4924d5d7fa6fd0c5dfaa",
+    "tasks/20260908-161328/proof/first-panel-card/1440-page-1.png": "af0181c8fe36103d6364a1e141153882f76a8e42ae2e8ca019b0af63dd6b0ee9",
+    "tasks/20260908-161328/proof/first-panel-card/1440-art-only.png": "ee1f6021508e132b84566ec7ba90d0b47b4d0b7739de326aec94f239049fe674",
+    "tasks/20260908-161328/proof/episode-feedback/generation.txt": "710cae36c6c5f9b6908acbaca16a60f605b76b9ad47f26a96b2df4b563dbe80c",
+    "tasks/20260908-161328/proof/episode-feedback/390-script-refusal.png": "68d8ca94b82726d6aa00c5ad578d709c5023667c28ae27d30d3311d7b34d349c",
+    "tasks/20260908-161328/proof/episode-feedback/1200-script-transfer.png": "5192823c6831b0b24ef6ed415d3141a132fa30192b34afb2e620b602918a97eb",
+    "tasks/20260908-161328/proof/episode-feedback/page-03.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/episode-feedback/390-script-transfer.png": "965f6352cf18bd743e32242ab27472211620f78045f16360117c423cba0ea9f1",
+    "tasks/20260908-161328/proof/episode-feedback/1200-script-refusal.png": "eecd9c14baa6bb8621bd254475960886b47449a37ca6f142458b20f152b3ef46",
+    "tasks/20260908-161328/proof/episode-feedback/expressions-lore.png": "51e63551bfae062c52d57b46b65bb7b342dd5b57b9e3af3a0dd2160e0b291394",
+    "tasks/20260908-161328/proof/episode-feedback/unit-tests.txt": "a88cec378babc7b1feef39f50eb9d00c12394911d4c29133ed0bf1417f056956",
+    "tasks/20260908-161328/proof/episode-feedback/1440-page-3.png": "26597cc1e5db1de923081908337821df742ee7cbfb3bd96a180ec57ecd8fd6f6",
+    "tasks/20260908-161328/proof/episode-feedback/browser.pid": "45afe6af4d28373b1ea85847e4ac43592dde54a440d47c83d6dccf69fd6315dc",
+    "tasks/20260908-161328/proof/episode-feedback/390-script-review.png": "7fd326e2ed1313eb57bcbc69bac5aed3ec52c3f1b0d9733567eb4a728cb9ae6d",
+    "tasks/20260908-161328/proof/episode-feedback/390-art-only.png": "104e0c8f8a8249e2665062a34dc19becaf0e255830820c083157481a4c8b1546",
+    "tasks/20260908-161328/proof/episode-feedback/page-04.png": "e97cce5b455967880deff576059035647923c33d2a0599726266b2a9615ce369",
+    "tasks/20260908-161328/proof/episode-feedback/source-and-script.json": "fd08f1b79e2662fd34430f9bf0e1b866d96fa5e7b0977531559a1bd5faf0f221",
+    "tasks/20260908-161328/proof/episode-feedback/expressions-comic.png": "4d984edec2d08e49284f1a5416c4a62d3a4527a293faab1a25b278f9ae47041b",
+    "tasks/20260908-161328/proof/episode-feedback/markdown.txt": "4c1fe9c5845ad9e0d60837f1ff151e3abf1b052e29884104c5282a0ca6000b7c",
+    "tasks/20260908-161328/proof/episode-feedback/390-page-3.png": "f373c8f97b13a5c4f52d59d4cbaeef563a9704d813075307cfe6dfc25a75bf10",
+    "tasks/20260908-161328/proof/episode-feedback/390-contact-sheet.png": "4e958cf7398bfa7ecc67f19346028fae7b82a2cdeba5adbbd0afb7559f2cbdfc",
+    "tasks/20260908-161328/proof/episode-feedback/web-tests.txt": "f99bf4214602122f68257f3644880aa60e73cf776aab00789a96634ec8e32de5",
+    "tasks/20260908-161328/proof/episode-feedback/1200-script-pickup.png": "8083dd9045ed57c607b7dc342792715675aa853c643f5821f32a4cb59ebcf4e8",
+    "tasks/20260908-161328/proof/episode-feedback/390-page-2.png": "bb12d3f7a88ea2971f90f6829a49bd62447640cd0760d46a8b329e4ebffb8817",
+    "tasks/20260908-161328/proof/episode-feedback/page-01.png": "ef917b93aacddf7b918b5259cc31fdb924bf4a008661ad0eda63b147d1bc73e3",
+    "tasks/20260908-161328/proof/episode-feedback/browser-checks.json": "ba7112ec8560ee58f042598e9c4f4bc64a1a1b3ec743dd552a7294ee6c44694f",
+    "tasks/20260908-161328/proof/episode-feedback/390-script-pickup.png": "6bd6cf2ee7b48c457f09349a304806eaf04f7c95e677fa8a9702eda3d88057a3",
+    "tasks/20260908-161328/proof/episode-feedback/390-transcript.png": "708251573288e94509df093b3365e0a7115f8c0cd4bae194831b3c4bba44709e",
+    "tasks/20260908-161328/proof/episode-feedback/1440-page-2.png": "a76d4b0cc46b3544e8d5ce54ae90f5e63035575c2422192a2ad5356be6623fab",
+    "tasks/20260908-161328/proof/episode-feedback/browser.log": "2ca92f736e7d6c7170cbd3db65d15a6c26511dd25c30b4d6897c384a78e18057",
+    "tasks/20260908-161328/proof/episode-feedback/1440-page-4.png": "795cfe73a7b92ae170ddec5f28035c764a4be76c3f72e97cb54db45a2b32b0dd",
+    "tasks/20260908-161328/proof/episode-feedback/390-page-1.png": "6eafe68f3d448d6d2fa357ef37dc00f8e13fdfb0926655698487428895497404",
+    "tasks/20260908-161328/proof/episode-feedback/web-build.txt": "595cab690e3523bcb233f88db03986782a3f2eb43fcf3c86dae123b53abba429",
+    "tasks/20260908-161328/proof/episode-feedback/1440-contact-sheet.png": "7d0aaacdc7bd0ae9cc2a2c6f56fbdc33f47edb96fc35ba834099b02001ef75d2",
+    "tasks/20260908-161328/proof/episode-feedback/page-02.png": "97394f5cd08a543ccf058beb6a4130b749f84974658d7f5db602861e803aa59c",
+    "tasks/20260908-161328/proof/episode-feedback/390-page-4.png": "ade361f8251a98a1ddd44149a0c1eebad09913933aa2ad0d426c19a5cd28e0df",
+    "tasks/20260908-161328/proof/episode-feedback/1440-page-1.png": "8549ed6459e56acce09b2031e897772c4fa3569ce5907586ed41595fef37705c",
+    "tasks/20260908-161328/proof/episode-feedback/1440-art-only.png": "68fccf8d0e1d2b7c4682d473ea1ab2f707bb929837f21494a6122c85c4e77ab9",
+    "tasks/20260908-161328/proof/episode-feedback/1200-script-review.png": "ad10d1f7c9b3108ff9797a705d8c47864bd93c4b3f05d7ec6bd366aa71ccb2b5",
+    "tasks/20260908-161328/proof/expressions/generation.txt": "b658c9783095165e2ac16d9e233a86c4fa8e37d5156d1429b4068d8f858cbaaa",
+    "tasks/20260908-161328/proof/expressions/pre-commit-unit-tests.txt": "98dc86318442dfec6a8395ad473c036bf7c2db0162f6ed1c8970af420e681052",
+    "tasks/20260908-161328/proof/expressions/page-03.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/expressions/expressions-lore.png": "51e63551bfae062c52d57b46b65bb7b342dd5b57b9e3af3a0dd2160e0b291394",
+    "tasks/20260908-161328/proof/expressions/unit-tests.txt": "8bbe65ee1c94a97e0d600bf45b61feab1cdbf9751676d935cd10710e2f411a66",
+    "tasks/20260908-161328/proof/expressions/1440-page-3.png": "26597cc1e5db1de923081908337821df742ee7cbfb3bd96a180ec57ecd8fd6f6",
+    "tasks/20260908-161328/proof/expressions/browser.pid": "5b2e6748886577a5e69880c324bc33318248db31ab1ed1ad293626ec7a2f57d8",
+    "tasks/20260908-161328/proof/expressions/pre-commit-markdown.txt": "a2cba6117fddf2a3a4cb5df4641737f3b0fea918ea67dd5b1cd6b91775a21573",
+    "tasks/20260908-161328/proof/expressions/390-art-only.png": "698a6b32d3392db339293b6091de8c7adba029c0e80013f480f7ec4ac6f50f10",
+    "tasks/20260908-161328/proof/expressions/page-04.png": "fdea1a7739b6f9a73e1dcfd7e2372f045e0e8a1e420c72a1575850100d8e9f61",
+    "tasks/20260908-161328/proof/expressions/expressions-comic.png": "4d984edec2d08e49284f1a5416c4a62d3a4527a293faab1a25b278f9ae47041b",
+    "tasks/20260908-161328/proof/expressions/markdown.txt": "e341fd405953b3a836fdac4ca389bced06d59ea36ad655ae36c4c9a8f37d8ed3",
+    "tasks/20260908-161328/proof/expressions/pre-commit-scope.json": "8af42ae36cb79854ffea30614d3fae0dd8eb6c54223917ac9c2b4bcc5886e212",
+    "tasks/20260908-161328/proof/expressions/390-page-3.png": "7db397b7e697a0d1c85487fe821228e2574bfbff95a46b1708c7e2ef63f1a587",
+    "tasks/20260908-161328/proof/expressions/source-and-scope.json": "9d2c65ebcdca59f26d4a7858b3b4effce4d01ca6100302f24a422f847637d588",
+    "tasks/20260908-161328/proof/expressions/390-contact-sheet.png": "12bbe87dfa97926b7d434d0023edf9f0c4e3bdcbc22588b753c759094a33d0e2",
+    "tasks/20260908-161328/proof/expressions/web-tests.txt": "65c2617749977c77512eb2274669a3c41b06f6469c0591f1156379dc00c51a0a",
+    "tasks/20260908-161328/proof/expressions/390-page-2.png": "4d233c324a072b72b2ff6be831144b53c28a7998ecfdee9042e82a387721b0b8",
+    "tasks/20260908-161328/proof/expressions/page-01.png": "d64920759d7f082f7f4348a6acf64d5d2b04a78374fb58d819fb695a08515807",
+    "tasks/20260908-161328/proof/expressions/browser-checks.json": "d7140e67ed4f2cc47bf56f7cce6c130147e9e3c64f33e72b0fcbe4d772ccc64b",
+    "tasks/20260908-161328/proof/expressions/pre-commit-web-ci.txt": "bfc6420dfc87757cc0db0385d4bd4bcfa5c4c0aefadb3c3f1e9ad9f56e750aae",
+    "tasks/20260908-161328/proof/expressions/390-transcript.png": "47ef095262db96791ff4314fd5fa81c05eaff6b5691c06f9fc7f26d2dd69350a",
+    "tasks/20260908-161328/proof/expressions/1440-page-2.png": "4587dbf80d97fdb6286b25cc0d9e238d51276deca54e20745f147d4378259dec",
+    "tasks/20260908-161328/proof/expressions/browser.log": "f56bdeb97c987e014b302daec881cae5531589bc027e235ef3e5cfb8492c74ae",
+    "tasks/20260908-161328/proof/expressions/1440-page-4.png": "18049e53e67dfc0b6e672b43154e10fa564a7a9480e2b212fcf7c9767d03e8f0",
+    "tasks/20260908-161328/proof/expressions/390-page-1.png": "dce382e79a69a1529064e6da87dd02488d4c753eb6b1bdb0d6ecc7c4951f3a84",
+    "tasks/20260908-161328/proof/expressions/1440-contact-sheet.png": "f10d5921c5850671bddfcb66bcbfc2f62c2bae84f03c5fc9c1d07fe8911fd71f",
+    "tasks/20260908-161328/proof/expressions/page-02.png": "a3163ad660e3c070550517eff149a77d753cd968e140aad8e94439bf7d4e506c",
+    "tasks/20260908-161328/proof/expressions/390-page-4.png": "56437019893ab97ea92968bebd4fde4962a38e34f1470befcf9f37287a09c672",
+    "tasks/20260908-161328/proof/expressions/pre-commit-generation.txt": "b658c9783095165e2ac16d9e233a86c4fa8e37d5156d1429b4068d8f858cbaaa",
+    "tasks/20260908-161328/proof/expressions/1440-page-1.png": "75a46ef57efadb414657d979f8d0d304b22d8c405b1f8c375670f105bb7756a6",
+    "tasks/20260908-161328/proof/expressions/1440-art-only.png": "ee1f6021508e132b84566ec7ba90d0b47b4d0b7739de326aec94f239049fe674",
+    "tasks/20260908-161328/proof/before-episode-feedback/episode-1--generate.mjs.txt": "61f733e199492c4a8410842d73538cb030650c7ee092fc867afed25c90f958bc",
+    "tasks/20260908-161328/proof/before-episode-feedback/sources.json": "3e0670a5cc9b0b06b74429824a540fc2478c22bb2c988cac731a4976bce6fbdc",
+    "tasks/20260908-161328/proof/before-episode-feedback/episode-1--SCRIPT.md.txt": "9624caf5d69ad80289480b8bb2c9449436df1edd1b700799a09957c6e9cdde2d",
+    "tasks/20260908-161328/proof/before-episode-feedback/proof--check-episode.py.txt": "f145f24ed9db9ce7ed1bfddc79752a4b2589d906004ddc6a14fb05cdbcb13314",
+    "tasks/20260908-161328/proof/before-episode-feedback/episode-1--index.html.txt": "7961a334f3415b6b1841e1e817bd572dcc60dbc44fb06a5f0c08f27088c1adb6",
+    "tasks/20260908-161328/proof/before-episode-feedback/EPISODE-REVIEW.md.txt": "9516f2df1185c3820afe076b0d6ebe3ae4a2316964889c384872e903dfac4e86",
+    "tasks/20260908-161328/proof/before-episode-feedback/README.md": "334cc0dbce21d37560aa93de11f9bc757a0f5227f34f6aa341399b84bda9de5d",
+    "tasks/20260908-161328/proof/before-episode-feedback/retained-hashes.json": "31c42e552e6c76ecbd33c731332c776d672a046c2dcdd62894658652b8171662",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-3.svg": "b48ddb6a71399a0c326a616197753b9836ba7c4f0d586b6e7e92686a80e9d57f",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-1.png": "ef917b93aacddf7b918b5259cc31fdb924bf4a008661ad0eda63b147d1bc73e3",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-3.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-3.png": "7ee6b6a7caf10c4d58d12fba2ce62900fff9d1ae80d960902e79cc4d17c2fd16",
+    "tasks/20260908-161328/proof/reader/prefix/browser.pid": "412a6a91b80b3526d33a53fe3401c45c67c827a1b8ff02244f9984f22304e6ba",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-1.svg": "bf8386437ca42c075b16ad64a29fedf6ba6c5c9296ea9fabd6022447cfd24908",
+    "tasks/20260908-161328/proof/reader/prefix/390-art-only.png": "dbad01c82437fb3d581c4d6a3bb3560501517da243aa9e9c55fdc6801d94dbf2",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-2.png": "aad5200cffb88e2f25ed120e12374f1311517dd897e97142f34696837dcfb7fa",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-5.png": "773dd97c630f9a0502faef2d610d34b15053d3208103f4e174ca5fc11442672b",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-6.png": "f0c538bb9f698aafcea1f76d05236b98800911a07dc1b5936c10c8c36ab1b8e4",
+    "tasks/20260908-161328/proof/reader/prefix/1440-library.png": "b50510774ad44f2257b527089fdcaca284fc6449f79bcaa4556979af487d0315",
+    "tasks/20260908-161328/proof/reader/prefix/browser.txt": "46ce7f58c301fe07219a2c0a194398c65561592cc0aca0f92097428a0dd22edd",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-4.png": "e97cce5b455967880deff576059035647923c33d2a0599726266b2a9615ce369",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-5.svg": "e36e19ec267a45c3063dfb0f22882ea5820faf2c4414bfacf4c8c909c59f19cc",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-3.png": "f4c61c7f278ceb189b43d3a54cdcf7afd6bffe537899a2693795152d3b38340a",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-6.svg": "b391d5d1e4079d6a6f16817634bfe6a39603695d0d8796d1d406867ea0127f41",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-5.png": "546c80c6304198285313494f5483e2f9acbe2ac093194c10fa2553eb67ae1468",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-2.png": "f8152badd1d6866e06f63008168af76bc3186e36585cdf9b059a5b44362009a7",
+    "tasks/20260908-161328/proof/reader/prefix/1440-checks.png": "74c85237e305e1de11f747d757da31aa8e4a09e2478070798933818fd07c2769",
+    "tasks/20260908-161328/proof/reader/prefix/browser-checks.json": "8936d59a52b29ccafa00b84bac38dbcfd930ad0c3143ebbdeeff196b1280a753",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-7.png": "bf26897aa690432d38a9f400ab0aef86931d33f45c367d07d5fc205ec0bb7a3d",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-7.svg": "3070a68203be2cf6ab36f58354d52b61e32487685641d220221794c0a57c124a",
+    "tasks/20260908-161328/proof/reader/prefix/390-transcript.png": "84c0a88e0b69ba011429913a283808ac9818e6b3828a911d2b0257543d755e14",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-2.png": "10741fb447263991739939733b3815a2a7edf41562a1130a989f045d9ee36228",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-2.svg": "b7aea29eaf4ac52c12df25fcf3dc025ee34f959e10c50938a4fdfc7ee5f178b5",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-4.png": "55819d9adce16efdc6923f06d1818a3c51bac718d8ef5c800ed101f3273222a4",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-1.png": "c6a54ce8be13517610072c30b57217efeea4650afdce4b0bbdbd19e70ed7e0be",
+    "tasks/20260908-161328/proof/reader/prefix/390-library.png": "bbeb8ef722f334ccdd325a393b5bf20faa44cedf94260200b94b85cff99abbbb",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-5.png": "d6c1210f849bb2193f7b142ddf321daaacc5c5503e5edf0a576faeb12878ca20",
+    "tasks/20260908-161328/proof/reader/prefix/1440-season.png": "26f7564ad925f1345d7bb26a2d942da5661a044b3846997189c44e2e08453608",
+    "tasks/20260908-161328/proof/reader/prefix/390-page-4.png": "ddc1756746679c3720f92c5d488fdfc5c876e7410a1c97da34e596a2901d125c",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-4.svg": "0f10e67dd2c86c83d10f92087b185b82246374e1cebe6c7c3571c87d6a800558",
+    "tasks/20260908-161328/proof/reader/prefix/390-checks.png": "7ee29250866ac8cf4fb498cbbee54b64b08cdac7ba918d1aef3ac98d3ccc947c",
+    "tasks/20260908-161328/proof/reader/prefix/1440-transcript.png": "c9e0d8f5ed958ad929b9275b9bf3ede90c6f8b284db78da8845cd0000ae19066",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-6.png": "bd94c52059853e420f5b1a194fdac40773bde3c76ce190d55205169fa5f1600d",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-6.png": "85722d4f5fefa6016c379443229c0ac28f1bdbd8681049ba4aa2fde64eca00f0",
+    "tasks/20260908-161328/proof/reader/prefix/390-season.png": "15fe34c1f9d5266c279c5ad95231090398f10df7f5d6e89a5fda0a676d597f18",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-7.png": "0f79dacc1abd6e6d2b40732f2171401c6a13f91e602bd557954d01ae3ebe7c31",
+    "tasks/20260908-161328/proof/reader/prefix/1440-page-1.png": "995ef4e310f0f2cfccb55d18ac45605b99723078713d0ac22c35c73f42ccc207",
+    "tasks/20260908-161328/proof/reader/prefix/export-page-7.png": "8683b3cb104b33df9c5e4c53a7dee1edc6c170aeacd630a634758398b6b03d7d",
+    "tasks/20260908-161328/proof/reader/prefix/1440-art-only.png": "f4d5d91b53897b2275bad4382e11cb3ac776b5fefb372d700a3e2da41726bfea",
+    "tasks/20260908-161328/proof/reader/public-root/browser.pid": "663cc2ec2e355cb009a0b70bf570618ab536321fbc5ea2ad3e81106d3b558f2a",
+    "tasks/20260908-161328/proof/reader/public-root/1440-demo.png": "ec77185eee424defbe1c8d8bfb25cf9e775d8def06775d072cbfc70560e14969",
+    "tasks/20260908-161328/proof/reader/public-root/390-demo.png": "6bb117584b7802361e673c4dce08dd95af462d82cca6ec5b1058d0d7b44d7b72",
+    "tasks/20260908-161328/proof/reader/public-root/1440-library.png": "6728c5fa67c4674009489240966725158602273edbabf90e1e166caa7f6bf7b6",
+    "tasks/20260908-161328/proof/reader/public-root/browser.txt": "f9aea7e3a9c4615dd89d622042a244683c772d1e90c2f48fc86fd9cb236c0077",
+    "tasks/20260908-161328/proof/reader/public-root/browser-checks.json": "ab091b1d4c7b6102e29b2d5c6b4f1237b7ffc341b79616985cd1b9397d2deb02",
+    "tasks/20260908-161328/proof/reader/public-root/1440-reader.png": "9d4a8513ab65812d720df388ef8ae590af54259c19f2520c7f5d374b8f968adb",
+    "tasks/20260908-161328/proof/reader/public-root/390-reader.png": "70ad1f3c175723476c555a88df3eb5011717cd1d70cfe5f587e64972667fc434",
+    "tasks/20260908-161328/proof/reader/public-root/390-library.png": "89f7990728c7c78c69b0c7e9285f9da3c8c7443c94ca32b1bab33a4ffb902a65",
+    "tasks/20260908-161328/proof/reader/public-prefix/browser.pid": "b74f1715ceaeee47c48a580e1f01fe53f3364acb3069fd3399ef61a779e1de47",
+    "tasks/20260908-161328/proof/reader/public-prefix/1440-demo.png": "ec77185eee424defbe1c8d8bfb25cf9e775d8def06775d072cbfc70560e14969",
+    "tasks/20260908-161328/proof/reader/public-prefix/390-demo.png": "a61166695a7ccc53af503f0d1d9966d70a9eafc5423c94ac5783682fd010ffb0",
+    "tasks/20260908-161328/proof/reader/public-prefix/1440-library.png": "6728c5fa67c4674009489240966725158602273edbabf90e1e166caa7f6bf7b6",
+    "tasks/20260908-161328/proof/reader/public-prefix/browser.txt": "eb263dd28642de7b5170cc40101cb134d0662b453cce4155cd65e282ee124c48",
+    "tasks/20260908-161328/proof/reader/public-prefix/browser-checks.json": "bfd25de2a8eae9909c1b057c12c0aeb61f32afc3e5625839ca29b9ccedaa1342",
+    "tasks/20260908-161328/proof/reader/public-prefix/1440-reader.png": "9d4a8513ab65812d720df388ef8ae590af54259c19f2520c7f5d374b8f968adb",
+    "tasks/20260908-161328/proof/reader/public-prefix/390-reader.png": "70ad1f3c175723476c555a88df3eb5011717cd1d70cfe5f587e64972667fc434",
+    "tasks/20260908-161328/proof/reader/public-prefix/390-library.png": "89f7990728c7c78c69b0c7e9285f9da3c8c7443c94ca32b1bab33a4ffb902a65",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-3.svg": "b48ddb6a71399a0c326a616197753b9836ba7c4f0d586b6e7e92686a80e9d57f",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-1.png": "ef917b93aacddf7b918b5259cc31fdb924bf4a008661ad0eda63b147d1bc73e3",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-3.png": "211e8f1bc475442e847d0a331bfd527e407b318c8a20db2d984c17226e616b97",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-3.png": "7ee6b6a7caf10c4d58d12fba2ce62900fff9d1ae80d960902e79cc4d17c2fd16",
+    "tasks/20260908-161328/proof/consolidation/prefix/browser.pid": "6f797b1abcf959748a487c350d5fc8c445f23fb77dd1ac134dabc7bc786da2f4",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-1.svg": "bf8386437ca42c075b16ad64a29fedf6ba6c5c9296ea9fabd6022447cfd24908",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-art-only.png": "dbad01c82437fb3d581c4d6a3bb3560501517da243aa9e9c55fdc6801d94dbf2",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-2.png": "aad5200cffb88e2f25ed120e12374f1311517dd897e97142f34696837dcfb7fa",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-5.png": "773dd97c630f9a0502faef2d610d34b15053d3208103f4e174ca5fc11442672b",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-6.png": "f0c538bb9f698aafcea1f76d05236b98800911a07dc1b5936c10c8c36ab1b8e4",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-library.png": "db4ce2754fa6880f517f6fea880d686fdfc37a19cb2402da12e218172a035729",
+    "tasks/20260908-161328/proof/consolidation/prefix/browser.txt": "9e5ba8a9b7fda9ea6ac9a6ca8ebfdeb7ecbf2acd4c1a354a5abfd992302038d5",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-4.png": "e97cce5b455967880deff576059035647923c33d2a0599726266b2a9615ce369",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-5.svg": "e36e19ec267a45c3063dfb0f22882ea5820faf2c4414bfacf4c8c909c59f19cc",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-3.png": "f4c61c7f278ceb189b43d3a54cdcf7afd6bffe537899a2693795152d3b38340a",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-6.svg": "b391d5d1e4079d6a6f16817634bfe6a39603695d0d8796d1d406867ea0127f41",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-5.png": "546c80c6304198285313494f5483e2f9acbe2ac093194c10fa2553eb67ae1468",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-2.png": "f8152badd1d6866e06f63008168af76bc3186e36585cdf9b059a5b44362009a7",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-checks.png": "74c85237e305e1de11f747d757da31aa8e4a09e2478070798933818fd07c2769",
+    "tasks/20260908-161328/proof/consolidation/prefix/browser-checks.json": "568406ea8f84d385d377ca0d151595239cd5cc850f5bd5e9dc9ab6991d07df7e",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-7.png": "bf26897aa690432d38a9f400ab0aef86931d33f45c367d07d5fc205ec0bb7a3d",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-7.svg": "3070a68203be2cf6ab36f58354d52b61e32487685641d220221794c0a57c124a",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-transcript.png": "84c0a88e0b69ba011429913a283808ac9818e6b3828a911d2b0257543d755e14",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-2.png": "10741fb447263991739939733b3815a2a7edf41562a1130a989f045d9ee36228",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-2.svg": "b7aea29eaf4ac52c12df25fcf3dc025ee34f959e10c50938a4fdfc7ee5f178b5",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-4.png": "55819d9adce16efdc6923f06d1818a3c51bac718d8ef5c800ed101f3273222a4",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-1.png": "c6a54ce8be13517610072c30b57217efeea4650afdce4b0bbdbd19e70ed7e0be",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-library.png": "1c89a1b8b5ac2b100f48d54257238bcdee9ddd75270fe1e9372ee889e694cad9",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-5.png": "d6c1210f849bb2193f7b142ddf321daaacc5c5503e5edf0a576faeb12878ca20",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-season.png": "4d579ebdb30b9d49ec70d9c3c04564a9927a3c3dc6156d3cba9cd8ec13f9f692",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-page-4.png": "ddc1756746679c3720f92c5d488fdfc5c876e7410a1c97da34e596a2901d125c",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-4.svg": "0f10e67dd2c86c83d10f92087b185b82246374e1cebe6c7c3571c87d6a800558",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-checks.png": "7ee29250866ac8cf4fb498cbbee54b64b08cdac7ba918d1aef3ac98d3ccc947c",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-transcript.png": "c9e0d8f5ed958ad929b9275b9bf3ede90c6f8b284db78da8845cd0000ae19066",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-6.png": "bd94c52059853e420f5b1a194fdac40773bde3c76ce190d55205169fa5f1600d",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-6.png": "85722d4f5fefa6016c379443229c0ac28f1bdbd8681049ba4aa2fde64eca00f0",
+    "tasks/20260908-161328/proof/consolidation/prefix/390-season.png": "051b0521466de67bad33acbfc65e628c1f7b409ecddd578c512036fcaad7d8b4",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-7.png": "0f79dacc1abd6e6d2b40732f2171401c6a13f91e602bd557954d01ae3ebe7c31",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-page-1.png": "995ef4e310f0f2cfccb55d18ac45605b99723078713d0ac22c35c73f42ccc207",
+    "tasks/20260908-161328/proof/consolidation/prefix/export-page-7.png": "8683b3cb104b33df9c5e4c53a7dee1edc6c170aeacd630a634758398b6b03d7d",
+    "tasks/20260908-161328/proof/consolidation/prefix/1440-art-only.png": "f4d5d91b53897b2275bad4382e11cb3ac776b5fefb372d700a3e2da41726bfea",
+    "tasks/20260908-161328/proof/consolidation/public-root/browser.pid": "2802288c80164fd7692a29e3c2f3e75f303823dab67583a6eabcc823e34e37e2",
+    "tasks/20260908-161328/proof/consolidation/public-root/1440-library.png": "22bd927b8f679d008ee4d8a4d444f05f93e86b6fd6be194c6c0c4446f0a952bc",
+    "tasks/20260908-161328/proof/consolidation/public-root/browser.txt": "3deae43650287c57a45fc37861cf91bf241f7831fc4ac9374920bc9e165be436",
+    "tasks/20260908-161328/proof/consolidation/public-root/browser-checks.json": "884ae1b8dee08e2dba4f4b8135fbbac501115f088f14a57d908996a8f0f36864",
+    "tasks/20260908-161328/proof/consolidation/public-root/390-library.png": "24b69ab6b63ccc5199052e8ee0f157aa6e064f6b6a404a5d648beaf0267c9146",
+    "tasks/20260908-161328/proof/consolidation/public-prefix/browser.pid": "69ebf21cb65217404b24861013d2b51c43542595e84b5351e1c27b71eb77468b",
+    "tasks/20260908-161328/proof/consolidation/public-prefix/1440-library.png": "22bd927b8f679d008ee4d8a4d444f05f93e86b6fd6be194c6c0c4446f0a952bc",
+    "tasks/20260908-161328/proof/consolidation/public-prefix/browser.txt": "f004ea764b14e731be146bd0760f0628ebf6944f6ca9cf1bce9175c7fee168df",
+    "tasks/20260908-161328/proof/consolidation/public-prefix/browser-checks.json": "342de1040aa0e19038da97107b08e4c5957f0591e97935903c7a01cc5fa559a4",
+    "tasks/20260908-161328/proof/consolidation/public-prefix/390-library.png": "24b69ab6b63ccc5199052e8ee0f157aa6e064f6b6a404a5d648beaf0267c9146"
+  },
+  "pages": [
+    {
+      "number": 1,
+      "title": "A place to come back to",
+      "purpose": "An inhabited workplace, a coffee break, and an ordinary call from processing.",
+      "panels": [
+        {
+          "id": "1a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            1416,
+            360
+          ],
+          "action": "Baikal at work, with Ebro and Kaveri berthed against Saturn.",
+          "lines": [
+            [
+              "Location and time",
+              "BAIKAL. Saturn system. 2078. Clearwell Waterworks' main base"
+            ]
+          ],
+          "balloons": []
+        },
+        {
+          "id": "1b",
+          "at": [
+            42,
+            466
+          ],
+          "size": [
+            1416,
+            477
+          ],
+          "action": "Rina and Jonah share a coffee break in Baikal before Leila calls from processing.",
+          "lines": [
+            [
+              "Rina",
+              "Coffee's still hot. Take a minute before somebody finds you another job."
+            ],
+            [
+              "Jonah",
+              "I'll settle for half a minute."
+            ],
+            [
+              "Leila / comms",
+              "Jonah? Processing line's stopped. Can you come down?"
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 468,
+              "y": 486,
+              "width": 500,
+              "speaker": "Rina",
+              "text": "Coffee's still hot. Take a minute\nbefore somebody finds you\nanother job.",
+              "tip": [
+                662,
+                681
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 1024,
+              "y": 486,
+              "width": 409,
+              "speaker": "Jonah",
+              "text": "I'll settle for half a minute.",
+              "tip": [
+                1170,
+                680
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 67,
+              "y": 786,
+              "width": 365,
+              "speaker": "Leila / comms",
+              "text": "Jonah? Processing line's\nstopped. Can you\ncome down?",
+              "tip": [
+                54,
+                938
+              ],
+              "side": "bottom"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "One line down",
+      "purpose": "A repair judgment, not a residential life-support crisis.",
+      "panels": [
+        {
+          "id": "2a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            836,
+            857
+          ],
+          "action": "Leila examines the isolated pump housing with her hands while Jonah listens beside the machinery.",
+          "lines": [
+            [
+              "Leila",
+              "Circulation pump's failed. We've isolated the line. The others are still running."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 72,
+              "y": 110,
+              "width": 513,
+              "speaker": "Leila",
+              "text": "Circulation pump's failed.\nWe've isolated the line.\nThe others are still running.",
+              "tip": [
+                462,
+                256
+              ],
+              "side": "bottom"
+            }
+          ]
+        },
+        {
+          "id": "2b",
+          "at": [
+            898,
+            86
+          ],
+          "size": [
+            560,
+            364
+          ],
+          "action": "Samir checks residential supplies at the processing console while Leila examines the isolated line.",
+          "lines": [
+            [
+              "Samir",
+              "Residential supply is normal."
+            ],
+            [
+              "Display",
+              "Residential supplies: normal."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 914,
+              "y": 104,
+              "width": 307,
+              "speaker": "Samir",
+              "text": "Residential supply\nis normal.",
+              "tip": [
+                1271,
+                253
+              ],
+              "side": "bottom"
+            }
+          ]
+        },
+        {
+          "id": "2c",
+          "at": [
+            898,
+            470
+          ],
+          "size": [
+            560,
+            473
+          ],
+          "action": "Leila explains why replacing the assembly is quicker than an overhaul.",
+          "lines": [
+            [
+              "Jonah / off-panel",
+              "Can you rebuild it here?"
+            ],
+            [
+              "Leila",
+              "Yes. But we'd lose more production waiting on the overhaul. A replacement gets us running sooner."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 916,
+              "y": 488,
+              "width": 314,
+              "speaker": "Jonah / off-panel",
+              "text": "Can you rebuild it here?",
+              "tip": [
+                901,
+                628
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 916,
+              "y": 614,
+              "width": 314,
+              "speaker": "Leila",
+              "text": "Yes. But we'd lose\nmore production waiting\non the overhaul.\nA replacement gets us\nrunning sooner.",
+              "tip": [
+                1301,
+                787
+              ],
+              "side": "bottom"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "A useful job",
+      "purpose": "The same pickup, delivery commitment, and borrowed-mug exchange, framed closer.",
+      "panels": [
+        {
+          "id": "3a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            1416,
+            415
+          ],
+          "action": "Elena and Jonah arrange the Aquila pickup, with the waiting Ebro framed by the window.",
+          "lines": [
+            [
+              "Elena",
+              "Aquila has a replacement assembly. Can Kaveri collect it?"
+            ],
+            [
+              "Jonah",
+              "Yes. We can leave as soon as everyone's aboard."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 67,
+              "y": 106,
+              "width": 430,
+              "speaker": "Elena",
+              "text": "Aquila has a replacement\nassembly. Can Kaveri\ncollect it?",
+              "tip": [
+                312,
+                331
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 1000,
+              "y": 106,
+              "width": 433,
+              "speaker": "Jonah",
+              "text": "Yes. We can leave as soon\nas everyone's aboard.",
+              "tip": [
+                1279,
+                296
+              ],
+              "side": "bottom"
+            }
+          ]
+        },
+        {
+          "id": "3b",
+          "at": [
+            42,
+            521
+          ],
+          "size": [
+            680,
+            422
+          ],
+          "action": "A delivery record connects Ebro and Foundation while Elena explains the commitment.",
+          "lines": [
+            [
+              "Elena",
+              "EarthWorks is expecting Ebro's load aboard Foundation. We need that line back to have it ready on time."
+            ],
+            [
+              "Delivery record",
+              "Ebro. Water delivery for Foundation."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 62,
+              "y": 541,
+              "width": 322,
+              "speaker": "Elena",
+              "text": "EarthWorks is expecting\nEbro's load aboard\nFoundation. We need that\nline back to have it\nready on time.",
+              "tip": [
+                505,
+                821
+              ],
+              "side": "bottom"
+            }
+          ]
+        },
+        {
+          "id": "3c",
+          "at": [
+            742,
+            521
+          ],
+          "size": [
+            716,
+            422
+          ],
+          "action": "Elena closes the exchange with the borrowed-mug joke; Jonah answers from the foreground.",
+          "lines": [
+            [
+              "Elena",
+              "And bring the mug back. We haven't budgeted for a replacement."
+            ],
+            [
+              "Jonah",
+              "I'll put it on the cargo list."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 764,
+              "y": 541,
+              "width": 352,
+              "speaker": "Elena",
+              "text": "And bring the mug back.\nWe haven't budgeted\nfor a replacement.",
+              "tip": [
+                1205,
+                774
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 766,
+              "y": 698,
+              "width": 247,
+              "speaker": "Jonah",
+              "text": "I'll put it on\nthe cargo list.",
+              "tip": [
+                742,
+                861
+              ],
+              "side": "bottom"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Outbound",
+      "purpose": "A silent departure. Aquila is the next destination, not an arrival shown here.",
+      "panels": [
+        {
+          "id": "4a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            1416,
+            407
+          ],
+          "action": "A Kaveri location card introduces the move aboard. Tomas reports readiness and Jonah gives the departure order.",
+          "lines": [
+            [
+              "Location and time",
+              "KAVERI. Departing Baikal. Later that day. Clearwell Waterworks' workship"
+            ],
+            [
+              "Tomas",
+              "All aboard. Cargo space is clear, and the Aquila course is ready."
+            ],
+            [
+              "Jonah",
+              "All right. Take us out."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 497,
+              "y": 106,
+              "width": 472,
+              "speaker": "Tomas",
+              "text": "All aboard. Cargo space is\nclear, and the Aquila course\nis ready.",
+              "tip": [
+                678,
+                301
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 1041,
+              "y": 106,
+              "width": 389,
+              "speaker": "Jonah",
+              "text": "All right. Take us out.",
+              "tip": [
+                1239,
+                296
+              ],
+              "side": "bottom"
+            }
+          ]
+        },
+        {
+          "id": "4b",
+          "at": [
+            42,
+            513
+          ],
+          "size": [
+            1416,
+            430
+          ],
+          "action": "Kaveri departs with its cradle empty and handling arm stowed. Baikal and Ebro recede. No attack or pursuit appears.",
+          "lines": [],
+          "balloons": []
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Arrivals",
+      "purpose": "A working freight town, an in-person inspection, and a restrained load in freefall.",
+      "panels": [
+        {
+          "id": "5a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            1416,
+            350
+          ],
+          "action": "Aquila from Kaveri's approach. Give the port useful scale and activity without adding a roster of identifiable background ships. Kaveri remains the camera's anchor. A location card says AQUILA / Saturn system / Later / Farspan's freight hub; \"Later\" is a draft stamp, not a fixed travel duration.",
+          "lines": [
+            [
+              "Location and time",
+              "AQUILA. Saturn system. Later. Farspan's freight hub"
+            ],
+            [
+              "Tomas / comms",
+              "Aquila, Kaveri. Inbound for the Clearwell collection."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 67,
+              "y": 295,
+              "width": 455,
+              "speaker": "Tomas / comms",
+              "text": "Aquila, Kaveri. Inbound for the\nClearwell collection.",
+              "tip": [
+                47,
+                419
+              ],
+              "side": "left"
+            }
+          ]
+        },
+        {
+          "id": "5b",
+          "at": [
+            42,
+            456
+          ],
+          "size": [
+            700,
+            487
+          ],
+          "action": "In Aquila's pressurized, non-rotating transfer hall, Leila checks the assembly's connections in person. Rina controls its motion with the handling frame and restraints; Samir compares its identification with the order and delivery record. Handholds and tethered equipment establish freefall, not a standing warehouse. Jonah keeps the shared access clear, just outside this closer view. Both ships remain outside, visible through berth windows. Leila's closer check follows in 5c; she has travelled aboard Kaveri with them, not stayed at Baikal.",
+          "lines": [
+            [
+              "Rina",
+              "This is ours?"
+            ],
+            [
+              "Samir",
+              "Matches the order. Leila?"
+            ],
+            [
+              "Rina",
+              "Before I strap it down."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 60,
+              "y": 474,
+              "width": 247,
+              "speaker": "Rina",
+              "text": "This is ours?",
+              "tip": [
+                194,
+                647
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 388,
+              "y": 474,
+              "width": 335,
+              "speaker": "Samir",
+              "text": "Matches the order. Leila?",
+              "tip": [
+                597,
+                666
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 262,
+              "y": 709,
+              "width": 262,
+              "speaker": "Rina",
+              "text": "Before I strap it\ndown.",
+              "tip": [
+                223,
+                706
+              ],
+              "side": "left"
+            }
+          ]
+        },
+        {
+          "id": "5c",
+          "at": [
+            762,
+            456
+          ],
+          "size": [
+            696,
+            487
+          ],
+          "action": "Leila finishes checking the connection faces in person. Samir is beside her, ready to complete the receipt; Rina waits for her check before securing the load.",
+          "lines": [
+            [
+              "Leila",
+              "That's the right one. Keep the protective covers on."
+            ],
+            [
+              "Samir",
+              "Even the awkward one?"
+            ],
+            [
+              "Leila",
+              "Especially the awkward one."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 780,
+              "y": 474,
+              "width": 374,
+              "speaker": "Leila",
+              "text": "That's the right one. Keep\nthe protective covers on.",
+              "tip": [
+                1250,
+                667
+              ],
+              "side": "right"
+            },
+            {
+              "x": 780,
+              "y": 630,
+              "width": 315,
+              "speaker": "Samir",
+              "text": "Even the awkward one?",
+              "tip": [
+                762,
+                696
+              ],
+              "side": "left"
+            },
+            {
+              "x": 780,
+              "y": 774,
+              "width": 341,
+              "speaker": "Leila",
+              "text": "Especially the awkward\none.",
+              "tip": [
+                1265,
+                749
+              ],
+              "side": "right"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Another crew's work",
+      "purpose": "Gantry and Nadia are ordinary working colleagues. The freight lock stays closed to space.",
+      "panels": [
+        {
+          "id": "6a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            1416,
+            400
+          ],
+          "action": "Nadia and Rina share the pressurized transfer hall. Through its windows we see Gantry intact outside. Nadia waits while Rina guides Clearwell's restrained assembly toward the freight lock. Gantry's name is visible on its hull. Its unarmed workship design should be recognizable again at the rescue.",
+          "lines": [
+            [
+              "Nadia",
+              "Gantry here. Are you finished with that space?"
+            ],
+            [
+              "Rina",
+              "Nearly. It's awkward to turn."
+            ],
+            [
+              "Nadia",
+              "I'll keep our load clear."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 67,
+              "y": 104,
+              "width": 402,
+              "speaker": "Nadia",
+              "text": "Gantry here. Are you finished\nwith that space?",
+              "tip": [
+                398,
+                279
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 529,
+              "y": 104,
+              "width": 395,
+              "speaker": "Rina",
+              "text": "Nearly. It's awkward to turn.",
+              "tip": [
+                756,
+                276
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 67,
+              "y": 298,
+              "width": 275,
+              "speaker": "Nadia",
+              "text": "I'll keep our load\nclear.",
+              "tip": [
+                407,
+                329
+              ],
+              "side": "right"
+            }
+          ]
+        },
+        {
+          "id": "6b",
+          "at": [
+            42,
+            506
+          ],
+          "size": [
+            680,
+            437
+          ],
+          "action": "Jonah joins Nadia at the hall's handholds after the load clears their shared access. The freight lock has closed behind them, with the assembly restrained inside. Both doors are never open together. This is still a working exchange, not a meeting-room conversation.",
+          "lines": [
+            [
+              "Jonah",
+              "Thanks for waiting."
+            ],
+            [
+              "Nadia",
+              "Better than chasing both loads. Sen. Gantry."
+            ],
+            [
+              "Jonah",
+              "Mercer. Kaveri."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 60,
+              "y": 524,
+              "width": 267,
+              "speaker": "Jonah",
+              "text": "Thanks for waiting.",
+              "tip": [
+                171,
+                697
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 363,
+              "y": 524,
+              "width": 339,
+              "speaker": "Nadia",
+              "text": "Better than chasing both\nloads. Sen. Gantry.",
+              "tip": [
+                585,
+                700
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 264,
+              "y": 813,
+              "width": 251,
+              "speaker": "Jonah",
+              "text": "Mercer. Kaveri.",
+              "tip": [
+                210,
+                758
+              ],
+              "side": "left"
+            }
+          ]
+        },
+        {
+          "id": "6c",
+          "at": [
+            742,
+            506
+          ],
+          "size": [
+            716,
+            437
+          ],
+          "action": "Rina signals that the assembly is secure for the freight-lock cycle. Nadia releases her handhold to return to her own job; the frontal likeness stays unchanged, and her reaching arm carries the movement. Both crews have somewhere to be. The sealed freight lock and exterior handling gear transfer the assembly to Kaveri's external cradle between this scene and 7a; no open doorway connects the pressurized hall to space.",
+          "lines": [
+            [
+              "Nadia",
+              "Replacement?"
+            ],
+            [
+              "Jonah",
+              "Baikal's lost a processing line."
+            ],
+            [
+              "Nadia",
+              "Glad you found one."
+            ],
+            [
+              "Jonah",
+              "So are we. Safe trip."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 760,
+              "y": 524,
+              "width": 241,
+              "speaker": "Nadia",
+              "text": "Replacement?",
+              "tip": [
+                875,
+                694
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 1052,
+              "y": 524,
+              "width": 385,
+              "speaker": "Jonah",
+              "text": "Baikal's lost a processing\nline.",
+              "tip": [
+                1291,
+                702
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 760,
+              "y": 814,
+              "width": 291,
+              "speaker": "Nadia",
+              "text": "Glad you found one.",
+              "tip": [
+                874,
+                782
+              ],
+              "side": "top"
+            },
+            {
+              "x": 1125,
+              "y": 826,
+              "width": 313,
+              "speaker": "Jonah",
+              "text": "So are we. Safe trip.",
+              "tip": [
+                1300,
+                790
+              ],
+              "side": "top"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "On the way home",
+      "purpose": "Gantry leaves first. Kaveri follows with the covered assembly; later, thoughts turn to home.",
+      "panels": [
+        {
+          "id": "7a",
+          "at": [
+            42,
+            86
+          ],
+          "size": [
+            1416,
+            350
+          ],
+          "action": "Back inside Kaveri, Rina and Samir finish the restraint and access checks after the assembly has been clamped into the external cradle. The display confirms the load; they do not stand outside without suits. Through the window, Gantry leaves first, intact. No threatening shape watches it depart, and no departure interval is printed.",
+          "lines": [
+            [
+              "Rina",
+              "Load's secured. Passage is clear."
+            ],
+            [
+              "Samir",
+              "And every cover is still on it."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 894,
+              "y": 104,
+              "width": 281,
+              "speaker": "Rina",
+              "text": "Load's secured.\nPassage is clear.",
+              "tip": [
+                1019,
+                259
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 1183,
+              "y": 104,
+              "width": 257,
+              "speaker": "Samir",
+              "text": "And every cover is\nstill on it.",
+              "tip": [
+                1296,
+                267
+              ],
+              "side": "bottom"
+            }
+          ]
+        },
+        {
+          "id": "7b",
+          "at": [
+            42,
+            456
+          ],
+          "size": [
+            680,
+            487
+          ],
+          "action": "Kaveri outbound from Aquila, with the same covered assembly visible in its external cradle. A quiet, wider panel with the town falling behind. No dialogue. No promise that the next panel is only moments later.",
+          "lines": [],
+          "balloons": []
+        },
+        {
+          "id": "7c",
+          "at": [
+            742,
+            456
+          ],
+          "size": [
+            716,
+            487
+          ],
+          "action": "Later in the return leg. Leila checks the load record near Jonah. The work is under control, and her attention can briefly return to home.",
+          "lines": [
+            [
+              "Leila",
+              "I might make game night after all."
+            ],
+            [
+              "Jonah",
+              "Is that good news for everyone else?"
+            ],
+            [
+              "Leila",
+              "They can practice while I'm away."
+            ]
+          ],
+          "balloons": [
+            {
+              "x": 760,
+              "y": 474,
+              "width": 333,
+              "speaker": "Leila",
+              "text": "I might make game night\nafter all.",
+              "tip": [
+                886,
+                667
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 1124,
+              "y": 474,
+              "width": 314,
+              "speaker": "Jonah",
+              "text": "Is that good news for\neveryone else?",
+              "tip": [
+                1290,
+                675
+              ],
+              "side": "bottom"
+            },
+            {
+              "x": 760,
+              "y": 812,
+              "width": 378,
+              "speaker": "Leila",
+              "text": "They can practice while I'm\naway.",
+              "tip": [
+                897,
+                757
+              ],
+              "side": "top"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

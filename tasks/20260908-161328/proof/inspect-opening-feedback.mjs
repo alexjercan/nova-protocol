@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {readFile, writeFile, mkdtemp, mkdir, rm} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import {setTimeout as delay} from 'node:timers/promises';
+const work=fileURLToPath(new URL('./episode-feedback/',import.meta.url));
+const root=new URL('../comic-opening-poc/',import.meta.url).href;
+await mkdir(work,{recursive:true});
+const profile=await mkdtemp('/tmp/nova-story-preview-');
+const browser=spawn('chromium',['--headless','--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{stdio:['ignore','ignore','pipe']});
+await writeFile(`${work}/browser.pid`,String(browser.pid));
+let log='',socket;
+browser.stderr.on('data',chunk=>log+=chunk);
+try {
+ let port;
+ for(let i=0;i<100;i++){try{port=(await readFile(`${profile}/DevToolsActivePort`,'utf8')).split('\n')[0];break}catch{await delay(100)}}
+ assert(port);
+ const tabs=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+ socket=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
+ await new Promise(resolve=>socket.addEventListener('open',resolve,{once:true}));
+ let id=0;const pending=new Map(),errors=[],requests=[];
+ socket.addEventListener('message',event=>{const m=JSON.parse(event.data);if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);if(m.method==='Network.requestWillBeSent')requests.push(m.params.request.url);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);m.error?reject(m.error):resolve(m.result)}});
+ const send=(method,params={})=>new Promise((resolve,reject)=>{const next=++id;pending.set(next,{resolve,reject});socket.send(JSON.stringify({id:next,method,params}))});
+ const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value};
+ const navigate=async file=>{const url=new URL(file,root).href;await send('Page.navigate',{url});for(let i=0;i<100;i++){if(await evaluate(`location.href===${JSON.stringify(url)}&&document.readyState==='complete'`))break;await delay(60)}assert(await evaluate(`location.href===${JSON.stringify(url)}&&document.readyState==='complete'`));await evaluate('document.fonts.ready');await delay(100)};
+ const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png'});await writeFile(`${work}/${name}.png`,Buffer.from(r.data,'base64'))};
+ await send('Page.enable');await send('Runtime.enable');await send('Network.enable');await send('Page.bringToFront');
+ await send('Emulation.setDeviceMetricsOverride',{width:1500,height:1000,deviceScaleFactor:1,mobile:false});
+ for(let n=1;n<=4;n++){
+  await navigate(`page-0${n}.svg`);
+  assert.equal(await evaluate("document.querySelectorAll('.title-card').length"),n===1||n===4?1:0);
+  if(n===1||n===4)assert(await evaluate("document.querySelector('.title-card').closest('[role=group]')===document.querySelector('[role=group]')"),'The orientation card is in the first panel');
+  const overflow=await evaluate(`(()=>{const bad=[];for(const box of document.querySelectorAll('.dialogue,.title-card')){const frame=box.querySelector('path,rect').getBBox();for(const t of box.querySelectorAll('text')){const b=t.getBBox();if(b.x<frame.x+10||b.x+b.width>frame.x+frame.width-10||b.y<frame.y||b.y+b.height>frame.y+frame.height)bad.push(t.textContent)}}return bad})()`);
+  assert.deepEqual(overflow,[],`Page ${n} lettering fits its boxes`);
+  const expressions=await evaluate("[...document.querySelectorAll('[data-expression]')].map(n=>[n.dataset.face,n.dataset.expression])");
+  assert.deepEqual(expressions,n===1?[['rina','amused'],['jonah','wry']]:[],'Only the page-1 pair uses new expressions');
+  if(n===1)assert(await evaluate("document.querySelector('.title-card').textContent.includes('2078')"));
+  if(n===4)assert(await evaluate("document.querySelector('.title-card').textContent.includes('Later that day')"));
+  if(n===2){
+   assert.equal(await evaluate("document.querySelectorAll('[data-face=samir]').length"),1);
+   assert.equal(await evaluate("document.querySelectorAll('[data-pose=inspection-forearms]').length"),2);
+   assert(await evaluate("(()=>{const b=document.querySelector('[data-face=samir]').getBoundingClientRect();return b.left>898&&b.right<1458&&b.top>86&&b.bottom<450})()"));
+  }
+  await shot(`page-0${n}`);
+ }
+ for(const scheme of ['comic','lore']){
+  await navigate(`../expression-study/expressions-${scheme}.svg`);
+  assert.equal(await evaluate("document.querySelectorAll('[data-gaze=forward]').length"),4);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-expression]')].map(n=>[n.dataset.face,n.dataset.expression])"),[['rina','amused'],['jonah','wry']]);
+  assert.equal(await evaluate("document.querySelectorAll('filter').length"),scheme==='lore'?4:0);
+  assert(await evaluate("(()=>{const ids=[...document.querySelectorAll('[id]')].map(n=>n.id);return ids.length===new Set(ids).size})()"));
+  assert(await evaluate("[...document.querySelectorAll('[data-face]')].every(n=>{const b=n.getBoundingClientRect();return b.left>=0&&b.top>=0&&b.right<=innerWidth&&b.bottom<=innerHeight})"));
+  await shot(`expressions-${scheme}`);
+ }
+ const reports=[];
+ for(const width of [1440,390]){
+  await send('Emulation.setDeviceMetricsOverride',{width,height:1100,deviceScaleFactor:1,mobile:false});
+  await navigate('index.html');
+  const hrefs=await evaluate("[...document.querySelectorAll('a[href]')].map(a=>a.getAttribute('href')).filter(href=>!href.startsWith('#'))");
+  for(const href of hrefs){const target=new URL(href,root);assert.equal(target.protocol,'file:');await readFile(target)}
+  for(let n=1;n<=4;n++){
+   await evaluate(`document.querySelector('[data-number="${n}"]').click()`);await delay(100);await evaluate('scrollTo(0,0)');
+   assert.equal(await evaluate("document.querySelectorAll('.page:not([hidden])').length"),1);
+   assert.equal(await evaluate("document.querySelector('[aria-current=page]').dataset.number"),String(n));
+   assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));
+   assert.equal(await evaluate("document.querySelectorAll('svg').length"),4);
+   await shot(`${width}-page-${n}`);
+   reports.push({width,page:n});
+  }
+  assert(await evaluate("document.getElementById('next').disabled"));
+  await evaluate("document.getElementById('previous').click()");await delay(80);
+  assert.equal(await evaluate("document.querySelector('[aria-current=page]').dataset.number"),'3');
+  await evaluate("document.querySelector('[data-number=\"1\"]').click()");await delay(80);
+  assert(await evaluate("document.getElementById('previous').disabled"));
+  await send('Page.bringToFront');await evaluate("document.activeElement.blur()");
+  await send('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+  await send('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});await delay(80);
+  assert.equal(await evaluate("document.querySelector('[aria-current=page]').dataset.number"),'2');
+  await evaluate("document.getElementById('art').click()");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('#page-2 .dialogue')).visibility"),'hidden');
+  assert(await evaluate("[...document.querySelectorAll('.title-card,.scene-art')].every(n=>getComputedStyle(n).visibility==='visible')"));
+  await shot(`${width}-art-only`);
+  await evaluate("document.getElementById('art').click();document.querySelector('#page-2 details').open=true");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('#page-2 .dialogue')).visibility"),'visible');
+  if(width===390){await evaluate("document.querySelector('#page-2 details').scrollIntoView()");await shot('390-transcript')}
+  await evaluate("document.getElementById('contact').click();scrollTo(0,0)");
+  assert.equal(await evaluate("document.querySelectorAll('.page:not([hidden])').length"),4);
+  assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));
+  await shot(`${width}-contact-sheet`);
+ }
+ for(const width of [1200,390]){
+  await send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});
+  await navigate('../episode-1/index.html');
+  assert.equal(await evaluate("[...document.querySelectorAll('h2')].filter(h=>/^Page \\d+:/.test(h.textContent)).length"),18);
+  assert(await evaluate("!document.body.textContent.includes('calendar date TBD')&&!document.body.textContent.includes('practise')"));
+  assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));
+  await shot(`${width}-script-review`);
+  for(const [id,label] of [['page-5-arrivals','pickup'],['page-10-the-decision','refusal'],['page-14-bring-him-through','transfer']]){
+   await evaluate(`document.getElementById(${JSON.stringify(id)}).scrollIntoView()`);
+   await shot(`${width}-script-${label}`);
+  }
+ }
+ assert.equal(errors.length,0,JSON.stringify(errors));
+ assert(requests.length>0&&requests.every(url=>url.startsWith('file:')),JSON.stringify(requests));
+ await writeFile(`${work}/browser-checks.json`,JSON.stringify({reports,errors,requests,checks:['direct file loading','raw SVGs','page navigation','keyboard','art toggle','contact sheet','mobile transcripts','no overflow','local comparison links','orientation cards in first panels','cards and artwork remain visible under Art only','only page-1 Rina and Jonah use expression overrides','original/variant comparison sheets in comic and lore colors','comparison IDs are unique and heads fit the canvas','2078 and relative departure stamp','Samir on page 2 with two inspection poses','revised eighteen-page script at desktop and phone widths']},null,2));
+ console.log('Four SVG pages, two expression sheets, and eight page/viewport views inspected. Navigation, keyboard, art toggle, contact sheet and transcripts pass. No script exceptions.');
+}finally{
+ socket?.close();browser.kill('SIGTERM');await writeFile(`${work}/browser.log`,log);
+ for(let i=0;i<50&&browser.exitCode===null&&browser.signalCode===null;i++)await delay(100);
+ if(browser.exitCode!==null||browser.signalCode!==null)await rm(profile,{recursive:true,force:true});
+}

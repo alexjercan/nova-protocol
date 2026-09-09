@@ -1,0 +1,5 @@
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+ INFO Book building has started
+Warning: The mdbook-mermaid preprocessor was built against version 0.5.0 of mdbook, but we're being called from version 0.5.2
+ INFO Running the html backend
+ INFO HTML book written to `/home/alex/personal/nova-protocol/book`

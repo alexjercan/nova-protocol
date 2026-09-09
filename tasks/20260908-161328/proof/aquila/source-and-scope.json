@@ -1,0 +1,55 @@
+{
+  "starting_head": "f4ea1bce429a585cb49b9280f963b88ba4a033db",
+  "checked_head": "f4ea1bce429a585cb49b9280f963b88ba4a033db",
+  "page_count": 18,
+  "panel_count": 50,
+  "spoken_words": 730,
+  "illustrated_pages": 7,
+  "new_panels": 9,
+  "retained_ship_renders": 35,
+  "changed_existing_paths": [
+    "scripts/nova_illustration/README.md",
+    "scripts/nova_illustration/colors.py",
+    "scripts/nova_illustration/lettering.py",
+    "scripts/nova_illustration/portraits.py",
+    "scripts/nova_illustration/scenery.py",
+    "scripts/nova_illustration/ships.py",
+    "scripts/nova_illustration/test_illustration.py",
+    "tasks/20260908-161328/GANTRY-REVIEW.md",
+    "tasks/20260908-161328/TASK.md",
+    "tasks/20260908-161328/episode-1/SCRIPT.md",
+    "tasks/20260908-161328/episode-1/generate.mjs",
+    "tasks/20260908-161328/episode-1/index.html",
+    "tasks/20260908-161328/gantry-study/README.md",
+    "web/src/lore/seasons/season-1.md"
+  ],
+  "protected_files": 640,
+  "concurrent_paths_not_validated": [
+    "web/src/assets/loops/manifest.txt",
+    "web/src/news/0.13.0.md"
+  ],
+  "svg_hashes": [
+    {
+      "page": 5,
+      "sha256": "baf873f264507735e3e7723ef8b2512333932aba5a1914c1e9c62bd9732ec2ea"
+    },
+    {
+      "page": 6,
+      "sha256": "eb6f535731967231816add8d2614accb0343cdddc843fa30d87aeaac30ee9b59"
+    },
+    {
+      "page": 7,
+      "sha256": "77c244d94179c5e1fbd9f7e2ce087985a1620c92389bf78d02e4783e95043b4a"
+    }
+  ],
+  "checks": [
+    "only two spoken lines changed",
+    "pages 8-18 story content unchanged",
+    "accepted opening, Gantry studies, faces, 24 public lore SVGs and all earlier proof retained",
+    "35 prior intact/stranded ship renders exact",
+    "one assembly model for inspection and loaded cradle",
+    "literal script text, ordered panels, safe SVGs, valid clip references",
+    "private comic sources remain outside publication; public demo unchanged",
+    "seven writing acceptance items still open; index empty"
+  ]
+}

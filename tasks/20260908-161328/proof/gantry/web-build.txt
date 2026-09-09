@@ -1,0 +1,32 @@
+
+> nova-protocol-web@1.0.0 build
+> webpack --config webpack.config.js
+
+assets by status 163 MiB [compared for emit] 453 assets
+assets by status 640 KiB [emitted]
+  assets by path assets/ 624 KiB
+    asset assets/lore/gantry-design-concept.svg 605 KiB [emitted] [from: src/assets/lore/gantry-design-concept.svg] [copied]
+    asset assets/lore/owen-park-portrait-concept.svg 6.23 KiB [emitted] [from: src/assets/lore/owen-park-portrait-concept.svg] [copied]
+    asset assets/lore/ivo-marin-portrait-concept.svg 5.95 KiB [emitted] [from: src/assets/lore/ivo-marin-portrait-concept.svg] [copied]
+    asset assets/lore/nadia-sen-portrait-concept.svg 5.84 KiB [emitted] [from: src/assets/lore/nadia-sen-portrait-concept.svg] [copied]
+  assets by path lore/ 16.6 KiB
+    asset lore/ships/gantry/index.html 4.74 KiB [emitted]
+    asset lore/characters/nadia-sen/index.html 4.07 KiB [emitted]
+    asset lore/characters/ivo-marin/index.html 3.89 KiB [emitted]
+    asset lore/characters/owen-park/index.html 3.88 KiB [emitted]
+orphan modules 613 KiB [orphan] 490 modules
+runtime modules 12.4 KiB 33 modules
+modules by path ./node_modules/ 7.47 MiB 1067 modules
+modules by path ./src/ 410 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./src/*.ts 249 KiB
+    ./src/index.ts 257 bytes [built] [code generated]
+    + 8 modules
+  modules by path ./src/comics/ 21.8 KiB
+    modules by path ./src/comics/*.ts 21.1 KiB 3 modules
+    + 2 modules
+  modules by path ./src/*.css 92.4 KiB
+    ./src/style.css 1.19 KiB [built] [code generated]
+    + 3 modules
+  ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+  ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 2962 ms

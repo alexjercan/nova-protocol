@@ -1,0 +1,88 @@
+{
+  "pages": [
+    {
+      "number": 5,
+      "badText": [],
+      "badFaces": [],
+      "faceOverlaps": [],
+      "faces": [
+        "rina",
+        "samir",
+        "leila"
+      ],
+      "ships": [
+        "gantry",
+        "kaveri",
+        "kaveri"
+      ],
+      "closedLocks": 0
+    },
+    {
+      "number": 6,
+      "badText": [],
+      "badFaces": [],
+      "faceOverlaps": [],
+      "faces": [
+        "nadia",
+        "rina",
+        "jonah",
+        "nadia",
+        "nadia",
+        "jonah"
+      ],
+      "ships": [
+        "gantry"
+      ],
+      "closedLocks": 2
+    },
+    {
+      "number": 7,
+      "badText": [],
+      "badFaces": [],
+      "faceOverlaps": [],
+      "faces": [
+        "rina",
+        "samir",
+        "leila",
+        "jonah"
+      ],
+      "ships": [
+        "gantry",
+        "kaveri"
+      ],
+      "closedLocks": 0
+    }
+  ],
+  "requests": [
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-05.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-06.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-07.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/episode-1/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-01.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-02.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-03.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-04.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-05.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-06.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-07.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/episode-1/index.html",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-01.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-02.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-03.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/comic-opening-poc/page-04.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-05.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-06.svg",
+    "file:///home/alex/personal/nova-protocol/tasks/20260908-161328/aquila-pages/page-07.svg"
+  ],
+  "errors": [],
+  "checks": [
+    "three full-size SVGs",
+    "unique IDs, lettering and face bounds",
+    "pressure windows and closed freight locks",
+    "desktop/phone board, Art only, and transcripts",
+    "18-page script now includes seven illustrations",
+    "private local-only requests"
+  ]
+}

@@ -57,6 +57,22 @@ for (const crew of ["nadia-sen", "owen-park", "ivo-marin"]) {
         `${crew}'s identity links back to Gantry`
     );
 }
+for (const crew of ["nadia-sen", "owen-park", "ivo-marin"]) {
+    assert(
+        pages
+            .get(`characters/${crew}/`)
+            .html.includes(
+                `src="../../../assets/lore/${crew}-portrait-concept.svg"`
+            ),
+        `${crew} has a starting-identity portrait`
+    );
+}
+assert(
+    pages
+        .get("ships/gantry/")
+        .html.includes('src="../../../assets/lore/gantry-design-concept.svg"'),
+    "Gantry links its intact shared-model design sheet"
+);
 for (const subject of [
     "organizations/clearwell-waterworks/",
     "places/baikal/",

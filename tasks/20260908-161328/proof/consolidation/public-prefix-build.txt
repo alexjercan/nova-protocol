@@ -1,0 +1,34 @@
+
+> nova-protocol-web@1.0.0 build
+> webpack --config webpack.config.js --output-path .cache/story/public-prefix
+
+assets by path assets/ 185 MiB 254 assets
+assets by path nova-hud/ 606 KiB 118 assets
+assets by path *.js 10.9 MiB 71 assets
+assets by path lore/ 166 KiB 32 assets
+assets by path wiki/ 292 KiB 22 assets
+assets by path create/ 609 KiB 19 assets
+assets by path news/ 408 KiB 14 assets
+assets by path changelog/ 4.66 KiB
+  asset changelog/0.1.0/index.html 400 bytes [emitted]
+  + 11 assets
+assets by path blog/ 2.32 KiB
+  asset blog/devlog-1-modular-ships-and-first-combat/index.html 400 bytes [emitted]
+  + 5 assets
++ 5 assets
+orphan modules 613 KiB [orphan] 490 modules
+runtime modules 12.5 KiB 33 modules
+modules by path ./node_modules/ 7.47 MiB 1067 modules
+modules by path ./src/ 524 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./src/*.ts 350 KiB
+    ./src/index.ts 257 bytes [built] [code generated]
+    + 8 modules
+  modules by path ./src/*.css 102 KiB
+    ./src/style.css 1.19 KiB [built] [code generated]
+    + 5 modules
+  modules by path ./src/comics/*.ts 24.6 KiB
+    ./src/comics/comic-catalog.ts 328 bytes [built] [code generated]
+    + 2 modules
+  ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+  ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 5962 ms

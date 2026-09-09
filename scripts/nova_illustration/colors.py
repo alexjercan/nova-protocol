@@ -44,11 +44,40 @@ TOMAS = MappingProxyType({
     'coat': '#395c78', 'coat_shadow': '#293f56', 'coat_light': '#86a4b4',
     'shirt': '#87928d',
 })
+SAMIR = MappingProxyType({
+    'skin': '#ab8267', 'shadow': '#644c3e', 'light': '#d5b28c',
+    'hair': '#35322d', 'hair_line': '#776957', 'brow': '#48382c',
+    'eye': '#c5b59a', 'iris': '#323b32', 'glasses': '#444e49', 'lines': '#70503d',
+    'coat': '#596961', 'coat_shadow': '#455b50', 'coat_light': '#9da995',
+    'shirt': '#a5ad98',
+})
+NADIA = MappingProxyType({
+    'skin': '#aa7f65', 'shadow': '#705045', 'light': '#dbb698',
+    'hair': '#302f37', 'hair_line': '#79717b', 'brow': '#493830',
+    'eye': '#e4cfb2', 'iris': '#483a34', 'lines': '#735447',
+    'coat': '#687383', 'coat_shadow': '#434e60', 'coat_light': '#a4b0b9',
+    'shirt': '#c4b7a0', 'trim': '#c9a669',
+})
+OWEN = MappingProxyType({
+    'skin': '#c5a282', 'shadow': '#846558', 'light': '#e7c9a5',
+    'hair': '#4c4943', 'hair_line': '#a49a85', 'brow': '#625043',
+    'eye': '#ded0b5', 'iris': '#4b5349', 'lines': '#866550',
+    'coat': '#607c7c', 'coat_shadow': '#405659', 'coat_light': '#a3bcbc',
+    'shirt': '#cbc3ad', 'trim': '#b9a173',
+})
+IVO = MappingProxyType({
+    'skin': '#c09a86', 'shadow': '#805951', 'light': '#e4c5ae',
+    'hair': '#60483b', 'hair_line': '#a08369', 'brow': '#624636',
+    'eye': '#e5d2b7', 'iris': '#536660', 'lines': '#855f50',
+    'coat': '#9f6c54', 'coat_shadow': '#704b40', 'coat_light': '#d0a484',
+    'shirt': '#b4b6a8', 'trim': '#c2ae83',
+})
 MATERIALS = MappingProxyType({
     'paint': '#b4b9b5', 'metal': '#84979b', 'jade': '#5c8e79',
     'tank': '#c7c7b5', 'shadow': '#52616c', 'dark': '#29313b',
     'plate': '#a7afb4', 'plate_light': '#cbd0c9', 'steel': '#676c70',
-    'hazard': '#e0b352',
+    'hazard': '#e0b352', 'scorch': '#4c3934',
+    'assembly': '#c79468', 'assembly_face': '#e0b986',
     'accent': '#c4a277', 'glass': '#7daaa7', 'mint': '#b7dfbd',
     'ceramic': '#ead8b5', 'ceramic_shadow': '#bdad8b',
     'ceramic_highlight': '#f6e7ca', 'ceramic_edge': '#dcc8a5',
@@ -76,6 +105,11 @@ INTERIOR = MappingProxyType({
     'panel_line': '#88a68c', 'worktop': '#597e70', 'edge': '#b2c2a1',
     'window_frame': '#ded0ab', 'window_light': '#f1dfb6',
     'structure': '#546c77', 'structure_light': '#a4b6aa',
+})
+FREIGHT = MappingProxyType({
+    'wall': '#d2c6b2', 'wall_light': '#e5dcca', 'panel': '#7b959d',
+    'panel_shadow': '#496572', 'frame': '#344d60', 'rail': '#b7c7bd',
+    'edge': '#f0d8a8', 'stripe': '#bd955e', 'label': '#d7e5de',
 })
 WORK = MappingProxyType({
     'wall': '#59727a', 'wall_shadow': '#304c58', 'pipe': '#91aba8',

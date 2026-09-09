@@ -1,0 +1,4 @@
+Checking formatting...
+All matched files use Prettier code style!
+comics.test.js: metadata, publication selection, incomplete-release rejection, mixed seasons, routing, escaping, assets, and stale cleanup passed
+Comic DSL validation, selected TS/Python execution, script derivation, and cache isolation passed.

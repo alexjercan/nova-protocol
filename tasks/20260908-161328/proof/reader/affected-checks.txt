@@ -1,0 +1,7 @@
+webpack.config.js 49ms
+Checking formatting...
+All matched files use Prettier code style!
+comic-page.test.ts: all assertions passed
+comic-renderer.test.ts: all assertions passed
+story-reader.test.ts: all assertions passed
+comics.test.js: season/episode structure, routing, ordering, validation, escaping and draft isolation passed

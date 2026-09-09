@@ -2,8 +2,9 @@
 
 # Encyclopedia
 
-Nova Protocol is set in Saturn's developing settlement network, roughly 10-15
-years after the first permanent ring station. Earth remains a superpower, but
+Nova Protocol opens in 2078, in Saturn's developing settlement network, roughly
+10-15 years after the first permanent ring station. Dates use Earth's calendar.
+Earth remains a superpower, but
 Saturn is where new workplaces are becoming homes and new arrivals are becoming
 communities.
 

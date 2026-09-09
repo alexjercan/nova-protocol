@@ -1,0 +1,2 @@
+12 Markdown sources and 123 local link targets passed.
+Story changelog entry: 184 characters.

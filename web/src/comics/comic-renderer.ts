@@ -6,20 +6,15 @@
  * no way to emit markup, URLs outside the comic's asset folder, or styles.
  */
 
-import {
-    ChapterState,
-    ComicNode,
-    ComicPage,
-    ComicTone,
-    SvgNode,
-} from "./comic-page";
+import { ComicNode, ComicPage, ComicTone, SvgNode } from "./comic-page";
+import { letterPage } from "./comic-lettering";
+import { composePanels } from "./comic-panels";
 
 export interface RenderPageContext {
     id: string;
     number: number;
     comicPath: string;
     basePath: string;
-    chapter: { title: string; state: ChapterState };
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
@@ -262,9 +257,6 @@ function renderNode(
                 undefined,
                 node.eyebrow ?? `Chapter ${node.number}`
             );
-            if (context.chapter.state === "planned") {
-                eyebrow.append(element("em", "comic-page__planned", "planned"));
-            }
             header.append(
                 eyebrow,
                 element("h2", undefined, node.title),
@@ -451,11 +443,14 @@ function folio(number: number): HTMLParagraphElement {
     return element("p", "comic-page__folio", String(number).padStart(2, "0"));
 }
 
-function finish(article: HTMLElement, context: RenderPageContext): HTMLElement {
-    article.append(folio(context.number));
+function finish(
+    article: HTMLElement,
+    context: RenderPageContext,
+    addFolio = true
+): HTMLElement {
+    if (addFolio) article.append(folio(context.number));
     article.id = context.id;
     article.dataset.page = "";
-    article.dataset.state = context.chapter.state;
     return article;
 }
 
@@ -463,6 +458,32 @@ export function renderComicPage(
     page: ComicPage,
     context: RenderPageContext
 ): HTMLElement {
+    if (page.layout === "lettered" || page.layout === "panels") {
+        const article = element("article", "comic-page comic-art-page");
+        article.append(element("p", undefined, "Loading page..."));
+        const composition =
+            page.layout === "panels"
+                ? composePanels(article, page, (source) =>
+                      assetUrl(context, source)
+                  )
+                : letterPage(article, page, assetUrl(context, page.image));
+        void composition.catch((error) => {
+            article.dataset.layoutError = String(error);
+            article.replaceChildren(
+                element(
+                    "p",
+                    undefined,
+                    "This page could not load. Its transcript remains available below."
+                )
+            );
+        });
+        return finish(article, context, false);
+    }
+    if (page.layout === "art") {
+        const article = element("article", "comic-page comic-art-page");
+        article.append(image(context, page.image, page.alt));
+        return finish(article, context, false);
+    }
     if (page.layout === "cover") {
         const article = element("article", "comic-page comic-cover");
         const shade = element("div", "comic-cover__shade");

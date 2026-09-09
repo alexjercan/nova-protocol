@@ -1,0 +1,7 @@
+.....................................
+----------------------------------------------------------------------
+Ran 37 tests in 8.943s
+
+OK
+Verified three ship design sheets and four portraits
+Verified 5 crew portraits

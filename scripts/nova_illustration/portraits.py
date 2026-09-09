@@ -53,8 +53,8 @@ def jonah_listener(expression='original'):
 
 
 def work_portrait(name, expression='original'):
-    """Stage Leila, Rina, or Tomas; expression defaults to the original facial features."""
-    if name not in ('leila', 'rina', 'tomas'):
+    """Stage Leila, Rina, Samir, or Tomas with the original features unless overridden."""
+    if name not in ('leila', 'rina', 'samir', 'tomas'):
         raise KeyError(name)
     c = FACE_COLORS[name]
     art = path('M125 209L211 210L211 276L240 297L170 348L97 297L126 267Z',c['skin'],width=2.2)
@@ -68,3 +68,86 @@ def work_portrait(name, expression='original'):
     art += path('M190 403H246',stroke=c['coat_light'],width=1.4)
     art += group(frontal_head(name, expression),'translate(-130 -121)')
     return group(art,data_character=name,data_pose='work-bust')
+
+
+def gantry_portrait(name, expression='original'):
+    """Stage the three new frontal identities in separately authored civilian work clothes."""
+    if name not in ('nadia','owen','ivo'):
+        raise KeyError(name)
+    c = FACE_COLORS[name]
+    art = path('M126 211L211 211L210 274L232 297L167 337L103 295L126 265Z',c['skin'],width=2)
+    art += path('M127 232Q166 254 210 229L210 266L166 289L127 266Z',c['shadow'],'none',opacity=.65)
+    if name == 'nadia':
+        art += path('M114 275L62 301Q14 323-4 380L-38 567H332L301 385Q286 327 239 301L210 274L167 310Z',c['coat'],width=2.6)
+        art += path('M210 275L239 301Q286 327 301 385L332 567H195L192 334Z',c['coat_shadow'],'none')
+        art += path('M115 276L167 310L210 275L216 304L185 339H145L107 306Z',c['shirt'],width=2)
+        art += path('M111 278L138 326L125 345L87 307M210 276L190 332L213 341L240 309',c['coat'],width=2)
+        art += path('M135 349L148 557M70 316L39 360M242 316L272 355M4 398L-8 486M283 392L302 483',stroke=c['coat_light'],width=2)
+        art += path('M79 304L114 326M232 305L219 325',stroke=c['trim'],width=4)
+        art += path('M210 376H265V420H210ZM216 384H259',stroke=c['coat_light'],width=1.5)
+    elif name == 'owen':
+        art += path('M111 276L50 297Q-13 319-34 398L-67 567H362L333 394Q313 320 248 300L210 275L169 310Z',c['coat'],width=2.8)
+        art += path('M210 276L248 300Q313 320 333 394L362 567H207L198 341Z',c['coat_shadow'],'none')
+        art += path('M113 278L165 312L210 277L222 317L197 358L171 347L145 361L94 318Z',c['shirt'],width=2)
+        art += path('M117 279L148 329L126 353L78 310M210 278L194 333L219 351L259 309',c['coat'],width=2)
+        art += path('M149 361L152 558M186 359L190 558M48 315Q10 341-5 381M260 317Q300 341 309 379',stroke=c['coat_light'],width=2)
+        art += path('M29 400H117V467H29ZM218 400H302V467H218Z',c['coat_shadow'],width=1.8)
+        art += path('M35 410H111M224 410H296M45 414V451M61 414V451',stroke=c['coat_light'],width=1.4)
+        art += path('M-24 420L13 431L3 459L-33 448M311 429L341 416L347 444L318 457',c['shirt'],width=2)
+    else:
+        art += path('M117 279L66 306Q16 329-2 387L-34 567H324L305 391Q288 333 238 307L210 276L167 314Z',c['shirt'],width=2.6)
+        art += path('M84 300L117 282L149 337L156 567H-14L13 386Q30 333 84 300Z',c['coat'],width=2)
+        art += path('M211 280L244 310Q287 337 294 388L312 567H180L184 338Z',c['coat_shadow'],width=2)
+        art += path('M119 281L146 315L162 339L167 320L184 338L211 280',stroke=c['coat_light'],width=2)
+        art += path('M89 309L116 347L91 379M232 312L207 349L231 378M158 362V554M177 362V554',stroke=c['trim'],width=3)
+        art += path('M57 409H133V482H57ZM200 409H273V482H200Z',c['coat'],width=2)
+        art += path('M62 420H128M205 420H268M15 393L-3 478M288 391L303 476',stroke=c['coat_light'],width=2)
+    art += group(frontal_head(name,expression),'translate(-130 -121)')
+    return group(art,data_character=name,data_pose='gantry-work')
+
+
+def reaching_arm(name):
+    """Draw an open hand reaching for the next hold, independent of head and rail."""
+    c = FACE_COLORS[name]
+    art = path('M246 305Q268 290 290 256L386 201L402 228L319 294Q286 350 259 355Z',c['coat'],width=2.5)
+    art += path('M275 310L307 275L388 218',stroke=c['coat_light'],width=2)
+    art += path('M382 202L398 196L415 224L399 237Z',c['coat_shadow'],width=2)
+    art += path('M399 200L415 189L423 167Q428 158 433 166L430 186L450 173Q460 168 462 175L443 191L467 182Q477 181 475 188L449 202L470 198Q480 201 473 207L447 213L459 214Q467 218 459 222L433 224L414 223Z',c['skin'],width=1.8)
+    art += path('M417 203L434 194M428 212L447 213',stroke=c['lines'],width=1.3)
+    return group(art,data_character=name,data_pose='reach-handhold')
+
+
+def gripping_arm(name):
+    """Draw a bent sleeve and closed hand; the scene supplies a rail at (5, 425).
+
+Place this layer over the character's torso. It changes neither head nor
+expression, and owns no equipment. The grip fits the work-bust drawing frame.
+"""
+    c = FACE_COLORS[name]
+    art = path('M57 327Q13 333-9 373L-29 416L3 449L33 423L28 394L73 368Z',c['coat'],width=2.5)
+    art += path('M45 345L14 375L-5 410M-18 418L2 434',stroke=c['coat_light'],width=2)
+    art += path('M-10 403L17 405L24 431L-3 440L-18 423Z',c['coat_shadow'],width=2)
+    art += path('M-2 410L-11 395Q-14 387-7 386Q-1 386 6 402L17 404Q29 405 28 416L23 438Q21 446 13 445L-5 438Q-11 434-9 428L-1 422Z',c['skin'],width=1.8)
+    art += path('M4 411L24 416M1 420L23 425M0 430L20 435',stroke=c['lines'],width=1.3)
+    return group(art,data_character=name,data_pose='handhold-grip')
+
+
+def work_inspection(name, expression='original'):
+    """Return body and posed forearms with space between layers for a work surface.
+
+The scene supplies the equipment. Neither the pose nor its hands own a tool.
+"""
+    body = work_portrait(name, expression)
+    c = FACE_COLORS[name]
+    arms = path('M48 340Q18 369 36 413L100 477L128 451L81 399L87 372Z',c['coat'],width=2.5)
+    arms += path('M39 390L63 419L109 463M57 352L72 382',stroke=c['coat_light'],width=2)
+    arms += path('M100 446L128 448L139 461L112 485L94 470Z',c['coat_shadow'],width=2)
+    arms += path('M127 450L149 434Q159 429 168 435L187 444Q194 447 190 453L171 448L197 458Q204 462 200 468L171 459L190 473Q195 479 190 482L158 465L137 470L122 465Z',c['skin'],width=1.8)
+    arms += path('M145 445L158 451M151 455L166 457',stroke=c['lines'],width=1.3)
+    arms += path('M270 340Q332 380 322 420L292 460L269 435L282 403L240 374Z',c['coat'],width=2.5)
+    arms += path('M308 379L308 415L289 445',stroke=c['coat_light'],width=2)
+    arms += path('M280 423L305 448L292 466L264 443Z',c['coat_shadow'],width=2)
+    hand = path('M203 448L182 429Q175 424 170 430L176 443L154 440Q145 439 145 446L173 452L150 452Q142 453 145 460L175 462L153 465Q147 469 154 474L184 471L206 461Z',c['skin'],width=1.8)
+    hand += path('M178 443L187 452M175 462L188 459',stroke=c['lines'],width=1.3)
+    arms += group(hand,'translate(70 -15)')
+    return body, group(arms,data_pose='inspection-forearms',data_character=name)

@@ -1,4 +1,5 @@
 import "./style.css";
+import "./story.css";
 import { initSite } from "./site";
 import { loadComicPages, readComicManifest } from "./comics/comic-catalog";
 import { renderComicPage } from "./comics/comic-renderer";
@@ -17,12 +18,12 @@ if (root && manifest) {
             number: index + 1,
             comicPath: manifest.path,
             basePath: manifest.basePath,
-            chapter: { title: entry.chapter, state: entry.state },
         });
     });
     new ComicPlayer({
         root,
         pages,
+        transcripts: manifest.pages.map((page) => page.transcript),
         initialPage: window.location.hash.slice(1),
     });
 }

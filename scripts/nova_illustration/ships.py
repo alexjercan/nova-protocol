@@ -262,7 +262,82 @@ def ebro():
     return tuple(f)
 
 
-MODELS = {'kaveri': kaveri, 'ebro': ebro}
+def gantry():
+    """Give the supply workship a broad cargo body, raised frame, and single aft bell."""
+    f = hull_segment(-223,88,106,106,-35,23,23,17,'plate','gantry-keel')
+    f += hull_segment(90,223,106,48,-35,23,23,17,'plate_light','gantry-forefoot')
+    f += hull_segment(-214,-132,95,95,22,108,108,14,'dark','gantry-service-core')
+    f += hull_segment(-218,-129,97,97,90,114,114,8,'plate','gantry-service-roof')
+    f += box((-173,-98,58),(78,5,64),'plate','gantry-service-cover')
+    f += box((-173,98,58),(78,5,64),'plate','gantry-service-starboard')
+    f += radiator((-176,34,114.4))
+    for z in (50,63,76):
+        f += cylinder((-174,-97,z),2,45,0,'accent','gantry-service-feed',2)
+    for x0,x1 in [(-126,-57),(-55,14),(16,85)]:
+        f += hull_segment(x0,x1,101,101,22,118,118,16,'paint','gantry-cargo-body')
+        for side in (-1,1):
+            f += box(((x0+x1)/2,side*102,66),(x1-x0-9,2,56),'plate_light','gantry-cargo-door')
+            f += box(((x0+x1)/2,side*103.5,46),(17,2,4),'dark','gantry-door-latch')
+    for x in (-119,76):
+        for y in (-109,109):
+            f += box((x,y,75),(15,14,116),'steel','gantry-frame-leg')
+            f += box((x,y,28),(29,28,11),'metal','gantry-frame-foot')
+        f += box((x,0,140),(15,232,14),'metal','gantry-frame-crossbar')
+        f += box((x,0,131),(25,34,6),'dark','gantry-stowed-carriage')
+        f += box((x,0,126),(12,17,5),'hazard','gantry-handling-fixture')
+        for y in (-109,109):
+            f += box((x,y,148),(25,24,2),'steel','gantry-frame-cap')
+            for dx in (-7,7):
+                f += cylinder((x+dx,y,150),2,2,2,'metal','gantry-frame-fastener',2)
+    f += louvre((-87,24,118.4))
+    f += hatch((36,-34,118.4))
+    for y in (-109,109):
+        f += box((-20,y,135),(197,10,10),'steel','gantry-frame-rail')
+        f += hazard_edge(-114,72,y,140.5)
+        for x in (-70,-20,30):
+            f += cylinder((x,y,-7),2.5,43,0,'steel','gantry-lower-service-pipe',2.5)
+            f += cylinder((x-20,y,-7),4,3,0,'metal','gantry-lower-pipe-collar',4)
+    f += crew_module(105,168,231,76,48,92)
+    f += box((131,-77,69),(42,2,11),'accent','gantry-crew-band')
+    f += cylinder((133,-91,43),23,28,1,'metal','gantry-transfer-collar',23)
+    f += cylinder((133,-107,43),19,3,1,'dark','gantry-transfer-hatch',19)
+    f += box((133,-110,44),(13,2,4),'hazard','gantry-transfer-handle')
+    f += box((112,-108,67),(8,3,4),'mint','gantry-transfer-light')
+    f += hull_segment(-259,-224,56,72,-29,74,91,16,'plate','gantry-drive-cowl')
+    f += cylinder((-264,0,18),39,34,0,'steel','gantry-drive-drum',39)
+    f += cylinder((-291,0,18),48,34,0,'metal','gantry-drive-bell',33)
+    f += cylinder((-311,0,18),46,5,0,'steel','gantry-drive-rim',46)
+    f += cylinder((-314,0,18),38,1,0,'dark','gantry-drive-throat',38)
+    for y in (-75,75):
+        f += box((-240,y,34),(39,24,38),'shadow','gantry-aft-auxiliary')
+        f += louvre((-240,y,54))
+    return tuple(f)
+
+
+MODELS = {'kaveri': kaveri, 'ebro': ebro, 'gantry': gantry}
+
+
+def ship_faces(name, state='intact'):
+    """Return one hull with an explicitly authored condition, not a second damage model.
+
+Only Gantry has a stranded condition. This is illustration staging, not damage
+simulation, a destruction sequence, or an engineering explanation of the fault.
+"""
+    faces = MODELS[name]()
+    if state == 'intact':
+        return faces
+    if (name,state) != ('gantry','stranded'):
+        raise KeyError(f'Unknown ship condition: {name}/{state}')
+    removed = {'gantry-service-roof','gantry-service-cover'}
+    kept = tuple(face for face in faces if face.component not in removed)
+    tears = (
+        Face(((-213,-101,28),(-143,-101,28),(-153,-101,44),(-183,-101,36),(-201,-101,60),(-213,-101,76)),'steel','gantry-torn-service-cover'),
+        Face(((-213,-101,93),(-197,-101,79),(-186,-101,93),(-162,-101,80),(-135,-101,91),(-135,-101,103),(-213,-101,103)),'plate','gantry-torn-service-cover'),
+        Face(((-215,-95,112),(-180,-95,112),(-191,-70,112),(-169,-57,112),(-191,-31,112),(-182,-10,112),(-215,-10,112)),'steel','gantry-torn-service-roof'),
+        Face(((-193,-95.6,50),(-181,-95.6,46),(-163,-95.6,64),(-149,-95.6,61),(-140,-95.6,83),(-167,-95.6,88),(-193,-95.6,72)),'scorch','gantry-service-scorch'),
+    )
+    roof_remainder = box((-173,49,111),(89,96,6),'plate','gantry-retained-roof')
+    return kept+tuple(roof_remainder)+tears
 VIEWS = {'top': (-90,90), 'side': (-90,0), 'front': (0,0), 'forward-quarter': (-55,28), 'aft-quarter': (-125,27)}
 
 
@@ -280,9 +355,9 @@ def project(point, view):
     return dot(point,right), -dot(point,up), dot(point,toward)
 
 
-def bounds(name, view):
-    """Measure the projected shape for layout without assigning physical dimensions."""
-    points = [project(v,view) for f in MODELS[name]() for v in f.vertices]
+def bounds(name, view, state='intact'):
+    """Measure an authored condition without assigning physical dimensions."""
+    points = [project(v,view) for f in ship_faces(name,state) for v in f.vertices]
     return min(p[0] for p in points),min(p[1] for p in points),max(p[0] for p in points),max(p[1] for p in points)
 
 
@@ -353,33 +428,35 @@ def contour_segments(face):
     return result
 
 
-def render_ship(name, view, x, y, scale, thrust):
-    """Project a registered ship view into SVG, separate from its color scheme.
+def render_faces(surfaces, view, x, y, scale):
+    """Project an authored prop with the same occlusion and ink as ship surfaces.
 
-Only the two illustrated ships are accepted. The visual state is explicit:
-thrust adds a plume behind existing nozzles, not another hull or performance
-claim. Use styles.present on this fragment to select comic or lore colors.
+Coordinates and scale are drawing proportions, not physical measurements.
 """
     if not all(math.isfinite(v) for v in (x,y,scale)) or scale <= 0:
         raise ValueError('Finite placement and a positive drawing scale are required')
-    palette = MATERIALS
+    return group(_surface_art(surfaces,view),f'translate({x} {y}) scale({scale})')
+
+
+def _surface_art(surfaces, view):
     _, _, toward = basis(view)
     faces = []
-    for f in MODELS[name]():
+    for f in surfaces:
+        if f.material not in MATERIALS:
+            raise KeyError(f.material)
+        if len(f.vertices)<3:
+            raise ValueError('An illustration face needs at least three vertices')
+        if any(len(v)!=3 or not all(math.isfinite(c) for c in v) for v in (*f.vertices,*f.outline)):
+            raise ValueError('Finite three-coordinate illustration vertices are required')
         n = normal(f.vertices)
         if dot(n,toward) > 1e-7:
             faces.append((f,n))
     art = ''
-    if thrust:
-        for side in (-105,105):
-            outline = [(-304,side-22,13),(-675,side,13),(-304,side+22,13)]
-            p = [project(v,view) for v in outline]
-            art += path('M'+'L'.join(f'{a:.3f} {b:.3f}' for a,b,_ in p)+'Z',EXHAUST,'none',opacity=0.35)
     for f, n in painter_order(faces):
         p = [project(v,view) for v in f.vertices]
         points = ' '.join(f'{a:.3f},{b:.3f}' for a,b,_ in p)
         lighting = 1.05 if n[2] > .5 else (0.87 if n[1] < -.3 else 0.73)
-        fill = shade(palette[f.material],lighting)
+        fill = shade(MATERIALS[f.material],lighting)
         if not f.outline:
             art += tag('polygon', points=points, fill=fill, stroke=SHIP_INK, stroke_width=1.2, stroke_linejoin='round', data_component=f.component)
         else:
@@ -391,9 +468,37 @@ claim. Use styles.present on this fragment to select comic or lore colors.
                 edges += f'M{ax:.3f} {ay:.3f}L{bx:.3f} {by:.3f}'
             if edges:
                 art += path(edges,stroke=SHIP_INK,width=1.2)
+    return art
+
+
+def render_ship(name, view, x, y, scale, thrust, state='intact', *, cargo=()):
+    """Project a registered ship view into SVG, separate from its color scheme.
+
+The default intact condition preserves existing exports. Only Gantry has an
+authored stranded condition, which cannot show main-drive thrust. Plumes are
+visuals, not performance claims. Use styles.present for comic or lore colors.
+Cargo defaults to no load. Caller-authored faces use the ship's drawing
+coordinates and share its painter pass; this does not validate physical fit.
+"""
+    if not all(math.isfinite(v) for v in (x,y,scale)) or scale <= 0:
+        raise ValueError('Finite placement and a positive drawing scale are required')
+    _, _, toward = basis(view)
+    surfaces = ship_faces(name,state)+tuple(cargo)
+    if state != 'intact' and thrust:
+        raise ValueError('A stranded ship cannot show main-drive thrust')
+    art = ''
+    if thrust:
+        nozzles = ((-314,0,18,34,360),) if name == 'gantry' else ((-304,-105,13,22,371),(-304,105,13,22,371))
+        for aft,side,height,radius,length in nozzles:
+            outline = [(aft,side-radius,height),(aft-length,side,height),(aft,side+radius,height)]
+            p = [project(v,view) for v in outline]
+            art += path('M'+'L'.join(f'{a:.3f} {b:.3f}' for a,b,_ in p)+'Z',EXHAUST,'none',opacity=0.35)
+    art += _surface_art(surfaces,view)
     if toward[1] < -0.1:
-        origin = project((-55,-74,-20),view)
-        along = sub(project((-54,-74,-20),view),origin)
-        up = sub(project((-55,-74,-21),view),origin)
+        anchor = (-46,-103,80) if name == 'gantry' else (-55,-74,-20)
+        origin = project(anchor,view)
+        along = sub(project((anchor[0]+1,anchor[1],anchor[2]),view),origin)
+        up = sub(project((anchor[0],anchor[1],anchor[2]-1),view),origin)
         art += group(text(0,0,name.upper(),11,REGISTRY_PAINT,font_weight='bold',letter_spacing=2),f'matrix({along[0]:.4f} {along[1]:.4f} {up[0]:.4f} {up[1]:.4f} {origin[0]:.4f} {origin[1]:.4f})')
-    return group(art,f'translate({x} {y}) scale({scale})',data_ship=name,data_view=view)
+    condition = {} if state == 'intact' else {'data_state':state}
+    return group(art,f'translate({x} {y}) scale({scale})',data_ship=name,data_view=view,**condition)

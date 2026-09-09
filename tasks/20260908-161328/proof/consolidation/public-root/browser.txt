@@ -1,0 +1,3 @@
+
+DevTools listening on ws://127.0.0.1:38007/devtools/browser/8e65f71d-ca34-4bf4-af1b-6c785026d729
+[2417107:2417107:0909/141724.065820:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable

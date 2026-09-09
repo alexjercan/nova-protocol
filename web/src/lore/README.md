@@ -33,10 +33,10 @@ build. `index.md` is the short setting introduction and categorized directory.
   [Season 1 water-station arc](seasons/season-1.md). It records the approved
   direction, character arcs, working proposals, and open decisions. These are
   production sources, not public encyclopedia articles.
-- Keep unpublished comic page studies, generators, renders, and review evidence
-  with the active story task, outside the public archive and website copy rules.
-  TODO(20260908-161328): Develop the shared story and opening comic drafts.
-  Draft designs, dialogue, and staging are not additions to the released story.
+- Keep maintained comic scripts and panel art in [the comic sources](../comics/).
+  Keep task-scoped studies and frozen review evidence outside the public archive
+  and website copy rules. Draft designs, dialogue, and staging are not additions
+  to the released story.
 
 Add individual companies, places, and institutions as their identities are
 approved. Create new subject directories and navigation sections only when they
@@ -201,10 +201,13 @@ engineering or gameplay specifications.
 lore presentation without changing geometry. Public lore does not depend on task
 artifacts.
 
-Run `python3 scripts/gen-lore-designs.py` to regenerate Kaveri's and Ebro's
-proposal sheets and Elena's portrait, or add `--check` to verify them. Those
-sheets are external-form concepts, not game loadouts, measured plans, or approved
-construction details. Other current images are directly authored SVGs.
+Run `python3 scripts/gen-lore-designs.py` to regenerate Kaveri's, Ebro's, and
+Gantry's intact proposal sheets and the Elena, Nadia, Owen, and Ivo portraits,
+or add `--check` to verify them. The sheets are external-form concepts, not game
+loadouts, measured plans, or approved construction details. Public portraits
+show starting identities, not future injuries. Unreleased damage conditions stay
+outside public exports even when the shared model can draw them. Other current
+images are directly authored SVGs.
 
 Use images for the subject: portrait studies for people, exterior studies for
 places, identity concepts for companies, and diagrams for physical or supply

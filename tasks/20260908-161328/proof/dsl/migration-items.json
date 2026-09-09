@@ -1,0 +1,308 @@
+{
+  "sceneIds": {
+    "1a": "baikal-work",
+    "1b": "coffee-break",
+    "2a": "pump-inspection",
+    "2b": "residential-console",
+    "2c": "repair-choice",
+    "3a": "assignment-window",
+    "3b": "delivery-record",
+    "3c": "borrowed-mug",
+    "4a": "departure-stations",
+    "4b": "outbound-baikal",
+    "5a": "approach-aquila",
+    "5b": "collection-check",
+    "5c": "assembly-inspection",
+    "6a": "shared-workspace",
+    "6b": "introductions",
+    "6c": "safe-trip",
+    "7a": "gantry-departure",
+    "7b": "outbound-aquila",
+    "7c": "thoughts-of-home"
+  },
+  "labels": {
+    "1a": [],
+    "1b": [
+      {
+        "id": "label-1",
+        "text": "GAME NIGHT",
+        "slot": "label-1",
+        "at": [
+          72,
+          249
+        ],
+        "size": 19,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 1,
+        "anchor": "start"
+      }
+    ],
+    "2a": [],
+    "2b": [
+      {
+        "id": "label-1",
+        "text": "RESIDENTIAL SUPPLIES",
+        "slot": "label-1",
+        "at": [
+          43,
+          294
+        ],
+        "size": 15,
+        "color": "work-safe",
+        "weight": "normal",
+        "spacing": 0.5,
+        "anchor": "start"
+      },
+      {
+        "id": "label-2",
+        "text": "NORMAL",
+        "slot": "label-2",
+        "at": [
+          43,
+          331
+        ],
+        "size": 26,
+        "color": "work-safe",
+        "weight": "bold",
+        "spacing": 0,
+        "anchor": "start"
+      }
+    ],
+    "2c": [],
+    "3a": [],
+    "3b": [
+      {
+        "id": "label-1",
+        "text": "EBRO",
+        "slot": "label-1",
+        "at": [
+          -98,
+          -25
+        ],
+        "size": 29,
+        "color": "mint",
+        "weight": "bold",
+        "spacing": 0,
+        "anchor": "start"
+      },
+      {
+        "id": "label-2",
+        "text": "WATER DELIVERY",
+        "slot": "label-2",
+        "at": [
+          -98,
+          11
+        ],
+        "size": 17,
+        "color": "interior-edge",
+        "weight": "normal",
+        "spacing": 0,
+        "anchor": "start"
+      },
+      {
+        "id": "label-3",
+        "text": "FOUNDATION",
+        "slot": "label-3",
+        "at": [
+          -98,
+          52
+        ],
+        "size": 21,
+        "color": "work-warning",
+        "weight": "normal",
+        "spacing": 0,
+        "anchor": "start"
+      }
+    ],
+    "3c": [],
+    "4a": [],
+    "4b": [],
+    "5a": [],
+    "5b": [
+      {
+        "id": "label-1",
+        "text": "CLEARWELL",
+        "slot": "label-1",
+        "at": [
+          489,
+          349
+        ],
+        "size": 14,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 1,
+        "anchor": "start"
+      },
+      {
+        "id": "label-2",
+        "text": "ORDER MATCH",
+        "slot": "label-2",
+        "at": [
+          489,
+          370
+        ],
+        "size": 12,
+        "color": "work-card-text",
+        "weight": "normal",
+        "spacing": 0,
+        "anchor": "start"
+      }
+    ],
+    "5c": [],
+    "6a": [],
+    "6b": [
+      {
+        "id": "freight-lock",
+        "text": "FREIGHT LOCK",
+        "slot": "freight-lock",
+        "at": [
+          135,
+          68
+        ],
+        "size": 13,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 1,
+        "anchor": "middle"
+      }
+    ],
+    "6c": [
+      {
+        "id": "freight-lock",
+        "text": "FREIGHT LOCK",
+        "slot": "freight-lock",
+        "at": [
+          135,
+          68
+        ],
+        "size": 13,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 1,
+        "anchor": "middle"
+      }
+    ],
+    "7a": [
+      {
+        "id": "label-1",
+        "text": "LOAD SECURED / COVERS ON",
+        "slot": "label-1",
+        "at": [
+          1107,
+          307
+        ],
+        "size": 14,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 0.3,
+        "anchor": "start"
+      },
+      {
+        "id": "label-2",
+        "text": "PASSAGE CLEAR",
+        "slot": "label-2",
+        "at": [
+          1107,
+          332
+        ],
+        "size": 17,
+        "color": "work-card-text",
+        "weight": "normal",
+        "spacing": 0,
+        "anchor": "start"
+      }
+    ],
+    "7b": [],
+    "7c": [
+      {
+        "id": "label-1",
+        "text": "COLLECTION COMPLETE",
+        "slot": "label-1",
+        "at": [
+          448,
+          397
+        ],
+        "size": 14,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 0,
+        "anchor": "start"
+      },
+      {
+        "id": "label-2",
+        "text": "BAIKAL",
+        "slot": "label-2",
+        "at": [
+          448,
+          428
+        ],
+        "size": 22,
+        "color": "work-card-text",
+        "weight": "normal",
+        "spacing": 2,
+        "anchor": "start"
+      }
+    ],
+    "freight-lock": [
+      {
+        "id": "label-1",
+        "text": "FREIGHT LOCK",
+        "slot": "label-1",
+        "at": [
+          135,
+          68
+        ],
+        "size": 13,
+        "color": "mint",
+        "weight": "normal",
+        "spacing": 1,
+        "anchor": "middle"
+      }
+    ]
+  },
+  "cards": {
+    "1a": [
+      {
+        "id": "location",
+        "name": "BAIKAL",
+        "place": "Saturn system",
+        "date": "2078",
+        "note": "Clearwell Waterworks' main base",
+        "at": [
+          25,
+          24
+        ],
+        "width": 365
+      }
+    ],
+    "4a": [
+      {
+        "id": "location",
+        "name": "KAVERI",
+        "place": "Departing Baikal",
+        "date": "Later that day",
+        "note": "Clearwell Waterworks' workship",
+        "at": [
+          25,
+          20
+        ],
+        "width": 390
+      }
+    ],
+    "5a": [
+      {
+        "id": "location",
+        "name": "AQUILA",
+        "place": "Saturn system",
+        "date": "Later",
+        "note": "Farspan's freight hub",
+        "at": [
+          25,
+          24
+        ],
+        "width": 365
+      }
+    ]
+  }
+}

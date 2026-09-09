@@ -3,6 +3,7 @@ import {
     bleedPage,
     circle,
     comicPage,
+    artPage,
     chapterHeader,
     coverPage,
     endPage,
@@ -110,7 +111,6 @@ function render(
         number: 7,
         comicPath: "example",
         basePath: "/nova/",
-        chapter: { title: "A Planned Chapter", state: "planned" },
         ...overrides,
     };
     return renderComicPage(page, context) as unknown as FakeNode;
@@ -130,7 +130,7 @@ function one(root: FakeNode, match: (node: FakeNode) => boolean): FakeNode {
 const byClass = (name: string) => (node: FakeNode) =>
     node.classes().includes(name);
 
-// A finished page carries its id, state, folio, and a planned marker.
+// A finished comic page has reading metadata, not game availability.
 {
     const article = render(
         comicPage(chapterHeader({ number: "03", title: "T", subtitle: "S" }))
@@ -139,11 +139,8 @@ const byClass = (name: string) => (node: FakeNode) =>
     assert.deepEqual(article.classes(), ["comic-page"]);
     assert.equal(article.id, "the-page");
     assert.equal(article.dataset.page, "");
-    assert.equal(article.dataset.state, "planned");
-    assert.equal(
-        one(article, byClass("comic-page__planned")).textContent,
-        "planned"
-    );
+    assert.equal(article.dataset.state, undefined);
+    assert.equal(all(article, byClass("comic-page__planned")).length, 0);
     assert.equal(one(article, byClass("comic-page__folio")).textContent, "07");
     const header = one(article, byClass("comic-page__header"));
     assert.ok(
@@ -154,7 +151,7 @@ const byClass = (name: string) => (node: FakeNode) =>
     assert.equal(header.children[1].textContent, "T");
 }
 
-// A frame page has no planned marker and an eyebrow override is printed as given.
+// An eyebrow override is printed as authored.
 {
     const article = render(
         comicPage(
@@ -164,15 +161,29 @@ const byClass = (name: string) => (node: FakeNode) =>
                 subtitle: "S",
                 eyebrow: "Record",
             })
-        ),
-        { chapter: { title: "Record", state: "frame" } }
+        )
     );
     assert.equal(all(article, byClass("comic-page__planned")).length, 0);
-    assert.equal(article.dataset.state, "frame");
+    assert.equal(article.dataset.state, undefined);
     assert.equal(
         one(article, byClass("comic-page__header")).children[0].textContent,
         "Record"
     );
+}
+
+// A complete authored page gets no shade, frame treatment, or extra folio.
+{
+    const article = render(
+        artPage({ image: "page-01.svg", alt: "A full-color page." })
+    );
+    assert.deepEqual(article.classes(), ["comic-page", "comic-art-page"]);
+    assert.equal(article.children.length, 1);
+    assert.equal(article.children[0].tagName, "img");
+    assert.equal(
+        article.children[0].src,
+        "/nova/assets/story/example/page-01.svg"
+    );
+    assert.equal(article.id, "the-page");
 }
 
 // Speech text is a text node, never parsed as markup.

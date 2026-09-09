@@ -1,0 +1,12 @@
+Rendered and checked scripts/nova_illustration/README.md
+Rendered and checked web/src/lore/seasons/season-1.md
+Rendered and checked tasks/20260908-161328/TASK.md
+Rendered and checked tasks/20260908-161328/AQUILA-REVIEW.md
+Rendered and checked tasks/20260908-161328/GANTRY-REVIEW.md
+Rendered and checked tasks/20260908-161328/gantry-study/README.md
+Rendered and checked tasks/20260908-161328/aquila-pages/README.md
+Rendered and checked tasks/20260908-161328/episode-1/SCRIPT.md
+Rendered and checked tasks/20260908-161328/proof/before-aquila/README.md
+Generated review IDs and links checked: tasks/20260908-161328/aquila-pages/index.html
+Generated review IDs and links checked: tasks/20260908-161328/episode-1/index.html
+9 Markdown sources and 74 local links pass.

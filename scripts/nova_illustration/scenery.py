@@ -1,6 +1,6 @@
-"""Reusable provisional Baikal and Saturn scenery, not an orbital model."""
+"""Reusable provisional station scenery, not orbital or interior engineering."""
 
-from .colors import STATION, SATURN, SKY, INK
+from .colors import STATION, SATURN, SKY, INK, FREIGHT
 from .svg import ellipse, group, path, rect, text
 
 
@@ -23,6 +23,67 @@ def saturn(x, y, scale):
     art += path("M-619 0A619 130 0 0 0 619 0", stroke=SATURN['ring_dark'], width=3)
     art += path("M-652 0A652 138 0 0 0 652 0", stroke=SATURN['ring'], width=8)
     return group(art, f"translate({x} {y}) rotate(-18) scale({scale})")
+
+
+def aquila(x, y, scale):
+    """Adapt the existing two residential rings and broad freight-spine concept.
+
+Berths and handling frames are drawing proposals. No ship is baked into this
+location, and its proportions do not establish dimensions or an orbit.
+"""
+    art = path('M18-45H295V-128M19 29H351V-61',stroke=STATION['shadow'],width=12)
+    for px,py in ((251,-175),(295,-67)):
+        art += rect(px,py,154,80,STATION['solar'],STATION['frame_light'],3)
+        for dx in range(10,155,18):
+            art += path(f'M{px+dx} {py}V{py+80}',stroke=STATION['solar_line'],width=1)
+        art += path(f'M{px} {py+40}H{px+154}',stroke=STATION['solar_line'],width=2)
+    for cy,rx,ry,thickness in ((-116,230,79,40),(35,144,48,30)):
+        art += ellipse(0,cy-17,rx,ry,'none',INK,thickness+6)
+        art += ellipse(0,cy-17,rx,ry,'none',STATION['ring_shadow'],thickness)
+        art += path(f'M{-rx} {cy}H{rx}M0 {cy-ry}V{cy+ry}M{-rx*.7} {cy-ry*.7}L{rx*.7} {cy+ry*.7}M{-rx*.7} {cy+ry*.7}L{rx*.7} {cy-ry*.7}',stroke=STATION['frame'],width=9)
+        art += ellipse(0,cy,rx,ry,'none',INK,thickness+4)
+        art += ellipse(0,cy,rx,ry,'none',STATION['ring'],thickness)
+        art += ellipse(0,cy,rx,ry,'none',STATION['ring_shadow'],thickness*.4)
+        art += ellipse(0,cy,rx,ry,'none',STATION['accent'],3,stroke_dasharray='5 12')
+    art += path('M-29-181H28V143H-29Z',STATION['paint'],width=3)
+    art += path('M28-181L42-169V133L28 143Z',STATION['shadow'],width=2)
+    art += path('M-13-168V127M15-168V127',stroke=STATION['frame'],width=3)
+    art += path('M-29-72H28M-29 11H28M-29 91H28',stroke=STATION['shadow'],width=10)
+    art += path('M-25 77L-173 142M30 77L178 142',stroke=STATION['frame'],width=14)
+    art += path('M-450 149L-425 124H425L452 149Z',STATION['paint'],width=3)
+    art += rect(-450,149,902,43,STATION['frame'],INK,3)
+    for px in range(-434,420,62):
+        art += path(f'M{px} 157L{px+31} 183L{px+62} 157',stroke=STATION['shadow'],width=5)
+    for px in (-398,-292,-188,91,201,311):
+        art += path(f'M{px} 94L{px+16} 78H{px+100}L{px+84} 94Z',STATION['paint'],width=2)
+        art += rect(px,94,84,48,STATION['ring_shadow'],INK,2)
+        art += path(f'M{px+10} 101V134M{px+28} 101V134M{px+46} 101V134M{px+64} 101V134',stroke=STATION['frame_light'],width=2)
+    for px in (-325,-108,207,389):
+        art += path(f'M{px} 191V277M{px} 192L{px+44} 250',stroke=STATION['shadow'],width=13)
+        art += path(f'M{px-2} 195V271',stroke=STATION['frame_light'],width=4)
+        art += rect(px-18,264,36,19,STATION['paint'],INK,2)
+    for px,side in ((-431,1),(425,-1)):
+        art += path(f'M{px} 146V31H{px+side*128}V73',stroke=STATION['shadow'],width=12)
+        art += path(f'M{px} 145V32H{px+side*128}',stroke=STATION['frame_light'],width=4)
+    art += text(-71,177,'AQUILA',17,STATION['paint'],font_weight='bold',letter_spacing=3)
+    return group(art,f'translate({x} {y}) rotate(-12) scale({scale})',data_place='aquila')
+
+
+def transfer_hall(w, h):
+    """Draw Aquila's pressure-side wall; windows, handholds, and lock belong to staging.
+
+There is no floor plane or gravity cue. All placement remains an unscaled
+local scene proposal, not a station layout or pressure-system schematic.
+"""
+    art = rect(0,0,w,h,FREIGHT['wall'])
+    art += path(f'M0 0H{w}V{h*.2}H0Z',FREIGHT['wall_light'],'none')
+    for px in range(40,int(w),260):
+        art += path(f'M{px} 0V{h}',stroke=FREIGHT['panel'],width=4)
+        art += rect(px+12,h*.77,194,50,FREIGHT['panel'],FREIGHT['frame'],2,5)
+        art += path(f'M{px+27} {h*.77+13}H{px+184}',stroke=FREIGHT['rail'],width=2)
+    art += path(f'M0 {h*.69}H{w}',stroke=FREIGHT['frame'],width=15)
+    art += path(f'M0 {h*.69-3}H{w}',stroke=FREIGHT['rail'],width=5)
+    return group(art,data_place='aquila-transfer-hall',data_gravity='freefall')
 
 
 def baikal(x, y, scale):

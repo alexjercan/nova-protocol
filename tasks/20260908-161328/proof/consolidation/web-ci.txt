@@ -1,0 +1,63 @@
+
+> nova-protocol-web@1.0.0 ci
+> npm run format:check && npm run lint && npm run test && npm run build
+
+
+> nova-protocol-web@1.0.0 format:check
+> prettier --check "src/**/*.ts" "src/**/*.js" "tests/**/*.ts" "src/**/*.html" *.config.js *.js *.mjs package.json tsconfig.json
+
+Checking formatting...
+All matched files use Prettier code style!
+
+> nova-protocol-web@1.0.0 lint
+> eslint "src/**/*.ts" "tests/**/*.ts"
+
+
+> nova-protocol-web@1.0.0 test
+> tsc src/site.ts src/story-reader.ts src/widgets.ts tests/site.test.ts tests/story-reader.test.ts tests/theme.test.ts tests/widgets.test.ts src/comics/comic-page.ts src/comics/comic-art.ts src/comics/comic-renderer.ts tests/comic-page.test.ts tests/comic-renderer.test.ts --module commonjs --target es2020 --lib es2020,dom --types node --esModuleInterop --skipLibCheck --outDir .test-out && node .test-out/tests/site.test.js && node .test-out/tests/story-reader.test.js && node .test-out/tests/theme.test.js && node .test-out/tests/widgets.test.js && node .test-out/tests/comic-page.test.js && node .test-out/tests/comic-renderer.test.js && node tests/comics.test.js && node tests/ron.test.js && node tests/lore.test.js && node tests/assets.test.js
+
+site.test.ts: all assertions passed
+story-reader.test.ts: all assertions passed
+theme.test.ts: all assertions passed
+widgets: the corridor scope reproduces the stand bank
+widgets: the v0.13.0 scopes follow the game's rules
+comic-page.test.ts: all assertions passed
+comic-renderer.test.ts: all assertions passed
+comics.test.js: metadata, publication selection, incomplete-release rejection, mixed seasons, routing, escaping, assets, and stale cleanup passed
+ron.test.js: all assertions passed
+lore.test.js: 28 pages and 742 links passed
+assets: news namespace held across 107 source files
+
+> nova-protocol-web@1.0.0 build
+> webpack --config webpack.config.js
+
+assets by path assets/ 185 MiB 254 assets
+assets by path nova-hud/ 606 KiB 118 assets
+assets by path *.js 10.9 MiB 71 assets
+assets by path lore/ 159 KiB 32 assets
+assets by path wiki/ 287 KiB 22 assets
+assets by path create/ 604 KiB 19 assets
+assets by path news/ 404 KiB 14 assets
+assets by path changelog/ 4.01 KiB
+  asset changelog/0.1.0/index.html 344 bytes [compared for emit]
+  + 11 assets
+assets by path blog/ 1.99 KiB
+  asset blog/devlog-1-modular-ships-and-first-combat/index.html 344 bytes [compared for emit]
+  + 5 assets
++ 5 assets
+orphan modules 613 KiB [orphan] 490 modules
+runtime modules 12.4 KiB 33 modules
+modules by path ./node_modules/ 7.47 MiB 1067 modules
+modules by path ./src/ 524 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./src/*.ts 350 KiB
+    ./src/index.ts 257 bytes [built] [code generated]
+    + 8 modules
+  modules by path ./src/*.css 102 KiB
+    ./src/style.css 1.19 KiB [built] [code generated]
+    + 5 modules
+  modules by path ./src/comics/*.ts 24.6 KiB
+    ./src/comics/comic-catalog.ts 328 bytes [built] [code generated]
+    + 2 modules
+  ./src/docs-manifest.js 47.5 KiB [built] [code generated]
+  ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 3254 ms

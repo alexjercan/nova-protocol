@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""Draw private episode pages 5-7 from the approved script and shared designs."""
+
+import argparse
+import importlib.util
+import re
+import sys
+import textwrap
+from html import escape
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+OUTPUT = Path(__file__).resolve().parent
+TASK = OUTPUT.parent
+ROOT = TASK.parents[1]
+sys.path.insert(0,str(ROOT/'scripts'))
+sys.path.insert(0,str(OUTPUT))
+from nova_illustration.colors import INK, MINT, FREIGHT, WORK, REVIEW, RINA
+from nova_illustration.lettering import labelled_speech
+from nova_illustration.portraits import gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait
+from nova_illustration.scenery import aquila, stars, transfer_hall
+from nova_illustration.ships import render_ship
+from nova_illustration.svg import group, path, rect, tag, text
+from props import assembly, assembly_faces, freight_lock, handhold
+
+spec = importlib.util.spec_from_file_location('opening',TASK/'comic-opening-poc/generate.py')
+opening = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(opening)
+
+
+def dialogue_lines(source):
+    """Read whole dialogue paragraphs, including source-wrapped continuation lines."""
+    return [(speaker,' '.join(line.split())) for speaker,line in re.findall(
+        r'^\*\*([^*\n]+):\*\* ([\s\S]+?)(?=\n\n|\Z)',source,re.M
+    ) if speaker!='Purpose']
+
+
+def script_panels():
+    """Read dialogue from the script; page geometry owns wrapping, not a second script."""
+    source = (TASK/'episode-1/SCRIPT.md').read_text()
+    panels = {}
+    for match in re.finditer(r'^### Panel ([567][abc])\n(.*?)(?=^###? |\Z)',source,re.M|re.S):
+        key,body = match.groups()
+        lines = dialogue_lines(body)
+        action = ' '.join(re.split(r'^\*\*[^\n]+:\*\* ',body,maxsplit=1,flags=re.M)[0].split()).replace('**','')
+        panels[key] = (action,lines)
+    assert len(panels)==9
+    return panels
+
+
+class Panel(opening.Panel):
+    """Retain the opening frame and text style with explicitly sided balloon tails."""
+
+    def __init__(self,key,x,y,w,h,art,script):
+        action,self.spoken = script[key]
+        super().__init__(key,x,y,w,h,action,art)
+        self.used = []
+
+    def say_line(self,index,x,y,w,wrap,tip,side='bottom'):
+        """Lay out one script line and remember its use for exact transcript checks."""
+        speaker,line = self.spoken[index]
+        lines = textwrap.wrap(line,wrap,break_long_words=False,break_on_hyphens=False)
+        self.lettering += labelled_speech(x,y,w,speaker,lines,tip,side)
+        self.lines.append((speaker,line))
+        self.used.append(index)
+        return self
+
+    def render(self):
+        """Reject omitted, repeated, or reordered dialogue before saving a page."""
+        assert self.used==list(range(len(self.spoken))),self.key
+        return super().render()
+
+
+def window(key,x,y,w,h,view):
+    """Keep space behind a framed pressure window, never an open cargo doorway."""
+    inside = rect(x,y,w,h,'url(#space)')+view
+    clip = tag('defs',tag('clipPath',rect(x,y,w,h,'white',radius=30),id=key))
+    art = clip+group(inside,clip_path=f'url(#{key})')
+    art += rect(x,y,w,h,'none',INK,14,30)
+    art += rect(x,y,w,h,'none',FREIGHT['rail'],8,30)
+    art += path(f'M{x+18} {y+h-22}V{y+43}Q{x+18} {y+18} {x+45} {y+18}',stroke=FREIGHT['edge'],width=2)
+    return group(art,data_prop='pressure-window')
+
+
+def held_person(name,x,y,scale,reach=False):
+    """Anchor a frontal person at a drawn rail without rotating their likeness."""
+    body = gantry_portrait(name) if name=='nadia' else jonah_listener() if name=='jonah' else work_portrait(name)
+    art = group(body,f'translate({x} {y}) scale({scale})')+handhold(x,y,scale)
+    arm = reaching_arm(name) if reach else gripping_arm(name)
+    return art+group(arm,f'translate({x} {y}) scale({scale})')
+
+
+def clear_signal(x,y):
+    """Let Rina's orange sleeve and open signal enter the edge of the working shot."""
+    art = path('M-20 80L-14 37L11 35L28 80Z',RINA['coat'],width=2)
+    art += path('M-12 40L-16 15L-13-11Q-10-19-5-13L-5 8L0-20Q5-27 9-19L7 7L16-13Q21-18 24-11L18 15L26 3Q34 0 31 8L20 36L10 45Z',RINA['skin'],width=1.8)
+    art += path('M-4 18L0 33M7 17L8 32',stroke=RINA['lines'],width=1.2)
+    return group(art,f'translate({x} {y})',data_prop='rina-clear-signal')
+
+
+def pages():
+    """Compose the arrival, professional exchange, and separate homeward departures."""
+    script = script_panels()
+    w = 1416
+    art = rect(0,0,w,350,'url(#space)')+stars(w,350)
+    art += aquila(974,150,.64)+render_ship('gantry','forward-quarter',1117,318,.23,False)
+    art += render_ship('kaveri','forward-quarter',565,169,.55,False)
+    a = Panel('5a',42,86,w,350,art,script)
+    a.title_card(25,24,365,'AQUILA','Saturn system','Later',"Farspan's freight hub")
+    a.say_line(0,25,209,455,34,(5,333),'left')
+    art = transfer_hall(700,487)
+    art += window('collection-window',210,142,250,147,stars(700,300)+render_ship('kaveri','forward-quarter',342,232,.29,False))
+    art += held_person('rina',39,136,.64)+held_person('samir',453,147,.65)
+    art += assembly(365,482,1.68)
+    art += path('M190 385Q176 356 171 342M466 405Q493 381 510 350',stroke=FREIGHT['stripe'],width=4)
+    art += path('M610 357Q652 376 596 434',stroke=FREIGHT['stripe'],width=3)
+    art += rect(477,324,143,62,WORK['screen'],INK,2,5)
+    art += text(489,349,'CLEARWELL',14,MINT,letter_spacing=1)+text(489,370,'ORDER MATCH',12,WORK['card_text'])
+    b = Panel('5b',42,456,700,487,art,script)
+    b.say_line(0,18,18,247,18,(152,191))
+    b.say_line(1,346,18,335,25,(555,210))
+    b.say_line(2,220,253,262,19,(181,250),'left')
+    art = transfer_hall(696,487)
+    body,hands = work_inspection('leila')
+    art += handhold(390,145,.72)+group(body,'translate(390 145) scale(.72)')
+    art += assembly(485,576,1.78)+group(hands,'translate(390 145) scale(.72)')
+    art += path('M388 363Q346 346 324 351',stroke=FREIGHT['stripe'],width=4)
+    c = Panel('5c',762,456,696,487,art,script)
+    c.say_line(0,18,18,374,28,(488,211),'right')
+    c.say_line(1,18,174,315,22,(0,240),'left')
+    c.say_line(2,18,318,341,25,(503,293),'right')
+    page5 = ('Arrivals','A working freight town, an in-person inspection, and a restrained load in freefall.',[a,b,c])
+
+    art = transfer_hall(w,400)
+    art += window('gantry-berth',857,125,531,243,stars(w,400)+render_ship('gantry','forward-quarter',1128,287,.74,False))
+    art += held_person('nadia',247,123,.68)
+    body,hands = work_inspection('rina')
+    art += group(body,'translate(603 99) scale(.64)')+assembly(794,478,1.42)+group(hands,'translate(603 99) scale(.64)')
+    a = Panel('6a',42,86,w,400,art,script)
+    a.say_line(0,25,18,402,30,(356,193))
+    a.say_line(1,487,18,395,30,(714,190))
+    a.say_line(2,25,212,275,20,(365,243),'right')
+    art = transfer_hall(680,437)+freight_lock(225,126,.77)
+    art += held_person('jonah',8,125,.62)+held_person('nadia',444,132,.60)
+    b = Panel('6b',42,506,680,437,art,script)
+    b.say_line(0,18,18,267,20,(129,191))
+    b.say_line(1,321,18,339,25,(543,194))
+    b.say_line(2,222,307,251,19,(168,252),'left')
+    art = transfer_hall(716,437)+freight_lock(261,162,.51)
+    art += held_person('nadia',17,151,.64,True)+held_person('jonah',426,142,.64)
+    art += clear_signal(354,409)
+    c = Panel('6c',742,506,716,437,art,script)
+    c.say_line(0,18,18,241,17,(133,188))
+    c.say_line(1,310,18,385,28,(549,196))
+    c.say_line(2,18,308,291,21,(132,276),'top')
+    c.say_line(3,383,320,313,22,(558,284),'top')
+    page6 = ("Another crew's work",'Gantry and Nadia are ordinary working colleagues. The freight lock stays closed to space.',[a,b,c])
+
+    art = rect(0,0,w,350,WORK['wall_shadow'])
+    view = stars(w,350)+path('M22 0V280H205',stroke=FREIGHT['frame'],width=25)
+    view += render_ship('gantry','forward-quarter',492,227,.89,True)
+    art += window('departure-window',24,28,813,292,view)
+    art += held_person('rina',875,138,.59)+held_person('samir',1156,142,.52)
+    art += rect(1090,286,298,57,WORK['screen'],INK,2,5)
+    art += text(1107,307,'LOAD SECURED / COVERS ON',14,MINT,letter_spacing=.3)
+    art += text(1107,332,'PASSAGE CLEAR',17,WORK['card_text'])
+    a = Panel('7a',42,86,w,350,art,script)
+    a.say_line(0,852,18,281,19,(977,173))
+    a.say_line(1,1141,18,257,20,(1254,181))
+    art = rect(0,0,680,487,'url(#space)')+stars(680,487)+aquila(166,126,.29)
+    art += render_ship('kaveri','aft-quarter',438,371,.81,True,cargo=assembly_faces())
+    b = Panel('7b',42,456,680,487,art,script)
+    art = rect(0,0,716,487,WORK['wall'])
+    art += path('M286 0V487M652 0V487',stroke=WORK['wall_shadow'],width=18)
+    art += held_person('leila',24,159,.70)+held_person('jonah',413,168,.65)
+    art += rect(431,369,243,89,WORK['screen'],INK,2,5)
+    art += text(448,397,'COLLECTION COMPLETE',14,MINT)+text(448,428,'BAIKAL',22,WORK['card_text'],letter_spacing=2)
+    c = Panel('7c',742,456,716,487,art,script)
+    c.say_line(0,18,18,333,25,(144,211))
+    c.say_line(1,382,18,314,23,(548,219))
+    c.say_line(2,18,356,378,28,(155,301),'top')
+    page7 = ('On the way home','Gantry leaves first. Kaveri follows with the covered assembly; later, thoughts turn to home.',[a,b,c])
+    return [page5,page6,page7]
+
+
+def review(authored,svgs):
+    """Keep the three-page private review offline, with full-size art and transcripts."""
+    theme = ';'.join(f'--{k.replace("_","-")}:{v}' for k,v in REVIEW.items())
+    sections = []
+    for number,((title,purpose,panels),svg) in enumerate(zip(authored,svgs),5):
+        transcript = ''.join(f'<h3>Panel {p.key}</h3><p>{escape(p.title)}</p><ol>'+''.join(f'<li><strong>{escape(s)}:</strong> {escape(t)}</li>' for s,t in p.lines)+'</ol>' for p in panels)
+        sections.append(f'<section id="page-{number}"><h2>{number:02} {escape(title)}</h2><p>{escape(purpose)} <a href="page-{number:02}.svg">Full-size SVG</a></p>{svg}<details><summary>Action and dialogue as text</summary>{transcript}</details></section>')
+    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aquila / Episode 1 pages 5-7</title><style>
+:root{{{theme};color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:var(--background);color:var(--text);font:17px/1.6 system-ui,sans-serif}}header,main,footer{{max-width:1500px;margin:auto;padding:24px 32px}}a{{color:var(--mint)}}h1,h2{{font-weight:500;line-height:1.25}}p{{max-width:85ch;color:var(--paragraph)}}nav{{display:flex;flex-wrap:wrap;gap:24px}}section{{padding-block:20px 40px}}svg{{display:block;width:100%;height:auto}}details{{padding:12px 20px;background:var(--surface);margin-top:16px}}summary{{cursor:pointer}}details p,li{{max-width:80ch}}body.art-only .dialogue{{visibility:hidden}}a:focus-visible,summary:focus-visible,input:focus-visible{{outline:3px solid var(--focus);outline-offset:4px}}label{{display:inline-flex;gap:10px;padding-block:12px}}@media(max-width:700px){{header,main,footer{{padding:18px 16px}}h1{{font-size:28px}}}}@media print{{header,footer,section>h2,section>p,details{{display:none}}main,section{{padding:0;max-width:none}}section{{break-after:page}}@page{{size:landscape;margin:0}}}}
+</style></head><body><header><p>PRIVATE COMIC DRAFT / NOT A RELEASED EPISODE</p><h1>Aquila: a useful pickup.</h1><p>Pages 5-7 continue the accepted opening in a pressurized, non-rotating transfer hall. Ships stay outside. Handholds and restrained cargo establish freefall. This is local scene staging, not a full station plan.</p><nav aria-label="Review pages"><a href="#page-5">05 Arrivals</a><a href="#page-6">06 Another crew's work</a><a href="#page-7">07 On the way home</a></nav><p><a href="../comic-opening-poc/index.html">Accepted pages 1-4</a> / <a href="../episode-1/index.html">Complete episode script with current artwork</a> / <a href="../gantry-study/index.html">Gantry and crew designs</a></p><label><input id="art-only" type="checkbox">Art only (keep signs and location cards)</label></header><main>{''.join(sections)}</main><footer><p>Seven pages now have artwork. Pages 8-18 remain script, not illustrations. Open the SVGs or transcripts for small lettering on a phone.</p><a href="README.md">Scope and regeneration</a></footer><script>document.getElementById('art-only').addEventListener('change',event=>document.body.classList.toggle('art-only',event.target.checked));</script></body></html>\n'''
+
+
+def main():
+    """Write this private board's three SVGs and HTML, or compare their exact bytes."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check',action='store_true')
+    args = parser.parse_args()
+    authored = pages()
+    svgs = [opening.render_page(n,title,panels) for n,(title,_,panels) in enumerate(authored,5)]
+    outputs = {f'page-{n:02}.svg':svg for n,svg in enumerate(svgs,5)}
+    outputs['index.html'] = review(authored,svgs)
+    for name,content in outputs.items():
+        file = OUTPUT/name
+        if args.check:
+            assert file.is_file() and file.read_bytes()==content.encode(),f'Regenerate {file}'
+        else:
+            file.write_text(content)
+    print(f"{'Verified' if args.check else 'Rendered'} three Aquila pages, nine panels, and a private review board")
+
+
+if __name__=='__main__':
+    main()

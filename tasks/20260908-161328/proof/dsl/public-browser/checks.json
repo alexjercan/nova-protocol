@@ -1,0 +1,9 @@
+{
+  "noServer": true,
+  "modalChecks": false,
+  "noLayoutUi": true,
+  "base": "/",
+  "reports": [],
+  "pixels": [],
+  "errors": []
+}

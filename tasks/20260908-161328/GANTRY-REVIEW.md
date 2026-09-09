@@ -1,0 +1,104 @@
+# Gantry and its crew: design review
+
+**Review outcome:** The user accepted these as working designs. The following
+report retains the completed Gantry batch's scope and evidence. Subsequent
+[Aquila page work](AQUILA-REVIEW.md) changes the pickup staging, not these designs.
+
+The user accepted the revised opening and asked to continue with the next art
+subjects. This batch supplies reusable Gantry, Nadia, Owen, and Ivo proposals.
+It does not draw the remaining episode pages, publish story history, or choose
+new chronology, dimensions, biographies, injury details, or later fates.
+
+## Review board
+
+Open [Gantry and its crew](gantry-study/index.html). It contains a matched
+intact/stranded ship comparison and comic/lore crew sheets. These are now the accepted
+working models for the next scenes, without new engineering or biographies.
+
+### Gantry
+
+- A broad plated cargo body and raised handling frame distinguish it from
+  Kaveri's open cradle and Ebro's exposed vessels.
+- A low forward crew module, side transfer collar, single aft bell, framed doors,
+  recessed service area, pipes, hatches, and restrained edge markings retain the
+  accepted civilian industrial vocabulary. It is unarmed.
+- Intact and stranded views use the same model. Two aft service-cover components
+  are replaced with authored torn edges and a retained roof section. Other
+  components keep their exact geometry, including the surviving transfer port.
+- The service feeds exist beneath the intact cover too. No second damage hull,
+  procedural destruction, fire, attack-direction claim, or electrical schematic
+  is introduced. The bell remains present, but stranded main-drive thrust is
+  rejected by the renderer.
+- The collar is a shape proposal, not proof of docking compatibility, access
+  clearance, or capacity. Those still need staging with Kaveri when drawn.
+
+The shared renderer now accepts `state='intact'` by default. Only Gantry has an
+additional `stranded` condition. Existing Kaveri/Ebro renders, including their
+plumes, remain exact. The optional condition is documented; unrecognized
+ship/state pairs are errors.
+
+### People
+
+- Nadia: short side-parted hair, composed features, and a close work jacket.
+- Owen: broader contour, short graying hair, and a practical jacket.
+- Ivo: longer contour, swept hair, short beard, and a work vest.
+
+Heads and bodies are separately authored. All face forward and have only their
+original feature layer; none is a rotated portrait or a generic expression rig.
+The outfits are civilian work clothes, not military rank markings. These are
+appearance proposals, not fixed ages, ancestry, biographies, or final likenesses.
+Public starting portraits do not depict Owen's later injury.
+
+During inspection, Owen's first hair contour left an isolated scalp-colored
+patch. The contour was closed into a continuous hairline and reinspected. The
+ship gained restrained frame fasteners, roof fixtures, and service runs; its
+silhouette still carries the design rather than surface detail alone.
+
+## Public and private ownership
+
+`scripts/gen-lore-designs.py` now exports Gantry's intact design sheet and the
+three starting portraits. Their existing lore articles link those four assets.
+All nine registered public characters now have portrait concepts. Bastion,
+Foundation, Altair, Redress, and Windfall still need ship sheets.
+
+The damaged comparison stays in this task. Public exporters import only the
+shared library, never task files. No episode was registered or deployed. The
+current eighteen-page script and all four opening pages remain unchanged.
+
+The existing unreleased lore feature entry already covers reusable portraits
+and ship-design proposals. This completes more of that unreleased feature;
+there is no separate private-art changelog entry.
+
+## Verification
+
+Evidence lives in `proof/gantry/`, not in earlier proof directories.
+
+- [Illustration tests](proof/gantry/unit-tests.txt): 26 pass. New checks cover
+  component retention, all stranded views, condition/thrust errors, distinct
+  body geometry, head reuse, color-only treatment, and public starting exports.
+- [Affected website tests](proof/gantry/web-tests.txt): lore remains 28 pages;
+  742 root/prefix links pass. The three portrait links and ship sheet are checked.
+- [Website build](proof/gantry/web-build.txt): includes the four new assets.
+- [Generation checks](proof/gantry/generation.txt): public exporters, accepted
+  opening/studies, complete script review, and the new private board.
+- [Browser checks](proof/gantry/browser-checks.json): seven SVGs, both color
+  treatments, private desktop/phone board, and eight built article views. The
+  private board requests only local files; website views use the existing font
+  sources. The owned browser and server are stopped.
+- [Source and scope](proof/gantry/source-and-scope.json): 37 prior head/body/ship
+  renders retained, old public art and proof preserved, all 24 public lore SVGs
+  copied exactly, and private damage markers absent from the public build.
+- [Markdown and links](proof/gantry/markdown.txt).
+
+The baseline records the working tree at
+`f4ea1bce429a585cb49b9280f963b88ba4a033db`, not a claim that the earlier script and
+website work were committed. Their pending changes are preserved. Full website
+CI and Rust checks were not rerun for this art batch. No commit or push was
+requested or performed.
+
+## Next
+
+Review the three likenesses and Gantry's external form before using them in
+pages 5-7, the Aquila pickup and ordinary-work introduction. Exact loading
+access and scene framing remain to be drawn; the design sheet is not an
+interior plan or a new story event.

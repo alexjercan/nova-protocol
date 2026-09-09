@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from nova_illustration.faces import JONAH_FACE, LEILA_FACE, RINA_FACE, TOMAS_FACE
+from nova_illustration.faces import JONAH_FACE, LEILA_FACE, RINA_FACE, SAMIR_FACE, TOMAS_FACE
 
 
 @dataclass(frozen=True)
@@ -80,14 +80,10 @@ PORTRAITS = (
         role="SYSTEMS / FIRST AID",
         skin="#ab8267", shadow="#644c3e", light="#d5b28c",
         hair="#35322d", coat="#596961",
-        head="M225 188Q239 145 300 149Q352 152 370 194L361 291Q347 338 304 372Q268 358 244 330L228 280Z",
-        back_hair='<path d="M217 247Q201 232 205 209Q187 187 205 167Q199 141 227 133Q236 108 265 119Q286 98 310 116Q339 101 359 133Q388 135 389 159Q410 178 391 202Q400 225 375 250Z"/>',
-        front_hair='<path d="M216 224L218 173L244 151L270 136L312 126L351 148L381 174L380 221L361 237L357 194Q337 207 326 182Q299 205 286 181Q267 201 253 177L236 198L232 234Z"/><path d="M235 149Q220 170 240 176M270 135Q247 156 269 170M310 133Q286 159 311 176M344 149Q326 168 349 187" fill="none" stroke="#776957" stroke-width="4"/>',
-        features='''<path d="M242 224L276 226M316 226L349 222" stroke="#48382c" stroke-width="5"/>
-<path d="M243 243Q260 235 278 244Q260 251 243 243M316 243Q332 234 350 242Q333 252 316 243" fill="#c5b59a"/>
-<g fill="#323b32"><circle cx="261" cy="244" r="5"/><circle cx="333" cy="243" r="5"/></g>
-<g fill="none" stroke="#444e49" stroke-width="4"><rect x="233" y="228" width="53" height="35" rx="11"/><rect x="307" y="228" width="53" height="35" rx="11"/><path d="M286 239Q296 232 307 239M222 234L233 238M360 238L370 232"/></g>
-<path d="M299 250L288 286L306 290M273 320Q297 325 323 315M286 336L308 335" fill="none" stroke="#70503d" stroke-width="3" stroke-linecap="round"/>''',
+        head=SAMIR_FACE.head,
+        back_hair=SAMIR_FACE.back_hair,
+        front_hair=SAMIR_FACE.front_hair,
+        features=SAMIR_FACE.features,
         collar='<path d="M249 403L291 445L276 465L222 420M351 403L308 445L326 465L380 421" fill="#a5ad98" stroke="#455b50" stroke-width="3"/><path d="M302 461V590M338 491H415V543H338" fill="none" stroke="#9da995" stroke-width="3"/><path d="M352 510H384M352 523H397" stroke="#b8c2ac" stroke-width="3"/>',
     ),
 )

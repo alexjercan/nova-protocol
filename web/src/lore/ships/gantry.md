@@ -21,6 +21,14 @@ engineering tradition. Gantry represents the everyday work behind the company's
 large construction projects, alongside vessels such as
 [Foundation](../foundation/).
 
+<figure class="plate">
+<a href="../../../assets/lore/gantry-design-concept.svg"><img src="../../../assets/lore/gantry-design-concept.svg" width="1500" height="1100" alt="Gantry design proposal in plan, side, forward, and three-quarter views: a broad plated cargo body, raised handling frame, forward crew module, side transfer collar, and single aft engine housing."></a>
+<figcaption><strong>Design proposal.</strong> Four views of one shared shape
+model. Construction, dimensions, equipment placement, and colors remain
+concepts, not engineering specifications or a gameplay loadout.
+<a href="../../../assets/lore/gantry-design-concept.svg">Open design sheet</a>.</figcaption>
+</figure>
+
 ## Crew
 
 [Nadia Sen](../../characters/nadia-sen/) is Gantry's captain and pilot.

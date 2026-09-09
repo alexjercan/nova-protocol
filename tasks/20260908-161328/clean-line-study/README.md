@@ -63,7 +63,7 @@ reopen the rejected angled-face treatment.
 ## Regeneration and review
 
 `generate.py` owns scene composition, dialogue placement, the three SVGs, and
-the offline review sheet. `../opening_props.py` supplies the same incidental
+the offline review sheet. `web/src/comics/season-1/episode-1/art/opening_props.py` now supplies the same incidental
 mug-and-hand drawing to this study and the four-page draft. It uses shared
 colors but remains task-local, not a series-wide library asset.
 The scene generator imports the maintained

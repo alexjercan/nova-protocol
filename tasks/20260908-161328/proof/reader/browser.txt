@@ -1,0 +1,8 @@
+
+DevTools listening on ws://127.0.0.1:38919/devtools/browser/7abdec9d-3a71-4fdd-920d-4401d3fc56fa
+[2365533:2365533:0909/131458.150713:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+[2365533:2365555:0909/131501.503003:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[2365533:2365555:0909/131501.515920:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[2365533:2365555:0909/131501.596525:ERROR:google_apis/gcm/engine/mcs_client.cc:702]   Error code: 401  Error message: Authentication Failed: wrong_secret
+[2365533:2365555:0909/131501.596540:ERROR:google_apis/gcm/engine/mcs_client.cc:704] Failed to log in to GCM, resetting connection.
+[2365533:2365555:0909/131512.734255:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: INTERNAL_SERVER_ERROR

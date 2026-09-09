@@ -1,44 +1,23 @@
-import { ChapterState, ComicPage } from "./comic-page";
+import type { ComicPage } from "./comic-page";
 
+/** One generated page, embedded only after the build selects its episode. */
 export interface ComicManifestPage {
     id: string;
     title: string;
-    source: string;
-    chapter: string;
-    chapterId: string;
-    state: ChapterState;
+    transcript: string;
+    definition: ComicPage;
 }
 
+/** Build-selected reader data; authoring scripts never enter the browser bundle. */
 export interface ComicManifest {
     path: string;
     title: string;
-    summary: string;
-    status: string;
-    cover: string;
-    coverAlt: string;
+    episodeTitle: string;
     basePath: string;
     pages: ComicManifestPage[];
 }
 
-interface PageModule {
-    default: ComicPage;
-}
-
-interface RequireContext {
-    (id: string): PageModule;
-    keys(): string[];
-}
-
-declare const require: NodeRequire & {
-    context(
-        directory: string,
-        useSubdirectories: boolean,
-        regExp: RegExp
-    ): RequireContext;
-};
-
-const pageModules = require.context(".", true, /\/pages\/[^/]+\.ts$/);
-
+/** Read the embedded episode, or return null on an archive page without a reader. */
 export function readComicManifest(
     documentRoot: Document = document
 ): ComicManifest | null {
@@ -47,12 +26,7 @@ export function readComicManifest(
     return JSON.parse(script.textContent) as ComicManifest;
 }
 
+/** Load the selected definitions without a recursive import of comic source folders. */
 export function loadComicPages(manifest: ComicManifest): ComicPage[] {
-    return manifest.pages.map((page) => {
-        const key = `./${manifest.path}/${page.source}.ts`;
-        if (!pageModules.keys().includes(key)) {
-            throw new Error(`Comic page module is missing: ${key}`);
-        }
-        return pageModules(key).default;
-    });
+    return manifest.pages.map((page) => page.definition);
 }

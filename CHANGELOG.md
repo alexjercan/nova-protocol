@@ -291,11 +291,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The `/lore/` encyclopedia adds illustrated world articles, named places,
   companies, eight ships, two workship crews, and Clearwell's co-founder, with
   reusable portraits and ship-design proposals.
-- The site gets a spoiler-marked Story archive. Campaigns open as full-screen
-  digital HUD comics with fitted pages, contents, progress, and snapped page controls.
-- The Story archive opens on a one-page reader demo poster that holds the
-  story's place while it is written. Panels can be CRT screens in a bezel, and a
-  Python vocabulary draws the art.
+- Story lists each episode once under its season, with full-color SVG exports
+  and transcript modals. TS scripts and Python art share one home; local drafts
+  stay out of deployable builds.
 - The wiki gets a Railgun page - the commit and its one way out, what a slug
   rakes through, the recoil and the tempo - and the dev book gets the railgun's
   charge cycle, its sight and its AI envelope.
@@ -470,9 +468,6 @@ does NOT get an entry - and it is the only place they are written down.
 - A `--features debug` build shows the commit it was built from on the status
   bar, and restamps it on the next commit. The feature never reached the crate
   that asks git, so the hash was missing.
-- Comic pages are typed TypeScript modules: panels, speech, transcripts, HUD
-  chips and inline SVG art, rendered by an allowlisting renderer with no markup
-  path. The archive builds with zero comics.
 - A `bench play` subcommand seats an agent at the process channel - a scripted
   baseline, `pi` with any model, or any process on a unix socket - and scores
   the run from the game's own state.

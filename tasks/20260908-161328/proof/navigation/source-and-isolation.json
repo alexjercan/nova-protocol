@@ -1,0 +1,21 @@
+{
+  "protectedFiles": 698,
+  "markdownSources": 4,
+  "localLinkTargets": 37,
+  "singleLibrary": true,
+  "publicStoryRoutes": [
+    "story/index.html"
+  ],
+  "pixelDifferences": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "serverStarted": false,
+  "indexEmpty": true,
+  "head": "22e681962e8f6dde573d849c2271f3be986c71e7"
+}

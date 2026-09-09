@@ -16,6 +16,7 @@ and "Writing the release news post".
 | News | `web/src/news/*.md` -> `/news/` | players + modders | each feature release |
 | Player wiki | `web/src/wiki/*.md` -> `/wiki/` | players | player-facing behavior changes |
 | Lore encyclopedia | `web/src/lore/` -> `/lore/` | readers + story authors | approved world facts and published story references change |
+| Story library | `web/src/comics/` -> `/story/` | readers + story authors | navigation, TS page scripts, Python panel art, composition, or publication change; update the comic authoring README and keep drafts out of deployable builds |
 | Creator docs | `web/src/create/*.md` -> `/create/` | mod authors | a data format or the modding UX changes |
 | Dev book (this book) | `docs/` -> `/dev/` | contributors | internals, architecture, or the dev workflow change |
 | rustdoc | local: `cargo doc --open` | contributors | with the code (doc comments travel in the same diff) |

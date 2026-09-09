@@ -1,0 +1,36 @@
+{
+  "head": "22e681962e8f6dde573d849c2271f3be986c71e7",
+  "protectedFiles": 847,
+  "browserReports": [
+    {
+      "base": "/",
+      "pages": 7,
+      "pixelDifferences": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "base": "/nova-protocol/",
+      "pages": 7,
+      "pixelDifferences": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "publicIsolation": true,
+  "indexEmptyBeforeCommit": true,
+  "serverStarted": false,
+  "workflowChanges": false
+}

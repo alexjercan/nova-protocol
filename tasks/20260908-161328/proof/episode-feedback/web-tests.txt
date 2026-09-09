@@ -1,0 +1,12 @@
+comics.test.js: season/episode structure, routing, ordering, validation, escaping and draft isolation passed
+✔ web/tests/comics.test.js (43.72195ms)
+lore.test.js: 28 pages and 724 links passed
+✔ web/tests/lore.test.js (115.323254ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 122.893549

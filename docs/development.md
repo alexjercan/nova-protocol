@@ -1042,55 +1042,87 @@ Adding a post touches three places (mirror an existing post such as
 
 ### Writing a story comic
 
-Each public comic owns `web/src/comics/<path>/comic.json`. The directory path
-is both its catalog key and `/story/<path>/` URL; there is no global registry or
-`slug` field. A comic at `web/src/comics/example/` is served at
-`/story/example/` and reads its art from `web/src/assets/story/example/`. The
-manifest owns the archive metadata (`title`, `summary`, `status`, `cover`,
-`coverAlt`), the chapters in reading order, and the relative TypeScript module
-for every page. Every chapter names a `state`: `playable` when the game ships
-it as missions, `planned` when only the comic tells it, and `frame` for pages
-outside the story, such as the cover and the closing page. The archive card and
-the reader legend count playable against planned chapters, and a planned page
-carries a badge. Webpack discovers the manifests and fails on a missing field,
-an unknown state, invalid or duplicate ids, a missing page module, a missing
-cover, and any `.svg`, `.png` or `.webp` name a module mentions that is not
-under `web/src/assets/story/<path>/`. The engine modules beside the comic
-directories are not comics; with no comic directory at all the archive builds
-an empty notice at `/story/` and no reader routes. The shipped comic,
-`web/src/comics/demo/`, is one poster page that shows the archive and the reader
-working while the story is written; `art/comics/demo.py` draws its cover.
+`web/src/comics/` is the single home for maintained comic sources. Each season
+has `comic.json`; each episode has `episode.json`, an ordered `episode.ts`, one
+TS file per page under `pages/`, and Python panel drawings under `art/`. The
+directory names provide `/story/season-1/episode-1/`, with page ids in the
+fragment. Shared faces, ships, and colors remain in `scripts/nova_illustration/`.
+`web/src/comics/README.md` owns the DSL and build contracts. Public exporters
+must not import task files.
 
-A page module exports one `ComicPage` built from the typed helpers in
-`web/src/comics/comic-page.ts`: `comicPage`, `bleedPage`, `coverPage`,
-`endPage`, `chapterHeader`, `grid`, `panel`, `widePanel`, `speech`,
-`narration`, `locationCard`, `caption`, `readout`, `transcript`, `portrait`,
-`divider`, `hud`, `feed`, `terminal`, `inset`, and the inline SVG primitives.
-`web/src/comics/comic-art.ts` adds semantic art on top of them: `ship`,
-`motionLines`, `burst`, `debris`, `orbitPath`, `searchLane`,
-`signalRings`, `hazardBand`, `starfield`, `crtGrid`, `planetoid`, `torpedo`
-and `tracerFan`. A page is data. It names no CSS class, emits no markup, and
-every attribute the renderer writes is a number, an enumerated token, a
-validated asset name or validated path data; text reaches the DOM through
-`textContent`. `comic-renderer.ts` owns DOM and class selection; `ComicPlayer`
-in `story-reader.ts` owns fitted-page playback, contents, controls, deep links,
-and input. Adding a comic therefore needs only its directory, manifest,
-TypeScript page modules, and `web/src/assets/story/<path>/` art. Keep shared
-speaker names and portraits in one `cast.ts` beside the pages.
+`/story/` lists seasons only, in reading order. Each season has one illustrated
+row with its title, summary, selected episode count, and labelled local draft
+count. Click it to open `/story/<season>/`, which lists that season's episodes
+in authored order. Each episode has one clickable row and one thumbnail;
+drafts show how many pages are illustrated. There are no duplicate reading
+shortcuts or repeated season cover above the episodes.
 
-Panel art is an SVG asset drawn by a generator, not by hand. `art/comics/crt.py`
-holds the phosphor palette, the screen ground, ships, stations, faces and
-consoles; `art/comics/<comic>.py` composes one comic's panels and writes them
-into `web/src/assets/story/<path>/`. Give a panel `variant: "crt"` to draw it as
-a screen in a bezel with status bars; the art then stops at the screen. Author
-wide panels at 1920x900 and half panels at 1440x1000 and keep the subject in the
-central band, because the reader crops each image to its panel.
+The season page returns to the library through Story. The reader returns to its
+episode list through the season title, such as Season 1; Pages opens its page
+chooser. The phosphor shell surrounds full-color art.
 
-Run `cd web && npm run ci`, then inspect the generated archive and reader at a
-desktop and narrow viewport. A reader displays exactly one complete page; wheel,
-touch, arrow/Page keys, controls, and contents links replace that page rather
-than partially scrolling it. A page that overflows its viewport is a page with
-too much on it: cut lines or split it.
+Run `npm --prefix web run serve` and open `/story/` at the printed loopback URL.
+Normal local development includes labelled drafts. Source edits regenerate pages
+and reload the same page fragment. It uses `web/.cache/story/development/site`,
+not `web/dist`, and does not serve stale files from a prior disk build.
+`scripts/serve-web.sh` starts this same server with the game and portal.
+
+`npm --prefix web run build` always selects released episodes, even with webpack
+in development mode. Serving with `--mode production` also excludes drafts.
+Selection happens before generation: an excluded episode's code never runs,
+and none of its routes, assets, dialogue, or script enters the output. Only
+referenced assets are emitted; comic directories are not broad copy/import
+inputs. With no released episodes, the public archive has a plain empty state.
+
+Every metadata field is required. `comic.json` gives the unique positive season
+`sequence`, title, summary, and ordered episode directory ids. `episode.json`
+gives title, summary, cover scene id and alt text, TS entry filename, explicit
+Python art-module paths, complete `pageCount`, and `publication` (`draft` or
+`released`). Unknown fields, missing sources,
+unregistered directories, duplicate ids, and invalid generated data fail.
+Released episodes must form a prefix of reading order and have exactly their
+authored page count. A season can contain released episodes and the next draft.
+Publishing changes metadata after approval; sources stay in place. Comic release
+remains independent of campaign implementation.
+
+The TS page language owns action, dialogue, screen labels, narrative location
+cards, and page layout. Dialogue uses stable ids; balloon placement is keyed
+separately. Unillustrated pages remain TS scripts without fake art references.
+The shared build engine derives reader definitions, transcripts, and a reading
+copy named `SCRIPT.md` in the generated cache. That Markdown is not another
+maintained source. Unillustrated story text never enters a reader manifest.
+
+Python art modules register named `Scene` functions. The common builder exports
+only referenced standalone panel SVGs; it neither draws nor strips dialogue.
+Blank named text slots preserve labels' painter order under hands and equipment.
+Raw SVG is checked before export, and the browser checks it again on import.
+`comic-panels.ts` composes the page frame, panels, labels, cards, and measured
+balloons. `comic-renderer.ts` owns the DOM; `ComicPlayer` in `story-reader.ts`
+owns fitted playback, contents, deep links, and input. New pages update
+automatically. Route changes and build-engine JS changes need a server restart.
+
+Open image exports the displayed full page. The compact Panels and Transcript
+toolbar buttons open scrollable modals without taking space from the page.
+Panels offers each raw art SVG and its lettered export. Close or Escape restores
+focus to the opening button. These exports share the reader's measured
+layout. Automatic wrapping uses actual font metrics; explicit word-count breaks
+retain accepted lettering. The local Art only control hides speech. Automated
+browser checks inspect measured layout without a reader control or diagnostic
+overlay. Face checks use contour bounds, not hair boxes, and do not replace
+visual review. Full-color pages have no CRT tint,
+scanlines, or shade overlay. Older typed HUD helpers remain internal renderer
+building blocks, not a demonstration or a second story authoring workflow.
+
+Run `cd web && npm run ci`, then inspect the season library, each season's episode
+list, and reader routes at desktop and narrow widths, including a project URL
+prefix. Check browser Back and the labelled return links at both levels.
+The reader displays one page. Buttons, contents, arrow/Page keys, wheel, and a
+single-finger vertical swipe change pages. Modified zoom gestures are not page
+turns. Open image uses the browser's full-size image view and native zoom for the
+complete composition. Transcript exposes the selected page's derived text in
+its modal; scrolling it does not turn the underlying page. Contents hidden from view are also hidden from keyboard
+navigation. Mobile image fitting is an overview, not a claim that small
+landscape lettering is readable without zoom or text.
 
 ## Contributing a change
 

@@ -1,0 +1,77 @@
+{
+  "reports": [
+    {
+      "prefix": "/",
+      "width": 1440,
+      "route": "story/"
+    },
+    {
+      "prefix": "/",
+      "width": 1440,
+      "route": "story/demo/"
+    },
+    {
+      "prefix": "/",
+      "width": 1440,
+      "route": "story/demo/episode-1/"
+    },
+    {
+      "prefix": "/",
+      "width": 390,
+      "route": "story/"
+    },
+    {
+      "prefix": "/",
+      "width": 390,
+      "route": "story/demo/"
+    },
+    {
+      "prefix": "/",
+      "width": 390,
+      "route": "story/demo/episode-1/"
+    },
+    {
+      "prefix": "/nova-protocol/",
+      "width": 1440,
+      "route": "story/"
+    },
+    {
+      "prefix": "/nova-protocol/",
+      "width": 1440,
+      "route": "story/demo/"
+    },
+    {
+      "prefix": "/nova-protocol/",
+      "width": 1440,
+      "route": "story/demo/episode-1/"
+    },
+    {
+      "prefix": "/nova-protocol/",
+      "width": 390,
+      "route": "story/"
+    },
+    {
+      "prefix": "/nova-protocol/",
+      "width": 390,
+      "route": "story/demo/"
+    },
+    {
+      "prefix": "/nova-protocol/",
+      "width": 390,
+      "route": "story/demo/episode-1/"
+    }
+  ],
+  "errors": [],
+  "checks": [
+    "public root and prefix archives/contents/readers",
+    "demo not presented as released story",
+    "temporary season and two-episode route fixture",
+    "fragment loading, buttons, contents, keyboard and wheel",
+    "Ctrl-wheel not consumed",
+    "literal transcripts",
+    "full-color artPage CSS: contain, no filter, no scanline overlay",
+    "next episode links",
+    "private 18-page script including four retained pages"
+  ],
+  "fixture_scope": "Only the temporary prefixed build is populated with fixture episodes; production web/dist and public sources remain demo-only."
+}
