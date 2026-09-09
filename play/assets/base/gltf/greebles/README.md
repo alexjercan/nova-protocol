@@ -28,7 +28,7 @@ magazine, a chaff tube, an applique tile grid and a white rounds-count tally
 (`ammo_stripes`). Ten pieces and still the smallest kit BY DOCTRINE: everything
 low, flush and bolted, gunmetal plus ONE stencil white, nothing lit.
 
-`civilian_*.glb` - the racer's look, a ship built to be sold: a livery rail
+`civilian_*.glb` - a private yacht's look, a ship built to be sold: a livery rail
 (`stripe`), a cabin window row (`windows`) and its deck twin (`skylight`), a
 raked aero fin (`fin`), a smooth fairing (`fairing`), a faired intake scoop
 (`vent`), a flush outlined door (`door`), a faired tank blister (`tank`), a

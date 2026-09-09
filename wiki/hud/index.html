@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>HUD - Nova Protocol Wiki</title>
-        <meta name="description" content="What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, the target viewfinder, and the story comms panel." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>HUD - Nova Protocol Wiki</title><meta name="description" content="What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, a railgun's bore sight, the target viewfinder, and the story comms panel."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,28 +17,12 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / HUD
-                    </p>
-                    <h1>HUD</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>The heads-up display is diegetic - the instruments read the ship's real state - and contextual: elements surface while their situation is live and settle back when it passes, so a quiet cruise has a quiet screen without you managing it.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / HUD</p><h1>HUD</h1><div class="wiki__tags" id="wiki-tags"></div><p>The heads-up display is diegetic - the instruments read the ship's real state - and contextual: elements surface while their situation is live and settle back when it passes, so a quiet cruise has a quiet screen without you managing it.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-hud.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-hud.png</span
@@ -62,61 +38,78 @@
 <h2 id="what-is-on-screen-and-when" tabindex="-1">What is on screen, and when</h2>
 <p>The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise keeps a quiet screen - the velocity sphere, your speed, the dock's few live verbs, the always-on ship markers and the status bar - and everything else arrives with its moment.</p>
 <div class="widget" data-widget="hud-context">
-<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges and redden the lead pips; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears every element.</p>
+<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
 </div>
 <details class="explain">
 <summary>Show explanation</summary>
 <ul>
 <li><strong>Autopilot burn</strong> - the mode chip comes up, the speed chip grows (it is the number you are flying by), and the dock lights the maneuver you are flying. GOTO and ORBIT also put the destination marker and its readout up; STOP flies without one - there is no destination to mark.</li>
 <li><strong>Combat lock</strong> - the red reticle, its DST/CLS readout and the target viewfinder come up, and the RADAR chip inverts because the lock is the thing you would change.</li>
-<li><strong>Weapons hot</strong> - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses.</li>
+<li><strong>Weapons hot</strong> - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses. A hull carrying a railgun draws its <a href="#bore-sight">bore sight</a>.</li>
 <li><strong>Low ammo or reloading</strong> - a nearly-dry group (a quarter magazine or less) pulses amber and forces the gauges up on its own, even with the safety on: a dry magazine is news before you pull the trigger. An active reload holds them up the same way, with its own pulse.</li>
 <li><strong>A posted objective</strong> - a chip carrying the objective itself pops into the stack at the top of the screen the moment it posts, like a chat notification, and then keeps a slow breath. The chip is a notification: it leaves once you have read it - after a dwell, or the moment you open NOVA OS.</li>
-<li><strong>An incoming transmission</strong> - the comms card arrives grown and settles while it holds.</li>
+<li><strong>An incoming transmission</strong> - the comms card fades in with a soft blip while the earlier transcript stays still.</li>
 </ul>
 </details>
 <p>Grave / tilde (or the gamepad Select button) toggles the whole display between two levels:</p>
 <ul>
 <li><strong>On</strong> - the contextual HUD above.</li>
-<li><strong>Cinematic</strong> - a clean screen for captures and quiet flying.</li>
+<li><strong>Cinematic</strong> - a clean screen for captures and quiet flying. Clean, not empty: see the two deliberate exceptions below.</li>
 </ul>
 <p>There is no third &quot;minimal&quot; level any more: showing everything all the time is what made a manual detail dial useful, and the contextual rules do that job continuously instead.</p>
 <p>Every widget still declares its kind - <strong>Instrument</strong> (velocity sphere, flight chips, autopilot marker, maneuver instruments, lead pips, lock crosshairs, allegiance markers), <strong>Chrome</strong> (the keybind dock, verb cues, the component-lock panel, edge indicators, objective markers, the target inset) or <strong>Status</strong> (the fps/version bar) - and all of them clear at Cinematic.</p>
+<p>Two surfaces carry no kind at all, and so the toggle does not reach them: a cutscene's title card, and its SKIP prompt. Both belong to a scene rather than to your instruments. Hiding the way out of a scene that is still playing would be worse than the clean frame is worth, so a capture taken during a cutscene keeps them.</p>
 <h2 id="flight-readouts" tabindex="-1">Flight readouts</h2>
 <p>The flight instruments sit around the ship, not in a status bar:</p>
 <ul>
 <li><strong>Velocity sphere</strong> - an orbiting cone and shaded sphere driven by your linear velocity; white and blue in manual flight, cyan when the autopilot is flying, violet while you hold RCS fine adjust (the violet wins over the cyan). A yellow variant shows the local gravity pull, hidden in flat space.</li>
-<li><strong>Speed and mode chips</strong> - a speed readout (<code>m/s</code>, metres per second; see the <a href="../glossary/">glossary</a>) always beside the sphere, and a mode chip reading <code>AP GOTO - BURN</code> (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged.</li>
+<li><strong>Speed and mode chips</strong> - a speed readout (<code>m/s</code>, meters per second; see the <a href="../glossary/">glossary</a>) always beside the sphere, and a mode chip reading <code>AP GOTO - BURN</code> (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged.</li>
 <li><strong>ORBIT ring and radius spoke</strong> - while you hold an orbit, a world-space ring marks the orbit plane and a thin spoke runs from the well to your ship with the current radius.</li>
 <li><strong>Keybind dock</strong> - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT and RCS. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored <strong>verb cues</strong> are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.</li>
 </ul>
 <h2 id="locks-and-reticles" tabindex="-1">Locks and reticles</h2>
 <p>Locks are slot-coloured: a <strong>white crosshair</strong> is your travel (nav) lock, a <strong>red reticle</strong> is your combat lock. The combat reticle carries a readout riding its right edge - range to the target (<code>DST</code>), closing speed (<code>CLS</code>) and a health bar (measured against the hull the target was BUILT with, so it falls as you take sections off and never refills) - plus a focus meter that fills as a fine-lock dwell accumulates. Lock an asteroid and the bar is simply absent: a rock has no health to draw, and how much of it is left is something you read off the rock itself. While you hold the radar gesture a hollow box shows, coloured by the slot it will land in; a <strong>white ring fills clockwise</strong> around the target while the lock-on dwell charges, and vanishes with a cue the instant the lock snaps (sweep off before it fills to cancel). Clearing a lock pops a brief &quot;unlatch&quot; ghost. See <a href="../targeting-radar/">Targeting &amp; radar</a>.</p>
+<h2 id="bore-sight" tabindex="-1">Bore sight</h2>
+<!-- Behavior verified against crates/nova_hud/src/bore_sight.rs: gated on WeaponsHot; the trace walks sections through the same `pierce_remainder` the round uses; a MARK_RADIUS 0.55 ring per section it would destroy; LINE_RADIUS 0.03 thickened CHARGE_THICKEN 2.4x at full charge; EMPTY_ALPHA_SCALE 0.3 on an empty magazine. -->
+<p>A hull carrying a <a href="../sections/railgun/">railgun</a> has one more instrument, because nothing else on the screen says where a hull is pointing: a thin <strong>sight line</strong> in the slug's own steel blue, out of the muzzle and ending exactly where the slug would end, with a <strong>ring on every section that shot would destroy</strong>. It is up whenever your weapons are hot, thickens as a charge runs, and stays up dimmed through the reload so the twelve seconds can be spent aiming.</p>
+<figure class="figure">
+    <!-- Capture: assets/wiki-section-railgun-sight.png (shared with the Railgun page) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-railgun-sight.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The sight line out of the muzzle onto a gunship,
+            with the kill ring at the face the slug would
+            enter.</span
+        >
+    </div>
+</figure>
 <h2 id="allegiance-markers" tabindex="-1">Allegiance markers</h2>
 <p>A small filled triangle floats above every ship in view, pointing down at the hull and coloured by its side: <strong>green</strong> for your allies (your AI wingmen included), <strong>red</strong> for hostiles, <strong>grey</strong> for neutral bystanders. Your own ship shows none - you know where you are. The triangle tracks each ship and hides when it leaves the screen (pointing at off-screen ships is the edge indicators' job); a ship that turns hostile mid-fight (a neutral hauler provoked into a threat) flips its marker red on the spot. It reads at a glance so a mixed brawl - wingmen and enemies tangled together - stays legible. See <a href="../factions/">Factions</a>.</p>
 <h2 id="target-viewfinder" tabindex="-1">Target viewfinder</h2>
 <p>The corner inset renders a live, magnified 3D view of your combat lock through a second (offscreen) camera. Its frame glows hot-red while your weapons are hot and steel while safe, with corner ticks that appear only when hot; a caption names the target and its relation. Bodies that cannot be scoped (nav beacons) show a <strong>NO-SIGNAL</strong> panel instead. When the framed target dies the inset freezes the final pose for about two seconds - a <strong>kill cam</strong> - then closes. The fine-locked section glows in both the inset and the main view.</p>
 <h2 id="comms-and-objectives" tabindex="-1">Comms and objectives</h2>
-<p>Scenarios talk to you through a <strong>comms stack</strong>: speaker-attributed story cards (<code>OKONO &gt; Strip it clean.</code>) that rise from the bottom-left like a chat transcript, and a newly posted <strong>objective</strong> arrives the same way in the <strong>objective stack</strong> at the top of the screen - a column of amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.</p>
+<p>Scenarios talk to you through a <strong>comms stack</strong>: broad story cards with a distinct speaker header above larger message text. They rise from the bottom-left like a chat transcript. A newly posted <strong>objective</strong> arrives in the <strong>objective stack</strong> at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.</p>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss.</p>
-<p>An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open <a href="../nova-os/">NOVA OS</a>. For the standing list, type <code>objectives</code> in NOVA OS (or <code>log</code> for the combined comms/objective event history); in flight, the gold <strong>objective markers</strong> on the targets themselves are the lasting &quot;go here&quot; cue. A <strong>completed</strong> objective ghosts green as it fades. Everything clears with the scenario rather than lingering over the menu.</p>
+<p>Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise - Basic Training gives Range Control its own green CRT portrait, and a mod ships as many faces as it has voices. A card fades in with a soft blip and leaves by timeout or explicit dismiss. Bursts wait in order instead of silently dropping lines that do not fit the visible stack.</p>
+<p>An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open <a href="../nova-os/">NOVA OS</a>. For the standing list, type <code>objectives</code> in NOVA OS (or <code>log</code> for the combined comms/objective event history); in flight, the larger gold <strong>objective markers</strong>, diamonds and edge chevrons on the targets themselves are the lasting &quot;go here&quot; cue. A <strong>completed</strong> objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.</p>
 </details>
 <h2 id="the-ship-computer" tabindex="-1">The ship computer</h2>
 <p>Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to open the <strong>NOVA OS</strong> ship-computer monitor: a real CRT terminal that pauses the game, frees the cursor, and answers <code>help</code>, <code>log</code>, <code>objectives</code>, <code>ship</code>, <code>map</code>, <code>clear</code> and <code>exit</code>. <kbd>Esc</kbd> (or <code>exit</code>) closes it and resumes flight. A posted objective's chip carries a <code>TAB</code> cue while it is up - the in-flight reminder that the computer is there.</p>
 <p>The computer has <a href="../nova-os/">its own page</a>: the full command reference, the MAP and SHIP apps, rebinding a section's controls, and the monitor's own knobs and sounds.</p>
 <h2 id="the-screen-substrate" tabindex="-1">The screen substrate</h2>
 <p>Every projected element - lock brackets, edge arrows, turret lead pips, objective markers - rides one shared system that anchors a UI node to a world point or entity, sizes it by fixed pixels or apparent (on-screen) size, and either hides off-screen targets or clamps them to the viewport edge with an arrow pointing back to them. Turret <strong>lead pips</strong> are small amber squares at each turret's computed intercept point, turning red when your weapons are hot.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -127,6 +120,4 @@
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

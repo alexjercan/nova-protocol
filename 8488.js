@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunknova_protocol_web=self.webpackChunknova_protocol_web||[]).push([[8488],{8488(e,c,o){o.d(c,{createArchitectureServices:()=>r.S});var r=o(9221);o(1400)}}]);

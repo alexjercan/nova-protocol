@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ships &amp; damage - Nova Protocol Wiki</title><meta name="description" content="What a ship is made of, how it comes apart under fire - wrecks, neutralized hulls, what damage looks like - and where each part is documented."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Ships &amp; damage</p><h1>Ships &amp; damage</h1><div class="wiki__tags" id="wiki-tags"></div><p>A ship in Nova Protocol is not a monolithic model - it is a root entity with a handful of <em>section</em> children. Each section is mounted to the hull, carries its own mass and health, and contributes exactly one behavior to the whole ship. Knock a section off and the ship loses that capability but keeps flying on whatever is left, which is what makes damage feel local: shoot the turret off and it stops shooting; take out the controller and it can no longer steer.</p>
+<figure class="figure">
+    <!-- Capture: assets/wiki-ships-damage.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-ships-damage.png</span
+        >
+        <span class="figure__placeholder-note"
+            >A gunship after a broadside walked up its port
+            flank: plating stripped off three sections, the
+            port turret dead, and an open hole where the aft
+            deck tore away.</span
+        >
+    </div>
+    <figcaption class="figure__caption">
+        A ship keeps fighting until the sections carrying
+        its guns come off.
+    </figcaption>
+</figure>
+<h2 id="taking-a-ship-apart" tabindex="-1">Taking a ship apart</h2>
+<p>You do not have to shoot every last section off a ship. A hull carrying less than a twentieth of the structure it was built with <strong>collapses</strong>: it tears itself apart, and you watch it go. The outermost sections blow off first, each bursting its own debris; the ones they were holding follow, and the wreck peels inward frame by frame until nothing is left and the ship is gone. A scenario can author a tougher ship to hold together further down, so a capital takes more dismantling than a fighter.</p>
+<p>A ship coming apart is still a ship for those moments. Its guns keep firing until the sections carrying them blow off, so a kill you have already earned can shoot back on the way down.</p>
+<p>That is a different thing from being <strong>out of the fight</strong>. A ship that has lost every weapon, or the flight computer that aims and flies it, stops fighting but keeps its hull - it drifts as a derelict until someone finishes it, or does not. The <a href="../hud/#target-viewfinder">viewfinder</a> tags it NEUTRALIZED, and a neutralized hull stops defending itself too: nobody is left aboard to work the mounts, so a wreck lets your ordnance fly straight past even with an intact turret still bolted to it. It is still solid and it still takes damage; it just does not answer.</p>
+<p>The health bar on your combat lock's readout measures a target against the hull it was BUILT with, so it only ever falls as you work through the sections.</p>
+<h2 id="what-damage-looks-like" tabindex="-1">What damage looks like</h2>
+<p>A ship never changes shape from being shot. Sections keep the shape they were built in right up to the moment they die; then the part goes up in a white flash, throws burning fragments that outlive it, and comes off the ship to tumble away until the wreckage clears. A whole hull letting go burns bigger than a single compartment does. Nothing on a hull is eaten away, and nothing turns red.</p>
+<p>What you read instead is two different things at once.</p>
+<p><strong>How far gone a part is.</strong> Every section fractures as its own health falls: dark veins first, then a glow through the cracks when it is about to go, then cold and burnt when it is dead. Each part is graded on its OWN health, so a stripped skin plate reads as wrecked while the hull it was bolted to still looks untouched. Past about a third gone, the parts that carry machinery start throwing sparks, and a damaged drive's exhaust runs short and unsteady - guttering, never quite out. A hurt thruster still pushes exactly as hard as a fresh one; the plume is telling you what happened to it, not what it can do.</p>
+<p><strong>Where it was hit.</strong> Every hit is remembered where it landed, and that is what throws material off the spot you actually shot rather than off the middle of the part.</p>
+<p>Which looks a part wears is decided by whoever built it, so a modded section can crack, spark, gutter, or show nothing at all.</p>
+<p>Cladding is the exception to &quot;nothing changes shape&quot;. A <a href="../keybinds/">clad ship</a> wears plates over its structure, and the plate that stops a round dies and comes away where it stood - tumbling clear on the ship's own motion, greebles and all - leaving a hole onto the bare hull underneath. That is a piece leaving, not a part being eroded.</p>
+<p>Rocks are the other exception, and they carve for real - see <a href="../combat-weapons/#shooting-rock">Shooting rock</a>.</p>
+<h2 id="the-parts" tabindex="-1">The parts</h2>
+<p>Every section is its own page - what it does, how it behaves, its numbers, and what it is like to face one. <a href="../sections/">Ship sections</a> opens that chapter with what every part shares and the catalog at a glance.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

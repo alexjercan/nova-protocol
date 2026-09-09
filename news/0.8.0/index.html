@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.8.0 - The campaign finds its voice - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.8.0: the base campaign is finished and finds its voice - two new chapters (Lifeline's convoy defense and the Final Tally gravity-well finale) close the arc, and the whole mainline briefs you over the comms and breathes between beats. The Ledger story mod (now 1.12.0) grows a real stealth run, a forking finale, and a fifth reward chapter you fly a torpedo-armed gunship into; Gauntlet becomes a time-trial on the new HudReadout action; and the dev tooling grows the nova_probe run-harness that verifies an autopilot playthrough is still correct, a unified content lint with per-mod reports, and an ephemeral docs model." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.8.0 - The campaign finds its voice - Nova Protocol</title><meta name="description" content="Nova Protocol v0.8.0: the base campaign is finished and finds its voice - two new chapters (Lifeline's convoy defense and the Final Tally gravity-well finale) close the arc, and the whole mainline briefs you over the comms and breathes between beats. The Ledger story mod (now 1.12.0) grows a real stealth run, a forking finale, and a fifth reward chapter you fly a torpedo-armed gunship into; Gauntlet becomes a time-trial on the new HudReadout action; and the dev tooling grows the nova_probe run-harness that verifies an autopilot playthrough is still correct, a unified content lint with per-mod reports, and an ephemeral docs model."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,36 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#the-base-campaign-is-finished" class="news__toc-link">The base campaign is finished</a>
-                    <a href="#lifeline-hold-the-line-for-the-convoy" class="news__toc-link news__toc-link--sub">Lifeline: hold the line for the convoy</a>
-                    <a href="#final-tally-the-gravity-well-finale" class="news__toc-link news__toc-link--sub">Final Tally: the gravity-well finale</a>
-                    <a href="#it-briefs-you-now-instead-of-dumping-on-you" class="news__toc-link news__toc-link--sub">It briefs you now instead of dumping on you</a>
-                    <a href="#rules-that-make-ally-and-neutral-ships-behave" class="news__toc-link news__toc-link--sub">Rules that make ally and neutral ships behave</a>
-                    <a href="#the-ledger-a-story-mod-that-grew-up" class="news__toc-link">The Ledger: a story mod that grew up</a>
-                    <a href="#a-campaign-that-breathes" class="news__toc-link news__toc-link--sub">A campaign that breathes</a>
-                    <a href="#chapter-three-is-a-real-stealth-run" class="news__toc-link news__toc-link--sub">Chapter three is a real stealth run</a>
-                    <a href="#the-finale-actually-forks" class="news__toc-link news__toc-link--sub">The finale actually forks</a>
-                    <a href="#a-reward-for-fighting-the-raid" class="news__toc-link news__toc-link--sub">A reward for fighting: The Raid</a>
-                    <a href="#a-look-for-each-chapter" class="news__toc-link news__toc-link--sub">A look for each chapter</a>
-                    <a href="#gauntlet-run-is-a-time-trial" class="news__toc-link">Gauntlet Run is a time-trial</a>
-                    <a href="#under-the-hood-the-run-harness" class="news__toc-link">Under the hood: the run-harness</a>
-                    <a href="#tooling-that-pinpoints-the-mistake" class="news__toc-link">Tooling that pinpoints the mistake</a>
-                    <a href="#fixes" class="news__toc-link">Fixes</a>
-                    <a href="#point-releases" class="news__toc-link">Point releases</a>
-                    <a href="#v081" class="news__toc-link news__toc-link--sub">v0.8.1</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-07-23 &nbsp;//&nbsp; v0.8.0
-                </p>
-                <h1>v0.8.0 - The campaign finds its voice</h1>
-                <p>For seven releases Nova Protocol grew systems: flight, combat, scenarios,
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#the-base-campaign-is-finished" class="news__toc-link">The base campaign is finished</a> <a href="#lifeline-hold-the-line-for-the-convoy" class="news__toc-link news__toc-link--sub">Lifeline: hold the line for the convoy</a> <a href="#final-tally-the-gravity-well-finale" class="news__toc-link news__toc-link--sub">Final Tally: the gravity-well finale</a> <a href="#it-briefs-you-now-instead-of-dumping-on-you" class="news__toc-link news__toc-link--sub">It briefs you now instead of dumping on you</a> <a href="#rules-that-make-ally-and-neutral-ships-behave" class="news__toc-link news__toc-link--sub">Rules that make ally and neutral ships behave</a> <a href="#the-ledger-a-story-mod-that-grew-up" class="news__toc-link">The Ledger: a story mod that grew up</a> <a href="#a-campaign-that-breathes" class="news__toc-link news__toc-link--sub">A campaign that breathes</a> <a href="#chapter-three-is-a-real-stealth-run" class="news__toc-link news__toc-link--sub">Chapter three is a real stealth run</a> <a href="#the-finale-actually-forks" class="news__toc-link news__toc-link--sub">The finale actually forks</a> <a href="#a-reward-for-fighting-the-raid" class="news__toc-link news__toc-link--sub">A reward for fighting: The Raid</a> <a href="#a-look-for-each-chapter" class="news__toc-link news__toc-link--sub">A look for each chapter</a> <a href="#gauntlet-run-is-a-time-trial" class="news__toc-link">Gauntlet Run is a time-trial</a> <a href="#under-the-hood-the-run-harness" class="news__toc-link">Under the hood: the run-harness</a> <a href="#tooling-that-pinpoints-the-mistake" class="news__toc-link">Tooling that pinpoints the mistake</a> <a href="#fixes" class="news__toc-link">Fixes</a> <a href="#point-releases" class="news__toc-link">Point releases</a> <a href="#v081" class="news__toc-link news__toc-link--sub">v0.8.1</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-07-23 &nbsp;//&nbsp; v0.8.0</p><h1>v0.8.0 - The campaign finds its voice</h1><p>For seven releases Nova Protocol grew systems: flight, combat, scenarios,
 mods, and in v0.7.0 the stakes that let a scenario be won or lost. v0.8.0 is the
 release that takes all of that and makes it <em>land</em>. No new headline system this
 cycle - instead the base campaign got its two missing chapters and learned to
@@ -276,39 +239,12 @@ Windows, macOS and Linux download buttons that deep-link the matching release
 asset for the latest version, falling back to the releases page when a build
 is not available. No more hunting through the releases list to grab the game.</li>
 </ul>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -319,6 +255,4 @@ is not available. No more hunting through the releases list to grab the game.</l
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

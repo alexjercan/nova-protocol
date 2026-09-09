@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Filters - Nova Protocol Creator Docs</title>
-        <meta name="description" content="The four scenario filter kinds: Entity, Timer, Expression, and Conditional, with payload and fail-closed rules." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Filters - Nova Protocol Creator Docs</title><meta name="description" content="The six scenario filter kinds: Entity, Timer, Cinematic, ShipOrder, Expression, and Conditional, with payload and fail-closed rules."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,30 +17,11 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
-                        / Filters
-                    </p>
-                    <h1>Filters</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#entity">Entity</a><ol></ol></li><li><a href="#timer">Timer</a><ol></ol></li><li><a href="#expression">Expression</a><ol></ol></li><li><a href="#conditional">Conditional</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
-                    </nav>
-                    <p>A filter gates a handler: when its event fires, EVERY entry in the handler's
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Filters</p><h1>Filters</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#entity">Entity</a><ol></ol></li><li><a href="#timer">Timer</a><ol></ol></li><li><a href="#cinematic">Cinematic</a><ol></ol></li><li><a href="#shiporder">ShipOrder</a><ol></ol></li><li><a href="#expression">Expression</a><ol></ol></li><li><a href="#conditional">Conditional</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol></nav><p>A filter gates a handler: when its event fires, EVERY entry in the handler's
 <code>filters</code> list must pass (logical AND) before the actions run. An empty (or
-omitted) list always passes. There are exactly four filter kinds - <code>Entity</code> matches
-entity payloads, <code>Timer</code> matches a timer key, <code>Expression</code> tests scenario
+omitted) list always passes. There are exactly six filter kinds - <code>Entity</code> matches
+entity payloads, <code>Timer</code> matches a timer key, <code>Cinematic</code> matches a scene key,
+<code>ShipOrder</code> matches a helm order's outcome, <code>Expression</code> tests scenario
 variables, and <code>Conditional</code> combines other filters with boolean logic.</p>
 <table>
 <thead>
@@ -68,6 +41,16 @@ variables, and <code>Conditional</code> combines other filters with boolean logi
 <td><a href="#timer"><code>Timer</code></a></td>
 <td>a timer event key</td>
 <td>&quot;the orbit hold timer ended&quot;</td>
+</tr>
+<tr>
+<td><a href="#cinematic"><code>Cinematic</code></a></td>
+<td>a scene key</td>
+<td>&quot;the strike approach is the scene that ended&quot;</td>
+</tr>
+<tr>
+<td><a href="#shiporder"><code>ShipOrder</code></a></td>
+<td>one helm order's outcome</td>
+<td>&quot;the warship reached its firing position&quot;</td>
 </tr>
 <tr>
 <td><a href="#expression"><code>Expression</code></a></td>
@@ -116,7 +99,7 @@ unconstrained.</p>
 <td><code>type_name</code></td>
 <td><code>Option</code> string</td>
 <td><code>None</code></td>
-<td>the subject's object kind (<code>&quot;anchor&quot;</code>, <code>&quot;asteroid&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;salvage_crate&quot;</code>, <code>&quot;light&quot;</code>)</td>
+<td>the subject's object kind (<code>&quot;anchor&quot;</code>, <code>&quot;asteroid&quot;</code>, <code>&quot;planet&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;salvage_crate&quot;</code>, <code>&quot;light&quot;</code>)</td>
 </tr>
 <tr>
 <td><code>other_id</code></td>
@@ -193,6 +176,100 @@ closed on every other event because those events carry no timer key.</p>
 <p>Timer keys are scenario-local strings. This filter observes the event that
 already ended; it does not test whether a timer is currently running.</p>
 </details>
+<h2 id="cinematic" tabindex="-1">Cinematic</h2>
+<p>Match the <code>cinematic</code> key carried by
+<a href="../events/#cinematic-endings"><code>OnCinematicFinished</code> and <code>OnCinematicSkipped</code></a>.
+It fails closed on every other event because those events carry no scene key.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">Cinematic</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;strike_approach&quot;</span><span class="ron-punct">))</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>the scene's authored key, exactly</td>
+</tr>
+</tbody>
+</table>
+<p>Scene keys are scenario-local strings. A scenario that plays two scenes and
+leaves this filter off answers whichever one ends first, so put it on every
+cinematic handler. A key no <a href="../actions/#cinematic"><code>Cinematic</code></a> action in the
+scenario plays is a lint Error, and so is an empty key: both refuse the scenario
+at load rather than silently dropping the handler.</p>
+</details>
+<h2 id="shiporder" tabindex="-1">ShipOrder</h2>
+<p>Match one <a href="../actions/#helm-orders">helm order</a> outcome, carried by any of the
+five <a href="../events/#ship-order-lifecycle">ship order events</a>. Every field is
+optional; every SET field must match exactly. It fails closed on every other
+event, which carries no order.</p>
+<pre><code class="hljs language-ron"><span class="ron-comment">// the order this beat is waiting for</span>
+<span class="ron-type">ShipOrder</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;close_the_gap&quot;</span><span class="ron-punct">)))</span>
+
+<span class="ron-comment">// any order the warship finishes</span>
+<span class="ron-type">ShipOrder</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">)))</span>
+
+<span class="ron-comment">// any alignment, by any ordered ship</span>
+<span class="ron-type">ShipOrder</span><span class="ron-punct">((</span><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Align</span><span class="ron-punct">)))</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the key the helm action named the order</td>
+</tr>
+<tr>
+<td><code>ship</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the ordered ship's id</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td><code>Option</code> kind</td>
+<td><code>None</code></td>
+<td><code>Move</code> / <code>Align</code> / <code>Stop</code> / <code>Patrol</code> / <code>Orbit</code> (bare enum, no quotes)</td>
+</tr>
+</tbody>
+</table>
+<p>The same filter reads all five outcomes - completion, interruption, resume,
+cancellation, failure - because the EVENT decides which outcome a handler
+listens for and the filter only qualifies it. Waiting on a completion and
+cleaning up on a failure is two handlers with the same filter.</p>
+<p><code>ShipOrder(())</code>, with nothing set, matches EVERY order outcome - a legitimate
+way to hang one handler off a whole scripted sequence, and neither an error
+nor a warning.</p>
+<p>Order keys are minted by the action that installs the order, so the lint
+checks them against the <a href="../actions/#moveshipto"><code>MoveShipTo</code></a>,
+<a href="../actions/#forcealign"><code>ForceAlign</code></a>,
+<a href="../actions/#stopship"><code>StopShip</code></a>,
+<a href="../actions/#patrolship"><code>PatrolShip</code></a> and
+<a href="../actions/#orbitship"><code>OrbitShip</code></a> actions the scenario authors: a filter
+waiting on a key nothing ever issues is an Error, because that handler could
+never run.</p>
+</details>
 <h2 id="expression" tabindex="-1">Expression</h2>
 <p>Evaluate a variable condition; pass when it is true. The single tuple field
 is a condition node from the
@@ -216,7 +293,7 @@ positionally: <code>Not(&lt;filter&gt;)</code>, <code>Or(&lt;filter&gt;, &lt;fil
 <pre><code class="hljs language-ron"><span class="ron-comment">// not the player</span>
 <span class="ron-type">Conditional</span><span class="ron-punct">(</span><span class="ron-type">Not</span><span class="ron-punct">(</span><span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">)))))</span>
 
-<span class="ron-comment">// either picket still standing (shipped, Final Tally)</span>
+<span class="ron-comment">// either picket still standing</span>
 <span class="ron-type">Conditional</span><span class="ron-punct">(</span><span class="ron-type">Or</span><span class="ron-punct">(</span>
     <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
         <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;picket_a_down&quot;</span><span class="ron-punct">))),</span>
@@ -285,15 +362,12 @@ retires the first time its filters pass. When the beat repeats, re-arm it in
 its own actions - the <a href="../expressions/#recipes">recipes</a>.</li>
 </ul>
 </details>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -304,6 +378,4 @@ its own actions - the <a href="../expressions/#recipes">recipes</a>.</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

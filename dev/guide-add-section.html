@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -227,6 +227,14 @@ bundle fn, a <code>&lt;Kind&gt;SectionMarker</code> component, a <code>&lt;Kind&
     )
 }
 <span class="boring">}</span></code></pre>
+<p>Any distance, speed or acceleration on <code>&lt;Kind&gt;SectionConfig</code> is typed
+<code>Meters</code>, <code>MetersPerSecond</code> or <code>MetersPerSecondSquared</code> (<code>nova_events::units</code>)
+and never a bare <code>f32</code> - a reach, a blast radius, a muzzle speed. The type is
+what documents the unit for the RON author and what the editor stamps the
+row’s <code>m</code> / <code>m/s</code> / <code>m/s2</code> from, and <code>to_engine()</code> where the value reaches
+Bevy or avian is the one crossing. What stays a bare <code>f32</code> is what the engine
+owns: a collider extent or a build-grid offset, which are cells. See
+<a href="architecture.html#units-and-scale">Units and scale</a>.</p>
 <p>Then register the module in <code>crates/nova_ship/src/sections/mod.rs</code>: add
 <code>pub mod &lt;kind&gt;_section;</code> and re-export <code>&lt;kind&gt;_section::prelude::*</code> in the
 module <code>prelude</code>.</p>
@@ -278,9 +286,8 @@ passing the <code>render</code> flag like the others:</p>
 <p><strong>Spawn arm.</strong>
 In <code>crates/nova_scenario/src/objects/spaceship.rs</code>, add a match arm to
 <code>insert_spaceship_sections</code> (grep for it, then its <code>match &amp;config.kind</code>). At
-minimum insert the kind bundle; add input-binding / infinite-ammo handling
-only if your kind needs it (see the <code>Turret</code> / <code>Thruster</code> arms for those
-patterns):</p>
+minimum insert the kind bundle; add input-binding handling only if your kind
+needs it (see the <code>Turret</code> / <code>Thruster</code> arms for that pattern):</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>SectionKind::Shield(shield_config) =&gt; {

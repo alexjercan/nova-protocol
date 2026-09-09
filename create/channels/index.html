@@ -1,0 +1,190 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Narrative channels for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author where a story line was heard: the Channel item, the tones a card is drawn in, the tag and signal strength that say how much of a line is addressed to the player, and the three base channels."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Narrative channels for mods</p><h1>Narrative channels for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-channel-item">The Channel item</a><ol></ol></li><li><a href="#tones">Tones</a><ol></ol></li><li><a href="#tag-and-signal-strength">Tag and signal strength</a><ol></ol></li><li><a href="#base-channels">Base channels</a><ol></ol></li><li><a href="#using-a-channel">Using a channel</a><ol></ol></li></ol></nav><p>A <code>Channel</code> is WHERE a story line was heard, and how the comms panel draws one
+that was. It is not a faction and not a speaker: the same person reaches the
+cockpit down two different channels and the difference is the point. Meridian
+Control on the work channel is talking to you; the same desk read over the guard
+channel is something you are overhearing.</p>
+<p>Every <a href="../actions/#narrativecue"><code>NarrativeCue</code></a> names a channel by id. An id no
+bundle authors is an error at lint and a refusal at load - the game will not
+start a scenario whose lines have nowhere to be heard, because a line in a
+guessed voice is a beat that does not land.</p>
+<p>This page is the field-by-field channel reference. For general RON spelling rules
+such as double parentheses, <code>Some(...)</code>, and asset schemes, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="the-channel-item" tabindex="-1">The Channel item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">Channel</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod_distress&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">tone</span><span class="ron-punct">:</span> <span class="ron-type">Threat</span><span class="ron-punct">,</span>
+        <span class="ron-key">tag</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;DISTRESS&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">signal_strength</span><span class="ron-punct">:</span> <span class="ron-literal">0.8</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable key, the overlay key, and what a cue names. Re-declare a base id to restyle that channel in place; a new id is a new channel. Prefix new ids with your mod id.</td>
+</tr>
+<tr>
+<td><code>tone</code></td>
+<td>tone</td>
+<td>required</td>
+<td>The chip family the card is drawn in - see <a href="#tones">below</a>.</td>
+</tr>
+<tr>
+<td><code>tag</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>The channel name shown beside the speaker. <code>None</code> = the channel needs no saying.</td>
+</tr>
+<tr>
+<td><code>signal_strength</code></td>
+<td>number</td>
+<td>required</td>
+<td>How strongly the card is drawn, <code>0</code> exclusive to <code>1</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>A channel carries no behaviour. Every field is a presentation fact the panel
+reads, which is why a channel is content rather than code: nothing in the game
+has to change for a campaign to add a distress band, a corporate net or a
+smuggler's private channel.</p>
+<h2 id="tones" tabindex="-1">Tones</h2>
+<p><code>tone</code> picks the channel's whole colour family at once - the card's frame, its
+header, and (lifted toward white) the line the player reads. One field rather
+than four colours, so a mod's channel lands inside the CRT palette instead of
+beside it.</p>
+<table>
+<thead>
+<tr>
+<th>tone</th>
+<th>the HUD reads it as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Phosphor</code></td>
+<td>The HUD's own default voice - green. A line in the room.</td>
+</tr>
+<tr>
+<td><code>Amber</code></td>
+<td>The &quot;attend to this&quot; amber the objective chips use.</td>
+</tr>
+<tr>
+<td><code>Threat</code></td>
+<td>Combat red, the colour of locks and hostile targets.</td>
+</tr>
+<tr>
+<td><code>Comms</code></td>
+<td>The incoming-transmission blue.</td>
+</tr>
+</tbody>
+</table>
+<p>A tone is not exclusive: two channels may share one. They will be hard to tell
+apart, which is a choice you can make deliberately - a pirate band imitating
+fleet traffic - and a mistake the rest of the time.</p>
+<h2 id="tag-and-signal-strength" tabindex="-1">Tag and signal strength</h2>
+<p>These are the two dials that say how much of the line is ADDRESSED to the player.</p>
+<p>A <code>tag</code> labels the channel beside the speaker. Tag the channels a player has to
+tell apart from the panel's own default voice; a tag on every line distinguishes
+it from nothing, so most channels want <code>None</code>.</p>
+<p><code>signal_strength</code> fades the frame, header and body together, so a weak channel
+stays recognisably itself instead of turning into a second set of colours. A line
+the ship was sent is at full strength. A fragment the cockpit merely caught is
+not.</p>
+<h2 id="base-channels" tabindex="-1">Base channels</h2>
+<p>Three ship, and any mod may name them:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>tone</th>
+<th>tag</th>
+<th>strength</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comms</code></td>
+<td><code>Comms</code></td>
+<td>none</td>
+<td>1.0</td>
+<td>The work channel: traffic addressed to this ship. What the comms panel IS, so it needs no tag.</td>
+</tr>
+<tr>
+<td><code>crew</code></td>
+<td><code>Phosphor</code></td>
+<td>none</td>
+<td>1.0</td>
+<td>Inside the hull, off the radio entirely - the crew talking to each other.</td>
+</tr>
+<tr>
+<td><code>guard</code></td>
+<td><code>Amber</code></td>
+<td><code>GUARD</code></td>
+<td>0.7</td>
+<td>Everybody's channel, nobody's conversation. Tagged and weak, so a fragment reads as something the cockpit caught.</td>
+</tr>
+</tbody>
+</table>
+<p>Read <code>assets/base/channels/base.content.ron</code> for the exact rows.</p>
+<h2 id="using-a-channel" tabindex="-1">Using a channel</h2>
+<p>Name the id on the cue:</p>
+<pre><code class="hljs language-ron"><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
+    <span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod_distress&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;...anyone on this band, we are venting...&quot;</span><span class="ron-punct">,</span>
+<span class="ron-punct">))</span>
+</code></pre>
+<p>Your mod may name a channel it authors, one the base game ships, or one from a
+mod it <a href="../mod-files/#paths-and-dependencies">depends on</a>. It may not name a
+channel that merely happens to be installed - the lint refuses it, so a bundle
+that works on your machine works on everyone's.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

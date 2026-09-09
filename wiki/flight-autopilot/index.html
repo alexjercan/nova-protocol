@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Flight &amp; autopilot - Nova Protocol Wiki</title>
-        <meta name="description" content="How ships move: Newtonian manual flight, center-of-mass thrust balancing, mass-legible handling, the GOTO / ORBIT / STOP autopilot verbs that fly the real hull, and RCS fine docking thrusters." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Flight &amp; autopilot - Nova Protocol Wiki</title><meta name="description" content="How ships move: Newtonian manual flight, the hull that decides the handling, the GOTO / ORBIT / STOP autopilot verbs that fly the real hull, and RCS fine docking thrusters."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,61 +17,42 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / Flight &amp; autopilot
-                    </p>
-                    <h1>Flight &amp; autopilot</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>Manual flight in Nova Protocol is fully <strong>Newtonian</strong>: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle; how a ship handles falls out of its mass and the thrusters bolted to it. The one exception is <strong>RCS</strong>, an optional fine-translation mode a scenario can grant for close-in docking (see <a href="#rcs-fine-docking-thrusters">RCS</a> below).</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Flight &amp; autopilot</p><h1>Flight &amp; autopilot</h1><div class="wiki__tags" id="wiki-tags"></div><p>Manual flight in Nova Protocol is fully <strong>Newtonian</strong>: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle; how a ship handles falls out of its mass and the thrusters bolted to it. The one exception is <strong>RCS</strong>, an optional fine-translation mode a scenario can grant for close-in docking (see <a href="#rcs-fine-docking-thrusters">RCS</a> below).</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-flight.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-flight.png</span
         >
         <span class="figure__placeholder-note"
-            >A ship mid-burn with its plume lit and the
-            velocity sphere reading, ideally during a GOTO
-            flip so the diegetic autopilot is visible.</span
+            >A ship braking under GOTO: flipped retrograde
+            with its drive bells turned toward the lens, the
+            AP GOTO - BURN chip and the closing speed beside
+            it, and the nav line running on to the
+            destination.</span
         >
     </div>
 </figure>
 <h2 id="manual-flight" tabindex="-1">Manual flight</h2>
-<p>You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft <strong>speed cap</strong> (used by training legs like the Shakedown's 250 m/s starter governor - <code>m/s</code> is metres per second; see the <a href="../glossary/">glossary</a>): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.</p>
-<h2 id="balancing-thrust-through-the-hull" tabindex="-1">Balancing thrust through the hull</h2>
-<p>Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it sets each engine's throttle to deliver the commanded forward thrust while cancelling the twist through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight (any tiny leftover spin is mopped up by the steering) - see <a href="../sections/thruster/">Thruster</a>.</p>
-<h2 id="size-decides-the-handling" tabindex="-1">Size decides the handling</h2>
-<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :23, METERS_PER_UNIT 10.0 :14) and crates/nova_ship/src/physics/attitude.rs (the two ceilings :70-86, the arm and what shortens it :131-164). "About two seconds": a bang-bang 180 is 2 * sqrt(pi / ceiling) (guidance.rs:302-303), and the shipped corvette's 2.76 u arm (attitude.rs:138) gives 78.48 / 27.6 = 2.84 rad/s2, so 2.10 s. -->
-<p>How hard a hull turns is the lower of two limits: what its flight computers twist it with against the mass they swing, and what its own metal survives. Hull takes 8 G, measured out at the furthest section from the centre of mass, so a long ship on a long arm has the gentler limit. Nothing authors the result - it falls out of the hull you built. A small craft whips around; a hauler handles like the freighter it is.</p>
-<p>Every shipped craft is held by its structure rather than by its computers. Two things come with that: a hull that has lost its nose turns sharper than it did intact, because the arm got shorter, and a hull already deep in a hard turn has less authority left to tighten with.</p>
-<p>A hull can mount several <a href="../sections/controller/">controllers</a> and their torque adds, but on a structure-bound craft that buys no extra turn rate - only a hull heavy enough to run its computers out first gains from a stack. What stacking always buys is precision: the hull starts braking its turn earlier and stops on the commanded heading instead of swinging back.</p>
+<p>You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft <strong>speed cap</strong> (used by Basic Training's persistent 150 m/s manual-flight governor - <code>m/s</code> is meters per second; see the <a href="../glossary/">glossary</a>): the burn tapers to zero over the last stretch before the cap, so a held throttle levels off instead of accelerating forever. The cap is on your total speed, not on the heading you happen to be pointing, so turning and burning again spends the same allowance. A burn that would slow you down is never capped. GOTO plans its own flight independently.</p>
+<h2 id="the-hull-decides-the-handling" tabindex="-1">The hull decides the handling</h2>
+<p>Nothing about handling is authored; it falls out of the hull you built. A section weighs the box it is hit on, so a ship's mass is its shape. The main drive is whatever thrusters point forward, balanced through the live centre of mass so an asymmetric or battle-damaged layout still flies straight. And how hard the hull turns is the lower of two limits - what its flight computers can twist against the mass they swing, and what its own metal survives at 8 G out at the furthest section - so a small craft whips around, a hauler handles like the freighter it is, and a wreck that has lost its nose turns sharper than the whole ship did. The <a href="../sections/thruster/">Thruster</a> and <a href="../sections/controller/">Controller</a> pages put scopes and numbers on both halves.</p>
 <h2 id="the-autopilot-flies-the-hull" tabindex="-1">The autopilot flies the hull</h2>
 <p>The autopilot verbs are the assist. Each writes to the <em>same</em> actuators you use - the controller's rotation command and the thrusters' throttle - so you watch the hull physically swing and the plume light up; there are no invisible forces. Any manual input (a thruster key, a burn, a rotation, or CANCEL) disengages it instantly and hands you back a ship that is already moving.</p>
 <ul>
-<li><strong>GOTO</strong> - burns toward your current nav lock, flips at the arrival curve, and decelerates to rest at a standoff (about 500 m plus the target's radius, measured from the surface, kept outside a torpedo's blast radius). It tracks a drifting target.</li>
+<li><strong>GOTO</strong> - burns toward your current nav lock, flips at the arrival curve, and decelerates to rest a standoff off the target's SURFACE (about 500 m, kept outside a torpedo's blast radius). The gap is measured from your own hull, not from its centre, so a hauler and a shuttle both stop the same distance clear - and it counts whatever size the target publishes: a rock's geometry, a planetoid's body, a beacon's orb, another ship's hull. A bare position has no size, so the leg simply parks your hull face 500 m off the mark. It tracks a drifting target.</li>
 <li><strong>ORBIT</strong> - circularizes and station-keeps around the dominant <a href="../gravity-wells/">gravity well</a>, holding a stable ring at orbital speed (<code>v = sqrt(mu / r)</code>) with micro-burns. It never self-completes - it holds until you break away.</li>
 <li><strong>STOP</strong> - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.</li>
 </ul>
 <div class="widget" data-widget="goto-verb">
-<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 1.5 u/s approach floor, and eases the last stretch onto the 50 u standoff with the fine RCS jets. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
+<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies the base Patrol Gunship, so the resolved distance counts its own 55.2 m hull as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
 </div>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>What the scope calls the &quot;arrival envelope&quot; is the controller's one rule: at any distance it caps closing speed at what a flip-and-brake from here can still cancel. The flip is scheduled early by the time the swing itself takes - the shipped craft come around 180 degrees in about two seconds, a heavier hull takes longer, and whatever that coast costs is budgeted into the envelope, so the brake ramp starts aligned instead of late. Braking keeps a 15% authority margin in reserve, holds a small minimum approach speed so the last stretch never crawls, and hands the final meters to RCS: arrivals settle, they do not pulse the main drive on the spot.</p>
+<p>What the scope calls the &quot;arrival envelope&quot; is the controller's one rule: at any distance it caps closing speed at what a flip-and-brake from here can still cancel. The flip is scheduled early by the time the swing itself takes - the light hulls come around 180 degrees in about three seconds, a heavier one takes longer and the carrier takes thirteen, and whatever that coast costs is budgeted into the envelope, so the brake ramp starts aligned instead of late. Braking keeps a 15% authority margin in reserve, holds a small minimum approach speed so the last stretch never crawls, and hands the final meters to RCS: arrivals settle, they do not pulse the main drive on the spot.</p>
 <p>The same machinery answers why the autopilot is honest about the ship's limits: everything above is computed from the live hull - its real mass, its real thrusters, its real flight computer. An under-thrustered build gets a shallower envelope and an earlier flip, not invisible help. And it will refuse a maneuver it cannot physically achieve: ORBIT disengages rather than fly a well with no stable band between its surface clearance and its fade band.</p>
 </details>
 <p>See <a href="../keybinds/">Keybinds</a> for the verb keys.</p>
@@ -87,7 +60,7 @@
     <!-- Capture: assets/loops/goto-arrival.webm -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/goto-arrival.webm</span
@@ -102,21 +75,18 @@
 </figure>
 <h2 id="rcs-fine-docking-thrusters" tabindex="-1">RCS: fine docking thrusters</h2>
 <p>For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry <strong>RCS</strong> (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with <strong>no rotation</strong>. On a gamepad the same gesture is one thumb: click the left stick to engage, then push it to translate. While you hold it the helm and camera hold still so you can concentrate on the translation, the <a href="../hud/">velocity sphere</a> turns violet, and a soft burn loop plays.</p>
-<p>RCS is a <strong>trim, not free thrust</strong>: each ship-local axis caps at a gentle speed (about 20 m/s), so it eases you into position rather than replacing the main drive.</p>
+<p>RCS is controlled translation rather than a main-engine burn: it caps at 100 m/s in any direction. It accelerates at a mass-independent 5 g, and diagonal input shares that one speed budget and that one acceleration budget rather than multiplying either across axes.</p>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>The cap is per ship-local axis, relative to whatever the maneuver is holding as its reference: push an axis you are already coasting at the cap and nothing happens, while the opposite direction still slows you. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 4 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - <strong>GOTO</strong> and <strong>STOP</strong> settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.</p>
+<p>The cap is on the whole velocity vector, measured relative to whatever the maneuver is holding as its reference: one, two or three axes of input all run out at the same 100 m/s, and pushing further in a direction you are already coasting at the cap does nothing - while anything that slows you down still works, at the cap and above it, so a ship carried overspeed can always brake back inside. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - <strong>GOTO</strong> settles its arrival on RCS, and <strong>STOP</strong> brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops still turn the main drive into the braking direction.</p>
 </details>
 <p>RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it <strong>withheld</strong> - the RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -127,6 +97,4 @@
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

@@ -1,0 +1,580 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>The agent bench - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-8e8ad555.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="the-agent-bench"><a class="header" href="#the-agent-bench">The agent bench</a></h1>
+<p>How an external agent plays a scenario toward a goal with no human at the
+keyboard, and how the run is scored. The bench is the <code>bench</code> subcommand of
+the game binary, built with <code>--features debug</code>, and lives in <code>crates/nova_bench</code>
+with one TypeScript relay in <code>tools/nova_bench/pi/</code>.</p>
+<pre><code>                 referee protocol                 process channel
+  +-----------+  (unix socket, JSONL)  +------------+  (stdin/stdout JSONL)  +----------------+
+  |  agent    | &lt;--------------------&gt; | nova_bench | &lt;--------------------&gt; |  nova-protocol |
+  |  (pi, a   | observe/act/page/finish|  (referee) |  tick / input / aim ...|  --norender    |
+  |  script)  |                        |            |  &lt;- snapshot           |  --channel step|
+  +-----------+                        +-----+------+                        +----------------+
+                                             |
+                                 audit.jsonl, score.json, log
+</code></pre>
+<p>Three processes, one referee. The agent never touches the game and the game
+never sees the agent. <code>nova_bench</code> sits between them: it owns the clock,
+condenses what the agent sees, logs every line in both directions, and scores
+the run from the game’s own snapshots. An agent cannot grade itself, because
+the referee reads the world, not the agent’s report.</p>
+<p>The game side is the process channel (<code>nova_channel</code>, see
+<a href="architecture.html">Architecture</a>) in <code>--norender --channel step</code> mode: the
+world moves only inside a step, so an agent may think for a minute and its
+observation never goes stale.</p>
+<p><code>nova_bench</code> depends on no <code>nova_*</code> crate. It speaks JSON over pipes and a
+socket, so its tests link neither Bevy nor the game.</p>
+<h2 id="running-a-play"><a class="header" href="#running-a-play">Running a play</a></h2>
+<pre><code class="language-sh">cargo run --features debug bench play &lt;scenario&gt; --agent baseline
+cargo run --features debug bench play &lt;scenario&gt; --agent pi --model gpt-5.6-luna --thinking low
+cargo run --features debug bench play &lt;scenario&gt; --agent 'cmd:python3 my_agent.py'
+</code></pre>
+<p><code>&lt;scenario&gt;</code> is an installed scenario id, or a path ending in <code>.ron</code> loaded
+as a loose content file. The bench ships two fixtures under
+<code>crates/nova_bench/scenarios/</code>:</p>
+<ul>
+<li><code>hunt.content.ron</code>: one player gunship, one hostile raider parked 2600 m
+ahead, an objective and both outcomes. The scenario scores itself.</li>
+<li><code>range.content.ron</code>: an open range with no objective and no victory. A
+600 m planetoid 7 km ahead, a small rock and a big rock, a nav beacon and
+an unarmed hostile derelict hauler. The goal comes from <code>--goal</code>, the run
+is bounded by <code>--ticks</code> and <code>--deadline</code>, and a reader grades the <code>end</code>
+block of the score: “orbit the planetoid”, “park on the derelict”,
+“destroy the derelict”, “fly to the work mark and stop”. The rocks are
+places to fly to, not targets: a turret round flies through a rock and
+takes nothing off it, so there is no carving goal.</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--goal</code></td><td>complete the objectives, take little damage, waste no ammo</td><td>the goal text the agent is given</td></tr>
+<tr><td><code>--model</code>, <code>--thinking</code></td><td>unset: pi’s own configured model and thinking level</td><td>passed straight to <code>pi</code>; <code>pi</code> agent only</td></tr>
+<tr><td><code>--seed</code></td><td>unset</td><td><code>NOVA_SEED</code> for the game, so a play replays</td></tr>
+<tr><td><code>--ticks</code></td><td>18000</td><td>the tick budget, five game minutes</td></tr>
+<tr><td><code>--turns</code></td><td>300</td><td>the <code>act</code> budget</td></tr>
+<tr><td><code>--deadline</code></td><td>1800</td><td>wall-clock seconds</td></tr>
+<tr><td><code>--out</code></td><td><code>bench-runs/&lt;sha&gt;/&lt;scenario&gt;/&lt;agent&gt;-&lt;n&gt;/</code></td><td>the run directory</td></tr>
+<tr><td><code>--record</code></td><td>unset</td><td>draw every tick offscreen into this directory and stitch <code>&lt;dir&gt;.mp4</code>; see <a href="#the-movie">The movie</a></td></tr>
+<tr><td><code>--ui</code></td><td><code>log</code></td><td><code>log</code> prints one line per event to stderr; <code>quiet</code> prints nothing</td></tr>
+<tr><td><code>--audit-raw</code></td><td>off</td><td>keep the full snapshot in every <code>channel_in</code> event</td></tr>
+</tbody>
+</table>
+</div>
+<p>The run directory holds <code>audit.jsonl</code>, <code>score.json</code>, <code>game.log</code>, <code>agent.log</code>
+(a <code>cmd:</code> agent’s stdout and stderr) and <code>profile/</code>, an empty settings
+profile the child game is pointed at so a play never reads or writes yours.
+The command prints the run directory and the score table on stdout and exits
+non-zero only when the game or the agent process failed, never on a Defeat.</p>
+<h2 id="the-referee-protocol"><a class="header" href="#the-referee-protocol">The referee protocol</a></h2>
+<p>JSONL request and reply over the unix socket named by <code>NOVA_BENCH_SOCKET</code>.
+One request per connection, one line each way.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Request</th><th>Reply</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>{"observe": {"expand": [...]}}</code></td><td><code>{"ok": &lt;view&gt;}</code></td><td>The pilot’s view now. Free: the clock does not move. <code>expand</code> names body groups to open in full.</td></tr>
+<tr><td><code>{"act": {"gestures": [...], "ticks": N}}</code></td><td><code>{"ok": &lt;view&gt;}</code></td><td>Apply the gestures, run N ticks (default 30), return the view. The only way time passes.</td></tr>
+<tr><td><code>{"page": {"name": "targeting"}}</code></td><td><code>{"ok": {"page", "text"}}</code></td><td>One page of the flight manual. Free.</td></tr>
+<tr><td><code>{"finish": {"status": "done" or "gave_up", "report": "..."}}</code></td><td><code>{"ok": {"over": true}}</code></td><td>The agent is finished. The report lands in the score; the metrics do not read it.</td></tr>
+</tbody>
+</table>
+</div>
+<p>A malformed request gets <code>{"error": "..."}</code> and the run continues. Every
+view carries <code>over</code>, <code>ended_by</code> and <code>budget_left</code>; once <code>over</code> is true, <code>act</code>
+moves nothing.</p>
+<p>A gesture is one object with one verb. The referee stamps the tick, so an
+agent’s vocabulary is relative and a transcript is replayable.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Gesture</th><th>Expands to</th></tr>
+</thead>
+<tbody>
+<tr><td><code>{"press": "&lt;wire&gt;"}</code></td><td>one <code>input ... start</code> line; the referee remembers it as held</td></tr>
+<tr><td><code>{"release": "&lt;wire&gt;"}</code></td><td>one <code>input ... stop</code> line</td></tr>
+<tr><td><code>{"tap": "&lt;wire&gt;"}</code></td><td>start on one tick, stop on the next</td></tr>
+<tr><td><code>{"aim": "&lt;wire&gt;", "delta": [x, y], "ticks": K}</code></td><td>K aim lines, one per tick</td></tr>
+<tr><td><code>{"command": "..."}</code>, <code>{"text": "..."}</code>, <code>{"key": "..."}</code>, <code>{"pointer": {...}}</code></td><td>passthrough, one line each</td></tr>
+</tbody>
+</table>
+</div>
+<p>Gestures in one act land on the same tick, in order. A held input stays held
+across acts until released.</p>
+<p>One act cannot drive both readings of a shared key. <code>targeting.radar_hold</code>
+and <code>targeting.radar_clear</code> are one key read two ways - a short press clears,
+a long one searches - so an act carrying both is refused with a message that
+says to split it. Nothing downstream could report that: a press has no verdict
+to give.</p>
+<p>The pairs are not a table in the bench. <code>nova_input</code> already models the
+relation as <code>ActionBinding::follows</code>, the channel publishes it as
+<code>inputs.shared</code>, and the referee checks the act against whatever the world
+reported. A game that declares a second shadow action is guarded without an
+edit here, and one that drops a shadow stops being guarded for a rule that no
+longer holds.</p>
+<h2 id="the-view"><a class="header" href="#the-view">The view</a></h2>
+<p>The raw snapshot is a probe artifact: every hull plate, every ordnance record.
+The referee condenses it to what a pilot perceives, in meters, meters per
+second and degrees:</p>
+<ul>
+<li><code>tick</code>, <code>game_seconds</code>, <code>over</code>, <code>ended_by</code>, <code>budget_left</code>, <code>game_errors</code>.</li>
+<li><code>objectives</code>, <code>outcome</code> (<code>null</code> until Victory or Defeat), <code>comms</code> (the last
+twelve radio lines).</li>
+<li><code>me</code>: id, <code>position_m</code>, <code>speed_mps</code>, <code>velocity_bearing_deg</code>,
+<code>turn_rate_dps</code>, <code>health</code>, <code>weapons_hot</code>, <code>combat_lock</code>, <code>travel_lock</code>,
+<code>radar</code> (the acquisition dwell while the radar gesture is held: the
+candidate, the dwell target, <code>dwell_secs</code> of <code>dwell_needed</code> and the
+<code>dwell_fill</code> a player watches on the ring, itself null when no dwell is
+running; null otherwise), <code>autopilot</code>
+(<code>engaged</code>: action, target and phase, or null; <code>completed</code>: the last action
+that finished), <code>gravity_well</code> (the dominant well’s id), <code>sections</code> (the
+bridge, the drives, each mount with its <code>weapon</code>: kind, ammo, <code>on_target</code>,
+<code>firing</code>), <code>hull_plates</code> as <code>{total, damaged, lost}</code> and <code>withheld_verbs</code>
+(flight verbs the scenario has not granted yet).</li>
+<li><code>contacts</code>: every other ship with <code>allegiance</code> (<code>Enemy</code>, <code>Player</code>,
+<code>Neutral</code>), <code>distance_m</code>, <code>bearing_deg</code>, <code>closing_mps</code>, <code>health</code>,
+<code>defeated</code>, <code>weapons_hot</code>, <code>ai_target</code>.</li>
+<li><code>beacons</code> with <code>distance_m</code> and <code>bearing_deg</code>.</li>
+<li><code>bodies</code>: the asteroids and planets, in three tiers. <code>near</code> and
+<code>in_the_way</code> carry the full record - <code>kind</code>, <code>radius_m</code>, <code>distance_m</code> to
+the centre, <code>surface_m</code> to the surface, <code>bearing_deg</code>, <code>closing_mps</code>,
+<code>invulnerable</code> - and <code>in_the_way</code> adds <code>why</code>. Everything else is one
+summary per <code>{distance band}.{bearing sector}</code> group with a <code>key</code>, a
+<code>count</code> and the nearest surface, farthest surface and largest radius in it;
+<code>observe {"expand": ["&lt;key&gt;"]}</code> opens one back up and <code>expanded</code> lists the
+keys that actually opened, because a key can go stale as the ship moves. See
+<a href="#why-the-bodies-are-tiered">Why the bodies are tiered</a>.</li>
+<li><code>ordnance</code> as <code>{inbound, outbound}</code> counts.</li>
+<li><code>objective_log</code>: every objective card posted and completed, in order.</li>
+<li><code>cinematic</code> (only while a scene plays) as <code>{playing, skippable}</code>, and
+<code>cheats_marked</code> (only when the run armed cheats).</li>
+<li><code>inputs.live</code> (the wire names that are not locked out), <code>inputs.held</code>, and
+<code>inputs.shared</code>: the pairs of wire names that read one physical key. The
+game declares that relation (<code>ActionBinding::follows</code>) and the channel
+publishes it, so the referee refuses an act driving both sides of a pair
+without the bench holding a table of its own.</li>
+<li><code>commands</code> (answers to <code>command</code> gestures).</li>
+</ul>
+<p><code>bearing_deg</code> is <code>[azimuth, elevation]</code> from the nose: azimuth positive to
+starboard, elevation positive up. The wire names come from the live set in
+the view, never from a copy in the prompt, so a renamed input cannot go
+stale.</p>
+<p>There is no <code>refused</code> list, because an input has no verdict to give. Every
+gate a pilot meets - needs a lock, needs a well, needs the stance, needs
+range - fires above the input layer, so a press that changed nothing looks
+exactly like one that did. The channel’s <code>applied</code> block is an ECHO of the
+lines a frame consumed, <code>{line, input, phase, tick}</code>, and the agent reads the
+effect off the world: <code>autopilot.engaged</code>, <code>combat_lock</code>, <code>radar.dwell_fill</code>,
+<code>weapons_hot</code>, <code>bearing_deg</code>, <code>objectives</code>. A wire line the game could not
+parse is still an error, in <code>game_errors</code>, and always carries a message.</p>
+<p>The snapshot itself grew a <code>mission</code> block (objectives, outcome, comms, the
+objective log, the cinematic and the cheat mark), a <code>beacons</code> list, a
+<code>bodies</code> list and the ship’s <code>autopilot</code>, <code>radar</code> and <code>gravity_well</code> for
+this; see <code>nova_probe::capabilities::snapshot</code>.</p>
+<h3 id="why-the-bodies-are-tiered"><a class="header" href="#why-the-bodies-are-tiered">Why the bodies are tiered</a></h3>
+<p>A scenario can field a hundred rocks. Enumerated in full they cost more
+tokens than the rest of the view together - measured over the first tutorial
+victory, <code>bodies</code> was about 14200 characters of a 20800-character view, two
+thirds of every observation, over a run that spent 1.18 M input tokens.</p>
+<p>Enumeration is also the wrong shape. What a pilot needs about a rock is not
+that it exists at 8 km: it is what is in the line of sight, what blocks the
+radar, what is on the GOTO path, and what the ship is about to hit. So each
+body is classified ALONE, as a pure function of that body and the ship’s
+frame - no clustering, no seed, no iteration, no memory of the last view - so
+two observations of an unmoved world group identically and an agent can
+reason about a group across turns. The bands are a fixed ladder and the
+sectors are the four quarters, so a rock changes group only when it crosses
+an edge.</p>
+<p>Expansion is for detail, NEVER for safety: anything that can end the run is
+already in <code>near</code> or <code>in_the_way</code>.</p>
+<h2 id="agents"><a class="header" href="#agents">Agents</a></h2>
+<ul>
+<li><code>baseline</code>: an in-process Rust policy. It waits for a hostile, raises the
+weapons, holds the radar until a combat lock stands, closes to 2500 m and
+holds every mount’s trigger while the lock stands. Zero tokens; it proves
+the referee, the score and the audit, and is what a CI check would run.</li>
+<li><code>pi</code>: spawns <code>pi --mode rpc</code> with the built-in tools off and the relay
+extension on, sends one prompt (the pilot manual in
+<code>crates/nova_bench/src/manual.md</code>, the scenario, the goal, the first view;
+the game knowledge behind it sits in <code>crates/nova_bench/src/pages/</code>, read
+on demand through the <code>page</code> tool)
+and consumes the RPC event stream: assistant text, thinking, tool calls and
+usage land in the audit. <code>NOVA_BENCH_PI</code> names the binary when <code>pi</code> is
+not on the path. If pi settles with the run still open it is nudged once;
+a second settle ends the run as <code>agent_exit</code>.</li>
+<li><code>cmd:&lt;argv&gt;</code>: any process that speaks the referee protocol. It gets
+<code>NOVA_BENCH_SOCKET</code> in its environment; its stdout and stderr go to
+<code>agent.log</code>. The run ends when the process exits.</li>
+</ul>
+<h2 id="the-run-ends-when-the-referee-says-so"><a class="header" href="#the-run-ends-when-the-referee-says-so">The run ends when the referee says so</a></h2>
+<p>Whichever comes first: the scenario declares an outcome; the tick, turn or
+wall-clock budget runs out; the agent calls <code>finish</code>; the agent process
+exits. <code>ended_by</code> names it. After that the game gets EOF (the channel’s clean
+exit) and pi gets an abort.</p>
+<h2 id="the-score"><a class="header" href="#the-score">The score</a></h2>
+<p><code>score.json</code>, from the snapshot stream only:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Source</th></tr>
+</thead>
+<tbody>
+<tr><td><code>outcome</code></td><td>the mission outcome at the end: <code>victory</code>, <code>defeat</code>, <code>none</code></td></tr>
+<tr><td><code>objectives_seen</code>, <code>objectives_completed</code></td><td>ids that appeared, and ids that then vanished before any defeat. The live list is sampled once per act, so both also fold in the mission block’s objective log, which keeps a card posted and completed inside one act</td></tr>
+<tr><td><code>ticks</code>, <code>game_seconds</code>, <code>wall_seconds</code></td><td>the referee’s clock</td></tr>
+<tr><td><code>turns</code>, <code>gestures</code></td><td><code>act</code> calls, and the wire lines they expanded to</td></tr>
+<tr><td><code>damage_taken</code></td><td>the sum of health decreases on the player ship</td></tr>
+<tr><td><code>sections_lost</code></td><td>player sections that stopped being alive</td></tr>
+<tr><td><code>ammo_spent</code></td><td>the sum of <code>rounds</code> decreases across the player’s mounts; a reload is an increase and does not count</td></tr>
+<tr><td><code>kills</code></td><td><code>Enemy</code> ships that turned <code>defeated</code></td></tr>
+<tr><td><code>bad_lines</code></td><td>wire lines the game refused to parse: an unknown name, an axis driven as a button. The driver writing nonsense, never the game declining to act</td></tr>
+<tr><td><code>cheated</code></td><td>whether the run armed NOVA OS’s cheats, copied from the snapshot’s mark</td></tr>
+<tr><td><code>llm</code></td><td>pi only: messages, input, output, cached tokens and cost from the usage events</td></tr>
+<tr><td><code>ended_by</code>, <code>agent_status</code>, <code>agent_report</code></td><td>why it ended, and what the agent said</td></tr>
+<tr><td><code>end</code></td><td>where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, and the range to every contact, beacon and body</td></tr>
+</tbody>
+</table>
+</div>
+<p>There is no composite number. A composite is policy; the table is the
+record.</p>
+<h2 id="the-audit"><a class="header" href="#the-audit">The audit</a></h2>
+<p><code>audit.jsonl</code>, one object per event with a wall-clock <code>t</code>, flushed per line:</p>
+<ul>
+<li><code>run_start</code>, <code>run_end</code> (the reason and the score)</li>
+<li><code>channel_out</code> (every line sent to the game), <code>channel_in</code> (every snapshot,
+condensed; <code>--audit-raw</code> keeps the full one beside it)</li>
+<li><code>agent_request</code>, <code>agent_reply</code> (the referee protocol, verbatim)</li>
+<li><code>agent_text</code>, <code>agent_thinking</code>, <code>agent_tool</code>, <code>agent_usage</code> (pi)</li>
+<li><code>refusal</code>, <code>note</code></li>
+</ul>
+<h2 id="replay"><a class="header" href="#replay">Replay</a></h2>
+<pre><code class="language-sh">cargo run --features debug bench replay &lt;run dir&gt;/audit.jsonl [--record &lt;dir&gt;]
+</code></pre>
+<p>Replay feeds the audit’s <code>channel_out</code> lines to a fresh game under the
+recorded seed and compares where the world ended with the audit’s last view.
+Two plays of one seed are not byte-identical once rounds fly: how many land
+drifts between processes. The verdict has three grades:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Verdict</th><th>Meaning</th><th>Exit</th></tr>
+</thead>
+<tbody>
+<tr><td><code>replay_match</code></td><td>byte for byte</td><td>0</td></tr>
+<tr><td><code>replay_close</code></td><td>same tick, outcome and ships down; positions and the health of the ships still standing within 5 % or 10 m</td><td>0</td></tr>
+<tr><td><code>replay_mismatch</code></td><td>anything else</td><td>1</td></tr>
+</tbody>
+</table>
+</div>
+<p>With <code>--record</code> the replay is the agent’s run as a movie, stitched the same
+way a play’s is.</p>
+<h2 id="the-movie"><a class="header" href="#the-movie">The movie</a></h2>
+<p><code>--record &lt;dir&gt;</code> on a play or a replay hands the directory to the game’s own
+<code>--record</code>: the offscreen assembly draws every stepped tick with the real
+render stack and the full HUD, and saves it as <code>&lt;dir&gt;/frame_%06d.png</code>. When
+the game has exited the bench runs</p>
+<pre><code class="language-sh">ffmpeg -y -framerate 60 -i &lt;dir&gt;/frame_%06d.png -pix_fmt yuv420p &lt;dir&gt;.mp4
+</code></pre>
+<p>One tick is one frame and one tick is 1/60 s, so the movie runs in real
+time however long the agent thought between acts. The bench prints the
+movie’s path, frame count and length after the score table and notes them
+in the audit. Without ffmpeg, or when ffmpeg refuses, the frames stay on
+disk and the note carries the command line to run by hand; the run’s exit
+code does not change.</p>
+<p>Recording needs a GPU and a display. Run the bench from the dev shell
+(<code>nix develop</code>), which is where the Vulkan loader finds the driver, on an
+X display: your own, or an Xvfb (<code>DISPLAY=:99</code>). A play without <code>--record</code>
+needs neither.</p>
+<h2 id="measured-on-the-hunt-fixture-seed-7"><a class="header" href="#measured-on-the-hunt-fixture-seed-7">Measured on the hunt fixture, seed 7</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Agent</th><th>Outcome</th><th>Ticks</th><th>Turns</th><th>Ammo</th><th>Damage</th><th>Wall</th><th>Cost</th></tr>
+</thead>
+<tbody>
+<tr><td><code>baseline</code></td><td>victory</td><td>661</td><td>22</td><td>3630</td><td>0</td><td>5.4 s</td><td>0</td></tr>
+<tr><td><code>pi</code> gpt-5.6-luna, low thinking</td><td>victory</td><td>481</td><td>5</td><td>2940</td><td>0</td><td>33 s</td><td>$0.005</td></tr>
+<tr><td><code>pi</code> gpt-5.6-luna, low thinking</td><td>victory</td><td>971</td><td>12</td><td>4128</td><td>66</td><td>66 s</td><td>$0.012</td></tr>
+<tr><td><code>pi</code> gpt-5.6-luna, low thinking, <code>--record</code></td><td>victory</td><td>1241</td><td>11</td><td>3416</td><td>413</td><td>114 s</td><td>$0.010</td></tr>
+</tbody>
+</table>
+</div>
+<p>Three pi plays of one seed, one row each; the third was recorded and stitched into a 20.7 s movie at 1280x720. The first play’s opening <code>act</code> was malformed (two verbs in one gesture); the
+relay returned the parse error as a tool error and the model corrected
+itself on the next call. Both audits replay <code>close</code>.</p>
+<h2 id="measured-on-the-range-fixture-seed-7"><a class="header" href="#measured-on-the-range-fixture-seed-7">Measured on the range fixture, seed 7</a></h2>
+<p>The range has no objective, so the goal comes from <code>--goal</code> and the reader
+grades it from the <code>end</code> row. All plays <code>--ticks 12000 --deadline 900</code>;
+the pi rows are gpt-5.6-luna with low thinking.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Goal</th><th>Agent</th><th>Ended by</th><th>Ticks</th><th>Turns</th><th>Ammo</th><th>Damage</th><th>Wall</th><th>Cost</th><th>End row</th></tr>
+</thead>
+<tbody>
+<tr><td>orbit the planetoid</td><td><code>pi</code>, first manual</td><td>agent exit</td><td>2041</td><td>10</td><td>0</td><td>7508</td><td>70 s</td><td>$0.012</td><td>helm manual, well planetoid, body planetoid 7 m</td></tr>
+<tr><td>orbit the planetoid</td><td><code>pi</code>, manual with the speed band</td><td>finish, done</td><td>1646</td><td>7</td><td>0</td><td>0</td><td>41 s</td><td>$0.007</td><td>helm Orbit planetoid (Hold), body planetoid 2123 m</td></tr>
+<tr><td>park on the derelict</td><td><code>pi</code></td><td>finish, done</td><td>4581</td><td>21</td><td>0</td><td>0</td><td>115 s</td><td>$0.024</td><td>helm manual, contact derelict 172 m</td></tr>
+<tr><td>destroy the derelict</td><td><code>cmd:</code> probe</td><td>finish, 1 kill</td><td>3371</td><td>34</td><td>3000</td><td>0</td><td>25 s</td><td>0</td><td>no contact left</td></tr>
+<tr><td>destroy the derelict</td><td><code>pi</code>, first manual</td><td>finish, gave up</td><td>10903</td><td>21</td><td>5136</td><td>2748</td><td>143 s</td><td>$0.029</td><td>helm manual, contact derelict 5787 m</td></tr>
+<tr><td>destroy the derelict</td><td><code>pi</code>, manual with range control</td><td>finish, done, 1 kill</td><td>2626</td><td>11</td><td>1096</td><td>0</td><td>65 s</td><td>$0.011</td><td>no contact left</td></tr>
+</tbody>
+</table>
+</div>
+<p>The first orbit play approached at 572 m/s, tapped the orbit helm as the
+well appeared and dove into the surface in Burn; pi stopped talking with
+the bridge and the main drive gone. The manual now gives the speed band
+(60 ticks of drive is 80 m/s, 240 is 320, the helm takes a ring from 320
+but not from 550) and the same model held a ring at 2.1 km on the next
+play. The first destroy play locked the derelict in 100 ticks, then burned
+to 240 m/s, tapped Stop at 2 km, overshot at 157 m, kept the guns on it to
+4578 hp while it receded, and burned to 1650 m/s trying to get back. The
+scripted probe closes at 80 m/s, stops at 1.6 km and holds the triggers:
+the hauler breaks up and leaves <code>contacts</code> after 56 game seconds. With
+the fight steps rewritten around range control, pi closed at 160 m/s,
+tapped Stop at 1.96 km, settled 1.1 km off and broke the hauler up in
+900 ticks of fire.</p>
+<h2 id="not-built-yet"><a class="header" href="#not-built-yet">Not built yet</a></h2>
+<p>A <code>--ui tui</code> renderer on the same event bus, and <code>bench run</code>: a sweep of
+plays over a scenario set with an <code>index.json</code>, an HTML report and a
+<code>--baseline</code> diff release over release. The design record is
+<code>tasks/20260824-125933/ARCHITECTURE.md</code>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="automation-harness.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="environment-variables.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="automation-harness.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="environment-variables.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

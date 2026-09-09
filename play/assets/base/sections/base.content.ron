@@ -5,7 +5,6 @@
             name: "Reinforced Hull Section",
             description: "A reinforced hull section for spaceships.",
             health: 200.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -89,7 +88,7 @@
             ],
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/hull_personnel.glb#Scene0"),
         )),
     )),
     Section((
@@ -98,7 +97,6 @@
             name: "Basic Thruster Section",
             description: "A basic thruster section for spaceships.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -169,7 +167,6 @@
             name: "Vector Thruster Section",
             description: "A 3x3x2 vectoring drive for larger ships.",
             health: 480.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -306,7 +303,7 @@
         kind: Thruster((
             magnitude: 9.0,
             render_mesh: Some("self://gltf/shell_vector.glb#Scene0"),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
+            loop_sound: Some("self://sounds/thruster_vector_loop.wav"),
             exhaust: Some((
                 offset: (
                     0.0,
@@ -351,7 +348,6 @@
             name: "Capital Thruster Section",
             description: "A 5x5x3 capital drive for the largest ships.",
             health: 1250.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -696,7 +692,7 @@
         kind: Thruster((
             magnitude: 25.0,
             render_mesh: Some("self://gltf/shell_capital.glb#Scene0"),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
+            loop_sound: Some("self://sounds/thruster_capital_loop.wav"),
             exhaust: Some((
                 offset: (
                     0.0,
@@ -741,7 +737,6 @@
             name: "Basic Controller Section",
             description: "A basic controller section for spaceships.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -831,11 +826,16 @@
         kind: Controller((
             steering_lag: 0.5,
             max_torque: 1501.0,
+            render_mesh: Some("self://gltf/core_wires.glb#Scene0"),
             lock_on_sound: Some("self://sounds/lock_on.wav"),
             lock_off_sound: Some("self://sounds/lock_off.wav"),
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
+            warn_hull_sound: Some("self://sounds/warn_hull.wav"),
+            warn_hull_fraction: 0.3,
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
@@ -845,7 +845,6 @@
             name: "Light Hull Section",
             description: "A thin-walled hull section; scavenger grade.",
             health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -929,292 +928,15 @@
             ],
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/hull_personnel.glb#Scene0"),
         )),
     )),
     Section((
         base: (
-            id: "pdc_kinetic_turret_section",
-            name: "PDC Turret (Kinetic)",
-            description: "A compact point-defense mount that fits any hull face. Slugs: the hardest single hit, harder still on a charge, and they stop at anything they cannot destroy.",
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.5,
-                    0.5,
-                    0.5,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "base",
-                    position: (
-                        0.0,
-                        -0.25,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.25,
-                    0.0,
-                ),
-                render_mesh_transform: Some((
-                    scale: (
-                        0.5,
-                        0.5,
-                        0.5,
-                    ),
-                )),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.05,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        render_mesh_transform: Some((
-                            scale: (
-                                0.5,
-                                0.5,
-                                0.5,
-                            ),
-                        )),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.166353,
-                                    0.151977,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                render_mesh_transform: Some((
-                                    scale: (
-                                        0.5,
-                                        0.5,
-                                        0.5,
-                                    ),
-                                )),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.0642185,
-                                            -0.0553645,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        render_mesh_transform: Some((
-                                            scale: (
-                                                0.5,
-                                                0.5,
-                                                0.5,
-                                            ),
-                                        )),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -0.6,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "pdc_pierce_turret_section",
-            name: "PDC Turret (Pierce)",
-            description: "The same mount firing penetrators. Half the damage per hit, dealt to EVERY section the round rakes through - closing fast buys depth, not damage. Worse against one thin target, better against a deep one.",
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.5,
-                    0.5,
-                    0.5,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "base",
-                    position: (
-                        0.0,
-                        -0.25,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.25,
-                    0.0,
-                ),
-                render_mesh_transform: Some((
-                    scale: (
-                        0.5,
-                        0.5,
-                        0.5,
-                    ),
-                )),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.05,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        render_mesh_transform: Some((
-                            scale: (
-                                0.5,
-                                0.5,
-                                0.5,
-                            ),
-                        )),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.166353,
-                                    0.151977,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                render_mesh_transform: Some((
-                                    scale: (
-                                        0.5,
-                                        0.5,
-                                        0.5,
-                                    ),
-                                )),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.0642185,
-                                            -0.0553645,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        render_mesh_transform: Some((
-                                            scale: (
-                                                0.5,
-                                                0.5,
-                                                0.5,
-                                            ),
-                                        )),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -0.6,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 2.0,
-            bullet_kind: Pierce,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "torpedo_section",
-            name: "Torpedo Bay (Serpent)",
-            description: "The standard bay, loaded with Serpent assault torpedoes. They run in on a terminal weave, so point defense spends roughly three times the rounds to stop one and only kills it on the doorstep. The corkscrew is a longer path: a Serpent arrives later than a Lance and gains less on a target that is running.",
-            health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
+            id: "cargo_hull_section",
+            name: "Cargo Hull Section",
+            description: "A hull section packed with caged freight; every face reads the same.",
+            health: 200.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -1282,18 +1004,1024 @@
                         1.0,
                     ),
                 ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_cargo.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "tank_hull_section",
+            name: "Tank Hull Section",
+            description: "A hull section carrying a pressure vessel in open frame rails.",
+            health: 200.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_tank.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_kinetic_turret_section",
+            name: "PDC Turret (Kinetic)",
+            description: "A compact point-defense mount that fits any hull face. Slugs: the hardest single hit, harder still on a charge, and they stop at anything they cannot destroy.",
+            health: 130.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
             ],
             damage_effects: ([
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.33,
+                                0.0,
+                            ),
+                            scale: (
+                                0.44,
+                                0.44,
+                                0.44,
+                            ),
+                        )),
+                        name: Some("stow_lift"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.4,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    0.0,
+                                    1.0,
+                                    0.0,
+                                )),
+                                render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.2,
+                                            0.0,
+                                        ),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.01,
+                                                    -0.05,
+                                                ),
+                                                render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 100.0,
+                                                        )),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 1000.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_pierce_turret_section",
+            name: "PDC Turret (Pierce)",
+            description: "The same mount firing penetrators. Half the damage per hit, dealt to EVERY section the round rakes through - closing fast buys depth, not damage. Worse against one thin target, better against a deep one.",
+            health: 130.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.33,
+                                0.0,
+                            ),
+                            scale: (
+                                0.44,
+                                0.44,
+                                0.44,
+                            ),
+                        )),
+                        name: Some("stow_lift"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.4,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    0.0,
+                                    1.0,
+                                    0.0,
+                                )),
+                                render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.2,
+                                            0.0,
+                                        ),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.01,
+                                                    -0.05,
+                                                ),
+                                                render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 100.0,
+                                                        )),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 1000.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 2.0,
+            bullet_kind: Pierce,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_twin_kinetic_turret_section",
+            name: "Twin PDC Turret (Kinetic)",
+            description: "The same slugs from a two-barrel mount. Each tube fires at half the gatling\'s cadence, so the magazine drains no faster - the trade is two offset streams instead of one dense one.",
+            health: 130.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.305,
+                                0.0,
+                            ),
+                            scale: (
+                                0.44,
+                                0.44,
+                                0.44,
+                            ),
+                        )),
+                        name: Some("stow_lift"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.375,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    0.0,
+                                    1.0,
+                                    0.0,
+                                )),
+                                render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.225,
+                                            0.0,
+                                        ),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -0.1,
+                                                ),
+                                                render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                    (
+                                                        offset: (
+                                                            -0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 1000.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/pdc_twin_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_twin_pierce_turret_section",
+            name: "Twin PDC Turret (Pierce)",
+            description: "Penetrators from the two-barrel mount: half per-hit damage dealt through every layer, split across two offset streams at the same total rate.",
+            health: 130.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.305,
+                                0.0,
+                            ),
+                            scale: (
+                                0.44,
+                                0.44,
+                                0.44,
+                            ),
+                        )),
+                        name: Some("stow_lift"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.375,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    0.0,
+                                    1.0,
+                                    0.0,
+                                )),
+                                render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.225,
+                                            0.0,
+                                        ),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -0.1,
+                                                ),
+                                                render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                    (
+                                                        offset: (
+                                                            -0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 1000.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 2.0,
+            bullet_kind: Pierce,
+            fire_sound: Some("self://sounds/pdc_twin_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "torpedo_section",
+            name: "Torpedo Bay (Serpent)",
+            description: "The standard bay, loaded with Serpent assault torpedoes. They run in on a terminal weave, so point defense spends roughly three times the rounds to stop one and only kills it on the doorstep. The corkscrew is a longer path: a Serpent arrives later than a Lance and gains less on a target that is running.",
+            health: 100.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -1.0,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -1301,17 +2029,19 @@
                 0.0,
                 0.70710677,
             ),
+            spawn_recess: 1.0,
             fire_rate: 1.0,
-            spawner_speed: 8.0,
+            spawner_speed: 80.0,
             projectile_lifetime: 100.0,
             arm_time: 0.5,
-            arm_distance: 5.0,
+            arm_distance: 50.0,
             nav_constant: 3.0,
             linear_damping: 0.8,
-            blast_radius: 30.0,
+            blast_radius: 300.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
+            detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Serpent",
                 tint: Srgba((
@@ -1320,7 +2050,7 @@
                     blue: 0.1,
                     alpha: 1.0,
                 )),
-                max_speed: 32.0,
+                max_speed: 320.0,
                 weave_angle: 0.44,
                 weave_rate: 1.4,
             ),
@@ -1337,72 +2067,130 @@
             name: "Torpedo Bay (Lance)",
             description: "The same bay and the same warhead, loaded with Lance bombardment torpedoes: no weave, the bare intercept. The shortest path there is - it arrives soonest and keeps closing on a runner - which is also the path point defense is built to solve. Ordnance for a target that will not shoot back.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
             link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
                 (
                     id: "positive_z",
                     position: (
                         0.0,
                         0.0,
-                        0.5,
+                        1.0,
                     ),
                     normal: (
                         0.0,
                         0.0,
                         1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -1410,13 +2198,24 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -1.0,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -1424,17 +2223,19 @@
                 0.0,
                 0.70710677,
             ),
+            spawn_recess: 1.0,
             fire_rate: 1.0,
-            spawner_speed: 8.0,
+            spawner_speed: 80.0,
             projectile_lifetime: 100.0,
             arm_time: 0.5,
-            arm_distance: 5.0,
+            arm_distance: 50.0,
             nav_constant: 3.0,
             linear_damping: 0.8,
-            blast_radius: 30.0,
+            blast_radius: 300.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
+            detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Lance",
                 tint: Srgba((
@@ -1443,13 +2244,471 @@
                     blue: 0.86,
                     alpha: 1.0,
                 )),
-                max_speed: 35.0,
+                max_speed: 350.0,
                 weave_angle: 0.0,
                 weave_rate: 0.0,
             ),
             ammo_capacity: Some(6),
             reload: Some((
                 delay: 10.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "railgun_lance_section",
+            name: "Railgun Lance",
+            description: "A spinal kinetic lance: no traverse, so the HULL aims it. Tapping the trigger COMMITS - the bolt walks the bore and the shot leaves when it arrives, whether or not the nose is still on the target. What leaves rakes through everything in the line, and shoves the ship that fired.",
+            health: 180.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    3.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_mid",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_mid",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_mid",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_mid",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: Charge,
+                    node_prefix: "charge_bolt",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            -1.18,
+                        ),
+                    ),
+                    open_seconds: 0.0,
+                    close_seconds: 0.0,
+                ),
+            ],
+        ),
+        kind: Railgun((
+            render_mesh: Some("self://gltf/railgun_lance.glb#Scene0"),
+            muzzle_offset: (
+                0.0,
+                0.0,
+                -1.5,
+            ),
+            charge_seconds: 1.5,
+            slug_speed: 15000.0,
+            slug_damage: 300.0,
+            slug_power: 1800.0,
+            rake_radius: Some(10.0),
+            slug_lifetime: 1.2,
+            recoil_impulse: 45.0,
+            fire_sound: Some("self://sounds/railgun_fire.wav"),
+            charge_sound: Some("self://sounds/railgun_charge.wav"),
+            reload_sound: Some("self://sounds/railgun_reload.wav"),
+            ammo_capacity: Some(1),
+            reload: Some((
+                delay: 12.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "siege_railgun_lance_section",
+            name: "Siege Railgun Lance",
+            description: "The same spinal lance at capital grade: the shot that opens a working hull end to end rather than boring a corridor through it. Two hundred times the pierce budget, spent down a bore three times as wide. Deliberately overpowered siege ordnance for a scripted capital, not a balanced duel.",
+            health: 180.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    3.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_mid",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_mid",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_mid",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_mid",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: Charge,
+                    node_prefix: "charge_bolt",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            -1.18,
+                        ),
+                    ),
+                    open_seconds: 0.0,
+                    close_seconds: 0.0,
+                ),
+            ],
+        ),
+        kind: Railgun((
+            render_mesh: Some("self://gltf/railgun_lance.glb#Scene0"),
+            muzzle_offset: (
+                0.0,
+                0.0,
+                -1.5,
+            ),
+            charge_seconds: 1.5,
+            slug_speed: 15000.0,
+            slug_damage: 500.0,
+            slug_power: 360000.0,
+            rake_radius: Some(30.0),
+            slug_lifetime: 1.2,
+            recoil_impulse: 45.0,
+            fire_sound: Some("self://sounds/railgun_fire.wav"),
+            charge_sound: Some("self://sounds/railgun_charge.wav"),
+            reload_sound: Some("self://sounds/railgun_reload.wav"),
+            ammo_capacity: Some(1),
+            reload: Some((
+                delay: 12.0,
                 amount: 1,
             )),
         )),
@@ -1460,67 +2719,21 @@
             name: "Siege Torpedo Bay Section",
             description: "A capital-grade siege torpedo battery: slow salvo, armored ordnance, ship-killing blast.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
             link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
                 (
                     id: "positive_z",
                     position: (
                         0.0,
                         0.0,
-                        0.5,
+                        1.0,
                     ),
                     normal: (
                         0.0,
@@ -1528,19 +2741,133 @@
                         1.0,
                     ),
                 ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
             ],
-            hide_in_editor: true,
             damage_effects: ([
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -1.0,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -1548,17 +2875,19 @@
                 0.0,
                 0.70710677,
             ),
+            spawn_recess: 1.0,
             fire_rate: 1.0,
-            spawner_speed: 8.0,
+            spawner_speed: 80.0,
             projectile_lifetime: 60.0,
             arm_time: 0.5,
-            arm_distance: 5.0,
+            arm_distance: 50.0,
             nav_constant: 4.0,
             linear_damping: 0.4,
-            blast_radius: 45.0,
+            blast_radius: 450.0,
             blast_damage: 2000.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
+            detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             projectile_health: 5000.0,
             torpedo_type: (
                 name: "Breaker",
@@ -1568,1819 +2897,15 @@
                     blue: 0.12,
                     alpha: 1.0,
                 )),
-                max_speed: 70.0,
+                max_speed: 700.0,
                 weave_angle: 0.22,
                 weave_rate: 1.4,
             ),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_engine_starboard",
-            name: "Racer // Engine Starboard",
-            description: "The Racer\'s engine starboard section.",
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.49,
-                    0.74189,
-                    0.62567,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_tail",
-                    position: (
-                        -0.3275,
-                        0.1395275,
-                        0.049999952,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-                (
-                    id: "to_wing_starboard",
-                    position: (
-                        0.07500005,
-                        -0.035472512,
-                        -0.69749975,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-                Plume,
-            ]),
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/parts/racer/engine_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.15499997,
-                    -0.070945024,
-                    -0.012835026,
-                ),
-            )),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.312835,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.343,
-                    height: 0.445134,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_engine_port",
-            name: "Racer // Engine Port",
-            description: "The Racer\'s engine port section.",
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.49,
-                    0.74189,
-                    0.62567,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_tail",
-                    position: (
-                        0.3275,
-                        0.1395275,
-                        0.049999952,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_wing_port",
-                    position: (
-                        -0.07500005,
-                        -0.035472512,
-                        -0.69749975,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-                Plume,
-            ]),
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/parts/racer/engine_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.15499997,
-                    -0.070945024,
-                    -0.012835026,
-                ),
-            )),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.312835,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.343,
-                    height: 0.445134,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_wing_starboard",
-            name: "Racer // Wing Starboard",
-            description: "The Racer\'s wing starboard section.",
-            health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.78999996,
-                    1.0,
-                    2.164329,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        -0.4025,
-                        0.100000024,
-                        -0.008917749,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_starboard",
-                    position: (
-                        -0.07499999,
-                        0.035472512,
-                        0.69749975,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_starboard",
-                    position: (
-                        0.545,
-                        -0.099999994,
-                        -0.66783553,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/racer/wing_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.195,
-                    0.0,
-                    -0.11783552,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_wing_port",
-            name: "Racer // Wing Port",
-            description: "The Racer\'s wing port section.",
-            health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.78999996,
-                    1.0,
-                    2.164329,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.4025,
-                        0.100000024,
-                        -0.008917749,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_port",
-                    position: (
-                        0.07499999,
-                        0.035472512,
-                        0.69749975,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_port",
-                    position: (
-                        -0.545,
-                        -0.099999994,
-                        -0.66783553,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/racer/wing_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.195,
-                    0.0,
-                    -0.11783552,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_nose",
-            name: "Racer // Nose",
-            description: "The Racer\'s nose section.",
-            health: 120.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.8,
-                    1.22265,
-                    1.02567,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.0,
-                        0.04433751,
-                        0.8064175,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/racer/nose.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    -0.111325026,
-                    0.012835026,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_tail",
-            name: "Racer // Tail",
-            description: "The Racer\'s tail section.",
-            health: 120.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.82,
-                    1.3,
-                    0.82567,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.0,
-                        -0.07500005,
-                        -0.75641745,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_starboard",
-                    position: (
-                        0.3275,
-                        -0.1395275,
-                        -0.049999952,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_port",
-                    position: (
-                        -0.3275,
-                        -0.1395275,
-                        -0.049999952,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/racer/tail.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    0.14999998,
-                    -0.11283493,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_fuselage",
-            name: "Racer // Fuselage",
-            description: "The Racer\'s fuselage section.",
-            health: 240.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.82,
-                    1.4,
-                    2.2,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        0.0,
-                        -0.04433745,
-                        -0.8064175,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-                (
-                    id: "to_tail",
-                    position: (
-                        0.0,
-                        0.07499999,
-                        0.75641745,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_wing_starboard",
-                    position: (
-                        0.4025,
-                        -0.099999964,
-                        0.008917749,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_wing_port",
-                    position: (
-                        -0.4025,
-                        -0.099999964,
-                        0.008917749,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Controller((
-            steering_lag: 0.5,
-            max_torque: 1501.0,
-            render_mesh: Some("self://gltf/parts/racer/fuselage.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    -0.19999999,
-                    -0.100000024,
-                ),
-            )),
-            lock_on_sound: Some("self://sounds/lock_on.wav"),
-            lock_off_sound: Some("self://sounds/lock_off.wav"),
-            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-            safety_on_sound: Some("self://sounds/safety_on.wav"),
-            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_engine_starboard",
-            name: "CargoB // Engine Starboard",
-            description: "The CargoB\'s engine starboard section.",
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.78999996,
-                    1.0,
-                    1.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_pod_starboard",
-                    position: (
-                        0.024999976,
-                        0.0,
-                        -1.25,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-                Plume,
-            ]),
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/parts/cargob/engine_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.004999995,
-                    -0.19999999,
-                    0.0,
-                ),
-            )),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.5,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.553,
-                    height: 0.6,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_engine_port",
-            name: "CargoB // Engine Port",
-            description: "The CargoB\'s engine port section.",
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.78999996,
-                    1.0,
-                    1.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_pod_port",
-                    position: (
-                        -0.024999976,
-                        0.0,
-                        -1.25,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-                Plume,
-            ]),
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/parts/cargob/engine_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.004999995,
-                    -0.19999999,
-                    0.0,
-                ),
-            )),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.5,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.553,
-                    height: 0.6,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_pod_starboard",
-            name: "CargoB // Pod Starboard",
-            description: "The CargoB\'s pod starboard section.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.89,
-                    1.0,
-                    4.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        -0.52750003,
-                        0.099999964,
-                        0.375,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_starboard",
-                    position: (
-                        -0.025000095,
-                        0.0,
-                        1.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_starboard",
-                    position: (
-                        0.4949999,
-                        0.25000006,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Torpedo((
-            render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.055000067,
-                    -0.19999999,
-                    0.0,
-                ),
-            )),
-            spawn_offset: (
-                0.0,
-                0.0,
-                -2.5,
-            ),
-            spawn_rotation: (
-                -0.70710677,
-                0.0,
-                0.0,
-                0.70710677,
-            ),
-            fire_rate: 1.0,
-            spawner_speed: 8.0,
-            projectile_lifetime: 100.0,
-            arm_time: 0.5,
-            arm_distance: 5.0,
-            nav_constant: 3.0,
-            linear_damping: 0.8,
-            blast_radius: 30.0,
-            blast_damage: 750.0,
-            launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
-            torpedo_type: (
-                name: "Serpent",
-                tint: Srgba((
-                    red: 0.95,
-                    green: 0.45,
-                    blue: 0.1,
-                    alpha: 1.0,
-                )),
-                max_speed: 32.0,
-                weave_angle: 0.44,
-                weave_rate: 1.4,
-            ),
             ammo_capacity: Some(6),
             reload: Some((
                 delay: 10.0,
                 amount: 1,
             )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_pod_starboard_lance",
-            name: "CargoB // Pod Starboard (Lance)",
-            description: "The CargoB\'s pod starboard section. Loaded with straight-running Lance torpedoes.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.89,
-                    1.0,
-                    4.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        -0.52750003,
-                        0.099999964,
-                        0.375,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_starboard",
-                    position: (
-                        -0.025000095,
-                        0.0,
-                        1.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_starboard",
-                    position: (
-                        0.4949999,
-                        0.25000006,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Torpedo((
-            render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.055000067,
-                    -0.19999999,
-                    0.0,
-                ),
-            )),
-            spawn_offset: (
-                0.0,
-                0.0,
-                -2.5,
-            ),
-            spawn_rotation: (
-                -0.70710677,
-                0.0,
-                0.0,
-                0.70710677,
-            ),
-            fire_rate: 1.0,
-            spawner_speed: 8.0,
-            projectile_lifetime: 100.0,
-            arm_time: 0.5,
-            arm_distance: 5.0,
-            nav_constant: 3.0,
-            linear_damping: 0.8,
-            blast_radius: 30.0,
-            blast_damage: 750.0,
-            launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
-            torpedo_type: (
-                name: "Lance",
-                tint: Srgba((
-                    red: 0.7,
-                    green: 0.78,
-                    blue: 0.86,
-                    alpha: 1.0,
-                )),
-                max_speed: 35.0,
-                weave_angle: 0.0,
-                weave_rate: 0.0,
-            ),
-            ammo_capacity: Some(6),
-            reload: Some((
-                delay: 10.0,
-                amount: 1,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_pod_port",
-            name: "CargoB // Pod Port",
-            description: "The CargoB\'s pod port section.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.89,
-                    1.0,
-                    4.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.52750003,
-                        0.099999964,
-                        0.375,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_port",
-                    position: (
-                        0.025000095,
-                        0.0,
-                        1.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_port",
-                    position: (
-                        -0.4949999,
-                        0.25000006,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Torpedo((
-            render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.055000067,
-                    -0.19999999,
-                    0.0,
-                ),
-            )),
-            spawn_offset: (
-                0.0,
-                0.0,
-                -2.5,
-            ),
-            spawn_rotation: (
-                -0.70710677,
-                0.0,
-                0.0,
-                0.70710677,
-            ),
-            fire_rate: 1.0,
-            spawner_speed: 8.0,
-            projectile_lifetime: 100.0,
-            arm_time: 0.5,
-            arm_distance: 5.0,
-            nav_constant: 3.0,
-            linear_damping: 0.8,
-            blast_radius: 30.0,
-            blast_damage: 750.0,
-            launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
-            torpedo_type: (
-                name: "Serpent",
-                tint: Srgba((
-                    red: 0.95,
-                    green: 0.45,
-                    blue: 0.1,
-                    alpha: 1.0,
-                )),
-                max_speed: 32.0,
-                weave_angle: 0.44,
-                weave_rate: 1.4,
-            ),
-            ammo_capacity: Some(6),
-            reload: Some((
-                delay: 10.0,
-                amount: 1,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_pod_port_lance",
-            name: "CargoB // Pod Port (Lance)",
-            description: "The CargoB\'s pod port section. Loaded with straight-running Lance torpedoes.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.89,
-                    1.0,
-                    4.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.52750003,
-                        0.099999964,
-                        0.375,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_port",
-                    position: (
-                        0.025000095,
-                        0.0,
-                        1.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_port",
-                    position: (
-                        -0.4949999,
-                        0.25000006,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Torpedo((
-            render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.055000067,
-                    -0.19999999,
-                    0.0,
-                ),
-            )),
-            spawn_offset: (
-                0.0,
-                0.0,
-                -2.5,
-            ),
-            spawn_rotation: (
-                -0.70710677,
-                0.0,
-                0.0,
-                0.70710677,
-            ),
-            fire_rate: 1.0,
-            spawner_speed: 8.0,
-            projectile_lifetime: 100.0,
-            arm_time: 0.5,
-            arm_distance: 5.0,
-            nav_constant: 3.0,
-            linear_damping: 0.8,
-            blast_radius: 30.0,
-            blast_damage: 750.0,
-            launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            detonation_sound: Some("self://sounds/explosion.wav"),
-            torpedo_type: (
-                name: "Lance",
-                tint: Srgba((
-                    red: 0.7,
-                    green: 0.78,
-                    blue: 0.86,
-                    alpha: 1.0,
-                )),
-                max_speed: 35.0,
-                weave_angle: 0.0,
-                weave_rate: 0.0,
-            ),
-            ammo_capacity: Some(6),
-            reload: Some((
-                delay: 10.0,
-                amount: 1,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_nose",
-            name: "CargoB // Nose",
-            description: "The CargoB\'s nose section.",
-            health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.22,
-                    1.6,
-                    1.5,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.0,
-                        -0.050000012,
-                        1.0,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/cargob/nose.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    0.0,
-                    -0.25,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_tail",
-            name: "CargoB // Tail",
-            description: "The CargoB\'s tail section.",
-            health: 150.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.22,
-                    1.3,
-                    1.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.0,
-                        0.125,
-                        -0.875,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/cargob/tail.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    -0.14999998,
-                    0.0,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_fuselage",
-            name: "CargoB // Fuselage",
-            description: "The CargoB\'s fuselage section.",
-            health: 300.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.22,
-                    1.8,
-                    2.5,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        0.0,
-                        0.050000012,
-                        -1.0,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-                (
-                    id: "to_tail",
-                    position: (
-                        0.0,
-                        -0.125,
-                        0.875,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_pod_starboard",
-                    position: (
-                        0.52750003,
-                        -0.100000024,
-                        -0.375,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_pod_port",
-                    position: (
-                        -0.52750003,
-                        -0.100000024,
-                        -0.375,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Controller((
-            steering_lag: 0.5,
-            max_torque: 1501.0,
-            render_mesh: Some("self://gltf/parts/cargob/fuselage.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    0.100000024,
-                    0.25,
-                ),
-            )),
-            lock_on_sound: Some("self://sounds/lock_on.wav"),
-            lock_off_sound: Some("self://sounds/lock_off.wav"),
-            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-            safety_on_sound: Some("self://sounds/safety_on.wav"),
-            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_engine_starboard",
-            name: "CargoA // Engine Starboard",
-            description: "The CargoA\'s engine starboard section.",
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.79,
-                    0.795,
-                    0.95,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_pod_starboard",
-                    position: (
-                        0.0,
-                        0.049999952,
-                        -0.75,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-                Plume,
-            ]),
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/parts/cargoa/engine_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.20500004,
-                    -0.100000024,
-                    0.024999976,
-                ),
-            )),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.475,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.55300003,
-                    height: 0.47700003,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_engine_port",
-            name: "CargoA // Engine Port",
-            description: "The CargoA\'s engine port section.",
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.79,
-                    0.795,
-                    0.95,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_pod_port",
-                    position: (
-                        0.0,
-                        0.049999952,
-                        -0.75,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-                Plume,
-            ]),
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/parts/cargoa/engine_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.20500004,
-                    -0.100000024,
-                    0.024999976,
-                ),
-            )),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.475,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.55300003,
-                    height: 0.47700003,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_pod_starboard",
-            name: "CargoA // Pod Starboard",
-            description: "The CargoA\'s pod starboard section.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.79,
-                    1.0,
-                    2.05,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        -0.6025,
-                        0.050000012,
-                        -0.15,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_starboard",
-                    position: (
-                        0.0,
-                        -0.050000012,
-                        0.75,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/cargoa/pod_starboard.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    -0.20500004,
-                    -0.19999999,
-                    0.024999976,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_pod_port",
-            name: "CargoA // Pod Port",
-            description: "The CargoA\'s pod port section.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.79,
-                    1.0,
-                    2.05,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.6025,
-                        0.050000012,
-                        -0.15,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_engine_port",
-                    position: (
-                        0.0,
-                        -0.050000012,
-                        0.75,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/cargoa/pod_port.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.20500004,
-                    -0.19999999,
-                    0.024999976,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_nose",
-            name: "CargoA // Nose",
-            description: "The CargoA\'s nose section.",
-            health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.6,
-                    1.2,
-                    1.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.98749995,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_starboard",
-                    position: (
-                        0.7,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_turret_port",
-                    position: (
-                        -0.7,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/cargoa/nose.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    0.19999999,
-                    -0.20000005,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_tail",
-            name: "CargoA // Tail",
-            description: "The CargoA\'s tail section.",
-            health: 150.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.62,
-                    1.175,
-                    0.95,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_fuselage",
-                    position: (
-                        0.0,
-                        0.10625005,
-                        -0.9,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/parts/cargoa/tail.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    -0.087499976,
-                    0.024999976,
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_fuselage",
-            name: "CargoA // Fuselage",
-            description: "The CargoA\'s fuselage section.",
-            health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.62,
-                    1.6,
-                    2.65,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.9875,
-                    ),
-                    normal: (
-                        -0.0,
-                        -0.0,
-                        -1.0,
-                    ),
-                ),
-                (
-                    id: "to_tail",
-                    position: (
-                        0.0,
-                        -0.10624999,
-                        0.90000004,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "to_pod_starboard",
-                    position: (
-                        0.6025,
-                        -0.050000012,
-                        0.15,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "to_pod_port",
-                    position: (
-                        -0.6025,
-                        -0.050000012,
-                        0.15,
-                    ),
-                    normal: (
-                        -1.0,
-                        -0.0,
-                        -0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-        ),
-        kind: Controller((
-            steering_lag: 0.5,
-            max_torque: 1501.0,
-            render_mesh: Some("self://gltf/parts/cargoa/fuselage.glb#Scene0"),
-            render_mesh_transform: Some((
-                position: (
-                    0.0,
-                    0.19999999,
-                    -0.17500001,
-                ),
-            )),
-            lock_on_sound: Some("self://sounds/lock_on.wav"),
-            lock_off_sound: Some("self://sounds/lock_off.wav"),
-            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-            safety_on_sound: Some("self://sounds/safety_on.wav"),
-            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
 ]

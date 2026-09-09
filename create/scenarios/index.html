@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Scenario files - Nova Protocol Creator Docs</title>
-        <meta name="description" content="Define a playable mission or backdrop, its picker metadata and handlers, then script it with events, filters, actions, objects, and expressions." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Scenario files - Nova Protocol Creator Docs</title><meta name="description" content="Define a playable mission or backdrop, its picker metadata and handlers, then script it with events, filters, actions, objects, and expressions."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,27 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/mod-files/">Mod files</a>
-                        / Scenario files
-                    </p>
-                    <h1>Scenario files</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol>
-                    </nav>
-                    <p>A scenario defines one playable mission, continuation, or menu backdrop. Its
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Scenario files</p><h1>Scenario files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol></nav><p>A scenario defines one playable mission, continuation, or menu backdrop. Its
 <code>events</code> list is the script: events decide when a handler runs, filters decide
 whether it applies, and actions change the world.</p>
 <p>For a guided first mission, start with
@@ -144,9 +116,10 @@ folder and bundle shape.</p>
 </table>
 <p>A menu backdrop POSES ITS OWN CAMERA: author a
 <a href="../actions/#setcamera"><code>SetCamera</code></a> in its <code>OnStart</code> (the reference shot is
-<code>position: (0, 100, 335)</code> looking at the origin). A backdrop without one is
-a content Error and never enters the menu rotation - the menu derives no
-pose of its own.</p>
+<code>position: (0, 570, 1920)</code> in meters, looking at the origin, which frames
+about 1,060 m either side of the origin in a 4:3 window). A backdrop without
+one is a content Error and never enters the menu rotation - the menu derives
+no pose of its own.</p>
 <h2 id="handler-shape" tabindex="-1">Handler shape</h2>
 <p>Each event entry is one handler:</p>
 <table>
@@ -282,15 +255,12 @@ find. In the game, enable the mod, open Scenarios, and play the visible entry.</
 <li>A mod cannot replace the base New Game selection. Use the Scenarios menu,
 campaigns, or <code>NextScenario</code>.</li>
 </ul>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -301,6 +271,4 @@ campaigns, or <code>NextScenario</code>.</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

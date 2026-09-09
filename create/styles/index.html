@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Ship skin styles for mods - Nova Protocol Creator Docs</title>
-        <meta name="description" content="Author the look a ship's derived cladding wears: plate material, scattered decoration, the deterministic scatter rule, and how a ship names a style by id." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ship skin styles for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author the look a ship's derived cladding wears: plate material, scattered decoration, the deterministic scatter rule, and how a ship names a style by id."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,27 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/mod-files/">Mod files</a>
-                        / Ship skin styles for mods
-                    </p>
-                    <h1>Ship skin styles for mods</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#what-a-style-can-and-cannot-change">What a style can and cannot change</a><ol></ol></li><li><a href="#the-style-item">The Style item</a><ol><li><a href="#surfaces">surfaces</a></li><li><a href="#fixtures">fixtures</a></li></ol></li><li><a href="#the-scatter-rule">The scatter rule</a><ol><li><a href="#the-seat-one-surface-or-a-crease">The seat: one surface, or a crease</a></li><li><a href="#the-seven-reliefs">The seven reliefs</a></li><li><a href="#start-from-what-a-hull-offers">Start from what a hull offers</a></li><li><a href="#priority-one-piece-per-plate">Priority: one piece per plate</a></li><li><a href="#density-one-piece-per-block-of-hull">Density: one piece per block of hull</a></li><li><a href="#alignment-not-noise">Alignment, not noise</a></li></ol></li><li><a href="#the-scatter-is-deterministic">The scatter is deterministic</a><ol></ol></li><li><a href="#the-frame-a-greeble-is-authored-in">The frame a greeble is authored in</a><ol></ol></li><li><a href="#using-a-style">Using a style</a><ol><li><a href="#drawing-a-continuous-line">Drawing a CONTINUOUS line</a></li><li><a href="#reading-as-unplanned-with-no-randomness">Reading as UNPLANNED with no randomness</a></li></ol></li></ol>
-                    </nav>
-                    <p>A <code>Style</code> is the LOOK a ship's derived cladding wears: what its plates are made
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship skin styles for mods</p><h1>Ship skin styles for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#what-a-style-can-and-cannot-change">What a style can and cannot change</a><ol></ol></li><li><a href="#the-style-item">The Style item</a><ol><li><a href="#surfaces">surfaces</a></li><li><a href="#fixtures">fixtures</a></li></ol></li><li><a href="#the-scatter-rule">The scatter rule</a><ol><li><a href="#the-seat-one-surface-or-a-crease">The seat: one surface, or a crease</a></li><li><a href="#the-seven-reliefs">The seven reliefs</a></li><li><a href="#start-from-what-a-hull-offers">Start from what a hull offers</a></li><li><a href="#priority-one-piece-per-plate">Priority: one piece per plate</a></li><li><a href="#density-one-piece-per-block-of-hull">Density: one piece per block of hull</a></li><li><a href="#alignment-not-noise">Alignment, not noise</a></li></ol></li><li><a href="#the-scatter-is-deterministic">The scatter is deterministic</a><ol></ol></li><li><a href="#the-frame-a-greeble-is-authored-in">The frame a greeble is authored in</a><ol></ol></li><li><a href="#using-a-style">Using a style</a><ol><li><a href="#drawing-a-continuous-line">Drawing a CONTINUOUS line</a></li><li><a href="#reading-as-unplanned-with-no-randomness">Reading as UNPLANNED with no randomness</a></li></ol></li></ol></nav><p>A <code>Style</code> is the LOOK a ship's derived cladding wears: what its plates are made
 of, and the decoration scattered over them. A <a href="../ships/">ship</a> names one by id
 (<code>style: Some(&quot;raider&quot;)</code> on its hull) and wears it.</p>
 <p>Styles are content like sections and scenarios. Create a new id to add a look,
@@ -68,6 +40,29 @@ mass and collider, stops rounds, and comes off when it is shot out, leaving the
 plate behind it bare. Nothing decorative does anything else - if losing a thing
 should cost the ship an ability, that thing is a <a href="../sections/">section</a>, not
 decoration.</p>
+<figure class="figure">
+    <!-- Capture: assets/greeble-catalog-industrial.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/greeble-catalog-industrial.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The base styles laid out a row per style, each
+            piece on its own pedestal under its id, its box
+            in meters and its health - the industrial row
+            read close, with armoured and civilian behind
+            it.</span
+        >
+    </div>
+    <figcaption class="figure__caption">
+        Every fixture the base styles scatter, one row per
+        style. A mod's own pieces sit in the same catalog
+        once the style declares them.
+    </figcaption>
+</figure>
 <h2 id="the-style-item" tabindex="-1">The Style item</h2>
 <pre><code class="hljs language-ron"><span class="ron-punct">[</span>
     <span class="ron-type">Style</span><span class="ron-punct">((</span>
@@ -596,7 +591,7 @@ visible, not silently substituted.</p>
 </tr>
 <tr>
 <td><code>civilian</code></td>
-<td>the racer's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings</td>
+<td>a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings</td>
 </tr>
 <tr>
 <td><code>salvage</code></td>
@@ -650,15 +645,12 @@ no jitter and a centred piece repeated is a tile;</li>
 <li>a weld bead built from four lumps of different size rather than from the
 <code>ribs</code> primitive, because even ribbing reads as machined.</li>
 </ul>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -669,6 +661,4 @@ no jitter and a centred piece repeated is a tile;</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

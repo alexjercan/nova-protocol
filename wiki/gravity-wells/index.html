@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Gravity wells - Nova Protocol Wiki</title>
-        <meta name="description" content="Large asteroids pull ships and torpedoes with real inverse-square gravity; the dominant well is what the ORBIT autopilot flies around." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Gravity wells - Nova Protocol Wiki</title><meta name="description" content="Large asteroids pull ships and torpedoes with real inverse-square gravity; the dominant well is what the ORBIT autopilot flies around."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,23 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / Gravity wells
-                    </p>
-                    <h1>Gravity wells</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>Large asteroids and planetoids carry gravity wells that pull ships, torpedoes and turret rounds with real physics. Wells never pull each other, and the strength is authored so every well is escapable under main drive. Only PILOTED ships feel a well - yours and the AI's; an unpiloted ship (a scripted bystander with no drive to resist the pull) floats where it sits rather than falling in.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Gravity wells</p><h1>Gravity wells</h1><div class="wiki__tags" id="wiki-tags"></div><p>Large asteroids and planetoids carry gravity wells that pull ships, torpedoes and turret rounds with real physics. Wells never pull each other, and the strength is authored so every well is escapable under main drive. Only PILOTED ships feel a well - yours and the AI's; an unpiloted ship (a scripted bystander with no drive to resist the pull) floats where it sits rather than falling in.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-gravity.png -->
     <div class="figure__placeholder">
@@ -52,29 +28,29 @@
             >assets/wiki-gravity.png</span
         >
         <span class="figure__placeholder-note"
-            >A diagram of a well: surface-clamp core,
-            inverse-square falloff, and the faded outer edge
-            of the sphere of influence - or a ship on a
-            clean ORBIT around a planetoid.</span
+            >A cutter holding a clean ORBIT around an ice
+            world: the flight computer's ring drawn across
+            the body, the radius spoke out to the hull, and
+            the debris ring beyond it.</span
         >
     </div>
 </figure>
 <h2 id="the-pull" tabindex="-1">The pull</h2>
 <p>A well accelerates you toward its center by an inverse-square law, <code>a = mu / r^2</code>. The mass parameter <code>mu</code> is the body's one authored gravity number - never your ship's mass: gravity is acceleration, so a stripped fighter and a laden hauler fall the same.</p>
 <div class="widget" data-widget="gravity-well">
-<p>The pull runs a = mu / r^2: held at its surface value below the rock (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The Shakedown planetoid authors mass 27000 for a 329 u sphere of influence and a few u/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
+<p>The pull runs a = mu / r^2: held at its surface value below the surface (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The campaign inspection planetoid authors mass 27000 for a 3.29 km sphere of influence and a few tens of m/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
 </div>
 <details class="explain">
 <summary>Show explanation</summary>
 <p>Two rules tame the extremes of the inverse square:</p>
 <ul>
-<li><strong>Surface clamp</strong> - just below the drawn surface (plus a 1 u margin) the pull is held at its surface value, so grazing the rock is a bump, not a singularity slingshot.</li>
+<li><strong>Surface clamp</strong> - just below the drawn surface (plus a 10 m margin) the pull is held at its surface value, so grazing the rock is a bump, not a singularity slingshot.</li>
 <li><strong>Faded edge</strong> - across the outer 15% of the sphere of influence the pull follows a smoothstep down to exactly zero at the boundary, and stays zero beyond it, so there is no force discontinuity to bump across.</li>
 </ul>
 <p>Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds - a long shot visibly curves near a planetoid. Section debris skips gravity, and an unpiloted scripted ship floats rather than falls. Wells never pull other wells.</p>
 </details>
 <h2 id="sphere-of-influence" tabindex="-1">Sphere of influence</h2>
-<p>A well's reach follows from its mass alone: the sphere of influence is where the raw pull has decayed to a fixed cutoff (0.25 u/s^2), so <code>soi = sqrt(mu / 0.25)</code> - the body's drawn size never sets it. The Shakedown planetoid reaches 329 u, about 3.3 km on the HUD; the Final Tally anchorage rock (mass 45000) reaches 424 u. Outside it, the well does not exist as far as your ship is concerned.</p>
+<p>A well's reach follows from its mass alone: the sphere of influence is the distance at which the raw pull has decayed to a fixed cutoff of 2.5 m/s^2 - the body's drawn size never sets it, and because the pull is inverse-square, four times the mass buys only twice the reach. The campaign's inspection planetoid reaches 3.29 km; the lighter concealment planetoid it hides a warship behind reaches 2.83 km. Outside it, the well does not exist as far as your ship is concerned.</p>
 <h2 id="the-dominant-well" tabindex="-1">The dominant well</h2>
 <p>Where two spheres of influence overlap, the pulls do not blend: you feel only the <strong>dominant</strong> well - the strongest at your position - and it keeps ownership until a challenger clearly beats it, so it does not flicker at the boundary.</p>
 <div class="widget" data-widget="dominant-well">
@@ -85,15 +61,12 @@
 <p>The pick ranks wells by the pull each one exerts at your position - not by distance or mass - and the incumbent survives any challenger up to 1.10x its own pull. That 10% margin is what stops ownership chattering while you coast along a boundary.</p>
 <p>The dominant well is exactly what the <a href="../flight-autopilot/">ORBIT</a> autopilot circularizes around, flying a stable ring at orbital speed <code>v = sqrt(mu / r)</code>. That single mechanic is what turns &quot;fly to a point&quot; into &quot;manage your orbit&quot;.</p>
 </details>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -104,6 +77,4 @@
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

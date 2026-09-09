@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -253,20 +253,21 @@ pub struct OnDockedEventInfo {
 at the top of <code>lib.rs</code>).</p>
 </li>
 <li>
-<p>In <code>crates/nova_scenario/src/events.rs</code> add the variant to <code>EventConfig</code>
-(grep for <code>enum EventConfig</code>) and the arm to
-<code>impl From&lt;EventConfig&gt; for EventHandler&lt;NovaEventWorld&gt;</code> (grep for
-<code>impl From&lt;EventConfig&gt;</code>):</p>
+<p>In <code>crates/nova_scenario/src/events.rs</code> add a ROW to the
+<code>scenario_events!</code> table near the bottom of the file. The enum, the
+<code>From&lt;EventConfig&gt; for EventHandler&lt;NovaEventWorld&gt;</code> arm, <code>ALL</code>, <code>COUNT</code>,
+<code>name</code> and <code>label</code> are all generated from it - do not hand-edit any of
+them, and do not edit the macro body above the table:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>pub enum EventConfig {
+</span>scenario_events! {
     // ...
-    OnDocked,
+    /// Fires once when a ship docks (`id` = the dock, other = the ship).
+    OnDocked =&gt; OnDockedEvent { label: "On Docked" },
 }
-
-// in the From match:
-EventConfig::OnDocked =&gt; EventHandler::new::&lt;OnDockedEvent&gt;(),
 <span class="boring">}</span></code></pre>
+<p>The doc comment on the row is the one a reader gets; the <code>label</code> is the row
+the editor’s trigger menu lists it under.</p>
 </li>
 <li>
 <p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader/</code>
@@ -340,10 +341,15 @@ the compiler names every one of them.</p>
 </ol>
 <h2 id="recipe-3-add-an-event-action"><a class="header" href="#recipe-3-add-an-event-action">Recipe 3: add an event action</a></h2>
 <p>An action runs when a handler passes, in order. Everything lives in
-<code>crates/nova_scenario/src/actions/</code>: the <code>EventActionConfig</code> enum and its
-dispatch in <code>actions/mod.rs</code>, each action’s config and impl in the submodule
-for what it touches (<code>view.rs</code>, <code>flow.rs</code>, <code>mission.rs</code>, <code>sequence.rs</code>,
-<code>ship.rs</code>, <code>spawn.rs</code>, <code>timer.rs</code>).</p>
+<code>crates/nova_scenario/src/actions/</code>: the TABLE in <code>actions/mod.rs</code>, the macro
+that reads it in <code>actions/registry.rs</code>, and each action’s config and impl in
+the submodule for what it touches (<code>audio.rs</code>, <code>cinematic.rs</code>, <code>flow.rs</code>,
+<code>mission.rs</code>, <code>sequence.rs</code>, <code>ship.rs</code>, <code>spawn.rs</code>, <code>timer.rs</code>, <code>view.rs</code>).</p>
+<p><code>EventActionConfig</code> is GENERATED. <code>scenario_actions!</code> turns one table row into
+the enum arm, the dispatch, the creative-map class, the reflected payload
+accessor and the whole authoring-menu surface. Four things it cannot generate
+are yours: the payload struct, the editor’s stock value, the lint arm if the
+action names anything, and the docs.</p>
 <ol>
 <li>
 <p>Define the config struct and its <code>EventAction&lt;NovaEventWorld&gt;</code> impl.
@@ -369,31 +375,66 @@ impl EventAction&lt;NovaEventWorld&gt; for VariableClearActionConfig {
 <span class="boring">}</span></code></pre>
 </li>
 <li>
-<p>Add the variant to <code>EventActionConfig</code> (grep for <code>enum EventActionConfig</code>)
-and the arm to <code>impl EventAction&lt;NovaEventWorld&gt; for EventActionConfig</code> (grep
-for <code>impl EventAction&lt;NovaEventWorld&gt; for EventActionConfig</code>):</p>
+<p>Add a ROW to the <code>scenario_actions!</code> table in <code>actions/mod.rs</code>. Rows are in
+the order an authoring menu lists them - mission surface, then the world,
+then the ships in it, then the run’s own flow, authoring aids last - and
+that order IS <code>ActionTag::ALL</code>, so put the row where the action belongs in
+the menu:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>pub enum EventActionConfig {
+</span>registry::scenario_actions! {
     // ...
-    VariableClear(VariableClearActionConfig),
-}
-
-// in the action match:
-EventActionConfig::VariableClear(config) =&gt; {
-    config.action(world, info);
+    /// Clear a scenario variable back to false.
+    VariableClear(VariableClearActionConfig) {
+        label: "Variable Clear",
+        stem: "clear",
+        effect: Bookkeeping,
+        inspect: Reflect,
+    },
 }
 <span class="boring">}</span></code></pre>
+<p>The two fields worth thinking about:</p>
+<ul>
+<li><code>effect</code> is the creative-map class. <code>Bookkeeping</code> touches only scenario
+state and presentation; <code>Injection</code> reaches into the simulation in a way
+playing could not have produced, and the badge reports it by name;
+<code>Nested</code> means the class is whatever the actions it schedules are worth.</li>
+<li><code>inspect</code> is <code>Reflect</code> for every action but one: the editor draws the
+payload’s fields from the reflection. <code>Opaque</code> is for a payload the editor
+lifts into its own tree and draws itself, which today is only a beat chain.</li>
+</ul>
+<p>If the action NESTS other actions, it also needs an arm in
+<code>EventActionConfig::step_chain</code> and <code>step_chain_mut</code> (<code>actions/mod.rs</code>).
+That is the one place a nesting arm is declared, and every walker in the
+tree - the lint, the frame grouping, <code>walk</code>, <code>walk_mut</code> - reads it. Adding
+the arm is the whole job; missing it is a bug that only shows up in the
+walker nobody thought about.</p>
 </li>
 <li>
 <p>Export the config struct from the <code>actions/mod.rs</code> <code>prelude</code> block.</p>
 </li>
 <li>
-<p>Make it authorable in the editor, as in recipe 2: derive <code>Reflect</code>, tag the
-naming strings, and add the <code>ActionChoice</code> variant in
-<code>crates/nova_editor/src/event.rs</code> - <code>ALL</code>, <code>label</code>, <code>stem</code>, <code>stock</code>, plus the
-<code>action_choice</code>, <code>leaf_config</code> and <code>leaf_config_mut</code> arms. Only <code>Sequence</code>
-holds children; a new leaf action needs nothing from the tree.</p>
+<p>Make it authorable in the editor: derive <code>Reflect</code> and tag the naming
+strings, as in recipe 2. The editor’s list is not its own -
+<code>ActionChoice</code> is a type alias for the scenario crate’s <code>ActionTag</code>
+(<code>crates/nova_editor/src/event.rs</code>), so <code>ALL</code>, <code>label</code> and <code>stem</code> come off
+the table row you just wrote and there is no second list to keep in step.
+What the editor still owes you is one arm in <code>ActionChoiceExt::stock</code>: the
+value a freshly added action starts life as, with every id field EMPTY.
+The match is exhaustive, so the compiler asks for it.</p>
+<p>A leaf action needs nothing else from the tree. An action the editor holds
+as more than a leaf - because its steps are child NODES, or because its
+panel shows a head rather than the whole payload - is an <code>ActionKind</code>
+variant of its own, and owes arms in <code>action_config</code>, <code>action_config_mut</code>
+and <code>action_choice</code> beside it. <code>Sequence</code> and <code>Cinematic</code> are there because
+their steps are children; <code>VariableSet</code> because its panel is a head. All
+three matches are exhaustive.</p>
+</li>
+<li>
+<p>Lint it, if it names anything. An action that carries an id, a channel or a
+file reference needs an arm in <code>crates/nova_scenario/src/lint/</code> so an
+unresolvable name is an error at lint rather than a surprise at load. This
+is the fourth thing the table cannot generate.</p>
 </li>
 </ol>
 <p>Templates: the tests at the bottom of the <code>actions/</code> submodules are the
@@ -444,6 +485,25 @@ The bundle carries the marker plus an <code>EntityTypeName</code>; the shared
 deliberately carries NO body - each kind declares its own <code>RigidBody</code> (the
 asteroid adds <code>Dynamic</code> + <code>TransformInterpolation</code>; four of the six kinds
 are static).</p>
+<p>Every distance, speed or acceleration the config carries is <code>Meters</code>,
+<code>MetersPerSecond</code> or <code>MetersPerSecondSquared</code> (<code>nova_events::units</code>), never a
+bare <code>f32</code>: the TYPE is what says what the number means, it is what the
+editor stamps a row’s unit from, and <code>to_engine()</code> at the spawn site is the
+one place it becomes a Bevy or avian number. A vector position is <code>Meters3</code>.
+The exception, and the only one, is a value the engine owns outright - a
+build-grid cell, a collider extent. See
+<a href="architecture.html#units-and-scale">Units and scale</a>.</p>
+<p>An authored field NAMES its value. A config that carries a <code>String</code> id has
+one table that says which ids exist, and an id that table does not know is
+an error at the earliest point that can see it - a <code>content lint</code> error
+first, a loud refusal on the load path second. It is never resolved to a
+house answer. An <code>Option</code> is right only where absence is a documented
+OVERRIDE with runtime-derived behavior behind it, and the field’s own doc
+comment says what the absence MEANS: <code>AsteroidConfig::mass</code> (absent = the
+global rule about which radii are wells) and <code>lock_signature</code> (absent = the
+radius) are the shipped precedent. <code>AsteroidConfig::material</code> is the
+counter-example: it is a plain required <code>String</code>, because “how is this rock
+shaded” has no runtime answer to fall back on.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[derive(Component, Clone, Debug, Reflect)]
@@ -452,7 +512,8 @@ pub struct MineMarker;
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MineConfig {
-    pub radius: f32,
+    /// Trigger radius.
+    pub radius: Meters,
     pub damage: f32,
 }
 
@@ -503,10 +564,10 @@ ScenarioObjectKind::Mine(config) =&gt; {
     base: BaseScenarioObjectConfig(
         id: "mine_1",
         name: "Proximity Mine",
-        position: (0.0, 0.0, -200.0),
+        position: (0.0, 0.0, -2000.0),
         rotation: (0.0, 0.0, 0.0, 1.0),
     ),
-    kind: Mine(MineConfig(radius: 5.0, damage: 40.0)),
+    kind: Mine(MineConfig(radius: 50.0, damage: 40.0)),
 ))
 </code></pre>
 <h2 id="two-surfaces-author-the-vocabulary"><a class="header" href="#two-surfaces-author-the-vocabulary">Two surfaces author the vocabulary</a></h2>
@@ -537,9 +598,9 @@ editor cannot explain.</li>
 <tr><th>Recipe</th><th>What the editor needs</th></tr>
 </thead>
 <tbody>
-<tr><td>Event kind</td><td>Nothing. <code>EventConfig</code> is a <code>Reflect</code> enum of unit variants and the handler’s trigger row is walked off it, so a new event appears in the list.</td></tr>
+<tr><td>Event kind</td><td>Nothing. <code>EventConfig</code> is a <code>Reflect</code> enum of unit variants generated from the <code>scenario_events!</code> table, and the handler’s trigger row is walked off it, so a new event appears in the list.</td></tr>
 <tr><td>Filter</td><td><code>Reflect</code> + <code>Names</code> on the config, and a <code>FilterChoice</code> variant with its <code>stock</code> value.</td></tr>
-<tr><td>Action</td><td><code>Reflect</code> + <code>Names</code> on the config, and an <code>ActionChoice</code> variant with its <code>stock</code> value.</td></tr>
+<tr><td>Action</td><td><code>Reflect</code> + <code>Names</code> on the config, and a <code>stock</code> arm. The choice list itself is the scenario crate’s <code>ActionTag</code>, so there is no variant to add - just the value a new action starts as.</td></tr>
 <tr><td>Object kind</td><td><code>Reflect</code> + <code>Names</code> on the config, an <code>ObjectChoice</code> variant in <code>crates/nova_editor/src/node.rs</code> to place it with, and the arms the compiler then asks for (<code>glyph</code>, <code>preview</code>, <code>stage</code>, <code>inspect</code>).</td></tr>
 </tbody>
 </table>
@@ -552,23 +613,26 @@ lint refuses.</p>
 <code>Clone</code>, <code>Debug</code>, <code>Reflect</code> and the serde pair; every field says what it is for
 in a doc comment; every string that names something carries its <code>Names</code>
 attribute; every file a builder may change is an <code>AssetRef&lt;A&gt;</code> the reflection
-can see; the dispatch enum has the variant; the
-trait impl has the delegating arm; the type is exported from its module prelude;
-the editor has the choice variant (events excepted); and (for an event)
-something fires it. Then it is reachable from code-built scenarios, from a RON
+can see; the table has its row (and, for a nesting action, its <code>step_chain</code>
+arm); the type is exported from its module prelude; the editor has its <code>stock</code>
+value (events excepted); the lint refuses a name that cannot resolve; and (for
+an event) something fires it. Then it is reachable from code-built scenarios, from a RON
 data file, and from the editor.</p>
 <h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
 <ul>
-<li>Events: <code>EventConfig</code> - <code>crates/nova_scenario/src/events.rs</code>; event types and
-the <code>EventKind</code> derive - <code>crates/nova_events/src/lib.rs</code>.</li>
+<li>Events: the <code>scenario_events!</code> table - <code>crates/nova_scenario/src/events.rs</code>;
+event types and the <code>EventKind</code> derive - <code>crates/nova_events/src/lib.rs</code>.</li>
 <li>Filters: <code>EventFilterConfig</code> - <code>crates/nova_scenario/src/filters.rs</code>.</li>
-<li>Actions: <code>EventActionConfig</code> - <code>crates/nova_scenario/src/actions/mod.rs</code>
-(submodules: flow, mission, ship, spawn, timer, view).</li>
+<li>Actions: the <code>scenario_actions!</code> table -
+<code>crates/nova_scenario/src/actions/mod.rs</code>; the macro that reads it -
+<code>actions/registry.rs</code> (submodules: audio, cinematic, flow, mission, sequence,
+ship, spawn, timer, view).</li>
 <li>Objects: <code>ScenarioObjectKind</code> - <code>crates/nova_scenario/src/actions/spawn.rs</code>;
 kind modules under <code>crates/nova_scenario/src/objects/</code>.</li>
 <li>The seam: <code>NovaEventWorld</code> - <code>crates/nova_scenario/src/world.rs</code>.</li>
 <li>What a string names: <code>Names</code> - <code>crates/nova_scenario/src/names.rs</code>; the
-editor’s choices: <code>FilterChoice</code>, <code>ActionChoice</code> -
+editor’s choices: <code>FilterChoice</code>, and <code>ActionChoice</code> (an alias for
+<code>nova_scenario</code>’s <code>ActionTag</code>) with <code>ActionChoiceExt::stock</code> -
 <code>crates/nova_editor/src/event.rs</code>.</li>
 <li>API detail: <code>cargo doc --open -p nova_scenario</code> (event engine:
 <code>-p nova_events</code>).</li>

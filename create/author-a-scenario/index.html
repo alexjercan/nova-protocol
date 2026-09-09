@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Create your first scenario - Nova Protocol Creator Docs</title>
-        <meta name="description" content="Build and play a small shooting-range scenario in RON by following one objective from setup through events, filters, actions, variables, and victory." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Create your first scenario - Nova Protocol Creator Docs</title><meta name="description" content="Build and play a small shooting-range scenario in RON by following one objective from setup through events, filters, actions, variables, and victory."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,23 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / Create your first scenario
-                    </p>
-                    <h1>Create your first scenario</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>This tutorial builds a small shooting-range scenario in RON. You will start
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / Create your first scenario</p><h1>Create your first scenario</h1><div class="wiki__tags" id="wiki-tags"></div><p>This tutorial builds a small shooting-range scenario in RON. You will start
 with the working Example Mod, follow one objective from start to victory, make
 it your own, and run it in the game. No code changes are required.</p>
 <p>This page teaches one happy path. Use the
@@ -51,10 +27,11 @@ filters, actions, objects, and expression nodes.</p>
 EVENTS are two MODES of it: SCENE lays out the range beside the Inspector, and
 EVENTS gives the whole window to the same script this page writes by hand - a
 row per handler, its filters and actions under it, and a condition as the
-operator with its two sides hanging beneath. Save writes it as an ordinary mod. The editor owns one
-save slot (the <code>editor_save</code> mod) and never writes a hand-authored mod like the
-one below, so the two paths do not fight over a file. Read on for what the rows
-mean either way.</p>
+operator with its two sides hanging beneath. Save writes it as an ordinary mod: one bundle
+per range you name, under an <code>editor_</code>-prefixed id derived from the name. The
+editor opens and overwrites nothing without that prefix, so a hand-authored mod
+like the one below is out of its reach and the two paths never fight over a
+file. Read on for what the rows mean either way.</p>
 <h2 id="1-start-with-the-working-example" tabindex="-1">1. Start with the working example</h2>
 <p>The repository includes a playable starter at <code>assets/mods/example/</code>. It
 already contains the long but routine scene setup: lights, a player ship, and
@@ -209,7 +186,7 @@ This is enough for a complete first scenario.</p>
 <p>Edit the existing <code>example_arena</code> before adding new mechanics:</p>
 <ol>
 <li>Change the scenario <code>name</code> and <code>description</code>.</li>
-<li>Change the <code>StoryMessage</code> speaker and text in <code>OnStart</code>.</li>
+<li>Change the <code>NarrativeCue</code> speaker and text in <code>OnStart</code>.</li>
 <li>Change the <code>Objective</code> message.</li>
 <li>Change the two asteroid names, positions, or radii. A rock's radius is its
 durability and it is cubic, so raise it in small steps - see <a href="../objects/#sizing-a-rock-you-want-shot">sizing a rock
@@ -217,7 +194,8 @@ you want shot</a>.</li>
 <li>Change the <code>Outcome</code> message.</li>
 </ol>
 <p>For example:</p>
-<pre><code class="hljs language-ron"><span class="ron-type">StoryMessage</span><span class="ron-punct">((</span>
+<pre><code class="hljs language-ron"><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
+    <span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Harbor Master&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Two wrecks block the lane. Clear them before the convoy arrives.&quot;</span><span class="ron-punct">,</span>
 <span class="ron-punct">)),</span>
@@ -274,15 +252,12 @@ it in the Scenarios menu.</p>
 <li>Use unique ids for scenarios, objectives, objects, and variables.</li>
 </ul>
 <p>For syntax and field details, use the <a href="../reference/">modding reference</a>.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -293,6 +268,4 @@ it in the Scenarios menu.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

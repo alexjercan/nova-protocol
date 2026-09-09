@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Actions - Nova Protocol Creator Docs</title>
-        <meta name="description" content="All 25 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, timers, and camera." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 46 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,30 +17,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
-                        / Actions
-                    </p>
-                    <h1>Actions</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#storymessage">StoryMessage</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#setspeedcap">SetSpeedCap</a></li><li><a href="#setcontrollerverb">SetControllerVerb</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#forcetorpedolaunch">ForceTorpedoLaunch</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol>
-                    </nav>
-                    <p>Everything a handler can DO. Actions run in authored order once every filter
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#setspeedcap">SetSpeedCap</a></li><li><a href="#setcontrollerverb">SetControllerVerb</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 26 at a glance:</p>
+never panics a scenario). All 46 at a glance:</p>
 <table>
 <thead>
 <tr>
@@ -61,7 +33,7 @@ never panics a scenario). All 26 at a glance:</p>
 <tr>
 <td><a href="#spawnscenarioobject"><code>SpawnScenarioObject</code></a></td>
 <td><a href="#spawning-the-world">world</a></td>
-<td>spawn one object: asteroid, ship, beacon, crate, or light</td>
+<td>spawn one object: anchor, asteroid, planet, ship, beacon, crate, or light</td>
 </tr>
 <tr>
 <td><a href="#scatterobjects"><code>ScatterObjects</code></a></td>
@@ -99,9 +71,9 @@ never panics a scenario). All 26 at a glance:</p>
 <td>remove that marker</td>
 </tr>
 <tr>
-<td><a href="#storymessage"><code>StoryMessage</code></a></td>
+<td><a href="#narrativecue"><code>NarrativeCue</code></a></td>
 <td><a href="#mission-story">mission</a></td>
-<td>queue a speaker-attributed comms line</td>
+<td>speak one line on an authored channel, named by id</td>
 </tr>
 <tr>
 <td><a href="#hudreadout"><code>HudReadout</code></a></td>
@@ -119,9 +91,29 @@ never panics a scenario). All 26 at a glance:</p>
 <td>drop the gold emphasis on one chip</td>
 </tr>
 <tr>
+<td><a href="#playsound"><code>PlaySound</code></a></td>
+<td><a href="#sound">sound</a></td>
+<td>play one authored cue, heard in the cockpit</td>
+</tr>
+<tr>
 <td><a href="#sequence"><code>Sequence</code></a></td>
 <td><a href="#pacing">pacing</a></td>
 <td>run an ordered list of beats, each behind its own delay or gate</td>
+</tr>
+<tr>
+<td><a href="#cinematic"><code>Cinematic</code></a></td>
+<td><a href="#pacing">pacing</a></td>
+<td>run the same chain as a SCENE the player is allowed to leave</td>
+</tr>
+<tr>
+<td><a href="#cancelcinematic"><code>CancelCinematic</code></a></td>
+<td><a href="#pacing">pacing</a></td>
+<td>end a running scene from the scenario rather than the player</td>
+</tr>
+<tr>
+<td><a href="#cinematictitle"><code>CinematicTitle</code></a></td>
+<td><a href="#pacing">pacing</a></td>
+<td>post the shot's title card: where, when, and one line about it</td>
 </tr>
 <tr>
 <td><a href="#outcome"><code>Outcome</code></a></td>
@@ -149,9 +141,69 @@ never panics a scenario). All 26 at a glance:</p>
 <td>overwrite a ship's side at runtime</td>
 </tr>
 <tr>
-<td><a href="#forcetorpedolaunch"><code>ForceTorpedoLaunch</code></a></td>
+<td><a href="#moveshipto"><code>MoveShipTo</code></a></td>
 <td><a href="#ship-state">ship state</a></td>
-<td>order a ship's torpedo bays to launch at a named target</td>
+<td>fly an ordered ship to a mark and report when it arrives</td>
+</tr>
+<tr>
+<td><a href="#forcealign"><code>ForceAlign</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>turn an ordered ship's nose onto a point and hold it there</td>
+</tr>
+<tr>
+<td><a href="#stopship"><code>StopShip</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>bring an ordered ship to rest with the real STOP burn</td>
+</tr>
+<tr>
+<td><a href="#patrolship"><code>PatrolShip</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>fly one loop of an authored waypoint route, back to where it started</td>
+</tr>
+<tr>
+<td><a href="#orbitship"><code>OrbitShip</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>put a ship in a stable ring around a gravity well and hold it</td>
+</tr>
+<tr>
+<td><a href="#clearshiporder"><code>ClearShipOrder</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>cancel whatever helm order a ship is under</td>
+</tr>
+<tr>
+<td><a href="#forcerailgunfire"><code>ForceRailgunFire</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>fire one named railgun section</td>
+</tr>
+<tr>
+<td><a href="#forcetorpedofire"><code>ForceTorpedoFire</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>launch one named torpedo bay at a named target</td>
+</tr>
+<tr>
+<td><a href="#setinfiniteammo"><code>SetInfiniteAmmo</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>suspend or restore the finite magazine on every weapon of a ship</td>
+</tr>
+<tr>
+<td><a href="#refillammo"><code>RefillAmmo</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>top a ship's magazines back up, or just one section's</td>
+</tr>
+<tr>
+<td><a href="#setaileash"><code>SetAILeash</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>tether an AI ship's combat to a centre and radius, or release it</td>
+</tr>
+<tr>
+<td><a href="#setaiengagerange"><code>SetAIEngageRange</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>change how far an AI ship looks for hostiles, or restore the default</td>
+</tr>
+<tr>
+<td><a href="#setaipointdefenserange"><code>SetAIPointDefenseRange</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>change how close an inbound torpedo gets before the guns answer</td>
 </tr>
 <tr>
 <td><a href="#variableset"><code>VariableSet</code></a></td>
@@ -179,6 +231,26 @@ never panics a scenario). All 26 at a glance:</p>
 <td>pin the scenario camera at a pose</td>
 </tr>
 <tr>
+<td><a href="#setcameraanchor"><code>SetCameraAnchor</code></a></td>
+<td><a href="#camera-photo-mode">camera</a></td>
+<td>ride the camera on an object, framing what you name</td>
+</tr>
+<tr>
+<td><a href="#releasecamera"><code>ReleaseCamera</code></a></td>
+<td><a href="#camera-photo-mode">camera</a></td>
+<td>hand the camera back to the player's chase rig</td>
+</tr>
+<tr>
+<td><a href="#suspendplayercontrol"><code>SuspendPlayerControl</code></a></td>
+<td><a href="#camera-photo-mode">camera</a></td>
+<td>block human gameplay input and clear held intent</td>
+</tr>
+<tr>
+<td><a href="#resumeplayercontrol"><code>ResumePlayerControl</code></a></td>
+<td><a href="#camera-photo-mode">camera</a></td>
+<td>restore human gameplay input</td>
+</tr>
+<tr>
 <td><a href="#screenshot"><code>Screenshot</code></a></td>
 <td><a href="#camera-photo-mode">camera</a></td>
 <td>capture the primary window to a PNG</td>
@@ -199,11 +271,11 @@ and does nothing - spawn first.</p>
 <h2 id="spawning-the-world" tabindex="-1">Spawning &amp; the world</h2>
 <h3 id="spawnscenarioobject" tabindex="-1">SpawnScenarioObject</h3>
 <p>Spawn one object. <code>base</code> is the shared identity block; <code>kind</code> picks the
-object and carries its config - the six kinds are the
+object and carries its config - the seven kinds are the
 <a href="../objects/">Scenario objects reference</a>.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SpawnScenarioObject</span><span class="ron-punct">((</span>
-    <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock_1&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-40.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
-    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">5.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+    <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock_1&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">100.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-400.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
+    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">50.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
@@ -228,7 +300,7 @@ object and carries its config - the six kinds are the
 <td><code>kind</code></td>
 <td>object kind</td>
 <td>required</td>
-<td><code>Anchor((..))</code> / <code>Asteroid((..))</code> / <code>Spaceship((..))</code> / <code>Beacon((..))</code> / <code>SalvageCrate((..))</code> / <code>Light(..)</code></td>
+<td><code>Anchor((..))</code> / <code>Asteroid((..))</code> / <code>Planet((..))</code> / <code>Spaceship((..))</code> / <code>Beacon((..))</code> / <code>SalvageCrate((..))</code> / <code>Light(..)</code></td>
 </tr>
 </tbody>
 </table>
@@ -259,7 +331,7 @@ object and carries its config - the six kinds are the
 <td><code>position</code></td>
 <td>3-tuple</td>
 <td>required</td>
-<td>world position</td>
+<td>world position, meters</td>
 </tr>
 <tr>
 <td><code>rotation</code></td>
@@ -279,13 +351,14 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
     <span class="ron-key">id_prefix</span><span class="ron-punct">:</span> <span class="ron-string">&quot;asteroid_&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">count</span><span class="ron-punct">:</span> <span class="ron-literal">20</span><span class="ron-punct">,</span>
     <span class="ron-key">seed</span><span class="ron-punct">:</span> <span class="ron-literal">433757350076153856</span><span class="ron-punct">,</span>
-    <span class="ron-key">region</span><span class="ron-punct">:</span> <span class="ron-type">Box</span><span class="ron-punct">(</span><span class="ron-key">min</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">-100.0</span><span class="ron-punct">,</span> <span class="ron-literal">-20.0</span><span class="ron-punct">,</span> <span class="ron-literal">-100.0</span><span class="ron-punct">),</span> <span class="ron-key">max</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">100.0</span><span class="ron-punct">,</span> <span class="ron-literal">20.0</span><span class="ron-punct">,</span> <span class="ron-literal">100.0</span><span class="ron-punct">)),</span>
+    <span class="ron-key">region</span><span class="ron-punct">:</span> <span class="ron-type">Box</span><span class="ron-punct">(</span><span class="ron-key">min</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">-1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">-200.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1000.0</span><span class="ron-punct">),</span> <span class="ron-key">max</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">200.0</span><span class="ron-punct">,</span> <span class="ron-literal">1000.0</span><span class="ron-punct">)),</span>
     <span class="ron-key">template</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
         <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;asteroid_&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Asteroid&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
-        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
     <span class="ron-punct">),</span>
-    <span class="ron-key">asteroid_radius</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-literal">1.0</span><span class="ron-punct">,</span> <span class="ron-literal">3.0</span><span class="ron-punct">)),</span>
-    <span class="ron-key">min_separation</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">32.0</span><span class="ron-punct">),</span>
+    <span class="ron-key">asteroid_radius</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-literal">30.0</span><span class="ron-punct">)),</span>
+    <span class="ron-key">asteroid_kinds</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">12</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;carbon&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">4</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;ice&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">3</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;metal&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">1</span><span class="ron-punct">)],</span>
+    <span class="ron-key">min_separation</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">320.0</span><span class="ron-punct">),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
@@ -322,7 +395,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 <td><code>region</code></td>
 <td>region</td>
 <td>required</td>
-<td>sampling volume (below)</td>
+<td>sampling volume in meters (below)</td>
 </tr>
 <tr>
 <td><code>template</code></td>
@@ -334,13 +407,19 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 <td><code>asteroid_radius</code></td>
 <td><code>Option</code> (lo, hi)</td>
 <td><code>None</code></td>
-<td>Asteroid templates only: randomize each rock's radius in <code>[lo, hi)</code></td>
+<td>Asteroid templates only: randomize each rock's radius, in meters, in <code>[lo, hi)</code></td>
+</tr>
+<tr>
+<td><code>asteroid_kinds</code></td>
+<td>list of (kind, weight)</td>
+<td>required on an asteroid template</td>
+<td>the field's <a href="../objects/#what-a-rock-is-made-of">KINDS</a> and how common each one is. Weights are relative COUNTS, not percentages: <code>[(&quot;rock&quot;, 12), (&quot;metal&quot;, 1)]</code> is one metal body in thirteen. Empty on any other template</td>
 </tr>
 <tr>
 <td><code>min_separation</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td>minimum centre-to-centre distance (world units) against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped</td>
+<td>minimum centre-to-centre distance in meters against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped</td>
 </tr>
 </tbody>
 </table>
@@ -366,6 +445,10 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 </tr>
 </tbody>
 </table>
+<p><code>asteroid_kinds</code> is drawn from the scatter's OWN seed, on a stream of its own:
+adding a kind to a field that already ships moves no rock and changes no
+radius. An asteroid template with no mix, or with every weight at zero, is a
+lint error and spawns nothing - a belt has to say what it is made of.</p>
 <p>Set <code>min_separation</code> on any field of SOLID bodies: uniform sampling WILL
 nest rocks inside each other, and two overlapping dynamic bodies shove apart
 violently on the first physics step. Size it as the two widest bodies side
@@ -405,7 +488,7 @@ hierarchy). The classic pairing is a salvage crate on pickup.</p>
 <a href="../events/#onenter"><code>OnEnter</code></a> / <a href="../events/#onexit"><code>OnExit</code></a> under its
 id.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">CreateScenarioArea</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;safe_zone&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Safe Zone&quot;</span><span class="ron-punct">,</span>
-    <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-100.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span> <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">)),</span>
+    <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1000.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span> <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -435,7 +518,7 @@ id.</p>
 <td><code>position</code></td>
 <td>3-tuple</td>
 <td>required</td>
-<td>sphere centre</td>
+<td>sphere centre, meters</td>
 </tr>
 <tr>
 <td><code>rotation</code></td>
@@ -447,7 +530,7 @@ id.</p>
 <td><code>radius</code></td>
 <td>number</td>
 <td>required</td>
-<td>sensor radius, world units</td>
+<td>sensor radius, meters</td>
 </tr>
 </tbody>
 </table>
@@ -459,7 +542,7 @@ separate <code>CreateScenarioArea</code> needed for those.</p>
 <h2 id="mission-story" tabindex="-1">Mission &amp; story</h2>
 <h3 id="objective" tabindex="-1">Objective</h3>
 <p>Post a HUD objective. Objectives state goals; comms lines
-(<a href="#storymessage"><code>StoryMessage</code></a>) carry voice.</p>
+(<a href="#narrativecue"><code>NarrativeCue</code></a>) carry voice.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">Objective</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;destroy_asteroids&quot;</span><span class="ron-punct">,</span> <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Objective: Destroy 5 asteroids!&quot;</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
@@ -574,11 +657,13 @@ implicitly.</p>
 </tbody>
 </table>
 </details>
-<h3 id="storymessage" tabindex="-1">StoryMessage</h3>
-<p>A speaker-attributed line for the HUD comms stack (bottom-left, arrival
-order, ~8 s hold each, at most three visible). One line per beat is the
-style; the queue is the safety net.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">StoryMessage</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Foreman Okono&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Strip it clean, Kestrel.&quot;</span><span class="ron-punct">,</span> <span class="ron-key">dwell</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">12.0</span><span class="ron-punct">))),</span>
+<h3 id="narrativecue" tabindex="-1">NarrativeCue</h3>
+<p>Speak one line into the HUD comms stack (bottom-left, arrival order, ~8 s hold
+each, at most three visible). Pending lines wait without being dropped. One
+line per beat is still the style; the queue is the safety net.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Foreman Okono&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Strip it clean, Kestrel.&quot;</span><span class="ron-punct">,</span> <span class="ron-key">dwell</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">12.0</span><span class="ron-punct">))),</span>
+<span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;crew&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Copilot&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;You heard the man.&quot;</span><span class="ron-punct">)),</span>
+<span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;guard&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown Signal&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;- state registry and -&quot;</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -593,10 +678,16 @@ style; the queue is the safety net.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>channel</code></td>
+<td>string</td>
+<td>required</td>
+<td>the id of the <a href="../channels/">channel</a> the line is heard on; see below</td>
+</tr>
+<tr>
 <td><code>speaker</code></td>
 <td>string</td>
 <td>required</td>
-<td>the <code>SPEAKER &gt;</code> prefix</td>
+<td>the distinct uppercase speaker header</td>
 </tr>
 <tr>
 <td><code>text</code></td>
@@ -618,6 +709,49 @@ style; the queue is the safety net.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>Channels.</strong> Not a faction and not a speaker: the same person reaches the
+cockpit down two different channels and the difference matters. Control on the
+work channel is talking TO you; the same desk read over the guard channel is
+something you overheard.</p>
+<p>A channel is <a href="../channels/">authored content</a>, not a fixed list, so a mod ships
+a distress band or a corporate net and its lines are drawn in it. Three come
+with the base game and any mod may name them:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>drawn</th>
+<th>tagged</th>
+<th>means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comms</code></td>
+<td>incoming-transmission blue</td>
+<td>no</td>
+<td>the work channel: traffic addressed to this ship</td>
+</tr>
+<tr>
+<td><code>crew</code></td>
+<td>phosphor green</td>
+<td>no</td>
+<td>inside the hull, off the radio - a voice in the room</td>
+</tr>
+<tr>
+<td><code>guard</code></td>
+<td>amber, at 70% strength</td>
+<td><code>GUARD</code></td>
+<td>everybody's channel, nobody's conversation - a fragment the cockpit caught</td>
+</tr>
+</tbody>
+</table>
+<p>The channel is REQUIRED on every cue, and an id no bundle authors is an Error at
+lint and a refusal at load. A line whose channel was guessed is a line drawn in
+the wrong voice, and the wrong voice is the whole difference between being called
+and overhearing. Only <code>guard</code> carries a tag: the work channel is what the panel
+IS and the crew are in the room, so tagging either would label every line to
+distinguish it from nothing.</p>
 <p>Scenario-scoped: teardown clears the log.</p>
 <p>Two story lines in one handler is a lint Warn (unreadable); a story line
 beside an <a href="#outcome"><code>Outcome</code></a> in one handler is a Warn (frozen behind the
@@ -731,6 +865,56 @@ grants the verb (<a href="#setcontrollerverb"><code>SetControllerVerb</code></a>
 </tbody>
 </table>
 </details>
+<h2 id="sound" tabindex="-1">Sound</h2>
+<h3 id="playsound" tabindex="-1">PlaySound</h3>
+<p>Play one authored one-shot. Sound that BELONGS to something in the world - a
+crate's pickup ding, a hull coming apart - is authored on that object and
+played where it happens. This is the other kind: the cue a scene needs and
+nothing in the world produces.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/warn_lock.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">route</span><span class="ron-punct">:</span> <span class="ron-type">Interface</span><span class="ron-punct">)),</span>
+<span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/warn_hull.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">route</span><span class="ron-punct">:</span> <span class="ron-type">Hull</span><span class="ron-punct">,</span> <span class="ron-key">volume</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">0.4</span><span class="ron-punct">))),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sound</code></td>
+<td>asset ref</td>
+<td>required</td>
+<td>the clip, resolved like any other content sound ref</td>
+</tr>
+<tr>
+<td><code>route</code></td>
+<td><code>Interface</code> | <code>Hull</code></td>
+<td>required</td>
+<td>where it is heard</td>
+</tr>
+<tr>
+<td><code>volume</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>gain; omitted is full volume, <code>Some(0.4)</code> sits a cue UNDER a comms line</td>
+</tr>
+</tbody>
+</table>
+<p><code>Interface</code> is UI chrome - a prompt, a stinger, a chapter tone - scaled by the
+interface track. <code>Hull</code> is structure-borne through the player's own ship,
+something they feel rather than hear, scaled by the world track. The route is
+authored because those are different cues and neither is the safe guess.</p>
+<p>Non-positional on purpose. An exterior cue is attenuated and panned by where it
+happened, and a beat has no position to give one; a cue authored here is heard
+in the cockpit, which is where the player is. Author the positional kind on the
+object that makes it.</p>
+</details>
 <h2 id="pacing" tabindex="-1">Pacing</h2>
 <h3 id="sequence" tabindex="-1">Sequence</h3>
 <p>Run an ordered list of BEATS. The ENGINE holds the cursor, so a paced chain
@@ -741,7 +925,8 @@ costs one action and no scenario variable.</p>
         <span class="ron-punct">(</span>
             <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">2.0</span><span class="ron-punct">),</span>
             <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-                <span class="ron-type">StoryMessage</span><span class="ron-punct">((</span>
+                <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
+                    <span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span>
                     <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Capt. Halloran&quot;</span><span class="ron-punct">,</span>
                     <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Kestrel, you are cleared to burn.&quot;</span><span class="ron-punct">,</span>
                 <span class="ron-punct">)),</span>
@@ -859,13 +1044,198 @@ for is &quot;later&quot;; keep a handler where the beat must still ASK something
 lands - which of two lines to speak, whether the fight is still live - because
 a step runs when its wait ends and only a handler can re-check.</p>
 </details>
+<h3 id="cinematic" tabindex="-1">Cinematic</h3>
+<p>Run the same beat chain as a SCENE - one the player is allowed to walk out of.
+Mechanically a <a href="#sequence"><code>Sequence</code></a> with a different contract: a sequence is
+scenario logic and always runs to its end; a scene takes the camera and the
+controls away, and a player who has seen it once must be able to get them back.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">Cinematic</span><span class="ron-punct">((</span>
+    <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;strike_approach&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">skippable</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">steps</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-punct">(</span>
+            <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">),</span>
+            <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+                <span class="ron-type">SuspendPlayerControl</span><span class="ron-punct">(()),</span>
+                <span class="ron-type">SetCameraAnchor</span><span class="ron-punct">((</span><span class="ron-key">anchor</span><span class="ron-punct">:</span> <span class="ron-string">&quot;cutter&quot;</span><span class="ron-punct">,</span> <span class="ron-key">offset</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">440.0</span><span class="ron-punct">,</span> <span class="ron-literal">25.0</span><span class="ron-punct">,</span> <span class="ron-literal">-235.0</span><span class="ron-punct">),</span> <span class="ron-key">frame</span><span class="ron-punct">:</span> <span class="ron-type">World</span><span class="ron-punct">,</span> <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-type">Object</span><span class="ron-punct">(</span><span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-punct">],</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-punct">(</span>
+            <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">14.0</span><span class="ron-punct">),</span>
+            <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+                <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;guard&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown Signal&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;- vessel this net -&quot;</span><span class="ron-punct">)),</span>
+            <span class="ron-punct">],</span>
+        <span class="ron-punct">),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>scenario-local scene key; the cursor is filed under it and both cinematic events report it</td>
+</tr>
+<tr>
+<td><code>skippable</code></td>
+<td>bool</td>
+<td>required</td>
+<td>whether the player may leave early</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td>list</td>
+<td>required</td>
+<td>the beats, in order - the same <code>after</code> / <code>until</code> / <code>deadline</code> / <code>actions</code> a <code>Sequence</code> step has</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The two ends are EVENTS, not fields.</strong> A scene does not carry an on-finish
+action list; it REPORTS, and the handlers that answer live beside it:</p>
+<ul>
+<li><a href="../events/#cinematic-endings"><code>OnCinematicFinished</code></a> fires on every path
+out - the last beat, a skip, a <code>CancelCinematic</code>, a blown step deadline. What
+the scene owes the player back (camera released, control returned, the
+objective it was covering) is authored there, ONCE, so no path can forget it.</li>
+<li><a href="../events/#cinematic-endings"><code>OnCinematicSkipped</code></a> fires first on a skip,
+and carries only the catch-up: what the beats that never played would have
+left behind - the actors spawned, moved or destroyed, the variables latched.</li>
+</ul>
+<p>Filter both with <a href="../filters/#cinematic"><code>Cinematic((key: &quot;...&quot;))</code></a>, or a
+scenario with two scenes answers the wrong one. A filter naming a key no
+<code>Cinematic</code> plays is a lint Error, and a lint error refuses the scenario at
+load.</p>
+<p><code>skippable</code> is authored on every scene because a scene that cannot be left is a
+real decision - three seconds long, or the first time only - and not the kind of
+thing that should happen because a field was left out.</p>
+<p><strong>A skip cancels the CURSOR.</strong> It never runs the remaining steps at speed: a
+step chain is not a list of world edits, it holds camera moves, comms lines and
+shots the player has just said they do not want. Whatever the world still needs
+belongs in the skipped handler.</p>
+<p>The skip binding is held off for the first 0.75 s of the scene. The player is
+very often still holding the button that got them here, and without the hold-off
+a scene ends on the frame it opens and reads as a bug.</p>
+<p><strong>Nested chains outlive the skip.</strong> A <code>Sequence</code> started inside a scene has its
+own cursor, and cancelling the scene does not cancel it. A line that must not
+survive a skip belongs in the scene's own steps, not in a chain the scene
+started.</p>
+</details>
+<h3 id="cancelcinematic" tabindex="-1">CancelCinematic</h3>
+<p>End a running scene now, from the scenario rather than from the player.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">CancelCinematic</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;strike_approach&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>the scene to end; a key no <code>Cinematic</code> plays is a lint Warn</td>
+</tr>
+</tbody>
+</table>
+<p>The scene still reports <a href="../events/#cinematic-endings"><code>OnCinematicFinished</code></a>,
+so whatever it took is given back. It does NOT report a skip: nobody asked to
+leave. Cancelling a key that is not running is a quiet no-op.</p>
+</details>
+<h3 id="cinematictitle" tabindex="-1">CinematicTitle</h3>
+<p>The shot's title card: where this is, when it is, and one line about it. Fades
+in top-left, holds, fades out.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">CinematicTitle</span><span class="ron-punct">((</span>
+    <span class="ron-key">corner</span><span class="ron-punct">:</span> <span class="ron-type">TopLeft</span><span class="ron-punct">,</span>
+    <span class="ron-key">location</span><span class="ron-punct">:</span> <span class="ron-string">&quot;SECTOR M, THE RINGS OF SATURN&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">date</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Y0&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">note</span><span class="ron-punct">:</span> <span class="ron-string">&quot;The EWI carrier Meridian: a refinery that moves to the ice.&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">seconds</span><span class="ron-punct">:</span> <span class="ron-literal">9.0</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>corner</code></td>
+<td><code>TopLeft</code> | <code>TopRight</code> | <code>BottomLeft</code> | <code>BottomRight</code></td>
+<td>required</td>
+<td>which corner the card sits in</td>
+</tr>
+<tr>
+<td><code>location</code></td>
+<td>string</td>
+<td>required</td>
+<td>where this is, drawn largest</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td>string</td>
+<td>required</td>
+<td>when this is - a year, a date, a time of shift</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>string</td>
+<td>required</td>
+<td>one line of context; empty draws no line</td>
+</tr>
+<tr>
+<td><code>seconds</code></td>
+<td>float</td>
+<td>required</td>
+<td>how long the card holds, fades included</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Nothing takes the card down.</strong> It expires on its own clock, so a scene that
+is skipped, cancelled, deadlined or torn down leaves a card that simply
+finishes. There is no handler to write and no <code>ClearCinematicTitle</code> to forget.</p>
+<p><strong>One card at a time.</strong> Posting a second replaces the first at its own age -
+two cards on screen are two answers to &quot;where am I&quot;.</p>
+<p><strong>The corner is authored because only the shot knows which one is free.</strong>
+<code>BottomLeft</code> is the comms stack's corner, so a scene with dialogue in it wants
+a top corner; the top strip carries the status bar, which the card clears.
+A right-hand card mirrors a left-hand one: the accent rule stays on the outer
+edge and the lines stack against it.</p>
+<p><strong>The clock is the scenario's, not the frame's.</strong> A card holds through a pause
+rather than bleeding away behind the menu. A <code>seconds</code> shorter than the two
+fades together peaks lower instead of snapping on and off, which is the honest
+reading of &quot;show this for half a second&quot;.</p>
+</details>
 <h2 id="flow-outcomes-transitions" tabindex="-1">Flow: outcomes &amp; transitions</h2>
 <h3 id="outcome" tabindex="-1">Outcome</h3>
 <p>Declare the scenario's win or lose: the gold VICTORY / red DEFEAT banner,
 an optional message, and buttons - and it freezes the simulation behind it
 exactly like the pause menu until it clears.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">Outcome</span><span class="ron-punct">((</span><span class="ron-key">outcome</span><span class="ron-punct">:</span> <span class="ron-type">Defeat</span><span class="ron-punct">,</span> <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;The convoy is lost.&quot;</span><span class="ron-punct">))),</span>
-<span class="ron-type">NextScenario</span><span class="ron-punct">((</span><span class="ron-key">scenario_id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;lifeline&quot;</span><span class="ron-punct">,</span> <span class="ron-key">linger</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">Outcome</span><span class="ron-punct">((</span><span class="ron-key">outcome</span><span class="ron-punct">:</span> <span class="ron-type">Defeat</span><span class="ron-punct">,</span> <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;The cutter is lost.&quot;</span><span class="ron-punct">))),</span>
+<span class="ron-type">NextScenario</span><span class="ron-punct">((</span><span class="ron-key">scenario_id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;the_wreck&quot;</span><span class="ron-punct">,</span> <span class="ron-key">linger</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -908,7 +1278,7 @@ the same frame and SWALLOWS the banner (lint warns on that composition).</p>
 <h3 id="nextscenario" tabindex="-1">NextScenario</h3>
 <p>Queue a switch to another scenario by id - a hard cut, a delayed cut, or a
 modal hold behind the outcome overlay.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">NextScenario</span><span class="ron-punct">((</span><span class="ron-key">scenario_id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;broadside_gunship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">linger</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">NextScenario</span><span class="ron-punct">((</span><span class="ron-key">scenario_id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;the_wreck&quot;</span><span class="ron-punct">,</span> <span class="ron-key">linger</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -958,7 +1328,7 @@ one and resets its clock.</p>
 <h2 id="ship-state" tabindex="-1">Ship state</h2>
 <h3 id="setspeedcap" tabindex="-1">SetSpeedCap</h3>
 <p>Install, update or remove the soft manual-speed governor on a scoped ship.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">SetSpeedCap</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">cap</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">25.0</span><span class="ron-punct">))),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">SetSpeedCap</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">cap</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">250.0</span><span class="ron-punct">))),</span>
 <span class="ron-type">SetSpeedCap</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">))</span>              <span class="ron-comment">// release the governor</span>
 </code></pre>
 <details class="explain">
@@ -983,15 +1353,21 @@ one and resets its clock.</p>
 <td><code>cap</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td><code>Some(25.0)</code> installs/updates the cap (u/s); <code>None</code> or omitted REMOVES it</td>
+<td><code>Some(250.0)</code> installs/updates the cap, in m/s; <code>None</code> or omitted REMOVES it</td>
 </tr>
 </tbody>
 </table>
+<p>The governor limits the ship's TOTAL speed, not the speed along whatever
+heading it points: a pilot who turns and burns again spends the same one
+allowance. It is soft - the manual burn tapers off over the last stretch below
+the cap - and it never blocks a burn that slows the ship, so a ship carried
+past the cap by a well or a maneuver can always brake back inside it. Only the
+MANUAL burn reads it; the autopilot plans its own deceleration.</p>
 </details>
 <h3 id="setcontrollerverb" tabindex="-1">SetControllerVerb</h3>
 <p>Grant or withhold one flight verb on a scoped ship's controller - the
-tutorial-progression primitive (the Shakedown Run starts with <code>Goto</code>
-withheld and grants it at the beacon).</p>
+tutorial-progression primitive (Basic Training starts with every verb withheld
+and grants one per beat, <code>Goto</code> after the cadet's first lock).</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SetControllerVerb</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">verb</span><span class="ron-punct">:</span> <span class="ron-type">Goto</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
 <span class="ron-comment">// The battery answers a salvo by itself - until this takes it away.</span>
 <span class="ron-type">SetControllerVerb</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">verb</span><span class="ron-punct">:</span> <span class="ron-type">PointDefense</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
@@ -1063,11 +1439,423 @@ primitive: spawn a bystander <code>Neutral</code>, flip it <code>Enemy</code> on
 </tbody>
 </table>
 </details>
-<h3 id="forcetorpedolaunch" tabindex="-1">ForceTorpedoLaunch</h3>
-<p>Order a scoped ship's torpedo bays to launch at a named target - the
-scripted counterpart of the AI's launch decision, for controller-less
-emplacements fired by timers (&quot;the battery shoots every N seconds&quot;).</p>
-<pre><code class="hljs language-ron"><span class="ron-type">ForceTorpedoLaunch</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;battery_west&quot;</span><span class="ron-punct">,</span> <span class="ron-key">target</span><span class="ron-punct">:</span> <span class="ron-string">&quot;patrol_ship&quot;</span><span class="ron-punct">)),</span>
+<h3 id="helm-orders" tabindex="-1">Helm orders</h3>
+<p>The six actions below take the helm of a ship the scenario owns: one authored
+with <code>controller: None</code> OR one authored with <code>controller: AI</code> (see
+<a href="../objects/#spaceship">Spaceship</a>). They refuse the PLAYER's ship - a lint
+Error, and a runtime error if one somehow reaches the engine - because a
+player's flight input drops any autopilot on the next frame, so the order
+would fight the stick and lose.</p>
+<p>An order on an AI ship OUTRANKS the bot. While the order runs, the AI stops
+writing to the helm; it keeps looking around and keeps shooting. This is the
+seam that lets a mission tell an ordinary patrol craft to go somewhere
+specific and then hand it back, instead of authoring a second inert hull.</p>
+<p>The ship still needs to be a real ship: the helm orders fly it with its own
+flight computer and thrusters, so a hull with no live controller section
+cannot turn, and a battery with no drives can still shoot but never move.</p>
+<p><code>Move</code>, <code>Align</code>, <code>Stop</code>, <code>Patrol</code> and <code>Orbit</code> are ONE mutually exclusive
+family. A ship holds at most one helm order; installing a second cancels the
+first. Each is keyed, and the
+<a href="../events/#onshipordercomplete">order events</a> with a
+<a href="../filters/#shiporder"><code>ShipOrder</code></a> filter are how the next beat waits for it</p>
+<ul>
+<li>which is what lets a
+<a href="#sequence"><code>Sequence</code></a> <code>until</code> gate hold a set piece together.</li>
+</ul>
+<p>Some orders end and let go; others end and KEEP HOLDING. <code>Move</code>, <code>Stop</code> and
+<code>Patrol</code> release the helm when they report, so an AI ship goes straight back
+to its own routine. <code>Align</code> and <code>Orbit</code> report the condition and then hold it
+until something else takes the helm - the hold is the point of both.</p>
+<h3 id="moveshipto" tabindex="-1">MoveShipTo</h3>
+<p>Fly an ordered ship to a mark and report when it gets there. The ship's own
+GOTO maneuver, so it accelerates, coasts and arrives on its authored thrust -
+this is the cinematic approach, not a teleport.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">MoveShipTo</span><span class="ron-punct">((</span>
+    <span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;close_the_gap&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1200.0</span><span class="ron-punct">),</span>
+    <span class="ron-key">arrival_standoff</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">60.0</span><span class="ron-punct">),</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order</code></td>
+<td>string</td>
+<td>required</td>
+<td>the key this order's completion is reported under; an empty key is a lint Error</td>
+</tr>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>- or AI-controller ship root; a dangling or player-driven id is a lint Error</td>
+</tr>
+<tr>
+<td><code>position</code></td>
+<td>meters <code>(x, y, z)</code></td>
+<td>required</td>
+<td>the mark to fly to, in world coordinates</td>
+</tr>
+<tr>
+<td><code>arrival_standoff</code></td>
+<td><code>Option</code> meters</td>
+<td><code>None</code></td>
+<td>the margin to leave between the ship's own hull and the mark; <code>Some(0.0)</code> parks the hull's face on it</td>
+</tr>
+</tbody>
+</table>
+<p>Completes when the ship's autopilot lets go - it is inside the standoff and
+settled - and fires
+<a href="../events/#onshipordercomplete"><code>OnShipOrderComplete</code></a> with <code>kind: Move</code>.</p>
+<p><code>arrival_standoff</code> exists because the default 500 m is far too coarse to
+stage a shot with. It is a MARGIN, not a centre distance: the ship comes to
+rest with that much clear water between its own hull and the mark, so a
+warship and a shuttle sent to the same mark both stop where you staged them.
+It is installed for the life of the order and taken back off when the order
+retires - on completion as well as on a cancel or an interruption - so a
+cinematic's tight staging does not silently retune every later GOTO the hull
+flies. <code>None</code> uses the ship's own standoff.</p>
+<p>A margin is a PARKING rule, not a route guarantee. The leg flies a straight
+line and nothing is dodged on the way in; stage the approach yourself if
+something is in it.</p>
+</details>
+<h3 id="forcealign" tabindex="-1">ForceAlign</h3>
+<p>Turn an ordered ship's whole hull onto a point and HOLD it there. Rotation
+only - no autopilot, so no drive ever burns for translation and the ship keeps
+whatever velocity it had.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ForceAlign</span><span class="ron-punct">((</span>
+    <span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;bore_on_target&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
+    <span class="ron-key">tolerance_degrees</span><span class="ron-punct">:</span> <span class="ron-literal">1.5</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order</code></td>
+<td>string</td>
+<td>required</td>
+<td>the key this order's completion is reported under</td>
+</tr>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>- or AI-controller ship root</td>
+</tr>
+<tr>
+<td><code>look_at</code></td>
+<td>meters <code>(x, y, z)</code></td>
+<td>required</td>
+<td>the world position to put under the bore</td>
+</tr>
+<tr>
+<td><code>tolerance_degrees</code></td>
+<td>number</td>
+<td>required</td>
+<td>how close the aim must come before the order completes; must be finite and not negative, or the order is refused</td>
+</tr>
+</tbody>
+</table>
+<p>The hold is the point. A <a href="../sections/#railgun">railgun</a> does not traverse, so
+the shot leaves down whatever line the hull is holding: align, wait for the
+completion, then fire, and the slug goes where you aimed. The facing is held
+until another helm order replaces it, which is what lets several guns run
+their charges on one bearing.</p>
+<p>The tolerance is also what &quot;settled&quot; is measured against - a tight tolerance
+asks for a genuinely steady hull, a coarse one accepts a drift - so an
+alignment order on a tumbling wreck may take a while, and one with an
+impossible tolerance is refused outright rather than left never completing.</p>
+</details>
+<h3 id="stopship" tabindex="-1">StopShip</h3>
+<p>Bring an ordered ship to rest with the real STOP maneuver - the same
+flip-retrograde-and-burn the player's X key runs, so it costs fuel and time,
+visibly.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">StopShip</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;hold_here&quot;</span><span class="ron-punct">,</span> <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order</code></td>
+<td>string</td>
+<td>required</td>
+<td>the key this order's completion is reported under</td>
+</tr>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>- or AI-controller ship root</td>
+</tr>
+</tbody>
+</table>
+<p>Completes when the ship is at rest, with <code>kind: Stop</code>. A ship that already is
+at rest completes almost immediately, which is the cheap way to make a beat
+wait for &quot;it definitely is not drifting any more&quot;.</p>
+</details>
+<h3 id="patrolship" tabindex="-1">PatrolShip</h3>
+<p>Fly ONE loop of an authored waypoint route: the ship visits each mark in
+order, returns to the first one, and reports. This is the sweep-and-come-back
+beat - not a standing assignment.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">PatrolShip</span><span class="ron-punct">((</span>
+    <span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;sweep_the_belt&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;picket&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">waypoints</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-800.0</span><span class="ron-punct">),</span>
+        <span class="ron-punct">(</span><span class="ron-literal">900.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-800.0</span><span class="ron-punct">),</span>
+        <span class="ron-punct">(</span><span class="ron-literal">900.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order</code></td>
+<td>string</td>
+<td>required</td>
+<td>the key this order's completion is reported under</td>
+</tr>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>- or AI-controller ship root</td>
+</tr>
+<tr>
+<td><code>waypoints</code></td>
+<td>list of meters <code>(x, y, z)</code></td>
+<td>required</td>
+<td>the marks to visit, in order; an EMPTY list is a lint Error</td>
+</tr>
+</tbody>
+</table>
+<p>ONE loop, then <code>kind: Patrol</code> and the helm goes back. A route of one point is
+one leg out and one leg home; a route with the same point twice in a row still
+flies both legs, and the second lands immediately. Repeat the action to run
+another loop, or hand the ship a
+<a href="#clearshiporder"><code>ClearShipOrder</code></a> mid-route to abandon it.</p>
+<p>For a STANDING patrol that never ends, author the route on the ship instead -
+an AI ship's own <code>patrol</code> field (see <a href="../objects/#spaceship">Spaceship</a>) is
+the routine it returns to when nothing is happening.</p>
+</details>
+<h3 id="orbitship" tabindex="-1">OrbitShip</h3>
+<p>Put a ship in a stable ring around a gravity well and hold it there. The
+ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">OrbitShip</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;take_the_ring&quot;</span><span class="ron-punct">,</span> <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;surveyor&quot;</span><span class="ron-punct">,</span> <span class="ron-key">well</span><span class="ron-punct">:</span> <span class="ron-string">&quot;planetoid&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order</code></td>
+<td>string</td>
+<td>required</td>
+<td>the key this order's completion is reported under</td>
+</tr>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>- or AI-controller ship root</td>
+</tr>
+<tr>
+<td><code>well</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped id of the gravity-well object to orbit; a dangling id is a lint Error</td>
+</tr>
+</tbody>
+</table>
+<p>Completes with <code>kind: Orbit</code> the moment the ring is ESTABLISHED - the ship is
+in the band and holding - and then keeps holding it, the same way
+<a href="#forcealign"><code>ForceAlign</code></a> keeps its bearing. A completion here means &quot;it is
+in orbit now&quot;, not &quot;it has stopped orbiting&quot;.</p>
+<p>A well too small, too far, or with no stable band for this hull fails the
+order rather than leaving the beat waiting: see
+<a href="../events/#onshiporderfailed"><code>OnShipOrderFailed</code></a>.</p>
+</details>
+<h3 id="clearshiporder" tabindex="-1">ClearShipOrder</h3>
+<p>Release a ship's helm. The counterpart to the five orders above: whatever the
+ship was told, it is no longer being told it.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ClearShipOrder</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root to release</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>None</code>-controller hull KEEPS its velocity and coasts - this is space, and
+letting a ship drift out of frame is usually the point. An AI ship goes back
+to its own routine on the next frame.</p>
+<p>Emits <a href="../events/#onshipordercanceled"><code>OnShipOrderCanceled</code></a>, NOT a
+completion: an order that was called off did not finish, so a beat gated on
+the completion correctly never runs. It also puts back the ship's own arrival
+standoff if a <a href="#moveshipto"><code>MoveShipTo</code></a> had displaced it. Clearing a ship
+that is under no order does nothing and says nothing.</p>
+</details>
+<h3 id="forced-fire" tabindex="-1">Forced fire</h3>
+<p>The two weapon actions below are independent of the helm and of each other: a
+ship can be aligned, firing its spinal gun and launching a bay in the same
+frame.</p>
+<p>Unlike the helm orders, these still refuse an AI-driven ship as well as the
+player's. A bot picks its own targets and times its own shots, and a scripted
+trigger pull cutting across that would fight the same weapon seams every
+frame.</p>
+<h3 id="forcerailgunfire" tabindex="-1">ForceRailgunFire</h3>
+<p>Fire one named <a href="../sections/#railgun">railgun</a> section of a scripted ship.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ForceRailgunFire</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">section</span><span class="ron-punct">:</span> <span class="ron-string">&quot;spinal&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>-controller ship root that fires</td>
+</tr>
+<tr>
+<td><code>section</code></td>
+<td>string</td>
+<td>required</td>
+<td>the authored section id of the railgun; a section the hull does not carry, or one that is not a railgun, is a lint Error</td>
+</tr>
+</tbody>
+</table>
+<p>No target and no steering: a railgun does not traverse, so the shot leaves
+down whatever line the hull holds when the charge completes. Putting that line
+on something is <a href="#forcealign"><code>ForceAlign</code></a>'s job. Everything else is the
+gun's own behavior - the authored charge time, the magazine, the reload, the
+recoil through the hull, the slug, the sound and the flash.</p>
+<p>The order is ONE SHOT: it holds the trigger until the gun actually fires
+(through a reload, if the magazine was empty) and then retires itself. Fire a
+second shell with a second action.</p>
+</details>
+<h3 id="forcetorpedofire" tabindex="-1">ForceTorpedoFire</h3>
+<p>Launch one named <a href="../sections/#torpedo">torpedo bay</a> of a scripted ship at one
+named target.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ForceTorpedoFire</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;battery_west&quot;</span><span class="ron-punct">,</span> <span class="ron-key">section</span><span class="ron-punct">:</span> <span class="ron-string">&quot;bay&quot;</span><span class="ron-punct">,</span> <span class="ron-key">target</span><span class="ron-punct">:</span> <span class="ron-string">&quot;patrol_ship&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped <code>None</code>-controller ship root that launches</td>
+</tr>
+<tr>
+<td><code>section</code></td>
+<td>string</td>
+<td>required</td>
+<td>the authored section id of the bay; a missing id or a non-bay is a lint Error</td>
+</tr>
+<tr>
+<td><code>target</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root the ordnance homes on; a dangling id is a lint Error</td>
+</tr>
+</tbody>
+</table>
+<p>ONE bay, addressed by its section id. The bay's own cooldown and ammo still
+time the launch, and the ordnance is committed to the target the same way an
+AI or player launch is - which is also what makes the torpedo visible to
+hostile point defense. The AI's launch gates (range envelope, hull-forward
+cone, line of sight, the AI cadence) do NOT apply: the script is the decision.</p>
+<p>A missing target skips the launch entirely, so no dud goes out while a target
+is mid-respawn. The order is one shot, like the railgun's.</p>
+</details>
+<h3 id="setinfiniteammo" tabindex="-1">SetInfiniteAmmo</h3>
+<p>Suspend (or restore) the finite magazine on every weapon of a scoped ship, so
+a training range or a set-piece is not decided by a reload.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SetInfiniteAmmo</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
+<span class="ron-type">SetInfiniteAmmo</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -1085,25 +1873,193 @@ emplacements fired by timers (&quot;the battery shoots every N seconds&quot;).</
 <td><code>id</code></td>
 <td>string</td>
 <td>required</td>
-<td>scoped ship root whose bays launch; a dangling id is a lint Error</td>
+<td>scoped ship root; a dangling id is a lint Error</td>
 </tr>
 <tr>
-<td><code>target</code></td>
-<td>string</td>
+<td><code>enabled</code></td>
+<td>bool</td>
 <td>required</td>
-<td>scoped ship root the ordnance homes on; a dangling id is a lint Error</td>
+<td><code>true</code> suspends the magazines, <code>false</code> restores them</td>
 </tr>
 </tbody>
 </table>
-<p>Every torpedo bay on the ship gets a one-shot order; each bay's own cooldown
-and ammo still time the actual launch, and the ordnance is committed to the
-target like an AI launch (so hostile point defense can engage it). The AI's
-launch gates (range envelope, hull-forward cone, line of sight, the 10 s AI
-cadence) do NOT apply - the script is the decision.</p>
-<p>A missing target skips the launch entirely (no dumb-fire duds while the
-target is mid-respawn). On an AI-controlled ship the AI rewrites the bay
-trigger every frame and wins; give scripted batteries
-<code>controller: None</code>.</p>
+<p><code>true</code> puts each weapon's finite magazine aside and lets the section fire on
+its cooldown alone. <code>false</code> gives the magazine back at the section's own
+AUTHORED capacity, full, with the reload re-seeded from the section
+prototype - not at whatever count was left when it was suspended. A count
+from before the suspension is not a count the run earned either, and a full
+magazine is the one state a player and an author can both predict.</p>
+<p>Turning it on twice is idempotent, and turning it off on a ship that never had
+it on does nothing. A weapon authored with no magazine at all was already
+unlimited and is untouched in both directions.</p>
+</details>
+<h3 id="refillammo" tabindex="-1">RefillAmmo</h3>
+<p>Top a scoped ship's finite magazines back up without changing how they work.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">RefillAmmo</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">)),</span>                          <span class="ron-comment">// every weapon</span>
+<span class="ron-type">RefillAmmo</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">section</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;turret_dorsal&quot;</span><span class="ron-punct">))),</span> <span class="ron-comment">// just one</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root; a dangling id is a lint Error</td>
+</tr>
+<tr>
+<td><code>section</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>one section's authored id, written <code>Some(&quot;...&quot;)</code>; omitted refills every weapon on the ship</td>
+</tr>
+</tbody>
+</table>
+<p>Each magazine returns to its authored capacity and any reload in flight is
+cleared. Weapons with no finite magazine - and any whose magazine is
+currently suspended by <a href="#setinfiniteammo"><code>SetInfiniteAmmo</code></a> - are skipped.</p>
+</details>
+<h3 id="ai-constraints" tabindex="-1">AI constraints</h3>
+<p>The three actions below retune an AI ship's JUDGEMENT at runtime: how far it
+will chase, how far it looks, how close it lets a torpedo come. They accept
+ONLY an AI-controller ship - a hull nobody is thinking for has nothing to
+retune, so a <code>None</code> or player id is a lint Error.</p>
+<p>They are independent of each other and of the helm. Each takes ONE optional
+payload: set it to install or update the constraint, omit it to put the ship
+back on the engine default. They are also outranked by a helm order - while
+one runs, the AI is not flying, so a constraint change has no visible effect
+until the order lets go.</p>
+<p>The spawn-time twins are the AI controller's own <code>leash</code>, <code>engage_range</code> and
+<code>pd_range</code> fields (see <a href="../objects/#spaceship">Spaceship</a>); these are their
+runtime mirrors.</p>
+<h3 id="setaileash" tabindex="-1">SetAILeash</h3>
+<p>Tether an AI ship's combat to a centre and a radius, or release it. Past the
+radius the ship breaks off and comes home.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SetAILeash</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;picket&quot;</span><span class="ron-punct">,</span> <span class="ron-key">leash</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">center</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-800.0</span><span class="ron-punct">),</span> <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">2000.0</span><span class="ron-punct">)))),</span>
+<span class="ron-type">SetAILeash</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;picket&quot;</span><span class="ron-punct">)),</span>   <span class="ron-comment">// let it chase freely</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped AI-controller ship root</td>
+</tr>
+<tr>
+<td><code>leash</code></td>
+<td><code>Option</code> leash</td>
+<td><code>None</code></td>
+<td><code>Some((center: ..., radius: ...))</code> installs or updates the tether; omitted RELEASES it</td>
+</tr>
+<tr>
+<td><code>leash.center</code></td>
+<td>meters <code>(x, y, z)</code></td>
+<td>required</td>
+<td>the anchor the radius is measured from, in world coordinates</td>
+</tr>
+<tr>
+<td><code>leash.radius</code></td>
+<td>meters</td>
+<td>required</td>
+<td>how far from the anchor combat may go; must be positive</td>
+</tr>
+</tbody>
+</table>
+<p>Widening a leash mid-scenario is how a garrison is let off its post; releasing
+it entirely turns a picket into a pursuer. The anchor is an authored point,
+not the ship - moving the ship does not move the tether.</p>
+</details>
+<h3 id="setaiengagerange" tabindex="-1">SetAIEngageRange</h3>
+<p>Change how far an AI ship looks for hostiles, or restore the engine's 4 km
+default.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SetAIEngageRange</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;watchtower&quot;</span><span class="ron-punct">,</span> <span class="ron-key">range</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">16000.0</span><span class="ron-punct">))),</span>
+<span class="ron-type">SetAIEngageRange</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;watchtower&quot;</span><span class="ron-punct">)),</span>   <span class="ron-comment">// back to the default</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped AI-controller ship root</td>
+</tr>
+<tr>
+<td><code>range</code></td>
+<td><code>Option</code> meters</td>
+<td><code>None</code></td>
+<td><code>Some(16000.0)</code> installs or updates the range; omitted RESTORES the default; must be positive</td>
+</tr>
+</tbody>
+</table>
+<p>Wide is a long-watch emplacement that wakes for targets parked outside
+everyone else's detection. Short is a ship that ignores a brawl next door.
+Narrowing it mid-fight does NOT drop a target it has already acquired.</p>
+</details>
+<h3 id="setaipointdefenserange" tabindex="-1">SetAIPointDefenseRange</h3>
+<p>Change how close an inbound torpedo gets before an AI ship's guns answer it,
+or restore the engine's 1.5 km default.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SetAIPointDefenseRange</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;escort&quot;</span><span class="ron-punct">,</span> <span class="ron-key">range</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">600.0</span><span class="ron-punct">))),</span>
+<span class="ron-type">SetAIPointDefenseRange</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;escort&quot;</span><span class="ron-punct">)),</span>   <span class="ron-comment">// back to the default</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped AI-controller ship root</td>
+</tr>
+<tr>
+<td><code>range</code></td>
+<td><code>Option</code> meters</td>
+<td><code>None</code></td>
+<td><code>Some(600.0)</code> installs or updates the range; omitted RESTORES the default; must be positive</td>
+</tr>
+</tbody>
+</table>
+<p>Short stages the intercept close in, where the player can see it. Past the
+turret's own ~1.8 km reach it only wastes the opening shots, so authoring
+wider than the guns can shoot buys nothing.</p>
 </details>
 <h2 id="variables-timers-debugging" tabindex="-1">Variables, timers &amp; debugging</h2>
 <h3 id="timerstart" tabindex="-1">TimerStart</h3>
@@ -1223,7 +2179,9 @@ game effect - sprinkle these to watch handlers fire.</p>
 <h3 id="setcamera" tabindex="-1">SetCamera</h3>
 <p>Pin the scenario camera at a pose (drops free-fly control; the pose is
 re-enforced every frame).</p>
-<pre><code class="hljs language-ron"><span class="ron-type">SetCamera</span><span class="ron-punct">((</span><span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">30.0</span><span class="ron-punct">,</span> <span class="ron-literal">80.0</span><span class="ron-punct">),</span> <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">))),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">SetCamera</span><span class="ron-punct">((</span><span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">300.0</span><span class="ron-punct">,</span> <span class="ron-literal">800.0</span><span class="ron-punct">),</span> <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">))),</span>
+<span class="ron-comment">// The same pose as a MOVE rather than a cut.</span>
+<span class="ron-type">SetCamera</span><span class="ron-punct">((</span><span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">300.0</span><span class="ron-punct">,</span> <span class="ron-literal">800.0</span><span class="ron-punct">),</span> <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">blend</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">seconds</span><span class="ron-punct">:</span> <span class="ron-literal">4.0</span><span class="ron-punct">)))),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -1241,18 +2199,139 @@ re-enforced every frame).</p>
 <td><code>position</code></td>
 <td>3-tuple</td>
 <td>required</td>
-<td>world camera position</td>
+<td>world camera position, meters</td>
 </tr>
 <tr>
 <td><code>look_at</code></td>
 <td>3-tuple</td>
 <td>required</td>
-<td>world point to face (up is +Y)</td>
+<td>world point to face, meters (up is +Y)</td>
+</tr>
+<tr>
+<td><code>blend</code></td>
+<td><code>Option</code> blend</td>
+<td><code>None</code></td>
+<td>omitted is a CUT; <code>Some((seconds: 4.0))</code> moves the camera there over four seconds</td>
 </tr>
 </tbody>
 </table>
+<p><strong>Blends.</strong> A blend rides on top of the pose, so a blend onto an anchored shot
+keeps tracking its subject all the way in. <code>seconds</code> is how long the move takes;
+<code>easing</code> is how those seconds are spent - omitted is <code>Smooth</code>, and <code>Linear</code> is
+the special case that wants to look like a rig on a rail
+(<code>Some((seconds: 4.0, easing: Linear))</code>). A pose authored as a cut also REMOVES
+any blend still running, or the cut would be swallowed by the move it was meant
+to interrupt.</p>
 <p>Part of the screenshot/photo surface; no scenario camera present is a warn
 no-op.</p>
+</details>
+<h3 id="setcameraanchor" tabindex="-1">SetCameraAnchor</h3>
+<p>Ride the camera on a scenario object at a fixed offset, facing what you name.
+The shot follows the object every frame, so a cinematic can hold the player's
+own ship in frame while they are still flying it.</p>
+<pre><code class="hljs language-ron"><span class="ron-comment">// Over the player's shoulder, watching the carrier come apart.</span>
+<span class="ron-type">SetCameraAnchor</span><span class="ron-punct">((</span><span class="ron-key">anchor</span><span class="ron-punct">:</span> <span class="ron-string">&quot;cutter&quot;</span><span class="ron-punct">,</span> <span class="ron-key">offset</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">140.0</span><span class="ron-punct">,</span> <span class="ron-literal">55.0</span><span class="ron-punct">,</span> <span class="ron-literal">-195.0</span><span class="ron-punct">),</span> <span class="ron-key">frame</span><span class="ron-punct">:</span> <span class="ron-type">World</span><span class="ron-punct">,</span> <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-type">Point</span><span class="ron-punct">((</span><span class="ron-literal">-1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">2500.0</span><span class="ron-punct">)))),</span>
+<span class="ron-comment">// Riding the hull, watching whatever is coming.</span>
+<span class="ron-type">SetCameraAnchor</span><span class="ron-punct">((</span><span class="ron-key">anchor</span><span class="ron-punct">:</span> <span class="ron-string">&quot;cutter&quot;</span><span class="ron-punct">,</span> <span class="ron-key">offset</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">-165.0</span><span class="ron-punct">,</span> <span class="ron-literal">30.0</span><span class="ron-punct">,</span> <span class="ron-literal">70.0</span><span class="ron-punct">),</span> <span class="ron-key">look_at</span><span class="ron-punct">:</span> <span class="ron-type">Object</span><span class="ron-punct">(</span><span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">))),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>anchor</code></td>
+<td>object id</td>
+<td>required</td>
+<td>the scoped object the camera rides</td>
+</tr>
+<tr>
+<td><code>offset</code></td>
+<td>3-tuple</td>
+<td>required</td>
+<td>where the camera sits relative to it, meters</td>
+</tr>
+<tr>
+<td><code>frame</code></td>
+<td><code>Local</code> | <code>World</code></td>
+<td><code>Local</code></td>
+<td>whether <code>offset</code> turns with the anchor's hull or stays on world axes</td>
+</tr>
+<tr>
+<td><code>look_at</code></td>
+<td><code>Anchor</code> | <code>Point((x,y,z))</code> | <code>Object(&quot;id&quot;)</code></td>
+<td><code>Anchor</code></td>
+<td>what the shot faces</td>
+</tr>
+<tr>
+<td><code>blend</code></td>
+<td><code>Option</code> blend</td>
+<td><code>None</code></td>
+<td>omitted is a CUT; see <a href="#setcamera"><code>SetCamera</code></a> for the move</td>
+</tr>
+</tbody>
+</table>
+<p><code>Local</code> composes the same shot whatever heading the anchor is on - an
+over-the-shoulder chase. <code>World</code> composes the same shot whatever the anchor is
+DOING, which is what you want while the player is still flying: their heading
+is not yours to choose.</p>
+<p><code>look_at: Object</code> follows a live object and falls back to the anchor if that
+object dies mid-shot; <code>look_at: Point</code> is fixed world space and survives
+whatever was standing there. Frame something that is about to be destroyed with
+<code>Point</code>, not <code>Object</code>.</p>
+<p>Camera authority only. It never steers or stops the ship it rides and does not
+change player input authority. Like <code>SetCamera</code> it drops free-fly control and
+re-enforces the pose every frame; unlike <code>SetCamera</code> there is something to hand
+back to, so pair it with <a href="#releasecamera"><code>ReleaseCamera</code></a>. Pair a staged shot
+that must own gameplay input with <a href="#suspendplayercontrol"><code>SuspendPlayerControl</code></a>
+and explicitly resume when the shot returns control. An anchor id that names
+nothing warns and leaves the camera alone.</p>
+</details>
+<h3 id="releasecamera" tabindex="-1">ReleaseCamera</h3>
+<p>Drop every scripted camera override and hand the view back to the player's
+normal chase rig.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ReleaseCamera</span><span class="ron-punct">(()),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>No fields. Takes off both <a href="#setcamera"><code>SetCamera</code></a>'s fixed pose and
+<a href="#setcameraanchor"><code>SetCameraAnchor</code></a>'s ride, whichever is on. The chase rig
+never stopped solving underneath, so the shot ends and the player is looking
+out of their own ship again - there is no restore pose to author.</p>
+<p>Harmless when nothing is pinned. This is camera-only: it does not implicitly
+resume player control.</p>
+</details>
+<h3 id="suspendplayercontrol" tabindex="-1">SuspendPlayerControl</h3>
+<p>Block human flight, look, targeting, combat-stance, and weapon input while the
+simulation and scripted scene continue.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SuspendPlayerControl</span><span class="ron-punct">(()),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>No fields. The action immediately clears held burn, RCS, rotation, radar,
+combat stance, thruster, turret, torpedo, and railgun intent so an input pressed
+before the cut cannot remain latched. Pause, menu, and an explicitly always-live
+cinematic-skip binding remain available. Physics, timers, AI, scripted ships,
+weapons already in flight, and camera actions continue.</p>
+<p>Repeated suspension is harmless. Scenario teardown always restores control,
+but authored content should still pair each interval with
+<a href="#resumeplayercontrol"><code>ResumePlayerControl</code></a>.</p>
+</details>
+<h3 id="resumeplayercontrol" tabindex="-1">ResumePlayerControl</h3>
+<p>Restore human gameplay input after an explicit suspension.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ResumePlayerControl</span><span class="ron-punct">(()),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>No fields. Repeated resume is harmless. This is input-only: pair it with
+<a href="#releasecamera"><code>ReleaseCamera</code></a> when returning both view and control.</p>
 </details>
 <h3 id="screenshot" tabindex="-1">Screenshot</h3>
 <p>Capture the primary window to a PNG. A dev tool - pair <code>SetCamera</code> + settle
@@ -1315,15 +2394,12 @@ directories are created.</p>
 <p>The install is deferred until the new image has loaded; a failed load leaves
 the sky unchanged (warned).</p>
 </details>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -1334,6 +2410,4 @@ the sky unchanged (warned).</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

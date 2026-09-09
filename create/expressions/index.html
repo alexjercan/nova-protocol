@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Variables &amp; expressions - Nova Protocol Creator Docs</title>
-        <meta name="description" content="The complete scenario expression grammar: literals, factors, terms, conditions, reserved variables, and common recipes." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Variables &amp; expressions - Nova Protocol Creator Docs</title><meta name="description" content="The complete scenario expression grammar: literals, factors, terms, conditions, reserved variables, and common recipes."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,27 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
-                        / Variables &amp; expressions
-                    </p>
-                    <h1>Variables &amp; expressions</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#the-typed-form-in-the-editor">The typed form (in the editor)</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
-                    </nav>
-                    <p>Scenario state lives in ONE flat variable store: string keys, typed values.
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Variables &amp; expressions</p><h1>Variables &amp; expressions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#the-typed-form-in-the-editor">The typed form (in the editor)</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol></nav><p>Scenario state lives in ONE flat variable store: string keys, typed values.
 <a href="../actions/#variableset"><code>VariableSet</code></a> writes it,
 <a href="../filters/#expression"><code>Expression</code> filters</a> read it,
 <a href="../actions/#hudreadout"><code>HudReadout</code></a> displays it, and the whole store
@@ -273,7 +245,7 @@ snapshot when the action runs:</p>
 <tr>
 <td><code>Entity((filter: (id: &quot;...&quot;), property: Speed))</code></td>
 <td>Number</td>
-<td>speed in u/s of exactly one matching entity</td>
+<td>speed of exactly one matching entity, in METERS PER SECOND - so a literal compared against it is a real m/s figure (the shipped manual cap is 250)</td>
 </tr>
 </tbody>
 </table>
@@ -413,7 +385,7 @@ own variable when X happens, then gate on
 <code>elapsed &gt; snapshot + grace</code> via <code>Add</code> under <code>Parens</code>.</p>
 <p>A linear state machine: one numeric <code>beat</code> counter, every handler filtered
 on <code>Equal(beat, N)</code> and ending with <code>VariableSet(beat, N+1)</code>. This scales
-better than a boolean per step; the Shakedown Run and the Gauntlet are both
+better than a boolean per step; Basic Training and the Gauntlet are both
 built this way (see the scenario-engine chapter of the
 <a href="../../dev/">developer book</a>).</p>
 <h2 id="traps-for-the-unwary" tabindex="-1">Traps for the unwary</h2>
@@ -429,15 +401,12 @@ overloads (OR / AND on booleans). For filter logic, prefer multiple
 <li>RON's recursion limit (128) bounds nesting depth; a pathological
 expression is a parse error, not a hang.</li>
 </ul>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -448,6 +417,4 @@ expression is a parse error, not a hang.</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

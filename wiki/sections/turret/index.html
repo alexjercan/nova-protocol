@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Turret - Nova Protocol Wiki</title>
-        <meta name="description" content="An articulated mount that aims with intercept lead and fires bullets." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Turret - Nova Protocol Wiki</title><meta name="description" content="The gun mount: its arc and lead, barrel discipline, how far a round travels through a hull, what a magazine is worth, and point defense."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,28 +17,11 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / <a href="/nova-protocol/wiki/sections/">Ship sections</a>
-                        / Turret
-                    </p>
-                    <h1>Turret</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <figure class="figure">
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / <a href="/nova-protocol/wiki/sections/">Ship sections</a> / Turret</p><h1>Turret</h1><div class="wiki__tags" id="wiki-tags"></div><figure class="figure">
     <!-- Capture: assets/icon-turret.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-turret.png</span
@@ -59,19 +34,136 @@
 </figure>
 <p>A turret is an <strong>articulated mount</strong> - a base, the joints that swivel and elevate it, and one or more barrels - that aims at the current combat lock with true intercept lead and fires bullet projectiles. Its output is bounded by its fire rate, and a mount with several muzzles aims and fires all of them at once.</p>
 <p>Turrets draw their aim from the combat lock and prefer a fine-locked section if you have one, falling back to live structure and then the camera ray.</p>
+<h2 id="aiming-with-lead" tabindex="-1">Aiming with lead</h2>
+<p>The mount aims at your combat lock with <strong>true intercept lead</strong> - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on contact with no physical shove, they carry on through what they hit by the rules of their <a href="../../combat-weapons/#damage-types">damage type</a>, and they curve through <a href="../../gravity-wells/">gravity wells</a> like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes. A mount can carry <strong>more than one barrel</strong> - a twin-barrel PDC aims and fires every muzzle it has, two offset streams that share the turret's one magazine and its total fire rate (see <a href="#variants">Variants</a>).</p>
+<h2 id="barrel-discipline" tabindex="-1">Barrel discipline</h2>
+<p>A gun fires only while its barrel is actually <strong>on</strong> the point it is aiming at.
+The tolerance is what a round can still hit: about a degree, which is a
+gunship's beam at a kilometer. So a mount shoots while it is tracking and
+<strong>holds while it is slewing</strong>, and two things follow from that. Wrenching the
+ship around mid-burst stops the guns until the barrels catch up. And a mount
+that cannot train on your target at all - the port gun ordered onto something
+off the starboard quarter, or anything under the keel - simply holds, while the
+mounts that CAN bear keep shooting. It is your ammunition either way; the rounds
+a gun does not spend are the ones that were going to miss.</p>
 <h2 id="what-it-can-bear-on" tabindex="-1">What it can bear on</h2>
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :111-189: traverse limits None/None :142-143, elevation min -TURRET_DEPRESSION_LIMIT :157 where that constant is PI/18 at :84, elevation max FRAC_PI_2 :158, hinge speed PI rad/s :141,:150; muzzle_speed 100.0 :273 x projectile_lifetime 2.0 :280 = 200 u of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :19,:24,:47, doc'd 0.016 rad / 0.92 deg at :26-27; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :206: traverse limits None/None :282-283, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 :298-299 where that constant is PI/18 at :104, hinge speed PI rad/s :281,:291; pdc_turret_prototype :424: muzzle_speed 1,000 m/s :486 x projectile_lifetime 2.0 :493 = 2 km of reach, and crates/nova_ship/src/sections/turret_section/config.rs:133-137 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = HULL_HIT_RADIUS / CLOSE_ENGAGEMENT_RANGE :47 - a ratio of two engine world-unit lengths, 16 m across a 1 km range, so it is dimensionless and unchanged - the per-muzzle gate :72, doc'd 0.92 deg; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
 <p>The mount turns all the way round, so nothing is out of reach sideways. What bounds it is the barrel's floor: it stops ten degrees below level, because below that it would be pointing back through the ship it is bolted to.</p>
 <div class="widget" data-widget="turret-arc">
-<p>Traverse is unlimited and the barrel elevates from 10 degrees below level to straight up, so one mount covers 58.7 percent of the sky and the rest is a blind cone under its own keel. Both hinges turn at 180 deg/s at once, so a swing costs the larger of the two angles rather than their sum - a 90 degree traverse takes half a second, which is 50 rounds the gun does not fire while it is moving. Reach is 200 u: muzzle speed times how long a round lives, not an authored range.</p>
+<p>Traverse is unlimited and the barrel elevates from 10 degrees below level to straight up, so one mount covers 58.7 percent of the sky and the rest is a blind cone under its own keel. Both hinges turn at 180 deg/s at once, so a swing costs the larger of the two angles rather than their sum - a 90 degree traverse takes half a second, which is 50 rounds the gun does not fire while it is moving. Reach is 2 km: muzzle speed times how long a round lives, not an authored range.</p>
 </div>
-<p>That blind cone is the whole reason <a href="../../combat-weapons/#point-defense">point defense</a> is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.</p>
+<p>That blind cone is the whole reason <a href="#point-defense">point defense</a> is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.</p>
+<h2 id="reach-and-closing-speed" tabindex="-1">Reach and closing speed</h2>
+<p>A gun is a <strong>short-range</strong> weapon. A round is not tracked forever: it expires after a couple of seconds, which puts a PDC slug's reach at about <strong>2 km</strong>. Everyone shoots the same gun, so a raider's rounds reach exactly as far as yours - what a scavenger-grade mount gives up is toughness, not range. Enemy ships know it - they close to roughly <strong>1 km</strong> and fight there, and they hold fire until they are inside their own reach, so a hostile burning toward you is not being polite, it is out of range. Closing speed moves the number in both directions: rounds inherit the ship that fired them, so a charge carries them further and running from your target cuts what they can reach along with what they hit for. <a href="../../combat-weapons/#closing-speed">Combat</a> puts the multipliers on that, and the <a href="../../combat-weapons/#three-reaches">engagement ladder</a> sets the gun's 2 km beside the other two families.</p>
+<h2 id="how-far-a-round-travels" tabindex="-1">How far a round travels</h2>
+<p>A round's type decides what happens after it hits something, and the two rules are different resources.</p>
+<p>A <strong>Kinetic</strong> round carries its damage as a <strong>budget</strong>. A round that <strong>destroys</strong> what it hits spends only what that target had left and <strong>carries the rest on</strong> into whatever was behind it - so a 100-damage slug that kills a 20-point plate arrives at the next thing with 80. A round that fails to destroy its target is spent on it. Thin destructible cover is therefore a <strong>cost</strong> rather than a wall, and a slug can never deal more in total than it was fired with.</p>
+<p>A <strong>Pierce</strong> round does not pay for travel out of its damage at all. It carries a separate <strong>power</strong> budget and spends that on <strong>thickness</strong>: crossing a section costs that section's <strong>full health rating</strong>, whether or not the round killed it and whether or not it was already damaged. So it crosses whatever it likes while power lasts, dealing its full damage to every layer, and its total damage happily exceeds what one round nominally carries.</p>
+<p>Two things follow from pricing power on the rating rather than on what is left. Light plating is nearly free to rake through while a heavy hull block eats most of a round's power in one go - the spaced-armour intuition, intact. And softening a section with other fire does <strong>not</strong> open a cheaper hole through it, so there is no trick of chipping first and raking after.</p>
+<p>Every gun rake also has a hard ceiling on how many sections one round may cross - six - so a round fired down the length of a lightly built ship cannot chain forever. The railgun's slug is the one exception: it has no layer cap at all, and power alone decides where it stops.</p>
+<div class="widget" data-widget="round-travel">
+<p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 1,000 m/s destroys the first section and hits the second for 40; at 2,000 m/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 1,000 m/s (five sections deep), only 20 at 3,000 m/s - but never more than six sections.</p>
+</div>
+<p>Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see <a href="../../../combat-weapons/#shooting-rock">Shooting rock</a>); an invulnerable planetoid does not even do that. Torpedoes do not travel through anything either - they detonate.</p>
+<h2 id="trigger-discipline" tabindex="-1">Trigger discipline</h2>
+<p>A magazine is a rate limit, not a budget - every weapon refills, and the rule is the same for all three (see <a href="../../combat-weapons/#magazines">Magazines</a>). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.</p>
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammo_capacity 500 :503, reload delay 3.0 :505 / amount 200 :506, fire_rate 100; bay ammo_capacity 6 :1226, reload delay 10.0 :1238 / amount 1, fire_rate 1.0; railgun ammo_capacity 1 :982, reload delay 12.0 :987 / amount 1, charge 1.5 :928) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :136, a whole batch lands at the delay :171-174, clamped at capacity :156, empty pulls never reset :134). The sustained column is sections/mod.rs:202's own formula, amount / (delay + batch fire time). -->
+<table>
+<thead>
+<tr>
+<th>Weapon</th>
+<th>Magazine</th>
+<th>Cyclic rate</th>
+<th>One batch</th>
+<th>Quiet, empty to full</th>
+<th>Sustained</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PDC turret</td>
+<td>500 rounds</td>
+<td>100 /s</td>
+<td>200 rounds per 3 s</td>
+<td>9 s</td>
+<td>40 rounds/s</td>
+</tr>
+<tr>
+<td>Torpedo bay</td>
+<td>6 torpedoes</td>
+<td>1 /s</td>
+<td>1 torpedo per 10 s</td>
+<td>60 s</td>
+<td>0.09 /s</td>
+</tr>
+<tr>
+<td>Railgun</td>
+<td>1 shell</td>
+<td>one per 1.5 s charge</td>
+<td>1 shell per 12 s</td>
+<td>12 s</td>
+<td>0.07 /s</td>
+</tr>
+</tbody>
+</table>
+<div class="widget" data-widget="ammo-rhythm">
+<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack. A railgun is the rule at its simplest: one shell, twelve quiet seconds, and the charge on top - a shot every thirteen and a half.</p>
+</div>
+<h2 id="point-defense" tabindex="-1">Point defense</h2>
+<p>Every gun runs its own point defense, and each mount picks its
+OWN inbound torpedo rather than the whole battery swinging onto one. That is not
+a fairness rule, it is geometry: a turret is bolted to a hull and cannot depress
+its barrel back through its own ship, so a mount handed a torpedo coming in
+under the keel would sit there contributing nothing while a torpedo it could
+have hit flew past. A mount is only ever given something it can actually bear
+on; the fire splitting across a salvo falls out of that.</p>
+<p>Mounts also <strong>hold</strong> what they are tracking. Slewing takes real time, so a gun
+stays on its torpedo until that torpedo dies, drifts out of its arc, or
+something far more urgent arrives - a battery that re-decided every moment would
+spend the whole engagement swinging and hit nothing.</p>
+<p>So a salvo arriving from one side, or from below a hull, meets only the mounts that can actually train on it - the band above is exactly the band one gun defends. What your own idle mounts do with that, and when the flight computer is allowed to work them for you, is on <a href="../../combat-weapons/#point-defense">Combat</a>.</p>
+<h2 id="stowed-between-fights" tabindex="-1">Stowed between fights</h2>
+<!-- Behavior verified against crates/nova_ship/src/sections/turret_section/stow.rs (deploy demand: weapons hot OR tracked target OR point-defense assignment, drive_turret_stow; settle STOW_SETTLE_SECONDS = 4.0; aim gate crates/nova_ship/src/sections/turret_section/aim.rs and fire gate firing.rs both skip a non-Deployed mount) and the authored travel times in crates/nova_authoring/src/base_content/sections/standard.rs pdc_stow_tracks (lift 0.9 s down / 0.35 s up, lids 0.5 s / 0.25 s). -->
+<p>A mount with nothing to do does not stand in the wind. Out of combat the barrel swings straight up, the assembly sinks into its housing, and two lid halves slide shut over it - the ship at rest reads as at rest. The gun comes back up the moment it is wanted: weapons hot, a live tracking target, or a point-defense assignment all deploy it, and it stows again only after the guns have been cold with nothing tracked for a few quiet seconds. Deploy is fast and stow is lazy, so a lull in the fight does not park your guns.</p>
+<p>The deploy is not free. A stowed mount neither tracks nor fires until it is fully up - under a second, but a real window. Point defense assigns the mount well outside its own kill envelope, so an inbound torpedo meets a gun that is already firing; what the delay actually costs you is the ambush you spring with cold weapons and no lock, where the first trigger pull raises the guns instead of firing them.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/loop-section-turret-stow.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/loop-section-turret-stow.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A mount close up, running the whole cycle: the
+            lids part and the gun rises on weapons hot, then
+            the barrel folds up, the assembly sinks and the
+            lids shut behind it.</span
+        >
+    </div>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/wiki-section-turret-twin.png (producer: screenshot_section_weapons) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-turret-twin.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The twin mount deployed over its open housing,
+            both barrels reading side by side.</span
+        >
+    </div>
+</figure>
 <p>A beaten mount cracks and, past about a third of its health gone, throws sparks - but it loses nothing of itself and it shoots exactly as well as it did new. A turret that had been eaten away would be answering &quot;how is that still firing?&quot; with &quot;it is not, really&quot;, and it is. It stops when it dies, and not before.</p>
 <figure class="figure">
     <!-- Capture: assets/loops/loop-section-turret.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-turret.webm</span
@@ -84,31 +176,30 @@
     </div>
 </figure>
 <h2 id="variants" tabindex="-1">Variants</h2>
-<p>Every craft mounts the same gun. There are two turrets in the catalog, they ride the identical mount, and the only thing that separates them is the round they load.</p>
+<p>Four turrets ship on two mounts. The gatlings put one barrel on the compact assembly every craft carries; the twins put two barrels on a broader one. A twin's tubes each fire at half the gatling's cadence, so the pair costs the same total rate and drains the magazine no faster - the trade is two offset streams instead of one dense one. Within each mount the only thing that separates the pair is the round it loads. The Pierce guns deal half the damage per hit, so mount a Kinetic and a Pierce and the punch-versus-rake trade on <a href="../../combat-weapons/#damage-types">Combat</a> is the only thing you are feeling.</p>
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared mount turret_joint_tree :111-189 (yaw unlimited :142-143, pitch -10deg :157 to +90deg :158, slew PI :141); pdc_*_turret_section builder :215-290 (health :229, fire rate 100 :259, muzzle 100 :270, lifetime 2.0 :277, magazine 500 :283, reload 3.0s/200 :285-286) with kinds and damage at :406-426 (kinetic 4.0 :414 via :45, pierce 2.0 :425 via :55). Every craft mounts the kinetic one: ships/shared.rs `module` and `placement`. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared joint tree turret_joint_tree :199 (yaw unlimited :221-222, pitch -10deg to +90deg :291-292, slew PI :274,:284); pdc_turret_prototype :414 (health TURRET_BASE_HEALTH 130 :429,:32, muzzle 100 :473, lifetime 2.0 :480, magazine 500 :486, reload 3.0s/200 :487-489) with call sites :791-839 - gatlings on gatling_art :142 at GATLING_FIRE_RATE 100 :67, twins on twin_art :162 (two muzzles at x +-0.12) at TWIN_FIRE_RATE = half per muzzle :75; damage kinetic 4.0 :52, pierce 2.0 :62. Every armed base hull mounts the kinetic gatling, seated on a hull face like any other section. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-turret.png</span></span></span><span class="catalog__title">Turret - shipped prototypes</span></div>
 <table>
 <thead>
 <tr><th></th><th>Variant</th><th>Damage</th><th>Type</th><th>Fire rate</th><th>Magazine</th><th>Recharge</th><th>Muzzle</th><th>Reach</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Kinetic)</span><span class="catalog__id">pdc_twin_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Pierce)</span><span class="catalog__id">pdc_twin_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
 </tbody>
 </table>
 </div>
-<!-- raider mount health: nova_authoring ships/shared.rs ENEMY_TURRET_HEALTH = 60 and the ShipGrade::Enemy SetHealth pass -->
-<p>Raider hulls mount the same two guns. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<!-- raider mount health: 60, a SetHealth modification on the mount rather than a separate prototype -->
+<p>Raider hulls mount the same guns from the same catalog. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -119,6 +210,4 @@
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

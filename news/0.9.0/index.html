@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.9.0 - Cockpit and command - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.9.0: the cockpit becomes a real NOVA OS ship computer, with a CRT terminal drawer, command output, shell input, app takeover surfaces, scanlines, bloom, sound, power controls and a full phosphor HUD language. Combat reads faster with allegiance markers, neutralized ships, contextual chips and clearer lock decay; scenarios browse by campaign headers; the website adopts the same phosphor skin; assets preload with credited fonts, key glyphs and UI sounds; and nova_probe runs are now profile-sandboxed." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.9.0 - Cockpit and command - Nova Protocol</title><meta name="description" content="Nova Protocol v0.9.0: the cockpit becomes a real NOVA OS ship computer, with a CRT terminal drawer, command output, shell input, app takeover surfaces, scanlines, bloom, sound, power controls and a full phosphor HUD language. Combat reads faster with allegiance markers, neutralized ships, contextual chips and clearer lock decay; scenarios browse by campaign headers; the website adopts the same phosphor skin; assets preload with credited fonts, key glyphs and UI sounds; and nova_probe runs are now profile-sandboxed."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,35 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#nova-os-arrives-in-the-cockpit" class="news__toc-link">NOVA OS arrives in the cockpit</a>
-                    <a href="#a-shell-with-useful-answers" class="news__toc-link news__toc-link--sub">A shell with useful answers</a>
-                    <a href="#the-map-is-both-command-and-app" class="news__toc-link news__toc-link--sub">The map is both command and app</a>
-                    <a href="#the-ship-becomes-a-schematic-you-can-operate" class="news__toc-link news__toc-link--sub">The ship becomes a schematic you can operate</a>
-                    <a href="#the-screen-is-a-real-crt" class="news__toc-link">The screen is a real CRT</a>
-                    <a href="#the-hud-learns-when-to-get-out-of-the-way" class="news__toc-link">The HUD learns when to get out of the way</a>
-                    <a href="#objectives-arrive-like-messages" class="news__toc-link news__toc-link--sub">Objectives arrive like messages</a>
-                    <a href="#keys-become-an-action-dock" class="news__toc-link news__toc-link--sub">Keys become an action dock</a>
-                    <a href="#combat-reads-faster-and-ends-when-the-fight-does" class="news__toc-link">Combat reads faster and ends when the fight does</a>
-                    <a href="#campaigns-browse-like-campaigns" class="news__toc-link">Campaigns browse like campaigns</a>
-                    <a href="#one-interface-language-from-boot-to-editor" class="news__toc-link">One interface language from boot to editor</a>
-                    <a href="#the-website-now-shows-the-game-that-exists" class="news__toc-link">The website now shows the game that exists</a>
-                    <a href="#assets-load-before-they-are-needed" class="news__toc-link">Assets load before they are needed</a>
-                    <a href="#tooling-runs-in-a-clean-cockpit-too" class="news__toc-link">Tooling runs in a clean cockpit too</a>
-                    <a href="#fixes" class="news__toc-link">Fixes</a>
-                    <a href="#point-releases" class="news__toc-link">Point releases</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-08-01 &nbsp;//&nbsp; v0.9.0
-                </p>
-                <h1>v0.9.0 - Cockpit and command</h1>
-                <p>For eight releases Nova Protocol built outward: more ships, more combat rules,
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#nova-os-arrives-in-the-cockpit" class="news__toc-link">NOVA OS arrives in the cockpit</a> <a href="#a-shell-with-useful-answers" class="news__toc-link news__toc-link--sub">A shell with useful answers</a> <a href="#the-map-is-both-command-and-app" class="news__toc-link news__toc-link--sub">The map is both command and app</a> <a href="#the-ship-becomes-a-schematic-you-can-operate" class="news__toc-link news__toc-link--sub">The ship becomes a schematic you can operate</a> <a href="#the-screen-is-a-real-crt" class="news__toc-link">The screen is a real CRT</a> <a href="#the-hud-learns-when-to-get-out-of-the-way" class="news__toc-link">The HUD learns when to get out of the way</a> <a href="#objectives-arrive-like-messages" class="news__toc-link news__toc-link--sub">Objectives arrive like messages</a> <a href="#keys-become-an-action-dock" class="news__toc-link news__toc-link--sub">Keys become an action dock</a> <a href="#combat-reads-faster-and-ends-when-the-fight-does" class="news__toc-link">Combat reads faster and ends when the fight does</a> <a href="#campaigns-browse-like-campaigns" class="news__toc-link">Campaigns browse like campaigns</a> <a href="#one-interface-language-from-boot-to-editor" class="news__toc-link">One interface language from boot to editor</a> <a href="#the-website-now-shows-the-game-that-exists" class="news__toc-link">The website now shows the game that exists</a> <a href="#assets-load-before-they-are-needed" class="news__toc-link">Assets load before they are needed</a> <a href="#tooling-runs-in-a-clean-cockpit-too" class="news__toc-link">Tooling runs in a clean cockpit too</a> <a href="#fixes" class="news__toc-link">Fixes</a> <a href="#point-releases" class="news__toc-link">Point releases</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-08-01 &nbsp;//&nbsp; v0.9.0</p><h1>v0.9.0 - Cockpit and command</h1><p>For eight releases Nova Protocol built outward: more ships, more combat rules,
 more scenarios, more ways for a mod to turn those pieces into a campaign. v0.9.0
 turns inward and asks what all of that should feel like from the pilot's seat.
 The answer is a cockpit that behaves like a working place instead of a layer of
@@ -216,7 +180,7 @@ wide instead of being crushed into square slots. A command that would do nothing
 is absent rather than greyed out. At a glance, the dock answers one question:
 what can this ship do in this situation?</p>
 <p>Every player-facing distance also moves to real display units. One world unit is
-shown as ten metres, with metres below a kilometre and kilometres above it;
+shown as ten meters, with meters below a kilometer and kilometers above it;
 speed and closing speed use <code>m/s</code>. This is display-only. Physics, scenario
 content and AI tuning keep their existing scale.</p>
 <figure class="figure">
@@ -376,39 +340,12 @@ strict web asset metadata checks no longer leave the terminal glyphs invisible.<
 <li><strong>v0.9.1 - 2026-08-02.</strong> Web release builds compile again after the pause-menu
 split stopped importing the native-only Exit handler on wasm.</li>
 </ul>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -419,6 +356,4 @@ split stopped importing the native-only Exit handler on wasm.</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

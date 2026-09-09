@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Events - Nova Protocol Creator Docs</title>
-        <meta name="description" content="Everything that can fire a scenario handler: sixteen event kinds, payloads, lifecycle edges, and dispatch order." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Events - Nova Protocol Creator Docs</title><meta name="description" content="Everything that can fire a scenario handler: twenty-six event kinds, payloads, lifecycle edges, and dispatch order."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,28 +17,8 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
-                        / Events
-                    </p>
-                    <h1>Events</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#onstart">OnStart</a><ol></ol></li><li><a href="#onupdate">OnUpdate</a><ol></ol></li><li><a href="#ontimerend">OnTimerEnd</a><ol></ol></li><li><a href="#ondefeated">OnDefeated</a><ol></ol></li><li><a href="#ondestroyed">OnDestroyed</a><ol></ol></li><li><a href="#onneutralized">OnNeutralized</a><ol></ol></li><li><a href="#onenter">OnEnter</a><ol></ol></li><li><a href="#onexit">OnExit</a><ol></ol></li><li><a href="#orbit-lifecycle">Orbit lifecycle</a><ol></ol></li><li><a href="#lock-lifecycle">Lock lifecycle</a><ol></ol></li><li><a href="#dispatch-order-what-you-can-rely-on">Dispatch order (what you can rely on)</a><ol></ol></li></ol>
-                    </nav>
-                    <p>Everything that can fire a handler. A handler's <code>name:</code> field names one of
-the SIXTEEN event kinds below, written bare (they are unit variants):
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Events</p><h1>Events</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#onstart">OnStart</a><ol></ol></li><li><a href="#onupdate">OnUpdate</a><ol></ol></li><li><a href="#ontimerend">OnTimerEnd</a><ol></ol></li><li><a href="#cinematic-endings">Cinematic endings</a><ol></ol></li><li><a href="#ship-order-lifecycle">Ship order lifecycle</a><ol></ol></li><li><a href="#onshipordercomplete">OnShipOrderComplete</a><ol></ol></li><li><a href="#onshiporderinterrupted">OnShipOrderInterrupted</a><ol></ol></li><li><a href="#onshiporderresumed">OnShipOrderResumed</a><ol></ol></li><li><a href="#onshipordercanceled">OnShipOrderCanceled</a><ol></ol></li><li><a href="#onshiporderfailed">OnShipOrderFailed</a><ol></ol></li><li><a href="#ondefeated">OnDefeated</a><ol></ol></li><li><a href="#ondestroyed">OnDestroyed</a><ol></ol></li><li><a href="#onneutralized">OnNeutralized</a><ol></ol></li><li><a href="#onenter">OnEnter</a><ol></ol></li><li><a href="#onexit">OnExit</a><ol></ol></li><li><a href="#player-maneuver-completion">Player maneuver completion</a><ol></ol></li><li><a href="#orbit-lifecycle">Orbit lifecycle</a><ol></ol></li><li><a href="#lock-lifecycle">Lock lifecycle</a><ol></ol></li><li><a href="#dispatch-order-what-you-can-rely-on">Dispatch order (what you can rely on)</a><ol></ol></li></ol></nav><p>Everything that can fire a handler. A handler's <code>name:</code> field names one of
+the TWENTY-SIX event kinds below, written bare (they are unit variants):
 <code>name: OnStart</code>, <code>name: OnEnter</code>, and so on. When the event fires, the
 handler's <a href="../filters/">filters</a> gate it and its <a href="../actions/">actions</a> run.</p>
 <p>A handler that describes a beat happening ONCE says
@@ -82,6 +54,16 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <td>a keyed scenario timer ends</td>
 </tr>
 <tr>
+<td><a href="#cinematic-endings"><code>OnCinematicFinished</code></a></td>
+<td><code>cinematic</code></td>
+<td>a scene ends, by ANY path</td>
+</tr>
+<tr>
+<td><a href="#cinematic-endings"><code>OnCinematicSkipped</code></a></td>
+<td><code>cinematic</code></td>
+<td>the player leaves a scene early</td>
+</tr>
+<tr>
 <td><a href="#ondefeated"><code>OnDefeated</code></a></td>
 <td><code>id</code>, <code>type_name</code></td>
 <td>a ship is neutralized or directly destroyed</td>
@@ -107,6 +89,16 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <td>a body leaves a trigger area</td>
 </tr>
 <tr>
+<td><a href="#player-maneuver-completion"><code>OnGotoComplete</code></a></td>
+<td><code>id</code>, <code>other_id</code>, <code>other_type_name</code></td>
+<td>the player's GOTO reaches its target and stops</td>
+</tr>
+<tr>
+<td><a href="#player-maneuver-completion"><code>OnStopComplete</code></a></td>
+<td><code>id</code>, <code>type_name</code></td>
+<td>the player's STOP comes to rest</td>
+</tr>
+<tr>
 <td><a href="#orbit-lifecycle"><code>OnOrbitStart</code></a></td>
 <td><code>id</code>, <code>other_id</code>, <code>other_type_name</code></td>
 <td>an ORBIT maneuver starts</td>
@@ -115,6 +107,11 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <td><a href="#orbit-lifecycle"><code>OnOrbitStable</code></a></td>
 <td><code>id</code>, <code>other_id</code>, <code>other_type_name</code></td>
 <td>ORBIT enters stable station-keeping</td>
+</tr>
+<tr>
+<td><a href="#orbit-lifecycle"><code>OnOrbitLap</code></a></td>
+<td><code>id</code>, <code>other_id</code>, <code>other_type_name</code></td>
+<td>one net revolution of the ring completes</td>
 </tr>
 <tr>
 <td><a href="#orbit-lifecycle"><code>OnOrbitUnstable</code></a></td>
@@ -146,13 +143,44 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <td><code>id</code>, <code>other_id</code>, <code>other_type_name</code></td>
 <td>the player's combat lock leaves</td>
 </tr>
+<tr>
+<td><a href="#onshipordercomplete"><code>OnShipOrderComplete</code></a></td>
+<td><code>order</code>, <code>kind</code>, <code>id</code>, <code>type_name</code></td>
+<td>a helm order reaches what it was told to reach</td>
+</tr>
+<tr>
+<td><a href="#onshiporderinterrupted"><code>OnShipOrderInterrupted</code></a></td>
+<td><code>order</code>, <code>kind</code>, <code>id</code>, <code>type_name</code></td>
+<td>an AI ship breaks off its order to fight</td>
+</tr>
+<tr>
+<td><a href="#onshiporderresumed"><code>OnShipOrderResumed</code></a></td>
+<td><code>order</code>, <code>kind</code>, <code>id</code>, <code>type_name</code></td>
+<td>that ship picks the same order back up</td>
+</tr>
+<tr>
+<td><a href="#onshipordercanceled"><code>OnShipOrderCanceled</code></a></td>
+<td><code>order</code>, <code>kind</code>, <code>id</code>, <code>type_name</code></td>
+<td>an unfinished order is cleared or replaced</td>
+</tr>
+<tr>
+<td><a href="#onshiporderfailed"><code>OnShipOrderFailed</code></a></td>
+<td><code>order</code>, <code>kind</code>, <code>id</code>, <code>type_name</code></td>
+<td>an order can no longer be flown</td>
+</tr>
 </tbody>
 </table>
 <p>Entity payload fields are what an <code>Entity</code> filter can match: <code>id</code> /
 <code>type_name</code> name the event's SUBJECT, <code>other_id</code> / <code>other_type_name</code> its other
-party. <code>OnTimerEnd</code> instead carries <code>key</code>, matched by a <code>Timer</code> filter. Which
-entity is which is per-event and listed below. A filter field the event does
-not fill NEVER matches - <code>other_id</code> on an <code>OnDestroyed</code> handler can never pass.</p>
+party. <code>OnTimerEnd</code> instead carries <code>key</code>, matched by a <code>Timer</code> filter; the two
+cinematic endings carry <code>cinematic</code>, matched by a
+<a href="../filters/#cinematic"><code>Cinematic</code></a> filter; and the five
+ship-order events carry <code>order</code> / <code>kind</code> for a
+<a href="../filters/#shiporder"><code>ShipOrder</code></a> filter beside the ship's own <code>id</code> /
+<code>type_name</code> - the same four fields on all five, so one filter matches
+whichever of them you hang it on. Which entity is which is per-event and listed below. A filter
+field the event does not fill NEVER matches - <code>other_id</code> on an <code>OnDestroyed</code>
+handler can never pass.</p>
 <h2 id="onstart" tabindex="-1">OnStart</h2>
 <p>Fires exactly once, right after the scenario loads - after every handler
 entity exists, so no handler can miss it. Carries no payload; this is where a
@@ -200,7 +228,8 @@ happens one time - then the only filter left is the one about the game:</p>
         <span class="ron-punct">))),</span>
     <span class="ron-punct">],</span>
     <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-        <span class="ron-type">StoryMessage</span><span class="ron-punct">((</span>
+        <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
+            <span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Control&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Ten seconds elapsed.&quot;</span><span class="ron-punct">,</span>
         <span class="ron-punct">)),</span>
@@ -217,7 +246,7 @@ actions - see the <a href="../expressions/#recipes">recipes</a>.</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnTimerEnd</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Timer</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;briefing_delay&quot;</span><span class="ron-punct">))],</span>
-    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">StoryMessage</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Control&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Proceed.&quot;</span><span class="ron-punct">))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Control&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Proceed.&quot;</span><span class="ron-punct">))],</span>
 <span class="ron-punct">),</span>
 </code></pre>
 <details class="explain">
@@ -226,6 +255,146 @@ actions - see the <a href="../expressions/#recipes">recipes</a>.</p>
 <p>Start or restart the delay with <a href="../actions/#timerstart"><code>TimerStart</code></a>. Cancel
 it with <a href="../actions/#timercancel"><code>TimerCancel</code></a>. Timers use live, unpaused
 scenario time and clear on retry or teardown.</p>
+</details>
+<h2 id="cinematic-endings" tabindex="-1">Cinematic endings</h2>
+<p>A <a href="../actions/#cinematic"><code>Cinematic</code></a> does not carry an on-finish action list.
+It REPORTS its ending, and the handlers that answer live beside it. Payload:
+<code>cinematic</code> is the scene's authored key - match it with a
+<a href="../filters/#cinematic"><code>Cinematic</code></a> filter.</p>
+<pre><code class="hljs language-ron"><span class="ron-comment">// Every path out: give back what the scene took.</span>
+<span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnCinematicFinished</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Cinematic</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;strike_approach&quot;</span><span class="ron-punct">))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">ReleaseCamera</span><span class="ron-punct">(()),</span>
+        <span class="ron-type">ResumePlayerControl</span><span class="ron-punct">(()),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+<span class="ron-comment">// Only the skip: what the beats that never played would have left behind.</span>
+<span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnCinematicSkipped</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Cinematic</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;strike_approach&quot;</span><span class="ron-punct">))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">DespawnScenarioObject</span><span class="ron-punct">((</span><span class="ron-key">target_id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">)),</span>
+        <span class="ron-type">VariableSet</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;beat&quot;</span><span class="ron-punct">,</span> <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">6.0</span><span class="ron-punct">)))))),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p><code>OnCinematicFinished</code> fires on EVERY way out of the scene - its last beat ran,
+the player skipped it, a <a href="../actions/#cancelcinematic"><code>CancelCinematic</code></a>
+stopped it, or one of its steps blew its deadline. Author the post-state there,
+once, and no path can forget it.</p>
+<p><code>OnCinematicSkipped</code> fires FIRST on a skip, immediately before that scene's
+<code>OnCinematicFinished</code>. It carries only the catch-up: the actors the unplayed
+beats would have spawned, moved or destroyed, and the variables they would have
+latched. It is not a second copy of the scene - a skip means the player asked
+not to watch, so nothing presentational belongs here.</p>
+<p>Always filter by key. A scenario with two scenes and an unfiltered handler
+answers whichever one ends first. A <code>Cinematic</code> filter naming a key no scene
+plays is a lint Error, so a typo costs the whole scenario, not one handler.</p>
+</details>
+<h2 id="ship-order-lifecycle" tabindex="-1">Ship order lifecycle</h2>
+<p>The five events below report what became of a
+<a href="../actions/#helm-orders">helm order</a>. They carry the SAME four fields -
+<code>order</code> is the key the action named the order, <code>kind</code> is which of the five it
+was (<code>Move</code> / <code>Align</code> / <code>Stop</code> / <code>Patrol</code> / <code>Orbit</code>), and <code>id</code> / <code>type_name</code>
+are the ship - so one <a href="../filters/#shiporder"><code>ShipOrder</code></a> filter matches
+whichever of them a handler listens for, and an <code>Entity</code> filter still works on
+all of them.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnShipOrderComplete</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ShipOrder</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;close_the_gap&quot;</span><span class="ron-punct">)))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ForceRailgunFire</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">section</span><span class="ron-punct">:</span> <span class="ron-string">&quot;spinal&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>An order that is REFUSED when it is issued - a dangling ship id, a player's
+ship, an empty patrol route, an impossible tolerance - fires nothing at all.
+It was never installed, so there is nothing to report on. The lint catches
+each of those before the scenario runs.</p>
+<p>A key is reusable: give the same order again and the lifecycle runs again.</p>
+</details>
+<h2 id="onshipordercomplete" tabindex="-1">OnShipOrderComplete</h2>
+<p>Fires exactly once when an order reaches what it was told to reach.</p>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>What &quot;reached&quot; means is per order:</p>
+<ul>
+<li><a href="../actions/#moveshipto"><code>MoveShipTo</code></a> and
+<a href="../actions/#stopship"><code>StopShip</code></a> complete when the ship's autopilot lets
+go - inside the standoff, or at rest.</li>
+<li><a href="../actions/#forcealign"><code>ForceAlign</code></a> completes when the aim is inside its
+authored tolerance and steady there.</li>
+<li><a href="../actions/#patrolship"><code>PatrolShip</code></a> completes at the END of its one
+loop, back where it started - not at each waypoint.</li>
+<li><a href="../actions/#orbitship"><code>OrbitShip</code></a> completes when the ring is
+ESTABLISHED, and then keeps holding it.</li>
+</ul>
+<p>Completion says the CONDITION was met, not that the behavior stopped. <code>Move</code>,
+<code>Stop</code> and <code>Patrol</code> release the helm as they report; <code>Align</code> and <code>Orbit</code> keep
+holding until something else takes it.</p>
+</details>
+<h2 id="onshiporderinterrupted" tabindex="-1">OnShipOrderInterrupted</h2>
+<p>Fires when an AI ship breaks off its order to fight. Only an AI ship can, and
+only one whose <code>order_interruption</code> policy says so (see
+<a href="../objects/#spaceship">Spaceship</a>); the default policy is never, and a
+<code>None</code>-controller ship has no bot to break off in the first place.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnShipOrderInterrupted</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ShipOrder</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;picket&quot;</span><span class="ron-punct">)))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Picket&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Contact. Breaking off.&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>The order is NOT lost. It is parked: the ship keeps the key, the kind and its
+place in the route, the AI takes the helm back and fights, and when the signal
+clears the same order picks up from where it stopped - see
+<a href="#onshiporderresumed"><code>OnShipOrderResumed</code></a>.</p>
+<p>A beat gated on the COMPLETION still waits, correctly: an interrupted patrol
+has not swept the belt yet.</p>
+</details>
+<h2 id="onshiporderresumed" tabindex="-1">OnShipOrderResumed</h2>
+<p>Fires when an interrupted order is picked back up - the hostile is gone, or
+the damage has stopped, depending on the ship's policy.</p>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>Pairs one-for-one with
+<a href="#onshiporderinterrupted"><code>OnShipOrderInterrupted</code></a>, and can pair with it
+several times over one order's life. The resumed order flies its OWN
+directive, from the leg it was on - not a fresh copy from the top.</p>
+</details>
+<h2 id="onshipordercanceled" tabindex="-1">OnShipOrderCanceled</h2>
+<p>Fires when an unfinished order is called off: either
+<a href="../actions/#clearshiporder"><code>ClearShipOrder</code></a>, or a second helm order
+replacing it.</p>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>Cancellation is not completion, and a beat gated on the completion correctly
+never runs. This is the event for the OTHER side of that: cleaning up a
+readout, or telling the player the approach was called off.</p>
+<p>An order that had already reported a terminal outcome says nothing more, so
+clearing a ship that is holding a finished
+<a href="../actions/#forcealign"><code>ForceAlign</code></a> is silent - the align already
+completed.</p>
+</details>
+<h2 id="onshiporderfailed" tabindex="-1">OnShipOrderFailed</h2>
+<p>Fires when an order can no longer be flown. The hull lost the flight computer
+or the drives the order runs on, or the gravity well an
+<a href="../actions/#orbitship"><code>OrbitShip</code></a> named is gone or will not hold a ring.</p>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>This is the event that keeps a <code>Sequence</code> gate from waiting forever on a beat
+that can never land. A wreck does not arrive.</p>
+<p>It reports the ORDER, not the ship: a hull that is destroyed outright is
+<a href="#ondestroyed"><code>OnDestroyed</code></a> and <a href="#ondefeated"><code>OnDefeated</code></a>, which is what a
+kill objective should be waiting on. Failure is for the ship that is still
+there and can no longer do the job.</p>
+<p>Weapon actions have no lifecycle at all - what a shot produces is the weapon's
+own event chain.</p>
 </details>
 <h2 id="ondefeated" tabindex="-1">OnDefeated</h2>
 <p>Fires exactly once when a ship leaves combat through neutralization or direct
@@ -262,7 +431,7 @@ ship dies through the section-explosion pipeline. Payload: <code>id</code> and
 <details class="explain">
 <summary>Show explanation</summary>
 <p>Type names are the object-kind constants: <code>&quot;anchor&quot;</code>, <code>&quot;asteroid&quot;</code>,
-<code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;salvage_crate&quot;</code>, <code>&quot;light&quot;</code> - see
+<code>&quot;planet&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;salvage_crate&quot;</code>, <code>&quot;light&quot;</code> - see
 <a href="../objects/">Scenario objects</a>.</p>
 </details>
 <h2 id="onneutralized" tabindex="-1">OnNeutralized</h2>
@@ -274,7 +443,7 @@ world. Payload: <code>id</code>, <code>type_name</code> of the neutralized ship;
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;derelict_gunship&quot;</span><span class="ron-punct">)))],</span>
     <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
         <span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;disarm_gunship&quot;</span><span class="ron-punct">)),</span>
-        <span class="ron-type">StoryMessage</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Control&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Guns down. The wreck is yours.&quot;</span><span class="ron-punct">)),</span>
+        <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Control&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Guns down. The wreck is yours.&quot;</span><span class="ron-punct">)),</span>
     <span class="ron-punct">],</span>
 <span class="ron-punct">),</span>
 </code></pre>
@@ -360,26 +529,85 @@ occupancy rows are pruned silently.</p>
 <p>Use <code>other_type_name: Some(&quot;spaceship&quot;)</code> instead of <code>other_id</code> when every ship
 leaving the area should match.</p>
 </details>
+<h2 id="player-maneuver-completion" tabindex="-1">Player maneuver completion</h2>
+<p><code>OnGotoComplete</code> and <code>OnStopComplete</code> report successful terminal conditions
+from the player's real autopilot. They do not fire when manual input cancels a
+maneuver, a target disappears, or the ship loses the ability to continue.
+Scripted and AI ship orders use the separate
+<a href="#onshipordercomplete"><code>OnShipOrderComplete</code></a> lifecycle.</p>
+<p><code>OnGotoComplete</code> carries the reached target as <code>id</code> and the player ship as
+<code>other_id</code> / <code>other_type_name</code>. The target still exists while the handler runs,
+so this is the safe event on which to remove a temporary navigation beacon:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnGotoComplete</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Entity</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;transit_mark&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">other_id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;cutter&quot;</span><span class="ron-punct">),</span>
+    <span class="ron-punct">))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;transit&quot;</span><span class="ron-punct">)),</span>
+        <span class="ron-type">DespawnScenarioObject</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;transit_mark&quot;</span><span class="ron-punct">)),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p><code>OnStopComplete</code> carries the stopped player ship as <code>id</code> / <code>type_name</code>:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnStopComplete</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;cutter&quot;</span><span class="ron-punct">)))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;come_to_rest&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>A GOTO that reaches a gravity well and transitions directly into a viable
+ORBIT does not complete as GOTO; use the orbit lifecycle for that maneuver.</p>
 <h2 id="orbit-lifecycle" tabindex="-1">Orbit lifecycle</h2>
-<p>Four one-shot edge events describe ORBIT without hidden timing:
-<code>OnOrbitStart</code>, <code>OnOrbitStable</code>, <code>OnOrbitUnstable</code>, <code>OnOrbitEnd</code>. All four
-carry <code>id</code> = well and <code>other_id</code> / <code>other_type_name</code> = orbiting ship.</p>
+<p>Five events describe ORBIT without hidden timing: <code>OnOrbitStart</code>,
+<code>OnOrbitStable</code>, <code>OnOrbitLap</code>, <code>OnOrbitUnstable</code>, <code>OnOrbitEnd</code>. All five carry
+<code>id</code> = well and <code>other_id</code> / <code>other_type_name</code> = orbiting ship.</p>
 <details class="explain">
 <summary>Show explanation</summary>
 <ul>
-<li><code>OnOrbitStart</code>: the maneuver engages for a well. The ship may still be
-aligning or burning toward its ring.</li>
-<li><code>OnOrbitStable</code>: velocity error enters the autopilot's stable Hold band. It
-can fire again after stability is recovered.</li>
-<li><code>OnOrbitUnstable</code>: velocity error leaves Hold while ORBIT stays engaged.</li>
-<li><code>OnOrbitEnd</code>: a surviving ship cancels ORBIT, changes verb, loses flight
+<li>
+<p><code>OnOrbitStart</code>: the maneuver engages for a well. The ship may still be
+aligning or burning toward its ring.</p>
+</li>
+<li>
+<p><code>OnOrbitStable</code>: velocity error enters the autopilot's stable Hold band. It
+can fire again after stability is recovered.</p>
+</li>
+<li>
+<p><code>OnOrbitLap</code>: the ship accumulates one net revolution in the planned travel
+direction. It fires again for each later complete lap.</p>
+<p>Counting starts when the ship first reaches the ring, not when the verb
+engages: the approach curves around the well and would otherwise bank most of
+a lap before the orbit began. From there it survives everything the autopilot
+does on the ring - an ORBIT that drops out of the stable band is correcting,
+not leaving - and only an absence of five seconds or more writes the partial
+lap off and starts it again at the ring. A lap objective therefore does not
+punish a player for one nudge.</p>
+</li>
+<li>
+<p><code>OnOrbitUnstable</code>: velocity error leaves Hold while ORBIT stays engaged.</p>
+</li>
+<li>
+<p><code>OnOrbitEnd</code>: a surviving ship cancels ORBIT, changes verb, loses flight
 capability, loses the well, or switches wells. Ship destruction emits only
-<code>OnDestroyed</code>, consistent with area despawn not emitting <code>OnExit</code>.</li>
+<code>OnDestroyed</code>, consistent with area despawn not emitting <code>OnExit</code>.</p>
+</li>
 </ul>
 <p>Switching wells queues <code>OnOrbitEnd</code> for the old well, then <code>OnOrbitStart</code> for
 the new one. Ending a stable orbit emits only <code>OnOrbitEnd</code>, not an unstable
 edge first.</p>
-<p>A continuous eight-second stable hold uses a timer:</p>
+<p>A mission that requires one physical lap listens directly:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnOrbitLap</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;planetoid&quot;</span><span class="ron-punct">),</span> <span class="ron-key">other_id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">)))],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;orbit_once&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>A continuous eight-second stable hold uses a timer instead:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnOrbitStable</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;planetoid&quot;</span><span class="ron-punct">),</span> <span class="ron-key">other_id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">)))],</span>
@@ -448,15 +676,12 @@ despawns) land together at the end-of-frame sync - and an
 handler does see the fresh object.</li>
 <li>Never depend on handler order across DIFFERENT events; gate on variables.</li>
 </ul>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -467,6 +692,4 @@ handler does see the fresh object.</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.5.0 - Lock, look, and a front door - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with a live target viewfinder and kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, and a landing site on the web (with the v0.5.1 and v0.5.2 point releases)." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.5.0 - Lock, look, and a front door - Nova Protocol</title><meta name="description" content="Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with a live target viewfinder and kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, and a landing site on the web (with the v0.5.1 and v0.5.2 point releases)."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,48 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#locking-is-a-decision-now" class="news__toc-link">Locking is a decision now</a>
-                    <a href="#stances-pick-the-slot" class="news__toc-link news__toc-link--sub">Stances pick the slot</a>
-                    <a href="#clearing-in-stages" class="news__toc-link news__toc-link--sub">Clearing in stages</a>
-                    <a href="#slot-colored-lock-language" class="news__toc-link news__toc-link--sub">Slot-colored lock language</a>
-                    <a href="#the-target-viewfinder-and-kill-cam" class="news__toc-link">The target viewfinder and kill cam</a>
-                    <a href="#what-the-inset-will-and-will-not-scope" class="news__toc-link news__toc-link--sub">What the inset will and will not scope</a>
-                    <a href="#the-shakedown-run" class="news__toc-link">The Shakedown Run</a>
-                    <a href="#one-gesture-per-beat" class="news__toc-link news__toc-link--sub">One gesture per beat</a>
-                    <a href="#the-playtest-tail" class="news__toc-link news__toc-link--sub">The playtest tail</a>
-                    <a href="#damage-with-a-grain" class="news__toc-link">Damage with a grain</a>
-                    <a href="#typed-damage-and-resistance-tables" class="news__toc-link news__toc-link--sub">Typed damage and resistance tables</a>
-                    <a href="#ammo-slots" class="news__toc-link news__toc-link--sub">Ammo slots</a>
-                    <a href="#pdc-retuned-to-point-defense" class="news__toc-link news__toc-link--sub">PDC retuned to point defense</a>
-                    <a href="#sensor-projectiles-that-curve" class="news__toc-link news__toc-link--sub">Sensor projectiles that curve</a>
-                    <a href="#a-game-that-boots-into-a-menu" class="news__toc-link">A game that boots into a menu</a>
-                    <a href="#diegetic-flight-readouts" class="news__toc-link news__toc-link--sub">Diegetic flight readouts</a>
-                    <a href="#hud-visibility-levels" class="news__toc-link news__toc-link--sub">HUD visibility levels</a>
-                    <a href="#contextual-keybinds" class="news__toc-link news__toc-link--sub">Contextual keybinds</a>
-                    <a href="#objectives-and-the-scenario-system" class="news__toc-link">Objectives and the scenario system</a>
-                    <a href="#objective-conveyance" class="news__toc-link news__toc-link--sub">Objective conveyance</a>
-                    <a href="#new-scenario-primitives" class="news__toc-link news__toc-link--sub">New scenario primitives</a>
-                    <a href="#ships-and-the-editor" class="news__toc-link">Ships and the editor</a>
-                    <a href="#rebindable-section-keys" class="news__toc-link news__toc-link--sub">Rebindable section keys</a>
-                    <a href="#a-passive-play-test-target" class="news__toc-link news__toc-link--sub">A passive play-test target</a>
-                    <a href="#a-home-on-the-web" class="news__toc-link">A home on the web</a>
-                    <a href="#under-the-hood" class="news__toc-link">Under the hood</a>
-                    <a href="#point-releases" class="news__toc-link">Point releases</a>
-                    <a href="#v051---web-build-shakeout" class="news__toc-link news__toc-link--sub">v0.5.1 - Web build shakeout</a>
-                    <a href="#v052---learn-the-ropes-on-the-web" class="news__toc-link news__toc-link--sub">v0.5.2 - Learn the ropes on the web</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-07-13 &nbsp;//&nbsp; v0.5.0
-                </p>
-                <h1>v0.5.0 - Lock, look, and a front door</h1>
-                <p>v0.4.0 gave Nova Protocol combat, an AI to fight, and a lot of automatic
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#locking-is-a-decision-now" class="news__toc-link">Locking is a decision now</a> <a href="#stances-pick-the-slot" class="news__toc-link news__toc-link--sub">Stances pick the slot</a> <a href="#clearing-in-stages" class="news__toc-link news__toc-link--sub">Clearing in stages</a> <a href="#slot-colored-lock-language" class="news__toc-link news__toc-link--sub">Slot-colored lock language</a> <a href="#the-target-viewfinder-and-kill-cam" class="news__toc-link">The target viewfinder and kill cam</a> <a href="#what-the-inset-will-and-will-not-scope" class="news__toc-link news__toc-link--sub">What the inset will and will not scope</a> <a href="#the-shakedown-run" class="news__toc-link">The Shakedown Run</a> <a href="#one-gesture-per-beat" class="news__toc-link news__toc-link--sub">One gesture per beat</a> <a href="#the-playtest-tail" class="news__toc-link news__toc-link--sub">The playtest tail</a> <a href="#damage-with-a-grain" class="news__toc-link">Damage with a grain</a> <a href="#typed-damage-and-resistance-tables" class="news__toc-link news__toc-link--sub">Typed damage and resistance tables</a> <a href="#ammo-slots" class="news__toc-link news__toc-link--sub">Ammo slots</a> <a href="#pdc-retuned-to-point-defense" class="news__toc-link news__toc-link--sub">PDC retuned to point defense</a> <a href="#sensor-projectiles-that-curve" class="news__toc-link news__toc-link--sub">Sensor projectiles that curve</a> <a href="#a-game-that-boots-into-a-menu" class="news__toc-link">A game that boots into a menu</a> <a href="#diegetic-flight-readouts" class="news__toc-link news__toc-link--sub">Diegetic flight readouts</a> <a href="#hud-visibility-levels" class="news__toc-link news__toc-link--sub">HUD visibility levels</a> <a href="#contextual-keybinds" class="news__toc-link news__toc-link--sub">Contextual keybinds</a> <a href="#objectives-and-the-scenario-system" class="news__toc-link">Objectives and the scenario system</a> <a href="#objective-conveyance" class="news__toc-link news__toc-link--sub">Objective conveyance</a> <a href="#new-scenario-primitives" class="news__toc-link news__toc-link--sub">New scenario primitives</a> <a href="#ships-and-the-editor" class="news__toc-link">Ships and the editor</a> <a href="#rebindable-section-keys" class="news__toc-link news__toc-link--sub">Rebindable section keys</a> <a href="#a-passive-play-test-target" class="news__toc-link news__toc-link--sub">A passive play-test target</a> <a href="#a-home-on-the-web" class="news__toc-link">A home on the web</a> <a href="#under-the-hood" class="news__toc-link">Under the hood</a> <a href="#point-releases" class="news__toc-link">Point releases</a> <a href="#v051---web-build-shakeout" class="news__toc-link news__toc-link--sub">v0.5.1 - Web build shakeout</a> <a href="#v052---learn-the-ropes-on-the-web" class="news__toc-link news__toc-link--sub">v0.5.2 - Learn the ropes on the web</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-07-13 &nbsp;//&nbsp; v0.5.0</p><h1>v0.5.0 - Lock, look, and a front door</h1><p>v0.4.0 gave Nova Protocol combat, an AI to fight, and a lot of automatic
 targeting. v0.5.0 takes that targeting and hands the controls back to the player,
 deliberately: passive auto-acquisition is gone, replaced by hold-to-lock radar, a
 corner viewfinder that renders your target through a second camera, and a kill cam
@@ -275,39 +226,12 @@ autopilot engaged: the telemetry-cleanup observer now uses the fallible remove
 variant, pinned by regression tests. And the debug inspector's window-camera
 placement fix moved upstream into bevy-common-systems (rev 4a743b2), deleting nova's
 local workaround.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -318,6 +242,4 @@ local workaround.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

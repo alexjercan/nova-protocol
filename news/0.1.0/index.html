@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.1.0 - A cube learns to fly - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.1.0, the first release: thruster-driven modular ships, PD-controlled mouse steering, turrets that shoot, and a health system that shatters sections into chunks. Includes the very first video devlog." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.1.0 - A cube learns to fly - Nova Protocol</title><meta name="description" content="Nova Protocol v0.1.0, the first release: thruster-driven modular ships, PD-controlled mouse steering, turrets that shoot, and a health system that shatters sections into chunks. Includes the very first video devlog."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,40 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#watch-the-devlog" class="news__toc-link">Watch the devlog</a>
-                    <a href="#a-place-to-fly" class="news__toc-link">A place to fly</a>
-                    <a href="#a-generated-skybox" class="news__toc-link news__toc-link--sub">A generated skybox</a>
-                    <a href="#asteroids-and-debris-sort-of" class="news__toc-link news__toc-link--sub">Asteroids and debris, sort of</a>
-                    <a href="#ships-built-from-sections" class="news__toc-link">Ships built from sections</a>
-                    <a href="#the-thruster-section" class="news__toc-link news__toc-link--sub">The thruster section</a>
-                    <a href="#rotation-from-more-thrusters" class="news__toc-link news__toc-link--sub">Rotation from more thrusters</a>
-                    <a href="#local-health-per-section" class="news__toc-link news__toc-link--sub">Local health per section</a>
-                    <a href="#steering-that-does-not-fight-you" class="news__toc-link">Steering that does not fight you</a>
-                    <a href="#mouse-delta-to-target-rotation" class="news__toc-link news__toc-link--sub">Mouse delta to target rotation</a>
-                    <a href="#the-pd-controller" class="news__toc-link news__toc-link--sub">The PD controller</a>
-                    <a href="#turrets-and-first-combat" class="news__toc-link">Turrets and first combat</a>
-                    <a href="#yaw-base-and-tilt-head" class="news__toc-link news__toc-link--sub">Yaw base and tilt head</a>
-                    <a href="#a-clamped-slew-rate" class="news__toc-link news__toc-link--sub">A clamped slew rate</a>
-                    <a href="#muzzle-flash-and-raycast-projectiles" class="news__toc-link news__toc-link--sub">Muzzle flash and raycast projectiles</a>
-                    <a href="#satisfying-destruction" class="news__toc-link">Satisfying destruction</a>
-                    <a href="#two-ways-to-take-damage" class="news__toc-link news__toc-link--sub">Two ways to take damage</a>
-                    <a href="#the-mesh-slicer" class="news__toc-link news__toc-link--sub">The mesh slicer</a>
-                    <a href="#editor-and-a-place-to-fly" class="news__toc-link">Editor and a place to fly</a>
-                    <a href="#the-editor-scene" class="news__toc-link news__toc-link--sub">The editor scene</a>
-                    <a href="#the-simulation-scene" class="news__toc-link news__toc-link--sub">The simulation scene</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2025-10-21 &nbsp;//&nbsp; v0.1.0
-                </p>
-                <h1>v0.1.0 - A cube learns to fly</h1>
-                <p>This is where Nova Protocol started. The pitch was slightly delusional: watch a
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#watch-the-devlog" class="news__toc-link">Watch the devlog</a> <a href="#a-place-to-fly" class="news__toc-link">A place to fly</a> <a href="#a-generated-skybox" class="news__toc-link news__toc-link--sub">A generated skybox</a> <a href="#asteroids-and-debris-sort-of" class="news__toc-link news__toc-link--sub">Asteroids and debris, sort of</a> <a href="#ships-built-from-sections" class="news__toc-link">Ships built from sections</a> <a href="#the-thruster-section" class="news__toc-link news__toc-link--sub">The thruster section</a> <a href="#rotation-from-more-thrusters" class="news__toc-link news__toc-link--sub">Rotation from more thrusters</a> <a href="#local-health-per-section" class="news__toc-link news__toc-link--sub">Local health per section</a> <a href="#steering-that-does-not-fight-you" class="news__toc-link">Steering that does not fight you</a> <a href="#mouse-delta-to-target-rotation" class="news__toc-link news__toc-link--sub">Mouse delta to target rotation</a> <a href="#the-pd-controller" class="news__toc-link news__toc-link--sub">The PD controller</a> <a href="#turrets-and-first-combat" class="news__toc-link">Turrets and first combat</a> <a href="#yaw-base-and-tilt-head" class="news__toc-link news__toc-link--sub">Yaw base and tilt head</a> <a href="#a-clamped-slew-rate" class="news__toc-link news__toc-link--sub">A clamped slew rate</a> <a href="#muzzle-flash-and-raycast-projectiles" class="news__toc-link news__toc-link--sub">Muzzle flash and raycast projectiles</a> <a href="#satisfying-destruction" class="news__toc-link">Satisfying destruction</a> <a href="#two-ways-to-take-damage" class="news__toc-link news__toc-link--sub">Two ways to take damage</a> <a href="#the-mesh-slicer" class="news__toc-link news__toc-link--sub">The mesh slicer</a> <a href="#editor-and-a-place-to-fly" class="news__toc-link">Editor and a place to fly</a> <a href="#the-editor-scene" class="news__toc-link news__toc-link--sub">The editor scene</a> <a href="#the-simulation-scene" class="news__toc-link news__toc-link--sub">The simulation scene</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2025-10-21 &nbsp;//&nbsp; v0.1.0</p><h1>v0.1.0 - A cube learns to fly</h1><p>This is where Nova Protocol started. The pitch was slightly delusional: watch a
 bit of <em>The Expanse</em>, decide &quot;I can make a game like this&quot;, and then spend the
 next few weeks discovering how much space sim hides behind that sentence. v0.1.0
 is the first playable answer - build a modular ship out of sections, fly it on
@@ -186,39 +145,12 @@ yourself) up.</p>
 <p>Together they make v0.1.0 a complete loop. Every later system - the diegetic
 autopilot, the section-based combat model, the spherical HUD - is already
 visible in outline here.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -229,6 +161,4 @@ visible in outline here.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

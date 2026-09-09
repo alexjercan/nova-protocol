@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.4.0 - The flight toy learns to fight - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction model, an AI combat wave with a behavior state machine, a center-of-mass flight-assist overhaul, and the first audio and combat juice (with the v0.4.1 point release)." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.4.0 - The flight toy learns to fight - Nova Protocol</title><meta name="description" content="Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction model, an AI combat wave with a behavior state machine, a center-of-mass flight-assist overhaul, and the first audio and combat juice (with the v0.4.1 point release)."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,52 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#torpedoes-that-chase" class="news__toc-link">Torpedoes that chase</a>
-                    <a href="#proportional-navigation" class="news__toc-link news__toc-link--sub">Proportional navigation</a>
-                    <a href="#launch-aim-assist-and-the-arming-gate" class="news__toc-link news__toc-link--sub">Launch aim-assist and the arming gate</a>
-                    <a href="#reading-the-shot-at-a-glance" class="news__toc-link news__toc-link--sub">Reading the shot at a glance</a>
-                    <a href="#a-targeting-arc-that-knows-what-you-are-looking-at" class="news__toc-link">A targeting arc that knows what you are looking at</a>
-                    <a href="#acquisition-and-focus-dwell" class="news__toc-link news__toc-link--sub">Acquisition and focus dwell</a>
-                    <a href="#per-section-fine-lock" class="news__toc-link news__toc-link--sub">Per-section fine-lock</a>
-                    <a href="#turret-auto-aim-with-true-intercept-lead" class="news__toc-link news__toc-link--sub">Turret auto-aim with true intercept lead</a>
-                    <a href="#the-hud-substrate" class="news__toc-link">The HUD substrate</a>
-                    <a href="#anchors-apparent-size-and-edge-arrows" class="news__toc-link news__toc-link--sub">Anchors, apparent size, and edge arrows</a>
-                    <a href="#lead-pips-and-the-locked-target-readout" class="news__toc-link news__toc-link--sub">Lead pips and the locked-target readout</a>
-                    <a href="#friend-foe-or-furniture" class="news__toc-link">Friend, foe, or furniture</a>
-                    <a href="#an-enemy-with-a-state-machine" class="news__toc-link">An enemy with a state machine</a>
-                    <a href="#the-five-states" class="news__toc-link news__toc-link--sub">The five states</a>
-                    <a href="#discipline-defense-and-standoff" class="news__toc-link news__toc-link--sub">Discipline, defense, and standoff</a>
-                    <a href="#turning-like-a-ship" class="news__toc-link news__toc-link--sub">Turning like a ship</a>
-                    <a href="#flying-the-hull-honestly" class="news__toc-link">Flying the hull honestly</a>
-                    <a href="#velocity-hold-newtonian-and-the-rcs-budget" class="news__toc-link news__toc-link--sub">Velocity-hold, Newtonian, and the RCS budget</a>
-                    <a href="#balancing-thrust-through-the-center-of-mass" class="news__toc-link news__toc-link--sub">Balancing thrust through the center of mass</a>
-                    <a href="#mass-legible-handling" class="news__toc-link news__toc-link--sub">Mass-legible handling</a>
-                    <a href="#the-chase-camera" class="news__toc-link news__toc-link--sub">The chase camera</a>
-                    <a href="#sound-and-fury" class="news__toc-link">Sound and fury</a>
-                    <a href="#first-sfx" class="news__toc-link news__toc-link--sub">First SFX</a>
-                    <a href="#combat-juice" class="news__toc-link news__toc-link--sub">Combat juice</a>
-                    <a href="#one-hit-one-cue" class="news__toc-link news__toc-link--sub">One hit, one cue</a>
-                    <a href="#fixes" class="news__toc-link">Fixes</a>
-                    <a href="#under-the-hood" class="news__toc-link">Under the hood</a>
-                    <a href="#consuming-bevy-common-systems" class="news__toc-link news__toc-link--sub">Consuming bevy-common-systems</a>
-                    <a href="#example-test-ranges-and-the-smoke-harness" class="news__toc-link news__toc-link--sub">Example test ranges and the smoke harness</a>
-                    <a href="#continuous-integration" class="news__toc-link news__toc-link--sub">Continuous integration</a>
-                    <a href="#point-releases" class="news__toc-link">Point releases</a>
-                    <a href="#fixing-the-macos-universal-build" class="news__toc-link news__toc-link--sub">Fixing the macOS universal build</a>
-                    <a href="#one-feature-set-across-the-ci-matrix" class="news__toc-link news__toc-link--sub">One feature set across the CI matrix</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-07-10 &nbsp;//&nbsp; v0.4.0
-                </p>
-                <h1>v0.4.0 - The flight toy learns to fight</h1>
-                <p>The last three releases built the pieces of a space combat game: modular ships,
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#torpedoes-that-chase" class="news__toc-link">Torpedoes that chase</a> <a href="#proportional-navigation" class="news__toc-link news__toc-link--sub">Proportional navigation</a> <a href="#launch-aim-assist-and-the-arming-gate" class="news__toc-link news__toc-link--sub">Launch aim-assist and the arming gate</a> <a href="#reading-the-shot-at-a-glance" class="news__toc-link news__toc-link--sub">Reading the shot at a glance</a> <a href="#a-targeting-arc-that-knows-what-you-are-looking-at" class="news__toc-link">A targeting arc that knows what you are looking at</a> <a href="#acquisition-and-focus-dwell" class="news__toc-link news__toc-link--sub">Acquisition and focus dwell</a> <a href="#per-section-fine-lock" class="news__toc-link news__toc-link--sub">Per-section fine-lock</a> <a href="#turret-auto-aim-with-true-intercept-lead" class="news__toc-link news__toc-link--sub">Turret auto-aim with true intercept lead</a> <a href="#the-hud-substrate" class="news__toc-link">The HUD substrate</a> <a href="#anchors-apparent-size-and-edge-arrows" class="news__toc-link news__toc-link--sub">Anchors, apparent size, and edge arrows</a> <a href="#lead-pips-and-the-locked-target-readout" class="news__toc-link news__toc-link--sub">Lead pips and the locked-target readout</a> <a href="#friend-foe-or-furniture" class="news__toc-link">Friend, foe, or furniture</a> <a href="#an-enemy-with-a-state-machine" class="news__toc-link">An enemy with a state machine</a> <a href="#the-five-states" class="news__toc-link news__toc-link--sub">The five states</a> <a href="#discipline-defense-and-standoff" class="news__toc-link news__toc-link--sub">Discipline, defense, and standoff</a> <a href="#turning-like-a-ship" class="news__toc-link news__toc-link--sub">Turning like a ship</a> <a href="#flying-the-hull-honestly" class="news__toc-link">Flying the hull honestly</a> <a href="#velocity-hold-newtonian-and-the-rcs-budget" class="news__toc-link news__toc-link--sub">Velocity-hold, Newtonian, and the RCS budget</a> <a href="#balancing-thrust-through-the-center-of-mass" class="news__toc-link news__toc-link--sub">Balancing thrust through the center of mass</a> <a href="#mass-legible-handling" class="news__toc-link news__toc-link--sub">Mass-legible handling</a> <a href="#the-chase-camera" class="news__toc-link news__toc-link--sub">The chase camera</a> <a href="#sound-and-fury" class="news__toc-link">Sound and fury</a> <a href="#first-sfx" class="news__toc-link news__toc-link--sub">First SFX</a> <a href="#combat-juice" class="news__toc-link news__toc-link--sub">Combat juice</a> <a href="#one-hit-one-cue" class="news__toc-link news__toc-link--sub">One hit, one cue</a> <a href="#fixes" class="news__toc-link">Fixes</a> <a href="#under-the-hood" class="news__toc-link">Under the hood</a> <a href="#consuming-bevy-common-systems" class="news__toc-link news__toc-link--sub">Consuming bevy-common-systems</a> <a href="#example-test-ranges-and-the-smoke-harness" class="news__toc-link news__toc-link--sub">Example test ranges and the smoke harness</a> <a href="#continuous-integration" class="news__toc-link news__toc-link--sub">Continuous integration</a> <a href="#point-releases" class="news__toc-link">Point releases</a> <a href="#fixing-the-macos-universal-build" class="news__toc-link news__toc-link--sub">Fixing the macOS universal build</a> <a href="#one-feature-set-across-the-ci-matrix" class="news__toc-link news__toc-link--sub">One feature set across the CI matrix</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-07-10 &nbsp;//&nbsp; v0.4.0</p><h1>v0.4.0 - The flight toy learns to fight</h1><p>The last three releases built the pieces of a space combat game: modular ships,
 objectives, and weapons that do damage. v0.4.0 is where those pieces finally
 point at each other and shoot. It lands on four fronts at once - weapons that
 find their target, a targeting layer that tells you what you are locked onto, an
@@ -314,39 +261,12 @@ instead of compiling several near-identical variants. On top of that the <strong
 now saved even when a job fails</strong>, so a red run still speeds up the next attempt,
 and the <strong>windowed examples smoke</strong> was pulled out into a <strong>separate, non-blocking
 step</strong>, so a flaky windowed run under Xvfb can no longer fail the whole pipeline.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -357,6 +277,4 @@ step</strong>, so a flaky windowed run under Xvfb can no longer fail the whole p
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

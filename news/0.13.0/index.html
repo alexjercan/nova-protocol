@@ -1,0 +1,939 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.13.0 - The game on screen - Nova Protocol</title><meta name="description" content="Nova Protocol v0.13.0: a spinal railgun the ship has to aim, every section an authored machine - a PDC that stows, a bay with a muzzle iris - a block fleet the game generates from a grammar, planets by type and seed, asteroids by material, the first audio pass with positional sound, everything authored in meters, Basic Training as the new first hour, a command shell on the ship computer, cinematics and helm orders for scenarios, and an agent bench that seats a language model at the stick."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#the-railgun" class="news__toc-link">The railgun</a> <a href="#commit-then-release" class="news__toc-link news__toc-link--sub">Commit, then release</a> <a href="#what-a-slug-takes" class="news__toc-link news__toc-link--sub">What a slug takes</a> <a href="#the-gun-shoves-the-ship" class="news__toc-link news__toc-link--sub">The gun shoves the ship</a> <a href="#the-bore-and-the-wake" class="news__toc-link news__toc-link--sub">The bore and the wake</a> <a href="#cover-breaks-a-lock" class="news__toc-link news__toc-link--sub">Cover breaks a lock</a> <a href="#every-section-is-a-machine" class="news__toc-link">Every section is a machine</a> <a href="#the-pdc-stows" class="news__toc-link news__toc-link--sub">The PDC stows</a> <a href="#the-bay-has-doors" class="news__toc-link news__toc-link--sub">The bay has doors</a> <a href="#three-hulls-one-stat-line" class="news__toc-link news__toc-link--sub">Three hulls, one stat line</a> <a href="#cladding-flies" class="news__toc-link news__toc-link--sub">Cladding flies</a> <a href="#the-game-builds-its-own-ships" class="news__toc-link">The game builds its own ships</a> <a href="#a-grammar-says-where-a-part-stands" class="news__toc-link news__toc-link--sub">A grammar says where a part stands</a> <a href="#generate-a-hull-into-the-ship-you-are-in" class="news__toc-link news__toc-link--sub">Generate a hull into the ship you are in</a> <a href="#the-world-has-bodies" class="news__toc-link">The world has bodies</a> <a href="#a-planet-is-a-planet" class="news__toc-link news__toc-link--sub">A planet is a planet</a> <a href="#rock-is-a-material" class="news__toc-link news__toc-link--sub">Rock is a material</a> <a href="#the-game-has-a-voice" class="news__toc-link">The game has a voice</a> <a href="#where-a-sound-is" class="news__toc-link news__toc-link--sub">Where a sound is</a> <a href="#what-a-hit-sounds-like" class="news__toc-link news__toc-link--sub">What a hit sounds like</a> <a href="#four-sliders" class="news__toc-link news__toc-link--sub">Four sliders</a> <a href="#flying-it-in-meters" class="news__toc-link">Flying it, in meters</a> <a href="#everything-is-in-meters" class="news__toc-link news__toc-link--sub">Everything is in meters</a> <a href="#one-rcs-budget" class="news__toc-link news__toc-link--sub">One RCS budget</a> <a href="#goto-parks-off-the-surface" class="news__toc-link news__toc-link--sub">GOTO parks off the surface</a> <a href="#new-game-is-basic-training" class="news__toc-link">New Game is Basic Training</a> <a href="#comms-have-channels" class="news__toc-link news__toc-link--sub">Comms have channels</a> <a href="#nova-os-gets-a-second-shell" class="news__toc-link">NOVA OS gets a second shell</a> <a href="#a-scenario-can-direct" class="news__toc-link">A scenario can direct</a> <a href="#cinematics" class="news__toc-link news__toc-link--sub">Cinematics</a> <a href="#helm-orders" class="news__toc-link news__toc-link--sub">Helm orders</a> <a href="#the-rest-of-the-vocabulary" class="news__toc-link news__toc-link--sub">The rest of the vocabulary</a> <a href="#the-editor-writes-many-mods" class="news__toc-link news__toc-link--sub">The editor writes many mods</a> <a href="#death-is-an-event" class="news__toc-link">Death is an event</a> <a href="#an-agent-flies-it" class="news__toc-link">An agent flies it</a> <a href="#performance" class="news__toc-link">Performance</a> <a href="#more-in-v0130" class="news__toc-link">More in v0.13.0</a> <a href="#modding-and-compatibility" class="news__toc-link news__toc-link--sub">Modding and compatibility</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-09-09 &nbsp;//&nbsp; v0.13.0</p><h1>v0.13.0 - The game on screen</h1><p>v0.12.0 made the editor the star. It could hold a whole mission - ships, range
+and script under one tree - and save it as a mod. What it had to place was
+another matter. A hull cell was a cube. A point-defence mount was a cube with
+a barrel. The one modelled fleet was three ships that had shipped with a
+campaign. Every rock in every belt was the same rock. And when any of it fired,
+took a hit, or came apart, it did so in silence, because the game had never
+had an audio pass.</p>
+<p>v0.13.0 is the release that puts the game itself on screen. Every section
+wears an authored model, and three of them move: a point-defence mount sinks
+into a housed pit when the guns go cold, a torpedo bay winds its muzzle iris
+open before a launch, and a railgun - the release's new spinal weapon - walks
+a charge bolt up its bore before the slug leaves. The base game's ships are now
+block hulls the game can draw itself, with a grammar that says where a part
+may stand and an editor button that generates a hull into the ship you are
+inside. A scenario places a planet by type and seed, and an asteroid names the
+material it is made of. And all of it makes a sound: a re-recorded set twice
+the size of the old one, positional in the world and structure-borne through
+your own hull.</p>
+<p>Underneath, every number moved to meters. Content, code, the editor, the wiki
+and the scopes all read in the unit a pilot would use, and the flight model
+got a budget worth reading: RCS reaches 100 m/s at 5 G whatever the ship
+weighs, and GOTO parks off a target's surface measured from your own hull.</p>
+<div class="callout">
+<p class="callout__title">v0.13.0 is the content and feel release</p>
+<p>Play it in the browser or download the native build from the landing page. The complete compatibility notes are at the end of this post - this release breaks more formats than any before it, and every break has a migration.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-release-lead.webm -->
+    <div class="figure__placeholder" data-eager="true">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-release-lead.webm</span>
+        <span class="figure__placeholder-note">Two block warships 1.5 km apart, inside point-defence reach: tracer streams answer every salvo, the framed ship's lance charges and fires, and the corridor it opens through the other hull burns.</span>
+    </div>
+    <figcaption class="figure__caption">The new fleet, the new weapon and the new death in one shot. The sound is the part a loop cannot carry.</figcaption>
+</figure>
+<h2 id="the-railgun" tabindex="-1">The railgun</h2>
+<p>Every weapon before this one traversed. A turret slewed onto a target and a
+bay's torpedo steered itself; the pilot's job was to get within reach and let
+the mount do the aiming. A railgun has no traverse. It fires down the axis of
+the section it is built into, so the ship is the mount, and aiming it means
+flying the hull onto the line.</p>
+<h3 id="commit-then-release" tabindex="-1">Commit, then release</h3>
+<p>Tapping the trigger commits. A charge bolt starts walking the bore from the
+breech, the rails light behind it, and 1.5 seconds later the slug leaves -
+whether or not the nose is still on the target. There is no cancelling a
+commit. The tempo that gives a railgun is the whole weapon: you line up, you
+commit, and for a second and a half you hold the line while the ship you are
+flying keeps drifting off it.</p>
+<p>The gun holds one shell. A spent lance gets it back on a twelve-second idle
+reload, drawn on the same ammo gauge a turret or a bay carries, in the slug's
+pierce blue, so a spent shell and its long reload read at a glance.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-railgun-commit.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-railgun-commit.webm</span>
+        <span class="figure__placeholder-note">One lance shot held close and slowed: the bolt climbing the rails behind a glow that brightens sharply near the muzzle, the discharge throwing sparks off the brake, and the camera kicking as the slug leaves.</span>
+    </div>
+    <figcaption class="figure__caption">A second and a half between the tap and the shot. The bore says how far along it is.</figcaption>
+</figure>
+<h3 id="what-a-slug-takes" tabindex="-1">What a slug takes</h3>
+<p>A railgun slug does not stop at the first section it meets. It rakes a corridor
+three cells wide through everything in line, gutting hull sections and
+crippling the big drives, until the power it carries is spent. Power, not a
+layer count or the bore, bounds what one shot takes - the same rule that made
+Pierce rounds a rake in v0.11.0, at a scale where a single shot can open a
+capital hull from bow to stern.</p>
+<p>Two lances ship. The standard one is priced to cross a warship: 300 damage per
+section, 1,800 power, a 10 m rake. The siege lance is the same gun at capital
+grade - 500 damage through 360,000 power and a 30 m rake - and the description
+says what it is for: a scripted capital, not a balanced duel.</p>
+<!-- Game sources: the two shipped lances in
+     crates/nova_authoring/src/base_content/sections/standard.rs (slug_damage,
+     slug_power, rake_radius per LanceSpec); the corridor walk in
+     crates/nova_ship/src/sections/railgun_section/. -->
+<div class="widget" data-widget="lance-corridor">
+<p>A slug spends its power on every section it crosses inside its rake radius. The standard lance carries 1,800 power and a 10 m rake; the siege lance 360,000 and 30 m. Pick a target block and watch one shot spend itself.</p>
+</div>
+<p>With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
+the bore, ringing every section the shot would destroy, dimmed but still there
+through the reload. It is the sight a weapon with no traverse has to have. The
+ring is the promise; the shot keeps it.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-railgun-sight.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-railgun-sight.png</span>
+        <span class="figure__placeholder-note">The cockpit with weapons hot and a lance lined up on a hull: the pierce-blue thread down the bore, a ring on every section it would take, and the ammo gauge reading one shell.</span>
+    </div>
+    <figcaption class="figure__caption">The sight rings what the shot would destroy. Nothing else in the game promises a kill before the trigger.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-railgun-corridor.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-railgun-corridor.webm</span>
+        <span class="figure__placeholder-note">The same shot at real speed from abeam: the muzzle flash, then the hull open in the frame - a corridor three cells wide from the entry to where the slug ran out of power.</span>
+    </div>
+    <figcaption class="figure__caption">Real speed. The corridor is there the frame after the flash.</figcaption>
+</figure>
+<h3 id="the-gun-shoves-the-ship" tabindex="-1">The gun shoves the ship</h3>
+<p>Firing a railgun shoves the ship that fired it. The impulse lands at the
+muzzle, not at the centre of mass, so a lance mounted off the ship's axis yaws
+the hull as well as pushing it back. A generated ship seats its bow gun on the
+keel for that reason, and a hand-built one that bolts a lance to a flank gets
+what it asked for.</p>
+<!-- Game sources: recoil_impulse (45.0) on the shipped lances in
+     crates/nova_authoring/src/base_content/sections/standard.rs; the impulse
+     applied at the muzzle in
+     crates/nova_ship/src/sections/railgun_section/firing.rs. -->
+<div class="widget" data-widget="railgun-recoil">
+<p>The recoil is an impulse at the muzzle. A lance on the ship's axis pushes the hull straight back; one mounted a few cells off it turns the ship as well. Slide the mount across the hull and watch the yaw appear.</p>
+</div>
+<h3 id="the-bore-and-the-wake" tabindex="-1">The bore and the wake</h3>
+<p>A charging railgun lights its own bore, and a fired slug leaves an ionized
+wake: cyan haze along its path, violet filaments through it, gone in half a
+second. A blue light rides the slug and lights the hulls it passes. Low draws
+neither. The wake was tuned on a bench of its own - three slug speeds under
+three lifetime policies, every knob live and in slow motion - because a
+half-second effect that reads at 1.5 km is not something you get right by
+guessing.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-railgun-wake.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-railgun-wake.webm</span>
+        <span class="figure__placeholder-note">A slug crossing the frame in slow motion: the cyan haze it leaves, the violet filaments through it, and the light it throws onto a hull it passes.</span>
+    </div>
+    <figcaption class="figure__caption">Half a second of wake at real time. Slowed here so the filaments can be seen forming.</figcaption>
+</figure>
+<h3 id="cover-breaks-a-lock" tabindex="-1">Cover breaks a lock</h3>
+<p>A lock is a radio link, and rock stops radio. A contact behind an asteroid or a
+planetoid cannot be locked, and cover drifting across a held lock breaks it.
+Hostiles lose you the same way - the AI's acquisition asks the same question
+of the same world, so a hostile cannot pick a ship it has no line to either.</p>
+<p>Combined with a weapon that reaches 18 km and needs a second and a half of
+held line, cover becomes a thing to fly for. A belt is somewhere to fight from
+now, not a backdrop to fight in front of.</p>
+<!-- Game source: the one-ray line-of-sight rule in
+     crates/nova_ship/src/input/targeting/occlusion.rs, asked at collection
+     time so the pick, the lock and the threat set agree. -->
+<div class="widget" data-widget="lock-occlusion">
+<p>Drag a rock across the line between the scanner and its contact. The moment the line touches the rock, the lock breaks - and it breaks the same way for a hostile trying to hold you.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-lock-occlusion.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-lock-occlusion.webm</span>
+        <span class="figure__placeholder-note">A held lock on a contact 1.5 km out, a rock drifting across the line two thirds of the way there, and the bracket and the inset dropping the moment the rock covers it.</span>
+    </div>
+    <figcaption class="figure__caption">The lock lets go and says why. It used to hold through anything.</figcaption>
+</figure>
+<h2 id="every-section-is-a-machine" tabindex="-1">Every section is a machine</h2>
+<p>Until this release the thruster was the only section with an authored model.
+The rest - the hull cells, the controller core, the point-defence mounts and
+the torpedo bay - were placeholder cubes with the right sockets and a greeble
+skin closed over them. The skin did a lot of work. It could not do the work of
+a part that moves.</p>
+<p>Every section now wears a model at the thruster's standard, and the cubes are
+gone.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-sections-before-after.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Comparison planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-sections-before-after.webm</span>
+        <span class="figure__placeholder-note">One frame split down the middle: the hull cell, the controller core, the PDC mount and the torpedo bay on the same bench under the same light, as the v0.12.0 placeholders on the left (three cubes and the old turret) and v0.13.0 authored models on the right, turning together.</span>
+    </div>
+    <figcaption class="figure__caption">Same bench, same light, same turn. The left half shipped two weeks ago.</figcaption>
+</figure>
+<h3 id="the-pdc-stows" tabindex="-1">The PDC stows</h3>
+<p>A point-defence mount out of combat sinks into a housed pit and two lids slide
+shut over it. It deploys on weapons hot, a tracked target or a point-defence
+assignment, and it cannot track or fire until it is fully up. A ship at rest
+is a ship with its guns put away - and the beat between the threat and the
+first round is now a beat you can see, and hear.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-pdc-stow.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-pdc-stow.webm</span>
+        <span class="figure__placeholder-note">A PDC mount close up: the lids sliding open, the housing rising from its pit, the barrel tracking and firing, then the whole thing folding back down as the threat clears.</span>
+    </div>
+    <figcaption class="figure__caption">Up, tracking, firing, down. A mount that is not up cannot shoot.</figcaption>
+</figure>
+<p>A twin PDC mount ships in kinetic and pierce beside the gatling: two muzzles,
+each at half the single mount's rate, so either choice spends ammo at the same
+total rate. What the twin buys is coverage - two offset streams instead of one</p>
+<ul>
+<li>not damage.</li>
+</ul>
+<h3 id="the-bay-has-doors" tabindex="-1">The bay has doors</h3>
+<p>A torpedo leaves through the bay's muzzle iris. The petals wind open before
+ejection, the round slides its whole length out of the tube, and held fire
+keeps the doors gaping. The v0.12.0 cold launch - a torpedo dropped inert and
+lit clear of the hull - now starts with a machine opening.</p>
+<p>The bay is a 1x1x2 tube now, with an unlinkable muzzle face; an authored ship
+seats one with a half-cell shift so it sits on the section grid. This is a
+format break, and the compatibility notes say how to move a bay.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-bay-iris.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-bay-iris.webm</span>
+        <span class="figure__placeholder-note">A torpedo bay shot from abeam through one launch: the iris petals winding open, the round sliding its full length out of the tube, and the drive lighting a few body lengths clear.</span>
+    </div>
+    <figcaption class="figure__caption">The petals open before the round moves. Held fire keeps them open.</figcaption>
+</figure>
+<h3 id="three-hulls-one-stat-line" tabindex="-1">Three hulls, one stat line</h3>
+<p>The hull ships in three same-stat builds - personnel, cargo and tank - so a
+flank can say what the ship carries. Nothing about the numbers changes between
+them; what changes is whether a hauler reads as a hauler.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-hull-builds.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-hull-builds.png</span>
+        <span class="figure__placeholder-note">The three hull builds side by side on one bench - personnel, cargo and tank - each a single cell, read off the same angle.</span>
+    </div>
+    <figcaption class="figure__caption">Same health, same mass, same sockets. The flank says what is inside.</figcaption>
+</figure>
+<h3 id="cladding-flies" tabindex="-1">Cladding flies</h3>
+<p>Cladding shot off a hull flies. A spent skin plate comes away where it stood,
+takes its greebles with it and tumbles clear on the ship's own motion, instead
+of vanishing the frame it died. The hull underneath is what is left, which is
+what an armour skin was always supposed to mean.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-cladding.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-cladding.webm</span>
+        <span class="figure__placeholder-note">A clad hull under point-defence fire: a skin plate lets go where the rounds landed, carries its greebles off with it, and tumbles away on the ship's own velocity while the bare cell underneath keeps taking hits.</span>
+    </div>
+    <figcaption class="figure__caption">The plate comes away where it stood. What is under it is the ship.</figcaption>
+</figure>
+<h2 id="the-game-builds-its-own-ships" tabindex="-1">The game builds its own ships</h2>
+<p>The base game shipped three modelled ships for eleven releases - the Racer,
+CargoA and CargoB - and they were the reason every menu backdrop, every
+scenario and every wiki figure needed a fleet that had come with a campaign
+mod. That fleet has moved into The Ledger, which now carries its meshes
+itself, and the base game ships BLOCK hulls only: ships built from the sections
+above, that the game can draw for itself.</p>
+<p>Eleven block ships join the catalog - a cutter, a hauler, a gunship, a raider,
+an industrial carrier, a stolen warship and five cleanup craft - plus four
+wreck fragments of the carrier. Every main-menu backdrop flies them now, and
+no backdrop needs a modelled ship.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-block-fleet.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-block-fleet.png</span>
+        <span class="figure__placeholder-note">Eight shipped hulls posed in two rows at a common scale: the maintenance cutter, the industrial carrier and the stolen warship in front, the five cleanup craft behind - two unarmed, two with point defence, one with a torpedo bay.</span>
+    </div>
+    <figcaption class="figure__caption">The base fleet is sections. Nothing in this row has a mesh of its own.</figcaption>
+</figure>
+<h3 id="a-grammar-says-where-a-part-stands" tabindex="-1">A grammar says where a part stands</h3>
+<p>The hull generator collapses a hull from a grammar - a draw table of parts,
+weights and aims. It could say which way a part pointed. It could not say where
+on the hull it stood, so a generated warship could carry its drive at the bow
+and its gun on the stern and be, by every rule the collapse knew, correct.</p>
+<p>A grammar now pins a prototype to a <code>zone</code> - the bow, amidships, stern, dorsal,
+ventral or flank third of a hull - for every cell of it. And it seats a spinal
+gun with <code>bow_gun</code>: the lance stands on the bow of the keel and the mirror
+makes a pair, so the gun the arena used to bolt on after the collapse is a
+role the grammar asks for. The collapse also places multi-cell parts whole - a
+torpedo bay or a 5x5x3 capital drive as one block of tiles, mated and cleared
+together - instead of skipping anything wider than a cell.</p>
+<!-- Game source: GrammarZone in crates/nova_ship/src/sections/ship_grammar.rs
+     and the zone test per cell in crates/nova_wfc/src/collapse.rs. -->
+<div class="widget" data-widget="hull-zones">
+<p>A hull is three thirds along its length - bow, amidships, stern - and above or below its keel row - dorsal, ventral - with the outboard half of it clear of the centreline as flank. Tick a part and a zone to see which cells the collapse may stand it in.</p>
+</div>
+<p>A grammar the collapse cannot run - a grid too big, too thin, or too small for
+its own seeds, a negative weight, nothing priced above zero - is refused by id
+at lint AND at load. A grammar is content now, and a new id adds a hull line
+the editor picks; <code>standard_hull</code> retunes the shipped one.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-hull-row.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-hull-row.png</span>
+        <span class="figure__placeholder-note">Three hulls collapsed from the shipped grammar at three seeds, side by side in the industrial skin: drives banked aft, a bridge forward, mounts on the roof line.</span>
+    </div>
+    <figcaption class="figure__caption">Three draws from one grammar. The skin is derived from the structure at spawn; nothing here placed a plate.</figcaption>
+</figure>
+<h3 id="generate-a-hull-into-the-ship-you-are-in" tabindex="-1">Generate a hull into the ship you are in</h3>
+<p>The editor generates a HULL into the ship you are inside. Name a seed, tick
+which sections the collapse draws from, and it replaces what that ship holds.
+The biggest drive you tick is seeded as the generated hull's main engine and
+the biggest railgun as its bow gun, and the grid grows to hold both. A HULL
+PLAN line names what the ticks chose. A ticked row carries a zone chip: press
+it to cycle where the collapse may stand that section. The Generate block
+picks a HULL LINE - a row per grammar in the merged content - and the draw
+list re-ticks to the picked one.</p>
+<p>A hull the game's lint refuses never lands. And a weapon takes its own key when
+it is placed or generated - Space thrusts, LMB the PDCs, <code>F</code> the torpedoes, <code>R</code>
+the railgun - so a generated ship set to Player flies without rebinding a
+thing.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-hull-generate.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-hull-generate.webm</span>
+        <span class="figure__placeholder-note">The editor inside an empty ship: a seed typed, a capital drive and a lance ticked, a hull row's zone chip cycled to flank, Generate pressed, and a warship landing on the stage with the HULL PLAN line reading what it chose.</span>
+    </div>
+    <figcaption class="figure__caption">Seed, ticks, zones, Generate. The plan line says what the ticks meant before the hull lands.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-hull-plan.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-hull-plan.png</span>
+        <span class="figure__placeholder-note">The editor's left column with a hull just landed: HULL LINE on Standard Hull, seed 1300, Reroll Seed and Generate, the HULL PLAN line reading a capital thruster at the stern and a railgun lance at the bow, and the catalog below it with the ticked rows wearing their zone chips - the kinetic PDC's set to flank - while the stage holds the 156-part hull it built.</span>
+    </div>
+    <figcaption class="figure__caption">One row per section, one chip per row. The plan line says what the ticks meant: a capital drive astern, a lance at the bow.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-block-duel.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-block-duel.webm</span>
+        <span class="figure__placeholder-note">Two generated warships from the arena bench, each with a lance seeded on its keel, closing from 1.5 km and trading point-defence fire while one lines up its shot.</span>
+    </div>
+    <figcaption class="figure__caption">Both ships are draws from the same grammar. The lances are where the grammar put them.</figcaption>
+</figure>
+<h2 id="the-world-has-bodies" tabindex="-1">The world has bodies</h2>
+<h3 id="a-planet-is-a-planet" tabindex="-1">A planet is a planet</h3>
+<p>A scenario places a <code>Planet</code>: a type and a seed draw a world with terrain,
+biomes and a cap. Six types ship - barren rock, dust world, ice world,
+volcanic, greenhouse and one temperate - as archetypes rather than places,
+because the fiction is not the Solar System. A type says what a world is made
+of and the scenario says what it is called.</p>
+<p>A planetoid used to be a big <code>Asteroid</code>, and it was as destructible as a small
+one, which meant a patient pilot could carve a crater into a world. A <code>Planet</code>
+must author <code>invulnerable: true</code>. A destructible one is a lint error and
+refuses to load: nothing carves a planet, so it would sit there taking hits and
+never break.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-planet-types.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-planet-types.png</span>
+        <span class="figure__placeholder-note">The six planet types in a row at one seed - barren rock, dust world, ice world, volcanic, greenhouse and temperate - and under them one type at four seeds.</span>
+    </div>
+    <figcaption class="figure__caption">Six archetypes, then one archetype four times. What a world is called is the scenario's business.</figcaption>
+</figure>
+<h3 id="rock-is-a-material" tabindex="-1">Rock is a material</h3>
+<p>An asteroid's <code>material</code> names its KIND: rock, metal, ice, carbon or plain.
+Each gets its own palette, strata and specular over a triplanar surface, so a
+belt reads as several materials instead of one repeated rock. <code>ScatterObjects</code>
+takes <code>asteroid_kinds</code>, a weighted mix drawn from the scatter's own seed, so
+one field is mostly rock with a little metal, and the weights are relative
+counts - <code>[(&quot;rock&quot;, 24), (&quot;carbon&quot;, 5), (&quot;metal&quot;, 1)]</code> - not percentages that
+have to add up.</p>
+<p>The material is required and there is no default. A rock without one fails to
+load, and an id nobody ships is a lint error.</p>
+<!-- Game source: the kind ids and the weighted draw in
+     crates/nova_scenario/src/objects/asteroid_kind.rs. -->
+<div class="widget" data-widget="asteroid-kinds">
+<p>Four kinds and a control: rock, nickel-iron with a bright seam network, blue-shifted crackled ice, near-black matte carbon, and plain - the texture with nothing done to it. Set a mix and draw a belt from it.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-belt-before-after.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Comparison planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-belt-before-after.webm</span>
+        <span class="figure__placeholder-note">One frame split down the middle over the same scatter seed: the v0.12.0 belt of one rock on the left, the v0.13.0 belt of rock, metal, ice and carbon on the right, the camera drifting through both.</span>
+    </div>
+    <figcaption class="figure__caption">Same seed, same positions, same camera. The left side is one rock repeated.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-asteroid-kinds.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-asteroid-kinds.png</span>
+        <span class="figure__placeholder-note">Five kinds across three silhouette seeds, every rock spawned through the real scenario path. The plain column is the control - the surface as it was drawn before kinds existed - then rock, metal, ice and carbon.</span>
+    </div>
+    <figcaption class="figure__caption">Same three meshes down every column. The strata, the specular and the tint are the kind's, not the model's.</figcaption>
+</figure>
+<p>Shooting a rock throws rock. An asteroid states its material on the body while
+a crater is cut into the mesh beneath it, so every chip used to come off as
+the white-hot ship plate a hull sheds. Now stone spalls stone, and a slug
+landing on ice sounds like a slug landing on ice.</p>
+<h2 id="the-game-has-a-voice" tabindex="-1">The game has a voice</h2>
+<p>This is the first dedicated audio pass. The sound set is re-recorded and twice
+the size: guns, ordnance, impacts, destruction, drives, cockpit, menus and
+editor, all synthesised from scratch. Only the ship computer's family is
+untouched.</p>
+<h3 id="where-a-sound-is" tabindex="-1">Where a sound is</h3>
+<p>Sound is positional. A cue out in the world falls off with distance and pans
+with bearing, so the menu backdrop's traffic is heard passing the camera
+instead of sitting mute behind it. Your own ship is the exception, and it is
+an exception by routing rather than by special case: its guns, its drives and
+the damage landing on it are structure-borne through the hull you are sitting
+in, so they never attenuate and never pan. Everything else is out there across
+the gap.</p>
+<!-- Game sources: AudioBus (Interface, World, Music) and AudioRoute
+     (Interface, Hull, World) in crates/nova_gameplay/src/audio/bus.rs; the
+     hit-by-round-and-surface table under crates/nova_ship/src/ship_audio/. -->
+<div class="widget" data-widget="sound-map">
+<p>Three routes. Interface cues are never positional. Hull cues are your own ship heard through its structure, never attenuated or panned. World cues fall off with distance and pan with bearing. Move a source around the ship and hear which route it takes and how loud it arrives.</p>
+</div>
+<h3 id="what-a-hit-sounds-like" tabindex="-1">What a hit sounds like</h3>
+<p>A hit is named by the round as well as by what it struck. A slug, a penetrator
+and a warhead each land differently, and each lands differently again on
+stone. Machinery has a voice: a PDC's housing rising and folding away, a bay's
+iris winding open and shut, a railgun's capacitor bank filling, discharging and
+re-chambering. A ship coming apart has its own sound, separate from the last
+section on it failing.</p>
+<p>Every cue below is the file the game plays, drawn as its own waveform. Press a
+key and it plays through this page's speakers - a board per family, in the
+order a fight would meet them. Sixteen rows carry a second, amber key: the
+v0.12.0 recording of the same event, the file this release replaced, so the
+two sets can be heard against each other.</p>
+<div class="widget" data-widget="sound-board" data-family="guns">
+<p>The guns and their machinery: the gatling and twin PDC firing, a dry click, the PDC housing rising and its lids closing, the bay iris, and the railgun's charge loop, discharge and reload.</p>
+</div>
+<div class="widget" data-widget="sound-board" data-family="ordnance">
+<p>Ordnance, impacts and destruction: a torpedo launch and detonation, a Kinetic round on a hull and on stone, a penetrator, a warhead's pressure, a section going up, a rock breaking and a hull letting go.</p>
+</div>
+<p>The drives are told apart by pitch: 34, 52 and 78 Hz from capital to basic to
+vector, because pitch is what survives a firefight and a pilot should know what
+is burning without looking.</p>
+<div class="widget" data-widget="sound-board" data-family="drives">
+<p>The three drive loops - capital at 34 Hz, basic at 52 Hz, vector at 78 Hz - and the controller's RCS jets.</p>
+</div>
+<p>The cockpit talks. A lock taken or lost, a denied or retargeted radar, the
+safety, a dry magazine, a hostile's lock arriving, and the hull dropping past
+thirty percent each have a cue, so the things the HUD used to say only in text
+now say themselves.</p>
+<div class="widget" data-widget="sound-board" data-family="avionics">
+<p>The cockpit's eight cues: lock on and off, a radar pick denied or retargeted, weapons safe, a dry magazine, a hostile's lock arriving, and the hull warning.</p>
+</div>
+<p>The menus answer you too: a tick as focus moves, a note for stepping back, and
+a sound for losing. The editor's four cues and the objective chimes were
+written to join the NOVA OS terminal's family, which is the one this release
+left alone.</p>
+<div class="widget" data-widget="sound-board" data-family="interface">
+<p>Engine chrome: menu focus, select and back, a toggle and a slider detent, the three objective chimes, a comms line opening, and the editor's place, remove, rotate and deny.</p>
+</div>
+<h3 id="four-sliders" tabindex="-1">Four sliders</h3>
+<p>Four volume sliders - master, interface, world and music - are saved with the
+rest of the settings. Music is reserved: the bus and its slider exist so the
+settings format carries it today, and nothing routes to it yet.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-volume-sliders.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-volume-sliders.png</span>
+        <span class="figure__placeholder-note">The Settings panel on its Audio tab: master, interface, world and music sliders, the music slider present but with nothing routed to it.</span>
+    </div>
+    <figcaption class="figure__caption">Four buses. The fourth is a promise.</figcaption>
+</figure>
+<h2 id="flying-it-in-meters" tabindex="-1">Flying it, in meters</h2>
+<h3 id="everything-is-in-meters" tabindex="-1">Everything is in meters</h3>
+<p>Content and code are authored in meters through one set of quantity types.
+World units - one of which is 10 m, and one build-grid cell - appear only at a
+Bevy, physics, rendering or build-grid boundary, which says so locally and
+converts. Every player- or creator-facing figure prints in meters: the editor's
+inspector and gallery read and write lengths and speeds in meters, a section's
+own mesh rows read in build-grid cells, and every wiki figure, scope and
+catalog reads the same way.</p>
+<p>This is the release's quietest break and its widest. A number in a shipped
+mod that used to mean world units now means meters, and The Ledger and
+Gauntlet Run are republished to say so. A portal mod installed on 0.12.0
+carries the old numbers, and this build reads them as meters - the
+compatibility notes say what to update.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-editor-meters.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-editor-meters.png</span>
+        <span class="figure__placeholder-note">The editor Inspector open on a placed beacon and a thruster: the trigger radius and the exhaust clearance in meters, the speed rows in m/s, and a section mesh row reading in build-grid cells.</span>
+    </div>
+    <figcaption class="figure__caption">The unit column says m. The file underneath says the same thing now.</figcaption>
+</figure>
+<h3 id="one-rcs-budget" tabindex="-1">One RCS budget</h3>
+<p>RCS reaches 100 m/s at a mass-independent 5 G: one speed budget and one
+acceleration budget for every direction. The old RCS was a force, so a heavy
+hull nudged and a light one leapt; the new one is a true acceleration, so
+every ship in the game answers a fine adjust the same way, and the cap is a
+sphere the result is clamped onto rather than a line per axis. At the cap RCS
+may still TURN your velocity - it just cannot grow it. STOP below that speed
+brakes on RCS without turning the ship.</p>
+<!-- Game sources: rcs_speed_cap (100 m/s) and rcs_accel (5 g) in
+     crates/nova_ship/src/flight/state.rs; the sphere clamp in
+     crates/nova_ship/src/flight/manual.rs. -->
+<div class="widget" data-widget="rcs-budget">
+<p>One sphere of 100 m/s, reached at 5 G whatever the hull weighs. Push in any direction and watch the velocity move inside the sphere: past the cap, a push can only turn the vector, never lengthen it.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-rcs-box.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-rcs-box.webm</span>
+        <span class="figure__placeholder-note">Basic Training's RCS lesson from a recorded play: one slide across on the thrusters, the velocity chip climbing to 46 m/s with the nose never moving, then STOP arresting the drift without a turn.</span>
+    </div>
+    <figcaption class="figure__caption">A slide, not a turn. The nose stays where it was pointed for the whole thing.</figcaption>
+</figure>
+<p>The 8 G turn limit is now a limit. Holding the stick pins a ship at the
+hardest turn its hull survives, and a ship that loses its nose speeds up to the
+sharper turn its shorter body allows. And a ship's speed cap governs its TOTAL
+speed, so turning to a fresh heading and burning again no longer stacks a
+second cap's worth on top of the first.</p>
+<h3 id="goto-parks-off-the-surface" tabindex="-1">GOTO parks off the surface</h3>
+<p>GOTO used to park a fixed distance from a target's centre. A warship and a
+shuttle sent to the same mark would stop at the same point in space, which put
+the warship's bow somewhere inside the mark. GOTO now parks a margin off the
+target's SURFACE, measured from the ship's own hull: a warship and a shuttle
+sent to one mark stop the same distance clear of it.</p>
+<p>To do that, GOTO sizes every target it can. A beacon's orb and another ship's
+hull push the park point out the way an asteroid's geometry already did; a
+bare position still has no size. A GOTO that ends at a planetoid arrives on a
+ring ORBIT accepts, so the parking handoff no longer burns the ship back
+outward to reach a legal orbit - and it parks itself in orbit only where the
+ship's computer grants ORBIT, handing the ship back at the standoff where the
+verb is withheld.</p>
+<!-- Game source: the standoff resolved as target radius + ship radius +
+     arrival_standoff in crates/nova_ship/src/flight/autopilot.rs. -->
+<div class="widget" data-widget="arrival-standoff">
+<p>The park point is the target's radius, plus the ship's own radius, plus the arrival margin. Drag the ship's size and the target's size and watch the hulls stop the same distance apart every time.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-goto-standoff.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-goto-standoff.webm</span>
+        <span class="figure__placeholder-note">The block warship and the block gunship sent to one beacon from the same distance, watched from above: both hulls stopping the same margin clear of the beacon's orb, the warship's park point far further out than the gunship's.</span>
+    </div>
+    <figcaption class="figure__caption">One mark, two hulls, one clearance. The margin is measured from the skin, not the centre.</figcaption>
+</figure>
+<h2 id="new-game-is-basic-training" tabindex="-1">New Game is Basic Training</h2>
+<p>New Game starts Basic Training: a Fleet gunnery range where Range Control
+talks a cadet through the helm verbs, GOTO and ORBIT out to a planetoid and
+back, the gun, five hulks and two drones that go live. It is the game's first
+proper first hour, and it is built entirely from the release's own parts - the
+block fleet, the planet, the comms channels and the cinematic actions below.</p>
+<p>The game ships no campaign. The <code>nova_protocol</code> campaign and its five chapters
+are gone, and the story is being rewritten from the ground up; when it comes
+back it will come back as a mod, on the actions this release added for it. A
+mod that named one of those chapters has to be retargeted.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-basic-training.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-basic-training.webm</span>
+        <span class="figure__placeholder-note">One leg of Basic Training from a recorded play: Range Control's card with its portrait, the chip naming the planetoid, GOTO burning out on the travel lock, then the arrival and the card that follows it.</span>
+    </div>
+    <figcaption class="figure__caption">Range Control has a face. The chip says what to do; the card says why.</figcaption>
+</figure>
+<h3 id="comms-have-channels" tabindex="-1">Comms have channels</h3>
+<p>A comms card is drawn in its channel: work traffic in transmission blue, the
+crew in phosphor, and a guard-channel catch faint, amber and tagged GUARD. The
+cards are screen-relative with 20 px text and distinct speaker headers, and a
+new line fades in without growing across the screen edge or the transcript,
+so objective guidance reads over clutter. Base content ships two portraits -
+the player's own label and Range Control's face - reachable by any mod as
+<code>dep://base/portraits/&lt;name&gt;.png</code>.</p>
+<p>A completed objective no longer ghosts green down the right of the screen. Its
+chip leaving the top of the stack, under the completion chime, is the whole
+cue.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-comms-channels.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-comms-channels.png</span>
+        <span class="figure__placeholder-note">Three comms cards stacked on the HUD, one per channel: a Range Control line in transmission blue with its portrait, a crew line in phosphor, and a faint amber guard-channel catch tagged GUARD.</span>
+    </div>
+    <figcaption class="figure__caption">Who is talking is a colour before it is a name.</figcaption>
+</figure>
+<p>Every main-menu backdrop flies the block fleet now, and a menu duellist that
+leaves the arena forfeits: it goes neutral, and the survivor drops the chase
+and comes back to the middle of the shot instead of trading fire past the
+frame edge.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-menu-backdrop.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-menu-backdrop.png</span>
+        <span class="figure__placeholder-note">The main menu over the gauntlet backdrop: the block cutter on its course between the rock rings, the menu reading v0.13.0.</span>
+    </div>
+    <figcaption class="figure__caption">The menu flies the same fleet you do.</figcaption>
+</figure>
+<h2 id="nova-os-gets-a-second-shell" tabindex="-1">NOVA OS gets a second shell</h2>
+<p>Press <code>:</code> anywhere - menu, editor, flight, pause screen - and the ship computer
+opens on a second shell. One CRT, two languages: <code>commands</code> switches, and each
+keeps its own transcript and history. The first shell is the NOVA OS you know,
+the diegetic terminal. The second reads the run and writes your settings.</p>
+<p>The command shell holds 27 commands in four classes. Utility commands control
+the shell or load another scenario. Read-only commands observe and never
+mutate. Setting commands change the same persisted settings the panel does.
+Cheat commands change the live world, and are refused until you run <code>cheats enable</code>, which marks the run one way and turns the header amber. A fresh
+scenario is a fresh run and clears the mark.</p>
+<p><code>help</code> and Tab completion come from one registry, and Tab offers the ship and
+section ids the world holds NOW - so a cheat that names a section names one
+that exists.</p>
+<!-- Game source: CommandClass (Utility, ReadOnly, Setting, Cheat) in
+     crates/nova_os/src/commands.rs; the arming gate in
+     crates/nova_console/src/dispatch.rs. -->
+<div class="widget" data-widget="command-catalog">
+<p>27 commands in four classes. Utility and read-only commands never mark the run. A setting command writes what the settings panel writes. A cheat is refused until <code>cheats enable</code>, and enabling is what marks the run.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-command-shell.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-command-shell.webm</span>
+        <span class="figure__placeholder-note">The colon pressed in flight: the CRT opening on the command shell, Tab completing a ship id from the live world, a read-only command printing its rows, then <code>cheats enable</code> turning the header amber.</span>
+    </div>
+    <figcaption class="figure__caption">Tab offers what exists. The amber header is the run saying it has been touched.</figcaption>
+</figure>
+<p>Settings &gt; Controls also gains a MOUSE group: separate look, RCS and
+free-camera sensitivity sliders that reach a ship already flying. Mouse look
+now defaults to two-thirds of its old gain.</p>
+<h2 id="a-scenario-can-direct" tabindex="-1">A scenario can direct</h2>
+<p>The modding vocabulary grew more in this cycle than in any before it, and
+almost all of it is about one thing: a scenario being able to stage a scene.
+Basic Training is written on it, and so is the story that replaces the
+campaign.</p>
+<h3 id="cinematics" tabindex="-1">Cinematics</h3>
+<p><code>Cinematic</code> plays a beat chain as a scene the player may leave, reporting
+<code>OnCinematicFinished</code> on every path out and <code>OnCinematicSkipped</code> first on a
+skip; <code>CancelCinematic</code> ends one early. A <code>Cinematic</code> filter matches an ending
+by its scene key, so a scenario with two scenes answers the right one, and an
+unplayed key is a lint error.</p>
+<p><code>SetCameraAnchor</code> rides the camera on an object at a local or world offset,
+facing a point or another object, so a cinematic keeps the player's ship in
+frame; <code>ReleaseCamera</code> hands the view back. <code>SetCamera</code> and <code>SetCameraAnchor</code>
+take an optional <code>blend</code> - seconds and an easing - that turns a cut into a
+move that keeps tracking its anchor. <code>CinematicTitle</code> posts a shot's title
+card in an authored screen corner - location, stamp and one line - and expires
+on the scenario clock, so no handler has to take it down.
+<code>SuspendPlayerControl</code> and <code>ResumePlayerControl</code> give a scene explicit,
+teardown-safe authority over the stick.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-cinematic.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-cinematic.webm</span>
+        <span class="figure__placeholder-note">Basic Training's opening from a recorded play: the title card landing in the corner, the camera hung off the trainer on a world-frame anchor while Range Control briefs, then the view handed back to the pilot as the first objective posts.</span>
+    </div>
+    <figcaption class="figure__caption">The scene holds the frame; the card takes itself down; the handback is one action.</figcaption>
+</figure>
+<h3 id="helm-orders" tabindex="-1">Helm orders</h3>
+<p>Six actions take a ship's helm: <code>MoveShipTo</code>, <code>ForceAlign</code>, <code>StopShip</code>,
+<code>PatrolShip</code>, <code>OrbitShip</code> and <code>ClearShipOrder</code>. One order at a time, under a
+named key, on a <code>None</code>- or an AI-controlled ship. An order on an AI ship
+outranks the bot: the AI stops flying and keeps shooting, and
+<code>order_interruption</code> lets it break off for contact or damage, then resume the
+same order where it left it. Five events - <code>OnShipOrderComplete</code>,
+<code>OnShipOrderInterrupted</code>, <code>OnShipOrderResumed</code>, <code>OnShipOrderCanceled</code> and
+<code>OnShipOrderFailed</code> - report an order by key, ship and kind through one
+<code>ShipOrder</code> filter.</p>
+<p><code>SetAILeash</code>, <code>SetAIEngageRange</code> and <code>SetAIPointDefenseRange</code> retune an AI
+ship's tether, detection reach and point-defence reach at runtime, and an armed
+AI ship can stand down: <code>non_combatant: true</code> flies its routine and never
+acquires or fires.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-helm-orders.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-helm-orders.webm</span>
+        <span class="figure__placeholder-note">An AI gunship under a PatrolShip order, the lens following from above: it flies its leg east, a salvage skiff crossing north of the route is declared hostile, the order interrupts and the gunship turns off the leg and takes the skiff apart, then, the sky clear, turns back east on the same leg.</span>
+    </div>
+    <figcaption class="figure__caption">The order outranks the bot, and the bot gets it back when the fight is over.</figcaption>
+</figure>
+<h3 id="the-rest-of-the-vocabulary" tabindex="-1">The rest of the vocabulary</h3>
+<p><code>NarrativeCue</code> replaces <code>StoryMessage</code>, and every line authors a <code>channel</code> -
+<code>&quot;comms&quot;</code>, <code>&quot;crew&quot;</code> or <code>&quot;guard&quot;</code> - which is how a mod authors a band of its
+own instead of borrowing the base three. <code>PlaySound</code> plays one authored cue in
+the cockpit on the Interface or Hull route. <code>SetInfiniteAmmo</code> and <code>RefillAmmo</code>
+reach a live ship's magazines, which is what replaces a player controller's
+<code>infinite_ammo</code> field. <code>ForceTorpedoFire</code> names ONE bay and <code>ForceRailgunFire</code>
+one lance. <code>OnGotoComplete</code>, <code>OnStopComplete</code> and <code>OnOrbitLap</code> let a scenario
+react to the player's real autopilot. A <code>Railgun</code> is a section kind and a
+<code>Grammar</code> is content. And a catalog entry can set <code>enabled_by_default</code>, so a
+fresh install with no saved set switches that mod on.</p>
+<p><code>content lint</code> checks all of it - a helm order's ship and key, an empty
+patrol route, an orbit's well, an AI constraint's ship, a forced shot's
+section id and class - and reports each scenario's creative map, the
+world-injecting actions it runs, as context on the report.</p>
+<p>Underneath, one TABLE declares the action vocabulary. A row generates the enum
+arm, the dispatch, the RON name, the menu label, the id stem and the injection
+class, so a new action is five edits, not fifteen. That is the reason this
+cycle could add thirty of them.</p>
+<h3 id="the-editor-writes-many-mods" tabindex="-1">The editor writes many mods</h3>
+<p>The editor writes as many mods as you name ranges, each an <code>editor_</code>-prefixed
+bundle of its own, instead of the one <code>editor_save</code> slot every save replaced.
+File &gt; Save As names the file - type a name, and the window says which slot it
+derives and whether a range you already saved is there. File &gt; Open lists what
+there is, and a row opens it. A document remembers its file: the first Save
+asks for a name, every later one writes back to it, and New Scenario forgets it
+so a fresh range cannot land on the last one.</p>
+<p>File &gt; New Scenario also asks which world to start from: the free-flight
+range, a duelling arena of rock rings around an empty middle, or nothing at
+all. And the editor places a rock by KIND: the inspector's Material row is a
+pick list of the shipped kinds, and the body on the stage is rebuilt in
+whichever one you pick.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0130-editor-save-as.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0130-editor-save-as.png</span>
+        <span class="figure__placeholder-note">The Save As window over the generated hull: Hull Roll 1300 typed as the name, the line under it reading the id it saves as, editor_hull_roll_1300, and SAVED RANGES saying nothing is saved yet and this name makes the first one.</span>
+    </div>
+    <figcaption class="figure__caption">The name is yours. The slot is derived, and the window says if it is taken.</figcaption>
+</figure>
+<h2 id="death-is-an-event" tabindex="-1">Death is an event</h2>
+<p>A section death used to be a few sparks and the cell cut loose. A death burns
+now: a white flash, then incandescent fragments that outlive it and keep
+travelling, and light on the hulls nearby. A section going up is a compartment; a hull letting
+go covers the wreck. The two are different sizes because they are different
+events.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-death-before-after.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Comparison planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-death-before-after.webm</span>
+        <span class="figure__placeholder-note">One frame split down the middle, the same section destroyed on the same hull: on the left the v0.12.0 death, a few sparks and the cell falling away; on the right the v0.13.0 flash, fragments and hull light.</span>
+    </div>
+    <figcaption class="figure__caption">Same section, same hit. The right side lights the ship it came off.</figcaption>
+</figure>
+<p>A torpedo's detonation is twice the size and burns three times as long: a
+bigger core, ejecta thrown out past 100 m, and a flash that reaches 1.4 km.
+And debris turns about its own shape - a piece cut off a hull used to spin
+about the section's origin until its collider landed, so an off-centre part
+swung wide and then snapped straight.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-torpedo-blast.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-torpedo-blast.webm</span>
+        <span class="figure__placeholder-note">A torpedo detonating against a block hull at the new scale: the core, the ejecta leaving past 100 m, and the flash reaching hulls well over a kilometre off.</span>
+    </div>
+    <figcaption class="figure__caption">Twice the size, three times the burn. The flash is a thing other ships can see.</figcaption>
+</figure>
+<h2 id="an-agent-flies-it" tabindex="-1">An agent flies it</h2>
+<p>The process channel has driven the game's own tests for several releases. This
+cycle it got a pilot. <code>bench play</code> seats an agent at the channel - a scripted
+baseline, <code>pi</code> with any model, or any process on a unix socket - and scores
+the run from the game's own state.</p>
+<p>What the agent reads is a pilot's view, not a census. The bench condenses each
+snapshot into meters - bearings from the nose, contacts, beacons, mounts - and
+near and in-the-way bodies carry in full while the rest is one line per band
+and quarter; <code>observe {&quot;expand&quot;}</code> reopens a group. The manual is five game
+pages - targeting, weapons, travel, orbit, fighting - read on demand through a
+<code>page</code> tool instead of riding in every prompt. Every line both ways lands in
+an <code>audit.jsonl</code> beside the <code>score.json</code>.</p>
+<p>The score is honest about what it grades. A run that armed NOVA OS's cheats is
+scored as cheated. Unparsable wire lines are counted rather than treated as
+refusals. An objective completed between two samples is credited from the
+flight log. <code>bench replay</code> feeds an audit's wire lines to a fresh game and
+grades the end <code>match</code>, <code>close</code> or <code>mismatch</code>.</p>
+<p>One turn of a real audit, from a bench play of Basic Training with a hosted
+model at the keyboard. The view is what the referee condensed for the agent -
+bearings from the nose, distances in meters, the same things a pilot reads off
+the HUD. The act is what it sent back, and the frame after is the game's echo
+of what ninety ticks consumed.</p>
+<pre><code class="hljs language-text">tick 1001   game 16.7 s   Trainer Seven   speed 0 m/s   hull 4240/4240
+  beacon     ALPHA            bearing [0.0, 0.0]       900 m
+  contact    Range Drone 1    Neutral   [34.5, -4.4]   3895 m   weapons cold
+  contact    Range Drone 2    Neutral   [-34.4, 5.0]   4622 m   weapons cold
+  contact    Target 1         no controller   [-19.4, 6.3]   1814 m
+  comms      RANGE CONTROL    Helm is yours. [W] opens the throttle, the mouse
+                              steers. Burn to mark ALPHA, dead ahead.
+  objective  burn             Burn to mark ALPHA
+
+agent      ALPHA is dead ahead at 900 m. I&#x27;ll make a moderate 90-tick burn,
+           then coast toward it rather than accelerating continuously.
+act        {&quot;gestures&quot;: [{&quot;press&quot;: &quot;flight.main_drive&quot;}], &quot;ticks&quot;: 90}
+
+tick 1091   game 18.2 s   held [flight.main_drive]   position [0, 0, -35.9] m
+  beacon     ALPHA            bearing [0.0, 0.0]       864 m
+</code></pre>
+<p>And <code>--record &lt;dir&gt;</code> on a bench play or replay draws every tick offscreen with
+the full HUD and stitches <code>&lt;dir&gt;.mp4</code> at 60 frames per second: the agent's run
+as a real-time movie, however long it thought.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-agent-run.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-agent-run.webm</span>
+        <span class="figure__placeholder-note">Eight seconds of a recorded language-model play of Basic Training, at real time: the HUD as the pilot sees it, the radar held until the lock on Target 1 goes red, the PDC trigger held until the hulk comes apart, and each wire line overlaid the tick it landed.</span>
+    </div>
+    <figcaption class="figure__caption">A language model at the stick, at real time. The lines in the corner are the exact commands, as the game read them off the wire.</figcaption>
+</figure>
+<h2 id="performance" tabindex="-1">Performance</h2>
+<p>Four measured wins, and all four are ceilings rather than trims. A ceiling
+bounds work instead of shaving it, which is the kind of win that survives the
+next capital hull.</p>
+<p>A collapsing hull measures its pre-cut centre of mass once per frame, not once
+per destroyed section. A siege railgun through a capital hull spent 55 ms of
+one impact on that walk; now under 1 ms. A frame throws at most 128 carve
+chips however many craters opened in it: one crater is untouched, and a
+capital hull raked open threw about 10,000 chips and now throws about 2,000.
+Wreck pieces go physical two dozen a frame instead of all at once, so a hull
+shedding 700 sections in one instant no longer grows 700 colliders and their
+contacts on a single frame. And the editor stops re-walking the document each
+frame: the duplicate-id scan runs only when an id or a parent moves.</p>
+<!-- Game sources: SHARDS_PER_FRAME (128) in
+     crates/nova_gameplay/src/integrity/spew.rs; CHUNK_ACTIVATIONS_PER_FRAME
+     (24) in crates/nova_gameplay/src/integrity/chunk.rs; the once-per-root
+     centre-of-mass snapshot in crates/nova_ship/src/sections/integrity.rs.
+     The 55 ms and the chip counts are the stress_hull_collapse range's
+     records, kept with task 20260904-155338 and 20260904-173517. -->
+<div class="widget" data-widget="collapse-budget">
+<p>Three ceilings on one impact. The centre of mass is measured once, not once per section. At most 128 chips leave in a frame. At most 24 wreck pieces go physical in a frame. Drag the number of sections a shot destroys and compare what the frame used to cost with what it may cost now.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0130-hull-collapse.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0130-hull-collapse.webm</span>
+        <span class="figure__placeholder-note">The stress range from off the block's entry corner: the siege lance charging, the slug's wake, the corridor bursting through a 1,296-cell hull and the 720 pieces it sheds going solid and flooding out, the shell itself shoved under them.</span>
+    </div>
+    <figcaption class="figure__caption">The load the numbers were taken under: 720 sections and 3,645 shards off one shot. The clock is pinned for the recording, so the loop is the picture and the range's log is the measurement.</figcaption>
+</figure>
+<h2 id="more-in-v0130" tabindex="-1">More in v0.13.0</h2>
+<p>The feature story above is the release, but a great deal else shipped:</p>
+<ul>
+<li><strong>The sandbox's farthest picket mounts a railgun.</strong> It wakes like the others,
+but a shot that lines up on you crosses your whole ship.</li>
+<li><strong>Nav beacons are radar-acquirable within 12 km</strong>, up from 6 km.</li>
+<li><strong>A scenario's spawn queue may take a fifth of each frame</strong>, so a machine
+drawing slow frames lands its scatter in a few frames instead of one object a
+frame.</li>
+<li><strong>Only the pane under the pointer scrolls.</strong> Every scrolling pane on screen
+was moving on one wheel notch, because no viewport reported hover.</li>
+<li><strong>A trigger volume reports a ship LEAVING again.</strong> A damaged ship despawns
+section colliders inside the volume, and the occupancy count that never saw
+those colliders end held it inside forever.</li>
+<li><strong>A flight computer severed onto a wreck aims at the wreck</strong>, instead of the
+hull it left.</li>
+<li><strong>A COMPLETED helm order gives back the <code>arrival_standoff</code> it staged</strong>, as a
+canceled or interrupted one already did, so tight staging cannot retune every
+later GOTO the hull flies.</li>
+<li><strong>The Gauntlet's course ship is the base cutter</strong>, so the time trial no
+longer depends on a fleet that shipped with a campaign mod.</li>
+<li><strong>A <code>--features debug</code> build shows the commit it was built from</strong> on the
+status bar, and restamps it on the next commit.</li>
+<li><strong>Every example flies on your saved settings</strong> - mouse sensitivity, keybinds,
+volumes, quality, skin - and only the settings panel can write them back.</li>
+<li><strong>The process channel gains a <code>command</code> lane</strong> carrying the exact text a
+player would type, answered with the same result the screen prints; an input
+ack is now an ECHO of what a frame consumed, and the snapshot carries
+<code>beacons</code>, <code>bodies</code>, a <code>mission</code> block and the ship's autopilot, well and
+radar dwell.</li>
+<li><strong>The wiki reads as a book</strong> - Start here, World, Ship sections, Interface,
+Reference - with a Railgun page carrying a corridor scope, a combat range
+ladder ranking PDC, railgun and torpedoes, a Commands page for the <code>:</code>
+shell, and every figure in meters. Every living still and loop is re-shot on
+the block fleet from a clean install.</li>
+<li><strong>The site gains a lore encyclopedia and a story archive.</strong> They are not the
+subject of this post; the story is being rewritten, and a later post will be
+theirs.</li>
+</ul>
+<h3 id="modding-and-compatibility" tabindex="-1">Modding and compatibility</h3>
+<p>v0.13.0 breaks more formats than any release before it. Every break has a
+migration, and <code>content lint</code> names each one:</p>
+<ul>
+<li><strong>Meters.</strong> Every length and speed in content is meters now, where it was
+world units. One world unit is 10 m. Multiply an old figure by ten. The
+Ledger (1.28.0) and Gauntlet Run (1.12.0) are republished in meters; update
+both, because a portal mod installed on 0.12.0 carries the old numbers and
+this build reads them as meters.</li>
+<li><strong><code>Planet</code>.</strong> A planetoid authored as a big <code>Asteroid</code> is now a rock.
+Re-author it as a <code>Planet</code> with a type and a seed at its true radius, and
+author <code>invulnerable: true</code> - a destructible planet refuses to load.</li>
+<li><strong>Asteroid <code>material</code></strong> names the KIND and is required: <code>rock</code>, <code>metal</code>,
+<code>ice</code>, <code>carbon</code> or <code>plain</code>. A rock without one fails to load, and an id nobody
+ships is a lint error. <code>ScatterObjects</code> takes <code>asteroid_kinds</code>; an asteroid
+template must author one.</li>
+<li><strong>The torpedo bay</strong> is a 1x1x2 tube with an unlinkable muzzle face. An
+authored ship seats a bay with a half-cell shift to sit on the section grid.</li>
+<li><strong>The base game ships BLOCK hulls only.</strong> The modelled Racer, CargoA and
+CargoB fleet and its part prototypes moved into The Ledger, which carries
+their meshes itself. A mod that borrowed one through <code>dep://base/</code> now
+depends on The Ledger.</li>
+<li><strong>The game ships no campaign.</strong> The <code>nova_protocol</code> campaign and its
+<code>shakedown_run</code>, <code>broadside</code>, <code>broadside_gunship</code>, <code>lifeline</code> and
+<code>final_tally</code> chapters are gone. Retarget a mod that named one.</li>
+<li><strong><code>StoryMessage</code> is <code>NarrativeCue</code></strong>, and every line authors a <code>channel</code> id:
+<code>&quot;comms&quot;</code>, <code>&quot;crew&quot;</code> or <code>&quot;guard&quot;</code>. Rename and add the field.</li>
+<li><strong><code>ForceTorpedoLaunch</code> is <code>ForceTorpedoFire</code></strong> and names ONE bay by section
+id. Rename it, rename <code>id:</code> to <code>ship:</code>, and add <code>section:</code>.</li>
+<li><strong>A player controller's <code>infinite_ammo</code> is gone.</strong> Delete the field: a gun
+that should never run dry omits its <code>ammo_capacity</code>, and content grants the
+rest with <code>SetInfiniteAmmo</code>.</li>
+<li><strong>An input ack is an ECHO</strong>, not a verdict - <code>line</code>, <code>input</code>, <code>phase</code>,
+<code>tick</code>. Read the effect off the world; <code>schema</code> is <code>2</code>, which tells the two
+shapes apart. <code>action</code> is refused for good and points at the <code>command</code> lane.</li>
+<li><strong>A <code>Grammar</code></strong> the collapse cannot run is refused by id at lint and at load.</li>
+</ul>
+<p>Run <code>cargo run content lint</code> against each bundle. The current <code>/create/</code>
+reference owns the authored vocabulary, and the bundled content shows the
+migrated forms.</p>
+<div class="callout callout--breaking">
+<p class="callout__title">Fly the range, then fly the lance</p>
+<p>v0.13.0 is available from the Nova Protocol landing page. Play in the browser, download the native build, or start a New Game and let Range Control talk you through it.</p>
+</div>
+<p>The terse list is in <code>CHANGELOG.md</code>. This post is the visible version: a
+weapon the ship has to aim, sections that are machines, a fleet the game draws
+itself, rock that is a material, and a soundtrack for all of it.</p>
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -249,9 +249,8 @@ lifetime to run out, is what closes that.</p>
 <h3 id="the-load-warms-every-hull-the-scenario-can-spawn"><a class="header" href="#the-load-warms-every-hull-the-scenario-can-spawn">The load warms every hull the scenario can spawn</a></h3>
 <p>A section’s glTF is resolved by the render observer that builds its mesh child,
 so the FIRST ship wearing a hull paid for that hull’s art. A hull no <code>OnStart</code>
-event spawns is therefore cold when its beat arrives: <code>final_tally</code>’s flagship
-and both of <code>menu_duel</code>’s corvettes appeared in placeholder art and dressed
-themselves a moment later.</p>
+event spawns is therefore cold when its beat arrives: both of <code>menu_duel</code>’s
+corvettes appeared in placeholder art and dressed themselves a moment later.</p>
 <p><code>preload::scenario_render_meshes</code> walks the loaded config for <code>SpawnScenarioObject</code>
 and <code>ScatterObjects</code> actions, resolves each ship’s <code>ShipSource</code> and every
 section’s <code>SectionSource</code> against the two catalogs, and collects the render
@@ -298,7 +297,8 @@ one was true. This chapter covers what the enums do not show.</p>
 is a <code>String</code>: <code>SetAllegiance</code> names a ship, <code>TimerCancel</code> names a timer,
 <code>NextScenario</code> names a scenario. <code>Names</code> (<code>names.rs</code>) puts the difference on the
 field as a reflect attribute - <code>#[reflect(@Names::Object)]</code> and its
-<code>NewObject</code> / <code>Variable</code> / <code>Timer</code> / <code>Objective</code> / <code>Scenario</code> siblings - so
+<code>NewObject</code> / <code>Variable</code> / <code>Timer</code> / <code>Objective</code> / <code>Scenario</code> / <code>Order</code> /
+<code>Section</code> siblings - so
 anything walking a config by reflection can offer the ids in scope and mark one
 that resolves against nothing. The editor’s inspector is the reader that exists;
 a surface keeping its own list of which field names what goes stale the day an
@@ -309,9 +309,10 @@ that refers to something declares what, or it is a blank box.</p>
 same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
 Which entity is the subject is per-event (area against body, well against ship,
 target against locker), which is why the filter is one struct rather than one
-per event. Lock and orbit lifecycle events are one-shot EDGES with no hidden
-timer behind them: a target switch queues end-old then start-new, and a
-scenario that needs a continuous hold composes the edges with a keyed timer.</p>
+per event. Lock, orbit, and player STOP/GOTO completion events are one-shot
+EDGES with no hidden timer behind them: a target switch queues end-old then
+start-new, a successful GOTO reports only after physical settle, and a scenario
+that needs a continuous hold composes the edges with a keyed timer.</p>
 <p>Filters read and never mutate; they take <code>&amp;NovaEventWorld</code> and the fired
 <code>GameEventInfo</code> and return a bool, and every filter on a handler must pass.
 Actions take <code>&amp;mut NovaEventWorld</code> and run in order. Neither touches the Bevy
@@ -334,7 +335,7 @@ because one drain pass walks the whole queue against a single index snapshot
 and two queued events of the same name would otherwise reach the same handler
 twice.</p>
 <h3 id="what-an-action-does-that-its-ron-cannot-show"><a class="header" href="#what-an-action-does-that-its-ron-cannot-show">What an action does that its RON cannot show</a></h3>
-<p>Most actions are a straight write into <code>NovaEventWorld</code>. Four are not, and the
+<p>Most actions are a straight write into <code>NovaEventWorld</code>. Six are not, and the
 difference is engine behaviour rather than authored syntax:</p>
 <ul>
 <li><strong><code>Outcome</code></strong> is not just an overlay. Setting one puts the app into
@@ -346,6 +347,27 @@ pins a <code>ScriptedCameraPose</code> that is re-enforced in
 <code>CameraAuthoritySystems::Override</code>, because both camera controllers keep
 writing the camera <code>Transform</code> otherwise - the same swap the
 player-ship-spawn observer does.</li>
+<li><strong><code>SetCameraAnchor</code></strong> is the same override, SOLVED every frame instead of
+once: <code>ScriptedCameraAnchor</code> names an entity, an offset in its local or the
+world frame, and what to look at, and <code>track_scripted_camera_anchor</code> rebuilds
+the pose from wherever that entity now is. <code>ScriptedCameraTransform</code> is the
+one thing <code>Override</code> enforces, so the two pose kinds compose - swapping one
+for the other never drops the camera. Losing the anchor entity releases the
+override rather than freezing the shot, and a <code>look_at</code> entity that dies
+falls back to the anchor. It is camera authority ONLY: it issues no helm
+order and does not change input authority.
+<code>ReleaseCamera</code> removes both pose kinds. There is nothing to restore because
+the scenario camera IS the player’s chase camera - the chase sync keeps
+writing in <code>CameraAuthoritySystems::Solve</code> the whole time the override is up,
+so dropping the override hands the view straight back.</li>
+<li><strong><code>SuspendPlayerControl</code></strong> sets the shared <code>PlayerControlSuspended</code> gate and
+immediately clears held burn, RCS, rotation, radar, combat stance, and weapon
+intent. Player input observers also read that gate because observers bypass
+system-set run conditions. <code>ResumePlayerControl</code> lowers it. Both are
+idempotent, and scenario teardown always resumes control. The flight context
+is lowered while suspended; <code>Always</code> remains live for pause, menu, and an
+explicitly always-live cinematic-skip binding. Physics, timers, AI, scripted
+orders, and the cinematic do not use the player gate.</li>
 <li><strong><code>SetSkybox</code></strong> installs DEFERRED. The skybox setup observer reads the image
 immediately and would panic on a handle that has not loaded, so the action
 only tags the scenario camera with <code>PendingSkyboxSwap</code> and
@@ -361,16 +383,24 @@ verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.</p>
 <p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
-<code>flow</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>, <code>view</code> - and adding
-one is <a href="guide-extend-scenarios.html">Extend the scenario engine</a>.</p>
-<h3 id="sequence-keeps-its-cursor-in-the-engine"><a class="header" href="#sequence-keeps-its-cursor-in-the-engine"><code>Sequence</code> keeps its cursor in the engine</a></h3>
-<p><code>Sequence</code> is the one action whose state does not live in the action. A
-<code>SequenceActionConfig</code> is an authored LITERAL key plus an ordered list of
-steps; running it calls <code>NovaEventWorld::start_sequence</code>, which files a
-<code>SequenceRun</code> - key, steps, cursor, the time the step became current - in the
-event world beside the keyed timers. The config is immutable and shared
+<code>audio</code>, <code>cinematic</code>, <code>flow</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>,
+<code>view</code> - plus <code>registry</code>, which is the macro and the table rather than a family.
+Adding one is <a href="guide-extend-scenarios.html">Extend the scenario engine</a>.</p>
+<h3 id="a-beat-chain-keeps-its-cursor-in-the-engine"><a class="header" href="#a-beat-chain-keeps-its-cursor-in-the-engine">A beat chain keeps its cursor in the engine</a></h3>
+<p>A BEAT CHAIN is an authored LITERAL key plus an ordered list of
+<code>SequenceStepConfig</code>s, and its state does not live in the action. Running one
+files a <code>SequenceRun</code> - key, steps, cursor, the time the step became current -
+in the event world beside the keyed timers. The config is immutable and shared
 (<code>Arc&lt;Vec&lt;SequenceStepConfig&gt;&gt;</code>), so the same chain can be authored once and
 started from several handlers.</p>
+<p>Two actions are chains. <code>Sequence</code> calls <code>NovaEventWorld::start_sequence</code>;
+<code>Cinematic</code> calls <code>start_cinematic</code>, which files the same run through the same
+<code>start_run</code> and adds the ending it owes - whether the player may leave early,
+and the events the scene reports when it finishes or is skipped. Name the
+mechanism after the CHAIN, not after <code>Sequence</code>: an arm that nests steps is
+declared in exactly one place, <code>EventActionConfig::step_chain</code>, and every
+walker in the tree reads it. Add a third chain there and nothing else has to
+learn about it.</p>
 <p>The cursor CANNOT live in the action: handlers are dispatched from an index
 snapshot and an action config is read-only during a pass, so a step counter
 held there would be per-fire, not per-run. Keying it by an authored literal
@@ -398,13 +428,14 @@ That makes a shut gate a soft-lock, which is why a gated step carries a
 <code>deadline</code>: expiry stops the run and logs an <code>error!</code> naming the key, the step
 and the event it waited for. <code>start_sequence</code> holds the other loud half - a
 restart on a live key is refused and logged, because one key is one cursor.</p>
-<p>Because a step’s action list is a FRAME of its own, four walkers had to learn
-to recurse into it: <code>inline_queries</code>, <code>object_count</code>, the lint’s
-<code>collect_declared</code> / <code>check_action</code>, and the per-event spawn-id pass. The
-shared helpers are <code>EventActionConfig::walk</code> and
-<code>ScenarioEventConfig::action_groups</code>, which returns a handler’s own actions
-plus one group per <code>Sequence</code> step it starts, however deeply nested. Any new
-rule that reasons about “one frame” reads <code>action_groups</code>, not <code>actions</code>.</p>
+<p>Because a step’s action list is a FRAME of its own, every walker that reasons
+about frames has to recurse into it: <code>inline_queries</code>, <code>object_count</code>, the
+lint’s <code>collect_declared</code> / <code>check_action</code>, and the per-event spawn-id pass.
+The shared helpers are <code>EventActionConfig::walk</code> (and <code>walk_mut</code>, for a pass
+that rewrites) and <code>ScenarioEventConfig::action_groups</code>, which returns a
+handler’s own actions plus one group per step of every chain it starts, however
+deeply nested. Any new rule that reasons about “one frame” reads
+<code>action_groups</code>, not <code>actions</code>.</p>
 <h2 id="variables-and-the-event-world-worldrs-variablesrs"><a class="header" href="#variables-and-the-event-world-worldrs-variablesrs">Variables and the event world (<code>world.rs</code>, <code>variables.rs</code>)</a></h2>
 <p><code>NovaEventWorld</code> holds the scenario state: variables, objectives,
 <code>next_scenario</code>, and a queue of deferred command closures. Filters and actions
@@ -415,9 +446,13 @@ objectives into <code>GameObjectives</code> (write-on-diff), runs a queued non-l
 <p>The drain is CHUNKED, not one flush. A chapter’s <code>OnStart</code> queues a closure per
 object, and applying them together cost one ~300 ms frame - a frame nothing can
 be drawn on, so the LOADING panel froze on the exact frames it exists to cover.
-Commands are applied one at a time until <code>SPAWN_DRAIN_BUDGET</code> (3 ms) of the
-frame is spent, so a big scene arrives over several frames and a slower machine
-takes MORE FRAMES rather than a longer one. One command per apply is also what
+Commands are applied one at a time until the frame’s budget is spent:
+<code>SPAWN_DRAIN_BUDGET</code> (3 ms), or a fifth of the previous frame’s wall time when
+that is more (<code>SPAWN_DRAIN_FRAME_SHARE</code>). A big scene arrives over several
+frames, a slower machine takes MORE FRAMES, and a frame never gives the drain
+more than the fifth of itself a 60 Hz frame does - without the share, a machine
+drawing a frame a second landed one object a frame and kept a chapter’s ships a
+wall-clock minute behind its scatter. One command per apply is also what
 keeps each object atomic: a ship’s sections all land inside one apply, so the
 <code>Added&lt;SectionLinkPoints&gt;</code> batch the integrity graph and the derived skin key
 off is complete the first time they see it.</p>
@@ -469,11 +504,11 @@ that used the scenario clock would never fire.</li>
 <p>Anything that has to keep counting behind a frozen overlay is in the same
 position and has the same answer.</p>
 <h3 id="story-pacing-is-a-queue-not-a-slot"><a class="header" href="#story-pacing-is-a-queue-not-a-slot">Story pacing is a QUEUE, not a slot</a></h3>
-<p><code>StoryMessage</code> writes into a bottom-left comms stack rather than a
-latest-wins line: arrival order, a bounded number of cards visible with a
-bounded backlog behind them, oldest dropped when the backlog overflows, and the
-whole log kept in the feed. That is why a burst of lines is survivable - but
-one line per beat is still the style, and the queue is the safety net.</p>
+<p><code>NarrativeCue</code> writes into a bottom-left comms stack rather than a
+latest-wins line: arrival order, a bounded number of cards visible, and a
+lossless pending queue behind them. The whole log stays in the feed too. That
+is why a burst of lines is survivable - but one line per beat is still the
+style, and the queue is the safety net.</p>
 <p>Two consequences for anything that fires story lines:</p>
 <ul>
 <li><strong>The stack is a HUD surface <code>nova_scenario</code> reaches up into.</strong> The dwell
@@ -563,12 +598,8 @@ reason to wake would stall its chain forever.</p>
 <tr><th>scenario</th><th>pulses / frames</th><th>why</th></tr>
 </thead>
 <tbody>
-<tr><td><code>final_tally</code></td><td>308 / 18300</td><td>value-gated milestones</td></tr>
-<tr><td><code>broadside</code></td><td>355 / 13500</td><td>value-gated milestones</td></tr>
-<tr><td><code>shakedown_run</code></td><td>425 / 16800</td><td>value-gated milestones</td></tr>
 <tr><td><code>ledger_ch1</code></td><td>350 / 22500</td><td>milestones plus four scheduled lines</td></tr>
 <tr><td><code>ledger_ch3</code></td><td>every frame</td><td>a <code>player_speed</code> ladder, correctly polling</td></tr>
-<tr><td><code>lifeline</code></td><td>every frame</td><td>recomputes a HUD countdown per frame</td></tr>
 </tbody>
 </table>
 </div>
@@ -629,8 +660,8 @@ early - or back through gate 1 again - matches no live handler and is inert. The
 <code>gates_advance_only_in_order_and_only_for_the_named_ship</code> test pins exactly
 this on a synthetic course: an out-of-order entry does not advance <code>gate</code>.</p>
 <p>Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
-tutorial’s step chain). The base <code>shakedown_run</code> starter uses the same idiom
-with a <code>beat</code> counter; see <a href="#built-in-scenarios">Built-in scenarios</a>.</p>
+tutorial’s step chain). The base <code>tutorial</code> range uses the same idiom with a
+<code>beat</code> counter; see <a href="#built-in-scenarios">Built-in scenarios</a>.</p>
 <h3 id="the-act-gating-pattern"><a class="header" href="#the-act-gating-pattern">The act-gating pattern</a></h3>
 <p>A post-decision event can otherwise flip an already-decided outcome: in Gauntlet
 a wreck normally means Defeat, but a wreck that drifts into a rock AFTER the win
@@ -714,29 +745,62 @@ in <code>actions/spawn.rs</code>. The authored fields of each kind - and every t
 them - are <code>/create/objects/</code>; what follows is what the modules have in common.</p>
 <p>All share <code>BaseScenarioObjectConfig</code> (id, name, position, rotation) and spawn
 scoped entities via <code>base_scenario_object</code>, which deliberately carries NO body:
-each kind declares its own <code>RigidBody</code>, and the asteroid alone opts into
-<code>Dynamic</code> + <code>TransformInterpolation</code>. A carved rock also emits new dynamic
-bodies at runtime - every piece a crater severs (<code>CarvedChunkMarker</code>,
+each kind declares its own <code>RigidBody</code>, and only the asteroid and the planet
+opt into <code>Dynamic</code> + <code>TransformInterpolation</code>. A carved rock also emits new
+dynamic bodies at runtime - every piece a crater severs (<code>CarvedChunkMarker</code>,
 <code>integrity/chunk.rs</code>) - so the spawn kinds are not the whole population of a
 live scene.</p>
-<p>Three engine facts the object configs do not show:</p>
+<p>Four engine facts the object configs do not show:</p>
 <ul>
-<li><strong>Nothing supplies a light.</strong> <code>Light</code> is an ordinary spawned kind
+<li>
+<p><strong><code>BodyRadius</code> is DERIVED from the mesh, not read from the config.</strong> Both
+ground kinds publish <code>radius * unit_extent</code>, and the two extents are nothing
+alike: an asteroid’s noise mesh puts it in <code>[3.5, 6.0]</code>, a planet’s is
+<code>1 + relief</code>, about 1.05. Everything measured off a body - the gravity well’s
+clamp, the sphere of influence, an orbit ring, a GOTO standoff - reads that
+derived number, so moving content between the two kinds means carrying the
+DERIVED radius across, not the authored one.</p>
+</li>
+<li>
+<p><strong>Nothing supplies a light.</strong> <code>Light</code> is an ordinary spawned kind
 (<code>objects/light.rs</code>) and the engine adds none of its own, so a scenario that
-authors no <code>Light</code> renders black. This catches every new backdrop.</li>
-<li><strong>A rock has no <code>health</code> field, and that is not an omission.</strong> What an
+authors no <code>Light</code> renders black. This catches every new backdrop.</p>
+</li>
+<li>
+<p><strong>What a rock is MADE of is required, and it decides how it looks.</strong>
+<code>AsteroidConfig::material</code> names a KIND - <code>rock</code>, <code>metal</code>, <code>ice</code>, <code>carbon</code>,
+or the <code>plain</code> control - and <code>objects/asteroid_kind.rs</code> is the one table that
+maps a kind to a look. The look is uniform data for a triplanar
+<code>ExtendedMaterial</code> (<code>objects/asteroid_surface.rs</code>), so a carved and remeshed
+rock wears the same surface it did before the hit. There is NO default and no
+fallback: a config without the field fails to deserialize, an id the table
+does not know is a <code>content lint</code> error and a refusal to render, and
+<code>ScatterObjects</code> writes a kind into every copy from an authored weighted mix.</p>
+</li>
+<li>
+<p><strong>A rock has no <code>health</code> field, and that is not an omission.</strong> What an
 asteroid is made of IS its durability; the mechanism is
-<a href="#how-an-asteroid-carves">below</a>. Its <code>mass</code> is the body’s <code>mu</code> and sets both
-the pull <code>a = mu / r^2</code> and the sphere of influence - the distance where that
-decays to <code>GravitySettings::soi_cutoff_accel</code> - so a well is authored by the
-SOI it should have, <code>mu = soi_cutoff_accel * soi^2</code>. An <code>Anchor</code> publishes
-the same <code>GravityWell</code> from an AUTHORED radius instead of a mesh-derived one,
-which is what makes it deterministic where a carved rock is not.</li>
-<li><strong>Ship section geometry is LINTED, not clamped.</strong> Overlapping unit-cube cells
+<a href="#how-an-asteroid-carves">below</a>. Its <code>radius</code> is <code>Meters</code> like every other
+authored length; its <code>mass</code> is not, and that is deliberate. <code>mass</code> is the
+body’s <code>mu</code>, an L^3/T^2 quantity - an SI one would be a THOUSAND times the
+world-unit one - so it stays engine-side in u^3/s^2 with the
+<code>GravitySettings</code> cutoff it is measured against. It sets both the pull
+<code>a = mu / r^2</code> and the sphere of influence, the distance where that decays to
+<code>GravitySettings::soi_cutoff_accel</code> (0.25 u/s^2, which is 2.5 m/s^2), so a
+well is authored by the SOI it should have: <code>mu = soi_cutoff_accel * soi^2</code>,
+both terms engine-side. The inspection planetoid’s 27 000 buys a 328.6 u
+sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An <code>Anchor</code>
+publishes the same <code>GravityWell</code> from an AUTHORED radius instead of a
+mesh-derived one, which is what makes it deterministic where a carved rock is
+not.</p>
+</li>
+<li>
+<p><strong>Ship section geometry is LINTED, not clamped.</strong> Overlapping unit-cube cells
 and a turret or torpedo mount whose base (local -Y under its rotation) faces
 an empty neighbour cell are <code>content lint</code> ERRORS, so a bad hull fails
 authoring rather than spawning wrong. See
-<a href="sections.html">Ship sections internals</a>.</li>
+<a href="sections.html">Ship sections internals</a>.</p>
+</li>
 </ul>
 <h3 id="how-an-asteroid-carves"><a class="header" href="#how-an-asteroid-carves">How an asteroid carves</a></h3>
 <p>An asteroid is the one body in the game with nothing to hide behind. A ship
@@ -758,19 +822,24 @@ on the biggest the cap allows, and a scenario scatters a hundred rocks most of
 which are never touched - so the spawn path meshes the field and DROPS it. The
 first hit pays to build it again (tens to hundreds of thousands of noise
 samples); from then on nothing resamples.</p>
-<p><strong>The cost model.</strong> <code>FIELD_CELL_WORLD</code> is 0.5 WORLD units, and the cell COUNT is
-derived from it - the opposite way round from how this started. A crater is a
-world-sized thing (a 4-damage PDC round carves 0.62 units whatever it lands on),
-so a grid whose cells grew with the rock could not draw that round’s hole on
-anything big: 32 cells across a radius-3 rock is a 1.02 unit cell, four times the
-round being fired at it. Coarseness is the ART, not a resolution knob - a finer
-grid only makes a smoother rock. <code>FIELD_RESOLUTION_MIN</code> is 16 and
-<code>FIELD_RESOLUTION_MAX</code> is 40; the cap BINDS above about radius 1.8, and what it
-costs there is the cell (a radius-3 rock is gridded at 0.82 units, so a PDC round
-on one is under a cell and only sustained fire - whose mark GROWS where it is
-held - opens a hole). <code>41^3</code> corners is 275 KB per carved rock, paid only by
+<p><strong>The cost model.</strong> The field is what the rock is meshed and collided from, so
+it is engine geometry: every figure in this paragraph is in world units, and the
+authored <code>Meters</code> radius crosses once on the way in (<code>pristine_rock_mesh</code>).
+<code>FIELD_CELL_WORLD</code> is 0.5 WORLD units - a 5 m cell - and the cell COUNT is
+derived from it, the opposite way round from how this started. A crater is a
+world-sized thing (a 4-damage PDC round carves 0.62 u, a 6.2 m sphere, whatever
+it lands on), so a grid whose cells grew with the rock could not draw that
+round’s hole on anything big: 32 cells across a 30 m rock is a 1.02 u cell, four
+times the round being fired at it. Coarseness is the ART, not a resolution knob</p>
+<ul>
+<li>a finer grid only makes a smoother rock. <code>FIELD_RESOLUTION_MIN</code> is 16 and
+<code>FIELD_RESOLUTION_MAX</code> is 40; the cap BINDS above an authored radius of about
+18 m, and what it costs there is the cell (a 30 m rock is gridded at 0.82 u, so
+a PDC round on one is under a cell and only sustained fire - whose mark GROWS
+where it is held - opens a hole). <code>41^3</code> corners is 275 KB per carved rock, paid only by
 rocks that are hit. <code>FIELD_MARGIN</code> is 1.08, only just over 1 because carving
-never ADDS material.</p>
+never ADDS material.</li>
+</ul>
 <p><strong>Nothing happens in the frame that asked for it.</strong> The seed and the whole carve</p>
 <ul>
 <li>split, surface nets, collider, and the geometry of every piece the cut freed -
@@ -812,17 +881,27 @@ surface an uncarved one does and there is no per-triangle quilting. It is also
 why a severed piece must not inherit that material blindly - a piece is a new
 body with a new origin, and it reads the grain from a different place.</p>
 <h2 id="built-in-scenarios"><a class="header" href="#built-in-scenarios">Built-in scenarios</a></h2>
-<p>The builders live under
-<code>crates/nova_authoring/src/base_content/scenarios/</code>. <code>main_menu/</code> gives each
-menu backdrop its own file, and <code>nova_protocol/</code> owns the campaign chapters plus
-shared cast and pacing vocabulary. Its <code>shakedown/</code> module builds the New Game starter - the
-beat-chain reference: one <code>beat</code> counter gates every handler, and count
-milestones run on <code>OnUpdate</code> handlers keyed on the counter (handler order
-within one event is not load-bearing). The builders are an OFFLINE inventory,
-not the runtime path: <code>content -- gen</code> serializes them to
-the committed <code>assets/base/scenarios/*.content.ron</code>, <code>base.bundle.ron</code> lists
+<p>The builders live under <code>crates/nova_authoring/src/base_content/scenarios/</code>.
+<code>main_menu/</code> gives each menu backdrop its own file, <code>tutorial/</code> builds the New
+Game starter, Basic Training, across <code>mod.rs</code> (the chain), <code>range.rs</code> (the
+props) and <code>script.rs</code> (every line), and <code>pacing.rs</code> holds the cue and outro
+spacing. Basic Training is the beat-chain reference: one <code>beat</code> counter gates
+every handler, and count milestones run on <code>OnUpdate</code> handlers keyed on the
+counter (handler order within one event is not load-bearing). The builders are
+an OFFLINE inventory, not the runtime path: <code>content -- gen</code> serializes them to
+the committed <code>assets/base/scenarios/*.content.ron</code>, the bundle manifest lists
 them, and <code>crates/nova_assets/src/merge.rs</code> merges the parsed RON into
 <code>GameScenarios</code> like any mod’s. <code>content_ron_parity</code> pins builders == RON.</p>
+<p>The orbit tracker derives lifecycle edges from live autopilot state. Once the
+ship first reaches <code>Hold</code> it also sums signed radial-angle changes around the
+sticky orbit plane, and each net revolution fires <code>OnOrbitLap</code>. Counting starts
+at the RING, not at the verb, because the insertion approach curves around the
+well and would otherwise bank most of a lap for free. It then survives every
+phase the autopilot flies there - <code>Align</code> and <code>Burn</code> during ORBIT are the
+correction that puts the ship back on the ring, not a departure from it - and
+is written off only by an absence from <code>Hold</code> longer than
+<code>ORBIT_LAP_GRACE_SECS</code>. So authored lap objectives need no guessed timer, and
+one nudge does not silently cost the player three quarters of a revolution.</p>
 <h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
@@ -832,9 +911,10 @@ the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>object
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
-<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/<code>spawn</code>/<code>timer</code>/
-<code>view</code>), plus an
-<code>EventActionConfig</code> variant in <code>actions/mod.rs</code>.</li>
+<code>actions/</code> submodule (<code>audio</code>/<code>cinematic</code>/<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/
+<code>spawn</code>/<code>timer</code>/<code>view</code>), plus a row in the <code>registry::scenario_actions!</code>
+table in <code>actions/mod.rs</code>. The <code>EventActionConfig</code> variant is GENERATED from
+that row - writing one by hand collides with the macro.</li>
 <li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
 <li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
 <code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in
@@ -868,6 +948,10 @@ kind dispatch: <code>ScenarioObjectKind</code> -
 <code>SignedField</code> - <code>crates/nova_gameplay/src/mesh/field.rs</code>; the cost of the
 material itself: <code>DAMAGE_PER_UNIT_VOLUME</code> -
 <code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
+<li>Asteroid kinds: <code>AsteroidKind</code>, <code>asteroid_kind_look</code>, <code>ASTEROID_KINDS</code> -
+<code>crates/nova_scenario/src/objects/asteroid_kind.rs</code>; the surface they drive:
+<code>AsteroidSurfaceMaterial</code> - <code>crates/nova_scenario/src/objects/</code>
+<code>asteroid_surface.rs</code> and <code>assets/shaders/asteroid_surface.wgsl</code>.</li>
 <li>API detail: <code>cargo doc --open -p nova_scenario</code> (event engine:
 <code>-p nova_events</code>).</li>
 </ul>

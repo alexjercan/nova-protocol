@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Base content catalog - Nova Protocol Creator Docs</title>
-        <meta name="description" content="Every id and asset the base game ships: section prototype ids, ship and style ids, scenario ids, the campaign, dep://base asset paths, and overlay rules." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Base content catalog - Nova Protocol Creator Docs</title><meta name="description" content="Every id and asset the base game ships: section prototype ids, ship, style and grammar ids, narrative channels, scenario ids, the campaign, dep://base asset paths, and overlay rules."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,27 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
-                        / Base content catalog
-                    </p>
-                    <h1>Base content catalog</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#semantic-ship-parts">Semantic ship parts</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-26-glb">Meshes (26 glb)</a></li><li><a href="#greebles-54-glb">Greebles (54 glb)</a></li><li><a href="#sounds-13-wav">Sounds (13 wav)</a></li><li><a href="#images-9">Images (9)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol>
-                    </nav>
-                    <p>Every id and asset the base game ships, so your mod can reference them
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#ship-grammars">Ship grammars</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#impact-rows">Impact rows</a><ol></ol></li><li><a href="#narrative-channels">Narrative channels</a><ol></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-41-glb">Meshes (41 glb)</a></li><li><a href="#greebles-54-glb">Greebles (54 glb)</a></li><li><a href="#sounds-31-wav">Sounds (31 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
 instead of guessing. Five registries matter to a mod author: <strong>section
 prototype ids</strong> (what <code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> can name), <strong>ship ids</strong>
 (what <code>hull: Prototype(&quot;&lt;id&gt;&quot;)</code> can name - tabled in
@@ -60,15 +32,21 @@ content and <code>dep://base/</code> assets without listing <code>base</code> in
 <code>meta.dependencies</code>. Declaring it explicitly is allowed and also resolves -
 the shipped portal mods do - but it is never required.</p>
 <h2 id="section-prototypes" tabindex="-1">Section prototypes</h2>
+<p>Lengths are in METERS and speeds in meters per second: the number in the file is
+the number in the world, and there is nothing to convert. World units survive
+in one place a creator ever touches - the BUILD GRID a ship is assembled on,
+whose cell is 10 m on a side. A section's <code>collider</code>, its <code>link_points</code> and its
+<code>position</code> in a ship's <code>sections</code> list are counted in cells, and so is a
+thruster's exhaust cone; everything else on this page is metric.</p>
 <p>A prototype id is used two ways: a ship's section list references it
 compactly (<code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> resolves the whole config, meshes and
 sounds included), and a mod <code>Section</code> item that reuses the id REPLACES that
 part everywhere. See <a href="../sections/">Ship sections for mods</a> for
 the <code>Section</code> grammar and the overlay flow.</p>
-<p>Ids are lowercase snake_case. Core editor parts use the
-<code>&lt;variant&gt;_&lt;kind&gt;_section</code> form. Shipped semantic ship parts use
-<code>&lt;ship&gt;_&lt;part&gt;</code>, for example <code>racer_fuselage</code> and <code>cargoa_engine_port</code>.
-Section kinds are <code>Hull</code>, <code>Thruster</code>, <code>Controller</code>, <code>Turret</code>, and <code>Torpedo</code>.</p>
+<p>Ids are lowercase snake_case, in the <code>&lt;variant&gt;_&lt;kind&gt;_section</code> form. Every
+base prototype is GENERIC - a hull cell, a drive, a mount, a bay - so the same
+part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</code>, <code>Controller</code>,
+<code>Turret</code>, <code>Torpedo</code>, and <code>Railgun</code>.</p>
 <h3 id="core-sections-the-editor-palette" tabindex="-1">Core sections (the editor palette)</h3>
 <table>
 <thead>
@@ -124,47 +102,89 @@ Section kinds are <code>Hull</code>, <code>Thruster</code>, <code>Controller</co
 <td>scavenger-grade hull</td>
 </tr>
 <tr>
+<td><code>cargo_hull_section</code></td>
+<td>Hull</td>
+<td>Cargo Hull Section</td>
+<td>200</td>
+<td>the reinforced cell's stats under caged freight; a visual choice until real hull types arrive</td>
+</tr>
+<tr>
+<td><code>tank_hull_section</code></td>
+<td>Hull</td>
+<td>Tank Hull Section</td>
+<td>200</td>
+<td>the reinforced cell's stats around a pressure vessel in open frame rails</td>
+</tr>
+<tr>
 <td><code>pdc_kinetic_turret_section</code></td>
 <td>Turret</td>
 <td>PDC Turret (Kinetic)</td>
 <td>130</td>
-<td>the one turret every craft mounts, on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle</td>
+<td>the gatling every craft mounts, on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle</td>
 </tr>
 <tr>
 <td><code>pdc_pierce_turret_section</code></td>
 <td>Turret</td>
 <td>PDC Turret (Pierce)</td>
 <td>130</td>
-<td>the same 500-round, +200 after 3 s idle gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through</td>
+<td>the same 500-round, +200 after 3 s idle gatling loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through</td>
+</tr>
+<tr>
+<td><code>pdc_twin_kinetic_turret_section</code></td>
+<td>Turret</td>
+<td>Twin PDC Turret (Kinetic)</td>
+<td>130</td>
+<td>the same slugs from the two-barrel mount: each tube at half the gatling's cadence, so two offset streams at the same total rate and magazine drain</td>
+</tr>
+<tr>
+<td><code>pdc_twin_pierce_turret_section</code></td>
+<td>Turret</td>
+<td>Twin PDC Turret (Pierce)</td>
+<td>130</td>
+<td>penetrators from the two-barrel mount - half per-hit damage through every layer, split across two offset streams</td>
 </tr>
 <tr>
 <td><code>torpedo_section</code></td>
 <td>Torpedo</td>
 <td>Torpedo Bay (Serpent)</td>
 <td>100</td>
-<td>blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out</td>
+<td>blast 750 dmg over a radius of 300 m, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - cruise 320 m/s, ~390 PDC rounds an intercept, killed ~400 m out</td>
 </tr>
 <tr>
 <td><code>lance_torpedo_section</code></td>
 <td>Torpedo</td>
 <td>Torpedo Bay (Lance)</td>
 <td>100</td>
-<td>the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out</td>
+<td>the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, cruise 350 m/s, ~116 PDC rounds an intercept, killed ~1.14 km out</td>
+</tr>
+<tr>
+<td><code>railgun_lance_section</code></td>
+<td>Railgun</td>
+<td>Railgun Lance</td>
+<td>180</td>
+<td>the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s</td>
+</tr>
+<tr>
+<td><code>siege_railgun_lance_section</code></td>
+<td>Railgun</td>
+<td>Siege Railgun Lance</td>
+<td>180</td>
+<td>the same lance at capital grade, mounted only by the campaign's stolen warship: Pierce 500 to every layer it rakes until 360,000 slug power runs out, rake radius 30 m. Same 1.5 s charge, same 15,000 m/s slug for 1.2 s, same recoil 45 and one round over 12 s. Deliberately overpowered siege ordnance, not a balanced duel</td>
 </tr>
 <tr>
 <td><code>heavy_torpedo_section</code></td>
 <td>Torpedo</td>
 <td>Siege Torpedo Bay Section</td>
 <td>100</td>
-<td>blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; loads the crimson siege Breaker (70 u/s, a shallow weave); scene dressing, hidden in the editor</td>
+<td>experimental and deliberately overpowered balancing kit, not intended for normal play; blast 2000 dmg over a radius of 450 m, armored ordnance (5000 hp), ammo 6 restoring +1 after 10 s idle; loads the crimson siege Breaker (cruise 700 m/s, with a shallow weave)</td>
 </tr>
 </tbody>
 </table>
 <p>Every shipped prototype authors its <a href="../sections/#damage-effects">damage
 effects</a> by kind, and the whole catalog follows one
 rule: Hull wears <code>([Cracks])</code> (the default, so it is omitted), Controller,
-Turret and Torpedo wear <code>([Cracks, Sparks])</code>, and Thruster wears
-<code>([Cracks, Sparks, Plume])</code>. The semantic ship parts below use the same rule.
+Turret, Torpedo and Railgun wear <code>([Cracks, Sparks])</code>, and Thruster wears
+<code>([Cracks, Sparks, Plume])</code>.
 No shipped mod authors the field at all, so base is the worked example.</p>
 <h3 id="cladding-not-a-prototype" tabindex="-1">Cladding (not a prototype)</h3>
 <p>A ship's outer SKIN is DERIVED from the structure it wraps, as a pure function
@@ -173,8 +193,8 @@ structure and the skin follows. There is nothing here for a mod to reference.</p
 <p>A ship asks for it with one field - <code>skin: true</code> on the
 <a href="../ships/">ship</a>'s hull - and gets destructible cladding: each plate
 carries its own health and mass, comes off when it is shot out, and leaves the
-hull behind it bare. Build the hull out of the unit-cell sections above; the
-semantic ship parts are modelled shapes of their own sizes and are not on the
+hull behind it bare. Build the hull out of the unit-cell sections above;
+modelled parts a mod brings are shapes of their own sizes and are not on the
 lattice the derivation reads.</p>
 <p>What the cladding LOOKS like is a <a href="../styles/">style</a>, which IS content and does
 have an id.</p>
@@ -197,7 +217,7 @@ have an id.</p>
 </tr>
 <tr>
 <td><code>civilian</code></td>
-<td>the racer's: pale satin paint, a cobalt livery rail, lit cabin windows</td>
+<td>a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows</td>
 </tr>
 <tr>
 <td><code>salvage</code></td>
@@ -213,140 +233,82 @@ have an id.</p>
 <a href="../ships/#the-hull">hull</a>. A mod declaring
 a <code>Style</code> with the same id replaces that look everywhere; a new id is a new look.
 See <a href="../styles/">Ship skin styles</a>.</p>
-<h3 id="semantic-ship-parts" tabindex="-1">Semantic ship parts</h3>
-<p>These prototypes are in the editor palette, and mods can reference them. Their
-tight primitive colliders and authored link points are part of each prototype -
-and those link points are what places one: a part attaches only where its own
-sockets meet another's. Ships use the suffix as the instance id: prototype
-<code>racer_engine_port</code> normally becomes instance <code>engine_port</code>.</p>
-<p>There is no <code>*_turret_*</code> suffix in this table. The ten per-craft turret
-prototypes carried no mesh of their own - all of them were the same PDC on the
-same joint tree - and they are GONE from the catalog along with their <code>_light</code>
-twins. A mod naming one no longer resolves. Use <code>pdc_kinetic_turret_section</code> or
-<code>pdc_pierce_turret_section</code>: one gun that fits any hull face, in a Kinetic and a
-Pierce loadout.</p>
+<h3 id="ship-grammars" tabindex="-1">Ship grammars</h3>
 <table>
 <thead>
 <tr>
-<th>family</th>
-<th>prototype suffix</th>
-<th>kind</th>
-<th>health</th>
+<th>id</th>
+<th>what it is</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Racer</td>
-<td><code>engine_port</code>, <code>engine_starboard</code></td>
-<td>Thruster</td>
-<td>70</td>
-</tr>
-<tr>
-<td>Racer</td>
-<td><code>wing_port</code>, <code>wing_starboard</code></td>
-<td>Hull</td>
-<td>180</td>
-</tr>
-<tr>
-<td>Racer</td>
-<td><code>nose</code>, <code>tail</code></td>
-<td>Hull</td>
-<td>120</td>
-</tr>
-<tr>
-<td>Racer</td>
-<td><code>fuselage</code></td>
-<td>Controller</td>
-<td>240</td>
-</tr>
-<tr>
-<td>CargoB</td>
-<td><code>engine_port</code>, <code>engine_starboard</code></td>
-<td>Thruster</td>
-<td>70</td>
-</tr>
-<tr>
-<td>CargoB</td>
-<td><code>pod_port</code>, <code>pod_starboard</code></td>
-<td>Torpedo</td>
-<td>350</td>
-</tr>
-<tr>
-<td>CargoB</td>
-<td><code>pod_port_lance</code>, <code>pod_starboard_lance</code></td>
-<td>Torpedo</td>
-<td>350</td>
-</tr>
-<tr>
-<td>CargoB</td>
-<td><code>nose</code></td>
-<td>Hull</td>
-<td>180</td>
-</tr>
-<tr>
-<td>CargoB</td>
-<td><code>tail</code></td>
-<td>Hull</td>
-<td>150</td>
-</tr>
-<tr>
-<td>CargoB</td>
-<td><code>fuselage</code></td>
-<td>Controller</td>
-<td>300</td>
-</tr>
-<tr>
-<td>CargoA</td>
-<td><code>engine_port</code>, <code>engine_starboard</code></td>
-<td>Thruster</td>
-<td>70</td>
-</tr>
-<tr>
-<td>CargoA</td>
-<td><code>pod_port</code>, <code>pod_starboard</code></td>
-<td>Hull</td>
-<td>350</td>
-</tr>
-<tr>
-<td>CargoA</td>
-<td><code>nose</code></td>
-<td>Hull</td>
-<td>180</td>
-</tr>
-<tr>
-<td>CargoA</td>
-<td><code>tail</code></td>
-<td>Hull</td>
-<td>150</td>
-</tr>
-<tr>
-<td>CargoA</td>
-<td><code>fuselage</code></td>
-<td>Controller</td>
-<td>350</td>
+<td><code>standard_hull</code></td>
+<td>the keeled, mirrored warship the editor's generator draws from: a seeded spine with a bridge a third of the way back, a mirrored pair of stern drives, and hull, controller, thruster, torpedo and PDC prototypes on the draw</td>
 </tr>
 </tbody>
 </table>
-<p>Prefix each suffix with <code>racer_</code>, <code>cargob_</code>, or <code>cargoa_</code>. Input mappings use
-the instance id, such as <code>&quot;turret_port&quot;</code> or <code>&quot;pod_starboard&quot;</code>. The old
-coordinate-named cube prototypes do not exist.</p>
-<p>Turret MOUNTS are not in this table because they are not prototypes. A craft
-names where a gun goes; the gun is always <code>pdc_kinetic_turret_section</code>, seated
-on the face it stands on. A scavenger-grade craft flies the SAME gun with a
-<code>SetHealth(60.0)</code> modification on the mount - that is all that is left of the
-old <code>_light</code> variants.</p>
-<p>The shipped assemblies cast the hulls by role: the cargoa is the campaign's
-armed corvette (turrets on the pod shoulders), the cargob its torpedo-and-PDC
-gunship, and the racer an unarmed civilian (the yacht the story protects).
-The racer keeps its two mount POINTS, so a mod can bolt the shared PDC onto
-its wings, but no shipped racer mounts a gun.</p>
-<p>The cargob's pods come in two: the base id loads the weaving Serpent, and the
-<code>_lance</code> twin loads the straight-running Lance. Nothing else about the pod
-changes. A ship does not
-mix them - the two loads are two catalog SHIPS, <code>cargob</code> and <code>cargob_lance</code>
-(see <a href="../ships/">Ships</a>) - and the campaign flies both: the chapter-two gunship
-takes Lances so a player's first torpedo fight is one point defense can answer,
-and the Final Tally flagship takes Serpents.</p>
+<p>The editor's Generate block lists every grammar in the merged content under
+HULL LINE and collapses whichever is picked, so a mod declaring a <code>Grammar</code>
+under a NEW id adds a line beside this one; declaring <code>standard_hull</code> retunes
+this one instead. See <a href="../grammars/">Ship grammars</a>.</p>
+<h3 id="modelled-ship-parts-not-base-content" tabindex="-1">Modelled ship parts (not base content)</h3>
+<p>Base ships NO parts cut for one craft. Every base hull is built out of the
+generic prototypes above, on the build grid, and clad by the derived skin.</p>
+<p>A mod that brings modelled craft brings their part prototypes and their meshes
+with it. <a href="../publish-a-mod/">The Ledger</a> is the worked example: its <code>racer</code>,
+<code>cargoa</code>, <code>cargoa_raider</code>, <code>cargob</code> and <code>cargob_lance</code> are assembled from
+<code>racer_*</code>, <code>cargoa_*</code> and <code>cargob_*</code> prototypes it declares itself, over GLBs it
+carries under its own <code>gltf/parts/</code>. Those ids resolve only where The Ledger is
+installed; nothing in base references them.</p>
+<p>Turret MOUNTS are not prototypes either, in base or in a mod. A hull names where
+a gun goes; the gun is <code>pdc_kinetic_turret_section</code>, seated on the face it stands
+on, and a scavenger-grade craft flies the SAME gun with a <code>SetHealth(60.0)</code>
+modification on the mount.</p>
+<h2 id="impact-rows" tabindex="-1">Impact rows</h2>
+<p>The rows of the <a href="../impacts/">impact table</a>, re-declarable by id to re-voice a
+hit for the whole game: <code>impact_kinetic</code>, <code>impact_pierce</code> and
+<code>impact_explosive</code> are the three damage-type defaults, and
+<code>impact_kinetic_rock</code>, <code>impact_kinetic_metal</code>, <code>impact_kinetic_ice</code>,
+<code>impact_kinetic_carbon</code> and <code>impact_kinetic_plain</code> are the stone rows, one per
+asteroid kind.</p>
+<p>The materials the base game names are <code>&quot;hull&quot;</code> (every section) and the five
+asteroid kinds, which are the same ids an asteroid's <code>material</code> field takes.</p>
+<h2 id="narrative-channels" tabindex="-1">Narrative channels</h2>
+<p>Where a story line is heard, and how the comms panel draws one that was. Any
+<a href="../actions/#narrativecue"><code>NarrativeCue</code></a> names one by id, and re-declaring an
+id restyles that channel for the whole game.</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>drawn</th>
+<th>tagged</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comms</code></td>
+<td>incoming-transmission blue</td>
+<td>no</td>
+<td>the work channel: traffic addressed to this ship</td>
+</tr>
+<tr>
+<td><code>crew</code></td>
+<td>phosphor green</td>
+<td>no</td>
+<td>inside the hull, off the radio - a voice in the room</td>
+</tr>
+<tr>
+<td><code>guard</code></td>
+<td>amber, at 70% strength</td>
+<td><code>GUARD</code></td>
+<td>everybody's channel, nobody's conversation</td>
+</tr>
+</tbody>
+</table>
+<p>The fields are documented in <a href="../channels/">Channels</a>.</p>
 <h2 id="scenario-ids" tabindex="-1">Scenario ids</h2>
 <p>What <code>NextScenario((scenario_id: ...))</code>, a <code>Campaign</code> member list, and the
 Scenarios picker can target. A <code>hidden</code> scenario stays off the picker but is
@@ -362,34 +324,10 @@ launchable by id.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>shakedown_run</code></td>
-<td>Shakedown Run</td>
+<td><code>tutorial</code></td>
+<td>Basic Training</td>
 <td>no</td>
-<td>the New Game tutorial (chapter 1)</td>
-</tr>
-<tr>
-<td><code>broadside</code></td>
-<td>Broadside</td>
-<td>no</td>
-<td>chapter 2 part 1: the corvette ambush</td>
-</tr>
-<tr>
-<td><code>broadside_gunship</code></td>
-<td>Broadside: Rust Tally</td>
-<td>yes</td>
-<td>chapter 2 part 2: the gunship boss</td>
-</tr>
-<tr>
-<td><code>lifeline</code></td>
-<td>Lifeline</td>
-<td>no</td>
-<td>chapter 3 part 1: convoy defense</td>
-</tr>
-<tr>
-<td><code>final_tally</code></td>
-<td>Final Tally</td>
-<td>yes</td>
-<td>chapter 3 finale: the anchorage</td>
+<td>the New Game opening: the Fleet gunnery range, a qualification card read over the radio</td>
 </tr>
 <tr>
 <td><code>menu_waystation</code></td>
@@ -417,13 +355,12 @@ launchable by id.</p>
 </tr>
 </tbody>
 </table>
-<p>One campaign ships: <code>nova_protocol</code> (&quot;Nova Protocol&quot;), members
-<code>shakedown_run</code>, <code>broadside</code>, <code>broadside_gunship</code>, <code>lifeline</code>, <code>final_tally</code>
-in play order. There are no other content kinds - a content file holds
-<code>Section</code>, <code>Scenario</code>, <code>Campaign</code>, <code>Ship</code>, and <code>Style</code> items only; factions
-are not content. The base ship ids are tabled in
+<p>The base bundle ships no campaign, and no shipped mod carries one today - a
+<code>Campaign</code> is a mod's to declare. There are no other content kinds - a content file holds
+<code>Section</code>, <code>Scenario</code>, <code>Campaign</code>, <code>Ship</code>, <code>Style</code>, <code>Impact</code>, <code>Grammar</code> and
+<code>Channel</code> items only; factions are not content. The base ship ids are tabled in
 <a href="../ships/#base-ships">Ships</a>, the style ids <a href="#skin-styles">above</a>.</p>
-<p>New Game is base-owned: <code>new_game_scenario: Some(&quot;shakedown_run&quot;)</code> in
+<p>New Game is base-owned: <code>new_game_scenario: Some(&quot;tutorial&quot;)</code> in
 <code>assets/base/base.bundle.ron</code> is honored only from the base bundle; a mod
 declaring it is warned and ignored.</p>
 <h2 id="assets-what-depbase-can-reach" tabindex="-1">Assets: what dep://base/ can reach</h2>
@@ -438,22 +375,33 @@ ref for the one you pick (with the <code>#Scene0</code> label where a mesh needs
 marks a <code>dep://</code> path no bundle ships - so you never type one of these paths
 from memory.</p>
 <p>The declared list, complete:</p>
-<h3 id="meshes-26-glb" tabindex="-1">Meshes (26 glb)</h3>
-<p>Named meshes:</p>
+<h3 id="meshes-41-glb" tabindex="-1">Meshes (41 glb)</h3>
+<p>Named meshes (all use label <code>#Scene0</code>). First the thruster bells:</p>
 <ul>
-<li><code>gltf/hull-01.glb</code> - the core hull (use label <code>#Scene0</code>)</li>
-<li><code>gltf/turret-yaw-01.glb</code>, <code>gltf/turret-pitch-01.glb</code>,
-<code>gltf/turret-barrel-01.glb</code> - the turret joint meshes</li>
-<li><code>gltf/torpedo-bay-01.glb</code> - the torpedo bay</li>
+<li><code>gltf/shell_bell.glb</code>, <code>gltf/shell_vector.glb</code>, <code>gltf/shell_capital.glb</code> -
+the three thruster bells</li>
 </ul>
-<p>Semantic ship meshes use <code>#Scene0</code> and live under <code>gltf/parts/</code>:</p>
+<p>Then the generated section parts the catalog renders
+(<code>scripts/gen-section-parts.py</code>, committed under <code>gltf/</code>):</p>
 <ul>
-<li><code>gltf/parts/racer/</code> - <code>engine_port</code>, <code>engine_starboard</code>, <code>wing_port</code>,
-<code>wing_starboard</code>, <code>nose</code>, <code>tail</code>, and <code>fuselage</code>.</li>
-<li><code>gltf/parts/cargob/</code> - <code>engine_port</code>, <code>engine_starboard</code>, <code>pod_port</code>,
-<code>pod_starboard</code>, <code>nose</code>, <code>tail</code>, and <code>fuselage</code>.</li>
-<li><code>gltf/parts/cargoa/</code> - the same seven CargoB mesh names.</li>
+<li><code>gltf/hull_personnel.glb</code>, <code>gltf/hull_cargo.glb</code>, <code>gltf/hull_tank.glb</code> -
+the three hull cell looks (reinforced, cargo, tank)</li>
+<li><code>gltf/core_wires.glb</code> - the controller core</li>
+<li><code>gltf/pdc_gatling_yaw.glb</code>, <code>gltf/pdc_gatling_pitch.glb</code>,
+<code>gltf/pdc_gatling_barrel.glb</code> - the gatling PDC joint meshes</li>
+<li><code>gltf/pdc_twin_yaw.glb</code>, <code>gltf/pdc_twin_pitch.glb</code>,
+<code>gltf/pdc_twin_barrel.glb</code> - the twin PDC joint meshes</li>
+<li><code>gltf/pdc_housing.glb</code> - the stow housing both PDC mounts sink into,
+with its animatable <code>stow_lid_*</code> nodes</li>
+<li><code>gltf/bay_tube.glb</code> - the two-cell torpedo bay, with its animatable
+<code>door_petal_*</code> iris nodes</li>
 </ul>
+<p>The retired first-pass art stays in the bundle so old refs resolve, but no
+base section renders it: <code>gltf/hull-01.glb</code>, <code>gltf/turret-yaw-01.glb</code>,
+<code>gltf/turret-pitch-01.glb</code>, <code>gltf/turret-barrel-01.glb</code>,
+<code>gltf/torpedo-bay-01.glb</code>.</p>
+<p>Base ships no per-craft part meshes. A mod that brings modelled craft carries
+them itself, under its own <code>gltf/parts/</code>.</p>
 <p>Cladding ships no meshes and never will: a ship's skin is derived from its
 structure and built at run time - see <a href="#cladding-not-a-prototype">Cladding</a>.</p>
 <h3 id="greebles-54-glb" tabindex="-1">Greebles (54 glb)</h3>
@@ -464,22 +412,32 @@ kits - <code>armoured_*</code> (10), <code>civilian_*</code> (12), <code>industr
 prove the pipeline.
 All are generated from committed JSON recipes (<code>scripts/gen-greebles.py</code>,
 <code>scripts/greeble-recipes/</code>), and a mod can ship its own <code>.glb</code> the same way.</p>
-<h3 id="sounds-13-wav" tabindex="-1">Sounds (13 wav)</h3>
-<p>All under <code>dep://base/sounds/</code>: <code>dry_fire.wav</code>, <code>explosion.wav</code>,
-<code>impact.wav</code>, <code>lock_off.wav</code>, <code>lock_on.wav</code>, <code>radar_deny.wav</code>,
-<code>radar_retarget.wav</code>, <code>rcs_loop.wav</code>, <code>safety_on.wav</code>,
-<code>salvage_pickup.wav</code>, <code>thruster_loop.wav</code>, <code>torpedo_launch.wav</code>,
-<code>turret_fire.wav</code>.</p>
+<h3 id="sounds-31-wav" tabindex="-1">Sounds (31 wav)</h3>
+<p>All under <code>dep://base/sounds/</code>: <code>ammo_dry.wav</code>, <code>bay_door.wav</code>,
+<code>destroy_rock.wav</code>, <code>destroy_ship.wav</code>, <code>dry_fire.wav</code>, <code>explosion.wav</code>,
+<code>impact.wav</code>, <code>impact_explosive.wav</code>, <code>impact_pierce.wav</code>, <code>impact_rock.wav</code>,
+<code>lock_off.wav</code>, <code>lock_on.wav</code>, <code>pdc_stow_close.wav</code>, <code>pdc_stow_open.wav</code>,
+<code>pdc_twin_fire.wav</code>, <code>radar_deny.wav</code>, <code>radar_retarget.wav</code>,
+<code>railgun_charge.wav</code>, <code>railgun_fire.wav</code>, <code>railgun_reload.wav</code>, <code>rcs_loop.wav</code>,
+<code>safety_on.wav</code>, <code>salvage_pickup.wav</code>, <code>thruster_capital_loop.wav</code>,
+<code>thruster_loop.wav</code>, <code>thruster_vector_loop.wav</code>, <code>torpedo_detonate.wav</code>,
+<code>torpedo_launch.wav</code>, <code>turret_fire.wav</code>, <code>warn_hull.wav</code>, <code>warn_lock.wav</code>.</p>
 <p>(UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)</p>
-<h3 id="images-9" tabindex="-1">Images (9)</h3>
+<h3 id="images-7" tabindex="-1">Images (7)</h3>
 <ul>
-<li><code>textures/cubemap.png</code> - the stock skybox (chapter 1)</li>
-<li><code>textures/cubemap_alt.png</code> - the alternate skybox (chapters 2-3)</li>
+<li><code>textures/cubemap.png</code> - the stock skybox, and the sky the training range is
+flown under</li>
+<li><code>textures/cubemap_alt.png</code> - the alternate skybox: a <code>SetSkybox</code> swap target
+and what the editor sandbox loads</li>
 <li><code>textures/asteroid.png</code> - the asteroid surface texture</li>
-<li><code>thumbnails/shakedown_run.png</code>, <code>thumbnails/broadside.png</code>, <code>thumbnails/broadside_gunship.png</code>,
-<code>thumbnails/lifeline.png</code>, <code>thumbnails/final_tally.png</code> - the picker plates</li>
+<li><code>thumbnails/tutorial.png</code> - the picker plate</li>
 <li><code>banner.png</code> - the base mod's banner</li>
+<li><code>portraits/*.png</code> - the green CRT faces a
+<a href="../actions/#narrativecue"><code>NarrativeCue</code></a> puts on the comms card:
+<code>player.png</code>, the player's own label, and <code>range-control.png</code>, the training
+range's voice. Reusable by any mod - a portrait is just an image ref, and a
+mod that wants a face of its own ships it under its own tree</li>
 </ul>
 <p>Skybox <code>.png.meta</code> sidecars (the cube reinterpret) ride along with their
 image automatically and are never listed or referenced directly.</p>
@@ -506,21 +464,18 @@ wins.</li>
 <p>The builders behind this page live under
 <code>crates/nova_authoring/src/base_content/</code>: <code>sections/standard.rs</code> owns generic
 section prototypes, <code>sections/ordnance.rs</code> the torpedo types, <code>styles.rs</code> the
-skin styles, <code>ships/</code> owns semantic parts and complete craft,
-<code>scenarios/</code> groups mainline and main-menu scenarios, and
-<code>campaigns.rs</code> owns campaign membership. If this page and the generated RON
+skin styles, <code>ships/</code> owns the block hulls,
+<code>scenarios/</code> groups the training range and the main-menu backdrops, and
+<code>channels.rs</code> owns the narrative channels. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the <code>content_ron_parity</code> test pins the RON to
 the builders.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -531,6 +486,4 @@ the builders.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -186,7 +186,8 @@ how sections connect and handles damage, disabling, and cascading destruction.</
 <h2 id="sections-nova_shipsections"><a class="header" href="#sections-nova_shipsections">Sections (<code>nova_ship::sections</code>)</a></h2>
 <p>A section is a <code>SectionConfig { base: BaseSectionConfig, kind: SectionKind }</code>.
 <code>BaseSectionConfig</code> is shared by all kinds: <code>id</code>, <code>name</code>, <code>description</code>,
-<code>health</code>, optional <code>impact_sound</code> / <code>destroy_sound</code>, optional <code>collider</code>,
+<code>health</code>, optional <code>material</code> (the impact table’s target half) and
+<code>destroy_sound</code>, optional <code>collider</code>,
 structural <code>link_points</code>, <code>hide_in_editor</code>, and <code>damage_effects</code> - the authored
 list of looks this section wears as it is damaged (see <a href="#damage-is-two-readings">Damage is two
 readings</a>).</p>
@@ -203,13 +204,14 @@ readings</a>).</p>
 <tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Also grants flight <code>verbs</code> (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop.</td></tr>
 <tr><td><code>Turret</code></td><td>Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own <code>offset</code>/<code>axis</code>/<code>speed</code>/limits/<code>render_mesh</code>), section-wide <code>muzzle_speed</code> + authored <code>bullet_damage</code> + <code>bullet_kind</code>, per-muzzle <code>fire_rate</code>, optional <code>ammo_capacity</code>.</td></tr>
 <tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammo_capacity</code>. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
+<tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammo_capacity: 1</code> with a long <code>reload</code>.</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints.
-Generic prototypes are authored in
-<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>; semantic craft
-parts live under <code>base_content/ships/</code>. Their explicit <code>section_catalog()</code> is
+Every base prototype is GENERIC and authored in
+<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>; a mod that brings
+modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
 generated into <code>assets/base/sections/base.content.ron</code> by <code>content -- gen</code> and
 merged into the resource by
 <code>crates/nova_assets/src/merge.rs</code>. The outer-skin cladding is not a prototype at
@@ -230,11 +232,19 @@ avian’s <code>ComputedAngularInertia</code>. No formula for it lives in Nova: 
 second moment of where the mass actually sits, so no curve in any single
 length can stand in for it.</li>
 <li><code>r</code> is the structural arm, from the hull’s centre of mass to the outer FACE
-of its furthest live section, in world units. <code>structural_arm</code> derives it;
-<code>BodyRadius</code> is a scenario-obstacle radius and is not it.</li>
-<li><code>LOAD_LIMIT</code> and <code>METERS_PER_UNIT</code> are in <code>crates/nova_events/src/scale.rs</code> -
-one definition each, shared by the physics and by the player-facing
-formatter in <code>nova_ui::units</code>.</li>
+of its furthest live section. <code>structural_arm</code> measures it off posed
+colliders, so its answer is in engine world units and the caller crosses it
+with <code>Meters::from_engine</code> before <code>AttitudeEnvelope</code> divides by it - which is
+why <code>METERS_PER_UNIT</code> appears in the formula above and not in the code. The
+Ledger corvette reads 2.76 u, i.e. 27.6 m. <code>BodyRadius</code> is a
+scenario-obstacle radius and is not it.</li>
+<li><code>LOAD_LIMIT</code> is <code>crates/nova_events/src/scale.rs</code> and <code>METERS_PER_UNIT</code> is
+<code>crates/nova_events/src/units.rs</code> - one definition each, shared by the
+physics and by the player-facing formatter in <code>nova_ui::units</code>. Both halves
+of the world’s scale, and the
+<a href="architecture.html#units-and-scale">boundary they sit on</a>.</li>
+<li>The ceiling comes out in rad/s^2 either way: <code>LOAD_LIMIT / r</code> is
+(m/s^2) / m, so the scale cancels and no figure on this page moves with it.</li>
 </ul>
 <p>The two structural loads are perpendicular components of one acceleration at
 the tip, so they add as a VECTOR: <code>alpha^2 + omega^4 &lt;= (LOAD_LIMIT / r_m)^2</code>.
@@ -242,6 +252,15 @@ A hull already in a hard turn has spent its margin, and its sustained rate is
 <code>sqrt(LOAD_LIMIT / r_m)</code>. Past that corner the centripetal load alone is over
 the limit and the full ceiling comes back, so an over-spun hull can always shed
 rate.</p>
+<p>That returned ceiling is a MAGNITUDE, and the loop that spends it is what
+keeps it pointed the right way. <code>AttitudeEnvelope::available</code> is paired with
+<code>sustained_turn_rate</code> on the same <code>PDController</code>
+(<code>sustained_angular_speed</code>): past that rate the PD drops whatever part of its
+requested acceleration lies along the spin and keeps the rest, so the
+authority can brake and steer but not tighten. Without the pairing a held turn
+spends the returned ceiling on going faster and settles wherever the
+controller gains run to - which is what the load limit exists to stop, and
+what <code>examples/systems/system_turn_limit.rs</code> flies.</p>
 <p>Two consequences to expect rather than debug. A small hull is STRUCTURE-bound,
 so fitting more computers to it changes nothing at all. A hull that loses
 sections shortens its arm and turns SHARPER than it did intact.</p>
@@ -275,6 +294,103 @@ identity case.</p>
 does not pay for: it has no extra authority to spend, so a stack costs it a few
 per cent of peak rate and a tick or two of onset in exchange for landing
 cleaner. Measured in <code>flight/tests/stacking.rs</code>, which prints the table.</p>
+<h3 id="the-spinal-lance"><a class="header" href="#the-spinal-lance">The spinal lance</a></h3>
+<p><code>Railgun</code> is the one weapon kind whose aim is the HULL. It fires down the
+section’s own <code>-Z</code>, has no joints and no cone, and that is why it is its own
+<code>SectionKind</code> arm rather than a turret with a narrow arc: the turret code is
+about cones and joints, and a lance has neither.</p>
+<p>The whole cycle is one system, <code>charge_and_fire_railgun</code>
+(<code>sections/railgun_section/firing.rs</code>), on the FIXED clock:</p>
+<ul>
+<li><strong>The commit.</strong> A trigger pull moves <code>RailgunCharge::Ready</code> to <code>Charging</code>.
+The MAGAZINE gates the commit rather than the shot - committing an empty gun
+would burn a charge for nothing and hide the reload from the player - and the
+shell is spent only once the shot is certain. The section reads
+<code>RailgunSectionInput</code> and never clears it, so a held trigger is a gun cycling
+at its own cadence rather than a second mechanic.</li>
+<li><strong>The safety is LIVE through the charge.</strong> <code>WeaponsHot</code> gates the commit and
+is re-read every tick: a gun safed mid-charge dumps the charge, snaps the
+<code>Charge</code> cue back to 0 and KEEPS its shell rather than firing it into a
+friendly. That is the only way out of a commit; the trigger has none. A ship
+carrying no <code>WeaponsHot</code> (a bare headless rig) fires freely.</li>
+<li><strong>The charge.</strong> <code>charge_seconds</code> runs off <code>Time</code>, and the <code>Charge</code> animation
+cue is SNAPPED to the gameplay fraction every tick rather than played. Both
+travel times on the shipped <code>charge_bolt</code> track are zero for that reason: an
+authored travel time would be a second clock, and the bolt would reach the
+brake before or after the shot it announces.</li>
+<li><strong>The shot and its recoil, in the same tick.</strong> They have to share one, or an
+impulse applied a tick late pushes a ship that has already moved on from the
+pose it fired in. That is what keeps the cycle in a single system and earns
+its <code>too_many_arguments</code> expect. The bore is read off the RAW physics pose
+through <code>local_pose_in_root</code>, not <code>GlobalTransform</code>, which inside FixedUpdate
+still holds the previous frame’s eased render pose. The slug inherits the
+muzzle’s full rigid-body velocity, swing included.</li>
+</ul>
+<p>The slug is an ordinary <code>nova_gameplay::rounds</code> Pierce round with
+<code>layers: u32::MAX</code>, so <code>slug_power</code> alone bounds the depth: it curves in wells,
+is charged once per layer through <code>pierce_remainder</code>, and needs no second damage
+pipeline. <code>slug_damage</code> is dealt FLAT to every layer (<code>hit_bite</code> does not scale
+Pierce), while each crossing costs that layer’s MAX health divided by
+<code>pierce_power_multiplier</code> - and a slug at 15,000 m/s always sits at that curve’s 3.0
+ceiling, so the shipped 1800 power is 27 reinforced hull blocks.</p>
+<p>Nothing that flies is 27 blocks deep, so the optional <code>rake_radius</code> spends the
+surplus on WIDTH: a sphere of that radius trails the tip, tangent to it, and
+everything it sweeps over a body the tip DIRECTLY hit takes the same flat bite
+out of the same budget. <code>RoundRake</code> carries the arming, per body and for the
+slug’s life; <code>sweep_raking</code> resolves the tip, the trailing capsule and the
+charge order in three passes. Omitted, no <code>RoundRake</code> is inserted at all and
+the slug takes the untouched narrow path. The base lance authors 10 m,
+measured against 40 m in <code>system_railgun_lance</code>’s stand bank: both spend the
+same budget, and the radius chooses whether it goes through the hull or across
+its face.</p>
+<p>One fixed step of a raked slug, as <code>sweep_raking</code> resolves it:</p>
+<pre class="mermaid">flowchart TD
+    T[Pass one: sweep the narrow tip] --&gt;|direct hit on a body| A[Arm that body for the slug's life]
+    T --&gt;|passes near a body| M[Nothing - a near miss is a miss]
+    A --&gt; S[Pass two: the sphere trailing the tip by its radius]
+    S --&gt;|each collider of each armed body| C{Inside the swept capsule?}
+    C --&gt;|beside the track| K[Contact at its lateral offset]
+    C --&gt;|ahead of the tip| N[Untouched until the tip gets there]
+    C --&gt;|already charged| N
+    K --&gt; O[Pass three: order by depth, then axis outward, then entity]
+    T --&gt;|the tip's own contacts| O
+    O --&gt; P[Charge each once through pierce_remainder]
+    P --&gt;|power left| S
+    P --&gt;|budget empty| E[Slug spent]
+</pre>
+
+<p>The capsule test is analytic - the corridor measurement from <code>corridor_contact</code>
+against the sphere’s track - rather than a spatial query, because parry’s
+<code>intersection_test</code> returns false negatives for shallow overlaps against a
+capsule this long - a slug at 15,000 m/s sweeps 23 world units of the
+capsule parry is being asked about per 64 Hz step, which is 234 m - and the
+first
+version of the rake, which queried, cut a corridor with its corners missing.
+The body’s own colliders are the candidate set, so there is no query cap under
+the power budget either.</p>
+<p>Recoil goes through <code>apply_linear_impulse_at_point</code> AT <code>muzzle_offset</code>, never at
+the centre of mass, so an off-axis lance yaws the hull every time it fires.
+<code>every_lance_puts_its_muzzle_on_the_brake_face</code> pins the offset to the face for
+exactly that reason: it is one number that is silently wrong in two ways at
+once - the slug spawns inside the gun, and the torque is off by the same
+distance. <code>every_lance_holds_exactly_one_shell</code> pins the other half of the
+design: capacity 1, a reload of 1, and a reload delay longer than the charge, so
+the reload is the tempo.</p>
+<p>The lance’s sockets (<code>lance_link_points</code>, <code>nova_authoring</code>) leave the muzzle
+face bare. A lance cannot traverse off its own line, so a socket there is an
+invitation to bolt a plate into the bore;
+<code>no_lance_sockets_the_face_it_fires_through</code> holds it.</p>
+<p>The pilot-facing half is <code>nova_hud</code>’s bore sight
+(<code>crates/nova_hud/src/bore_sight.rs</code>), the only instrument that says where a
+hull points. It traces the bore and walks the crossed sections through the SAME
+<code>pierce_remainder</code>, ringing each section the shot would destroy - a sight with
+its own copy of the pierce math is a sight that eventually lies. It is gated on
+<code>WeaponsHot</code> and drawn dimmed rather than hidden on an empty magazine.</p>
+<p>The AI half is deliberately crude and recorded as such
+(<code>crates/nova_ship/src/input/ai/railgun.rs</code>): a raider commits when its orbit
+happens to sweep the bore across a target it is already fighting, inside about
+eight degrees and 60% of the slug’s reach, with a per-gun cadence over the gun’s
+own reload. It does not FLY the shot.</p>
 <h3 id="meshes-and-colliders-authorable"><a class="header" href="#meshes-and-colliders-authorable">Meshes and colliders (authorable)</a></h3>
 <p>Two authorable knobs decouple a section’s look and physics from the default unit
 cube (<code>crates/nova_ship/src/sections/base_section.rs</code>). Unset content still uses
@@ -287,9 +403,11 @@ can be re-seated visually without moving the collider or (for turrets) the
 joint tree. Type <code>RenderMeshTransform</code>.</li>
 <li><code>collider</code> on <code>BaseSectionConfig</code> (optional) - the physics shape:
 <code>Cuboid { size }</code>, <code>Sphere { radius }</code>, <code>Capsule { radius, length }</code>, or
-<code>Cylinder { radius, height }</code> (the last three along local Y). <code>None</code> resolves
-to the unit cube (<code>Cuboid { size: (1,1,1) }</code>) - the shape every section had
-before colliders were authorable. <code>base_section</code> hands avian a density of 1,
+<code>Cylinder { radius, height }</code> (the last three along local Y). These are
+BUILD-GRID dimensions and stay in engine world units for that reason: a
+collider is what avian receives, and one unit is one cell, 10 m on a side.
+<code>None</code> resolves to the unit cube (<code>Cuboid { size: (1,1,1) }</code>) - the shape
+every section had before colliders were authorable. <code>base_section</code> hands avian a density of 1,
 so this shape’s volume IS the section’s mass and a larger collider is a
 heavier one. The render mesh never contributes; a section masses its authored
 box. An integral cuboid at least one unit wide on every axis also derives a
@@ -303,10 +421,13 @@ every cell on its exhaust face. Other collider shapes remain one-cell parts.</li
 <code>collapse_threshold</code> (below), a <code>skin</code> flag (the
 <a href="#the-derived-skin">derived cladding</a>), and a list of
 <code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> + <code>rotation</code>
-relative to the ship root (world units), with a <code>source</code> (<code>Inline</code> /
+relative to the ship root. That <code>position</code> is the one authored vector that is
+not a distance: it is a BUILD-GRID CELL, so it stays a bare <code>Vec3</code> of engine
+world units and sections stack by whole cells of 10 m. It comes with a <code>source</code>
+(<code>Inline</code> /
 <code>Prototype</code>) and optional <code>modifications</code>. The player
 config carries the input mapping (section id -&gt; key/gamepad bindings) plus
-<code>speed_cap</code> and <code>infinite_ammo</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
+<code>speed_cap</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
 <p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
 spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
 (<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
@@ -314,8 +435,10 @@ section gets <code>SectionMarker</code>, its <code>Collider</code> (the authored
 a unit cube by default), <code>SectionLinkPoints</code>, <code>ConnectedTo</code>, and <code>Health</code> (<code>base_section</code> in
 <code>sections/base_section.rs</code>), so the ship is one rigid body whose child colliders
 each carry their own health.</p>
-<p>See the semantic Racer, CargoA, and CargoB builders under
-<code>crates/nova_authoring/src/base_content/ships/</code> for complete generated examples.
+<p>See the block ship builders under
+<code>crates/nova_authoring/src/base_content/ships/</code> for complete generated examples,
+and <code>webmods/the-ledger/ledger_ships.content.ron</code> for hand-authored ships built
+out of modelled parts a mod brings with it.
 The editor (<code>crates/nova_editor</code>) assembles ships interactively using
 <code>preview_section</code>, which has no health or rigid body and never enters the
 damage pipeline.</p>
@@ -339,15 +462,32 @@ its own cladding down with it and nothing has to hunt the plates of a part
 that no longer exists.</li>
 <li>On a LIVE ship, derivation runs at spawn and nowhere else. The skin is a pure
 function of the structure, so re-running it would grow back whatever combat
-blew off; <code>despawn_dead_fixtures</code> takes a dead plate away and nothing puts it
+blew off; <code>shed_dead_fixtures</code> takes a spent plate away and nothing puts it
 back.</li>
+<li>A spent plate LEAVES rather than vanishing, the same finale a destroyed
+section gets. <code>shed_dead_fixtures</code> (<code>sections/fixture.rs</code>) drops its <code>ChildOf</code>
+where it stands, promotes its world pose to a local one, and gives it a kick
+outward from the hull, a tumble and a <code>TempEntity</code> timer - inheriting the
+ship’s motion through <code>inherited_motion</code>, so cladding does not hang in space
+while the hull flies out from under it. It is the SAME entity, so the meshes
+drawing it and the greebles standing on it come along untouched. Its
+colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
+claim <code>spew</code> makes for its shards - because a hull wears hundreds of plates
+and a dynamic body per plate is the cost a dying section already refuses.</li>
+<li>The shed is CAPPED and runs on the FIXED STEP. <code>SHED_TICK_CAP</code> bounds it to
+24 fixtures a tick; the rest are deferred, never dropped, because shedding is
+what removes the <code>ChildOf</code> a plate is matched by, so a deferred one matches
+again on the next tick. On the fixed step the drain rate is 64 a second
+whatever the renderer is managing, which matters because a hull loses its
+skin in exactly the frames a collapse has already made the longest. A
+deferred plate still wears its collider, so a piercing round crossing it
+still burns a layer.</li>
 <li><code>ShipSkinPlugin { render }</code> is split at the render line, not at the look line:
-the derivation and the sweep are gameplay and run headless, and <code>render</code> gates
+the derivation and the shed are gameplay and run headless, and <code>render</code> gates
 only the meshes hung on each plate by the <code>dress_skin_plate</code> observer.</li>
 </ul>
 <p>Cladding is OPT IN. The derivation reads a hull as unit cells, which the
-catalog’s cube sections are and the modelled semantic parts (the racer, the
-haulers) are not.</p>
+catalog’s cube sections are and the modelled parts a mod brings are not.</p>
 <h4 id="the-editors-live-preview"><a class="header" href="#the-editors-live-preview">The editor’s live preview</a></h4>
 <p>The build view clads the ship being ASSEMBLED, and it re-derives rather than
 spawning once: <code>sync_editor_skin</code> (<code>nova_editor/src/skin.rs</code>) runs after
@@ -465,7 +605,7 @@ by its own share, and <code>x0 of 0</code> is a filter that matches nothing this
 <p>The destruction stack is nova’s own, in
 <code>crates/nova_gameplay/src/integrity/</code>, with the ship adapter in
 <code>crates/nova_ship/src/sections/integrity.rs</code>. <code>NovaIntegrityPlugin</code> composes
-eight generic pieces, and the ship adds its own <code>ShipIntegrityPlugin</code> on top:</p>
+nine generic pieces, and the ship adds its own <code>ShipIntegrityPlugin</code> on top:</p>
 <ul>
 <li><code>health.rs</code> - the hit-point store: <code>Health</code>, <code>HealthApplyDamage</code> and the
 <code>HealthZeroMarker</code> its observer adds at zero.</li>
@@ -476,12 +616,14 @@ two damage READINGS, below.</li>
 <li><code>spew.rs</code> (<code>CarveSpewPlugin</code>) and <code>chunk.rs</code> (<code>CarvedChunkPlugin</code>) - what a
 carve leaves behind: dust from every carve, and a real rigid body wherever a
 cut actually severed material.</li>
-<li>Ship-owned <code>ShipIntegrityPlugin</code> (<code>nova_ship</code>, not one of the eight) - derives
+<li>Ship-owned <code>ShipIntegrityPlugin</code> (<code>nova_ship</code>, not one of the nine) - derives
 the section graph, handles disabled sections, rolls section health up to the
 ship root, and collapses a root that falls below its
 <code>StructuralCollapseThreshold</code>.</li>
-<li><code>explode.rs</code> (<code>ExplodablePlugin</code>) - what a destroyed body DOES, and it
-detaches. See <a href="#how-a-body-comes-apart">How a body comes apart</a> below.</li>
+<li><code>explode.rs</code> (<code>ExplodablePlugin</code>) and <code>pyre.rs</code> (<code>PyrePlugin</code>) - what a
+destroyed body DOES and what it LOOKS like: the wreckage that drifts away,
+and the fireball it drifts out of. See
+<a href="#how-a-body-comes-apart">How a body comes apart</a> below.</li>
 <li><code>neutralize.rs</code> - combat-death: fires <code>OnNeutralized</code> when a ship stops
 being a threat.</li>
 </ul>
@@ -505,6 +647,24 @@ art and the collider it already had, takes an outward kick and a spin, and
 despawns on a timer (<code>PIECE_LIFETIME_SECS</code>). A death moves entities and clones
 one collider handle, which is why the module has no fragment budget and no
 spawn queue - there is nothing left to ration.</p>
+<p>The FIREBALL is the other half, and it is a separate plugin because it rations
+what <code>explode</code> does not. <code>pyre.rs</code> observes the same destroy marker and spawns
+two hanabi instances - a core and its ejecta - at two authored sizes: a section
+burns at <code>SECTION_PYRE</code>, a whole hull at <code>HULK_PYRE</code>.</p>
+<p>Nothing about those graphs is built at the death. <code>warm_the_pyres</code> runs on
+entering <code>Playing</code> - under the loading screen, and late enough that the
+graphics tier a player picked in the menu is settled - and it does the whole
+job: the four graphs, the shared soft-dot mask, and one hidden instance of each
+graph. The instance is the part that matters, because <code>bevy_hanabi</code> generates a
+shader from a spawned INSTANCE and never from an asset, so a warm-up that only
+filled the asset store left the WGSL to be generated on the collapse frame.
+Those four are silent, invisible, and despawned the next frame. A tier with
+particles off builds none of it and lights nothing.</p>
+<p>What a death still mints is instances, so this half DOES need a budget:
+<code>PYRE_FRAME_CAP</code> bounds how many fireballs one frame lights, and a root’s own is
+never the one dropped, because that is the one the whole death reads as.
+Material has the last word - <code>IntegrityDestroyMarker</code> is a shared seam that an
+exhausted asteroid also raises, and rock does not burn.</p>
 <p>Four properties follow from that, and each is load-bearing:</p>
 <ul>
 <li><strong>Destructibility is SEMANTIC.</strong> It is <code>ExplodableEntity</code> plus the destroy
@@ -556,8 +716,8 @@ own, to an arbitrary perpendicular.</p>
 socket from part GEOMETRY gets whatever angle the neighbour happened to sit at,
 so <code>cardinal_axis</code> snaps the derived normal to the nearest axis. It is
 antisymmetric (<code>cardinal_axis(-d) == -cardinal_axis(d)</code>), so both ends of one
-authored edge stay exactly opposed and no existing mate is lost. Without it the
-cargob’s pod faced its fuselage 36 degrees off -X and anything mated onto that
+authored edge stay exactly opposed and no existing mate is lost. Without it a
+modelled pod faced its fuselage 36 degrees off -X and anything mated onto that
 socket arrived tilted by exactly that much - which is what made parts look like
 they only fit the craft they were cut from.</p>
 <p><code>box_link_points(size)</code> is the general face-socket helper
@@ -634,7 +794,7 @@ gaps are irregular while a count that fell is direct evidence a section died.</p
 <p>A severed wreck fragment is persistent until scenario teardown. Its healthy
 sections remain damageable, but <code>SectionInactiveMarker</code> disconnects every
 controller, thruster and weapon from the lost command bus. Fragments inherit
-rigid point velocity and receive a momentum-balanced 1 u/s kick away from the
+rigid point velocity and receive a momentum-balanced kick of 10 m/s (one engine world unit per second) away from the
 cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
 or scenario identity.</p>
 <p>A ship is disabled progressively, so a collapsing ship can keep shooting for a
@@ -689,15 +849,19 @@ plates each derive from the same list, so two plates sharing a boundary compute
 the same depression at it and a crater crosses the seam instead of stopping at
 it.</p>
 <h3 id="what-material-costs"><a class="header" href="#what-material-costs">What material costs</a></h3>
-<p><code>DAMAGE_PER_UNIT_VOLUME</code> is <strong>8.0 hit points per cubic world unit</strong>. It is the
-whole coupling between what a weapon costs and what it looks like it did, and it
-is ABSOLUTE: the same round makes the same hole in a pebble and in a planetoid,
+<p><code>DAMAGE_PER_UNIT_VOLUME</code> is <strong>8.0 hit points per cubic engine world unit</strong> -
+per 1000 m^3. It is an INVERSE volume, L^-3, so it is not a length that could be
+re-expressed by multiplying by ten, and converting it would move the whole
+damage-to-crater exchange rate; it stays engine-side beside the signed field it
+prices, which is engine geometry too. It is the whole coupling between what a
+weapon costs and what it looks like it did, and it is ABSOLUTE: the same round makes the same hole in a pebble and in a planetoid,
 because the hole is what the round’s energy is worth. Pricing a crater against
 the body it landed on is the other design, and it makes a big rock unshootable
 and a small one vanish on contact.</p>
 <p><code>mark_radius(amount)</code> is therefore <code>(amount / 8.0 * 3 / (2 * pi))^(1/3)</code> - a
-HEMISPHERE, because a hit lands ON a surface. The shipped kinetic PDC round
-(4.0 damage) carves 0.62 units.</p>
+HEMISPHERE, because a hit lands ON a surface. It answers in world units, like
+everything else the field is cut in: the shipped kinetic PDC round (4.0 damage)
+carves 0.62 u, a 6.2 m crater.</p>
 <p>A mark is priced by what the hit ABSORBED, never by what it asked for
 (<code>absorbed_by</code>): the first <code>Health</code> at or above the hit clamps it, a node already
 spent pays nothing, and a chain with no pool at all spends the whole hit in
@@ -705,17 +869,20 @@ material. Without the clamp a slug that crosses a plate would be charged for the
 plate and then charged again, in full, for the hull behind it.</p>
 <h3 id="the-merge-and-why-a-hole-follows-the-aim"><a class="header" href="#the-merge-and-why-a-hole-follows-the-aim">The merge, and why a hole follows the aim</a></h3>
 <p>Sustained fire has to dig ONE hole rather than two dozen dents, and that job has
-a SIZE - the width of the hole the last round made - which is why it is capped in
-world units and not proportionally.</p>
+a SIZE - the width of the hole the last round made - which is why it is capped
+as an absolute length and not as a proportion of the body. The three caps below
+are in the field’s own engine world units, which is the frame the marks are
+kept in.</p>
 <ul>
-<li><code>MARK_MIN_RADIUS</code> 0.15: below this a sphere cannot reach a boundary sample of
-the cell it lands in, so it would cost a budget slot and change nothing.
+<li><code>MARK_MIN_RADIUS</code> 0.15 (1.5 m): below this a sphere cannot reach a boundary
+sample of the cell it lands in, so it would cost a budget slot and change
+nothing.
 Grazing fire should crack, which is the level’s job.</li>
 <li><code>MERGE_REACH</code> 4.0: a ceiling expressed as a multiple of the INCOMING bite,
 never of the grown crater. Testing the grown radius is what let a crater’s own
 growth widen the area that captured the next hit, which widened it again until
 one crater ate the whole body.</li>
-<li><code>MERGE_MAX</code> 1.0 WORLD unit, converted into the body’s own frame by
+<li><code>MERGE_MAX</code> 1.0 WORLD unit (10 m), converted into the body’s own frame by
 <code>DamageMarks::add</code>: “the round landed IN the hole the last one made”. This is
 the cap that actually binds, and it is why the hole follows the aim.</li>
 <li><code>MARK_BUDGET</code> 24. At the budget the SMALLEST crater is folded into its own
@@ -734,7 +901,7 @@ for its pressure pass.</p>
 shape, in world space. <code>kind</code> is the weapon class that paid for the carve, and
 it is what decides the look: <code>spew.rs</code> keys a <code>ShardLook</code> off it, one entry per
 <code>DamageType</code>. Kinetic and Pierce throw 2 to 7 shards of one fixed size
-(<code>ShardLook::size</code>, 0.12u) - kinematic, no collider, <code>TempEntity(2.5)</code> - and
+(<code>ShardLook::size</code>, 0.12 world units - a 1.2 m chip) - kinematic, no collider, <code>TempEntity(2.5)</code> - and
 hold identical values in two SEPARATE entries, so giving a penetrator its own
 debris is editing a number rather than splitting a branch. Explosive throws nothing: a
 warhead’s fireball already covers the frames the geometry changes in, the crater
@@ -746,7 +913,7 @@ direct spawn, so a mod that wants a puff or nothing at all replaces the observer
 instead of patching the carve.</p>
 <p>Real geometry leaves a body only where a carve actually SEVERED it, and only the
 body being cut knows that. <code>chunk.rs</code> is what a severed piece spawns through;
-<code>CHUNK_MIN_VOLUME</code> (1.0 cubic unit) is the floor under which a crumb goes out as
+<code>CHUNK_MIN_VOLUME</code> (1.0 cubic world unit, 1000 m^3 - a volume, so it is engine-side with the field) is the floor under which a crumb goes out as
 dust instead. The asteroid is the only body that takes this path - see
 <a href="scenario-system.html">Scenario engine</a>.</p>
 <h3 id="the-authored-looks"><a class="header" href="#the-authored-looks">The authored looks</a></h3>
@@ -868,8 +1035,9 @@ the muzzle: <code>closing_speed(round_velocity, target_velocity)</code> projects
 relative velocity <code>on_impact_collision_deal_damage</code> uses onto the round’s own
 line of flight (projecting onto the line BETWEEN the bodies is unusable - at
 contact they are touching, so that direction is noise). Both curves are the
-speed ratio against <code>REFERENCE_CLOSING_SPEED</code> (100 u/s, the shipped PDC’s
-<code>muzzle_speed</code>), clamped:</p>
+speed ratio against <code>REFERENCE_CLOSING_SPEED</code>, which is 100 engine world units
+per second because it is compared against avian velocities - the same speed the
+shipped PDC authors as <code>muzzle_speed: 1000</code> m/s - clamped:</p>
 <ul>
 <li><code>kinetic_damage_multiplier</code> scales what a hit DEALS, clamped to <code>[0.25, 2.0]</code>;</li>
 <li><code>pierce_power_multiplier</code> scales how far the round GETS - it divides what a
@@ -920,12 +1088,14 @@ per contact. A symmetric rule - ram damage - wants both.</p>
 <h2 id="ammo"><a class="header" href="#ammo">Ammo</a></h2>
 <ul>
 <li><code>SectionAmmo</code> (<code>sections/ammo.rs</code>): optional magazine on a weapon section.
-Absent = unlimited fire; <code>ammo_capacity</code> in the turret/torpedo config opts in.
-The player <code>infinite_ammo</code> flag builds that ship’s weapons without magazines,
-but only under the <code>debug</code> feature: a shipped build logs a warning and keeps
-the authored magazines, so unlimited fire is a dev cheat, never a player state.</li>
+Absent = unlimited fire; <code>ammo_capacity</code> in the turret/torpedo/railgun config
+opts in.
+Unlimited fire is authored on the GUN, never granted ship-wide: a config with
+no <code>ammo_capacity</code> (see <code>SectionConfig::without_magazine</code>) is the authoring
+route, and the armed <code>ammo infinite</code> command is the runtime one.</li>
 <li><code>SectionReload</code> (<code>sections/ammo.rs</code>): optional idle batch reload on a
-magazine, from the turret/torpedo config <code>reload: Some((delay, amount))</code>.
+magazine, from the turret/torpedo/railgun config
+<code>reload: Some((delay, amount))</code>.
 Every successful shot resets progress; every completed quiet delay restores
 one batch until full. Fire runs before <code>tick_section_reload</code> in FixedUpdate so
 a shot wins an exact completion tick. Unlimited weapons never reload. The HUD
@@ -972,13 +1142,22 @@ else.</li>
 <code>spawn_carved_chunk</code>, <code>CHUNK_MIN_VOLUME</code> -
 <code>crates/nova_gameplay/src/integrity/chunk.rs</code>.</li>
 <li>How a body comes apart: <code>detach_destroyed_body</code>, <code>DetachedPieceMarker</code> -
-<code>crates/nova_gameplay/src/integrity/explode.rs</code>.</li>
+<code>crates/nova_gameplay/src/integrity/explode.rs</code>; the fireball over it,
+<code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>PYRE_FRAME_CAP</code>, <code>warm_the_pyres</code> -
+<code>crates/nova_gameplay/src/integrity/pyre.rs</code>.</li>
 <li>Authored damage looks: <code>DamageEffect</code>, <code>fit_damage_effects</code> -
 <code>crates/nova_ship/src/sections/damage_effects.rs</code>, with one module per look in
 <code>damage_cracks.rs</code>, <code>damage_sparks.rs</code> and <code>damage_plume.rs</code>.</li>
+<li>The spinal lance: <code>RailgunSectionConfig</code>, <code>RailgunCharge</code>,
+<code>charge_and_fire_railgun</code> -
+<code>crates/nova_ship/src/sections/railgun_section/</code>; its sight:
+<code>BoreSightPlugin</code> - <code>crates/nova_hud/src/bore_sight.rs</code>; its AI commit
+envelope: <code>crates/nova_ship/src/input/ai/railgun.rs</code>.</li>
 <li>Derived skin and styles: <code>ShipSkinPlugin</code> -
 <code>crates/nova_ship/src/sections/shell_skin.rs</code>; <code>ShipStyleConfig</code> -
-<code>crates/nova_ship/src/sections/skin_style.rs</code>.</li>
+<code>crates/nova_ship/src/sections/skin_style.rs</code>; the shed and its cap,
+<code>shed_dead_fixtures</code>, <code>SHED_TICK_CAP</code> -
+<code>crates/nova_ship/src/sections/fixture.rs</code>.</li>
 <li>API detail: <code>cargo doc --open -p nova_ship</code> (integrity and damage:
 <code>-p nova_gameplay</code>).</li>
 </ul>

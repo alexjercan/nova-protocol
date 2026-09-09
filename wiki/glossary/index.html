@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Glossary - Nova Protocol Wiki</title>
-        <meta name="description" content="Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, neutralized, point defense, Kinetic/Pierce, the torpedo types, diegetic, and the m / km / m-per-s units." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Glossary - Nova Protocol Wiki</title><meta name="description" content="Short definitions for the recurring terms and units, grouped the way the book reads - flight, ships, targeting, combat, the interface and the world - each pointing at the page that owns it."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,54 +17,113 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / Glossary
-                    </p>
-                    <h1>Glossary</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>Short definitions for the terms and units that recur across the wiki.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Glossary</p><h1>Glossary</h1><div class="wiki__tags" id="wiki-tags"></div><p>Short definitions for the terms and units that recur across the wiki, grouped the way the book reads: units, then flight, ships, targeting, combat, the interface and the world. Each entry points at the page that owns it.</p>
 <h2 id="units" tabindex="-1">Units</h2>
 <ul>
-<li><strong>m / km</strong> - the distance units. Ranges and radii read in metres below a kilometre (e.g. a standoff of about 500 m) and in kilometres above it (e.g. <code>1.24 km</code>). Every distance readout on the HUD and in the NOVA OS map uses them.</li>
-<li><strong>m/s</strong> - the speed unit, metres per second. The speed chip beside the velocity sphere reads in <code>m/s</code>, and a target's closing speed reads as a signed <code>m/s</code>.</li>
+<li><strong>m / km</strong> - the distance units. Ranges and radii read in meters below a kilometer (e.g. a standoff of about 500 m) and in kilometers above it (e.g. <code>1.24 km</code>). Every distance readout on the HUD and in the NOVA OS map uses them.</li>
+<li><strong>m/s</strong> - the speed unit, meters per second. The speed chip beside the velocity sphere reads in <code>m/s</code>, and a target's closing speed reads as a signed <code>m/s</code>.</li>
+<li><strong>World unit</strong> - the engine's own length, and the <a href="#ships">build grid</a> is the only place you meet it: one world unit is 10 m, so a cell is one on a side. Nothing you read or write is in it - every distance on these pages, on the HUD and in a content file is meters, so a <code>blast_radius</code> of 300 is a 300 m blast. See <a href="../../create/sections/">Sections</a> in the creator guide.</li>
+<li><strong>hp</strong> - hit points, the health a section or a torpedo carries. Every hit subtracts from it and the part dies at zero; each section page lists its variants' figures under <a href="../sections/">Variants</a>.</li>
 </ul>
-<h2 id="terms" tabindex="-1">Terms</h2>
+<h2 id="flight" tabindex="-1">Flight</h2>
 <ul>
+<li><strong>Newtonian</strong> - momentum persists and nothing dampens you: a burn adds speed, only an opposite burn takes it away, and turning the nose does not turn your velocity. There is no flight-assist toggle - see <a href="../flight-autopilot/">Flight &amp; autopilot</a>.</li>
 <li><strong>Prograde / retrograde</strong> - prograde is the direction you are moving; retrograde is the opposite. STOP flips you to retrograde and burns to kill your speed.</li>
+<li><strong>Burn</strong> - a held main-drive throttle. The main drive is the sum of every thruster that points forward, spooled smoothly up and down rather than snapped. See <a href="../flight-autopilot/#manual-flight">Manual flight</a>.</li>
+<li><strong>Speed cap</strong> - a soft ceiling a scenario can put on a hull, like the 150 m/s governor Basic Training flies under. It limits your TOTAL speed, whatever heading you point: the burn tapers to zero over the last stretch, and turning to a fresh heading buys no fresh allowance. A burn that slows you down is never capped.</li>
+<li><strong>GOTO / ORBIT / STOP</strong> - the autopilot verbs. Each flies a whole maneuver on the real controller and thrusters and hands the ship back, and any manual input disengages it. GOTO burns to the nav lock and settles at the standoff, ORBIT holds a ring around the dominant well until you break away, STOP flips retrograde and burns to rest. See <a href="../flight-autopilot/#the-autopilot-flies-the-hull">The autopilot flies the hull</a>.</li>
+<li><strong>Arrival envelope</strong> - the autopilot's one rule: at any distance it caps closing speed at what a flip-and-brake from there can still cancel, so the braking ramp always lands on the standoff.</li>
+<li><strong>Flip</strong> - the swing to retrograde that puts the drive against your velocity before a braking burn. The autopilot schedules it a swing early, because the swing itself takes time.</li>
 <li><strong>Standoff</strong> - the resting distance GOTO stops at, just off a target (about 500 m plus the target's radius, measured from the surface) rather than ramming it.</li>
-<li><strong>RCS</strong> - reaction-control fine translation for docking: hold <kbd>Shift</kbd> and steer with the mouse and scroll wheel to nudge the hull straight along its own axes, no rotation, capped at a gentle per-axis speed. A trim a scenario grants rather than standard flight - see <a href="../flight-autopilot/#rcs-fine-docking-thrusters">RCS</a>.</li>
-<li><strong>Sphere of influence</strong> - the reach of a <a href="../gravity-wells/">gravity well</a>, set by the body's authored mass alone: the distance where the pull decays to a fixed cutoff. Outside it the well does not pull on you; only the dominant well inside it matters.</li>
+<li><strong>RCS</strong> - reaction-control fine translation for docking: hold <kbd>Shift</kbd> and steer with the mouse and scroll wheel to nudge the hull straight along its own axes, no rotation, capped at one gentle speed in every direction. A trim a scenario grants rather than standard flight - see <a href="../flight-autopilot/#rcs-fine-docking-thrusters">RCS</a>.</li>
+<li><strong>Centre of mass</strong> - the point the flight computer balances every burn through. A section weighs the box it is hit on, so the centre moves as the hull is built and as it is shot apart, and the computer rebalances live. See <a href="../sections/thruster/#balancing-thrust-through-the-hull">Balancing thrust through the hull</a>.</li>
+<li><strong>Gravity well</strong> - a large asteroid's or planetoid's pull: inverse-square, authored per body, felt by piloted ships and by rounds and torpedoes in flight, and always escapable under main drive. See <a href="../gravity-wells/">Gravity wells</a>.</li>
+<li><strong>Sphere of influence</strong> - the reach of a <a href="../gravity-wells/#sphere-of-influence">gravity well</a>, set by the body's authored mass alone: the distance where the pull decays to a fixed cutoff. Outside it the well does not pull on you; only the dominant well inside it matters.</li>
+<li><strong>Dominant well</strong> - the one well that counts where you are. ORBIT circularises around it and STOP budgets for its pull. See <a href="../gravity-wells/#the-dominant-well">The dominant well</a>.</li>
 <li><strong>Hysteresis</strong> - a bit of stickiness that stops a state from flickering at its edge. A lock, a fine-lock section, and the dominant well all hold a little past their switch point so they do not chatter.</li>
-<li><strong>Fine-lock</strong> - drilling a combat lock into one specific <a href="../sections/">section</a> of an enemy hull, so turrets and the viewfinder focus that part.</li>
+</ul>
+<h2 id="ships" tabindex="-1">Ships</h2>
+<ul>
+<li><strong>Section</strong> - one part of a hull: a hull block, a controller, a thruster, a turret, a torpedo bay or a railgun. Each is its own body with its own mass, its own health and one job. See <a href="../sections/">Ship sections</a>.</li>
+<li><strong>Cell</strong> - one 10 m cube of the build grid, and the one world unit the engine counts it as. Sections are sized in cells - a torpedo tube is two, a railgun three - and a hull's mass is the sum of its boxes.</li>
+<li><strong>Hull section</strong> - the passive structural block the other sections mount to, and where most of a ship's mass is. See <a href="../sections/hull/">Hull</a>.</li>
+<li><strong>Controller</strong> - the flight computer. It turns the ship, flies the autopilot verbs and works point defense; lose the last one and the ship is neutralized. See <a href="../sections/controller/">Controller</a>.</li>
+<li><strong>Socket</strong> - a face a section bolts on through. A thruster offers only its forward face, so it always seats nose-in with the plume clear of the ship. See <a href="../sections/thruster/">Thruster</a>.</li>
+<li><strong>Variant</strong> - one shipped prototype of a section kind, listed at the foot of each section page: the Kinetic and Pierce PDCs on their two mounts, the Serpent and Lance bays, the base ships' own engines and pods.</li>
+<li><strong>Cladding</strong> - decorative plating and fixtures. They take damage and sections can shield them, but they neither shield anything nor slow a blast's pressure. See <a href="../ships/#what-damage-looks-like">What damage looks like</a>.</li>
+<li><strong>Structural depth</strong> - how far into a hull a blast reaches. A section that survives its pressure stops the wave; a destroyed one passes 65 percent on. See <a href="../sections/torpedo-bay/#what-a-warhead-does-to-a-hull">What a warhead does to a hull</a>.</li>
+<li><strong>Wreck</strong> - a healthy piece of hull that a cut disconnected from the controller. It keeps drifting, keeps its shape and still takes damage, but nothing aboard flies or fires it. See <a href="../ships/#taking-a-ship-apart">Taking a ship apart</a>.</li>
+<li><strong>Neutralized</strong> - out of the fight for good. A ship that loses its last working gun, or the flight computer it had, stops fighting even though its hull survives: the <a href="../hud/#target-viewfinder">viewfinder</a> tags the wreck NEUTRALIZED, its mounts stop answering, and it keeps drifting rather than despawning. See <a href="../ships/#taking-a-ship-apart">Taking a ship apart</a>.</li>
+</ul>
+<h2 id="targeting" tabindex="-1">Targeting</h2>
+<ul>
+<li><strong>Radar sweep</strong> - hold <kbd>Ctrl</kbd> to run the radar: it tracks the best body inside an 18-degree cone around your aim and re-targets as you sweep. See <a href="../targeting-radar/#holding-to-sweep">Holding to sweep</a>.</li>
+<li><strong>Lock-on dwell</strong> - the short hold a lock has to be earned through. Pointing at something does not lock it; holding steady on it does.</li>
+<li><strong>Nav lock / combat lock</strong> - the two lock slots. A lowered (white) stance sweeps a nav lock the autopilot flies to; a raised (red) stance sweeps a combat lock the guns aim at. See <a href="../targeting-radar/#stances-and-slots">Stances and slots</a>.</li>
+<li><strong>Stance</strong> - whether your weapons are lowered or raised. It picks which slot a sweep fills, and it is one of the two things that make the weapons hot.</li>
+<li><strong>Fine-lock</strong> - drilling a combat lock into one specific <a href="../sections/">section</a> of an enemy hull, so turrets and the viewfinder focus that part. See <a href="../targeting-radar/#per-section-fine-lock">Per-section fine-lock</a>.</li>
 <li><strong>&quot;Hot&quot; weapons</strong> - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means turret lead pips and the viewfinder frame go red and you can fire.</li>
-<li><strong>Neutralized</strong> - out of the fight for good. A ship that loses its last working gun, or the flight computer it had, stops fighting even though its hull survives: the <a href="../hud/">viewfinder</a> tags the wreck NEUTRALIZED and it keeps drifting rather than despawning.</li>
-<li><strong>Point defense</strong> - your turrets' automatic close-in fire against torpedoes committed to you. It opens up only once an inbound torpedo is close, and every intercept costs real ammunition - see <a href="../combat-weapons/#point-defense">point defense</a>.</li>
-<li><strong>Kinetic / Pierce</strong> - the two bullet behaviors, told apart by tracer colour. A Kinetic round punches: it stops at the first section it fails to destroy. A Pierce round rakes: it crosses several sections and damages every one on the way through. See <a href="../combat-weapons/#damage-types">damage types</a>.</li>
-<li><strong>Lance / Serpent / Breaker</strong> - the <a href="../combat-weapons/#torpedoes">torpedo</a> types, each named and tinted on the viewfinder when you lock one. The Lance runs straight and fast, so point defense can answer it; the Serpent corkscrews on approach and costs far more rounds to stop; the Breaker is the huge crimson siege warhead scripted batteries fire.</li>
+<li><strong>Weapons safety</strong> - the lowered state, the opposite of hot: no trigger fires, a bay keeps its iris shut and a railgun will not start a charge. Raise the weapons or take a combat lock and it is off.</li>
+<li><strong>Lock range</strong> - how far out the radar will take and hold a lock. See <a href="../targeting-radar/#lock-ranges">Lock ranges</a>.</li>
+<li><strong>Clearing</strong> - dropping locks, in stages rather than all at once. See <a href="../targeting-radar/#clearing-locks">Clearing locks</a>.</li>
+</ul>
+<h2 id="combat" tabindex="-1">Combat</h2>
+<ul>
+<li><strong>Reach</strong> - how far a round, slug or torpedo gets before it expires: muzzle speed times lifetime, never an authored number. A PDC round reaches 2 km, a railgun slug 18 km, a torpedo about 30 km. See <a href="../combat-weapons/#three-reaches">Three reaches</a>.</li>
+<li><strong>Engagement ladder</strong> - the three reaches on one axis, and the shape of every fight: torpedoes at the long end, the railgun in the middle, guns close in.</li>
+<li><strong>Closing speed</strong> - how fast you and your target converge along the round's line of flight. It scales Kinetic damage and Pierce depth in both directions and moves the reach with them. See <a href="../combat-weapons/#closing-speed">Closing speed</a>.</li>
+<li><strong>Cover</strong> - a round expends itself on the first tangible thing it meets, so a rock between you and a hostile eats the burst that was meant for it. See <a href="../combat-weapons/">Combat</a>.</li>
+<li><strong>Kinetic / Pierce</strong> - the two bullet behaviors, told apart by tracer colour. A Kinetic round punches: it stops at the first section it fails to destroy. A Pierce round rakes: it crosses several sections and damages every one on the way through. See <a href="../combat-weapons/#damage-types">Damage types</a>.</li>
+<li><strong>Explosive</strong> - the torpedo's damage type: area pressure falling off from the centre of the blast, with no speed term, worked through the hull by structural depth.</li>
+<li><strong>Power</strong> - a Pierce round's depth budget. Every section it crosses spends some of it, the tougher the section the more, and the round stops when it is gone. A railgun slug carries 1800. See <a href="../sections/turret/#how-far-a-round-travels">How far a round travels</a>.</li>
+<li><strong>Intercept lead</strong> - aiming where the target will be when the round arrives, computed in the shooter's own frame. Every turret does it, and the lead pip shows it. See <a href="../sections/turret/#aiming-with-lead">Aiming with lead</a>.</li>
+<li><strong>Barrel discipline</strong> - a gun fires only while its barrel is actually on the aim point, so it holds through a slew and a mount that cannot bear simply waits. See <a href="../sections/turret/#barrel-discipline">Barrel discipline</a>.</li>
+<li><strong>Blind cone</strong> - the sky under a turret's own keel that its barrel cannot depress into: ten degrees below level and everything under that. See <a href="../sections/turret/#what-it-can-bear-on">What it can bear on</a>.</li>
+<li><strong>Point defense</strong> - your turrets' automatic close-in fire against inbound torpedoes. Each mount picks and holds its own torpedo, and your flight computer works the mounts you are not using; every intercept costs real ammunition. See <a href="../sections/turret/#point-defense">Turret</a> for the mount and <a href="../combat-weapons/#point-defense">Combat</a> for the battery.</li>
+<li><strong>Saturation</strong> - firing at a facing from more directions than it has mounts to answer. Torpedoes arriving from one side, or from under a hull, meet only the guns that can train on them.</li>
+<li><strong>Magazine</strong> - what a weapon holds and how it gets it back: a batch lands after a quiet delay, all at once or not at all, and any shot restarts the clock. See <a href="../combat-weapons/#magazines">Magazines</a>.</li>
+<li><strong>Lance / Serpent / Breaker</strong> - the <a href="../sections/torpedo-bay/#the-two-run-ins">torpedo</a> types, each named and tinted on the viewfinder when you lock one. The Lance runs straight and fast, so point defense can answer it; the Serpent corkscrews on approach and costs far more rounds to stop; the Breaker is the huge crimson siege warhead scripted batteries fire. (The railgun's catalog entry is named Railgun Lance; these pages call it the railgun.)</li>
+<li><strong>Weave</strong> - the Serpent's terminal corkscrew, laid over its guidance so a lead solution is never quite right, and tapering out on the doorstep.</li>
+<li><strong>Arming gate</strong> - the short time or distance after launch before a torpedo's guidance and fuze go live, so it cannot go off in your lap.</li>
+<li><strong>Fuze</strong> - a torpedo bursts about thirty meters from the nearest part of its target's skin; with nothing left to reach it bursts a half-radius short. See <a href="../sections/torpedo-bay/#how-a-torpedo-runs-in">How a torpedo runs in</a>.</li>
+<li><strong>Blast</strong> - the warhead's pressure: full at the centre, zero at the edge of its radius, and worked through a hull by structural depth. See <a href="../sections/torpedo-bay/#what-a-warhead-does-to-a-hull">What a warhead does to a hull</a>.</li>
+<li><strong>Iris</strong> - the six-petal muzzle door on a torpedo bay. It opens for a launch and for nothing else, so an open iris on another hull means a torpedo is coming. See <a href="../sections/torpedo-bay/#shut-until-it-fires">Shut until it fires</a>.</li>
+<li><strong>Railgun</strong> - the <a href="../sections/railgun/">spinal gun</a>: three cells of rails with no traverse, so the hull is the aim. A tap commits a 1.5 s charge that only the weapons safety can stop, and the slug that leaves rakes a corridor through everything in the line. One shell, a twelve-second reload.</li>
+<li><strong>Charge</strong> - the 1.5 seconds between the trigger tap and the shot, committed: the slug leaves whether or not the nose is still on the target. See <a href="../sections/railgun/#committing-the-shot">Committing the shot</a>.</li>
+<li><strong>Bore sight</strong> - the <a href="../hud/#bore-sight">HUD</a> line a railgun-carrying hull draws from its muzzle to where the slug would stop, with a ring on every section the shot would destroy. Up while weapons are hot; dimmed through the reload.</li>
+<li><strong>Corridor</strong> - what a railgun slug leaves: the bore column the slug's tip cut, widened by a sphere trailing the tip to about three cells across, entry to exit. Every section in it pays out of the one power budget, so a wider rake is never more damage, only a differently shaped hole - see <a href="../sections/railgun/#what-one-shot-takes-out">What one shot takes out</a>.</li>
+<li><strong>Rake</strong> - the sphere a railgun slug drags behind its tip. It widens the cut into the corridor and only ever touches what the tip has already reached.</li>
+<li><strong>Recoil</strong> - the shove a railgun gives the ship that fired it, landing at the muzzle: a gun off the ship's axis yaws it as well as pushing it back. See <a href="../sections/railgun/#the-recoil">The recoil</a>.</li>
 <li><strong>Carve</strong> - what a hit does to a rock: it takes real material out of the asteroid's shape, so the silhouette and the thing you can fly into both change. Only rocks carve - a ship's parts keep the shape they were built in until they die. See <a href="../combat-weapons/#shooting-rock">Shooting rock</a>.</li>
 <li><strong>Crater</strong> - the hole a carve leaves. It stays, and fire landing near it deepens the same hole instead of opening a new one.</li>
-<li><strong>Diegetic</strong> - part of the world rather than an overlay bolted on top. The HUD instruments read the ship's real state and the autopilot flies the same real thrusters you do, so what you see is what the ship is actually doing.</li>
 </ul>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<h2 id="interface" tabindex="-1">Interface</h2>
+<ul>
+<li><strong>HUD</strong> - the heads-up display: diegetic, because the instruments read the ship's real state, and contextual, because elements surface while their moment is live and settle back when it passes. See <a href="../hud/">HUD</a>.</li>
+<li><strong>Diegetic</strong> - part of the world rather than an overlay bolted on top. The HUD instruments read the ship's real state and the autopilot flies the same real thrusters you do, so what you see is what the ship is actually doing.</li>
+<li><strong>Velocity sphere</strong> - the flight readout that shows where the ship is going, with the speed chip beside it. It turns violet while RCS is held. See <a href="../hud/#flight-readouts">Flight readouts</a>.</li>
+<li><strong>Viewfinder</strong> - the target frame: what you have locked, how far it is and how fast it is closing, and the NEUTRALIZED tag on a wreck. See <a href="../hud/#target-viewfinder">Target viewfinder</a>.</li>
+<li><strong>Lead pip</strong> - the marker a turret draws on the point it is actually shooting at, ahead of a moving target. Red while the weapons are hot. See <a href="../hud/#locks-and-reticles">Locks and reticles</a>.</li>
+<li><strong>Allegiance markers</strong> - the always-on ship markers, tinted by how each ship stands to you. See <a href="../hud/#allegiance-markers">Allegiance markers</a>.</li>
+<li><strong>Keybind dock</strong> - the strip of chips listing the verbs your ship has right now. A chip appears only when the ship has the verb, RCS included. See <a href="../keybinds/">Keybinds</a>.</li>
+<li><strong>NOVA OS</strong> - the ship computer. <kbd>Tab</kbd> in flight brings up a CRT terminal that freezes the world while you read, type and click, with the MAP and SHIP apps and section rebinding. See <a href="../nova-os/">NOVA OS</a>.</li>
+<li><strong>Comms</strong> - the story panel where a scenario talks to you and lists its objectives. See <a href="../hud/#comms-and-objectives">Comms and objectives</a>.</li>
+</ul>
+<h2 id="world" tabindex="-1">World</h2>
+<ul>
+<li><strong>Allegiance</strong> - Player, Enemy or Neutral: the one side every ship carries. Any two things resolve to Own, Hostile or Neutral, and that relation drives acquisition, whose rounds hurt whom, and reticle tint. See <a href="../factions/">Factions</a>.</li>
+<li><strong>Raider</strong> - an enemy gunship. It flies the same catalog guns as you on scavenger-grade mounts, closes to about a kilometer and fights there. See <a href="../sections/turret/#variants">Turret</a>.</li>
+<li><strong>Scenario</strong> - a placed world and the events, filters and actions wired over it: the same machinery for a five-minute tutorial and a combat sandbox. See <a href="../scenarios/">Scenarios</a>.</li>
+<li><strong>Objective</strong> - what a scenario asks of you, listed on the comms panel and advanced by the scenario's events.</li>
+<li><strong>Basic Training</strong> - the New Game opening, the flight <a href="../getting-started/">Your first flight</a> walks through beat by beat: a Fleet gunnery qualification under a 150 m/s governor.</li>
+<li><strong>Rock</strong> - an asteroid: solid, carvable cover that eats rounds, and a gravity well if it is big enough to carry one. See <a href="../combat-weapons/#shooting-rock">Shooting rock</a>.</li>
+</ul>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -83,6 +134,4 @@
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

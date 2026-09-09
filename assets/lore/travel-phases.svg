@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="640" viewBox="0 0 800 640" role="img" aria-labelledby="title description">
+  <title id="title">Two ways to make a journey</title>
+  <desc id="description">A commercial journey uses acceleration, a coast to conserve propellant, and braking. An exceptional express vessel sustains acceleration and braking instead. The two bars show phase order only, not comparable durations, distances, acceleration values, or travel speeds.</desc>
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#173a29"/></pattern>
+    <pattern id="burn" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M-4 14L14 -4M10 18L18 10" stroke="#aec9a7" stroke-opacity="0.22" stroke-width="2"/></pattern>
+  </defs>
+  <rect width="800" height="640" fill="#08150d"/>
+  <rect x="20" y="20" width="760" height="600" fill="url(#grid)" opacity="0.45"/>
+  <g font-family="DejaVu Sans, sans-serif">
+    <text x="40" y="65" fill="#c5d9b9" font-size="30" font-weight="700">The work of arriving</text>
+    <text x="40" y="102" fill="#87a68a" font-size="22">Speed gained must also be dealt with.</text>
+    <text x="40" y="167" fill="#c5d9b9" font-size="25" font-weight="700">COMMERCIAL JOURNEY</text>
+    <path d="M40 195H760" stroke="#688c70"/>
+    <rect x="40" y="213" width="200" height="62" fill="#355040" stroke="#89bd99"/>
+    <rect x="40" y="213" width="200" height="62" fill="url(#burn)"/>
+    <rect x="240" y="213" width="320" height="62" fill="#15261c" stroke="#688c70"/>
+    <path d="M263 244H537" stroke="#688c70" stroke-dasharray="7 9"/>
+    <rect x="560" y="213" width="200" height="62" fill="#355040" stroke="#89bd99"/>
+    <rect x="560" y="213" width="200" height="62" fill="url(#burn)"/>
+    <g fill="#c5d9b9" font-size="24" text-anchor="middle">
+      <text x="140" y="309">Accelerate</text><text x="400" y="309">Coast</text><text x="660" y="309">Brake</text>
+    </g>
+    <text x="40" y="375" fill="#ddd8b3" font-size="25" font-weight="700">EXPRESS TRANSFER</text>
+    <path d="M40 399H760" stroke="#8e8962"/>
+    <rect x="40" y="417" width="360" height="62" fill="#384536" stroke="#b4b98b"/>
+    <rect x="400" y="417" width="360" height="62" fill="#384536" stroke="#b4b98b"/>
+    <rect x="40" y="417" width="720" height="62" fill="url(#burn)"/>
+    <g fill="#ddd8b3" font-size="24" text-anchor="middle">
+      <text x="220" y="513">Sustained acceleration</text><text x="580" y="513">Sustained braking</text>
+    </g>
+    <text x="40" y="576" fill="#87a68a" font-size="21">Phase order only. No common time or distance scale.</text>
+    <text x="40" y="609" fill="#87a68a" font-size="21">The endurance comes at the expense of useful payload.</text>
+  </g>
+</svg>

@@ -1,0 +1,193 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>The impact table for mods - Nova Protocol Creator Docs</title><meta name="description" content="Pair a damage type with a material to voice a hit: the Impact item, the single fallback, naming your own materials, and the four base rows."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / The impact table for mods</p><h1>The impact table for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-impact-item">The Impact item</a><ol></ol></li><li><a href="#how-a-hit-finds-its-row">How a hit finds its row</a><ol></ol></li><li><a href="#naming-a-material">Naming a material</a><ol></ol></li><li><a href="#base-rows">Base rows</a><ol></ol></li><li><a href="#destruction-is-not-here">Destruction is not here</a><ol></ol></li></ol></nav><p>What a hit SOUNDS like has two halves: the round that arrived, and the thing it
+arrived on. A slug on ship plate and the same slug on stone are different
+noises, and so are a slug and a penetrator on the same plate.</p>
+<p>An <code>Impact</code> item is one row of that pairing: a damage type, a material, and the
+sound. Sections and asteroids name only what they are MADE of; the table does
+the rest.</p>
+<p>This page is the field-by-field impact reference. For general RON spelling rules
+such as double parentheses, <code>Some(...)</code>, and asset schemes, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="the-impact-item" tabindex="-1">The Impact item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">Impact</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod_pierce_ceramic&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">damage</span><span class="ron-punct">:</span> <span class="ron-type">Pierce</span><span class="ron-punct">,</span>
+        <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;my_mod_ceramic&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/pierce_ceramic.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">Impact</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod_kinetic_ceramic&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">damage</span><span class="ron-punct">:</span> <span class="ron-type">Kinetic</span><span class="ron-punct">,</span>
+        <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;my_mod_ceramic&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/kinetic_ceramic.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable row key, and the overlay key. Re-declare a base id to replace that row; a new id adds one. Prefix new ids with your mod id.</td>
+</tr>
+<tr>
+<td><code>damage</code></td>
+<td>damage type</td>
+<td>required</td>
+<td><code>Kinetic</code> (the punch), <code>Pierce</code> (the rake), or <code>Explosive</code> (a warhead's pressure).</td>
+</tr>
+<tr>
+<td><code>material</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>The material this row is for. <code>None</code> makes it the DEFAULT row for its damage type.</td>
+</tr>
+<tr>
+<td><code>sound</code></td>
+<td>asset ref</td>
+<td>required</td>
+<td>The voice. <code>self://sounds/...</code> from your bundle, or <code>dep://base/sounds/...</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-a-hit-finds-its-row" tabindex="-1">How a hit finds its row</h2>
+<ol>
+<li>The round's damage type and the struck body's <code>material</code> are looked up as a
+pair.</li>
+<li>If no row names that pair, the damage type's default row (<code>material: None</code>)
+is used.</li>
+<li>If there is no default row either, the hit is SILENT.</li>
+</ol>
+<p>That is the whole rule, and it falls back exactly once. A material with no
+<code>Pierce</code> row does not borrow its own <code>Kinetic</code> row - it takes the <code>Pierce</code>
+default, because the round is what the player is listening to.</p>
+<h2 id="naming-a-material" tabindex="-1">Naming a material</h2>
+<p>Materials are open strings. A thing is made of one by saying so:</p>
+<ul>
+<li>a <a href="../sections/">section</a> sets <code>base.material</code>; omitted means <code>&quot;hull&quot;</code>.</li>
+<li>an <a href="../objects/#asteroid">asteroid</a> sets <code>material</code>, which is also its KIND -
+what it is made of and how it is drawn are one field. It is required, and an
+id the kind table does not know is an error rather than a grey rock.</li>
+</ul>
+<p>Adding a material to the game is naming it on your objects and authoring the
+rows to hear it. Nothing else changes.</p>
+<h2 id="base-rows" tabindex="-1">Base rows</h2>
+<p>The base game ships eight rows - three defaults, then one Kinetic row per
+asteroid kind:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>damage</th>
+<th>material</th>
+<th>sound</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>impact_kinetic</code></td>
+<td><code>Kinetic</code></td>
+<td>(default)</td>
+<td><code>dep://base/sounds/impact.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_pierce</code></td>
+<td><code>Pierce</code></td>
+<td>(default)</td>
+<td><code>dep://base/sounds/impact_pierce.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_explosive</code></td>
+<td><code>Explosive</code></td>
+<td>(default)</td>
+<td><code>dep://base/sounds/impact_explosive.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_kinetic_rock</code></td>
+<td><code>Kinetic</code></td>
+<td><code>&quot;rock&quot;</code></td>
+<td><code>dep://base/sounds/impact_rock.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_kinetic_metal</code></td>
+<td><code>Kinetic</code></td>
+<td><code>&quot;metal&quot;</code></td>
+<td><code>dep://base/sounds/impact_rock.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_kinetic_ice</code></td>
+<td><code>Kinetic</code></td>
+<td><code>&quot;ice&quot;</code></td>
+<td><code>dep://base/sounds/impact_rock.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_kinetic_carbon</code></td>
+<td><code>Kinetic</code></td>
+<td><code>&quot;carbon&quot;</code></td>
+<td><code>dep://base/sounds/impact_rock.wav</code></td>
+</tr>
+<tr>
+<td><code>impact_kinetic_plain</code></td>
+<td><code>Kinetic</code></td>
+<td><code>&quot;plain&quot;</code></td>
+<td><code>dep://base/sounds/impact_rock.wav</code></td>
+</tr>
+</tbody>
+</table>
+<p>The four rock kinds share one sample on purpose: the base game records two
+impacts, plate and stone, and nickel-iron is stone as far as this library goes.
+Re-declaring <code>impact_kinetic_metal</code> is how you make it ring.</p>
+<p>Re-declaring an id re-voices it for the whole game, base content included.
+Everything the table does not name falls to its damage type's default, so a mod
+that adds ten materials and no rows is still audible - it just sounds like ship
+plate.</p>
+<h2 id="destruction-is-not-here" tabindex="-1">Destruction is not here</h2>
+<p>A hit is the round meeting a surface. DESTRUCTION is one event with one sound
+whatever caused it, so it stays a per-target field: <code>base.destroy_sound</code> on a
+<a href="../sections/">section</a>, <code>destroy_sound</code> on an
+<a href="../objects/#asteroid">asteroid</a>. Omitted means silent.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

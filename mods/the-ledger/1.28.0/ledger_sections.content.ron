@@ -1,0 +1,1817 @@
+// The Ledger's own section prototypes: the seven-part Racer, CargoB and CargoA
+// craft cut from the Kenney Space Kit (CC0, credited in `credits/CREDITS.md`).
+//
+// These moved OUT of the base game (task 20260824-125959) when the built-in
+// campaign took on its block-built identity. They are the mod's whole point:
+// custom GLB art, custom prototypes and a fleet the base game does not own, so
+// The Ledger reads as a different game from the campaign next to it.
+//
+// Hand-authored RON, not generated - `content -- gen` writes `assets/base/**`
+// and nothing under `webmods/`. Meshes are `self://gltf/parts/<craft>/<part>.glb`
+// in this folder; every sound is borrowed from base with `dep://base/sounds/`.
+// A turret mount is not a prototype here either: a craft names where a gun goes
+// and base's shared `pdc_kinetic_turret_section` is the gun.
+[
+    Section((
+        base: (
+            id: "racer_engine_starboard",
+            name: "Racer // Engine Starboard",
+            description: "The Racer\'s engine starboard section.",
+            health: 70.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.49,
+                    0.74189,
+                    0.62567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_tail",
+                    position: (
+                        -0.3275,
+                        0.1395275,
+                        0.049999952,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "to_wing_starboard",
+                    position: (
+                        0.07500005,
+                        -0.035472512,
+                        -0.69749975,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/racer/engine_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.15499997,
+                    -0.070945024,
+                    -0.012835026,
+                ),
+            )),
+            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.312835,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.343,
+                    height: 0.445134,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_engine_port",
+            name: "Racer // Engine Port",
+            description: "The Racer\'s engine port section.",
+            health: 70.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.49,
+                    0.74189,
+                    0.62567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_tail",
+                    position: (
+                        0.3275,
+                        0.1395275,
+                        0.049999952,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_wing_port",
+                    position: (
+                        -0.07500005,
+                        -0.035472512,
+                        -0.69749975,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/racer/engine_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.15499997,
+                    -0.070945024,
+                    -0.012835026,
+                ),
+            )),
+            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.312835,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.343,
+                    height: 0.445134,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_wing_starboard",
+            name: "Racer // Wing Starboard",
+            description: "The Racer\'s wing starboard section.",
+            health: 180.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    2.164329,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.4025,
+                        0.100000024,
+                        -0.008917749,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        -0.07499999,
+                        0.035472512,
+                        0.69749975,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_starboard",
+                    position: (
+                        0.545,
+                        -0.099999994,
+                        -0.66783553,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/wing_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.195,
+                    0.0,
+                    -0.11783552,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_wing_port",
+            name: "Racer // Wing Port",
+            description: "The Racer\'s wing port section.",
+            health: 180.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    2.164329,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.4025,
+                        0.100000024,
+                        -0.008917749,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.07499999,
+                        0.035472512,
+                        0.69749975,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_port",
+                    position: (
+                        -0.545,
+                        -0.099999994,
+                        -0.66783553,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/wing_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.195,
+                    0.0,
+                    -0.11783552,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_nose",
+            name: "Racer // Nose",
+            description: "The Racer\'s nose section.",
+            health: 120.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.8,
+                    1.22265,
+                    1.02567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.04433751,
+                        0.8064175,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/nose.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.111325026,
+                    0.012835026,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_tail",
+            name: "Racer // Tail",
+            description: "The Racer\'s tail section.",
+            health: 120.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.82,
+                    1.3,
+                    0.82567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        -0.07500005,
+                        -0.75641745,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        0.3275,
+                        -0.1395275,
+                        -0.049999952,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        -0.3275,
+                        -0.1395275,
+                        -0.049999952,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/tail.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.14999998,
+                    -0.11283493,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_fuselage",
+            name: "Racer // Fuselage",
+            description: "The Racer\'s fuselage section.",
+            health: 240.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.82,
+                    1.4,
+                    2.2,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_nose",
+                    position: (
+                        0.0,
+                        -0.04433745,
+                        -0.8064175,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+                (
+                    id: "to_tail",
+                    position: (
+                        0.0,
+                        0.07499999,
+                        0.75641745,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_wing_starboard",
+                    position: (
+                        0.4025,
+                        -0.099999964,
+                        0.008917749,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_wing_port",
+                    position: (
+                        -0.4025,
+                        -0.099999964,
+                        0.008917749,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Controller((
+            steering_lag: 0.5,
+            max_torque: 1501.0,
+            render_mesh: Some("self://gltf/parts/racer/fuselage.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.19999999,
+                    -0.100000024,
+                ),
+            )),
+            lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+            lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+            radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+            radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+            safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+            warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+            warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+            warn_hull_fraction: 0.3,
+            rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_engine_starboard",
+            name: "CargoB // Engine Starboard",
+            description: "The CargoB\'s engine starboard section.",
+            health: 70.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.024999976,
+                        0.0,
+                        -1.25,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/cargob/engine_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.004999995,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.5,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.553,
+                    height: 0.6,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_engine_port",
+            name: "CargoB // Engine Port",
+            description: "The CargoB\'s engine port section.",
+            health: 70.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.024999976,
+                        0.0,
+                        -1.25,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/cargob/engine_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.004999995,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.5,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.553,
+                    height: 0.6,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_pod_starboard",
+            name: "CargoB // Pod Starboard",
+            description: "The CargoB\'s pod starboard section.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.89,
+                    1.0,
+                    4.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.52750003,
+                        0.099999964,
+                        0.375,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        -0.025000095,
+                        0.0,
+                        1.25,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_starboard",
+                    position: (
+                        0.4949999,
+                        0.25000006,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Torpedo((
+            render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.055000067,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            spawn_offset: (
+                0.0,
+                0.0,
+                -2.5,
+            ),
+            spawn_rotation: (
+                -0.70710677,
+                0.0,
+                0.0,
+                0.70710677,
+            ),
+            fire_rate: 1.0,
+            spawner_speed: 80.0,
+            projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 50.0,
+            nav_constant: 3.0,
+            linear_damping: 0.8,
+            blast_radius: 300.0,
+            blast_damage: 750.0,
+            launch_sound: Some("dep://base/sounds/torpedo_launch.wav"),
+            door_sound: Some("dep://base/sounds/bay_door.wav"),
+            detonation_sound: Some("dep://base/sounds/torpedo_detonate.wav"),
+            torpedo_type: (
+                name: "Serpent",
+                tint: Srgba((
+                    red: 0.95,
+                    green: 0.45,
+                    blue: 0.1,
+                    alpha: 1.0,
+                )),
+                max_speed: 320.0,
+                weave_angle: 0.44,
+                weave_rate: 1.4,
+            ),
+            ammo_capacity: Some(6),
+            reload: Some((
+                delay: 10.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_pod_starboard_lance",
+            name: "CargoB // Pod Starboard (Lance)",
+            description: "The CargoB\'s pod starboard section. Loaded with straight-running Lance torpedoes.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.89,
+                    1.0,
+                    4.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.52750003,
+                        0.099999964,
+                        0.375,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        -0.025000095,
+                        0.0,
+                        1.25,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_starboard",
+                    position: (
+                        0.4949999,
+                        0.25000006,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Torpedo((
+            render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.055000067,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            spawn_offset: (
+                0.0,
+                0.0,
+                -2.5,
+            ),
+            spawn_rotation: (
+                -0.70710677,
+                0.0,
+                0.0,
+                0.70710677,
+            ),
+            fire_rate: 1.0,
+            spawner_speed: 80.0,
+            projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 50.0,
+            nav_constant: 3.0,
+            linear_damping: 0.8,
+            blast_radius: 300.0,
+            blast_damage: 750.0,
+            launch_sound: Some("dep://base/sounds/torpedo_launch.wav"),
+            door_sound: Some("dep://base/sounds/bay_door.wav"),
+            detonation_sound: Some("dep://base/sounds/torpedo_detonate.wav"),
+            torpedo_type: (
+                name: "Lance",
+                tint: Srgba((
+                    red: 0.7,
+                    green: 0.78,
+                    blue: 0.86,
+                    alpha: 1.0,
+                )),
+                max_speed: 350.0,
+                weave_angle: 0.0,
+                weave_rate: 0.0,
+            ),
+            ammo_capacity: Some(6),
+            reload: Some((
+                delay: 10.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_pod_port",
+            name: "CargoB // Pod Port",
+            description: "The CargoB\'s pod port section.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.89,
+                    1.0,
+                    4.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.52750003,
+                        0.099999964,
+                        0.375,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.025000095,
+                        0.0,
+                        1.25,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_port",
+                    position: (
+                        -0.4949999,
+                        0.25000006,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Torpedo((
+            render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.055000067,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            spawn_offset: (
+                0.0,
+                0.0,
+                -2.5,
+            ),
+            spawn_rotation: (
+                -0.70710677,
+                0.0,
+                0.0,
+                0.70710677,
+            ),
+            fire_rate: 1.0,
+            spawner_speed: 80.0,
+            projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 50.0,
+            nav_constant: 3.0,
+            linear_damping: 0.8,
+            blast_radius: 300.0,
+            blast_damage: 750.0,
+            launch_sound: Some("dep://base/sounds/torpedo_launch.wav"),
+            door_sound: Some("dep://base/sounds/bay_door.wav"),
+            detonation_sound: Some("dep://base/sounds/torpedo_detonate.wav"),
+            torpedo_type: (
+                name: "Serpent",
+                tint: Srgba((
+                    red: 0.95,
+                    green: 0.45,
+                    blue: 0.1,
+                    alpha: 1.0,
+                )),
+                max_speed: 320.0,
+                weave_angle: 0.44,
+                weave_rate: 1.4,
+            ),
+            ammo_capacity: Some(6),
+            reload: Some((
+                delay: 10.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_pod_port_lance",
+            name: "CargoB // Pod Port (Lance)",
+            description: "The CargoB\'s pod port section. Loaded with straight-running Lance torpedoes.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.89,
+                    1.0,
+                    4.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.52750003,
+                        0.099999964,
+                        0.375,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.025000095,
+                        0.0,
+                        1.25,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_port",
+                    position: (
+                        -0.4949999,
+                        0.25000006,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Torpedo((
+            render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.055000067,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            spawn_offset: (
+                0.0,
+                0.0,
+                -2.5,
+            ),
+            spawn_rotation: (
+                -0.70710677,
+                0.0,
+                0.0,
+                0.70710677,
+            ),
+            fire_rate: 1.0,
+            spawner_speed: 80.0,
+            projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 50.0,
+            nav_constant: 3.0,
+            linear_damping: 0.8,
+            blast_radius: 300.0,
+            blast_damage: 750.0,
+            launch_sound: Some("dep://base/sounds/torpedo_launch.wav"),
+            door_sound: Some("dep://base/sounds/bay_door.wav"),
+            detonation_sound: Some("dep://base/sounds/torpedo_detonate.wav"),
+            torpedo_type: (
+                name: "Lance",
+                tint: Srgba((
+                    red: 0.7,
+                    green: 0.78,
+                    blue: 0.86,
+                    alpha: 1.0,
+                )),
+                max_speed: 350.0,
+                weave_angle: 0.0,
+                weave_rate: 0.0,
+            ),
+            ammo_capacity: Some(6),
+            reload: Some((
+                delay: 10.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_nose",
+            name: "CargoB // Nose",
+            description: "The CargoB\'s nose section.",
+            health: 180.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.22,
+                    1.6,
+                    1.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        -0.050000012,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargob/nose.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.0,
+                    -0.25,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_tail",
+            name: "CargoB // Tail",
+            description: "The CargoB\'s tail section.",
+            health: 150.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.22,
+                    1.3,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.125,
+                        -0.875,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargob/tail.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.14999998,
+                    0.0,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_fuselage",
+            name: "CargoB // Fuselage",
+            description: "The CargoB\'s fuselage section.",
+            health: 300.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.22,
+                    1.8,
+                    2.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_nose",
+                    position: (
+                        0.0,
+                        0.050000012,
+                        -1.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+                (
+                    id: "to_tail",
+                    position: (
+                        0.0,
+                        -0.125,
+                        0.875,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.52750003,
+                        -0.100000024,
+                        -0.375,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.52750003,
+                        -0.100000024,
+                        -0.375,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Controller((
+            steering_lag: 0.5,
+            max_torque: 1501.0,
+            render_mesh: Some("self://gltf/parts/cargob/fuselage.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.100000024,
+                    0.25,
+                ),
+            )),
+            lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+            lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+            radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+            radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+            safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+            warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+            warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+            warn_hull_fraction: 0.3,
+            rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_engine_starboard",
+            name: "CargoA // Engine Starboard",
+            description: "The CargoA\'s engine starboard section.",
+            health: 70.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    0.795,
+                    0.95,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.0,
+                        0.049999952,
+                        -0.75,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/cargoa/engine_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.20500004,
+                    -0.100000024,
+                    0.024999976,
+                ),
+            )),
+            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.475,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.55300003,
+                    height: 0.47700003,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_engine_port",
+            name: "CargoA // Engine Port",
+            description: "The CargoA\'s engine port section.",
+            health: 70.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    0.795,
+                    0.95,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_port",
+                    position: (
+                        0.0,
+                        0.049999952,
+                        -0.75,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/cargoa/engine_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.20500004,
+                    -0.100000024,
+                    0.024999976,
+                ),
+            )),
+            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.475,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.55300003,
+                    height: 0.47700003,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_pod_starboard",
+            name: "CargoA // Pod Starboard",
+            description: "The CargoA\'s pod starboard section.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    1.0,
+                    2.05,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.6025,
+                        0.050000012,
+                        -0.15,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        0.0,
+                        -0.050000012,
+                        0.75,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargoa/pod_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.20500004,
+                    -0.19999999,
+                    0.024999976,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_pod_port",
+            name: "CargoA // Pod Port",
+            description: "The CargoA\'s pod port section.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    1.0,
+                    2.05,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.6025,
+                        0.050000012,
+                        -0.15,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.0,
+                        -0.050000012,
+                        0.75,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargoa/pod_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.20500004,
+                    -0.19999999,
+                    0.024999976,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_nose",
+            name: "CargoA // Nose",
+            description: "The CargoA\'s nose section.",
+            health: 180.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.6,
+                    1.2,
+                    1.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.98749995,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_starboard",
+                    position: (
+                        0.7,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_turret_port",
+                    position: (
+                        -0.7,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargoa/nose.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.19999999,
+                    -0.20000005,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_tail",
+            name: "CargoA // Tail",
+            description: "The CargoA\'s tail section.",
+            health: 150.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.62,
+                    1.175,
+                    0.95,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.10625005,
+                        -0.9,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargoa/tail.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.087499976,
+                    0.024999976,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_fuselage",
+            name: "CargoA // Fuselage",
+            description: "The CargoA\'s fuselage section.",
+            health: 350.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.62,
+                    1.6,
+                    2.65,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_nose",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.9875,
+                    ),
+                    normal: (
+                        -0.0,
+                        -0.0,
+                        -1.0,
+                    ),
+                ),
+                (
+                    id: "to_tail",
+                    position: (
+                        0.0,
+                        -0.10624999,
+                        0.90000004,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.6025,
+                        -0.050000012,
+                        0.15,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.6025,
+                        -0.050000012,
+                        0.15,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Controller((
+            steering_lag: 0.5,
+            max_torque: 1501.0,
+            render_mesh: Some("self://gltf/parts/cargoa/fuselage.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.19999999,
+                    -0.17500001,
+                ),
+            )),
+            lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+            lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+            radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+            radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+            safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+            warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+            warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+            warn_hull_fraction: 0.3,
+            rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+        )),
+    )),
+]

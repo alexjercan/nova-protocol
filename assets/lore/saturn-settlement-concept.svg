@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title description">
+  <title id="title">Saturn: a settlement setting</title>
+  <desc id="description">An unassigned industrial habitat in front of Saturn and its rings. This is an atmospheric illustration, not an orbital map, a scale comparison, or a station design. The palette is the encyclopedia's presentation treatment.</desc>
+  <defs>
+    <linearGradient id="space" x2="1" y2="0"><stop stop-color="#09180f"/><stop offset="1" stop-color="#273d2d"/></linearGradient>
+    <radialGradient id="planet" cx="26%" cy="22%" r="80%"><stop stop-color="#c9d3ac"/><stop offset="0.5" stop-color="#778e67"/><stop offset="1" stop-color="#172a1d"/></radialGradient>
+    <linearGradient id="metal" x2="0.3" y2="1"><stop stop-color="#bdd0ab"/><stop offset="0.45" stop-color="#637e5e"/><stop offset="1" stop-color="#233b2a"/></linearGradient>
+    <clipPath id="planet-clip"><circle cx="968" cy="139" r="191"/></clipPath>
+    <pattern id="panels" width="17" height="12" patternUnits="userSpaceOnUse"><rect width="17" height="12" fill="#132c20"/><path d="M17 0H0V12" fill="none" stroke="#5b7c5f"/></pattern>
+  </defs>
+  <rect width="1280" height="320" fill="url(#space)"/>
+  <g fill="#afc4a5" opacity="0.7"><circle cx="55" cy="64" r="1.2"/><circle cx="183" cy="38" r="1"/><circle cx="382" cy="93" r="1.1"/><circle cx="534" cy="53" r="1.1"/><circle cx="645" cy="236" r="1.3"/><circle cx="492" cy="276" r="1"/><circle cx="99" cy="235" r="1.2"/><circle cx="1198" cy="57" r="1.2"/></g>
+  <g transform="rotate(-18 968 139)" fill="none"><ellipse cx="968" cy="139" rx="363" ry="76" stroke="#7c936f" stroke-width="29"/><ellipse cx="968" cy="139" rx="407" ry="86" stroke="#a9b68c" stroke-width="9"/></g>
+  <circle cx="968" cy="139" r="191" fill="url(#planet)"/>
+  <g clip-path="url(#planet-clip)" transform="rotate(-18 968 139)" fill="none" opacity="0.2"><path d="M740 65Q968 109 1194 65M740 134Q968 178 1194 134M740 212Q968 256 1194 212" stroke="#ced4ae" stroke-width="18"/><path d="M740 105Q968 149 1194 105M740 171Q968 215 1194 171" stroke="#263e2a" stroke-width="10"/></g>
+  <g transform="rotate(-18 968 139)" fill="none"><path d="M605 139A363 76 0 0 0 1331 139" stroke="#b4c09a" stroke-width="29"/><path d="M561 139A407 86 0 0 0 1375 139" stroke="#d0d3af" stroke-width="9"/><path d="M591 139A377 80 0 0 0 1345 139" stroke="#203726" stroke-width="4"/></g>
+  <g transform="translate(325 165) rotate(-12)">
+    <path d="M-67 -6H217V19H-67Z" fill="url(#metal)" stroke="#0c1e13" stroke-width="3"/>
+    <path d="M-65 5H211M-60 6L-40 17L-20 6L0 17L20 6L40 17L60 6L80 17L100 6L120 17L140 6L160 17L180 6L200 17" fill="none" stroke="#203e28" stroke-width="3"/>
+    <ellipse cx="-72" cy="4" rx="33" ry="95" fill="none" stroke="#152d1f" stroke-width="19"/>
+    <path d="M-72 -87V94M-102 4H-43" stroke="#a1b991" stroke-width="4"/>
+    <ellipse cx="-77" cy="0" rx="33" ry="95" fill="none" stroke="url(#metal)" stroke-width="13"/>
+    <ellipse cx="-77" cy="0" rx="33" ry="95" fill="none" stroke="#d1cc9b" stroke-width="2" stroke-dasharray="3 8"/>
+    <path d="M0 -4V-52H57V-4M73 -4V-37H131V-4M137 18V67H174V18" fill="url(#metal)" stroke="#29482f" stroke-width="3"/>
+    <path d="M182 -5V-92M180 -52H250" stroke="#7e9e77" stroke-width="4"/>
+    <rect x="197" y="-100" width="119" height="77" fill="url(#panels)" stroke="#8ba781" stroke-width="2"/>
+    <path d="M256 -100V-23M197 -61H316" stroke="#8ba781" stroke-width="2"/>
+    <path d="M45 19V54H91" fill="none" stroke="#a1b991" stroke-width="5"/>
+    <circle cx="217" cy="6" r="3" fill="#d4d6a4"/>
+  </g>
+  <rect x="12" y="12" width="1256" height="296" fill="none" stroke="#839574" stroke-opacity="0.25"/>
+</svg>

@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Create - Nova Protocol</title>
-        <meta name="description" content="Make content for Nova Protocol: author scenarios and campaigns in RON, add ship sections, ships and skins, and publish mods to the portal." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Create - Nova Protocol</title><meta name="description" content="Make content for Nova Protocol: author scenarios and campaigns in RON, add ship sections, ships and skins, and publish mods to the portal."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,22 +17,11 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <h1>Create</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>Nova Protocol supports data-driven mods. A mod can add campaigns, playable
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><h1>Create</h1><div class="wiki__tags" id="wiki-tags"></div><p>Nova Protocol supports data-driven mods. A mod can add campaigns, playable
 scenarios, ship sections, whole ships and skin styles, menu backdrops, story
-messages, objectives, enemies, and custom art or audio. The base campaign and
-portal mods use the same content system available to mod authors.</p>
+messages, objectives, enemies, and custom art or audio. The shipped story
+campaign is itself a mod, and portal mods use the same content system available
+to mod authors.</p>
 <p>You need a text editor and a local copy of the repository. Start with one small
 scenario, play it, then publish it when it works.</p>
 <h2 id="learn-to-mod" tabindex="-1">Learn to mod</h2>
@@ -66,6 +47,8 @@ actions, objects, and variables.</li>
 torpedo bays.</li>
 <li><strong>Ships and styles</strong> author whole hulls once, spawn them by id, and restyle
 the cladding they wear.</li>
+<li><strong>Impact rows</strong> voice a hit by pairing a damage type with the material it
+struck.</li>
 <li><strong>Resources</strong> provide your own images, models, sounds, thumbnails, and
 skyboxes.</li>
 </ul>
@@ -81,6 +64,8 @@ dependencies, and overlays.</li>
 <li><a href="sections/">Ship sections for mods</a> - every section kind and field.</li>
 <li><a href="ships/">Ships for mods</a> - whole hulls authored once and spawned by id.</li>
 <li><a href="styles/">Ship skin styles for mods</a> - the look a hull's cladding wears.</li>
+<li><a href="impacts/">The impact table for mods</a> - what a round sounds like against what
+it hit.</li>
 <li><a href="base-content/">Base content catalog</a> - reusable ids and
 <code>dep://base/</code> assets.</li>
 </ul>
@@ -92,15 +77,12 @@ dependencies, and overlays.</li>
 <p>The reference lists everything RON content can use. Adding a new event, filter,
 action, object kind, or section kind requires a game-code change. Contributors
 can start with the <a href="../dev/">developer book</a>.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -111,6 +93,4 @@ can start with the <a href="../dev/">developer book</a>.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

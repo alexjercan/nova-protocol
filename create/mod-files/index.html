@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Mod files - Nova Protocol Creator Docs</title>
-        <meta name="description" content="The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, and styles." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Mod files - Nova Protocol Creator Docs</title><meta name="description" content="The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, impacts, grammars, and channels."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,30 +17,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
-                        / Mod files
-                    </p>
-                    <h1>Mod files</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#folder-structure">Folder structure</a><ol></ol></li><li><a href="#the-bundle-manifest">The bundle manifest</a><ol></ol></li><li><a href="#balance-acknowledgments">Balance acknowledgments</a><ol></ol></li><li><a href="#content-files">Content files</a><ol></ol></li><li><a href="#the-five-content-chapters">The five content chapters</a><ol></ol></li><li><a href="#paths-and-dependencies">Paths and dependencies</a><ol></ol></li><li><a href="#overlay-behavior">Overlay behavior</a><ol></ol></li></ol>
-                    </nav>
-                    <p>A Nova Protocol mod is a folder that contains one bundle manifest, one or more
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Mod files</p><h1>Mod files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#folder-structure">Folder structure</a><ol></ol></li><li><a href="#the-bundle-manifest">The bundle manifest</a><ol></ol></li><li><a href="#the-installed-catalog">The installed catalog</a><ol></ol></li><li><a href="#balance-acknowledgments">Balance acknowledgments</a><ol></ol></li><li><a href="#content-files">Content files</a><ol></ol></li><li><a href="#the-eight-content-chapters">The eight content chapters</a><ol></ol></li><li><a href="#paths-and-dependencies">Paths and dependencies</a><ol></ol></li><li><a href="#overlay-behavior">Overlay behavior</a><ol></ol></li></ol></nav><p>A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-five kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
-and ship skin styles.</p>
+six kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
+ship skin styles, and impact rows.</p>
 <p>Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.</p>
 <h2 id="folder-structure" tabindex="-1">Folder structure</h2>
@@ -167,6 +139,53 @@ listed by the manifest.</p>
 </table>
 <p><code>resources</code> lists files, not folders. A <code>.meta</code> sidecar next to a listed image
 travels with that image automatically and is not listed separately.</p>
+<h2 id="the-installed-catalog" tabindex="-1">The installed catalog</h2>
+<p><code>assets/mods.catalog.ron</code> lists every mod the build ships, in load order, and
+is the only index the loader reads: there is no directory scan, so the web
+build works from the same file. Each entry is a thin pointer; the mod's
+metadata stays in its own bundle's <code>meta</code> block.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>The enable key and overlay namespace, and the <code>&lt;id&gt;</code> in another mod's <code>dep://&lt;id&gt;/</code> refs.</td>
+</tr>
+<tr>
+<td><code>bundle</code></td>
+<td>path</td>
+<td>required</td>
+<td>The mod's <code>*.bundle.ron</code>, relative to the assets root.</td>
+</tr>
+<tr>
+<td><code>base</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>The base game: enabled by default and locked on in the Mods menu.</td>
+</tr>
+<tr>
+<td><code>enabled_by_default</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. No shipped mod sets it today.</td>
+</tr>
+<tr>
+<td><code>hidden</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>Kept out of the Mods menu but still installed and enableable by id, for tooling and test rigs.</td>
+</tr>
+</tbody>
+</table>
 <p>The full packaging, catalog, local installation, and publishing flow is in
 <a href="../publish-a-mod/">Publish a mod</a>.</p>
 <h2 id="balance-acknowledgments" tabindex="-1">Balance acknowledgments</h2>
@@ -222,7 +241,7 @@ warning.</p>
 content is rebalanced, prune the entry.</p>
 <h2 id="content-files" tabindex="-1">Content files</h2>
 <p>Every <code>*.content.ron</code> file is a RON list. One file may contain any mix of the
-five item kinds:</p>
+six item kinds:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">[</span>
     <span class="ron-type">Campaign</span><span class="ron-punct">((</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_campaign&quot;</span><span class="ron-punct">,</span>
@@ -257,12 +276,18 @@ five item kinds:</p>
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Look&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">fixtures</span><span class="ron-punct">:</span> <span class="ron-punct">[],</span>
     <span class="ron-punct">)),</span>
+    <span class="ron-type">Impact</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_kinetic_ceramic&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">damage</span><span class="ron-punct">:</span> <span class="ron-type">Kinetic</span><span class="ron-punct">,</span>
+        <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;my_ceramic&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/kinetic_ceramic.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
 <span class="ron-punct">]</span>
 </code></pre>
 <p>Splitting these into <code>campaign.content.ron</code>, <code>scenarios.content.ron</code>, and
 <code>sections.content.ron</code> is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in <code>content</code>.</p>
-<h2 id="the-five-content-chapters" tabindex="-1">The five content chapters</h2>
+<h2 id="the-eight-content-chapters" tabindex="-1">The eight content chapters</h2>
 <div id="wiki-children"></div>
 <ul>
 <li>A <a href="../campaigns/">campaign</a> orders scenarios for the Scenarios menu.</li>
@@ -274,6 +299,14 @@ turret, or torpedo bay.</li>
 that any scenario can spawn by id.</li>
 <li>A <a href="../styles/">style</a> defines the look a ship's derived cladding wears: plate
 materials, and the destructible decoration scattered over them.</li>
+<li>An <a href="../impacts/">impact</a> row pairs a damage type with a material to voice a
+hit - what your round sounds like against what it struck.</li>
+<li>A <a href="../grammars/">grammar</a> is the table a PROCEDURAL hull is drawn from: which
+sections the generator may reach for, how often, and how big and how sparse
+the hull it builds is.</li>
+<li>A <a href="../channels/">channel</a> is where a story line was heard, and how the comms
+panel draws one that was - the difference between a line addressed to your
+ship and one you are overhearing.</li>
 </ul>
 <h2 id="paths-and-dependencies" tabindex="-1">Paths and dependencies</h2>
 <p>Content uses explicit asset schemes:</p>
@@ -295,15 +328,12 @@ the <a href="../base-content/">base content catalog</a> for reusable base ids an
 <p>For sections, the key is <code>base.id</code>. For campaigns, scenarios, ships, and
 styles, the key is <code>id</code>. Prefix new ids with your mod id to avoid accidental
 collisions.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -314,6 +344,4 @@ collisions.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

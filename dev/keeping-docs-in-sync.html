@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -192,6 +192,8 @@ and “Writing the release news post”.</p>
 <tr><td><code>CHANGELOG.md</code></td><td>repo root</td><td>everyone (terse, complete)</td><td>any user-visible change</td></tr>
 <tr><td>News</td><td><code>web/src/news/*.md</code> -&gt; <code>/news/</code></td><td>players + modders</td><td>each feature release</td></tr>
 <tr><td>Player wiki</td><td><code>web/src/wiki/*.md</code> -&gt; <code>/wiki/</code></td><td>players</td><td>player-facing behavior changes</td></tr>
+<tr><td>Lore encyclopedia</td><td><code>web/src/lore/</code> -&gt; <code>/lore/</code></td><td>readers + story authors</td><td>approved world facts and published story references change</td></tr>
+<tr><td>Story library</td><td><code>web/src/comics/</code> -&gt; <code>/story/</code></td><td>readers + story authors</td><td>navigation, TS page scripts, Python panel art, composition, or publication change; update the comic authoring README and keep drafts out of deployable builds</td></tr>
 <tr><td>Creator docs</td><td><code>web/src/create/*.md</code> -&gt; <code>/create/</code></td><td>mod authors</td><td>a data format or the modding UX changes</td></tr>
 <tr><td>Dev book (this book)</td><td><code>docs/</code> -&gt; <code>/dev/</code></td><td>contributors</td><td>internals, architecture, or the dev workflow change</td></tr>
 <tr><td>rustdoc</td><td>local: <code>cargo doc --open</code></td><td>contributors</td><td>with the code (doc comments travel in the same diff)</td></tr>
@@ -241,17 +243,21 @@ creator pages on the site; linked names are chapters of this book.</p>
 </thead>
 <tbody>
 <tr><td><strong>The crate layout itself</strong>: a split, merge, rename, or move (<code>crates/*</code>)</td><td></td><td><a href="architecture.html">Architecture</a> (crate map + dependency graph + assembly), <a href="project-tour.html">Project tour</a> (crate map + change-X table), and THIS page’s own row keys</td><td>CHANGELOG (Internals)</td></tr>
-<tr><td>Ship sections, integrity, typed damage, ammo (<code>nova_ship/sections</code>, <code>nova_gameplay/integrity</code>)</td><td><code>sections.md</code> (+ section children), <code>hud.md</code></td><td><a href="sections.html">Ship sections internals</a>, <a href="guide-add-section.html">Add a ship section</a>, <code>/create/sections/</code></td><td>CHANGELOG</td></tr>
-<tr><td>How a body WEARS its damage: the two readings and the authored looks (<code>nova_gameplay/integrity/{erosion,carve,spew,chunk}</code>, <code>nova_ship/sections/damage_*</code>)</td><td><code>sections.md</code> (+ section children), <code>combat-weapons.md</code></td><td><a href="sections.html">Ship sections internals</a>, <code>/create/sections/</code> (<code>damage_effects</code> is a CONTENT format serialized into <code>assets/base/sections/base.content.ron</code>, so rule 3 applies), <code>/create/base-content/</code></td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
+<tr><td><strong>The world’s scale and the quantity types</strong>: <code>METERS_PER_UNIT</code>, <code>LOAD_LIMIT</code>, the <code>Meters</code> / <code>MetersPerSecond</code> / <code>Meters3</code> seam, or any authored field moving between a quantity type and a bare <code>f32</code> (<code>nova_events/src/units.rs</code>, <code>nova_events/src/scale.rs</code>, <code>nova_ui/src/units.rs</code>)</td><td>every page that quotes a figure - <code>glossary.md</code> (the world unit is the build grid’s name and nothing else), <code>combat-weapons.md</code>, <code>gravity-wells.md</code>, <code>sections/*</code></td><td><a href="architecture.html#units-and-scale">Architecture</a> (the boundary itself - state it there, reference it elsewhere), <a href="sections.html">Ship sections internals</a>, <a href="scenario-system.html">Scenario engine</a>, both <a href="guide-add-section.html">Extending</a> guides, and <code>/create/</code> wherever a field’s unit is stated</td><td><code>web/src/widgets.ts</code> (each widget either converts or holds SI - it cannot do both), CHANGELOG <strong>(breaking - what a field is measured in IS its format)</strong></td></tr>
+<tr><td>Ship sections, integrity, typed damage, ammo (<code>nova_ship/sections</code>, <code>nova_gameplay/integrity</code>)</td><td><code>ships.md</code>, <code>sections.md</code> (+ section children), <code>hud.md</code></td><td><a href="sections.html">Ship sections internals</a>, <a href="guide-add-section.html">Add a ship section</a>, <code>/create/sections/</code></td><td>CHANGELOG</td></tr>
+<tr><td>How a body WEARS its damage: the two readings and the authored looks (<code>nova_gameplay/integrity/{erosion,carve,spew,chunk}</code>, <code>nova_ship/sections/damage_*</code>)</td><td><code>ships.md</code>, <code>sections.md</code> (+ section children), <code>combat-weapons.md</code></td><td><a href="sections.html">Ship sections internals</a>, <code>/create/sections/</code> (<code>damage_effects</code> is a CONTENT format serialized into <code>assets/base/sections/base.content.ron</code>, so rule 3 applies), <code>/create/base-content/</code></td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
 <tr><td>Asteroid carving: the signed field, its cost model, severing (<code>nova_scenario/objects/asteroid*</code>, <code>nova_gameplay/mesh/field.rs</code>)</td><td><code>combat-weapons.md</code>, <code>scenarios.md</code></td><td><a href="scenario-system.html">Scenario engine</a> (the mechanism AND what a remesh costs), <code>/create/objects/</code> (the Asteroid fields, and that <code>radius</code> is durability)</td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
 <tr><td>The derived skin, its plate vocabulary and skin styles (<code>nova_ship/sections/shell_*</code>, <code>skin_*</code>, <code>scripts/gen-greebles.py</code>)</td><td><code>sections.md</code></td><td><a href="sections.html">Ship sections internals</a> (the derived skin), <code>/create/styles/</code>, <code>/create/base-content/</code> (style ids, greeble assets), <code>/create/objects/</code> (the ship’s <code>skin</code> / <code>style</code> fields)</td><td>CHANGELOG</td></tr>
 <tr><td>Flight, controller, camera (<code>nova_ship/input</code>, <code>camera</code>)</td><td><code>flight-autopilot.md</code>, <code>keybinds.md</code></td><td><a href="architecture.html">Architecture</a></td><td>CHANGELOG</td></tr>
-<tr><td>Targeting, radar, weapons, turrets, torpedoes (<code>nova_ship</code> targeting/sections, <code>nova_hud</code>)</td><td><code>targeting-radar.md</code>, <code>combat-weapons.md</code>, <code>hud.md</code></td><td><a href="architecture.html">Architecture</a></td><td>CHANGELOG</td></tr>
+<tr><td>Targeting, radar, weapons, turrets, torpedoes (<code>nova_ship</code> targeting/sections, <code>nova_hud</code>)</td><td><code>targeting-radar.md</code>, <code>combat-weapons.md</code>, <code>sections/turret.md</code>, <code>sections/torpedo-bay.md</code>, <code>sections/railgun.md</code>, <code>hud.md</code></td><td><a href="architecture.html">Architecture</a></td><td>CHANGELOG</td></tr>
 <tr><td>Gravity wells, factions, world (<code>nova_gameplay</code>)</td><td><code>gravity-wells.md</code>, <code>factions.md</code></td><td></td><td>CHANGELOG</td></tr>
 <tr><td>Scenario engine: events, filters, actions, variables, objects (<code>nova_scenario</code>, <code>nova_events</code>)</td><td><code>scenarios.md</code></td><td><a href="scenario-system.html">Scenario engine</a>, <code>/create/author-a-scenario/</code>, <a href="guide-extend-scenarios.html">Extend the scenario engine</a>, <strong>the creator reference</strong> (<code>/create/scenarios/</code>, <code>/create/events/</code>, <code>/create/filters/</code>, <code>/create/actions/</code>, <code>/create/objects/</code>, <code>/create/expressions/</code> - a new/changed construct MUST land there, it is the exhaustive catalog)</td><td>CHANGELOG</td></tr>
 <tr><td>Modding data format, bundles, catalog, local cache (<code>nova_mod_format</code>, <code>nova_modding</code>)</td><td><code>modding.md</code></td><td><code>/create/mod-files/</code>, <code>/create/base-content/</code> (overlay rules, dep://base)</td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
 <tr><td>The ship content kind: what a hull IS vs what a spawn is (<code>nova_scenario/objects/ship.rs</code>, <code>nova_authoring/base_content/ships</code>)</td><td><code>sections.md</code></td><td><code>/create/ships/</code>, <code>/create/objects/</code> (the Spaceship spawn), <code>/create/mod-files/</code>, <code>/create/reference/</code></td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
+<tr><td>Generated hulls: the collapse, the tiles, and the <code>Grammar</code> that draws them (<code>nova_wfc</code>, <code>nova_ship/sections/ship_grammar.rs</code>, <code>nova_editor/generate.rs</code>)</td><td><code>ships.md</code></td><td><a href="concept-index.html">Concept index</a> (the row under The ship), <code>/create/grammars/</code>, <code>/create/base-content/</code> (<code>standard_hull</code>)</td><td>CHANGELOG <strong>(a grammar field is a format break)</strong></td></tr>
 <tr><td>Mod portal + generator (<code>scripts/gen-portal.py</code>, <code>nova_modding</code>)</td><td><code>modding.md</code></td><td><code>/create/publish-a-mod/</code></td><td>CHANGELOG</td></tr>
+<tr><td>The CRT and its two shells: the emulator and NOVA OS grammar, the command catalog, and the dispatcher that runs it (<code>nova_os</code>, <code>nova_os_ui</code>, <code>nova_console</code>)</td><td><code>nova-os.md</code>, <code>commands.md</code>, <code>keybinds.md</code></td><td><a href="architecture.html">Architecture</a> (crate map, and the <code>PauseStates</code> named freeze)</td><td>CHANGELOG; <strong>a new command MUST land in <code>commands.md</code> - that page is the exhaustive catalog, and <code>help</code> is generated from the same registry, so the two disagreeing is a bug</strong></td></tr>
+<tr><td>The process channel and its lanes (<code>nova_channel</code>)</td><td></td><td><a href="architecture.html">Architecture</a> (crate map), and the <code>command</code> lane’s vocabulary is <code>commands.md</code>, not a second wire reference</td><td>CHANGELOG <strong>(a lane rename is breaking for every run script)</strong></td></tr>
 <tr><td>Menus, editor, UI (<code>nova_menu</code>, <code>nova_editor</code>, <code>nova_ui</code>)</td><td><code>hud.md</code>, <code>sections.md</code></td><td><a href="guide-add-section.html">Add a ship section</a></td><td>tutorial, CHANGELOG; <strong>theme tokens: <code>web/design/nova_ui_rework_poc.html</code> is the source for BOTH <code>nova_ui/src/theme.rs</code> and <code>web/src/style.css</code>; the site draws the PHOSPHOR skin only</strong></td></tr>
 <tr><td>Automation drivers, the env contract, the completion protocol (<code>nova_autopilot</code>, <code>nova_debug/harness.rs</code>)</td><td></td><td><a href="automation-harness.html">Automation harness</a></td><td>CHANGELOG <strong>(env rename? breaking for every run script)</strong></td></tr>
 <tr><td>ANY environment variable: a new one, a rename, a removal (<code>NOVA_*</code> anywhere in <code>crates/</code> or <code>src/</code>)</td><td></td><td><a href="environment-variables.html">Environment variables</a> - the index of the whole set, and the rule for adding one</td><td>the roster in <code>tests/env_contract.rs</code> (it fails until you do), CHANGELOG <strong>(breaking for every run script)</strong></td></tr>
@@ -261,6 +267,7 @@ creator pages on the site; linked names are chapters of this book.</p>
 <tr><td>Content CLI: gen/lint subcommands, the base content builders (<code>nova_authoring</code>, the game binary’s <code>content</code> subcommand)</td><td></td><td><code>/create/author-a-scenario/</code>, <code>/create/sections/</code>, <a href="guide-add-section.html">Add a ship section</a>, <code>/create/publish-a-mod/</code>, <code>/create/mod-files/</code>, <a href="scenario-system.html">Scenario engine</a>, <a href="sections.html">Ship sections internals</a>, <code>/create/base-content/</code> (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there)</td><td>CHANGELOG</td></tr>
 <tr><td>Packaging: the nix package, the desktop entry, the icon (<code>flake.nix</code>)</td><td></td><td><a href="development.html">Building and running</a> (“The nix package”, “The desktop entry”)</td><td>README.md quick start, CHANGELOG (Internals)</td></tr>
 <tr><td>The website itself (<code>web/</code>)</td><td></td><td><a href="development.html">Building and running</a>, this page</td><td></td></tr>
+<tr><td>Comic/site deployment (<code>deploy-comic.yaml</code>, <code>deploy-page.yaml</code>, <code>scripts/deploy-pages.py</code>, webpack targets)</td><td></td><td><a href="development.html#comic-deployment">Building and running</a>, <code>web/src/comics/README.md</code> publishing procedure</td><td>Preserve separate <code>/story/</code> ownership, tag/commit provenance, and draft exclusion; keep the two publishers on one lock</td></tr>
 <tr><td>Local dev servers (<code>scripts/serve-web.sh</code>, <code>scripts/serve-mods.sh</code>, <code>scripts/preview-web.sh</code>, <code>web/webpack.config.js</code>, <code>Trunk.toml</code>)</td><td></td><td><a href="development.html">Building and running</a> (“Local web preview”), <code>/create/publish-a-mod/</code> (“Preview the repository portal”)</td><td>README.md quick start + scripts table</td></tr>
 </tbody>
 </table>
@@ -283,6 +290,11 @@ type that no longer exists is an unambiguous defect and needs no judgement.</p>
 invalidates the MAP too - that is what the first row is for.</li>
 <li>A lane-per-change epic has no lane whose job is the cross-cutting sweep.
 Give the sweep its own step (or lane) whenever <code>crates/*</code> changes shape.</li>
+<li>A quoted FIGURE is a claim about a UNIT as well as about a number. Change what
+a field is measured in and every page quoting it stays readable and becomes
+wrong, while a name-level grep finds the pages that mention the field rather
+than the ones that quote it. Re-derive the figure from the code; and check the
+static fallback prose inside a <code>data-widget</code> block, which no test renders.</li>
 </ul>
 <h2 id="when-you-cut-a-release"><a class="header" href="#when-you-cut-a-release">When you cut a release</a></h2>
 <p>The full command-level checklist is in
@@ -339,9 +351,10 @@ TOC sidebar is populated.</p>
 <li><strong>A chapter of this book</strong>: create <code>docs/&lt;page&gt;.md</code> and list it in
 <code>docs/SUMMARY.md</code>. <code>mdbook build</code> warns on a SUMMARY entry whose file is
 missing - treat that as a failure.</li>
-<li><strong>A site wiki page</strong>: add it to the manifest <code>web/src/docs-manifest.js</code>,
-which drives the page list, the sidebar, search and see-also
-(<code>web/webpack.config.js</code> reads it).</li>
+<li><strong>A site wiki, creator, or lore page</strong>: add it to the matching section in
+<code>web/src/docs-manifest.js</code>, which drives publication, the sidebar, search,
+and related pages. Lore source and illustration conventions are in
+<code>web/src/lore/README.md</code>; it is a website section, not a second mdBook.</li>
 <li><strong>A news post</strong>: edit <code>NEWS_POSTS</code> in <code>web/webpack.config.js</code> plus a card in
 <code>web/src/news.html</code>.</li>
 <li><strong>Retiring a URL</strong>: add a stub to <code>REDIRECTS</code> in <code>web/webpack.config.js</code>.</li>

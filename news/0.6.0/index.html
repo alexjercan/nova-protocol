@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.6.0 - Mods over the wire - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.6.0: a static mod portal and an in-game Explore online tab install, update and uninstall mods over the wire on native and web, mod dependencies resolve end to end, a main-menu Scenarios picker, and particles return to the web build on WebGPU." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.6.0 - Mods over the wire - Nova Protocol</title><meta name="description" content="Nova Protocol v0.6.0: a static mod portal and an in-game Explore online tab install, update and uninstall mods over the wire on native and web, mod dependencies resolve end to end, a main-menu Scenarios picker, and particles return to the web build on WebGPU."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,41 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#the-mod-portal" class="news__toc-link">The mod portal</a>
-                    <a href="#validated-hashed-versioned-bundles" class="news__toc-link news__toc-link--sub">Validated, hashed, versioned bundles</a>
-                    <a href="#first-mod-on-the-shelf-gauntlet-run" class="news__toc-link news__toc-link--sub">First mod on the shelf: Gauntlet Run</a>
-                    <a href="#explore-online-mods-from-inside-the-game" class="news__toc-link">Explore online: mods from inside the game</a>
-                    <a href="#progress-offline-fallback-and-enabled-state-you-keep" class="news__toc-link news__toc-link--sub">Progress, offline fallback, and enabled-state you keep</a>
-                    <a href="#a-real-install-pipeline" class="news__toc-link">A real install pipeline</a>
-                    <a href="#the-local-cache-foundation" class="news__toc-link news__toc-link--sub">The local cache foundation</a>
-                    <a href="#staged-verified-commit-once-installs" class="news__toc-link news__toc-link--sub">Staged, verified, commit-once installs</a>
-                    <a href="#dependencies-that-resolve-themselves" class="news__toc-link">Dependencies that resolve themselves</a>
-                    <a href="#the-mods-menu-rebuilt" class="news__toc-link">The Mods menu, rebuilt</a>
-                    <a href="#hidden-mods-stay-out-of-the-way" class="news__toc-link news__toc-link--sub">Hidden mods stay out of the way</a>
-                    <a href="#a-home-for-scenarios" class="news__toc-link">A home for scenarios</a>
-                    <a href="#swapping-the-sky-mid-scenario" class="news__toc-link news__toc-link--sub">Swapping the sky mid-scenario</a>
-                    <a href="#particles-return-to-the-web" class="news__toc-link">Particles return to the web</a>
-                    <a href="#when-webgpu-is-not-available" class="news__toc-link news__toc-link--sub">When WebGPU is not available</a>
-                    <a href="#faster-event-dispatch-measured-first" class="news__toc-link">Faster event dispatch, measured first</a>
-                    <a href="#the-measure-first-gate" class="news__toc-link news__toc-link--sub">The measure-first gate</a>
-                    <a href="#two-optimizations-measured-and-deferred" class="news__toc-link news__toc-link--sub">Two optimizations measured and deferred</a>
-                    <a href="#fixes" class="news__toc-link">Fixes</a>
-                    <a href="#scenarios-picker-no-longer-crashes-on-odd-thumbnails" class="news__toc-link news__toc-link--sub">Scenarios picker no longer crashes on odd thumbnails</a>
-                    <a href="#local-web-testing-serves-the-portal-same-origin" class="news__toc-link news__toc-link--sub">Local web testing serves the portal same-origin</a>
-                    <a href="#removed-the-screenshot-reel-capture-set" class="news__toc-link">Removed: the Screenshot Reel capture set</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-07-16 &nbsp;//&nbsp; v0.6.0
-                </p>
-                <h1>v0.6.0 - Mods over the wire</h1>
-                <p>For five releases, modding Nova Protocol meant dropping files next to the game
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#the-mod-portal" class="news__toc-link">The mod portal</a> <a href="#validated-hashed-versioned-bundles" class="news__toc-link news__toc-link--sub">Validated, hashed, versioned bundles</a> <a href="#first-mod-on-the-shelf-gauntlet-run" class="news__toc-link news__toc-link--sub">First mod on the shelf: Gauntlet Run</a> <a href="#explore-online-mods-from-inside-the-game" class="news__toc-link">Explore online: mods from inside the game</a> <a href="#progress-offline-fallback-and-enabled-state-you-keep" class="news__toc-link news__toc-link--sub">Progress, offline fallback, and enabled-state you keep</a> <a href="#a-real-install-pipeline" class="news__toc-link">A real install pipeline</a> <a href="#the-local-cache-foundation" class="news__toc-link news__toc-link--sub">The local cache foundation</a> <a href="#staged-verified-commit-once-installs" class="news__toc-link news__toc-link--sub">Staged, verified, commit-once installs</a> <a href="#dependencies-that-resolve-themselves" class="news__toc-link">Dependencies that resolve themselves</a> <a href="#the-mods-menu-rebuilt" class="news__toc-link">The Mods menu, rebuilt</a> <a href="#hidden-mods-stay-out-of-the-way" class="news__toc-link news__toc-link--sub">Hidden mods stay out of the way</a> <a href="#a-home-for-scenarios" class="news__toc-link">A home for scenarios</a> <a href="#swapping-the-sky-mid-scenario" class="news__toc-link news__toc-link--sub">Swapping the sky mid-scenario</a> <a href="#particles-return-to-the-web" class="news__toc-link">Particles return to the web</a> <a href="#when-webgpu-is-not-available" class="news__toc-link news__toc-link--sub">When WebGPU is not available</a> <a href="#faster-event-dispatch-measured-first" class="news__toc-link">Faster event dispatch, measured first</a> <a href="#the-measure-first-gate" class="news__toc-link news__toc-link--sub">The measure-first gate</a> <a href="#two-optimizations-measured-and-deferred" class="news__toc-link news__toc-link--sub">Two optimizations measured and deferred</a> <a href="#fixes" class="news__toc-link">Fixes</a> <a href="#scenarios-picker-no-longer-crashes-on-odd-thumbnails" class="news__toc-link news__toc-link--sub">Scenarios picker no longer crashes on odd thumbnails</a> <a href="#local-web-testing-serves-the-portal-same-origin" class="news__toc-link news__toc-link--sub">Local web testing serves the portal same-origin</a> <a href="#removed-the-screenshot-reel-capture-set" class="news__toc-link">Removed: the Screenshot Reel capture set</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-07-16 &nbsp;//&nbsp; v0.6.0</p><h1>v0.6.0 - Mods over the wire</h1><p>For five releases, modding Nova Protocol meant dropping files next to the game
 and restarting. v0.6.0 is where that changes: a static <strong>mod portal</strong> ships
 alongside the game on every deploy, and a new <strong>Explore online</strong> tab lets you
 browse, install, update and uninstall mods from inside the game - on native and
@@ -262,39 +220,12 @@ films it</strong> - the code that needs it still has it, but players and the web
 stop downloading a tool they never use. It is a small size win and a clarity win:
 the shipped assets are now things a player might actually play, and the capture
 scenario lives next to the example that is its only real consumer.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -305,6 +236,4 @@ scenario lives next to the example that is its only real consumer.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

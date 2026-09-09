@@ -1,0 +1,2526 @@
+[
+    Scenario((
+        id: "tutorial",
+        name: "Basic Training",
+        description: "Fleet gunnery qualification: fly the pattern, take the flight computer out to the planetoid and back, clear the line of target hulks, then beat two live drones. Range Control talks you through it.",
+        cubemap: "self://textures/cubemap.png",
+        thumbnail: Some("self://thumbnails/tutorial.png"),
+        events: [
+            (
+                name: OnStart,
+                once: true,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "trainer",
+                            name: "Trainer Seven",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_picket"),
+                            controller: Player((
+                                input_mapping: {
+                                    "pdc": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(150.0),
+                            )),
+                            modifications: [
+                                (
+                                    section: "bridge",
+                                    modifications: [
+                                        SetHealth(1300.0),
+                                        DisableVerb(Stop),
+                                        DisableVerb(Rcs),
+                                        DisableVerb(Lock),
+                                        DisableVerb(Goto),
+                                        DisableVerb(Orbit),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc",
+                                    modifications: [
+                                        SetHealth(1300.0),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "range_planetoid",
+                            name: "Range Planetoid",
+                            position: (
+                                -5600.0,
+                                -1100.0,
+                                -3800.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Planet((
+                            radius: 600.0,
+                            planet_type: BarrenRock,
+                            seed: 20260815,
+                            mass: Some(10000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_1",
+                            name: "Target 1",
+                            position: (
+                                -600.0,
+                                200.0,
+                                -1700.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_2",
+                            name: "Target 2",
+                            position: (
+                                -1400.0,
+                                -250.0,
+                                -2400.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_3",
+                            name: "Target 3",
+                            position: (
+                                -700.0,
+                                500.0,
+                                -3000.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_4",
+                            name: "Target 4",
+                            position: (
+                                -2000.0,
+                                150.0,
+                                -3600.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_5",
+                            name: "Target 5",
+                            position: (
+                                -950.0,
+                                -550.0,
+                                -4300.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "drone_1",
+                            name: "Range Drone 1",
+                            position: (
+                                2200.0,
+                                -300.0,
+                                -3200.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_picket"),
+                            controller: AI((
+                                leash: Some(3500.0),
+                            )),
+                            allegiance: Some(Neutral),
+                            modifications: [
+                                (
+                                    section: "plate_0",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_1",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_2",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_3",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_4",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_5",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_6",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_7",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_8",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_9",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_10",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_11",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_12",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_13",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_14",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_15",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_16",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_17",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_18",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_19",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_20",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_21",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_22",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_23",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_24",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "bridge",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "drive_port",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "drive_starboard",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                        SetAmmo(150),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "drone_2",
+                            name: "Range Drone 2",
+                            position: (
+                                -2600.0,
+                                400.0,
+                                -3800.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_picket"),
+                            controller: AI((
+                                leash: Some(3500.0),
+                            )),
+                            allegiance: Some(Neutral),
+                            modifications: [
+                                (
+                                    section: "plate_0",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_1",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_2",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_3",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_4",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_5",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_6",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_7",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_8",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_9",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_10",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_11",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_12",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_13",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_14",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_15",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_16",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_17",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_18",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_19",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_20",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_21",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_22",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_23",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "plate_24",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "bridge",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "drive_port",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "drive_starboard",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc",
+                                    modifications: [
+                                        SetHealth(24.0),
+                                        SetAmmo(150),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "tutorial_key",
+                            name: "Key Light",
+                            position: (
+                                -1500.0,
+                                1250.0,
+                                -500.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "tutorial_rim",
+                            name: "Rim Light",
+                            position: (
+                                750.0,
+                                1000.0,
+                                -4000.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "tutorial_fill",
+                            name: "Fill Light",
+                            position: (
+                                1750.0,
+                                -500.0,
+                                -1000.0,
+                            ),
+                            rotation: (
+                                0.10489727,
+                                0.49822173,
+                                -0.060874246,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "shallow_rock_",
+                        count: 30,
+                        seed: 433757351519980343,
+                        region: Box(
+                            min: (
+                                700.0,
+                                -500.0,
+                                -4400.0,
+                            ),
+                            max: (
+                                4300.0,
+                                500.0,
+                                -400.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "shallow_rock_",
+                                name: "Shallow Belt Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 10.0,
+                                texture: "self://textures/asteroid.png",
+                                material: "rock",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            10.0,
+                            30.0,
+                        )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                10,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                            (
+                                "ice",
+                                2,
+                            ),
+                            (
+                                "metal",
+                                1,
+                            ),
+                        ],
+                        min_separation: Some(450.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "deep_rock_",
+                        count: 34,
+                        seed: 433757353748728849,
+                        region: Box(
+                            min: (
+                                -2800.0,
+                                -600.0,
+                                -8400.0,
+                            ),
+                            max: (
+                                3000.0,
+                                600.0,
+                                -5400.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "deep_rock_",
+                                name: "Deep Belt Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 15.0,
+                                texture: "self://textures/asteroid.png",
+                                material: "rock",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            15.0,
+                            40.0,
+                        )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                10,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                            (
+                                "ice",
+                                2,
+                            ),
+                            (
+                                "metal",
+                                1,
+                            ),
+                        ],
+                        min_separation: Some(550.0),
+                    )),
+                    CreateScenarioArea((
+                        id: "range_boundary",
+                        name: "Range Boundary",
+                        position: (
+                            0.0,
+                            0.0,
+                            -2500.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 7000.0,
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "targets_scrapped",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "target_1_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "target_1_locked",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "drones_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "drone_1_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "drone_2_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    SuspendPlayerControl(()),
+                    SetCameraAnchor((
+                        anchor: "trainer",
+                        offset: (
+                            -140.0,
+                            50.0,
+                            160.0,
+                        ),
+                        frame: World,
+                        look_at: Object("trainer"),
+                    )),
+                    CinematicTitle((
+                        corner: TopLeft,
+                        location: "FLEET GUNNERY RANGE",
+                        date: "QUALIFICATION DAY",
+                        note: "Trainer Seven, on the line.",
+                        seconds: 8.0,
+                    )),
+                    Sequence((
+                        key: "briefing",
+                        steps: [
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: "comms",
+                                        speaker: "Range Control",
+                                        text: "Trainer Seven, Range Control. Morning, cadet. You are on the gunnery range and the range is cold.",
+                                        icon: Some("self://portraits/range-control.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: "comms",
+                                        speaker: "Range Control",
+                                        text: "Today is your qualification: fly the pattern, put five target hulks on the scrap list, then deal with two live drones.",
+                                        icon: Some("self://portraits/range-control.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: "comms",
+                                        speaker: "You",
+                                        text: "Trainer Seven copies. Ready on the line.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: "comms",
+                                        speaker: "Range Control",
+                                        text: "Helm is yours. [W] opens the throttle, the mouse steers. Burn to mark ALPHA, dead ahead.",
+                                        icon: Some("self://portraits/range-control.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    ReleaseCamera(()),
+                                    ResumePlayerControl(()),
+                                    Objective((
+                                        id: "burn",
+                                        message: "Burn to mark ALPHA - [W] opens the throttle, the mouse steers.",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "mark_alpha",
+                                            name: "ALPHA",
+                                            position: (
+                                                0.0,
+                                                0.0,
+                                                -900.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "ALPHA",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(300.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "mark_alpha",
+                                        label: "ALPHA",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "mark_alpha_gate",
+                                        name: "ALPHA Gate",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -900.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 300.0,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("mark_alpha_gate"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "burn",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "mark_alpha",
+                    )),
+                    DespawnScenarioObject((
+                        id: "mark_alpha",
+                    )),
+                    DespawnScenarioObject((
+                        id: "mark_alpha_gate",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "On the mark. Now kill the drift: press [X] and the flight computer flies you to a stop. Hands off until it is done.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_2",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    SetControllerVerb((
+                                        id: "trainer",
+                                        verb: Stop,
+                                        enabled: true,
+                                    )),
+                                    Objective((
+                                        id: "stop",
+                                        message: "Press [X] and let STOP bring Trainer Seven to rest.",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "STOP",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnStopComplete,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "STOP",
+                    )),
+                    ObjectiveComplete((
+                        id: "stop",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "At rest. Thrusters next: hold [SHIFT] and the mouse slides the hull instead of turning it. Slide across to mark BRAVO.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_3",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(3.0)))),
+                                    )),
+                                    SetControllerVerb((
+                                        id: "trainer",
+                                        verb: Rcs,
+                                        enabled: true,
+                                    )),
+                                    Objective((
+                                        id: "rcs",
+                                        message: "Hold [SHIFT] and move the mouse to slide across to mark BRAVO.",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "mark_bravo",
+                                            name: "BRAVO",
+                                            position: (
+                                                350.0,
+                                                0.0,
+                                                -900.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "BRAVO",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(100.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "mark_bravo",
+                                        label: "BRAVO",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "mark_bravo_gate",
+                                        name: "BRAVO Gate",
+                                        position: (
+                                            350.0,
+                                            0.0,
+                                            -900.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 100.0,
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "RCS",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("mark_bravo_gate"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "RCS",
+                    )),
+                    ObjectiveComplete((
+                        id: "rcs",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "mark_bravo",
+                    )),
+                    DespawnScenarioObject((
+                        id: "mark_bravo",
+                    )),
+                    DespawnScenarioObject((
+                        id: "mark_bravo_gate",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "That is the pattern. Now the flight computer. Keep weapons down, put the planetoid off the far corner in front of you, and hold [CTRL] until the white travel lock takes.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_4",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(4.0)))),
+                                    )),
+                                    SetControllerVerb((
+                                        id: "trainer",
+                                        verb: Lock,
+                                        enabled: true,
+                                    )),
+                                    Objective((
+                                        id: "nav_lock",
+                                        message: "Weapons down: hold [CTRL] on the planetoid until the white travel lock takes.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "range_planetoid",
+                                        label: "PLANETOID",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "RADAR",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnCombatLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("range_planetoid"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Red is the gun\'s lock, cadet. The computer flies only the white one. Weapons down and sweep the planetoid again.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                ],
+            ),
+            (
+                name: OnTravelLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("range_planetoid"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    ObjectiveComplete((
+                        id: "nav_lock",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Locked. Press [G] and the computer flies the leg: burn, flip, and a stop just off the rock. Hands off the stick until it is parked - a manual input takes the ship back.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_5",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(5.0)))),
+                                    )),
+                                    SetControllerVerb((
+                                        id: "trainer",
+                                        verb: Goto,
+                                        enabled: true,
+                                    )),
+                                    Objective((
+                                        id: "goto",
+                                        message: "Press [G] and let the computer fly you to the planetoid.",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "GOTO",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnGotoComplete,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("range_planetoid"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "GOTO",
+                    )),
+                    ObjectiveComplete((
+                        id: "goto",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Clean arrival, and you are in its pull. Press [O]: the computer circularises and holds the orbit for you.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_6",
+                        steps: [
+                            (
+                                after: Some(1.5),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(6.0)))),
+                                    )),
+                                    SetControllerVerb((
+                                        id: "trainer",
+                                        verb: Orbit,
+                                        enabled: true,
+                                    )),
+                                    Objective((
+                                        id: "orbit",
+                                        message: "Press [O] and hold orbit until the computer calls it stable.",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "ORBIT",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnOrbitStable,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("range_planetoid"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(6.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "ORBIT",
+                    )),
+                    ObjectiveComplete((
+                        id: "orbit",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "range_planetoid",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Orbit is stable. Enjoy the view, then bring it home: mark CHARLIE is up on the line. Travel-lock it - wait for it to clear the rock if you cannot see it - and [G]. The computer drops the orbit on its own.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_7",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(7.0)))),
+                                    )),
+                                    Objective((
+                                        id: "return",
+                                        message: "Travel-lock mark CHARLIE and press [G] to fly back to the line.",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "mark_charlie",
+                                            name: "CHARLIE",
+                                            position: (
+                                                0.0,
+                                                0.0,
+                                                -1500.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "CHARLIE",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(700.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "mark_charlie",
+                                        label: "CHARLIE",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "mark_charlie_gate",
+                                        name: "CHARLIE Gate",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1500.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 700.0,
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "GOTO",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnCombatLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("mark_charlie"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "White lock for the computer, cadet, not red. Weapons down and sweep CHARLIE again.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("mark_charlie_gate"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "GOTO",
+                    )),
+                    ObjectiveComplete((
+                        id: "return",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "mark_charlie",
+                    )),
+                    DespawnScenarioObject((
+                        id: "mark_charlie",
+                    )),
+                    DespawnScenarioObject((
+                        id: "mark_charlie_gate",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Back on the line. Now the gun\'s lock: weapons up - hold [Right Mouse] - then put Target 1 in front of you and hold [CTRL] until the red lock takes.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_8",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(8.0)))),
+                                    )),
+                                    Objective((
+                                        id: "lock",
+                                        message: "Weapons up ([Right Mouse]) and lock Target 1 - hold [CTRL] until the lock is red.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_1",
+                                        label: "Target 1",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "RADAR",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnTravelLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_1"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "White is a travel lock, cadet - it flies you places, it shoots nothing. Weapons up, hold [Right Mouse], and sweep Target 1 again for the red one.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                ],
+            ),
+            (
+                name: OnCombatLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_1"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "target_1_locked",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    ObjectiveComplete((
+                        id: "lock",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Lock is good. Range is hot. Hold [Left Mouse] and the gun follows the lock - keep the rounds on it until it comes apart.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_9",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(9.0)))),
+                                    )),
+                                    Objective((
+                                        id: "fire",
+                                        message: "Hold [Left Mouse] and put rounds into Target 1 until it comes apart.",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                once: true,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("target_1_down"))),
+                        Term(Factor(Literal(Number(0.5)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("target_1_locked"))),
+                        Term(Factor(Literal(Number(0.5)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    ObjectiveComplete((
+                        id: "lock",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Target 1 is scrap - no lock, but scrap. We will call that initiative. Four more on the line, marked. Work them in any order.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_10",
+                        steps: [
+                            (
+                                after: Some(6.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(10.0)))),
+                                    )),
+                                    ObjectiveComplete((
+                                        id: "fire",
+                                    )),
+                                    Objective((
+                                        id: "line",
+                                        message: "Destroy every target on the line.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_2",
+                                        label: "Target 2",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_3",
+                                        label: "Target 3",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_4",
+                                        label: "Target 4",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_5",
+                                        label: "Target 5",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                once: true,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(9.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("target_1_down"))),
+                        Term(Factor(Literal(Number(0.5)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "fire",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Target 1 is scrap. Four more on the line - they are marked. Work them in any order.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_10",
+                        steps: [
+                            (
+                                after: Some(6.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(10.0)))),
+                                    )),
+                                    ObjectiveComplete((
+                                        id: "fire",
+                                    )),
+                                    Objective((
+                                        id: "line",
+                                        message: "Destroy every target on the line.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_2",
+                                        label: "Target 2",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_3",
+                                        label: "Target 3",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_4",
+                                        label: "Target 4",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "target_5",
+                                        label: "Target 5",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                once: true,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("targets_scrapped"))),
+                        Term(Factor(Literal(Number(4.5)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "line",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Line is clear. Now the part that shoots back: two range drones are going live. Weapons free, cadet.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "beat_11",
+                        steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(11.0)))),
+                                    )),
+                                    SetAllegiance((
+                                        id: "drone_1",
+                                        allegiance: Enemy,
+                                    )),
+                                    SetAllegiance((
+                                        id: "drone_2",
+                                        allegiance: Enemy,
+                                    )),
+                                    Objective((
+                                        id: "live",
+                                        message: "Defeat both range drones.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "drone_1",
+                                        label: "Range Drone 1",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "drone_2",
+                                        label: "Range Drone 2",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                once: true,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("drones_down"))),
+                        Term(Factor(Literal(Number(1.5)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(12.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "live",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "Both drones down. Range is cold.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: "comms",
+                                        speaker: "Range Control",
+                                        text: "Qualification logged, cadet. Welcome to the Fleet. Report to the Scenarios board for your first posting.",
+                                        icon: Some("self://portraits/range-control.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(13.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("Trainer Seven qualified. Welcome to the Fleet."),
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_1"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "targets_scrapped",
+                        expression: Add(
+                            Factor(Name("targets_scrapped")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "target_1",
+                    )),
+                    VariableSet((
+                        key: "target_1_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_2"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "targets_scrapped",
+                        expression: Add(
+                            Factor(Name("targets_scrapped")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "target_2",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_3"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "targets_scrapped",
+                        expression: Add(
+                            Factor(Name("targets_scrapped")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "target_3",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_4"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "targets_scrapped",
+                        expression: Add(
+                            Factor(Name("targets_scrapped")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "target_4",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_5"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "targets_scrapped",
+                        expression: Add(
+                            Factor(Name("targets_scrapped")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "target_5",
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("drone_1"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("drone_1_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "drone_1_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "drones_down",
+                        expression: Add(
+                            Factor(Name("drones_down")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "drone_1",
+                    )),
+                ],
+            ),
+            (
+                name: OnExit,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("range_boundary"),
+                        other_id: Some("drone_1"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("drone_1_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "drone_1_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "drones_down",
+                        expression: Add(
+                            Factor(Name("drones_down")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "drone_1",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "That drone is adrift and off the range - the recovery tug has it. It counts, cadet.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    DespawnScenarioObject((
+                        id: "drone_1",
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("drone_2"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("drone_2_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "drone_2_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "drones_down",
+                        expression: Add(
+                            Factor(Name("drones_down")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "drone_2",
+                    )),
+                ],
+            ),
+            (
+                name: OnExit,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("range_boundary"),
+                        other_id: Some("drone_2"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("drone_2_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "drone_2_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "drones_down",
+                        expression: Add(
+                            Factor(Name("drones_down")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "drone_2",
+                    )),
+                    NarrativeCue((
+                        channel: "comms",
+                        speaker: "Range Control",
+                        text: "That drone is adrift and off the range - the recovery tug has it. It counts, cadet.",
+                        icon: Some("self://portraits/range-control.png"),
+                    )),
+                    DespawnScenarioObject((
+                        id: "drone_2",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trainer"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Trainer Seven broke up on the range."),
+                    )),
+                    NextScenario((
+                        scenario_id: "tutorial",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trainer"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Trainer Seven is disarmed. The range recovers what is left."),
+                    )),
+                    NextScenario((
+                        scenario_id: "tutorial",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

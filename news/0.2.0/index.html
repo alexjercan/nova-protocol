@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.2.0 - A reason to fly - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.2.0: a data-driven game-events and queue system, the first scenario and modding capabilities, and procedurally generated asteroids with dynamic destruction (with a video devlog and the v0.2.1 point release)." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.2.0 - A reason to fly - Nova Protocol</title><meta name="description" content="Nova Protocol v0.2.0: a data-driven game-events and queue system, the first scenario and modding capabilities, and procedurally generated asteroids with dynamic destruction (with a video devlog and the v0.2.1 point release)."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,35 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#watch-the-devlog" class="news__toc-link">Watch the devlog</a>
-                    <a href="#game-events-and-a-queue-system" class="news__toc-link">Game events and a queue system</a>
-                    <a href="#the-three-primitives" class="news__toc-link news__toc-link--sub">The three primitives</a>
-                    <a href="#dispatched-through-a-queue" class="news__toc-link news__toc-link--sub">Dispatched through a queue</a>
-                    <a href="#why-data-beats-code-here" class="news__toc-link news__toc-link--sub">Why data beats code here</a>
-                    <a href="#scenarios-and-modding" class="news__toc-link">Scenarios and modding</a>
-                    <a href="#a-scenario-is-a-bag-of-event-handlers" class="news__toc-link news__toc-link--sub">A scenario is a bag of event handlers</a>
-                    <a href="#the-objectives-hud" class="news__toc-link news__toc-link--sub">The objectives HUD</a>
-                    <a href="#from-the-devlog" class="news__toc-link">From the devlog</a>
-                    <a href="#a-first-gloriously-dumb-enemy-ai" class="news__toc-link news__toc-link--sub">A first, gloriously dumb enemy AI</a>
-                    <a href="#the-bevy-transform-timing-bug-that-ate-a-week" class="news__toc-link news__toc-link--sub">The Bevy transform-timing bug that ate a week</a>
-                    <a href="#asteroids-with-procedural-mesh-and-dynamic-destruction" class="news__toc-link">Asteroids with procedural mesh and dynamic destruction</a>
-                    <a href="#octahedron-sphere-base-mesh" class="news__toc-link news__toc-link--sub">Octahedron-sphere base mesh</a>
-                    <a href="#dynamic-destruction" class="news__toc-link news__toc-link--sub">Dynamic destruction</a>
-                    <a href="#point-releases" class="news__toc-link">Point releases</a>
-                    <a href="#v021---notes-for-the-modders" class="news__toc-link news__toc-link--sub">v0.2.1 - Notes for the modders</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2025-11-08 &nbsp;//&nbsp; v0.2.0
-                </p>
-                <h1>v0.2.0 - A reason to fly</h1>
-                <p>This is the release where Nova Protocol grows past &quot;build a ship and shoot
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#watch-the-devlog" class="news__toc-link">Watch the devlog</a> <a href="#game-events-and-a-queue-system" class="news__toc-link">Game events and a queue system</a> <a href="#the-three-primitives" class="news__toc-link news__toc-link--sub">The three primitives</a> <a href="#dispatched-through-a-queue" class="news__toc-link news__toc-link--sub">Dispatched through a queue</a> <a href="#why-data-beats-code-here" class="news__toc-link news__toc-link--sub">Why data beats code here</a> <a href="#scenarios-and-modding" class="news__toc-link">Scenarios and modding</a> <a href="#a-scenario-is-a-bag-of-event-handlers" class="news__toc-link news__toc-link--sub">A scenario is a bag of event handlers</a> <a href="#the-objectives-hud" class="news__toc-link news__toc-link--sub">The objectives HUD</a> <a href="#from-the-devlog" class="news__toc-link">From the devlog</a> <a href="#a-first-gloriously-dumb-enemy-ai" class="news__toc-link news__toc-link--sub">A first, gloriously dumb enemy AI</a> <a href="#the-bevy-transform-timing-bug-that-ate-a-week" class="news__toc-link news__toc-link--sub">The Bevy transform-timing bug that ate a week</a> <a href="#asteroids-with-procedural-mesh-and-dynamic-destruction" class="news__toc-link">Asteroids with procedural mesh and dynamic destruction</a> <a href="#octahedron-sphere-base-mesh" class="news__toc-link news__toc-link--sub">Octahedron-sphere base mesh</a> <a href="#dynamic-destruction" class="news__toc-link news__toc-link--sub">Dynamic destruction</a> <a href="#point-releases" class="news__toc-link">Point releases</a> <a href="#v021---notes-for-the-modders" class="news__toc-link news__toc-link--sub">v0.2.1 - Notes for the modders</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2025-11-08 &nbsp;//&nbsp; v0.2.0</p><h1>v0.2.0 - A reason to fly</h1><p>This is the release where Nova Protocol grows past &quot;build a ship and shoot
 rocks&quot; and gains a reason to exist. v0.1.0 let you assemble a ship and fire at
 asteroids, which is fun for exactly as long as it takes to run out of things to
 do. v0.2.0 answers &quot;and then what?&quot; with three shipped pillars: a data-driven
@@ -191,39 +155,12 @@ follow.</p>
 queue introduced in v0.2.0, reworked to be cleaner and easier to reason about.
 It is groundwork only, with no change to how the game behaves, but it makes
 everything built on top of the event engine after this point easier to extend.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -234,6 +171,4 @@ everything built on top of the event engine after this point easier to extend.</
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

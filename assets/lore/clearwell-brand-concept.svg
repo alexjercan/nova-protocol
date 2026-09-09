@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480" role="img" aria-labelledby="title description">
+  <title id="title">Clearwell Waterworks: identity concept</title>
+  <desc id="description">A proposed drop and open reservoir emblem above the Clearwell Waterworks name. Neither the emblem nor its colors are established branding. The green treatment belongs to the encyclopedia.</desc>
+  <defs>
+    <filter id="encyclopedia-green" filterUnits="userSpaceOnUse" x="0" y="0" width="800" height="480" color-interpolation-filters="sRGB">
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncR type="gamma" amplitude="0.86" exponent="1.25" offset="0"/>
+        <feFuncG type="linear" slope="0.96" intercept="0"/>
+        <feFuncB type="gamma" amplitude="0.81" exponent="1.1" offset="0"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <g id="artwork" filter="url(#encyclopedia-green)">
+    <rect width="800" height="480" fill="#171c1d"/>
+    <rect x="16" y="16" width="768" height="448" fill="none" stroke="#3a4547"/>
+    <text x="36" y="46" fill="#a8aaa4" font-family="DejaVu Sans Mono, monospace" font-size="17" letter-spacing="2">IDENTITY CONCEPT</text>
+    <path d="M400 78C383 108 354 132 354 159A46 46 0 0 0 446 159C446 132 417 108 400 78Z" fill="#99c4c6"/>
+    <path d="M377 158C377 169 384 179 397 181" fill="none" stroke="#e2e2ca" stroke-width="8" stroke-linecap="round"/>
+    <path d="M299 178V243H501V178M338 218H462" fill="none" stroke="#b9c6b5" stroke-width="17"/>
+    <g font-family="DejaVu Sans, sans-serif" text-anchor="middle">
+      <text x="400" y="339" fill="#ece6d9" font-size="65" font-weight="700" letter-spacing="-2">Clearwell</text>
+      <text x="404" y="391" fill="#c5c7bf" font-size="25" letter-spacing="8">WATERWORKS</text>
+    </g>
+    <path d="M170 430H630" stroke="#99c4c6" stroke-width="4"/>
+  </g>
+</svg>

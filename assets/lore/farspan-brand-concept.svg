@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480" role="img" aria-labelledby="title description">
+  <title id="title">Farspan Logistics: identity concept</title>
+  <desc id="description">An original proposed identity, not established corporate branding. Two terminal blocks are connected by an offset span above the Farspan Logistics name. The green palette is an encyclopedia presentation treatment, not established company colors.</desc>
+  <defs>
+    <filter id="encyclopedia-green" filterUnits="userSpaceOnUse" x="0" y="0" width="800" height="480" color-interpolation-filters="sRGB">
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncR type="gamma" amplitude="0.86" exponent="1.25" offset="0"/>
+        <feFuncG type="linear" slope="0.96" intercept="0"/>
+        <feFuncB type="gamma" amplitude="0.81" exponent="1.1" offset="0"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+
+<g id="artwork" filter="url(#encyclopedia-green)">
+  <rect width="800" height="480" fill="#0c1925"/>
+  <rect x="16" y="16" width="768" height="448" fill="none" stroke="#30495b"/>
+  <text x="36" y="46" fill="#92b0c1" font-family="DejaVu Sans Mono, monospace" font-size="17" letter-spacing="2">IDENTITY CONCEPT</text>
+  <path d="M290 188H352L448 112H510" fill="none" stroke="#64b9df" stroke-width="28" stroke-linejoin="round"/>
+  <g fill="#d7ecf3">
+    <rect x="262" y="160" width="56" height="56" rx="3"/>
+    <rect x="482" y="84" width="56" height="56" rx="3"/>
+  </g>
+  <path d="M310 240H490" fill="none" stroke="#34596f" stroke-width="3"/>
+  <g font-family="DejaVu Sans, sans-serif" text-anchor="middle">
+    <text x="400" y="342" fill="#e0edf3" font-size="76" font-weight="500" letter-spacing="2">Farspan</text>
+    <text x="405" y="392" fill="#96b9cf" font-size="26" letter-spacing="10">LOGISTICS</text>
+  </g>
+  <path d="M170 430H630" fill="none" stroke="#64b9df" stroke-width="4"/>
+</g>
+</svg>

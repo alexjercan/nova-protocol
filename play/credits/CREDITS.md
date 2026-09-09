@@ -15,9 +15,16 @@ THIRD-PARTY material the build includes and the licenses it carries.
 All game assets are original to the project unless listed under "Third-party
 assets" below:
 
-- **Sounds** (`assets/sounds/*.wav` UI chrome + `assets/base/sounds/*.wav`
-  world cues) - generated placeholders produced by
-  `scripts/gen-placeholder-sounds.py`; see the README in each directory.
+- **Sounds** (`assets/sounds/*.wav` interface chrome + `assets/base/sounds/*.wav`
+  world and avionics cues) - synthesised from scratch by the project's own
+  renderers: `scripts/gen-nova-os-sfx.py` (the NOVA OS terminal family, on the
+  standard library alone - it predates the toolkit), and `scripts/gen-ui-sfx.py`
+  (the rest of the interface, plus the cockpit's lock, radar and warning cues)
+  and `scripts/gen-world-sfx.py` (guns, ordnance, impacts, destruction, drives
+  and handling) over the shared DSP toolkit in `scripts/nova_sfx.py`. No sample
+  libraries and no third-party recordings
+  are involved, so they carry the project's own license; see the README in each
+  directory for what each file is and where its variation lives.
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
   sources in `art/blender/`.
 - **Hull cladding** - no files. A ship's skin is derived from the structure it
@@ -44,8 +51,9 @@ assets" below:
   released into the public domain under
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is
   required; credited as a courtesy.
-- **Kenney Space Kit** (`art/kenney-space-kit/`, shipped semantic ship parts
-  under `assets/base/gltf/parts/`) - [CC0 1.0
+- **Kenney Space Kit** (`art/kenney-space-kit/`, cut into the modelled ship
+  parts The Ledger ships under `webmods/the-ledger/gltf/parts/`; the base game
+  uses none of them) - [CC0 1.0
   Universal](licenses/Kenney_Space_Kit_License.txt) (public domain). No
   attribution is required; credited as a courtesy.
 - **FREE Input Prompts** (`assets/input-prompts/keyboard/Alt/`, the key glyphs

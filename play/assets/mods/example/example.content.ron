@@ -9,10 +9,14 @@
 //   1. OVERRIDE a base section  - `reinforced_hull_section` (same id -> replace)
 //   2. ADD a new section        - `example_plated_hull_section` (new id -> add)
 //   3. ADD a playable scenario  - `example_arena` (mod-shipped skybox + rocks,
-//                                  a StoryMessage comms beat, an objective, a
+//                                  a NarrativeCue comms beat, an objective, a
 //                                  win check, and Victory/Defeat Outcomes)
 //   4. ADD a menu backdrop      - `example_menu` (a menu_backdrop scene: mods
 //                                  can ship main-menu ambience)
+//   5. ADD a hull line          - `example_freighter_hull` (a `Grammar` under a
+//                                  new id: the editor's Generate block lists it
+//                                  beside the base one and collapses whichever
+//                                  is picked)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // grammar behind it see the wiki: "Author a section", "Author a scenario",
@@ -248,7 +252,7 @@
                         base: (
                             id: "example_key",
                             name: "Key Light",
-                            position: (-60.0, 50.0, 60.0),
+                            position: (-600.0, 500.0, 600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -267,7 +271,7 @@
                         base: (
                             id: "example_rim",
                             name: "Rim Light",
-                            position: (30.0, 40.0, -80.0),
+                            position: (300.0, 400.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -286,7 +290,7 @@
                         base: (
                             id: "example_fill",
                             name: "Fill Light",
-                            position: (70.0, -20.0, 40.0),
+                            position: (700.0, -200.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -306,10 +310,11 @@
                     DebugMessage((
                         message: "Example arena loaded from the example mod's overlaid bundle.",
                     )),
-                    // StoryMessage appends a line to the comms panel (speaker +
+                    // NarrativeCue appends a line to the comms panel (speaker +
                     // text). The story log is scenario-scoped: it clears at
                     // teardown, so a line never leaks into the next scenario.
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: "comms",
                         speaker: "Range Control",
                         text: "Welcome to the range. Two derelicts on the board - clear them at your leisure.",
                     )),
@@ -332,8 +337,7 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(25.0),
-                                infinite_ammo: false,
+                                speed_cap: Some(250.0),
                             )),
                             hull: Inline((
                                 sections: [
@@ -380,12 +384,12 @@
                         base: (
                             id: "example_beacon",
                             name: "Range Beacon",
-                            position: (0.0, 0.0, -60.0),
+                            position: (0.0, 0.0, -600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "RANGE",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 0.4,
                                 green: 0.8,
@@ -398,17 +402,37 @@
                     )),
                     // Two destructible targets, textured from THIS mod's own PNG
                     // (`self://textures/rock.png`), not a base texture.
+                    //
+                    // `material` is REQUIRED on every asteroid and it is the
+                    // rock's KIND: what the body is made of, which decides how
+                    // it is shaded, what it sounds like when something hits it,
+                    // and what a mining system would get out of it. The base
+                    // game ships `rock`, `metal`, `ice`, `carbon`, and `plain`
+                    // (the control - the texture with nothing done to it).
+                    //
+                    // There is no default. Leave `material` out and the file
+                    // does not load; name a kind nobody ships and `content
+                    // lint` fails you before it ever runs. That is deliberate:
+                    // a typo that quietly turned into grey stone is a typo you
+                    // would never find.
+                    //
+                    // `texture` stays yours. The kind supplies the palette, the
+                    // large-scale character and the specular; the texture
+                    // supplies the fine crevice grain the kind modulates. They
+                    // answer different questions, so a mod keeps its own rock
+                    // art and still picks a kind for it.
                     SpawnScenarioObject((
                         base: (
                             id: "example_target_1",
                             name: "Derelict 1",
-                            position: (-14.0, 4.0, -45.0),
+                            position: (-140.0, 40.0, -450.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                             // Small size, not hidden health, keeps this tutorial target brief.
-                            radius: 0.25,
+                            radius: 2.5,
                             texture: "self://textures/rock.png",
+                            material: "rock",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -418,12 +442,16 @@
                         base: (
                             id: "example_target_2",
                             name: "Derelict 2",
-                            position: (15.0, -5.0, -60.0),
+                            position: (150.0, -50.0, -600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 0.3,
+                            radius: 3.0,
                             texture: "self://textures/rock.png",
+                            // The same texture, a different kind. Put this one
+                            // beside `example_target_1` in the range and the
+                            // pair is the whole feature in one look.
+                            material: "ice",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -562,7 +590,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: "comms",
                         speaker: "Range Control",
                         text: "Clock's running. Put your reticle on a derelict and hold the trigger.",
                     )),
@@ -585,7 +614,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: "comms",
                         speaker: "Range Control",
                         text: "Late contact drifting onto the range - bonus target if you want it.",
                     )),
@@ -593,12 +623,15 @@
                         base: (
                             id: "example_target_3",
                             name: "Late Drifter",
-                            position: (60.0, 15.0, -140.0),
+                            position: (600.0, 150.0, -1400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "self://textures/rock.png",
+                            // Nickel-iron: the rare one, so the bonus target is
+                            // worth flying out to.
+                            material: "metal",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -647,7 +680,7 @@
                     // is a content Error and never enters the menu rotation).
                     // The authored position IS the framing.
                     SetCamera((
-                        position: (0.0, 100.0, 335.0),
+                        position: (0.0, 1000.0, 3350.0),
                         look_at: (0.0, 0.0, 0.0),
                     )),
                     // The backdrop lights itself, like every shipped menu scene.
@@ -655,7 +688,7 @@
                         base: (
                             id: "example_menu_key",
                             name: "Key Light",
-                            position: (-120.0, 100.0, 120.0),
+                            position: (-1200.0, 1000.0, 1200.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -674,7 +707,7 @@
                         base: (
                             id: "example_menu_rim",
                             name: "Rim Light",
-                            position: (60.0, 80.0, -160.0),
+                            position: (600.0, 800.0, -1600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -693,7 +726,7 @@
                         base: (
                             id: "example_menu_fill",
                             name: "Fill Light",
-                            position: (140.0, -40.0, 80.0),
+                            position: (1400.0, -400.0, 800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -719,8 +752,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 18.0,
+                            radius: 180.0,
                             texture: "self://textures/rock.png",
+                            material: "rock",
                             mass: Some(36_000.0),
                             invulnerable: true,
                             lock_signature: None,
@@ -730,7 +764,7 @@
                         base: (
                             id: "example_menu_orbiter",
                             name: "Orbiter",
-                            position: (130.0, 0.0, 0.0),
+                            position: (1300.0, 0.0, 0.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
@@ -762,6 +796,70 @@
                         )),
                     )),
                 ],
+            ),
+        ],
+    )),
+
+    // -- 5. HULL LINE -------------------------------------------------------
+    // A `Grammar` is a procedural HULL LINE: the grid a collapse runs in, how
+    // it prices emptiness, the spine it lays before it starts, and the parts it
+    // may draw. A NEW id ADDS a line beside the base `standard_hull` rather
+    // than retuning it - the editor's Generate block lists every grammar in the
+    // merged content under HULL LINE, and collapses the one that is picked.
+    //
+    // A freighter rather than a second warship, so the difference is visible in
+    // one look: longer, no weapons in the draw, and built out of this mod's own
+    // plate. Nothing here is engine work - a mod ships a hull line as data.
+    Grammar((
+        id: "example_freighter_hull",
+        name: "Freighter Hull (Example Mod)",
+        // 4 x 5 x 15 = 300 cells, against the base hull's 220. Longer and no
+        // wider: a hauler is a hull with a hold in the middle of it. The cell
+        // count is what the collapse allocates a domain per, and it is capped -
+        // see `MAX_GRAMMAR_CELLS`.
+        grid: (
+            half_width: 4,
+            height: 5,
+            length: 15,
+        ),
+        // Emptiness is priced exactly as the base line prices it, except at the
+        // bow: a freighter has a blunt nose, so vacuum gets far less of a
+        // discount out front than the warship's long taper gives it.
+        vacuum: (
+            base: 0.22,
+            taper: 1.4,
+            stern: 9.0,
+            bow_taper: 6.0,
+        ),
+        // The spine, laid before the collapse gets a say. Built out of the
+        // section this mod ADDS above, which is the whole point of a mod
+        // shipping a line: the parts and the plan are one piece of content.
+        keel: (
+            hull: "example_plated_hull_section",
+            bridge: "basic_controller_section",
+            stern_deck: "example_plated_hull_section",
+            stern_drive: "basic_thruster_section",
+        ),
+        // What the collapse may draw, and how often. No turret and no torpedo:
+        // this is a hauler, and what a line does NOT draw is as much of its
+        // silhouette as what it does.
+        parts: [
+            (
+                prototype: "example_plated_hull_section",
+                weight: 6.0,
+            ),
+            (
+                prototype: "reinforced_hull_section",
+                weight: 2.0,
+            ),
+            (
+                prototype: "basic_controller_section",
+                weight: 0.15,
+            ),
+            (
+                prototype: "basic_thruster_section",
+                weight: 6.4,
+                aim: Some(Aft),
             ),
         ],
     )),

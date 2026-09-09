@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -219,9 +219,9 @@ the stall semantics.</p>
 <tr><th>Variable</th><th>Gates</th><th>For</th></tr>
 </thead>
 <tbody>
-<tr><td><code>NOVA_AUTOPILOT</code></td><td>arms the scripted state driver; unset, the plugin adds nothing</td><td>harness</td></tr>
+<tr><td><code>NOVA_AUTOPILOT</code></td><td>arms the scripted state driver; unset, the plugin adds nothing. Also makes the settings store INERT</td><td>harness</td></tr>
 <tr><td><code>NOVA_AUTOPILOT_DEADLINE</code></td><td>seconds before the completion watcher error-exits naming the laggards</td><td>harness</td></tr>
-<tr><td><code>NOVA_CAPTURE</code></td><td>puts a script on its CAPTURE path - its shot beats write PNGs, its loops record</td><td>harness</td></tr>
+<tr><td><code>NOVA_CAPTURE</code></td><td>puts a script on its CAPTURE path - its shot beats write PNGs, its loops record. Also makes the settings store INERT</td><td>harness</td></tr>
 <tr><td><code>NOVA_CAPTURE_DIR</code></td><td>directory relative capture paths stage under; absolute paths ignore it</td><td>harness</td></tr>
 </tbody>
 </table>
@@ -230,6 +230,20 @@ the stall semantics.</p>
 <code>NOVA_AUTOPILOT</code> too and one script owns the window. <code>NOVA_CAPTURE_DIR</code> is also
 read by the scenario <code>Screenshot</code> action, which is the in-game photo-mode lever
 rather than a harness one.</p>
+<p>Either of the two also silences the run and pins its settings. <code>SettingsStorePlugin::from_env</code>
+reads the same pair the mute does (<code>HARNESS_ENVS</code>, through
+<code>nova_gameplay::harness_env_active</code>) and goes INERT: no load at startup, no
+save on change, no window mode applied. So a scripted run flies on the DEFAULTS
+whatever the launching player has saved - which is what makes a capture the
+same picture on every machine - and cannot write that player’s <code>settings.ron</code>.
+A wasm build has no environment to read, so an app that must be inert there
+(<code>nova_perf_web</code>) adds the plugin itself with <code>access: SettingsStoreAccess::Inert</code>.</p>
+<p>Inert is the far end of a three-way access, not a flag. A normal app gets
+<code>Read</code>: it boots on the player’s saved settings and cannot write them back.
+<code>NovaMenuPlugin</code> raises that to <code>ReadWrite</code> when it builds the settings panel,
+which is the only surface that asks for a value to be kept. An inert store is
+never raised, so a scripted run that happens to build a menu still writes
+nothing.</p>
 <h2 id="measurement-what-a-run-records-about-itself"><a class="header" href="#measurement-what-a-run-records-about-itself">Measurement: what a run records about itself</a></h2>
 <p>Owned by <code>nova_probe</code>, all under one prefix, all inert unless set. The full
 table - defaults, units, and the wasm URL-query twin of each - is the crate’s
@@ -289,6 +303,22 @@ environment half exists at all. See
 <p><code>NOVA_MUTE</code> unset still mutes a run that has <code>NOVA_AUTOPILOT</code> or
 <code>NOVA_CAPTURE</code> set; <code>NOVA_MUTE=0</code> forces sound through one. The flag wins over
 both, and a muted run says <code>nova audio: output muted for this run</code> once.</p>
+<h2 id="the-agent-bench-an-agent-at-the-channel"><a class="header" href="#the-agent-bench-an-agent-at-the-channel">The agent bench: an agent at the channel</a></h2>
+<p>Owned by <code>nova_bench</code>. The mechanism is <a href="agent-bench.html">The agent bench</a>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Gates</th><th>For</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NOVA_BENCH_SOCKET</code></td><td>the unix socket the referee answers on; <code>bench play</code> sets it for the agent process, and a <code>cmd:</code> agent reads it</td><td>harness</td></tr>
+<tr><td><code>NOVA_BENCH_PI</code></td><td>the <code>pi</code> binary <code>bench play --agent pi</code> spawns; unset, <code>pi</code> on the path</td><td>harness</td></tr>
+</tbody>
+</table>
+</div>
+<p>The bench sets <code>NOVA_SEED</code> on the child game from <code>--seed</code>, and points the
+child at an empty profile under the run directory, so a play never reads or
+writes the settings on disk.</p>
 <h2 id="the-replay-seed"><a class="header" href="#the-replay-seed">The replay seed</a></h2>
 <p>Owned by <code>nova_gameplay</code>, next to the entropy plugin it seeds.</p>
 <div class="table-wrapper">
@@ -320,6 +350,9 @@ to prevent.</p>
 </div>
 <p><code>NOVA_CONFIG_ROOT</code> is deliberately NOT in the modding family. It is the
 settings store root, and its name is already right.</p>
+<p>It is the store root for a whole PROCESS, so it is a tooling lever, not a test
+one: a test that repoints it repoints every test running beside it. A test
+names its own root on <code>SettingsStorePlugin</code> instead.</p>
 <h2 id="the-menu"><a class="header" href="#the-menu">The menu</a></h2>
 <div class="table-wrapper">
 <table>
@@ -334,16 +367,28 @@ settings store root, and its name is already right.</p>
 <h2 id="not-on-the-roster"><a class="header" href="#not-on-the-roster">Not on the roster</a></h2>
 <ul>
 <li><strong>Example-local knobs.</strong> <code>NOVA_STRESS_PD_*</code>, <code>NOVA_EDITOR_FRAMELOG</code>,
-<code>NOVA_SOAK_SCENARIO</code>, <code>NOVA_SOAK_SECS</code> belong to one example each and stay
-literals beside the range that reads them.</li>
+<code>NOVA_SOAK_SCENARIO</code>, <code>NOVA_SOAK_SECS</code>, <code>NOVA_VFX_RANGE_BARE_SLUG</code>,
+<code>NOVA_RAILGUN_AFTERMATH</code>, <code>NOVA_RAILGUN_LIVE</code> belong to one example each and
+stay literals beside the range that reads them. The two railgun names pick
+which of the shipped loops <code>screenshot_railgun</code> records - the aftermath cut,
+and the real-speed pass against the default slowed clock - and
+<code>scripts/capture-web-media.sh</code> sets them. Neither goes wrong quietly.
+<code>NOVA_RAILGUN_AFTERMATH</code> is a duration: unset it falls back to the
+producer’s own window, and a value that is not a positive number of seconds
+panics. A row that forgets <code>NOVA_RAILGUN_LIVE=1</code> records the SLOWED loop
+name, so the live row’s file never appears - and the script <code>rm -f</code>s that
+file before the run and hard-checks it after, so the capture aborts naming
+the missing loop, having overwritten the already-staged slowed row on the
+way.</li>
 <li><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
 variable: they are <code>const Color</code>, layout and volume values in <code>nova_os_ui</code>,
 <code>nova_os</code> and <code>nova_gameplay::audio</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
 by them, so count <code>env::var</code> call sites instead of identifiers.</li>
 <li><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
 <code>NOVA_MODS_DIR</code>, <code>NOVA_PORT_LO</code>/<code>_HI</code> are read by <code>scripts/</code> and
-<code>web/webpack.config.js</code>; <code>NOVA_BENCH_*</code> by <code>benchmark/</code>. No Rust reads any of
-them.</li>
+<code>web/webpack.config.js</code>; <code>NOVA_BENCH_MODEL</code>, <code>NOVA_BENCH_EFFORT</code> and
+<code>NOVA_BENCH_PERSONA</code> by <code>benchmark/</code>, which is the CODING benchmark and not
+the agent bench above. No Rust reads any of them.</li>
 <li><strong>Foreign variables the code legitimately reads</strong>: <code>DISPLAY</code>,
 <code>WAYLAND_DISPLAY</code>, <code>RUST_LOG</code>, <code>BEVY_ASSET_ROOT</code>, <code>CARGO_*</code>, <code>CI</code>,
 <code>XDG_DATA_HOME</code>, <code>XDG_CONFIG_HOME</code>, <code>LVP_ICD</code>, <code>RUSTFLAGS</code>, <code>VK_ICD_FILENAMES</code>,
@@ -366,7 +411,7 @@ do, which is the point.</li>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="automation-harness.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="agent-bench.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -380,7 +425,7 @@ do, which is the point.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="automation-harness.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="agent-bench.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

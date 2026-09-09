@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Hull - Nova Protocol Wiki</title>
-        <meta name="description" content="Passive structure and armor - the backbone the other sections mount to." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Hull - Nova Protocol Wiki</title><meta name="description" content="Passive structure and armor - the backbone the other sections mount to."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,28 +17,11 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / <a href="/nova-protocol/wiki/sections/">Ship sections</a>
-                        / Hull
-                    </p>
-                    <h1>Hull</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <figure class="figure">
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / <a href="/nova-protocol/wiki/sections/">Ship sections</a> / Hull</p><h1>Hull</h1><div class="wiki__tags" id="wiki-tags"></div><figure class="figure">
     <!-- Capture: assets/icon-hull.png (or a full shot) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-section-hull.png</span
@@ -64,7 +39,7 @@
     <!-- Capture: assets/loops/loop-section-hull.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Loop capture needed</span
+            >Loop capture</span
         >
         <span class="figure__placeholder-name"
             >assets/loops/loop-section-hull.webm</span
@@ -77,14 +52,14 @@
     </div>
 </figure>
 <h2 id="variants" tabindex="-1">Variants</h2>
-<p>Two unit-cell hulls ship, and the semantic craft parts - noses, tails, wings and pods - are hulls too: passive structure with a health rating and nothing else. A hull weighs the space it fills, exactly: a section's mass is the volume of the box it is hit on, and no part is denser than another. Health is authored; the mass carrying it is not.</p>
-<p>That is why the health column below is not the order you want when you are choosing what to bolt on.</p>
-<!-- Stats verified against crates/nova_ship/src/sections/base_section.rs (density 1 and not authorable, so mass IS the authored box :376; the unit-cube collider a part with no authored collider falls back to :79-85) and the authored boxes themselves: crates/nova_authoring/src/base_content/sections/standard.rs (reinforced_hull_section health 200 :308 with no collider :311; light_hull_section health 60 :408 with no collider :411) and crates/nova_authoring/src/base_content/ships/ (racer.rs:34-73, cargo_a.rs:37-76, cargo_b.rs:50-69, built through shared.rs:44-50,:235). -->
+<p>Four unit-cell hulls ship. The cargo and tank cells match the reinforced cell stat for stat today; what they buy is a hull that reads as what it carries, and the light cell is the scavenger grade at a third of the health. A hull weighs the space it fills, exactly: a section's mass is the volume of the box it is hit on, and no section is denser than another. Health is authored; the mass carrying it is not.</p>
+<p>That is why the health column below is not the order you want when you are choosing what to bolt on - and it is not only a hull question, because everything else you bolt on is weighed the same way.</p>
+<!-- Stats verified against crates/nova_ship/src/sections/base_section.rs (density 1 and not authorable, so mass IS the authored box :470-471; the unit-cube collider a section with no authored collider falls back to :79-85) and the authored boxes themselves: crates/nova_authoring/src/base_content/sections/standard.rs (reinforced_hull_section health 200 :596; light_hull_section health 60 :744-750; cargo_hull_section and tank_hull_section health 200 :769,:790 - all four with no authored collider, so the unit-cube fallback; capital_thruster_section 1250 over a 5x5x3 box :677-691; vector_thruster_section 480 over 3x3x2 :663-667; siege_railgun_lance_section 180 over LANCE_CELLS 1x1x3 :321,:923-926; pdc_kinetic_turret_section 130 over a 0.5-cell cube :91,:434,:446-448; heavy_torpedo_section 100 over BAY_CELLS 1x1x2 :318,:952-960; basic_controller_section 100 and basic_thruster_section 70, both unit cubes :611-622,:701). -->
 <div class="widget" data-widget="hull-armour">
-<p>Ranked by health, the CargoA nose (180) looks like better armour than the Racer tail (120). It is 2.50 of mass against the tail's 0.88, so per unit of mass it is 72 against 136 - barely half as good. Across the ten shipped hull parts the spread runs from the CargoA pod at 216 per mass down to the scavenger-grade light cell at 60, a factor of 3.6 that the health column alone never shows.</p>
+<p>Ranked by health the Capital Thruster Section (1250) looks like the best armour in the catalog and the PDC Turret Section (130) like the worst. The drive is a 5x5x3 box - 75 of mass - and the mount is a 0.5-cell cube at 0.125, so per unit of mass it is 17 against 1040 and the ranking is exactly backwards. Across the nine prototypes here the spread runs a factor of 62, which the health column alone never shows.</p>
 </div>
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (reinforced_hull_section health :308; light_hull_section health :408) and crates/nova_authoring/src/base_content/ships/ (racer.rs:41,:51 wings 180, :61 nose 120, :71 tail 120; cargo_a.rs:44,:54 pods 350, :64 nose 180, :74 tail 150; cargo_b.rs:57 nose 180, :67 tail 150). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (reinforced :596, light :744-750, cargo :769, tank :790). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-hull.png</span></span></span><span class="catalog__title">Hull - shipped prototypes</span></div>
 <table>
 <thead>
@@ -93,27 +68,18 @@
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-reinforced-hull-section.png</span></span></span></td><td><span class="catalog__name">Reinforced Hull Section</span><span class="catalog__id">reinforced_hull_section</span></td><td class="catalog__num">200</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-light-hull-section.png</span></span></span></td><td><span class="catalog__name">Light Hull Section</span><span class="catalog__id">light_hull_section</span></td><td class="catalog__num">60</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-wing.png</span></span></span></td><td><span class="catalog__name">Racer // Wing</span><span class="catalog__id">racer_wing_port + racer_wing_starboard</span></td><td class="catalog__num">180</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-nose.png</span></span></span></td><td><span class="catalog__name">Racer // Nose</span><span class="catalog__id">racer_nose</span></td><td class="catalog__num">120</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-tail.png</span></span></span></td><td><span class="catalog__name">Racer // Tail</span><span class="catalog__id">racer_tail</span></td><td class="catalog__num">120</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-pod.png</span></span></span></td><td><span class="catalog__name">CargoA // Pod</span><span class="catalog__id">cargoa_pod_port + cargoa_pod_starboard</span></td><td class="catalog__num">350</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-nose.png</span></span></span></td><td><span class="catalog__name">CargoA // Nose</span><span class="catalog__id">cargoa_nose</span></td><td class="catalog__num">180</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-tail.png</span></span></span></td><td><span class="catalog__name">CargoA // Tail</span><span class="catalog__id">cargoa_tail</span></td><td class="catalog__num">150</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-nose.png</span></span></span></td><td><span class="catalog__name">CargoB // Nose</span><span class="catalog__id">cargob_nose</span></td><td class="catalog__num">180</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-tail.png</span></span></span></td><td><span class="catalog__name">CargoB // Tail</span><span class="catalog__id">cargob_tail</span></td><td class="catalog__num">150</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargo-hull-section.png</span></span></span></td><td><span class="catalog__name">Cargo Hull Section</span><span class="catalog__id">cargo_hull_section</span></td><td class="catalog__num">200</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-tank-hull-section.png</span></span></span></td><td><span class="catalog__name">Tank Hull Section</span><span class="catalog__id">tank_hull_section</span></td><td class="catalog__num">200</td></tr>
 </tbody>
 </table>
 </div>
-<p>Enemy-grade ships thin these same parts down with per-ship health modifications rather than separate prototypes.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<p>Enemy-grade ships thin these same cells down with per-ship health modifications rather than separate prototypes.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -124,6 +90,4 @@
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

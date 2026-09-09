@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.12.0 - Build the mission - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.12.0: the editor holds a whole mission - ships, range and script under one scene tree, every node opened by a reflected Inspector, handlers and expressions authored in the panel - and saves it as an ordinary mod. Every key and pad button rebinds from a real Settings panel and the change reaches the flight rig on the spot. Combat learns it happens in a vacuum: torpedoes are dropped inert and lit clear of the hull, a muzzle flash is a ball of burning gas measured in metres, and a detonation lights the hulls around it." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.12.0 - Build the mission - Nova Protocol</title><meta name="description" content="Nova Protocol v0.12.0: the editor holds a whole mission - ships, range and script under one scene tree, every node opened by a reflected Inspector, handlers and expressions authored in the panel - and saves it as an ordinary mod. Every key and pad button rebinds from a real Settings panel and the change reaches the flight rig on the spot. Combat learns it happens in a vacuum: torpedoes are dropped inert and lit clear of the hull, a muzzle flash is a ball of burning gas measured in metres, and a detonation lights the hulls around it."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,38 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#the-editor-holds-a-whole-mission" class="news__toc-link">The editor holds a whole mission</a>
-                    <a href="#one-document-one-tree" class="news__toc-link news__toc-link--sub">One document, one tree</a>
-                    <a href="#the-range-is-part-of-the-document" class="news__toc-link news__toc-link--sub">The range is part of the document</a>
-                    <a href="#every-node-opens" class="news__toc-link news__toc-link--sub">Every node opens</a>
-                    <a href="#the-script-is-authored-in-the-panel" class="news__toc-link">The script is authored in the panel</a>
-                    <a href="#scene-and-events-are-two-modes-of-one-screen" class="news__toc-link news__toc-link--sub">SCENE and EVENTS are two modes of one screen</a>
-                    <a href="#a-condition-is-a-page-not-a-string" class="news__toc-link news__toc-link--sub">A condition is a page, not a string</a>
-                    <a href="#the-language-got-shorter" class="news__toc-link news__toc-link--sub">The language got shorter</a>
-                    <a href="#save-it-and-it-is-a-mod" class="news__toc-link">Save it and it is a mod</a>
-                    <a href="#the-controls-are-yours" class="news__toc-link">The controls are yours</a>
-                    <a href="#combat-happens-in-a-vacuum" class="news__toc-link">Combat happens in a vacuum</a>
-                    <a href="#a-torpedo-is-dropped-then-lit" class="news__toc-link news__toc-link--sub">A torpedo is dropped, then lit</a>
-                    <a href="#the-muzzle-flash-is-an-object" class="news__toc-link news__toc-link--sub">The muzzle flash is an object</a>
-                    <a href="#a-hit-throws-sparks-not-a-diagram" class="news__toc-link news__toc-link--sub">A hit throws sparks, not a diagram</a>
-                    <a href="#a-detonation-lights-the-room" class="news__toc-link news__toc-link--sub">A detonation lights the room</a>
-                    <a href="#drives-you-can-see" class="news__toc-link">Drives you can see</a>
-                    <a href="#performance" class="news__toc-link">Performance</a>
-                    <a href="#more-in-v0120" class="news__toc-link">More in v0.12.0</a>
-                    <a href="#modding-and-compatibility" class="news__toc-link news__toc-link--sub">Modding and compatibility</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-08-31 &nbsp;//&nbsp; v0.12.0
-                </p>
-                <h1>v0.12.0 - Build the mission</h1>
-                <p>For eleven releases the editor built one thing: a ship. You placed sections on
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#the-editor-holds-a-whole-mission" class="news__toc-link">The editor holds a whole mission</a> <a href="#one-document-one-tree" class="news__toc-link news__toc-link--sub">One document, one tree</a> <a href="#the-range-is-part-of-the-document" class="news__toc-link news__toc-link--sub">The range is part of the document</a> <a href="#every-node-opens" class="news__toc-link news__toc-link--sub">Every node opens</a> <a href="#the-script-is-authored-in-the-panel" class="news__toc-link">The script is authored in the panel</a> <a href="#scene-and-events-are-two-modes-of-one-screen" class="news__toc-link news__toc-link--sub">SCENE and EVENTS are two modes of one screen</a> <a href="#a-condition-is-a-page-not-a-string" class="news__toc-link news__toc-link--sub">A condition is a page, not a string</a> <a href="#the-language-got-shorter" class="news__toc-link news__toc-link--sub">The language got shorter</a> <a href="#save-it-and-it-is-a-mod" class="news__toc-link">Save it and it is a mod</a> <a href="#the-controls-are-yours" class="news__toc-link">The controls are yours</a> <a href="#combat-happens-in-a-vacuum" class="news__toc-link">Combat happens in a vacuum</a> <a href="#a-torpedo-is-dropped-then-lit" class="news__toc-link news__toc-link--sub">A torpedo is dropped, then lit</a> <a href="#the-muzzle-flash-is-an-object" class="news__toc-link news__toc-link--sub">The muzzle flash is an object</a> <a href="#a-hit-throws-sparks-not-a-diagram" class="news__toc-link news__toc-link--sub">A hit throws sparks, not a diagram</a> <a href="#a-detonation-lights-the-room" class="news__toc-link news__toc-link--sub">A detonation lights the room</a> <a href="#drives-you-can-see" class="news__toc-link">Drives you can see</a> <a href="#performance" class="news__toc-link">Performance</a> <a href="#more-in-v0120" class="news__toc-link">More in v0.12.0</a> <a href="#modding-and-compatibility" class="news__toc-link news__toc-link--sub">Modding and compatibility</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-08-31 &nbsp;//&nbsp; v0.12.0</p><h1>v0.12.0 - Build the mission</h1><p>For eleven releases the editor built one thing: a ship. You placed sections on
 a grid, watched a skin close around them, and pressed Play to fly the result
 around a fixed sandbox. Everything else about a mission - who else is out
 there, what the range holds, what has to happen for you to win - lived in a RON
@@ -77,7 +38,7 @@ bundle the campaign ships as.</p>
 rebindable from a real Settings panel, and the rebind reaches the flight,
 camera and scenario rigs on the spot. And combat learned that it happens in a
 vacuum: a torpedo is dropped inert and lights a few body lengths out, a muzzle
-flash is a ball of burning gas measured in metres rather than a hundred screen
+flash is a ball of burning gas measured in meters rather than a hundred screen
 dots, and a detonation is the first thing in this game that has ever cast
 light on the hulls around it.</p>
 <div class="callout">
@@ -364,7 +325,7 @@ ship and a firing range.</p>
 firing nearby looked like a flash; the same gun at 300 units looked like
 confetti, because screen-space dots do not get smaller.</p>
 <p>It is now a real object at the barrel: a ball of burning gas with a cone leaving
-it, sized in metres. It shrinks with distance because it is a thing in the
+it, sized in meters. It shrinks with distance because it is a thing in the
 world.</p>
 <p>The rounds themselves had the opposite problem. A point-defence cannon at a high
 fire rate was drawing a dotted line, because each round was a point and the gaps
@@ -383,7 +344,7 @@ walked a trail of flashes across the sky behind the barrel.</p>
         <span class="figure__placeholder-name">assets/loops/news-0120-point-defense.webm</span>
         <span class="figure__placeholder-note">A bank of point-defence turrets firing down its lanes: a burning gas ball at each barrel and every round stretched along its own travel.</span>
     </div>
-    <figcaption class="figure__caption">Four mounts at full rate. The flash has a size in metres and the burst is a stream rather than a dotted line.</figcaption>
+    <figcaption class="figure__caption">Four mounts at full rate. The flash has a size in meters and the burst is a stream rather than a dotted line.</figcaption>
 </figure>
 <h3 id="a-hit-throws-sparks-not-a-diagram" tabindex="-1">A hit throws sparks, not a diagram</h3>
 <p>The gizmo impact rings are gone. A hit throws a burst of incandescent sparks
@@ -575,39 +536,12 @@ migrated forms.</p>
 <p>The terse list is in <code>CHANGELOG.md</code>. This post is the visible version: an
 editor that holds the whole mission, controls that are yours, and combat that
 finally behaves like it is happening in a vacuum.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -618,6 +552,4 @@ finally behaves like it is happening in a vacuum.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

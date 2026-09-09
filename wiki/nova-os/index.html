@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>NOVA OS - Nova Protocol Wiki</title>
-        <meta name="description" content="The Tab ship computer: a CRT terminal that freezes the game while you use it, the full command reference, the MAP and SHIP apps, section rebinding, and the monitor's own knobs and sounds." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>NOVA OS - Nova Protocol Wiki</title><meta name="description" content="The Tab ship computer: a CRT terminal that freezes the game while you use it, the full command reference, the MAP and SHIP apps, section rebinding, and the monitor's own knobs and sounds."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,23 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / NOVA OS
-                    </p>
-                    <h1>NOVA OS</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>Every ship carries a second seat of control: <strong>NOVA OS</strong>, the ship computer. Press <kbd>Tab</kbd> in flight and a CRT monitor takes the whole screen - the world freezes while you read, type and click, and flight resumes the moment the picture powers back down.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / NOVA OS</p><h1>NOVA OS</h1><div class="wiki__tags" id="wiki-tags"></div><p>Every ship carries a second seat of control: <strong>NOVA OS</strong>, the ship computer. Press <kbd>Tab</kbd> in flight and a CRT monitor takes the whole screen - the world freezes while you read, type and click, and flight resumes the moment the picture powers back down.</p>
 <figure class="figure">
     <!-- Capture: assets/loops/nova-os-open.webm -->
     <div class="figure__placeholder">
@@ -91,6 +67,10 @@
 <tr>
 <td>Type <code>exit</code>, or click the <strong>PWR</strong> button</td>
 <td>The same animated power-off.</td>
+</tr>
+<tr>
+<td><kbd>:</kbd></td>
+<td>Opens the same monitor on the <a href="../commands/">command shell</a> instead - no ship needed, and it works over the pause menu too.</td>
 </tr>
 </tbody>
 </table>
@@ -184,7 +164,7 @@ Hint: type `help` and press Enter.
      crates/nova_os_ui/src/ship/mod.rs:142-169. Dispatch classes (print vs app
      takeover vs ship action): crates/nova_os/src/shell.rs:50-80. -->
 <div class="widget" data-widget="nova-os-surfaces">
-<p>Every command lands on one of three surfaces. Most print into the terminal scrollback: <code>help</code>, <code>log</code>, <code>objectives</code>, <code>clear</code>, <code>version</code>, <code>ship view</code>, <code>map view</code> and <code>ship section</code>. Two hand the whole screen to an app - <code>map</code> and <code>ship</code> - and swap the footer hint row to that app's keys under a breadcrumb like <code>NOVA OS // APPS / MAP</code>. The rest act on the live ship and print the result: <code>map goto</code> engages the autopilot, <code>ship reload</code> and <code>ship repair</code> service a section. <code>exit</code> powers the monitor off.</p>
+<p>Every command lands on one of three surfaces. Most print into the terminal scrollback: <code>help</code>, <code>log</code>, <code>objectives</code>, <code>clear</code>, <code>version</code>, <code>ship view</code>, <code>map view</code> and <code>ship section</code>. Two hand the whole screen to an app - <code>map</code> and <code>ship</code> - and swap the footer hint row to that app's keys under a breadcrumb like <code>NOVA OS // APPS / MAP</code>. The rest act on the live ship and print the result: <code>map goto</code> engages the autopilot, <code>ship reload</code> and <code>ship repair</code> service a section. <code>exit</code> powers the monitor off, and <code>commands</code> switches the same monitor to the <a href="../commands/">command shell</a>.</p>
 </div>
 <table>
 <thead>
@@ -217,6 +197,10 @@ Hint: type `help` and press Enter.
 <tr>
 <td><code>exit</code></td>
 <td>Powers the computer off and returns to flight.</td>
+</tr>
+<tr>
+<td><code>commands</code></td>
+<td>Switches the monitor to the <a href="../commands/">command shell</a> - the game-level language, with the picture and the freeze kept.</td>
 </tr>
 <tr>
 <td><code>map</code></td>
@@ -302,7 +286,7 @@ Hint: type `help` and press Enter.
     <!-- Capture: assets/wiki-nova-os-map.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-nova-os-map.png</span
@@ -359,7 +343,7 @@ Hint: type `help` and press Enter.
     <!-- Capture: assets/wiki-nova-os-ship.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-nova-os-ship.png</span
@@ -438,7 +422,7 @@ Hint: type `help` and press Enter.
     <!-- Capture: assets/wiki-nova-os-terminal.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
-            >Screenshot needed</span
+            >Screenshot</span
         >
         <span class="figure__placeholder-name"
             >assets/wiki-nova-os-terminal.png</span
@@ -495,15 +479,12 @@ Hint: type `help` and press Enter.
 <p>The picture is a real tube, not a flat overlay: the terminal renders offscreen and is shown through one screen shader, so the green glyphs bloom into a phosphor halo, the image bows with barrel curvature under scanlines, grain and an edge vignette, a hum bar drifts, the mains flicker breathes, and a retrace beam sweeps by every few seconds. Launching or leaving an app fires a degauss - a brief horizontal shear and flash with a coil thump. Your mouse works through all of it: clicks on the glass are mapped through the same curvature, so the blip you see under the cursor is the blip you hit.</p>
 <p>The monitor sounds like it looks, when SND is up: a key tick per character, a heavier clack on Enter, an ok blip when a command runs and an error buzz when it does not, a completion tick per Tab step, the power sweep up and down, and a low ambient bed humming the whole time it is on. Around the glass, the casing carries its bezel, corner screws, a vent grille and the spec line <code>P22 GREEN PHOSPHOR . 15 IN . TYPE CQ-4</code>.</p>
 </details>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -514,6 +495,4 @@ Hint: type `help` and press Enter.
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

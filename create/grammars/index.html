@@ -1,0 +1,366 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ship grammars for mods - Nova Protocol Creator Docs</title><meta name="description" content="The table a procedural hull is drawn from: the grid it is built in, the vacuum weights that give it a silhouette, the seeded keel, and the parts the generator may draw with their weights, aims and zones."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship grammars for mods</p><h1>Ship grammars for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#which-grammar-the-generator-reads">Which grammar the generator reads</a><ol></ol></li><li><a href="#the-grammar-item">The Grammar item</a><ol></ol></li><li><a href="#the-grid">The grid</a><ol></ol></li><li><a href="#vacuum-the-silhouette">Vacuum: the silhouette</a><ol></ol></li><li><a href="#the-keel">The keel</a><ol></ol></li><li><a href="#parts-and-weights">Parts and weights</a><ol></ol></li><li><a href="#base-grammars">Base grammars</a><ol></ol></li></ol></nav><p>A <code>Grammar</code> is the table a PROCEDURAL hull is drawn from: the parts a generator
+may reach for, how often it reaches for each, how big the block it works in is,
+and how much of that block it is allowed to leave empty.</p>
+<p>It is not the rule about what may sit next to what. That is already in your
+<a href="../sections/">sections</a>: the generator reads the link points off each prototype
+and works out the joins by itself, so a mod that ships a section has already
+changed what a hull can be built from. What a section cannot say is TASTE - that
+a drive belongs at the back, that a turret should be rare, that this line of ship
+is long and narrow with a broad tail. That is what a grammar is for.</p>
+<p>This page is the field-by-field grammar reference. For general RON spelling rules
+such as double parentheses, <code>Some(...)</code>, and asset schemes, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="which-grammar-the-generator-reads" tabindex="-1">Which grammar the generator reads</h2>
+<p>Read this before you write one, because it decides which id you want.</p>
+<p>The editor's Generate block has a <strong>HULL LINE</strong> list at the top of it, and that
+list is every grammar in the merged content - the base game's and every enabled
+mod's, one row each, named by the grammar's own <code>name</code>. Whichever row is marked
+is the line the next Generate collapses: its grid, its vacuum taper, its keel and
+its prices. Picking a row also puts the DRAW FROM list below it back to that
+line's own draw, because a tick is priced by the grammar underneath it.</p>
+<p>So you have two ways to change procedural generation, and they are different
+things:</p>
+<ul>
+<li>A <strong>new id</strong> ADDS a line. It appears in the list beside <code>standard_hull</code>, and a
+builder chooses between them. This is what you want for a hull line of your
+own. The example mod ships one: see <code>assets/mods/example/example.content.ron</code>.</li>
+<li>The id <strong><code>standard_hull</code></strong> REPLACES the shipped line, everywhere. That retunes
+the base game's own hull rather than adding to it, and it also retunes both
+<code>wfc</code> examples, which name that id outright because they are benches for it.</li>
+</ul>
+<p>Nothing outside the editor picks a line yet: a scenario cannot name one, and
+there is no command-line flag for one.</p>
+<h2 id="the-grammar-item" tabindex="-1">The Grammar item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">Grammar</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_gunship_hull&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Gunship Line&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">grid</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">half_width</span><span class="ron-punct">:</span> <span class="ron-literal">3</span><span class="ron-punct">,</span>
+            <span class="ron-key">height</span><span class="ron-punct">:</span> <span class="ron-literal">5</span><span class="ron-punct">,</span>
+            <span class="ron-key">length</span><span class="ron-punct">:</span> <span class="ron-literal">13</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">vacuum</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-literal">0.22</span><span class="ron-punct">,</span>
+            <span class="ron-key">taper</span><span class="ron-punct">:</span> <span class="ron-literal">1.4</span><span class="ron-punct">,</span>
+            <span class="ron-key">stern</span><span class="ron-punct">:</span> <span class="ron-literal">9.0</span><span class="ron-punct">,</span>
+            <span class="ron-key">bow_taper</span><span class="ron-punct">:</span> <span class="ron-literal">24.0</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">keel</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-string">&quot;reinforced_hull_section&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">bridge</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_controller_section&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">stern_deck</span><span class="ron-punct">:</span> <span class="ron-string">&quot;reinforced_hull_section&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">stern_drive</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_thruster_section&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">bow_gun</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;railgun_lance_section&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;reinforced_hull_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">6.0</span><span class="ron-punct">),</span>
+            <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_controller_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">0.15</span><span class="ron-punct">),</span>
+            <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_thruster_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">6.4</span><span class="ron-punct">,</span> <span class="ron-key">aim</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Aft</span><span class="ron-punct">)),</span>
+            <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;torpedo_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.4</span><span class="ron-punct">,</span> <span class="ron-key">zone</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Flank</span><span class="ron-punct">)),</span>
+            <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;pdc_kinetic_turret_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
+        <span class="ron-punct">],</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable key, and the overlay key. A NEW id adds a line to the editor's HULL LINE list; <code>standard_hull</code> retunes the shipped one - see <a href="#which-grammar-the-generator-reads">above</a>.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>required</td>
+<td>The label the HULL LINE list shows. A line left nameless is listed by its id instead, which is a key rather than something to read.</td>
+</tr>
+<tr>
+<td><code>grid</code></td>
+<td>grid</td>
+<td>required</td>
+<td>The block of cells the hull is built in - see <a href="#the-grid">below</a>.</td>
+</tr>
+<tr>
+<td><code>vacuum</code></td>
+<td>vacuum</td>
+<td>required</td>
+<td>How emptiness is priced against the parts - see <a href="#vacuum-the-silhouette">below</a>.</td>
+</tr>
+<tr>
+<td><code>keel</code></td>
+<td>keel</td>
+<td>required</td>
+<td>The spine laid down before the generator gets a say - see <a href="#the-keel">below</a>.</td>
+</tr>
+<tr>
+<td><code>parts</code></td>
+<td>list of parts</td>
+<td>required</td>
+<td>What may be drawn, and how often - see <a href="#parts-and-weights">below</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>Nothing here is optional with a silent default. A grammar names every role it
+seeds and every part it draws, and a section id it names that your catalog does
+not hold is a <code>content lint</code> error and a load refusal - not a hull with a gap in
+it.</p>
+<h2 id="the-grid" tabindex="-1">The grid</h2>
+<pre><code class="hljs language-ron"><span class="ron-key">grid</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">half_width</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span> <span class="ron-key">height</span><span class="ron-punct">:</span> <span class="ron-literal">5</span><span class="ron-punct">,</span> <span class="ron-key">length</span><span class="ron-punct">:</span> <span class="ron-literal">11</span><span class="ron-punct">),</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>half_width</code></td>
+<td>number</td>
+<td>Cells across the STARBOARD half. The hull is this wide either side of the centreline.</td>
+</tr>
+<tr>
+<td><code>height</code></td>
+<td>number</td>
+<td>Cells tall.</td>
+</tr>
+<tr>
+<td><code>length</code></td>
+<td>number</td>
+<td>Cells nose to tail.</td>
+</tr>
+</tbody>
+</table>
+<p>These are counts of build-grid cells, not meters. One cell is one world unit,
+which is 10 m, so the shipped <code>standard_hull</code> at <code>4 x 5 x 11</code> is a hull roughly
+80 m across, 50 m tall and 110 m long.</p>
+<p>The floor on all three is set by the SKIN, not by the structure. A plate is drawn
+as a flat run only where it has neighbours on all four sides, so a surface needs
+to be at least three cells across before it has any interior at all. Go below
+that in any axis and the hull comes out as all rim: a heap of ramps rather than a
+ship. Length noticeably more than width is most of why a result reads as a craft
+instead of as a box.</p>
+<p>The grid also has to hold what the KEEL seeds, and that is a fact about the
+prototypes you named rather than about the numbers here. The stern drive stands
+one column off the centreline with its deck plate in front of it, so a drive
+spanning <code>(x, y, z)</code> cells needs <code>half_width</code> of at least <code>x + 1</code>, <code>height</code> of at
+least <code>y</code>, and <code>length</code> of at least <code>z + 1</code>. A <code>bow_gun</code> stands IN the keel
+column, so it must be exactly one cell across and one tall, and the two seeded
+ends have to leave a keel between them: <code>length</code> of at least
+<code>bow.z + drive.z + 2</code>. Seed a 5x5x3 capital drive in a <code>4 x 5 x 11</code> grid and
+<code>content lint</code> names the axis that is short.</p>
+<p>There is a ceiling too: 65,536 cells. The generator lays down one domain per cell
+before it can refuse anything, so the size is an allocation it takes on trust. A
+<code>16 x 16 x 256</code> grid is exactly at the limit and a hull two orders of magnitude
+larger than anything wanted so far.</p>
+<h2 id="vacuum-the-silhouette" tabindex="-1">Vacuum: the silhouette</h2>
+<pre><code class="hljs language-ron"><span class="ron-key">vacuum</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-literal">0.22</span><span class="ron-punct">,</span> <span class="ron-key">taper</span><span class="ron-punct">:</span> <span class="ron-literal">1.4</span><span class="ron-punct">,</span> <span class="ron-key">stern</span><span class="ron-punct">:</span> <span class="ron-literal">9.0</span><span class="ron-punct">,</span> <span class="ron-key">bow_taper</span><span class="ron-punct">:</span> <span class="ron-literal">24.0</span><span class="ron-punct">),</span>
+</code></pre>
+<p>Vacuum is drawn against the parts like anything else, and these four numbers are
+its weight. They decide WHERE the hull may be sparse and never what may sit next
+to what - this is the shape dial, and it is pure taste.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base</code></td>
+<td>number</td>
+<td>Weight of vacuum everywhere. Keep it low: a porous hull is a lattice, and skin on a lattice is one plate per strut - noise, not a surface.</td>
+</tr>
+<tr>
+<td><code>taper</code></td>
+<td>number</td>
+<td>How much likelier vacuum gets per cell away from the keel. This is how the hull thins toward its edges.</td>
+</tr>
+<tr>
+<td><code>stern</code></td>
+<td>number</td>
+<td>How much likelier vacuum gets in the LAST row. A drive carries one socket and needs its other five faces clear, so on a hull built solid it has nowhere to stand at all.</td>
+</tr>
+<tr>
+<td><code>bow_taper</code></td>
+<td>number</td>
+<td>How much likelier vacuum gets at the bow than at the stern. This is the whole silhouette: a nose and a broad tail rather than a brick.</td>
+</tr>
+</tbody>
+</table>
+<p>If your hulls come out as slabs, <code>bow_taper</code> is the first number to raise. If the
+drives are missing, raise <code>stern</code>. If the result looks like scaffolding, lower
+<code>base</code>.</p>
+<h2 id="the-keel" tabindex="-1">The keel</h2>
+<pre><code class="hljs language-ron"><span class="ron-key">keel</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+    <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-string">&quot;reinforced_hull_section&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">bridge</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_controller_section&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">stern_deck</span><span class="ron-punct">:</span> <span class="ron-string">&quot;reinforced_hull_section&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">stern_drive</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_thruster_section&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">bow_gun</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;railgun_lance_section&quot;</span><span class="ron-punct">),</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>The keel is placed before the generator starts, and it buys one guarantee: a
+seeded spine is a single connected structure to grow on, so a hull never comes
+out as a cloud of islands.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hull</code></td>
+<td>string</td>
+<td>required</td>
+<td>What the keel is made of, and what a one-cell dent is packed with. Must carry a socket on every face it can be met on.</td>
+</tr>
+<tr>
+<td><code>bridge</code></td>
+<td>string</td>
+<td>required</td>
+<td>The flight computer, laid a third of the way back where a bridge reads.</td>
+</tr>
+<tr>
+<td><code>stern_deck</code></td>
+<td>string</td>
+<td>required</td>
+<td>The block beside the last keel cell that the seeded drive bolts to.</td>
+</tr>
+<tr>
+<td><code>stern_drive</code></td>
+<td>string</td>
+<td>required</td>
+<td>The drive on that block's aft face. Mirrored like everything else, so a hull comes out with a PAIR either side of the centreline.</td>
+</tr>
+<tr>
+<td><code>bow_gun</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>The spinal gun on the bow end of the keel. <code>None</code> = a hull plan that seats no spinal gun - not a default.</td>
+</tr>
+</tbody>
+</table>
+<p>A spinal gun is seeded rather than drawn for the same reason the stern drive is:
+a gun the whole SHIP aims fires down its own axis, and a lane that long is only
+ever clear at an END of the hull. On the keel line it mirrors into a tight pair
+and keeps the recoil on the ship's axis.</p>
+<h2 id="parts-and-weights" tabindex="-1">Parts and weights</h2>
+<pre><code class="hljs language-ron"><span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+    <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;basic_thruster_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">6.4</span><span class="ron-punct">,</span> <span class="ron-key">aim</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Aft</span><span class="ron-punct">)),</span>
+    <span class="ron-punct">(</span><span class="ron-key">prototype</span><span class="ron-punct">:</span> <span class="ron-string">&quot;torpedo_section&quot;</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.4</span><span class="ron-punct">,</span> <span class="ron-key">zone</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Flank</span><span class="ron-punct">)),</span>
+<span class="ron-punct">],</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prototype</code></td>
+<td>string</td>
+<td>required</td>
+<td>A <a href="../sections/">section</a> id from the visible catalog - yours, or one from a mod you depend on.</td>
+</tr>
+<tr>
+<td><code>weight</code></td>
+<td>number</td>
+<td>required</td>
+<td>How OFTEN the part is offered, spent across whatever orientations of it are legal in a cell. Taste, not a rule: it never decides where a part may go.</td>
+</tr>
+<tr>
+<td><code>aim</code></td>
+<td><code>Option</code> face</td>
+<td><code>None</code></td>
+<td>The only face this part may fire, launch or exhaust through: <code>Aft</code>, <code>Bow</code>, <code>Starboard</code>, <code>Port</code>, <code>Dorsal</code>, <code>Ventral</code>. <code>None</code> = the mating rule alone decides, which is the answer for a traversing turret and for a broadside tube.</td>
+</tr>
+<tr>
+<td><code>zone</code></td>
+<td><code>Option</code> region</td>
+<td><code>None</code></td>
+<td>The only region of the hull this part may stand in: <code>Bow</code>, <code>Amidships</code>, <code>Stern</code> (thirds nose to tail), <code>Dorsal</code>, <code>Ventral</code> (above and below the keel row), <code>Flank</code> (the outboard half, clear of the centreline). <code>None</code> = anywhere the mating rule allows.</td>
+</tr>
+</tbody>
+</table>
+<p><code>parts</code> is the DRAW, not the rule. A prototype left off this list is never
+offered; one on it may still go nowhere, because the catalog's link points refuse
+the join.</p>
+<p><code>aim</code> and <code>zone</code> answer different questions - an aim says which way a part
+POINTS, a zone says where it STANDS - and both are taste with teeth: neither can
+make an illegal placement legal, only forbid a legal one. A zone holds a part
+only if EVERY cell of it is inside, so a three-cell lance zoned <code>Bow</code> has to lie
+wholly in the forward third rather than merely start there.</p>
+<p>Expect fitting weights to sit far above what a headcount would suggest. A fitting
+is not competing with hull for a cell; it is competing for a cell WITH ROOM
+AROUND IT, and most of the ones drawn are taken back off again when their exit
+lane turns out to be blocked.</p>
+<h2 id="base-grammars" tabindex="-1">Base grammars</h2>
+<p>One ships: <code>standard_hull</code> (&quot;Standard Hull&quot;), the keeled, mirrored warship the
+editor's generator starts on. Read <code>assets/base/grammars/base.content.ron</code> for
+its exact numbers: it is the tuned starting point to copy and push around, and
+every value in it was arrived at by looking at hulls rather than derived from
+anything.</p>
+<p>The example mod ships a second, <code>example_freighter_hull</code> (&quot;Freighter Hull&quot;) - a
+longer, blunt-nosed hauler with no weapons in its draw, built out of that mod's
+own plate. It is there to be read beside the base one: two lines in the list,
+picked between in the editor, and the whole difference is data.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

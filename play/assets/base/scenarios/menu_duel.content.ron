@@ -2,7 +2,7 @@
     Scenario((
         id: "menu_duel",
         name: "Duel Cycle",
-        description: "Two corvettes duel; a siege torpedo erases the winner; repeat.",
+        description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat.",
         cubemap: "self://textures/cubemap.png",
         hidden: true,
         menu_backdrop: true,
@@ -15,9 +15,9 @@
                             id: "duel_key",
                             name: "Key Light",
                             position: (
-                                -120.0,
-                                100.0,
-                                120.0,
+                                -1200.0,
+                                1000.0,
+                                1200.0,
                             ),
                             rotation: (
                                 -0.24307884,
@@ -42,9 +42,9 @@
                             id: "duel_rim",
                             name: "Rim Light",
                             position: (
-                                60.0,
-                                80.0,
-                                -160.0,
+                                600.0,
+                                800.0,
+                                -1600.0,
                             ),
                             rotation: (
                                 -0.03875094,
@@ -69,9 +69,9 @@
                             id: "duel_fill",
                             name: "Fill Light",
                             position: (
-                                140.0,
-                                -40.0,
-                                80.0,
+                                1400.0,
+                                -400.0,
+                                800.0,
                             ),
                             rotation: (
                                 0.104897276,
@@ -96,9 +96,9 @@
                             id: "duel_lamp",
                             name: "Planetoid Glow",
                             position: (
-                                -60.0,
-                                20.0,
-                                90.0,
+                                -600.0,
+                                200.0,
+                                900.0,
                             ),
                             rotation: (
                                 0.0,
@@ -109,8 +109,8 @@
                         ),
                         kind: Light(Point(
                             intensity: 2500000.0,
-                            range: 400.0,
-                            radius: 12.0,
+                            range: 4000.0,
+                            radius: 120.0,
                             color: Srgba((
                                 red: 1.0,
                                 green: 0.82,
@@ -125,7 +125,7 @@
                             id: "duel_finisher",
                             name: "Duel Finisher",
                             position: (
-                                -950.0,
+                                -9500.0,
                                 0.0,
                                 0.0,
                             ),
@@ -163,8 +163,8 @@
                     SetCamera((
                         position: (
                             0.0,
-                            90.0,
-                            300.0,
+                            570.0,
+                            1920.0,
                         ),
                         look_at: (
                             0.0,
@@ -182,10 +182,10 @@
                                 0.0,
                                 0.0,
                             ),
-                            inner: 150.0,
-                            outer: 220.0,
-                            y_min: -70.0,
-                            y_max: -35.0,
+                            inner: 1500.0,
+                            outer: 2200.0,
+                            y_min: -700.0,
+                            y_max: -350.0,
                         ),
                         template: (
                             base: (
@@ -204,17 +204,47 @@
                                 ),
                             ),
                             kind: Asteroid((
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                impact_sound: Some("self://sounds/impact.wav"),
-                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                material: "rock",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
-                            1.0,
-                            3.0,
+                            10.0,
+                            30.0,
                         )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                7,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                        ],
+                    )),
+                    CreateScenarioArea((
+                        id: "duel_arena",
+                        name: "Duel Arena",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 1800.0,
+                    )),
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     TimerStart((
                         key: "duel_respawn",
@@ -239,9 +269,9 @@
                             id: "duel_victor",
                             name: "Duel Victor",
                             position: (
-                                -420.0,
-                                25.0,
-                                100.0,
+                                -4200.0,
+                                250.0,
+                                1000.0,
                             ),
                             rotation: (
                                 0.0,
@@ -251,32 +281,32 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            hull: Prototype("block_gunship"),
                             controller: AI((
                                 patrol: [
                                     (
-                                        -70.0,
-                                        10.0,
-                                        50.0,
+                                        -700.0,
+                                        100.0,
+                                        500.0,
                                     ),
                                     (
-                                        70.0,
-                                        15.0,
-                                        -50.0,
+                                        700.0,
+                                        150.0,
+                                        -500.0,
                                     ),
                                     (
                                         0.0,
-                                        5.0,
-                                        70.0,
+                                        50.0,
+                                        700.0,
                                     ),
                                 ],
-                                leash: Some(250.0),
+                                leash: Some(2500.0),
                                 engage_delay: Some(6.0),
                             )),
                             allegiance: Some(Player),
                             modifications: [
                                 (
-                                    section: "fuselage",
+                                    section: "bridge",
                                     modifications: [
                                         SetHealth(500.0),
                                     ],
@@ -289,9 +319,9 @@
                             id: "duel_rival",
                             name: "Duel Rival",
                             position: (
-                                420.0,
-                                -15.0,
-                                -100.0,
+                                4200.0,
+                                -150.0,
+                                -1000.0,
                             ),
                             rotation: (
                                 0.0,
@@ -301,31 +331,31 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa_raider"),
+                            hull: Prototype("block_raider"),
                             controller: AI((
                                 patrol: [
                                     (
-                                        70.0,
-                                        -5.0,
+                                        700.0,
                                         -50.0,
+                                        -500.0,
                                     ),
                                     (
-                                        -70.0,
-                                        -10.0,
-                                        50.0,
+                                        -700.0,
+                                        -100.0,
+                                        500.0,
                                     ),
                                     (
                                         0.0,
-                                        -15.0,
-                                        -70.0,
+                                        -150.0,
+                                        -700.0,
                                     ),
                                 ],
-                                leash: Some(250.0),
+                                leash: Some(2500.0),
                                 engage_delay: Some(6.0),
                             )),
                             modifications: [
                                 (
-                                    section: "fuselage",
+                                    section: "bridge",
                                     modifications: [
                                         SetHealth(500.0),
                                     ],
@@ -341,11 +371,73 @@
                     Entity((
                         id: Some("duel_rival"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("duel_decided"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     TimerStart((
                         key: "duel_finisher_beat",
                         seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnExit,
+                filters: [
+                    Entity((
+                        id: Some("duel_arena"),
+                        other_id: Some("duel_rival"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("duel_decided"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "duel_rival",
+                        allegiance: Neutral,
+                    )),
+                    TimerStart((
+                        key: "duel_finisher_beat",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnExit,
+                filters: [
+                    Entity((
+                        id: Some("duel_arena"),
+                        other_id: Some("duel_victor"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("duel_decided"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "duel_victor",
+                        allegiance: Neutral,
+                    )),
+                    TimerStart((
+                        key: "duel_reset",
+                        seconds: Term(Factor(Literal(Number(8.0)))),
                     )),
                 ],
             ),
@@ -361,8 +453,9 @@
                         id: "duel_finisher",
                         allegiance: Enemy,
                     )),
-                    ForceTorpedoLaunch((
-                        id: "duel_finisher",
+                    ForceTorpedoFire((
+                        ship: "duel_finisher",
+                        section: "siege_bay",
                         target: "duel_victor",
                     )),
                     TimerStart((

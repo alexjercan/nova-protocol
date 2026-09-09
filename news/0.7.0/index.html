@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>v0.7.0 - A game you can win or lose - Nova Protocol</title>
-        <meta name="description" content="Nova Protocol v0.7.0: scenarios can declare victory or defeat with a real outcome frame, a second base-campaign chapter (Broadside) and a four-chapter campaign mod (The Ledger) on the portal, smarter fights (cover, auto-reload ammo, earned locks, multi-barrel turrets), RCS docking thrusters, a real Settings menu, and arbitrary joint-tree turrets plus self:// / dep:// asset schemes for modders." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/news.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.7.0 - A game you can win or lose - Nova Protocol</title><meta name="description" content="Nova Protocol v0.7.0: scenarios can declare victory or defeat with a real outcome frame, a second base-campaign chapter (Broadside) and a four-chapter campaign mod (The Ledger) on the portal, smarter fights (cover, auto-reload ammo, earned locks, multi-barrel turrets), RCS docking thrusters, a real Settings menu, and arbitrary joint-tree turrets plus self:// / dep:// asset schemes for modders."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,76 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="news">
-                <nav class="news__toc" aria-label="On this page">
-                    <p class="news__toc-title">On this page</p>
-                    <a href="#win-or-lose" class="news__toc-link">Win or lose</a>
-                    <a href="#a-result-with-real-buttons" class="news__toc-link news__toc-link--sub">A result, with real buttons</a>
-                    <a href="#the-world-freezes-behind-the-banner" class="news__toc-link news__toc-link--sub">The world freezes behind the banner</a>
-                    <a href="#pacing-the-cut" class="news__toc-link news__toc-link--sub">Pacing the cut</a>
-                    <a href="#the-sandboxes-join-in" class="news__toc-link news__toc-link--sub">The sandboxes join in</a>
-                    <a href="#broadside-and-a-campaign-that-talks-back" class="news__toc-link">Broadside, and a campaign that talks back</a>
-                    <a href="#chapter-two-the-capital-combat-slice" class="news__toc-link news__toc-link--sub">Chapter two: the capital-combat slice</a>
-                    <a href="#a-checkpoint-that-respects-the-approach" class="news__toc-link news__toc-link--sub">A checkpoint that respects the approach</a>
-                    <a href="#scenarios-can-speak" class="news__toc-link news__toc-link--sub">Scenarios can speak</a>
-                    <a href="#objectives-that-register" class="news__toc-link news__toc-link--sub">Objectives that register</a>
-                    <a href="#fights-that-announce-themselves" class="news__toc-link news__toc-link--sub">Fights that announce themselves</a>
-                    <a href="#the-ledger-a-full-campaign-on-the-portal" class="news__toc-link">The Ledger: a full campaign on the portal</a>
-                    <a href="#four-chapters-two-endings" class="news__toc-link news__toc-link--sub">Four chapters, two endings</a>
-                    <a href="#rebuilt-around-fair-fights" class="news__toc-link news__toc-link--sub">Rebuilt around fair fights</a>
-                    <a href="#smarter-fights" class="news__toc-link">Smarter fights</a>
-                    <a href="#enemies-take-cover" class="news__toc-link news__toc-link--sub">Enemies take cover</a>
-                    <a href="#weapons-reload" class="news__toc-link news__toc-link--sub">Weapons reload</a>
-                    <a href="#locks-are-earned" class="news__toc-link news__toc-link--sub">Locks are earned</a>
-                    <a href="#more-than-one-barrel" class="news__toc-link news__toc-link--sub">More than one barrel</a>
-                    <a href="#reading-the-damage-you-deal" class="news__toc-link news__toc-link--sub">Reading the damage you deal</a>
-                    <a href="#docking-on-the-fine-thrusters" class="news__toc-link">Docking on the fine thrusters</a>
-                    <a href="#hold-shift-and-trim" class="news__toc-link news__toc-link--sub">Hold SHIFT and trim</a>
-                    <a href="#a-trim-not-free-thrust" class="news__toc-link news__toc-link--sub">A trim, not free thrust</a>
-                    <a href="#the-autopilot-flies-them-too" class="news__toc-link news__toc-link--sub">The autopilot flies them too</a>
-                    <a href="#a-real-settings-menu" class="news__toc-link">A real Settings menu</a>
-                    <a href="#audio-graphics-and-a-keybind-reference" class="news__toc-link news__toc-link--sub">Audio, graphics and a keybind reference</a>
-                    <a href="#what-the-preset-actually-does" class="news__toc-link news__toc-link--sub">What the preset actually does</a>
-                    <a href="#a-ship-sounds-like-itself" class="news__toc-link">A ship sounds like itself</a>
-                    <a href="#every-world-sound-has-an-author" class="news__toc-link news__toc-link--sub">Every world sound has an author</a>
-                    <a href="#per-target-impact-and-destruction" class="news__toc-link news__toc-link--sub">Per-target impact and destruction</a>
-                    <a href="#turrets-art-and-time-the-modding-surface" class="news__toc-link">Turrets, art and time: the modding surface</a>
-                    <a href="#turret-mounts-are-a-joint-tree" class="news__toc-link news__toc-link--sub">Turret mounts are a joint tree</a>
-                    <a href="#mods-ship-their-own-art-and-sounds" class="news__toc-link news__toc-link--sub">Mods ship their own art and sounds</a>
-                    <a href="#scenarios-can-tell-time" class="news__toc-link news__toc-link--sub">Scenarios can tell time</a>
-                    <a href="#menu-backdrops-and-the-new-game-hook" class="news__toc-link news__toc-link--sub">Menu backdrops and the New Game hook</a>
-                    <a href="#smaller-authoring-wins" class="news__toc-link news__toc-link--sub">Smaller authoring wins</a>
-                    <a href="#tooling-that-catches-your-mistakes" class="news__toc-link">Tooling that catches your mistakes</a>
-                    <a href="#one-content-cli" class="news__toc-link news__toc-link--sub">One content CLI</a>
-                    <a href="#geometry-checks" class="news__toc-link news__toc-link--sub">Geometry checks</a>
-                    <a href="#the-balance-audit" class="news__toc-link news__toc-link--sub">The balance audit</a>
-                    <a href="#broken-content-fails-loud" class="news__toc-link news__toc-link--sub">Broken content fails loud</a>
-                    <a href="#odds-and-ends" class="news__toc-link">Odds and ends</a>
-                    <a href="#two-new-menu-backdrops" class="news__toc-link news__toc-link--sub">Two new menu backdrops</a>
-                    <a href="#one-example-mod" class="news__toc-link news__toc-link--sub">One example mod</a>
-                    <a href="#retry-from-the-pause-menu" class="news__toc-link news__toc-link--sub">Retry from the pause menu</a>
-                    <a href="#f12-for-the-devlog" class="news__toc-link news__toc-link--sub">F12 for the devlog</a>
-                    <a href="#fixes" class="news__toc-link">Fixes</a>
-                    <a href="#the-rust-tally-learns-to-broadside" class="news__toc-link news__toc-link--sub">The Rust Tally learns to broadside</a>
-                    <a href="#the-auditors-bay-comes-out-of-the-hull" class="news__toc-link news__toc-link--sub">The Auditor's bay comes out of the hull</a>
-                    <a href="#skyboxes-stop-crashing-webgl2-class-gpus" class="news__toc-link news__toc-link--sub">Skyboxes stop crashing WebGL2-class GPUs</a>
-                    <a href="#no-more-ghost-hulls" class="news__toc-link news__toc-link--sub">No more ghost hulls</a>
-                    <a href="#paused-means-paused" class="news__toc-link news__toc-link--sub">Paused means paused</a>
-                    <a href="#retry-keeps-your-objectives" class="news__toc-link news__toc-link--sub">Retry keeps your objectives</a>
-                    <a href="#quieter-guns" class="news__toc-link news__toc-link--sub">Quieter guns</a>
-                    <a href="#under-the-hood" class="news__toc-link">Under the hood</a>
-                    <a href="#one-clock-for-the-event-windows" class="news__toc-link news__toc-link--sub">One clock for the event windows</a>
-                    <a href="#removed-the-demo-scenario" class="news__toc-link">Removed: the Demo Scenario</a>
-                </nav>
-                <article class="prose news__body">
-                <p class="prose__meta">
-                    <a href="/nova-protocol/news/">&larr; News</a>
-                    &nbsp;//&nbsp; 2026-07-18 &nbsp;//&nbsp; v0.7.0
-                </p>
-                <h1>v0.7.0 - A game you can win or lose</h1>
-                <p>For six releases Nova Protocol was a place to fly, not a game you could finish.
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#win-or-lose" class="news__toc-link">Win or lose</a> <a href="#a-result-with-real-buttons" class="news__toc-link news__toc-link--sub">A result, with real buttons</a> <a href="#the-world-freezes-behind-the-banner" class="news__toc-link news__toc-link--sub">The world freezes behind the banner</a> <a href="#pacing-the-cut" class="news__toc-link news__toc-link--sub">Pacing the cut</a> <a href="#the-sandboxes-join-in" class="news__toc-link news__toc-link--sub">The sandboxes join in</a> <a href="#broadside-and-a-campaign-that-talks-back" class="news__toc-link">Broadside, and a campaign that talks back</a> <a href="#chapter-two-the-capital-combat-slice" class="news__toc-link news__toc-link--sub">Chapter two: the capital-combat slice</a> <a href="#a-checkpoint-that-respects-the-approach" class="news__toc-link news__toc-link--sub">A checkpoint that respects the approach</a> <a href="#scenarios-can-speak" class="news__toc-link news__toc-link--sub">Scenarios can speak</a> <a href="#objectives-that-register" class="news__toc-link news__toc-link--sub">Objectives that register</a> <a href="#fights-that-announce-themselves" class="news__toc-link news__toc-link--sub">Fights that announce themselves</a> <a href="#the-ledger-a-full-campaign-on-the-portal" class="news__toc-link">The Ledger: a full campaign on the portal</a> <a href="#four-chapters-two-endings" class="news__toc-link news__toc-link--sub">Four chapters, two endings</a> <a href="#rebuilt-around-fair-fights" class="news__toc-link news__toc-link--sub">Rebuilt around fair fights</a> <a href="#smarter-fights" class="news__toc-link">Smarter fights</a> <a href="#enemies-take-cover" class="news__toc-link news__toc-link--sub">Enemies take cover</a> <a href="#weapons-reload" class="news__toc-link news__toc-link--sub">Weapons reload</a> <a href="#locks-are-earned" class="news__toc-link news__toc-link--sub">Locks are earned</a> <a href="#more-than-one-barrel" class="news__toc-link news__toc-link--sub">More than one barrel</a> <a href="#reading-the-damage-you-deal" class="news__toc-link news__toc-link--sub">Reading the damage you deal</a> <a href="#docking-on-the-fine-thrusters" class="news__toc-link">Docking on the fine thrusters</a> <a href="#hold-shift-and-trim" class="news__toc-link news__toc-link--sub">Hold SHIFT and trim</a> <a href="#a-trim-not-free-thrust" class="news__toc-link news__toc-link--sub">A trim, not free thrust</a> <a href="#the-autopilot-flies-them-too" class="news__toc-link news__toc-link--sub">The autopilot flies them too</a> <a href="#a-real-settings-menu" class="news__toc-link">A real Settings menu</a> <a href="#audio-graphics-and-a-keybind-reference" class="news__toc-link news__toc-link--sub">Audio, graphics and a keybind reference</a> <a href="#what-the-preset-actually-does" class="news__toc-link news__toc-link--sub">What the preset actually does</a> <a href="#a-ship-sounds-like-itself" class="news__toc-link">A ship sounds like itself</a> <a href="#every-world-sound-has-an-author" class="news__toc-link news__toc-link--sub">Every world sound has an author</a> <a href="#per-target-impact-and-destruction" class="news__toc-link news__toc-link--sub">Per-target impact and destruction</a> <a href="#turrets-art-and-time-the-modding-surface" class="news__toc-link">Turrets, art and time: the modding surface</a> <a href="#turret-mounts-are-a-joint-tree" class="news__toc-link news__toc-link--sub">Turret mounts are a joint tree</a> <a href="#mods-ship-their-own-art-and-sounds" class="news__toc-link news__toc-link--sub">Mods ship their own art and sounds</a> <a href="#scenarios-can-tell-time" class="news__toc-link news__toc-link--sub">Scenarios can tell time</a> <a href="#menu-backdrops-and-the-new-game-hook" class="news__toc-link news__toc-link--sub">Menu backdrops and the New Game hook</a> <a href="#smaller-authoring-wins" class="news__toc-link news__toc-link--sub">Smaller authoring wins</a> <a href="#tooling-that-catches-your-mistakes" class="news__toc-link">Tooling that catches your mistakes</a> <a href="#one-content-cli" class="news__toc-link news__toc-link--sub">One content CLI</a> <a href="#geometry-checks" class="news__toc-link news__toc-link--sub">Geometry checks</a> <a href="#the-balance-audit" class="news__toc-link news__toc-link--sub">The balance audit</a> <a href="#broken-content-fails-loud" class="news__toc-link news__toc-link--sub">Broken content fails loud</a> <a href="#odds-and-ends" class="news__toc-link">Odds and ends</a> <a href="#two-new-menu-backdrops" class="news__toc-link news__toc-link--sub">Two new menu backdrops</a> <a href="#one-example-mod" class="news__toc-link news__toc-link--sub">One example mod</a> <a href="#retry-from-the-pause-menu" class="news__toc-link news__toc-link--sub">Retry from the pause menu</a> <a href="#f12-for-the-devlog" class="news__toc-link news__toc-link--sub">F12 for the devlog</a> <a href="#fixes" class="news__toc-link">Fixes</a> <a href="#the-rust-tally-learns-to-broadside" class="news__toc-link news__toc-link--sub">The Rust Tally learns to broadside</a> <a href="#the-auditors-bay-comes-out-of-the-hull" class="news__toc-link news__toc-link--sub">The Auditor's bay comes out of the hull</a> <a href="#skyboxes-stop-crashing-webgl2-class-gpus" class="news__toc-link news__toc-link--sub">Skyboxes stop crashing WebGL2-class GPUs</a> <a href="#no-more-ghost-hulls" class="news__toc-link news__toc-link--sub">No more ghost hulls</a> <a href="#paused-means-paused" class="news__toc-link news__toc-link--sub">Paused means paused</a> <a href="#retry-keeps-your-objectives" class="news__toc-link news__toc-link--sub">Retry keeps your objectives</a> <a href="#quieter-guns" class="news__toc-link news__toc-link--sub">Quieter guns</a> <a href="#under-the-hood" class="news__toc-link">Under the hood</a> <a href="#one-clock-for-the-event-windows" class="news__toc-link news__toc-link--sub">One clock for the event windows</a> <a href="#removed-the-demo-scenario" class="news__toc-link">Removed: the Demo Scenario</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-07-18 &nbsp;//&nbsp; v0.7.0</p><h1>v0.7.0 - A game you can win or lose</h1><p>For six releases Nova Protocol was a place to fly, not a game you could finish.
 There was no win, no loss, no reason a fight had to end - you flew until you got
 bored or blown up, and blown up just dropped you back at a silent restart.
 v0.7.0 is the release that gives the flying stakes: scenarios can now declare a
@@ -462,39 +385,12 @@ implicit assumption. No change to when the events fire.</p>
 the game and the Scenarios picker. The example mod's arena is the worked
 hand-authored RON example now, and it demonstrates strictly more: outcomes,
 comms, timed beats, shipped art and a menu backdrop.</p>
-
-                <footer class="post-footer">
-                    <p class="post-footer__discuss">
-                        Got a reaction, a question, or a ship you want to show
-                        off?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/discussions"
-                            target="_blank"
-                            rel="noopener"
-                            >Talk about this release on GitHub Discussions</a
-                        >.
-                    </p>
-                    <p class="post-footer__discuss">
-                        Want the terse, complete list for every version
-                        (patch releases included)?
-                        <a
-                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
-                            target="_blank"
-                            rel="noopener"
-                            >Read CHANGELOG.md on GitHub</a
-                        >.
-                    </p>
-                    <p class="post-footer__nav">
-                        <a href="/nova-protocol/news/">&larr; All news</a>
-                    </p>
-                </footer>
-            </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -505,6 +401,4 @@ comms, timed beats, shipped art and a menu backdrop.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

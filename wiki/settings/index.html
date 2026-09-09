@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Settings - Nova Protocol Wiki</title>
-        <meta name="description" content="The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the Controls tab that rebinds every action - reachable from the main menu and the pause menu, remembered across restarts." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Settings - Nova Protocol Wiki</title><meta name="description" content="The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the Controls tab that rebinds every action - reachable from the main menu and the pause menu, remembered across restarts."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,39 +17,50 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / Settings
-                    </p>
-                    <h1>Settings</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>The Settings menu is the same modal from <strong>both</strong> the main menu and the pause
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Settings</p><h1>Settings</h1><div class="wiki__tags" id="wiki-tags"></div><p>The Settings menu is the same modal from <strong>both</strong> the main menu and the pause
 menu, so you can change anything mid-run. Every choice is <strong>remembered across
 restarts</strong> - saved to a config file on the desktop build and to browser storage
 on the web.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-settings.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the master volume slider and the Back button.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the four volume sliders and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
 <h2 id="audio" tabindex="-1">Audio</h2>
-<p>A draggable <strong>master volume</strong> slider scales all game audio at once - the engine
-hum, weapons, radar ticks and the world's impact sounds. It takes effect live as
-you drag.</p>
+<p>Four draggable sliders, top to bottom. Each shows its level as a whole percent
+and takes effect live as you drag.</p>
+<table>
+<thead>
+<tr>
+<th>Slider</th>
+<th>What it moves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Master</td>
+<td>Everything at once. The one control most players ever touch.</td>
+</tr>
+<tr>
+<td>Interface</td>
+<td>Menu clicks, HUD ticks, the editor and the flight computer - the sounds that come from the cockpit, not from the world.</td>
+</tr>
+<tr>
+<td>World</td>
+<td>The engine hum, weapons, hits, the rocks breaking up - everything out there, heard at the distance it happens.</td>
+</tr>
+<tr>
+<td>Music</td>
+<td>Reserved. The slider moves and the setting is saved, but the game ships no music yet.</td>
+</tr>
+</tbody>
+</table>
+<p>Master multiplies the other three, so a track you have turned down stays down
+when you raise Master.</p>
 <h2 id="graphics-quality" tabindex="-1">Graphics quality</h2>
 <p>A single <strong>Low / Medium / High</strong> preset trades visual richness for performance.
 It does two things at once: it tunes the combat <em>juice</em>, and on the lower tiers
@@ -98,8 +101,10 @@ it drops the heavier effects for weak machines.</p>
 </table>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>Low is <strong>spawn-less</strong>: torpedo and muzzle particle bursts are not created at
-all, rather than created and hidden. It also renders the world at a <strong>reduced
+<p>Low is <strong>spawn-less</strong>: torpedo and muzzle particle bursts and the railgun wake
+are not created at all, rather than created and hidden. Low also takes no
+transient lights, so the light a railgun slug carries with it is one of the
+things it does not draw. It also renders the world at a <strong>reduced
 internal resolution</strong> and upscales it to fill the window - a lever aimed at
 fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
 fully clickable; only the 3D world softens. On a strong discrete GPU the speed
@@ -109,7 +114,7 @@ win is small, so Low is a knob for the low end rather than a general speed-up.</
 <figure class="figure">
     <!-- Capture: assets/wiki-controls.png -->
     <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-controls.png</span>
         <span class="figure__placeholder-note">The Controls tab open on the FLIGHT group: one row per action, with the keyboard keycap and the pad glyph in their own columns.</span>
     </div>
@@ -133,15 +138,59 @@ listening.</p>
 They are the way out of every other screen, including this one.</p>
 <p>A section's weapon or thruster trigger is not here - that is per ship, assigned
 in the editor or in the ship computer's SHIP app.</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<h3 id="mouse" tabindex="-1">Mouse</h3>
+<p><strong>MOUSE</strong> is a group in the same list, and the one page with nothing to rebind
+on it: three sliders, and no <strong>Reset Defaults</strong> - that button is a keybinding
+operation and would not put a sensitivity back.</p>
+<table>
+<thead>
+<tr>
+<th>Slider</th>
+<th>Range</th>
+<th>Default</th>
+<th>What it scales</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Look</td>
+<td>100-300%</td>
+<td>200%</td>
+<td>Ship steering, free look and turret aim</td>
+</tr>
+<tr>
+<td>RCS</td>
+<td>100-500%</td>
+<td>100%</td>
+<td>Mouse-driven translation, the docking fine-adjust</td>
+</tr>
+<tr>
+<td>Free Camera</td>
+<td>100-300%</td>
+<td>200%</td>
+<td>Mouse look on the free (WASD) camera</td>
+</tr>
+</tbody>
+</table>
+<p>Each <code>100%</code> is that slider's OWN baseline, not a shared number - the three gains
+behind them differ by two orders of magnitude, so a single scale would be
+unreadable. Only the mouse is affected; the gamepad sticks and the keyboard have
+their own curves and are untouched.</p>
+<p>A slider moved from the PAUSE menu takes effect on the ship you are already
+flying - there is no reload and no ship to respawn.</p>
+<details class="explain">
+<summary>Why Look 200% is the new default</summary>
+<p>Mouse look shipped before this page existed, on one fixed gain. That gain is
+what <code>300%</code> is now, and it was too fast for most pointers - so <code>100%</code> is a third
+of it and the default sits at <code>200%</code>, about two thirds of what mouse look used
+to feel like. If the old speed was right for you, put Look at <code>300%</code>.</p>
+</details>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -152,6 +201,4 @@ in the editor or in the ship computer's SHIP app.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

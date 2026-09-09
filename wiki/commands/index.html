@@ -1,0 +1,303 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Commands - Nova Protocol Wiki</title><meta name="description" content="The ':' command shell inside the same CRT: how to get in and out of it, what the introduction reports, the whole catalog by class - utility, read-only, settings and the armed cheats that mark your run - and the wire that speaks it too."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Commands</p><h1>Commands</h1><div class="wiki__tags" id="wiki-tags"></div><p>The ship computer speaks a second language. Press <kbd>:</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen - and the same CRT opens on the <strong>command shell</strong>: one prompt that can read the run, change your settings, and, once you deliberately arm it, cheat.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/command-shell-open.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/command-shell-open.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >':' over live flight: the same monitor, the
+            COMMANDS header, the introduction typing itself out
+            against the world it just froze, and 'ships'
+            answered from the paused run.</span
+        >
+    </div>
+</figure>
+<h2 id="getting-in-and-out" tabindex="-1">Getting in and out</h2>
+<!-- ':' gesture and its guards: crates/nova_menu/src/pause.rs:108-140.
+     'commands' builtin: crates/nova_os/src/command.rs:178-182.
+     Shell state (two transcripts, two histories): crates/nova_os/src/terminal/state.rs:80-120, 401-430. -->
+<table>
+<thead>
+<tr>
+<th>You do</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><kbd>:</kbd></td>
+<td>The monitor opens straight on the command shell. It needs no ship, so it works in the menu and the editor too.</td>
+</tr>
+<tr>
+<td>Type <code>commands</code> at the NOVA OS prompt</td>
+<td>Switch shells without closing the picture. Inside an app, you land on the NOVA OS prompt first.</td>
+</tr>
+<tr>
+<td><kbd>Esc</kbd></td>
+<td>Climb one level: back to the NOVA OS prompt you came from, or out of the computer.</td>
+</tr>
+<tr>
+<td>Type <code>close</code></td>
+<td>Power the monitor off and return to whatever was underneath.</td>
+</tr>
+<tr>
+<td>Type <code>clear</code></td>
+<td>Wipe the screen back to the introduction, read against the world as it is now.</td>
+</tr>
+</tbody>
+</table>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>It is one monitor with two languages, not two overlays. The casing, the glass, the phosphor, the scrollback, <kbd>Tab</kbd> completion, the history keys and <kbd>PgUp</kbd>/<kbd>PgDn</kbd> are the terminal's and are shared. What each shell owns is its own vocabulary, its own prompt (<code>nova&gt;</code> against <code>cmd&gt;</code>), its own transcript and its own history - so switching back and forth loses nothing, and never replays the power-on animation.</p>
+<p>Opening the command shell freezes the game exactly as NOVA OS does: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the shell rather than the pause menu. Switching between the two shells does not unpause and re-pause; the monitor owns the freeze for as long as it is open. The one place it will not open is mid-load, where there is nothing yet to inspect.</p>
+</details>
+<h2 id="what-the-introduction-tells-you" tabindex="-1">What the introduction tells you</h2>
+<pre><code class="hljs language-text">NOVA OS v0.13.0 // COMMANDS
+POST ......... command shell / ok
+CORE ......... local game runtime / attached
+REGISTRY ..... 27 commands / ready
+WORLD ........ tutorial / paused
+CHEATS ....... disabled / run clean
+Hint: type `help` and press Enter.
+</code></pre>
+<p><code>WORLD</code> names what you opened over - a scenario id, <code>main menu</code>, or <code>no scenario</code> - and whether it is running. <code>CHEATS</code> is the line that matters: <code>disabled / run clean</code> while your run still counts, <code>enabled / run marked</code> once it does not. The header carries the same fact in the top right, where <code>CHEATS: OFF</code> turns amber and reads <code>CHEATS: ON</code>.</p>
+<h2 id="the-commands" tabindex="-1">The commands</h2>
+<p>Every command belongs to one of four classes, and the class is the whole permission model.</p>
+<table>
+<thead>
+<tr>
+<th>class</th>
+<th>what it may do</th>
+<th>marks your run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>utility</td>
+<td>control the shell; abandon one scenario for another</td>
+<td>no</td>
+</tr>
+<tr>
+<td>readonly</td>
+<td>look at the world and never touch it</td>
+<td>no</td>
+</tr>
+<tr>
+<td>setting</td>
+<td>change the same saved settings the menu changes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>cheat</td>
+<td>change the live world; refused until armed</td>
+<td>arming does, once</td>
+</tr>
+</tbody>
+</table>
+<h3 id="utility" tabindex="-1">Utility</h3>
+<table>
+<thead>
+<tr>
+<th>command</th>
+<th>what it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>help [command]</code></td>
+<td>this text, or one command's usage, class, arguments and examples</td>
+</tr>
+<tr>
+<td><code>commands [class]</code></td>
+<td>the whole catalog, or one class of it</td>
+</tr>
+<tr>
+<td><code>clear</code></td>
+<td>restore this shell's introduction</td>
+</tr>
+<tr>
+<td><code>close</code></td>
+<td>close the terminal and return to what was underneath</td>
+</tr>
+<tr>
+<td><code>scenario load &lt;id&gt;</code></td>
+<td>abandon this attempt and load a fresh scenario</td>
+</tr>
+</tbody>
+</table>
+<h3 id="read-only" tabindex="-1">Read-only</h3>
+<table>
+<thead>
+<tr>
+<th>command</th>
+<th>what it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td>a compact run and world summary</td>
+</tr>
+<tr>
+<td><code>scenario</code></td>
+<td>the current scenario, its state and its outcome</td>
+</tr>
+<tr>
+<td><code>ships</code></td>
+<td>live ships by id</td>
+</tr>
+<tr>
+<td><code>ship &lt;id&gt;</code></td>
+<td>one ship: side, hull, sections, speed cap, magazines</td>
+</tr>
+<tr>
+<td><code>sections &lt;ship-id&gt;</code></td>
+<td>that ship's sections, with health and ammunition</td>
+</tr>
+<tr>
+<td><code>section &lt;ship-id&gt; &lt;section-id&gt;</code></td>
+<td>one section of one ship</td>
+</tr>
+<tr>
+<td><code>objectives</code></td>
+<td>the open objectives</td>
+</tr>
+<tr>
+<td><code>variables</code></td>
+<td>the scenario's variables</td>
+</tr>
+<tr>
+<td><code>variable &lt;name&gt;</code></td>
+<td>one of them</td>
+</tr>
+<tr>
+<td><code>bindings [action]</code></td>
+<td>every input action and what it is bound to, or one of them</td>
+</tr>
+<tr>
+<td><code>settings</code></td>
+<td>every current setting</td>
+</tr>
+<tr>
+<td><code>cheats status</code></td>
+<td>whether cheats are armed, and whether the run is marked</td>
+</tr>
+</tbody>
+</table>
+<h3 id="settings" tabindex="-1">Settings</h3>
+<p>One rule: the command <strong>without</strong> a value prints the setting, the command <strong>with</strong> one changes it. A change here is the same change the settings menu makes, and it is saved the same way.</p>
+<table>
+<thead>
+<tr>
+<th>command</th>
+<th>what it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>graphics [low|medium|high]</code></td>
+<td>the graphics-quality preset</td>
+</tr>
+<tr>
+<td><code>volume [master|music|world|interface [0..1]]</code></td>
+<td>one mixer channel</td>
+</tr>
+<tr>
+<td><code>window [windowed|borderless]</code></td>
+<td>the window mode</td>
+</tr>
+<tr>
+<td><code>bind &lt;action&gt; &lt;source&gt;</code></td>
+<td>rebind one action, e.g. <code>bind novaos_toggle F1</code></td>
+</tr>
+<tr>
+<td><code>bind reset &lt;action&gt;</code></td>
+<td>put an action back on its default</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cheats" tabindex="-1">Cheats</h3>
+<p>Every one of these is refused until you run <code>cheats enable</code>. That command is the deliberate act, and it marks the run the moment it succeeds - there is no command that unmarks it.</p>
+<table>
+<thead>
+<tr>
+<th>command</th>
+<th>what it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cheats enable</code></td>
+<td>arm cheats and mark this run, one way</td>
+</tr>
+<tr>
+<td><code>ammo infinite &lt;ship-id&gt; &lt;on|off&gt;</code></td>
+<td>unlimited ammunition on one ship's weapons</td>
+</tr>
+<tr>
+<td><code>ammo refill &lt;ship-id&gt;</code></td>
+<td>top up every finite magazine on a ship</td>
+</tr>
+<tr>
+<td><code>ammo refill section &lt;ship-id&gt; &lt;section-id&gt;</code></td>
+<td>top up one magazine</td>
+</tr>
+<tr>
+<td><code>speed-cap &lt;ship-id&gt; &lt;m/s|off&gt;</code></td>
+<td>change or remove a ship's manual speed cap</td>
+</tr>
+</tbody>
+</table>
+<details class="explain">
+<summary>Show explanation</summary>
+<!-- The mark: crates/nova_gameplay/src/cheats.rs:43-63 (arm() is one-way, begin_new_run clears).
+     Arming checked once, on the class: crates/nova_console/src/dispatch.rs.
+     Restoration rule: SuspendedSectionAmmo, crates/nova_ship/src/sections/ammo.rs:98. -->
+<p><strong>Why the mark is one-way.</strong> A run that was ever armed was never clean, whether or not you went on to use a cheat. Marking at the moment you ask, rather than at the moment you benefit, is what makes the mark honest - and it gives the refusal something true to say rather than pretending the command does not exist.</p>
+<p><strong>Why a fresh scenario clears it.</strong> A new attempt is a new run. <code>scenario load &lt;id&gt;</code> abandons the current attempt without giving it an outcome and without advancing campaign progress, then resets both the arming and the mark.</p>
+<p><strong>What <code>ammo infinite off</code> gives back.</strong> Turning it on suspends the magazine; turning it off restores the authored capacity <strong>full</strong>, and re-seeds the reload from the section's own configuration. It does not try to remember the count you had when you switched it on - a number from before the cheat is not a number the run earned either way, and a full magazine is the state you can reason about.</p>
+<p><strong>This is not the scenario language.</strong> A scenario author has a much larger vocabulary (spawning, despawning, allegiance, forced launches, outcomes). None of it is reachable from this prompt. The catalog above is the whole public surface, and a new scenario action does not appear here unless somebody deliberately adds it.</p>
+</details>
+<h2 id="driving-it-from-outside" tabindex="-1">Driving it from outside</h2>
+<!-- The wire's command lane: crates/nova_channel/src/protocol.rs, apply.rs. -->
+<p>The development process channel carries the same lines. <code>{&quot;tick&quot;:120,&quot;command&quot;:&quot;graphics low&quot;}</code> is the text you would have typed, resolved by the same parser and run by the same dispatcher, and the acknowledgement names the command, its class and its result. There is no separate wire vocabulary to learn or to drift.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

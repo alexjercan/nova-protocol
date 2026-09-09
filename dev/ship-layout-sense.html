@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,14 +175,18 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="giving-a-generated-ship-a-front"><a class="header" href="#giving-a-generated-ship-a-front">Giving a generated ship a front</a></h1>
-<p>Design note, written against <code>examples/playable/shared/wfc.rs</code> and the
-<code>wfc_ships</code> row it collapses.</p>
+<p>Design note. Written in 2026-08 against <code>examples/playable/shared/wfc.rs</code>,
+where the collapse used to live as consts in one example file. It lives in
+<code>crates/nova_wfc</code> now and every number the note treated as a constant is an
+authored field of a <code>Grammar</code> (<code>nova_ship::prelude::ShipGrammarConfig</code>), so the
+citations below have been re-derived. The REASONING is unchanged and is why the
+note is kept.</p>
 <p>The complaint it answers: looking at any render of the <code>wfc_ships</code> row, drives
 point in several directions on the same hull. The generator places parts by
 mating rules alone. Nothing knows a thruster belongs at the back, a bridge on
 top, or guns where they can bear.</p>
-<p>One of the recommendations below is already implemented and rendered, because it
-turned out to be twelve lines. The rest is a proposal.</p>
+<p>Three of the six recommendations below have landed since, and a fourth thing
+arrived that was not on the list. Each item carries its own status line.</p>
 <h2 id="1-the-actual-cause-which-is-narrower-than-no-sense-of-layout"><a class="header" href="#1-the-actual-cause-which-is-narrower-than-no-sense-of-layout">1. The actual cause, which is narrower than “no sense of layout”</a></h2>
 <p>Two facts about the generator, together, produce the whole symptom.</p>
 <p><strong>A drive’s direction is not a choice the generator makes.</strong> The thruster
@@ -206,32 +210,36 @@ illegal. The drive was the one part whose direction was both free and wrong.</p>
 <h2 id="2-what-the-grid-already-gives-us-to-hang-this-on"><a class="header" href="#2-what-the-grid-already-gives-us-to-hang-this-on">2. What the grid already gives us to hang this on</a></h2>
 <p>More than expected. The generator is not orientation-blind - it is
 orientation-blind <em>about parts</em> while being quite opinionated about <em>shape</em>.</p>
+<p>Every row was a constant when this was written. All but two are authored
+<code>Grammar</code> fields now, which is the change that made the note need re-deriving
+rather than retiring: the facts are the same facts, a mod can retune them, and
+<code>standard_hull</code> is the grammar the numbers below come from.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Fact</th><th>Where</th><th>What it already means</th></tr>
 </thead>
 <tbody>
-<tr><td><code>LENGTH = 11</code> on <code>z</code></td><td><code>HULL_GRID</code></td><td>the ship’s long axis</td></tr>
-<tr><td><code>HEIGHT = 5</code> on <code>y</code>, <code>KEEL_ROW = 2</code></td><td><code>HULL_GRID</code>, <code>KEEL_ROW</code></td><td>up, and a middle</td></tr>
-<tr><td><code>x = 0</code> is the mirror plane</td><td><code>HULL_GRID.origin.x = 0.5</code></td><td>port/starboard</td></tr>
-<tr><td><code>VACUUM_BOW_TAPER = 24.0</code></td><td><code>hull_vacuum_weight</code></td><td><strong><code>z = 0</code> is the BOW</strong></td></tr>
-<tr><td><code>VACUUM_STERN = 9.0</code></td><td><code>hull_vacuum_weight</code></td><td>the last row is sparse</td></tr>
-<tr><td><code>seed_keel</code></td><td>collapses the spine by hand</td><td>a connected structure to grow on</td></tr>
-<tr><td><code>keel_prototype(LENGTH / 3)</code></td><td>the bridge, forward of centre</td><td>a front, already</td></tr>
+<tr><td><code>grid.length = 11</code> on <code>z</code></td><td><code>GrammarGrid</code>, authored</td><td>the ship’s long axis</td></tr>
+<tr><td><code>grid.height = 5</code> on <code>y</code>; the keel row is <code>height / 2</code></td><td><code>GrammarGrid</code>; <code>TileSet::hull</code></td><td>up, and a middle</td></tr>
+<tr><td><code>x = 0</code> is the mirror plane</td><td><code>Grid::starboard_half</code> starts at <code>x = 0.5</code></td><td>port/starboard</td></tr>
+<tr><td><code>vacuum.bow_taper = 24.0</code></td><td><code>GrammarVacuum</code>, read by <code>Plan::vacuum_weight</code></td><td><strong><code>z = 0</code> is the BOW</strong></td></tr>
+<tr><td><code>vacuum.stern = 9.0</code></td><td><code>GrammarVacuum</code>, same reader</td><td>the last row is sparse</td></tr>
+<tr><td><code>seed_keel</code></td><td>collapses the spine by hand, from <code>keel.hull</code></td><td>a connected structure to grow on</td></tr>
+<tr><td><code>keel.bridge</code> at <code>length / 3</code></td><td>the bridge, forward of centre</td><td>a front, already</td></tr>
 </tbody>
 </table>
 </div>
 <p>The answer to “does <code>keel_component</code> / the mating structure give a natural axis
 to hang this on” is yes, and it is not the mating structure - it is the KEEL.
-<code>seed_keel</code> already hand-collapses eleven cells before the generator gets a say,
-and <code>keel_prototype</code> already puts a bridge forward of centre. The precedent for
+<code>seed_keel</code> already hand-collapses the spine before the generator gets a say,
+and already puts <code>keel.bridge</code> forward of centre. The precedent for
 “decide the big thing up front, let the collapse fill in around it” is in the
 file, working, with a doc comment explaining why. Everything in this note is that
 same move applied one more time.</p>
 <p>What the grid does NOT give: any asymmetry in <code>y</code>. <code>off_keel</code> is
-<code>x + |y - KEEL_ROW|</code>, symmetric about the keel row, so a hull’s deck and its
-belly are weighted identically. A ship generated here has a front and a back but
+<code>x + |y - keel_row|</code> (<code>collapse.rs</code>, <code>Plan::vacuum_weight</code>), symmetric about the
+keel row, so a hull’s deck and its belly are weighted identically. A ship generated here has a front and a back but
 genuinely has no top.</p>
 <h2 id="3-what-comparable-generators-do"><a class="header" href="#3-what-comparable-generators-do">3. What comparable generators do</a></h2>
 <p>Read rather than re-derived. Sources at the end.</p>
@@ -272,13 +280,32 @@ oriented box. But Merrell’s own graph-grammar work targets LOCAL SIMILARITY, t
 same goal as WFC, and does not claim to encode front/back/top. Swapping solvers
 does not buy the fact; putting the fact in the right place does.</p>
 <h2 id="4-ranked-recommendations"><a class="header" href="#4-ranked-recommendations">4. Ranked recommendations</a></h2>
-<p>Cost against effect. The first is done; the rest are not.</p>
-<h3 id="1-a-per-part-aim-as-a-unary-constraint-done-rendered"><a class="header" href="#1-a-per-part-aim-as-a-unary-constraint-done-rendered">1. A per-part AIM, as a unary constraint. DONE, RENDERED</a></h3>
-<p><code>Part</code> gains <code>aim: Option&lt;usize&gt;</code> - the only face this part may fire through -
-and <code>hull_domains</code> strikes any tile that disagrees. The thruster gets
-<code>Some(AFT)</code>; everything else keeps <code>None</code>.</p>
+<p>Cost against effect, as ranked at the time. Where they stand now:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Then</th><th>Now</th></tr>
+</thead>
+<tbody>
+<tr><td>1. Per-part aim</td><td>done</td><td>shipped, as the authored <code>GrammarPart::aim</code></td></tr>
+<tr><td>2. Seed the drive deck</td><td>done</td><td>shipped, and it seeds a multi-cell drive whole</td></tr>
+<tr><td>3. Deck and belly</td><td>measured, not landed</td><td>unchanged: measured, not landed, still a taste call</td></tr>
+<tr><td>4. Seed a superstructure</td><td>proposal</td><td>not landed</td></tr>
+<tr><td>5. Zone the grid</td><td>“only if 1-4 are not enough”</td><td>the MECHANISM shipped as <code>GrammarPart::zone</code>; <code>standard_hull</code> authors none</td></tr>
+<tr><td>6. Re-tune the weights</td><td>last</td><td>not done; the weights are content now, so it is a mod’s call as much as ours</td></tr>
+</tbody>
+</table>
+</div>
+<p>Not on the list and shipped anyway: a seeded SPINAL GUN (<code>GrammarKeel::bow_gun</code>),
+which is item 2’s move applied to the bow. It is what replaced the <code>wfc_arena</code>
+bench stamping a lance on after the collapse.</p>
+<h3 id="1-a-per-part-aim-as-a-unary-constraint-shipped"><a class="header" href="#1-a-per-part-aim-as-a-unary-constraint-shipped">1. A per-part AIM, as a unary constraint. SHIPPED</a></h3>
+<p>Landed as proposed, then became content: a draw entry carries
+<code>aim: Option&lt;GrammarAim&gt;</code> - the only face this part may fire through - and
+<code>Plan::domains</code> strikes any tile <code>Plan::aim_allowed</code> disagrees with. The
+shipped grammar aims its thrusters <code>Aft</code>; everything else authors nothing.</p>
 <ul>
-<li><strong>Cost:</strong> one struct field, a four-line predicate, one line in <code>hull_domains</code>.
+<li><strong>Cost:</strong> one struct field, a four-line predicate, one line in <code>Plan::domains</code>.
 Cannot empty a domain, because <code>VACUUM</code> is compatible with everything and is
 never struck, so the no-backtracking collapse is not put at risk.</li>
 <li><strong>Effect:</strong> every nozzle on every ship points aft. This is the whole reported
@@ -294,12 +321,17 @@ seed, the row still came back with 40 drives over 12 ships. <strong>Supply, not
 price, is the binding constraint</strong> - which is exactly why the next item is not
 optional.</li>
 </ul>
-<h3 id="2-seed-the-drive-deck-the-way-the-keel-is-seeded-done-rendered"><a class="header" href="#2-seed-the-drive-deck-the-way-the-keel-is-seeded-done-rendered">2. Seed the drive deck, the way the keel is seeded. DONE, RENDERED</a></h3>
-<p><code>seed_stern</code> hand-collapses two cells before the roll: a hull block beside the
-last keel cell, and a nozzle bolted to its aft face. The mirror makes that a pair
-either side of the centreline. <code>seed_keel</code> now stops one cell short of the
-transom so the seam cell beside the drive is free - a keel cube there would press
-a socket into the drive’s blind flank.</p>
+<h3 id="2-seed-the-drive-deck-the-way-the-keel-is-seeded-shipped"><a class="header" href="#2-seed-the-drive-deck-the-way-the-keel-is-seeded-shipped">2. Seed the drive deck, the way the keel is seeded. SHIPPED</a></h3>
+<p><code>seed_stern</code> hand-collapses the stern before the roll: a deck plate the size of
+the drive’s mount face, and the drive bolted to its aft face. The mirror makes
+that a pair either side of the centreline. <code>seed_keel</code> stops one cell short of
+the transom so the seam cell beside the drive is free - a keel cube there would
+press a socket into the drive’s blind flank.</p>
+<p>It grew past the two cells proposed here: the drive is authored
+(<code>GrammarKeel::stern_drive</code>) and may be several cells on a side, so the seed
+lays the block by its minimum corner and propagation fills the rest of it in.
+<code>runnable</code> refuses a grid too small to hold what the grammar seeds, by name,
+rather than letting the seed run off the end.</p>
 <ul>
 <li><strong>Cost:</strong> fifteen lines, in the shape of the function above it.</li>
 <li><strong>Effect:</strong> every ship has an engine at the back of it, guaranteed, and the
@@ -317,8 +349,9 @@ running forward from it. This is the single biggest change to how the row reads
 of anything in this note.</li>
 </ul>
 <h3 id="3-give-the-hull-a-deck-and-a-belly-measured-not-landed"><a class="header" href="#3-give-the-hull-a-deck-and-a-belly-measured-not-landed">3. Give the hull a deck and a belly. MEASURED, NOT LANDED</a></h3>
+<p>It would be two more <code>GrammarVacuum</code> fields today, not two consts.</p>
 <p><code>off_keel</code> is symmetric in <code>y</code>, so a ship has no top. Weight the two directions
-differently - <code>|y - KEEL_ROW|</code> times <code>DECK_TAPER</code> above and <code>BELLY_TAPER</code> below -
+differently - <code>|y - keel_row|</code> times a deck taper above and a belly taper below -
 and the hull fills out above the keel and tapers under it.</p>
 <ul>
 <li><strong>Cost:</strong> one line and two constants.</li>
@@ -334,8 +367,8 @@ have to measure it again.</li>
 keel row, or a superstructure seeded on top of the keel the way item 2 seeds
 the stern. Which is item 4.</li>
 </ul>
-<h3 id="4-seed-a-superstructure-not-just-a-bridge-cell"><a class="header" href="#4-seed-a-superstructure-not-just-a-bridge-cell">4. Seed a superstructure, not just a bridge cell</a></h3>
-<p><code>keel_prototype</code> puts the controller at <code>y = KEEL_ROW</code>, mid-height, buried inside
+<h3 id="4-seed-a-superstructure-not-just-a-bridge-cell-not-landed"><a class="header" href="#4-seed-a-superstructure-not-just-a-bridge-cell-not-landed">4. Seed a superstructure, not just a bridge cell. NOT LANDED</a></h3>
+<p><code>seed_keel</code> puts <code>keel.bridge</code> at the keel row, mid-height, buried inside
 the hull. A bridge that reads is a bridge you can SEE: on top, forward of centre,
 standing proud.</p>
 <ul>
@@ -350,11 +383,24 @@ take those off. It would need the same treatment the keel gets - either enough
 seeded neighbours to pass <code>SPIKE_SUPPORT</code>, or an exemption. Budget a couple of
 hours, not ten minutes.</li>
 </ul>
-<h3 id="5-zone-the-grid-and-give-each-zone-its-own-part-list"><a class="header" href="#5-zone-the-grid-and-give-each-zone-its-own-part-list">5. Zone the grid, and give each zone its own part list</a></h3>
+<h3 id="5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped"><a class="header" href="#5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped">5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED</a></h3>
 <p>The general form of items 1-4: split <code>z</code> into bow / midships / engineering bands
 (the vacuum taper already computes the signal) and ban part families per band -
 no drives forward of the engineering band, no bays in it, bridges only in
 midships-top. Same mechanism as item 1, a table instead of a formula.</p>
+<p>Shipped as <code>GrammarPart::zone</code>, with six regions rather than three bands: thirds
+along the hull (<code>Bow</code>, <code>Amidships</code>, <code>Stern</code>), halves either side of the keel row
+(<code>Dorsal</code>, <code>Ventral</code>, and the keel row itself is neither), and the outboard half
+(<code>Flank</code>). It rules on one CELL, so a multi-cell part is zoned only where every
+cell of it qualifies. <strong><code>standard_hull</code> authors no zone at all</strong> - the mechanism
+is there for a mod, and the caution below is why the base grammar has not spent
+it.</p>
+<p>The caution turned out to be right in a way not anticipated here: a zone CAN
+empty a domain, which nothing else in this note can. Not through the unary
+filter itself - vacuum survives that - but across a JOINT, where vacuum is not
+an option and only the partner segment fits. Zone a multi-cell part into a
+region too short to hold it and the cell past the boundary has nothing left.
+The collapse refuses that grammar by name; it does not photograph it.</p>
 <ul>
 <li><strong>Cost:</strong> a band function and a table. Maybe forty lines.</li>
 <li><strong>Effect:</strong> the ships get an internal LAYOUT rather than a uniform texture,
@@ -366,7 +412,7 @@ still cannot see a dead end coming. This collapse has no backtracking. If bands
 start producing contradictions the answer is modifying-in-blocks per band, and
 that is a real piece of work.</li>
 </ul>
-<h3 id="6-re-tune-the-weights-once-after-all-of-the-above"><a class="header" href="#6-re-tune-the-weights-once-after-all-of-the-above">6. Re-tune the weights, once, after all of the above</a></h3>
+<h3 id="6-re-tune-the-weights-once-after-all-of-the-above-not-done"><a class="header" href="#6-re-tune-the-weights-once-after-all-of-the-above-not-done">6. Re-tune the weights, once, after all of the above. NOT DONE</a></h3>
 <p>The record already says weights have to be tuned together and read together,
 because the parts compete with each other rather than only with vacuum. Items 1
 and 2 changed the competition: drives now bid for a small set of aft cells
@@ -377,13 +423,19 @@ mounts came down a third and nobody asked them to.</p>
 histogram).</li>
 <li><strong>Do it LAST.</strong> Tuning weights against a layout that is about to change is
 wasted work, and it is how the previous round of numbers got measured twice.</li>
+<li>The weights are AUTHORED now (<code>GrammarPart::weight</code>, <code>GrammarVacuum</code>), so a
+sweep tunes <code>standard_hull</code> rather than the generator. A mod retunes the same
+numbers without touching this crate, which is most of the reason not to keep
+chasing them here.</li>
 </ul>
 <h2 id="5-what-i-would-not-do"><a class="header" href="#5-what-i-would-not-do">5. What I would NOT do</a></h2>
 <p><strong>Do not put the fact in the tileset.</strong> It is tempting to author two thruster
 prototypes, an “aft drive” and a “manoeuvring thruster”, and let mating sort them
 out. It cannot: mating is binary and the distinction is global, so both would
 still land anywhere. It would also put a generator concern into shipped catalog
-content that the editor and every scenario have to carry.</p>
+content that the editor and every scenario have to carry. The <code>Grammar</code> is where
+that fact went instead - authored, overlayable, and read by nothing but the
+collapse.</p>
 <p><strong>Do not add a scoring-and-rejection pass.</strong> Generate N ships, score each for
 “engines at the back, bridge on top”, keep the best. It is the obvious answer and
 it is a trap: the cost is N collapses per ship, the failure mode is that the
@@ -403,11 +455,13 @@ it is shared with the editor, and a version of it that knows about “aft” wou
 put a generator’s taste inside a rule a player’s ship is judged by. Aim belongs
 in <code>Part</code>, where it is one file’s opinion; clearance belongs in <code>nova_ship</code>,
 where it is physics.</p>
-<p><strong>Do not reach for backtracking.</strong> Every item above is a unary domain filter and
-none of them can empty a domain, because vacuum is compatible with everything.
-That property is worth defending: a collapse that cannot fail needs no restart
-loop, no retry counter and no failure budget. Any proposal that costs it should
-have to argue for itself.</p>
+<p><strong>Do not reach for backtracking.</strong> Every unary filter above is safe on its own,
+because vacuum is compatible with everything and is never struck. That property
+is worth defending: a collapse that cannot fail needs no restart loop, no retry
+counter and no failure budget. Any proposal that costs it should have to argue
+for itself - and note that item 5 already costs a little of it, because a joint
+face has no vacuum option. The answer there was to REFUSE the grammar with a
+line naming what to change, not to start retrying seeds.</p>
 <h2 id="sources"><a class="header" href="#sources">Sources</a></h2>
 <p>Verified from the primary source:</p>
 <ul>

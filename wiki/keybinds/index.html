@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Keybinds - Nova Protocol Wiki</title>
-        <meta name="description" content="The full control reference: flight, autopilot verbs, radar locking, weapons, camera and interface, for keyboard and gamepad - and all of it rebindable under Settings &gt; Controls." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Keybinds - Nova Protocol Wiki</title><meta name="description" content="The full control reference: flight, autopilot verbs, radar locking, weapons, camera and interface, for keyboard and gamepad - and all of it rebindable under Settings &gt; Controls."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,23 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Wiki navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/">Wiki</a>
-                        / Keybinds
-                    </p>
-                    <h1>Keybinds</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    
-                    <p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. Every one of these is REBINDABLE in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and <code>Reset Defaults</code> puts the whole table back.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Keybinds</p><h1>Keybinds</h1><div class="wiki__tags" id="wiki-tags"></div><p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. Every one of these is REBINDABLE in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and <code>Reset Defaults</code> puts the whole table back. The MOUSE group in that same list holds no bindings - it is the three mouse sensitivity sliders, covered in <a href="../settings/#mouse">Settings</a>.</p>
 <p>A dash means the action has no binding on that device.</p>
 <h2 id="flight" tabindex="-1">Flight</h2>
 <table class="controls controls--split">
@@ -140,7 +116,7 @@
         </tr>
     </tbody>
 </table>
-<p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the mainline campaign flies without it. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
+<p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
 <h2 id="targeting-and-camera" tabindex="-1">Targeting and camera</h2>
 <table class="controls controls--split">
     <thead>
@@ -268,23 +244,40 @@
                 ></span>
                 (default)
             </td>
-            <td>-</td>
+            <td>
+                <span
+                    class="pf pf-trigger-right"
+                    role="img"
+                    aria-label="Right trigger"
+                ></span>
+            </td>
         </tr>
         <tr>
             <td>Launch torpedo</td>
+            <td><kbd>F</kbd> (default)</td>
             <td>
                 <span
-                    class="pf pf-mouse-1"
+                    class="pf pf-trigger-left"
                     role="img"
-                    aria-label="Left mouse button"
+                    aria-label="Left trigger"
                 ></span>
-                (default)
             </td>
-            <td>-</td>
+        </tr>
+        <tr>
+            <td>Fire railgun</td>
+            <td><kbd>R</kbd> (default)</td>
+            <td>
+                <span
+                    class="pf pf-stick-right-click"
+                    role="img"
+                    aria-label="Right stick click"
+                ></span>
+            </td>
         </tr>
     </tbody>
 </table>
-<p>Weapon sections are rebindable: in the editor, click a section to bind it to any key or mouse button, so a ship's turret and torpedo controls are whatever its build assigns. The shipped ship fires both turrets and torpedoes on the left mouse button; a torpedo only launches while you hold a raised (red) combat lock.</p>
+<p>One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a <a href="../sections/railgun/">railgun</a> <kbd>R</kbd>. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.</p>
+<p>None of this is fixed: in the editor, click a section to bind it to any key or mouse button, so a ship's controls are whatever its build assigns.</p>
 <h2 id="interface" tabindex="-1">Interface</h2>
 <table class="controls controls--split">
     <thead>
@@ -319,6 +312,14 @@
                     aria-label="Right stick click"
                 ></span>
             </td>
+        </tr>
+        <tr>
+            <td>
+                <a href="../commands/">Command shell</a> (inspect, settings,
+                armed cheats; works with no ship, and over the menus)
+            </td>
+            <td><kbd>:</kbd></td>
+            <td>-</td>
         </tr>
         <tr>
             <td>Pause menu</td>
@@ -455,9 +456,11 @@ rather than hidden.</p>
 <p><strong>A number's NAME is its grip.</strong> Drag the name left or right and the value
 follows, one step per pixel, live - there is nothing to confirm. A vector row
 has three of them, one per axis letter. Click into the box instead to type a
-number. Lengths are in <code>u</code>, the authored world unit, and the unit is printed
-beside the box; the HUD converts to metres for the player, but the editor is
-content, and content is authored in <code>u</code>.</p>
+number. What a row is measured in comes from the field's own type, and the unit
+is printed beside the box: <code>m</code>, <code>m/s</code> or <code>m/s2</code> for a length, a speed or an
+acceleration, and <code>cells</code> for the build-grid sizes a section's own mesh is drawn
+in. Nothing is converted on the way in or out - the file already holds the
+number the box shows, so a builder types what the HUD would read.</p>
 <p>The two gestures are not the same rule. A drag ARRIVES at a field's floor and
 stops there - dragging a radius past zero is asking for the smallest value there
 is. A typed number below the floor is REFUSED, because typing <code>-3</code> into a radius
@@ -471,15 +474,12 @@ the skin and the plating closes over it before you click. A placement the editor
 refuses stays bare. The toggle carries through to Play, so the ship you built
 clad is the ship you fly clad.</p>
 <p>Button glyphs from <a href="https://shinmera.com/promptfont/">PromptFont</a> by Yukari &quot;Shinmera&quot; Hafner (SIL Open Font License).</p>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -490,6 +490,4 @@ clad is the ship you fly clad.</p>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>

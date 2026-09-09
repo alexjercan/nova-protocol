@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -312,9 +312,10 @@ required one:</p>
 <tr><td><code>name</code></td><td>what a log line and a stall message call this beat</td></tr>
 <tr><td><code>enter</code></td><td>the state to set on entry</td></tr>
 <tr><td><code>on_enter</code></td><td>a world action run once, on entry (a synthesized gesture, a scenario poke)</td></tr>
-<tr><td><code>each</code></td><td>a world action run every frame, with the IN-STEP elapsed seconds</td></tr>
+<tr><td><code>each</code></td><td>a world action run every frame, with the IN-STEP elapsed seconds and the IN-STEP frame index</td></tr>
 <tr><td><code>until</code></td><td>the predicate that advances the step</td></tr>
 <tr><td><code>deadline</code></td><td>in-step seconds after which an unsatisfied <code>until</code> ABORTS the run, naming the step</td></tr>
+<tr><td><code>diagnose</code></td><td>a reader of the world appended to that abort message, so the stall says WHY</td></tr>
 </tbody>
 </table>
 </div>
@@ -322,16 +323,18 @@ required one:</p>
 waiting FOR, not after what it pokes</strong> - the name is what a stall message
 carries, and “stalled on <code>lock the prey</code>” is a diagnosis where “stalled after 30
 seconds” is a shrug.</p>
-<p>Elapsed time is one predicate among many, so <code>hold(state, secs)</code> - enter a
-state, wait N seconds - is sugar for
-<code>step("hold:&lt;state&gt;").enter(state).until(elapsed(secs))</code> rather than a second
-mechanism. The vocabulary is in <code>nova_autopilot::predicate</code> (<code>elapsed</code>,
+<p>Elapsed time is one predicate among many, and there is no second mechanism
+beside the step list: “wait N seconds in this state” is
+<code>step("...").enter(state).until(elapsed(secs))</code>, written out where anyone
+reading the script can see what it waits for. The vocabulary is in
+<code>nova_autopilot::predicate</code> (<code>elapsed</code>,
 <code>frames</code>, <code>state_is</code>, <code>resource_where</code>, <code>any_entity</code>, <code>ui_node_present</code>,
-<code>pointer_pressed</code>, <code>pointer_released</code>, <code>pointer_at</code>, <code>shot_written</code>,
+<code>pointer_pressed</code>, <code>pointer_released</code>, <code>pointer_at</code>, <code>pointer_at_node</code>,
+<code>window_size_is</code>, <code>window_scale_factor_is</code>, <code>shot_written</code>,
 <code>loop_written</code>, <code>and</code>, <code>or</code>, <code>not</code>), the
 gestures in <code>nova_autopilot::input</code> (<code>press_key</code>, <code>release_key</code>, <code>type_text</code>,
 <code>press_edit_key</code>, <code>press_mouse</code>, <code>release_mouse</code>, <code>move_cursor</code>, <code>click_at</code>,
-<code>scroll_lines</code>, <code>scroll_pixels</code>), and the Nova-typed
+<code>click_named</code>, <code>scroll_lines</code>, <code>scroll_pixels</code>), and the Nova-typed
 predicates in <code>nova_debug::harness</code> (<code>scenario_variable_is</code>, <code>section_gone</code>,
 <code>player_ship_present</code>, and the <code>editor_*</code> set below). Anything the vocabulary
 cannot express is a plain closure: <code>Arc::new(|world: &amp;World| ...)</code>.</p>
@@ -346,8 +349,8 @@ delete anything, and pressing only <code>Key::Delete</code> asserts the opposite
 outcomes - see <code>examples/systems/system_input_modes.rs</code>, which presses each key
 down both channels and then asserts what the field holds as well as what the
 document holds.</p>
-<h3 id="a-ui-gesture-is-three-waits-not-three-sleeps"><a class="header" href="#a-ui-gesture-is-three-waits-not-three-sleeps">A UI gesture is three waits, not three sleeps</a></h3>
-<p>A click on a widget owes the app three acks, and each one is a predicate:</p>
+<h3 id="a-ui-gesture-is-four-waits-not-four-sleeps"><a class="header" href="#a-ui-gesture-is-four-waits-not-four-sleeps">A UI gesture is four waits, not four sleeps</a></h3>
+<p>A click on a widget owes the app four acks, and each one is a predicate:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -355,6 +358,7 @@ document holds.</p>
 </thead>
 <tbody>
 <tr><td>the widget is up</td><td><code>ui_node_present(name)</code></td><td><code>click_named</code> WARNS and continues on an unresolved name, so a press at a panel that has not laid out is a beat silently lost</td></tr>
+<tr><td>aim</td><td><code>pointer_over_node(name)</code></td><td>a resolvable rect is not a clickable widget: an overlay on its way out takes every pick, and a reflow moves the widget out from under an aim already sent</td></tr>
 <tr><td>press</td><td><code>pointer_pressed()</code></td><td>the picking backend turns the button event into pointer state a <code>PreUpdate</code> later, and a release before that is a click the widget never saw</td></tr>
 <tr><td>release</td><td><code>pointer_released()</code></td><td><code>Activate</code> fires on the release edge, so this is the beat the button’s effect belongs after</td></tr>
 </tbody>
@@ -369,6 +373,20 @@ the settles existed for. And the pointer acks answer for <code>PointerId::Mouse<
 alone, because that is the pointer the gestures drive; an app may carry others
 (Nova’s terminal parks a forwarded one), and a second pointer sitting in the
 opposite state would otherwise ack for the one the beat actually moved.</p>
+<p>The aim beat re-hovers EVERY frame rather than holding the coordinate it first
+sent, so a reflow moves it along instead of stranding it; it carries
+<code>pointer_hover_diagnosis(name)</code>, which names the occluder that took the pick.</p>
+<p>Those four beats are one builder, not a shape each script re-types:
+<code>AutopilotPlugin::click_named(label, name, landed, deadline)</code>, with
+<code>double_click_named</code> beside it. <code>landed</code> is the caller’s own condition - what
+the click was FOR - so a click whose effect never arrived stalls on the beat
+that made it. <code>pointer_released()</code> is the weakest thing to pass and the right
+one where the effect is waited on by the beat after.</p>
+<p>The layout beat carries <code>ui_node_diagnosis(name)</code>, so a stall there says which
+of the four ways <code>ui_node_present</code> can be false actually happened: no such name,
+a name hidden by its ancestry, a visible node with no laid-out box, or no UI
+node type registered at all. Those are three different bugs with three different
+fixes, and the deadline message used to name none of them.</p>
 <p>What the button DID is the caller’s next beat, and it is a condition too. The
 editor publishes its own decisions as data for exactly this: <code>nova_editor</code>’s
 public, read-only <code>EditorProbe</code> carries the armed tool, what a click would build
@@ -378,6 +396,10 @@ selection resolves to. <code>nova_debug::harness</code> wraps those as <code>edi
 <code>editor_part_armed</code>, <code>editor_placement_solved</code>, <code>editor_placement_refused</code>,
 <code>editor_placement_clear</code>, <code>editor_gallery_open</code>, <code>editor_gallery_closed</code>,
 <code>editor_filter_focused</code> and <code>editor_gallery_selected</code>.</p>
+<p>The probe exists only in a <code>debug</code> build, which is the only build that has
+those predicates: <code>nova_debug</code> and the snapshot are linked by the same feature.
+A shipped editor does not carry it, and does not pay the document sweep that
+fills it.</p>
 <p>So a placing gesture reads: aim, hold until the editor SOLVED a placement there;
 press, hold until the pointer registered it; release; hold until the section
 landed. <code>system_ship_editor</code> and the <code>screenshot_editor</code> walk are written that
@@ -445,6 +467,34 @@ settle sized off the mechanism (<code>LAUNCH_SETTLE_SECS</code>, <code>BURN_WIND
 <code>HIT_SETTLE_SECS</code>), never the outcome itself. A settle is a runway, so it owes
 a derivation on its constant; what it must not do is read the quantity the
 assert decides.</p>
+<h3 id="what-a-frame-count-is-for"><a class="header" href="#what-a-frame-count-is-for">What a frame count is for</a></h3>
+<p><code>frames(n)</code> stays in the vocabulary, with a narrow job. A frame is not a unit of
+work - the same count is milliseconds on a workstation and most of a second
+under lavapipe - so a count is only honest where the thing being waited for is
+counted in frames. Four cases qualify:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Case</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td>render, raster or shader work coming to rest before a shot</td><td><code>frames(SETTLE_FRAMES)</code> ahead of <code>shoot</code></td></tr>
+<tr><td>deterministic media duration</td><td>the <code>loop_*</code> ranges, where <code>LoopProfile</code> pins the frame clock so a count IS a webm length</td></tr>
+<tr><td>a verdict that NOTHING happened</td><td>“the pointer stayed put while a stray moved” has no positive event to wait on</td></tr>
+<tr><td>deliberate separation between an action and the assert that tests it</td><td>keeping a beat strictly weaker than the claim it precedes</td></tr>
+</tbody>
+</table>
+</div>
+<p>Everything else is a guess at how long hidden state takes to change, and the
+state is nearly always readable: a window resize lands in
+<code>Camera::logical_viewport_size</code>, a DPI change lands in
+<code>ComputedNode::inverse_scale_factor</code>, a shell command lands in the terminal’s
+own scrollback revision. Wait on the landing. <code>frames(1)</code> in particular is
+nothing at all - a step with no <code>until</code> already advances on its first driven
+frame - so it says only that its author wanted a step.</p>
+<p>Deadlines come from two shared constants rather than a copy per file:
+<code>STEP_DEADLINE_SECS</code> (30s, a world condition) and <code>BEAT_DEADLINE_SECS</code> (20s, one
+gesture), both in <code>nova_debug::harness</code>.</p>
 <h3 id="the-runway-anti-pattern"><a class="header" href="#the-runway-anti-pattern">The runway anti-pattern</a></h3>
 <p>The shape to avoid is a wall-clock RUNWAY plus one closure that re-derives a
 step machine from booleans:</p>
@@ -453,12 +503,15 @@ step machine from booleans:</p>
 </span>app.add_plugins(
     AutopilotPlugin::&lt;GameStates&gt;::new()
         .self_completing()
-        .hold(GameStates::Loading, 30.0)   // a runway, unrelated to Loading
+        .step("hold")                      // a runway, unrelated to Loading
+        .enter(GameStates::Loading)
+        .until(elapsed(30.0))
+        .add()
         .input(script),                    // every frame, in every state
 );
 app.add_systems(Last, guard_script_completion);
 
-fn script(world: &amp;mut World, elapsed: f32) {
+fn script(world: &amp;mut World, elapsed: f32, _frame: u32) {
     if *world.resource::&lt;State&lt;GameStates&gt;&gt;().get() != GameStates::Playing {
         return;
     }
@@ -564,13 +617,24 @@ range that only wants ONE settled picture of itself does not get a driver
 either: <code>nova_screenshot(script)</code> appends the settle-and-shoot beat to the
 script it already has.</p>
 <h3 id="deadlines"><a class="header" href="#deadlines">Deadlines</a></h3>
-<p>A step’s <code>deadline</code> is IN-STEP seconds and is unset by default, leaving
+<p>A step’s <code>deadline</code> is IN-STEP REAL seconds and is unset by default, leaving
 <code>NOVA_AUTOPILOT_DEADLINE</code> as the run-level backstop for a script that hangs
 somewhere without one. Set a deadline where a stall is worth NAMING, and <strong>keep
 the sum of a script’s deadlines under the run-level value</strong> - otherwise the
 generic hang detector wins the race and the named-step diagnostic is lost. That
 ordering is documented, not enforced: the run-level value comes from the harness
 that launches the process, which the crate cannot see.</p>
+<p>Real seconds, not the app’s: Nova pauses <code>Time&lt;Virtual&gt;</code> behind the pause
+overlay and the ship computer, so a deadline measured on the game clock stops
+counting the moment a walk opens either - and a beat that stalls there holds the
+run open with nothing naming the step. Both clocks that time a run read
+<code>Time&lt;Real&gt;</code> for that reason: the step deadline, and the run-level watcher’s own
+<code>elapsed</code>.</p>
+<p>One exception, and it is by design: a loop capture pins the REAL clock to its
+profile’s frame duration, so a deadline inside a loop counts RENDERED FRAMES
+over the profile fps and not wall seconds. Budget a beat between <code>loop_start</code>
+and <code>loop_end</code> in frames, and expect a slow capture host to spend longer in the
+room than the deadline names.</p>
 <h3 id="do-not-enter-a-state-something-else-owns"><a class="header" href="#do-not-enter-a-state-something-else-owns">Do not <code>enter</code> a state something else owns</a></h3>
 <p><code>enter</code> force-sets <code>NextState</code>, which is why a Nova script does not enter
 <code>GameStates::Playing</code>: the <code>Loading -&gt; Playing</code> transition is asset-gated by the
@@ -625,7 +689,7 @@ how to read it: <a href="performance.html">Measuring performance</a>.</li>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="environment-variables.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="agent-bench.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -639,7 +703,7 @@ how to read it: <a href="performance.html">Measuring performance</a>.</li>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="environment-variables.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="agent-bench.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

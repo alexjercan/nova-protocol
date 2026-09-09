@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e1d17872.js";
+            window.path_to_searchindex_js = "searchindex-45d65662.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6c135d9b.js"></script>
+        <script src="toc-8e8ad555.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -190,7 +190,7 @@ the packaged game with no checkout and no development shell. See
 </ul>
 <h2 id="everyday-commands"><a class="header" href="#everyday-commands">Everyday commands</a></h2>
 <pre><code class="language-sh">cargo run                         # the game (boots into the main menu)
-cargo run -- --scenario broadside # the game, straight into one scenario
+cargo run -- --scenario tutorial    # the game, straight into one scenario
 cargo run --features dev          # + debug tooling (inspector, wireframe)
 cargo run --example system_scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
@@ -409,13 +409,19 @@ review enforces it.</p>
 pause menu, a result board and a <code>--ship TEAM:player</code> slot that puts you in
 one of them). Then the benches and galleries, each with its own keys:
 <code>wfc_ships</code> (<code>R</code> re-rolls the collapsed row), <code>shape_bench</code> and <code>block_bench</code>
-(<code>L</code> cycles the style, <code>C</code> strips the cladding), <code>greeble_catalog</code> (a
+(<code>L</code> cycles the style, <code>C</code> strips the cladding), <code>railgun_wake_bench</code> (the
+slug’s ionized wake at three speeds, <code>1</code>-<code>3</code> pick the lifetime policy, the
+arrows tune it, <code>[</code> <code>]</code> slow it down), <code>greeble_catalog</code> (a
 selection ring, a focus turntable, pedestal and cell-frame toggles),
 <code>parts_viewer</code> (a paged grid, a focus turntable and a reassembled recipe ship
 with an explode toggle), <code>widget_zoo</code> (every <code>nova_ui</code> widget factory, live
-and clickable in both skins) and <code>compare_asteroids</code> / <code>compare_planets</code> (the
-number keys re-dress the focus subject). All of them still walk and capture
-under <code>NOVA_AUTOPILOT</code>, which is what keeps them on the probe gate.</li>
+and clickable in both skins), <code>compare_asteroids</code> / <code>compare_planets</code> (the
+number keys re-dress the focus subject) and <code>asteroid_kinds</code> / <code>planet_types</code>
+(the whole authored range of each, side by side). Last, the mission-scale
+pair: <code>first_shift_map</code> is a fixed belt layout with a route over it - the most
+populated authored scene there is - and <code>first_shift_ships</code> poses eight
+shipped hulls in a row. All of them still walk and capture under
+<code>NOVA_AUTOPILOT</code>, which is what keeps them on the probe gate.</li>
 <li><code>systems/</code> - the correctness ranges. Every name carries a prefix for the KIND
 of check it is - <code>system_</code> functionality, <code>bug_</code> a regression range for a
 defect that was found, <code>stress_</code> load - and <code>examples/systems/README.md</code> owns
@@ -430,11 +436,17 @@ breaking into its OWN art rather than generic cubes, on one budget),
 <code>system_turret_gunnery</code> and <code>system_torpedo_launch</code> (the
 weapon ranges, the latter also the PN lead-a-crosser deep-dive), and
 <code>system_blast_penetration</code> (explosive falloff, one section shielding the next
-and two salvos that cannot use the hole they make in the same tick). Then the
+and two salvos that cannot use the hole they make in the same tick) and
+<code>system_railgun_lance</code> (the spinal gun: a commit that outlives the trigger, a
+charge cue, one slug raking six plates in a single step, and the recoil that
+shoves the firing ship). Then the
 cross-cutting systems, every fixture a <code>ScenarioConfig</code> written in Rust and
 loaded with <code>LoadScenario</code>: <code>system_scenario_grammar</code> (the scenario language -
 variables, events, filters, actions), <code>system_player_path</code> (a scenario played
 through the real input pipeline: lock, kill, travel-lock, GOTO),
+<code>system_cinematic</code> (a SCENE: the prompt and title card it puts on the HUD,
+the pause that freezes the way out, the skip the player presses, and the two
+endings the scenario hears in order),
 <code>system_outcomes</code>
 (die -&gt; the Defeat overlay -&gt; Retry -&gt; a clean reload -&gt; kill -&gt; the
 objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
@@ -474,6 +486,11 @@ scale constants are named and carry the comment that they must NEVER reflect
 real content; <code>stress_point_defense</code> also reads <code>NOVA_STRESS_PD_MOUNTS</code> and
 <code>NOVA_STRESS_PD_BAYS</code>, so one build can be swept across scales without
 moving what it asserts.
+<code>stress_hull_collapse</code> is the odd one out: it fires ONE siege slug down the
+long axis of a 1296-cell hull and asserts the corridor that left it and that
+every piece it shed went physical, then RECORDS the collapse frame cost and
+the debris peak instead of capturing frames, because a one-shot walk cannot
+fill the baseline window.
 The UI idiom: a beat NAMES its target (<code>click_named</code> / <code>hover_named</code> /
 <code>ui_node_centre</code> / <code>ui_node_rect</code> in <code>nova_autopilot::input</code>) so a layout move
 is survivable and only a rename breaks a run; nothing reaches a widget by
@@ -502,10 +519,17 @@ The stills, by set: the Drydock drift beauty shots (<code>screenshot_gravity</co
 computer (<code>screenshot_nova_os_terminal</code>, <code>screenshot_nova_os_apps</code>), the Rock
 hollow combat beats (<code>screenshot_radar_lock</code>, <code>screenshot_contextual_hud</code>,
 <code>screenshot_combat_lock</code>, <code>screenshot_combat_hud</code>, <code>screenshot_combat_wide</code>,
-<code>screenshot_hull_juice</code>, <code>screenshot_torpedo_run</code>) and the flight computer
-around a real well (<code>screenshot_orbit</code>, <code>screenshot_goto_burn</code>,
-<code>screenshot_flip_burn</code>). The two webm producers are <code>loop_torpedo_blast</code> and
-<code>loop_spine_cut</code>. The posed LINEUPS live here too -
+<code>screenshot_hull_juice</code>, <code>screenshot_torpedo_run</code>, <code>screenshot_comms</code>), the
+spinal lance
+(<code>screenshot_railgun</code>) and the flight computer around a real well
+(<code>screenshot_orbit</code>, <code>screenshot_goto_burn</code>, <code>screenshot_flip_burn</code>). The
+<code>loop_*</code> producers write only video; recording is not their
+privilege, though - a <code>loop_start</code>/<code>loop_end</code> pair records from any harnessed
+example, so <code>screenshot_railgun</code>, <code>screenshot_editor</code>, <code>wfc_arena</code> and
+<code>system_torpedo_launch</code> each ship a loop beside their stills. What a run makes
+is decided by <code>scripts/capture-web-media.sh</code> (loops) and
+<code>scripts/gen-web-screenshots.py</code> (stills), which name every producer and every
+file it writes. The posed LINEUPS live here too -
 <code>screenshot_thruster_gallery</code> (the shipped drive, the proposed shell family
 and the CC0 candidates in one named row) and <code>screenshot_damage_levels</code> (the
 same ship at five damage levels, side by side, which is one comparison and so
@@ -543,13 +567,17 @@ the completion protocol, and the full <code>NOVA_*</code> environment contract -
 the <code>nova_autopilot</code> crate and are documented on
 <a href="automation-harness.html">The automation harness</a>. This page only shows the run
 recipes; that page is the contract.</p>
-<p>Harness runs are SILENT: any harness env (<code>NOVA_AUTOPILOT</code>,
-<code>NOVA_CAPTURE</code>) zeroes the audio output via <code>HarnessMute</code> - Xvfb hides the
-window but not the speakers, and nobody listens to a scripted run. The
-volume SETTING is untouched (persistence and the settings menu never see
-the mute). <code>NOVA_MUTE=0</code> forces sound through a harness run;
+<p>Harness runs are SILENT and fly on the DEFAULTS: any harness env
+(<code>NOVA_AUTOPILOT</code>, <code>NOVA_CAPTURE</code>) zeroes the audio output via <code>HarnessMute</code> -
+Xvfb hides the window but not the speakers, and nobody listens to a scripted run</p>
+<ul>
+<li>and makes <code>SettingsStorePlugin</code> inert, so the run loads no <code>settings.ron</code>,
+saves none, and applies no window mode. Both read the same pair through
+<code>nova_gameplay::harness_env_active</code>. The volume SETTING is untouched (the mute
+is an output mask; persistence and the settings menu never see it). <code>NOVA_MUTE=0</code> forces sound through a harness run;
 <code>NOVA_MUTE=1</code> mutes a normal one, and the game binary’s <code>--mute</code> flag does the
-same - see the outputs-off pair above.</p>
+same - see the outputs-off pair above.</li>
+</ul>
 <h3 id="examples-as-bug-pins"><a class="header" href="#examples-as-bug-pins">Examples as bug pins</a></h3>
 <p>A bug becomes a RANGE (<code>AGENTS.md</code>): reproduce it in <code>examples/systems/</code>
 before the fix, and the fix is what turns the range green. A unit/App test
@@ -568,7 +596,7 @@ at queue time).</p>
 <p><code>--scenario &lt;id&gt;</code> on the game binary boots straight into that scenario, past
 the main menu - for anyone who would rather not click through the picker, and
 for a mod author testing one scenario id in one command:</p>
-<pre><code class="language-sh">cargo run -- --scenario broadside          # a base scenario
+<pre><code class="language-sh">cargo run -- --scenario tutorial           # a base scenario
 cargo run -- --scenario my_mod_intro       # anything an ENABLED mod registers
 cargo run -- --scenario nope               # refuses, and lists every id
 </code></pre>
@@ -591,7 +619,7 @@ the same non-blocking load screen as a click on Play.</li>
 <p><code>content</code> (<code>nova_authoring::cli::main</code>, <code>crates/nova_authoring/src/cli.rs</code>; a
 subcommand of the game binary, not a separate bin) authors and validates the
 game’s content. Two subcommands, run from the repo root:</p>
-<pre><code class="language-sh">cargo run content gen                                   # regenerate the base *.content.ron
+<pre><code class="language-sh">cargo run content gen                                   # regenerate the base and story-mod *.content.ron
 cargo run content lint                                  # lint the whole content tree
 cargo run content lint --target &lt;mod&gt;                   # lint one mod (dir, id, or `base`)
 cargo run content lint --target &lt;mod&gt; --report r.md     # + write a per-mod report (md|html)
@@ -711,14 +739,17 @@ captured in-engine and packaged into <code>web/src/assets/</code> by
 <code>scripts/gen-web-screenshots.py</code>. Each figure auto-upgrades to its image at
 runtime once the asset exists (progressive enhancement in <code>web/src/site.ts</code>), so
 no HTML edit is needed - just drop the file in.</p>
-<p>Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
-staging dir, then package into <code>web/src/assets/</code>:</p>
-<pre><code class="language-sh">export NOVA_CAPTURE_DIR=target/shots
-for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
-    NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example "$shot" --features debug
-done
-python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
+<p>Capture and package in one command:</p>
+<pre><code class="language-sh">nix develop --command scripts/capture-web-shots.sh              # every producer
+nix develop --command scripts/capture-web-shots.sh screenshot_railgun  # or a few
 </code></pre>
+<p>It stages into <code>target/shots</code>, runs each producer under Xvfb, and then packages
+with <code>scripts/gen-web-screenshots.py</code>. It is the stills half of a pair:
+<code>scripts/capture-web-media.sh</code> does the same for the webm loops. Both point
+<code>NOVA_MODDING_CACHE_ROOT</code> and <code>NOVA_CONFIG_ROOT</code> at the capture sandbox and stamp
+a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
+producer that enables one on purpose (<code>screenshot_scenario_picker</code> does) can
+dress the next shot.</p>
 <p>The capture examples run headless under <code>NOVA_AUTOPILOT</code>: each is one autopilot
 script whose steps pose the camera and shoot, and <code>NOVA_CAPTURE</code> is what makes
 those shot steps write 1920x1080 PNGs rather than drive straight through. The Python step validates
@@ -787,8 +818,8 @@ churns turns every unrelated diff into a binary one.</p>
 <p>The three mesh scripts (<code>gen-greebles.py</code>, <code>cut-obj-into-hulls.py</code>,
 <code>cut-obj-into-parts.py</code>) share ONE hand-rolled, stdlib-only glTF writer,
 <code>scripts/nova_glb.py</code>. Prove a change to it kept the committed art intact by
-re-cutting a ship and diffing against <code>assets/base/gltf/parts/&lt;ship&gt;/</code>, which
-is byte-reproducible from its recipe.</p>
+re-cutting a ship and diffing against <code>webmods/the-ledger/gltf/parts/&lt;ship&gt;/</code>,
+which is byte-reproducible from its recipe.</p>
 <h3 id="eyeballing-the-site"><a class="header" href="#eyeballing-the-site">Eyeballing the site</a></h3>
 <p><code>npm run ci</code> proves the bundle compiles and the theme tokens are in sync; it
 proves nothing about how a page LOOKS. For any styling, layout or readability
@@ -833,8 +864,8 @@ cargo run --features debug probe run system_player_path --repeat 5  # gated repe
 cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -&gt; aggregate index
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
-cargo run --features debug probe scenario broadside      # a SCENARIO by id, no example involved
-cargo run --features debug probe scenario assets/base/scenarios/broadside.content.ron  # ... or by file
+cargo run --features debug probe scenario tutorial       # a SCENARIO by id, no example involved
+cargo run --features debug probe scenario assets/base/scenarios/tutorial.content.ron  # ... or by file
 </code></pre>
 <p>It runs the example headless (throwaway Xvfb; <code>--display :0</code> to reuse yours -
 and note that a software X server is not free, see
@@ -884,7 +915,10 @@ probe-owned profile under its own run dir - <code>profile/mods</code>
 (<code>NOVA_MODDING_CACHE_ROOT</code>, the downloaded-mod cache and its <code>installed.mods.ron</code>),
 <code>profile/data</code> (<code>XDG_DATA_HOME</code>) and <code>profile/config</code> (<code>XDG_CONFIG_HOME</code>, where
 <code>enabled_mods.ron</code> and <code>settings.ron</code> live) - and the tree is wiped at the start
-of each run. Without it, a mod cached in a structure an older commit cannot
+of each run. <code>settings.ron</code> is belt and braces there: every probe child run
+carries <code>NOVA_AUTOPILOT</code>, which makes the settings store inert, so a run reads
+no <code>settings.ron</code> at all and writes none. The sandbox is what isolates the mod
+state. Without it, a mod cached in a structure an older commit cannot
 parse, or a saved enabled-mod set, fails or shifts a run for reasons unrelated
 to the code under measurement. Shipped content is untouched: <code>assets/</code> and
 <code>assets/mods.catalog.ron</code> load exactly as they do for a player, only YOUR saved
@@ -925,7 +959,8 @@ velocities finite (plus an absurd-speed bound at 10x a ship’s soft
 <code>FlightSpeedCap</code>), scenario Number variables finite, registered monotonic
 variables never decreasing (opt-in per example: <code>system_player_path</code> registers
 <code>target_down</code>/<code>leg</code>, <code>system_scenario_grammar</code> seven counters and latches,
-<code>system_outcomes</code> <code>hostile_down</code>), and a total entity-count leak bound. A
+<code>system_cinematic</code> eight scene latches, <code>system_outcomes</code> <code>hostile_down</code>), and a
+total entity-count leak bound. A
 monotonic is one-way within a SCENARIO LIFE, not for the process: the memory is
 forgotten on <code>ScenarioLoaded</code>, so an example that replays through its loop
 point re-seeds its latches without taking a false regression. Violations warn,
@@ -957,7 +992,11 @@ parsing HTML.</p>
 <h2 id="versioning-and-release"><a class="header" href="#versioning-and-release">Versioning and release</a></h2>
 <ul>
 <li>Version: <code>workspace.package.version</code> in root <code>Cargo.toml</code>; crates inherit it.</li>
-<li><code>nova_info::APP_VERSION</code> comes from the <code>APP_VERSION</code> env var via <code>build.rs</code>.</li>
+<li><code>nova_info::APP_VERSION</code> comes from the <code>APP_VERSION</code> env var via <code>build.rs</code>.
+A <code>--features debug</code> build appends the short commit hash
+(<code>0.12.0+9da8b055</code>, or <code>+unknown</code> outside a checkout), so the status bar
+names the revision. The build script tracks <code>.git/HEAD</code> and its ref, so a
+new commit restamps it.</li>
 <li>Packaging assets (icons, installer, .app) live under <code>build/</code>.</li>
 </ul>
 <h3 id="the-nix-package"><a class="header" href="#the-nix-package">The nix package</a></h3>
@@ -1084,6 +1123,109 @@ excerpt. For the thumbnail, use the YouTube thumbnail
 otherwise the <code>.post-card__ph</code> placeholder naming <code>assets/thumb-news-&lt;version&gt;.png</code>.</li>
 <li>Rebuild and check it: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, test, build).</li>
 </ol>
+<h3 id="comic-deployment"><a class="header" href="#comic-deployment">Comic deployment</a></h3>
+<p><code>npm --prefix web run build:story</code> builds only released comics into
+<code>web/dist-story/story/</code>. Its local scripts, images, favicon, and font assets
+stay under <code>/story/</code>. Shared theme/header sources are compiled into that
+snapshot; unrelated website pages are neither built nor published. The shared
+Google Fonts import remains external. Normal serving still uses the complete
+website and labelled drafts; there is no second development server.</p>
+<p>Pushing a <code>comic-*</code> tag starts <code>deploy-comic</code>. A manual run accepts an existing
+comic tag for a retry or rollback. The workflow resolves the tag to a commit,
+builds once, and passes the artifact and exact commit to its publisher. The tag
+names a library snapshot, not a filter: publication metadata selects episodes.
+Game <code>vX.Y.Z</code> tags and version numbers remain separate. The comic authoring
+README owns the publishing procedure and first-rollout checklist.</p>
+<p>The full Pages workflow uses <code>build:site</code>, which does not execute or emit comics.
+Both publishers use <code>scripts/deploy-pages.py</code>. It fetches the latest <code>gh-pages</code>
+under a shared <code>github-pages-publish</code> job lock, builds a temporary Git index and
+working tree, and commits a scoped merge without changing the source checkout’s
+index. A comic deployment replaces only <code>story/</code>; a site deployment preserves
+it. Both preserve <code>CNAME</code> and ensure <code>.nojekyll</code>. Non-fast-forward pushes fail.
+Pages hosting must use the <code>gh-pages</code> branch root. Both jobs explicitly request
+and wait for a Pages API build with a write-scoped Pages token.</p>
+<p>Bootstrap the new comic directory before a site-only deployment can remove old
+root-level reader files. The guard requires <code>story/release.json</code>, which records
+the comic tag and source commit. Use the current site’s workflow, not a workflow
+from an older game tag that predates the ownership split. Serial publishing is
+not a FIFO release queue; wait for one deployment before starting another.</p>
+<p><code>npm --prefix web run test:deploy</code> checks isolated builds with released/draft
+fixtures and local bare-Git publishing with mocked HTTP. It never publishes to
+GitHub. Normal <code>npm run build</code> still builds the complete released-only website
+for checks; it is not the input to either scoped publisher.</p>
+<h3 id="writing-a-story-comic"><a class="header" href="#writing-a-story-comic">Writing a story comic</a></h3>
+<p><code>web/src/comics/</code> is the single home for maintained comic sources. Each season
+has <code>comic.json</code>; each episode has <code>episode.json</code>, an ordered <code>episode.ts</code>, one
+TS file per page under <code>pages/</code>, and Python panel drawings under <code>art/</code>. The
+directory names provide <code>/story/season-1/episode-1/</code>, with page ids in the
+fragment. Shared faces, ships, and colors remain in <code>scripts/nova_illustration/</code>.
+<code>web/src/comics/README.md</code> owns the DSL and build contracts. Public exporters
+must not import task files.</p>
+<p><code>/story/</code> lists seasons only, in reading order. Each season has one illustrated
+row with its title, summary, selected episode count, and labelled local draft
+count. Click it to open <code>/story/&lt;season&gt;/</code>, which lists that season’s episodes
+in authored order. Each episode has one clickable row and one thumbnail;
+drafts show how many pages are illustrated. There are no duplicate reading
+shortcuts or repeated season cover above the episodes.</p>
+<p>The season page returns to the library through Story. The reader returns to its
+episode list through the season title, such as Season 1; Pages opens its page
+chooser. The phosphor shell surrounds full-color art.</p>
+<p>Run <code>npm --prefix web run serve</code> and open <code>/story/</code> at the printed loopback URL.
+Normal local development includes labelled drafts. Source edits regenerate pages
+and reload the same page fragment. It uses <code>web/.cache/story/development/site</code>,
+not <code>web/dist</code>, and does not serve stale files from a prior disk build.
+<code>scripts/serve-web.sh</code> starts this same server with the game and portal.</p>
+<p><code>npm --prefix web run build</code> always selects released episodes, even with webpack
+in development mode. Serving with <code>--mode production</code> also excludes drafts.
+Selection happens before generation: an excluded episode’s code never runs,
+and none of its routes, assets, dialogue, or script enters the output. Only
+referenced assets are emitted; comic directories are not broad copy/import
+inputs. With no released episodes, the public archive has a plain empty state.</p>
+<p>Every metadata field is required. <code>comic.json</code> gives the unique positive season
+<code>sequence</code>, title, summary, and ordered episode directory ids. <code>episode.json</code>
+gives title, summary, cover scene id and alt text, TS entry filename, explicit
+Python art-module paths, complete <code>pageCount</code>, and <code>publication</code> (<code>draft</code> or
+<code>released</code>). Unknown fields, missing sources,
+unregistered directories, duplicate ids, and invalid generated data fail.
+Released episodes must form a prefix of reading order and have exactly their
+authored page count. A season can contain released episodes and the next draft.
+Publishing changes metadata after approval; sources stay in place. Comic release
+remains independent of campaign implementation.</p>
+<p>The TS page language owns action, dialogue, screen labels, narrative location
+cards, and page layout. Dialogue uses stable ids; balloon placement is keyed
+separately. Unillustrated pages remain TS scripts without fake art references.
+The shared build engine derives reader definitions, transcripts, and a reading
+copy named <code>SCRIPT.md</code> in the generated cache. That Markdown is not another
+maintained source. Unillustrated story text never enters a reader manifest.</p>
+<p>Python art modules register named <code>Scene</code> functions. The common builder exports
+only referenced standalone panel SVGs; it neither draws nor strips dialogue.
+Blank named text slots preserve labels’ painter order under hands and equipment.
+Raw SVG is checked before export, and the browser checks it again on import.
+<code>comic-panels.ts</code> composes the page frame, panels, labels, cards, and measured
+balloons. <code>comic-renderer.ts</code> owns the DOM; <code>ComicPlayer</code> in <code>story-reader.ts</code>
+owns fitted playback, contents, deep links, and input. New pages update
+automatically. Route changes and build-engine JS changes need a server restart.</p>
+<p>Open image exports the displayed full page. The compact Panels and Transcript
+toolbar buttons open scrollable modals without taking space from the page.
+Panels offers each raw art SVG and its lettered export. Close or Escape restores
+focus to the opening button. These exports share the reader’s measured
+layout. Automatic wrapping uses actual font metrics; explicit word-count breaks
+retain accepted lettering. The local Art only control hides speech. Automated
+browser checks inspect measured layout without a reader control or diagnostic
+overlay. Face checks use contour bounds, not hair boxes, and do not replace
+visual review. Full-color pages have no CRT tint,
+scanlines, or shade overlay. Older typed HUD helpers remain internal renderer
+building blocks, not a demonstration or a second story authoring workflow.</p>
+<p>Run <code>cd web &amp;&amp; npm run ci</code>, then inspect the season library, each season’s episode
+list, and reader routes at desktop and narrow widths, including a project URL
+prefix. Check browser Back and the labelled return links at both levels.
+The reader displays one page. Buttons, contents, arrow/Page keys, wheel, and a
+single-finger vertical swipe change pages. Modified zoom gestures are not page
+turns. Open image uses the browser’s full-size image view and native zoom for the
+complete composition. Transcript exposes the selected page’s derived text in
+its modal; scrolling it does not turn the underlying page. Contents hidden from view are also hidden from keyboard
+navigation. Mobile image fitting is an overview, not a claim that small
+landscape lettering is readable without zoom or text.</p>
 <h2 id="contributing-a-change"><a class="header" href="#contributing-a-change">Contributing a change</a></h2>
 <p>The everyday loop for landing a change:</p>
 <ol>

@@ -3,13 +3,13 @@
   "entries": [
     {
       "id": "gauntlet",
-      "version": "1.10.0",
+      "version": "1.12.0",
       "bundle": "gauntlet.bundle.ron",
       "meta": {
         "name": "Gauntlet Run",
         "description": "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         "author": "Nova Protocol",
-        "version": "1.10.0",
+        "version": "1.12.0",
         "dependencies": [
           "base"
         ],
@@ -19,23 +19,23 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 2955,
-          "sha256": "213e767cd1d4cb3454ce5ddccfb4772e30916315a5fe23fbb3b7176851378a05"
+          "size": 3729,
+          "sha256": "7d0cd3ba65b4af7e3213caa1876cfdbb12442349c6d61c940955bda7d240a7ec"
         },
         {
           "path": "README.md",
-          "size": 3313,
-          "sha256": "9f7756603c023922a3f6dad297724c8945c036b0f98fab55fca6659cbec8019a"
+          "size": 3296,
+          "sha256": "700fe2fe48a6900d109a0eb7f7da6a31e9c36c02e4010c3c02fc9ca5c679e949"
         },
         {
           "path": "gauntlet.bundle.ron",
-          "size": 1441,
-          "sha256": "b5917b6bc359a0c84adbcd05cf69116217427b58058cde14001e74a1ce0fe1b6"
+          "size": 1420,
+          "sha256": "3eb86e2f86ced0f810db1e7a607f38acf698cdb091f4d9493241b9b2896672c8"
         },
         {
           "path": "gauntlet.content.ron",
-          "size": 44571,
-          "sha256": "cb42a1cc6e8559254c06573e7c6467e22c2916614735b2e9a4da0f7ab3835886"
+          "size": 38821,
+          "sha256": "68cf25a9923934c091f7d8685f1a0bd8d3e17c9e3bd8b0727c7cfebf9c89d963"
         },
         {
           "path": "thumbnails/gauntlet_run.png",
@@ -43,17 +43,17 @@
           "sha256": "171e6eb2918105a3f526e04f84cf0fa5a1816701867f5a422a85d8df848a1ce9"
         }
       ],
-      "total_size": 55734
+      "total_size": 50720
     },
     {
       "id": "the-ledger",
-      "version": "1.26.0",
+      "version": "1.28.0",
       "bundle": "the-ledger.bundle.ron",
       "meta": {
         "name": "The Ledger",
         "description": "A salvage crew in over its head: four chapters and a reward finale, one sealed crate everyone in the belt wants.",
         "author": "Nova Protocol",
-        "version": "1.26.0",
+        "version": "1.28.0",
         "dependencies": [
           "base"
         ],
@@ -63,18 +63,123 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 11975,
-          "sha256": "5b68f44cadd36d7961af52c7df3effcea2ab7fc4600af9c52d07eac3dbedfbcc"
+          "size": 13353,
+          "sha256": "a380e876ab4039ea01bd3e82d6323bad186b44aedc7c22dc91158e98cf6436b6"
         },
         {
           "path": "README.md",
-          "size": 3582,
-          "sha256": "83f518f8176832db5ee9730d5c203753efde9f1d135e9abb195d22fbca115158"
+          "size": 3791,
+          "sha256": "ce10595ae59c1e9c65d69f45a3b211eef123d84da74b97aa3e1aeb4101585470"
         },
         {
           "path": "balance_acks.ron",
-          "size": 1351,
-          "sha256": "6ef87f614570daf319263dae2087bebf42bb066be65ed0dea608fb0c5b5fae04"
+          "size": 1354,
+          "sha256": "a57d254d352dfa803aced78edf157aad24ace00b594ecb5d1dab17b229597485"
+        },
+        {
+          "path": "gltf/parts/cargoa/engine_port.glb",
+          "size": 7804,
+          "sha256": "3d9622a289a31765a7b096bac8e02c886bf4cd6da13977389150241629d90df3"
+        },
+        {
+          "path": "gltf/parts/cargoa/engine_starboard.glb",
+          "size": 7972,
+          "sha256": "4a0ca20789c56df8eee38c0334038ed006f71dc688e5032eb6a655e7b8b3abfd"
+        },
+        {
+          "path": "gltf/parts/cargoa/fuselage.glb",
+          "size": 20880,
+          "sha256": "d8dd6e829725d95e7a45eec176b7055c2147a8988bf30558dd99155137a2898d"
+        },
+        {
+          "path": "gltf/parts/cargoa/nose.glb",
+          "size": 8972,
+          "sha256": "d89efdc1ed5e16b4071f18aa9a20f9301f08dae7fbda8948008009cf977a2d71"
+        },
+        {
+          "path": "gltf/parts/cargoa/pod_port.glb",
+          "size": 12268,
+          "sha256": "066cfe451cf5765db53914a6b042bdcd8a0fd5aaa7e0f6536fb62951ef570bc7"
+        },
+        {
+          "path": "gltf/parts/cargoa/pod_starboard.glb",
+          "size": 11604,
+          "sha256": "d758c30555a8470349b1ef5a4ec68e2dbe473348e4c809ba82bd84b589905ab2"
+        },
+        {
+          "path": "gltf/parts/cargoa/tail.glb",
+          "size": 12004,
+          "sha256": "f7131fdb25f28c4fa7043ca2be15f0dcc6ffa774fb322fc560fa7a18e18e47fe"
+        },
+        {
+          "path": "gltf/parts/cargob/engine_port.glb",
+          "size": 10800,
+          "sha256": "4ddc560fc85880bc3e9a40b54b69dfb99cb7e7993da8273294764bf1c0a1b278"
+        },
+        {
+          "path": "gltf/parts/cargob/engine_starboard.glb",
+          "size": 9984,
+          "sha256": "b595f101c2075450a6c4da8dfe223c66a03ac3e29b428d6e465d49e56a81e078"
+        },
+        {
+          "path": "gltf/parts/cargob/fuselage.glb",
+          "size": 21728,
+          "sha256": "6448da9f992d6b280ff53dd9aff9b6f3bbc818e0687e18f01d7103027ef2bffa"
+        },
+        {
+          "path": "gltf/parts/cargob/nose.glb",
+          "size": 21116,
+          "sha256": "8d01e300e9d821f0d325a1379cf1fff46ebb1c9fc827ac89e31576c2bba8819c"
+        },
+        {
+          "path": "gltf/parts/cargob/pod_port.glb",
+          "size": 14428,
+          "sha256": "f05461c5f482d45ff4eae97b98586fec155098e04278566280596572af85d283"
+        },
+        {
+          "path": "gltf/parts/cargob/pod_starboard.glb",
+          "size": 14580,
+          "sha256": "ca6042e44446e04ad55f3940c51ad9bd81463184441ae8816924f2d3ef1f9e7e"
+        },
+        {
+          "path": "gltf/parts/cargob/tail.glb",
+          "size": 14216,
+          "sha256": "72e2ff2d235b617ab0590032d7bf7d0d6b89f2a0ffce539a658bfa40c3712c91"
+        },
+        {
+          "path": "gltf/parts/racer/engine_port.glb",
+          "size": 7760,
+          "sha256": "94b855a0d30e292b3f9cc3645752c3b98258775d3cf32d95c8a11dc0e731cc0a"
+        },
+        {
+          "path": "gltf/parts/racer/engine_starboard.glb",
+          "size": 8092,
+          "sha256": "acd8ef31ea677bd10c5b66d4c5d0becd667a1f0c5254a97f4b3b075572bbfef0"
+        },
+        {
+          "path": "gltf/parts/racer/fuselage.glb",
+          "size": 24880,
+          "sha256": "77fe6bce28537a82d45661b46abae811c2ff368c98db3d91e61e8a32123d9df5"
+        },
+        {
+          "path": "gltf/parts/racer/nose.glb",
+          "size": 9172,
+          "sha256": "7c47ca1742fe286508871c8717eae770623be2f9bfda81a678e6959a4fd1b4c4"
+        },
+        {
+          "path": "gltf/parts/racer/tail.glb",
+          "size": 12880,
+          "sha256": "1d5a712aba5a4ff0620116591049d1774e7c877c8ab661b5fabe48ec05899f7d"
+        },
+        {
+          "path": "gltf/parts/racer/wing_port.glb",
+          "size": 13000,
+          "sha256": "dabee1555388dd8d0708ffd93b536778a93ada7eec4ae8e98bee3ef8441d9d80"
+        },
+        {
+          "path": "gltf/parts/racer/wing_starboard.glb",
+          "size": 13008,
+          "sha256": "2967ea2faf8b6984b37e996fb9efaff114e59f34d784d88aebc52106dcdfe459"
         },
         {
           "path": "ledger_campaign.content.ron",
@@ -83,38 +188,48 @@
         },
         {
           "path": "ledger_ch1.content.ron",
-          "size": 45818,
-          "sha256": "0ec60eb51bff460cbf6c7b2a8e864f52d591caf480f857cce54cd7670096c299"
+          "size": 46162,
+          "sha256": "97358f9db11cbcc3f3d318b461d833a50bfd47b5a5e9d3dceadfdb7b48cc6c4e"
         },
         {
           "path": "ledger_ch2.content.ron",
-          "size": 57748,
-          "sha256": "6509c8566ce56709b3d2a64ade6863b96d5f34d62cf55fbd1237400ed5a9c989"
+          "size": 58385,
+          "sha256": "2d756828fb08d5d663f89e03f60f7d2fcf5663637392eb6ea8884bcdc056e213"
         },
         {
           "path": "ledger_ch2b.content.ron",
-          "size": 56644,
-          "sha256": "81a96e2268488a53530af0a67e46e816cc1fe7f92257f14c345e45da418516fa"
+          "size": 56664,
+          "sha256": "90f4cdf8d2fb3c97322af0c656cd0040fc697f7b8fa0287819c4d5bcbb689ea3"
         },
         {
           "path": "ledger_ch3.content.ron",
-          "size": 82358,
-          "sha256": "febdca612fdc1d2bf0e46f0eda8ccd4f7d47cda5d2b3b843b074c0f91f0f9809"
+          "size": 83471,
+          "sha256": "4a7aa866cfd7fd5f4da6b819ca36a5e3a88741c73f9ef4a270c3b82728e674e6"
         },
         {
           "path": "ledger_ch4.content.ron",
-          "size": 34075,
-          "sha256": "614996e796cd9d1f612900c2dacdf731eb4c818ab1c2c54395b8313c90fcaf27"
+          "size": 34152,
+          "sha256": "2a773395d0397aa0eb32ecbac397bd611d9296dd0025278c93ae8f12668dd032"
         },
         {
           "path": "ledger_ch5_the_raid.content.ron",
-          "size": 88647,
-          "sha256": "b537f02743cf09a4cb0f22c841b18458d7f5c76858569f72bb668f442519b4ec"
+          "size": 88715,
+          "sha256": "71cbddf65555bd60d76765db7f1022cc34def6c23e991140f2e5c40c83b46008"
+        },
+        {
+          "path": "ledger_sections.content.ron",
+          "size": 55139,
+          "sha256": "b5576ef76e33037763c44e0dffa8ec860c92a9040d599aab01dbdca528468834"
+        },
+        {
+          "path": "ledger_ships.content.ron",
+          "size": 22098,
+          "sha256": "02e57bf45042043be0c036aff4b8a51414819bd3237ed6ab035f063a77159e19"
         },
         {
           "path": "the-ledger.bundle.ron",
-          "size": 1930,
-          "sha256": "a88644ce2bd336cfab55e1468b29571fd79466928696db708a18acdbd512e8e5"
+          "size": 3614,
+          "sha256": "d632e3a07e4d667e031358228a1d3023f7a5ac4ea38941568cad50cebd768a2c"
         },
         {
           "path": "thumbnails/ledger_ch1_dead_weight.png",
@@ -147,7 +262,7 @@
           "sha256": "5862dea24c8250f2ccea88c83bbd0f74a8029611bde9b758b7a80fb5a0841234"
         }
       ],
-      "total_size": 404735
+      "total_size": 764653
     }
   ]
 }

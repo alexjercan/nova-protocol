@@ -1,18 +1,10 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Ships for mods - Nova Protocol Creator Docs</title>
-        <meta name="description" content="Author a whole hull once as content and spawn it by id: the section layout, cladding and collapse threshold, spawn-time overrides, and one-off hulls." />
-        <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/docs.js"></script></head>
-    <body>
-        <header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ships for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author a whole hull once as content and spawn it by id: the section layout, cladding and collapse threshold, spawn-time overrides, and one-off hulls."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a href="/nova-protocol/dev/">Dev</a>
@@ -25,27 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-
-        <main>
-            <div class="wiki">
-                <aside
-                    class="wiki__nav"
-                    id="wiki-nav"
-                    aria-label="Create navigation"
-                ></aside>
-                <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        <a href="/nova-protocol/create/">Create</a>
-                        / <a href="/nova-protocol/create/mod-files/">Mod files</a>
-                        / Ships for mods
-                    </p>
-                    <h1>Ships for mods</h1>
-                    <div class="wiki__tags" id="wiki-tags"></div>
-                    <nav class="wiki-toc" aria-label="Contents">
-                        <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#why-a-ship-is-content">Why a ship is content</a><ol></ol></li><li><a href="#the-ship-item">The Ship item</a><ol><li><a href="#the-hull">The hull</a></li></ol></li><li><a href="#spawning-one">Spawning one</a><ol></ol></li><li><a href="#changing-one-hull-for-one-spawn">Changing one hull for one spawn</a><ol></ol></li><li><a href="#one-off-hulls">One-off hulls</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#base-ships">Base ships</a><ol></ol></li></ol>
-                    </nav>
-                    <p>A <code>Ship</code> is a whole HULL, authored once and spawned by id. It owns the section
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ships for mods</p><h1>Ships for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#why-a-ship-is-content">Why a ship is content</a><ol></ol></li><li><a href="#the-ship-item">The Ship item</a><ol><li><a href="#the-hull">The hull</a></li></ol></li><li><a href="#spawning-one">Spawning one</a><ol></ol></li><li><a href="#changing-one-hull-for-one-spawn">Changing one hull for one spawn</a><ol></ol></li><li><a href="#one-off-hulls">One-off hulls</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#base-ships">Base ships</a><ol></ol></li></ol></nav><p>A <code>Ship</code> is a whole HULL, authored once and spawned by id. It owns the section
 layout, whether the hull is clad, and how far it must be dismantled before it
 collapses. A <a href="../objects/#spaceship">Spaceship</a> spawn names it and adds
 everything that differs per spawn: where it sits, who flies it, which side it is
@@ -71,7 +43,7 @@ can replace it for every scenario that names it.</p>
                     <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;fuselage&quot;</span><span class="ron-punct">,</span>
                     <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
                     <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
-                    <span class="ron-key">source</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-string">&quot;cargoa_fuselage&quot;</span><span class="ron-punct">),</span>
+                    <span class="ron-key">source</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-string">&quot;basic_controller_section&quot;</span><span class="ron-punct">),</span>
                 <span class="ron-punct">),</span>
                 <span class="ron-comment">// ... hull, thruster, and weapon sections ...</span>
             <span class="ron-punct">],</span>
@@ -124,7 +96,7 @@ can replace it for every scenario that names it.</p>
 <td><code>sections</code></td>
 <td>list</td>
 <td><code>[]</code></td>
-<td>the hull/thruster/gun/controller layout: one entry per section, each with a ship-local <code>id</code>, a <code>position</code> and <code>rotation</code> relative to the ship root, a <code>source</code> (<code>Prototype(&quot;&lt;section id&gt;&quot;)</code> or <code>Inline((..))</code>), and optional <code>modifications</code></td>
+<td>the hull/thruster/gun/controller layout: one entry per section, each with a ship-local <code>id</code>, a <code>position</code> in BUILD CELLS (one cell is 10 m) and a <code>rotation</code>, both relative to the ship root, a <code>source</code> (<code>Prototype(&quot;&lt;section id&gt;&quot;)</code> or <code>Inline((..))</code>), and optional <code>modifications</code></td>
 </tr>
 <tr>
 <td><code>collapse_threshold</code></td>
@@ -133,10 +105,16 @@ can replace it for every scenario that names it.</p>
 <td>structural collapse: the fraction of the health the ship was BUILT with below which whatever is left comes apart and the ship is destroyed. Strict RON <code>Some(0.1)</code>; omitted = the engine default <code>0.05</code>. Lower = the ship must be dismantled further (a capital), <code>Some(0.0)</code> = strip every last section. Clamped to <code>0..=1</code></td>
 </tr>
 <tr>
+<td><code>collapse_sound</code></td>
+<td><code>Option</code> asset ref</td>
+<td><code>None</code></td>
+<td>the sound the hull makes when it COLLAPSES - the moment it stops being a ship and becomes wreckage, which is ONE event however many frames the sections then take to peel away. Strict RON <code>Some(&quot;dep://base/sounds/destroy_ship.wav&quot;)</code>. Authored on the hull because a spine going is not a section failing loudly; omitted, the ship comes apart to the sound of its own sections</td>
+</tr>
+<tr>
 <td><code>skin</code></td>
 <td>bool</td>
 <td><code>false</code></td>
-<td>clad the ship: the game DERIVES an outer skin from the sections at spawn - destructible plates, nothing authored, no id to reference (see <a href="../base-content/#cladding-not-a-prototype">Cladding</a>). For hulls built out of the unit-cell sections; the modelled semantic parts do not stand on that lattice</td>
+<td>clad the ship: the game DERIVES an outer skin from the sections at spawn - destructible plates, nothing authored, no id to reference (see <a href="../base-content/#cladding-not-a-prototype">Cladding</a>). For hulls built out of the unit-cell sections; modelled parts are their own sizes and do not stand on that lattice</td>
 </tr>
 <tr>
 <td><code>style</code></td>
@@ -154,7 +132,7 @@ game ships.</p>
     <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;raider_1&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Raider&quot;</span><span class="ron-punct">,</span>
-        <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-300.0</span><span class="ron-punct">),</span>
+        <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-3000.0</span><span class="ron-punct">),</span>
         <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
     <span class="ron-punct">),</span>
     <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Spaceship</span><span class="ron-punct">((</span>
@@ -180,11 +158,12 @@ the hull's own, so the spawn wins:</p>
 <p>A <code>section</code> id the hull does not carry does nothing at runtime, so the content
 lint reports it as an error.</p>
 <p>Reach for a second ship id instead when the difference is what the hull IS - the
-base game ships <code>cargoa</code> and <code>cargoa_raider</code> as separate hulls because thinner
-plating and scavenger-grade guns are a different ship to fight, not a tweak. It
-ships <code>cargob</code> and <code>cargob_lance</code> for the same reason: which torpedo TYPE the
-pods load decides whether a defender's point defense can answer the salvo at
-all, and that is the ship, not a tweak to it.</p>
+base game ships <code>block_gunship</code> and <code>block_raider</code> as separate hulls because
+thinner plating, mismatched drives and guns welded where they fitted are a
+different ship to fight, not a tweak. The Ledger does the same with its two
+hauler loads, <code>cargob</code> and <code>cargob_lance</code>: which torpedo TYPE the pods carry
+decides whether a defender's point defense can answer the salvo at all, and that
+is the ship, not a tweak to it.</p>
 <h2 id="one-off-hulls" tabindex="-1">One-off hulls</h2>
 <p>A hull nothing else will ever spawn can stay on the spawn:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Spaceship</span><span class="ron-punct">((</span>
@@ -217,6 +196,8 @@ link-point graph must be connected.</li>
 spawns an empty root and logs rather than crashing.</li>
 </ul>
 <h2 id="base-ships" tabindex="-1">Base ships</h2>
+<p>Every base hull is BUILT: cells on a build grid, clad by the derived skin and
+painted by a <a href="../styles/">style</a>. Nothing in the base game is a modelled mesh.</p>
 <table>
 <thead>
 <tr>
@@ -226,36 +207,76 @@ spawns an empty root and logs rather than crashing.</li>
 </thead>
 <tbody>
 <tr>
-<td><code>racer</code></td>
-<td>the unarmed Racer yacht - fast, expensive, the civilian hull the campaign protects</td>
+<td><code>block_cutter</code></td>
+<td>Utility Cutter - the small unarmed workboat, and the smallest thing that still reads as a crewed ship</td>
 </tr>
 <tr>
-<td><code>cargob</code></td>
-<td>the CargoB hauler - two torpedo pods, two PDC mounts, the capital silhouette. Its pods load weaving <strong>Serpent</strong> torpedoes</td>
+<td><code>block_hauler</code></td>
+<td>Bulk Hauler - a flat freight spine between two cargo shoulders, containers amidships, one vectoring drive</td>
 </tr>
 <tr>
-<td><code>cargob_lance</code></td>
-<td>the same hauler loading straight-running <strong>Lance</strong> torpedoes: the same guns, hull and rack, but faster ordnance point defense can answer</td>
+<td><code>block_gunship</code></td>
+<td>Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres</td>
 </tr>
 <tr>
-<td><code>cargoa</code></td>
-<td>the CargoA corvette at player grade - the armed hauler the player flies</td>
+<td><code>block_raider</code></td>
+<td>Salvage Raider - the scavenger: thin plating, an outrigger down one flank, a scrap boom up the other, two turrets welded where they fitted</td>
 </tr>
 <tr>
-<td><code>cargoa_raider</code></td>
-<td>the same corvette at scavenger grade: every section set to lower health - thinner plating, fragile thrusters, mounts quicker to shoot off - carrying the same PDC guns</td>
+<td><code>block_carrier</code></td>
+<td>Industrial Carrier - the campaign's home, thirty-three cells long, with a cutter berth cut into each shoulder</td>
+</tr>
+<tr>
+<td><code>block_warship</code></td>
+<td>Stolen Warship - the only capital combatant: two spinal lances and six flank siege bays, all carved flush into the hull</td>
+</tr>
+<tr>
+<td><code>block_skiff</code></td>
+<td>Salvage Skiff - the cleanup group's unarmed sensor needle. It searches; it cannot answer</td>
+</tr>
+<tr>
+<td><code>block_tug</code></td>
+<td>Salvage Tug - the unarmed fork tug that carries away what the search finds</td>
+</tr>
+<tr>
+<td><code>block_picket</code></td>
+<td>Salvage Picket - the group's armed picket, its one gun pushed onto the nose face</td>
+</tr>
+<tr>
+<td><code>block_claw</code></td>
+<td>Salvage Claw - a machinery pod against a long grapple arm, with the gun riding the arm</td>
+</tr>
+<tr>
+<td><code>block_cleanup_leader</code></td>
+<td>Cleanup Leader - one dorsal gun, one flank Serpent bay: the only ordnance in the search group</td>
+</tr>
+<tr>
+<td><code>block_wreck_bridge</code></td>
+<td>Carrier Wreck: Bridge - the carrier's tower sheared off whole</td>
+</tr>
+<tr>
+<td><code>block_wreck_spine</code></td>
+<td>Carrier Wreck: Spine - a length of refinery spine, open at both ends</td>
+</tr>
+<tr>
+<td><code>block_wreck_shoulder</code></td>
+<td>Carrier Wreck: Shoulder - a cargo shoulder torn along the deck it was welded to</td>
+</tr>
+<tr>
+<td><code>block_wreck_plate</code></td>
+<td>Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is</td>
 </tr>
 </tbody>
 </table>
-
-                    <div id="wiki-seealso"></div>
-                </article>
-            </div>
-        </main>
-        <footer class="site-footer">
+<p>A mod may ship MODELLED craft instead, and The Ledger does: its <code>racer</code>,
+<code>cargoa</code>, <code>cargoa_raider</code>, <code>cargob</code> and <code>cargob_lance</code> are assembled from GLB
+parts the mod carries under its own <code>gltf/parts/</code>.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
@@ -266,6 +287,4 @@ spawns an empty root and logs rather than crashing.</li>
         >
     </nav>
 </footer>
-
-    </body>
-</html>
+</body></html>
