@@ -1,6 +1,6 @@
 # Write the v0.13.0 news post and capture its media
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: v0.13.0, docs, web, capture, release
 
