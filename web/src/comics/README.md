@@ -52,6 +52,7 @@ season-1/
     art/
       opening.py
       aquila.py
+      distress.py
       props.py
       opening_props.py
 ```
@@ -112,7 +113,7 @@ unlettered slots, duplicate ids, and invalid geometry fail the build. Empty
 label/card arrays mean none are present; the `panel` helper supplies them when
 omitted. Silent panels still have authored action and a useful derived transcript.
 
-Episode one has eighteen script pages. Seven are illustrated; it remains a draft.
+Episode one has eighteen script pages. Ten are illustrated; it remains a draft.
 
 ## Python panel art
 

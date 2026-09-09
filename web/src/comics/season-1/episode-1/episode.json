@@ -4,7 +4,7 @@
     "publication": "draft",
     "pageCount": 18,
     "source": "episode.ts",
-    "art": ["art/opening.py", "art/aquila.py"],
+    "art": ["art/opening.py", "art/aquila.py", "art/distress.py"],
     "cover": "baikal-work",
     "coverAlt": "Baikal at the start of an ordinary working day."
 }

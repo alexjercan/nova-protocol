@@ -49,8 +49,8 @@ The user accepted the revised opening, Gantry's intact/stranded model, and
 Nadia/Owen/Ivo as working likenesses. They then chose the pressurized,
 non-rotating transfer hall for Aquila: handholds, restrained cargo, exterior
 berths, and a freight lock feeding Kaveri's external cradle. Pages 5-7 now have
-private artwork. The complete script review includes seven illustrated pages;
-pages 8-18 remain script. The user accepted these pages and chose the real
+private artwork. That script review included seven illustrated pages, with
+pages 8-18 still scripted. The user accepted these pages and chose the real
 website reader as the working preview, with a featured current season and
 ordered episode lists. Maintained page/script sources now live under
 `web/src/comics/season-1/episode-1/`. Normal local serving includes the draft;
@@ -83,6 +83,18 @@ iteration. [Season browser review](SEASON-BROWSER-REVIEW.md) records the checks.
 - [Gantry and crew design board](gantry-study/index.html) and
   [art review](GANTRY-REVIEW.md).
 - [Aquila pages 5-7](aquila-pages/index.html) and [batch review](AQUILA-REVIEW.md).
+
+## Current illustrations: pages 8-10
+
+The next three script pages now have draft artwork: the distress call, rescue
+assessment, and funding refusal. All action and dialogue remain unchanged.
+The episode has ten illustrated pages out of eighteen; pages 11-18 stay scripted.
+The first seven page exports remain pixel-identical. The spare stays outside the
+pressure window, the timing display shows only arrival order, and Daniel is
+heard over comms without a new likeness. [Distress review](DISTRESS-REVIEW.md)
+records the source, browser, layout, and publication-isolation checks. The user
+accepted these pages and requested their commit, followed by the next pages.
+The episode and wider season remain unfinished.
 
 ## Comic publishing follow-up
 

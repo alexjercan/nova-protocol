@@ -1,7 +1,7 @@
 # Episode-one staging constraints
 
 The [production outline](../../../lore/seasons/season-1.md) owns shared events.
-The TypeScript page files own the script. Seven pages are illustrated; the
+The TypeScript page files own the script. Ten pages are illustrated; the
 complete episode remains eighteen pages.
 
 - The opening is in 2078 on Earth's calendar. No day, month, or local era is
@@ -20,6 +20,12 @@ complete episode remains eighteen pages.
   scheduled recovery arrives too late, and the diversion delays Baikal's repair.
   Nearby communications can be quick; ship travel is not instant. No orbital
   spreadsheet, exact coordinates, or countdown is required for this episode.
+  Page 9 shows an arrival ordering, not a scaled time axis or orbit. The assembly
+  remains outside the pressure window; the assisted passage stays inside.
+- Pages 8-10 remain aboard Kaveri. Nadia and Daniel are heard over comms; no
+  attack, Gantry-interior cutaway, or new Daniel likeness is introduced. Elena's
+  display uses her existing frontal portrait. The last instruction is framed
+  from Tomas's station, without an approval indicator.
 - Use the accepted Gantry intact/stranded model and crew likenesses. Check its
   surviving port against Kaveri's transfer arrangement and assisted passage.
 - Stage Owen's injury and continuing care without making Samir a doctor or
