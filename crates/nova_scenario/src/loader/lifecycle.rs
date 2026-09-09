@@ -106,7 +106,13 @@ fn teardown_scenario_entities(
         cheats.begin_new_run();
     }
     for entity in q_scoped.iter() {
-        commands.entity(entity).despawn();
+        // try_despawn, not despawn: a scenario can end on the same frame its
+        // ship dies, and the death path has already queued that root. The
+        // sweep's own despawn is recursive too, so a scoped descendant can go
+        // the same way. Bare `despawn` warns on the second one, and the
+        // probe's clean pass fails a run that logs it. Same reason
+        // `integrity::explode` reaches for it.
+        commands.entity(entity).try_despawn();
     }
 }
 
