@@ -8158,6 +8158,3554 @@ function initWeaponReach(host: HTMLElement): void {
     render();
 }
 
+// ---- v0.13.0: the sound board --------------------------------------------
+
+// One cue of the re-recorded set, as `assets/base/sounds/README.md` and
+// `assets/sounds/README.md` describe it: the file, and the event it is
+// authored on. The files are copied verbatim from the game's asset tree into
+// `web/src/assets/sounds/` (mono 44.1 kHz PCM, peak -3 dBFS), so what the
+// board plays is byte-for-byte what the game plays.
+interface SoundCue {
+    file: string;
+    on: string;
+    loop?: boolean;
+    // The v0.12.0 recording of the same event ships beside the new one under
+    // `assets/sounds/v0120/`, for the ear to compare. Only cues whose file
+    // existed at that tag, and every one of those was re-recorded.
+    before?: boolean;
+}
+
+interface SoundFamily {
+    title: string;
+    hint: string;
+    cues: SoundCue[];
+}
+
+// A loop cue is auditioned for a few seconds rather than forever.
+const SOUND_LOOP_AUDITION_SECS = 4;
+
+const SOUND_FAMILIES: Record<string, SoundFamily> = {
+    guns: {
+        title: "The guns and their machinery",
+        hint: "World cues on another ship, hull cues on your own: your guns never attenuate or pan. Heavy to light, the guns are separated by pitch, not decoration.",
+        cues: [
+            {
+                file: "turret_fire",
+                before: true,
+                on: "PDC gatling - one muzzle at 100 rounds a second; the cue holds twenty, the rate a round is shaped against",
+            },
+            {
+                file: "pdc_twin_fire",
+                on: "twin PDC - two muzzles at half the rate each",
+            },
+            {
+                file: "dry_fire",
+                before: true,
+                on: "a turret with an empty magazine: the gun's own click",
+            },
+            {
+                file: "pdc_stow_open",
+                on: "the PDC housing rising out of its pit",
+            },
+            {
+                file: "pdc_stow_close",
+                on: "the lids sliding shut over it",
+            },
+            { file: "bay_door", on: "the bay's muzzle iris, either direction" },
+            {
+                file: "railgun_charge",
+                on: "the capacitor bank filling - driven up in gain and rate as the charge fills",
+                loop: true,
+            },
+            { file: "railgun_fire", on: "the discharge" },
+            {
+                file: "railgun_reload",
+                on: "the shell re-chambered, twelve seconds after",
+            },
+        ],
+    },
+    ordnance: {
+        title: "Ordnance, impacts and destruction",
+        hint: "A hit is named by the round AND by what it struck. The impact table looks up (damage type, material) and falls back once to the type's default row.",
+        cues: [
+            {
+                file: "torpedo_launch",
+                before: true,
+                on: "a torpedo kicked out of its tube",
+            },
+            { file: "torpedo_detonate", on: "the warhead going off" },
+            {
+                file: "impact",
+                before: true,
+                on: "a Kinetic round on a hull - the default row",
+            },
+            {
+                file: "impact_rock",
+                on: "a Kinetic round on stone - one row per asteroid kind",
+            },
+            { file: "impact_pierce", on: "a penetrator through plate" },
+            {
+                file: "impact_explosive",
+                on: "a warhead's pressure on a surface",
+            },
+            { file: "explosion", before: true, on: "a section going up" },
+            { file: "destroy_rock", on: "an asteroid breaking" },
+            {
+                file: "destroy_ship",
+                on: "a hull letting go, on the structural-collapse edge",
+            },
+        ],
+    },
+    drives: {
+        title: "The drives, told apart by pitch",
+        hint: "Three drives, three fundamentals: 34, 52 and 78 Hz from capital to basic to vector. Pitch is what survives a firefight, so it is the one thing that separates them.",
+        cues: [
+            {
+                file: "thruster_capital_loop",
+                on: "the 5x5x3 capital drive at 34 Hz",
+                loop: true,
+            },
+            {
+                file: "thruster_loop",
+                before: true,
+                on: "the basic thruster at 52 Hz",
+                loop: true,
+            },
+            {
+                file: "thruster_vector_loop",
+                on: "the 3x3x2 vector drive at 78 Hz",
+                loop: true,
+            },
+            {
+                file: "rcs_loop",
+                before: true,
+                on: "the controller's RCS jets",
+                loop: true,
+            },
+        ],
+    },
+    avionics: {
+        title: "The cockpit, talking",
+        hint: "Every one of these is authored on the flight computer, because knowing any of it is a sensor capability. A ship built without a controller flies blind and gets no warnings at all.",
+        cues: [
+            { file: "lock_on", before: true, on: "a lock taken" },
+            {
+                file: "lock_off",
+                before: true,
+                on: "a lock lost - the log says why",
+            },
+            { file: "radar_deny", before: true, on: "a radar pick refused" },
+            {
+                file: "radar_retarget",
+                before: true,
+                on: "the radar moved to another contact",
+            },
+            { file: "safety_on", before: true, on: "weapons safe" },
+            {
+                file: "ammo_dry",
+                on: "a magazine run dry - the gauge behind the gun's own click",
+            },
+            { file: "warn_lock", on: "a hostile's lock arriving on you" },
+            { file: "warn_hull", on: "the hull dropping past thirty percent" },
+        ],
+    },
+    interface: {
+        title: "The menus and the editor answer",
+        hint: "Engine chrome on the Interface route: never positional, never attenuated. Written to join the NOVA OS terminal's ten cues, which are the one family this release left alone.",
+        cues: [
+            { file: "menu_focus", on: "the cursor arriving on an item" },
+            { file: "menu_select", before: true, on: "a button pressed" },
+            { file: "menu_back", on: "a menu dismissed" },
+            { file: "ui_toggle", before: true, on: "a setting changing state" },
+            { file: "ui_tick", on: "a slider passing a detent" },
+            { file: "objective_new", before: true, on: "an objective posted" },
+            {
+                file: "objective_complete",
+                before: true,
+                on: "an objective completed",
+            },
+            { file: "objective_fail", on: "a scenario lost" },
+            { file: "comms_line", on: "a comms line opening" },
+            { file: "editor_place", on: "a part placed" },
+            { file: "editor_remove", on: "a part removed" },
+            { file: "editor_rotate", on: "the ghost's pose moved" },
+            {
+                file: "editor_deny",
+                on: "an illegal placement refused - rhymes with radar_deny on purpose",
+            },
+        ],
+    },
+};
+
+// The site root the brand link points at (basePath with a trailing slash),
+// derived the way site.ts derives it for the figures, so a widget can name
+// an asset under `assets/` from any page depth or deploy subpath.
+function siteBase(): string {
+    const brand = document.querySelector<HTMLAnchorElement>(
+        ".site-header__brand"
+    );
+    if (!brand) return "/";
+    const root = new URL(brand.href, window.location.origin).pathname.replace(
+        /\/+$/,
+        ""
+    );
+    return root === "" ? "/" : root + "/";
+}
+
+// Peak envelope of a decoded cue in `bins` columns, each 0..1 of the cue's
+// loudest sample, so a quiet tail still shows its shape.
+export function wavePeaks(samples: Float32Array, bins: number): number[] {
+    const peaks: number[] = [];
+    if (samples.length === 0 || bins <= 0) return peaks;
+    const width = samples.length / bins;
+    let loudest = 0;
+    for (let i = 0; i < bins; i += 1) {
+        const start = Math.floor(i * width);
+        const end = Math.min(samples.length, Math.floor((i + 1) * width));
+        let peak = 0;
+        for (let j = start; j < end; j += 1) {
+            const v = Math.abs(samples[j]);
+            if (v > peak) peak = v;
+        }
+        peaks.push(peak);
+        if (peak > loudest) loudest = peak;
+    }
+    return loudest > 0 ? peaks.map((p) => p / loudest) : peaks;
+}
+
+// The mirrored envelope as one SVG path over a `w` x `h` box: the top edge
+// left to right, the bottom edge back, closed. A flat cue draws a hairline
+// rather than nothing.
+export function wavePath(peaks: number[], w: number, h: number): string {
+    if (peaks.length === 0) return `M0,${h / 2} L${w},${h / 2}`;
+    const mid = h / 2;
+    const dx = w / peaks.length;
+    const top = peaks.map(
+        (p, i) =>
+            `L${(i * dx).toFixed(1)},${(mid - Math.max(0.6, p * mid)).toFixed(1)}`
+    );
+    const bottom = peaks
+        .map(
+            (p, i) =>
+                `L${((i + 1) * dx).toFixed(1)},${(mid + Math.max(0.6, p * mid)).toFixed(1)}`
+        )
+        .reverse();
+    return `M0,${mid} ${top.join(" ")} L${w},${mid} ${bottom.join(" ")} Z`;
+}
+
+// One AudioContext for every board on the page. Created lazily and left
+// suspended until a key is pressed: decoding works on a suspended context,
+// and a browser refuses to start one before a gesture anyway.
+let soundContext: AudioContext | null = null;
+function audioContext(): AudioContext | null {
+    if (soundContext) return soundContext;
+    const Ctor = window.AudioContext;
+    if (typeof Ctor !== "function") return null;
+    soundContext = new Ctor();
+    return soundContext;
+}
+
+const WAVE_W = 240;
+const WAVE_H = 36;
+const WAVE_BINS = 120;
+
+interface SoundRow {
+    cue: SoundCue;
+    row: HTMLElement;
+    key: HTMLButtonElement;
+    beforeKey: HTMLButtonElement | null;
+    hot: SVGRectElement;
+    cursor: SVGLineElement;
+    base: SVGPathElement;
+    played: SVGPathElement;
+    duration: HTMLElement;
+    buffer: AudioBuffer | null;
+    beforeBuffer: AudioBuffer | null;
+    // The drawn envelopes, so a row can swap to the old cue's while it plays
+    // and back to the new one's when it stops.
+    path: string;
+    beforePath: string;
+}
+
+// Where a cue's file is served from: the board's copy of the game's own
+// file, or the v0.12.0 recording of the same event beside it.
+export function soundCueUrl(
+    base: string,
+    file: string,
+    before: boolean
+): string {
+    return `${base}assets/sounds/${before ? "v0120/" : ""}${file}.wav`;
+}
+
+function initSoundBoard(host: HTMLElement): void {
+    const familyKey = host.dataset.family ?? "";
+    const family = SOUND_FAMILIES[familyKey];
+    if (!family) {
+        host.appendChild(
+            el("p", "widget__note", `No sound family named "${familyKey}".`)
+        );
+        return;
+    }
+    header(host, family.title, family.hint);
+
+    const ctx = audioContext();
+    const base = siteBase();
+    const list = el("div", "widget__sounds");
+    const rows: SoundRow[] = [];
+    let playing: {
+        row: SoundRow;
+        source: AudioBufferSourceNode;
+        startedAt: number;
+        raf: number;
+    } | null = null;
+
+    const stop = (): void => {
+        if (!playing) return;
+        const { row, source, raf } = playing;
+        playing = null;
+        if (raf) cancelAnimationFrame(raf);
+        try {
+            source.stop();
+        } catch {
+            // Already ended.
+        }
+        row.row.classList.remove("is-playing", "is-before");
+        row.key.textContent = "PLAY";
+        row.key.setAttribute("aria-pressed", "false");
+        if (row.beforeKey) {
+            row.beforeKey.textContent = "v0.12.0";
+            row.beforeKey.setAttribute("aria-pressed", "false");
+        }
+        row.base.setAttribute("d", row.path);
+        row.played.setAttribute("d", row.path);
+        row.hot.setAttribute("width", "0");
+        row.cursor.setAttribute("x1", "0");
+        row.cursor.setAttribute("x2", "0");
+        row.cursor.classList.remove("is-live");
+    };
+
+    const play = (row: SoundRow, before: boolean): void => {
+        const buffer = before ? row.beforeBuffer : row.buffer;
+        if (!ctx || !buffer) return;
+        stop();
+        void ctx.resume();
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = Boolean(row.cue.loop);
+        source.connect(ctx.destination);
+        const length = buffer.duration;
+        const audition = row.cue.loop ? SOUND_LOOP_AUDITION_SECS : length;
+        source.start();
+        if (row.cue.loop) source.stop(ctx.currentTime + audition);
+        const startedAt = ctx.currentTime;
+        row.row.classList.add("is-playing");
+        if (before && row.beforeKey) {
+            row.row.classList.add("is-before");
+            row.base.setAttribute("d", row.beforePath);
+            row.played.setAttribute("d", row.beforePath);
+            row.beforeKey.textContent = "STOP";
+            row.beforeKey.setAttribute("aria-pressed", "true");
+        } else {
+            row.key.textContent = "STOP";
+            row.key.setAttribute("aria-pressed", "true");
+        }
+        row.cursor.classList.add("is-live");
+        const sweep = (): void => {
+            if (!playing || playing.row !== row) return;
+            const elapsed = ctx.currentTime - startedAt;
+            if (elapsed >= audition) {
+                stop();
+                return;
+            }
+            // A loop's cursor laps the wave; a one-shot's crosses it once.
+            const t = (elapsed % length) / length;
+            const x = (t * WAVE_W).toFixed(1);
+            row.hot.setAttribute("width", x);
+            row.cursor.setAttribute("x1", x);
+            row.cursor.setAttribute("x2", x);
+            playing.raf = requestAnimationFrame(sweep);
+        };
+        playing = { row, source, startedAt, raf: 0 };
+        source.addEventListener("ended", () => {
+            if (playing && playing.source === source) stop();
+        });
+        if (reducedMotion()) {
+            row.hot.setAttribute("width", String(WAVE_W));
+        } else {
+            playing.raf = requestAnimationFrame(sweep);
+        }
+    };
+
+    for (const cue of family.cues) {
+        const row = el("div", "widget__sound");
+        const keys = el("div", "widget__sound-keys");
+        const key = el("button", "widget__btn widget__sound-key", "PLAY");
+        key.type = "button";
+        key.setAttribute("aria-pressed", "false");
+        key.setAttribute("aria-label", `Play ${cue.file}`);
+        keys.appendChild(key);
+        let beforeKey: HTMLButtonElement | null = null;
+        if (cue.before) {
+            beforeKey = el(
+                "button",
+                "widget__btn widget__sound-key widget__sound-key--before",
+                "v0.12.0"
+            );
+            beforeKey.type = "button";
+            beforeKey.setAttribute("aria-pressed", "false");
+            beforeKey.setAttribute(
+                "aria-label",
+                `Play the v0.12.0 recording of ${cue.file}`
+            );
+            beforeKey.title = "The same event's recording in v0.12.0";
+            keys.appendChild(beforeKey);
+        }
+        const text = el("div", "widget__sound-text");
+        const name = el("span", "widget__sound-name", cue.file);
+        if (cue.loop) {
+            name.appendChild(el("span", "widget__sound-loop", "loop"));
+        }
+        text.appendChild(name);
+        text.appendChild(el("span", "widget__sound-on", cue.on));
+        const svg = svgEl("svg", {
+            class: "widget__sound-wave",
+            viewBox: `0 0 ${WAVE_W} ${WAVE_H}`,
+            preserveAspectRatio: "none",
+            "aria-hidden": "true",
+        });
+        const clipId = `wave-${familyKey}-${cue.file}`;
+        const clip = svgEl("clipPath", { id: clipId });
+        const hot = svgEl("rect", {
+            x: "0",
+            y: "0",
+            width: "0",
+            height: String(WAVE_H),
+        });
+        clip.appendChild(hot);
+        const defs = svgEl("defs", {});
+        defs.appendChild(clip);
+        svg.appendChild(defs);
+        const flat = wavePath([], WAVE_W, WAVE_H);
+        const basePath = svgEl("path", { class: "wave-base", d: flat });
+        const playedPath = svgEl("path", {
+            class: "wave-hot",
+            d: flat,
+            "clip-path": `url(#${clipId})`,
+        });
+        const cursor = svgEl("line", {
+            class: "wave-cursor",
+            x1: "0",
+            x2: "0",
+            y1: "0",
+            y2: String(WAVE_H),
+        });
+        svg.appendChild(basePath);
+        svg.appendChild(playedPath);
+        svg.appendChild(cursor);
+        const duration = el("span", "widget__sound-dur", "--");
+        row.appendChild(keys);
+        row.appendChild(svg);
+        row.appendChild(duration);
+        row.appendChild(text);
+        list.appendChild(row);
+        const entry: SoundRow = {
+            cue,
+            row,
+            key,
+            beforeKey,
+            hot,
+            cursor,
+            base: basePath,
+            played: playedPath,
+            duration,
+            buffer: null,
+            beforeBuffer: null,
+            path: flat,
+            beforePath: flat,
+        };
+        rows.push(entry);
+        const isPlaying = (before: boolean): boolean =>
+            playing?.row === entry &&
+            entry.row.classList.contains("is-before") === before;
+        key.addEventListener("click", () => {
+            if (isPlaying(false)) stop();
+            else play(entry, false);
+        });
+        beforeKey?.addEventListener("click", () => {
+            if (isPlaying(true)) stop();
+            else play(entry, true);
+        });
+    }
+    host.appendChild(list);
+
+    if (!ctx) {
+        host.appendChild(
+            el(
+                "p",
+                "widget__note",
+                "This browser has no Web Audio, so the board cannot play. The files are the game's own: assets/base/sounds/ and assets/sounds/ in the repository."
+            )
+        );
+        for (const row of rows) {
+            row.key.disabled = true;
+            if (row.beforeKey) row.beforeKey.disabled = true;
+        }
+        return;
+    }
+
+    // Decode a family's cues only once the board is on screen: ~400 KB of
+    // PCM per family is not a cost every reader of the post should pay.
+    let loaded = false;
+    const load = (): void => {
+        if (loaded) return;
+        loaded = true;
+        const decode = (url: string): Promise<AudioBuffer> =>
+            fetch(url)
+                .then((res) => {
+                    if (!res.ok) throw new Error(`${res.status} ${url}`);
+                    return res.arrayBuffer();
+                })
+                .then((bytes) => ctx.decodeAudioData(bytes));
+        const envelope = (buffer: AudioBuffer): string =>
+            wavePath(
+                wavePeaks(buffer.getChannelData(0), WAVE_BINS),
+                WAVE_W,
+                WAVE_H
+            );
+        for (const row of rows) {
+            decode(soundCueUrl(base, row.cue.file, false))
+                .then((buffer) => {
+                    row.buffer = buffer;
+                    row.path = envelope(buffer);
+                    row.base.setAttribute("d", row.path);
+                    row.played.setAttribute("d", row.path);
+                    row.duration.textContent = `${buffer.duration.toFixed(2)} s`;
+                    row.row.classList.add("is-ready");
+                })
+                .catch(() => {
+                    row.duration.textContent = "missing";
+                    row.key.disabled = true;
+                    row.row.classList.add("is-missing");
+                });
+            const beforeKey = row.beforeKey;
+            if (!beforeKey) continue;
+            decode(soundCueUrl(base, row.cue.file, true))
+                .then((buffer) => {
+                    row.beforeBuffer = buffer;
+                    row.beforePath = envelope(buffer);
+                    beforeKey.title = `The same event in v0.12.0: ${buffer.duration.toFixed(2)} s`;
+                })
+                .catch(() => {
+                    beforeKey.disabled = true;
+                });
+        }
+    };
+    if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    load();
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: "200px 0px" }
+        );
+        observer.observe(host);
+    } else {
+        load();
+    }
+}
+
+// ---- v0.13.0: shared key row ----------------------------------------------
+
+// A row of radio keys: one lit at a time, and the word on the face carries
+// the state (the class only tints).
+function keyRow(
+    labels: string[],
+    initial: number,
+    onPick: (index: number) => void
+): { row: HTMLElement; set: (index: number) => void } {
+    const row = el("div", "widget__keys");
+    const buttons: HTMLButtonElement[] = [];
+    const set = (index: number): void => {
+        for (const [other, button] of buttons.entries()) {
+            const on = other === index;
+            button.classList.toggle("is-on", on);
+            button.setAttribute("aria-pressed", String(on));
+        }
+    };
+    for (const [index, label] of labels.entries()) {
+        const button = el("button", "widget__btn", label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+            set(index);
+            onPick(index);
+        });
+        buttons.push(button);
+        row.appendChild(button);
+    }
+    set(initial);
+    return { row, set };
+}
+
+// The `points` of a small arrowhead at `(x, y)` pointing along `(dx, dy)`.
+function arrowPoints(x: number, y: number, dx: number, dy: number): string {
+    const length = Math.hypot(dx, dy) || 1;
+    const ux = dx / length;
+    const uy = dy / length;
+    return [
+        [x, y],
+        [x - ux * 9 + uy * 4, y - uy * 9 - ux * 4],
+        [x - ux * 9 - uy * 4, y - uy * 9 + ux * 4],
+    ]
+        .map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`)
+        .join(" ");
+}
+
+// ---- v0.13.0: the gun shoves the ship -------------------------------------
+
+// The lance's recoil is one raw impulse per shot, in the register a thruster's
+// per-tick magnitude uses (standard.rs:1160-1165; both shipped lances share
+// it, standard.rs:1344), applied at the MUZZLE along minus the bore direction
+// with `apply_linear_impulse_at_point` (railgun_section/firing.rs:222-232),
+// so the lever arm from the balance point to the muzzle is what turns the
+// hull. The muzzle is the lance's brake face, half the part forward of its
+// centre (standard.rs:1146, `muzzle_offset = NEG_Z * LANCE_CELLS.z / 2`), and
+// the lance is a 1x1x3 box (standard.rs:321). Engine register throughout:
+// mass is box volume (base_section.rs:376, density 1), the impulse is mass x
+// world units per second, and only the readout converts.
+const LANCE_RECOIL_IMPULSE = 45; // standard.rs:1165
+const LANCE_CELLS_BOX: Vec3T = [1, 1, 3]; // standard.rs:321
+// Where the widget's lance stands on the gunship: ahead of the bow spur,
+// which ends at z = -4 (`plate_43` above), so the part runs z -7..-4.
+const LANCE_MOUNT_Z = -5.5;
+const RAILGUN_BASE_HEALTH = 180; // standard.rs:40
+
+export interface RecoilKick {
+    /** Hull mass, engine units (box volume), lance included. */
+    mass: number;
+    /** The balance point, build-grid cells from the gunship's origin. */
+    balance: Vec3T;
+    /** Yaw inertia about the vertical axis through the balance point. */
+    yawInertia: number;
+    /** Lateral lever arm from the balance point to the muzzle, meters. */
+    leverArm: number;
+    /** The straight-back kick, m/s. */
+    push: number;
+    /** The yaw the lever arm adds, deg/s; positive swings the bow to the
+     * side the gun is on. */
+    yaw: number;
+}
+
+// One shot from a lance mounted `offsetCells` off the gunship's centreline,
+// on a hull `massScale` times the gunship's mass with the same shape (so its
+// inertia scales with it). Pure, so the test can pin it.
+export function railgunRecoil(offsetCells: number, massScale = 1): RecoilKick {
+    const lance: ShipPart = {
+        id: "lance",
+        label: "LANCE",
+        health: RAILGUN_BASE_HEALTH,
+        center: [offsetCells, 0, LANCE_MOUNT_Z],
+        size: [...LANCE_CELLS_BOX],
+        group: "lance",
+    };
+    const parts = [...GUNSHIP_CELLS, lance];
+    const state = hullState(parts);
+    const com = state.centerOfMass;
+    // Only the yaw component of the tensor `hullState` builds: each box's own
+    // moment about its vertical axis plus its offset from the balance point.
+    let yawInertia = 0;
+    for (const part of parts) {
+        const [a, b, c] = part.size;
+        const m = a * b * c;
+        const dx = part.center[0] - com[0];
+        const dz = part.center[2] - com[2];
+        yawInertia += (m * (a * a + c * c)) / 12 + m * (dx * dx + dz * dz);
+    }
+    const mass = state.mass * massScale;
+    yawInertia *= massScale;
+    // The impulse points aft, so only the muzzle's lateral offset from the
+    // balance point makes a moment about the yaw axis: |tau| = r_x * J.
+    const armU = offsetCells - com[0];
+    return {
+        mass,
+        balance: com,
+        yawInertia,
+        leverArm: armU * METERS_PER_UNIT,
+        push: (LANCE_RECOIL_IMPULSE / mass) * METERS_PER_UNIT,
+        yaw: ((LANCE_RECOIL_IMPULSE * armU) / yawInertia) * (180 / Math.PI),
+    };
+}
+
+function initRailgunRecoil(host: HTMLElement): void {
+    header(
+        host,
+        "Recoil scope: where the shove lands",
+        `One shot is ${LANCE_RECOIL_IMPULSE} of impulse at the muzzle, aft ` +
+            "along the bore. On the axis that is a straight kick; off it, " +
+            "the lever arm from the balance point to the muzzle turns the " +
+            "hull as well. Slide the mount across the Patrol Gunship's bow."
+    );
+
+    const controls = el("div", "widget__controls");
+    const offset = control(
+        "lance mount",
+        -3,
+        3,
+        1,
+        0,
+        (v) =>
+            v === 0
+                ? "on the axis"
+                : `${meters(Math.abs(v) * METERS_PER_UNIT)} to ${v > 0 ? "starboard" : "port"}`,
+        () => update()
+    );
+    const massScale = control(
+        "hull mass",
+        1,
+        8,
+        0.5,
+        1,
+        (v) => `x${v} the gunship`,
+        () => update()
+    );
+    controls.appendChild(offset.row);
+    controls.appendChild(massScale.row);
+
+    // Top-down: x across, z down the screen with the bow up.
+    const S = 20;
+    const CX = 190;
+    const CY = 172;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 300",
+        role: "img",
+        "aria-label":
+            "Top-down outline of the gunship with a lance on its bow, the " +
+            "recoil arrow at the muzzle and the yaw arc it makes about the " +
+            "balance point.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    svg.appendChild(
+        svgEl(
+            "text",
+            { x: "16", y: "22", class: "widget-mark--word" },
+            "TOP VIEW, BOW UP"
+        )
+    );
+    svg.appendChild(
+        svgEl("line", {
+            x1: String(CX),
+            y1: "30",
+            x2: String(CX),
+            y2: "290",
+            class: "widget-mark--ray",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(CX + 6),
+                y: "288",
+                class: "widget-mark--detail",
+            },
+            "centreline"
+        )
+    );
+    const hullGroup = svgEl("g", {});
+    svg.appendChild(hullGroup);
+    // Draw the hull once: the deck footprint is the same under every offset.
+    const drawn = [...GUNSHIP_CELLS].sort((a, b) => a.center[1] - b.center[1]);
+    for (const part of drawn) {
+        hullGroup.appendChild(
+            svgEl("rect", {
+                x: String(CX + (part.center[0] - part.size[0] / 2) * S + 0.5),
+                y: String(CY + (part.center[2] - part.size[2] / 2) * S + 0.5),
+                width: String(part.size[0] * S - 1),
+                height: String(part.size[2] * S - 1),
+                class: "widget-mark--section",
+            })
+        );
+    }
+    const lanceRect = svgEl("rect", {
+        width: String(S - 1),
+        height: String(3 * S - 1),
+        class: "widget-mark--section is-hit",
+    });
+    svg.appendChild(lanceRect);
+    const comDot = svgEl("circle", { r: "4", class: "widget-mark--dot-now" });
+    const kickLine = svgEl("line", { class: "widget-mark--plume" });
+    const kickHead = svgEl("polygon", { class: "widget-mark--slug" });
+    const yawArc = svgEl("path", { class: "widget-mark--now" });
+    const yawHead = svgEl("polygon", { class: "widget-mark--ship" });
+    const armLine = svgEl("line", { class: "widget-mark--gate" });
+    svg.appendChild(armLine);
+    svg.appendChild(kickLine);
+    svg.appendChild(kickHead);
+    svg.appendChild(yawArc);
+    svg.appendChild(yawHead);
+    svg.appendChild(comDot);
+    const kickLabel = svgEl(
+        "text",
+        { x: "400", y: "120", class: "widget-mark--label-now" },
+        ""
+    );
+    const yawLabel = svgEl(
+        "text",
+        { x: "400", y: "140", class: "widget-mark--label-now" },
+        ""
+    );
+    const armLabel = svgEl(
+        "text",
+        { x: "400", y: "160", class: "widget-mark--label-gate" },
+        ""
+    );
+    svg.appendChild(kickLabel);
+    svg.appendChild(yawLabel);
+    svg.appendChild(armLabel);
+
+    const stats = el("div", "widget__stats");
+    const pushStat = stat(stats, "push");
+    const yawStat = stat(stats, "yaw");
+    const armStat = stat(stats, "lever arm");
+    const massStat = stat(stats, "hull mass");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const cells = Number(offset.input.value);
+        const scale = Number(massScale.input.value);
+        const kick = railgunRecoil(cells, scale);
+        const comX = CX + kick.balance[0] * S;
+        const comY = CY + kick.balance[2] * S;
+        const muzzleX = CX + cells * S;
+        const muzzleY = CY + (LANCE_MOUNT_Z - 1.5) * S;
+        lanceRect.setAttribute("x", String(CX + (cells - 0.5) * S + 0.5));
+        lanceRect.setAttribute(
+            "y",
+            String(CY + (LANCE_MOUNT_Z - 1.5) * S + 0.5)
+        );
+        comDot.setAttribute("cx", comX.toFixed(1));
+        comDot.setAttribute("cy", comY.toFixed(1));
+        // The kick: aft from the muzzle, 6 px per m/s, capped on the glass.
+        const kickPx = Math.min(120, kick.push * 6);
+        kickLine.setAttribute("x1", String(muzzleX));
+        kickLine.setAttribute("y1", String(muzzleY));
+        kickLine.setAttribute("x2", String(muzzleX));
+        kickLine.setAttribute("y2", (muzzleY + kickPx).toFixed(1));
+        kickHead.setAttribute(
+            "points",
+            arrowPoints(muzzleX, muzzleY + kickPx, 0, 1)
+        );
+        // The lever arm: from the balance point straight across to the bore.
+        armLine.setAttribute("x1", comX.toFixed(1));
+        armLine.setAttribute("y1", comY.toFixed(1));
+        armLine.setAttribute("x2", String(muzzleX));
+        armLine.setAttribute("y2", comY.toFixed(1));
+        // The yaw arc about the balance point: one degree of sweep per deg/s,
+        // starting from the bow and swinging toward the gun's side.
+        const sweep = Math.max(-150, Math.min(150, kick.yaw));
+        const R = 70;
+        const a0 = -Math.PI / 2;
+        const a1 = a0 + (sweep * Math.PI) / 180;
+        const x0 = comX + R * Math.cos(a0);
+        const y0 = comY + R * Math.sin(a0);
+        const x1 = comX + R * Math.cos(a1);
+        const y1 = comY + R * Math.sin(a1);
+        if (Math.abs(sweep) < 0.5) {
+            yawArc.setAttribute("d", "");
+            yawHead.setAttribute("points", "");
+        } else {
+            yawArc.setAttribute(
+                "d",
+                `M${x0.toFixed(1)},${y0.toFixed(1)} A${R},${R} 0 0 ${sweep > 0 ? 1 : 0} ${x1.toFixed(1)},${y1.toFixed(1)}`
+            );
+            const dir = sweep > 0 ? 1 : -1;
+            yawHead.setAttribute(
+                "points",
+                arrowPoints(x1, y1, -Math.sin(a1) * dir, Math.cos(a1) * dir)
+            );
+        }
+        const side = cells > 0 ? "starboard" : "port";
+        kickLabel.textContent = `push ${metersPerSec(kick.push, 1)} aft`;
+        yawLabel.textContent =
+            Math.abs(kick.yaw) < 0.05
+                ? "yaw none"
+                : `yaw ${Math.abs(kick.yaw).toFixed(1)} deg/s to ${side}`;
+        armLabel.textContent =
+            cells === 0
+                ? "lever arm 0 m"
+                : `lever arm ${meters(Math.abs(kick.leverArm), 1)}`;
+        pushStat.textContent = metersPerSec(kick.push, 1);
+        yawStat.textContent =
+            Math.abs(kick.yaw) < 0.05
+                ? "0 deg/s"
+                : `${Math.abs(kick.yaw).toFixed(1)} deg/s ${side}`;
+        armStat.textContent = meters(Math.abs(kick.leverArm), 1);
+        massStat.textContent = kick.mass.toFixed(2);
+        readout.classList.remove("is-warn", "is-fault");
+        if (cells === 0) {
+            readout.textContent =
+                `ON THE AXIS. ${LANCE_RECOIL_IMPULSE} of impulse into a hull of ` +
+                `mass ${kick.mass.toFixed(2)}: ${metersPerSec(kick.push, 1)} straight ` +
+                "back and no yaw at all, because the muzzle sits on the line " +
+                "through the balance point. This is why a generated ship seats " +
+                "its bow gun on the keel.";
+        } else {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `OFF THE AXIS by ${meters(Math.abs(kick.leverArm), 1)}. The same ` +
+                `shove, ${metersPerSec(kick.push, 1)} back - plus ` +
+                `${Math.abs(kick.yaw).toFixed(1)} deg/s of yaw to ${side}, because ` +
+                "the impulse lands at the muzzle and the muzzle is that far " +
+                "off the balance point. A hand-built hull that bolts a lance " +
+                "to a flank gets this every shot.";
+        }
+        // A heavier hull of the same shape scales mass and inertia together,
+        // so the push and the yaw fall by the same factor.
+        readout.textContent +=
+            scale === 1
+                ? ""
+                : ` At x${scale} the mass both figures are a ${(1 / scale).toFixed(2)} of the gunship's.`;
+    };
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "The hull is the Patrol Gunship of the drydock figures with a " +
+                "1x1x3 lance bolted ahead of its bow spur. Mass is box volume, " +
+                "as avian measures it, and the yaw inertia sums each box's own " +
+                "moment and its offset from the balance point - the same " +
+                "tensor the turn scopes use, taken about the vertical axis " +
+                "only. The mass fader keeps the shape and scales both."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: cover breaks a lock -----------------------------------------
+
+// The lock's line of sight is ONE ray, cast from the scanner to the body it
+// would hold, exactly as long as the gap between them, and solid: a ray that
+// starts inside cover is inside cover (input/targeting/occlusion.rs:47-71).
+// Anything wearing `RadarOccluder` on the line stops it, except the two ends
+// themselves (occlusion.rs:80-90). The AI's acquisition asks the same
+// question of the same world (module docs), which is why the hostile's lock
+// on you breaks under the same rock. The game file's own fixture stands a
+// contact 4 km out behind a 500 m rock at 2 km (occlusion.rs:196-200).
+const OCCLUSION_CONTACT_RANGE = 4000;
+
+// How far the segment a-b passes from the surface of a circle of radius `r`
+// at `c`, meters: negative once the rock stands on the line. The closest
+// point is taken on the SEGMENT, so a rock beyond the contact is no cover and
+// a scanner standing inside a rock is blind.
+export function segmentClearance(
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    cx: number,
+    cy: number,
+    r: number
+): number {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t =
+        len2 > 0 ? clamp(((cx - ax) * dx + (cy - ay) * dy) / len2, 0, 1) : 0;
+    return Math.hypot(ax + t * dx - cx, ay + t * dy - cy) - r;
+}
+
+function initLockOcclusion(host: HTMLElement): void {
+    header(
+        host,
+        "Sightline scope: one ray, both ways",
+        `A contact ${kilometers(OCCLUSION_CONTACT_RANGE, 0)} out, a rock you can ` +
+            "drag across the line. The lock is a radio link and rock stops " +
+            "radio: the moment the ray from the scanner to the contact touches " +
+            "the rock, the lock breaks. Their ray to you is the same line."
+    );
+
+    const controls = el("div", "widget__controls");
+    const along = control(
+        "rock along the line",
+        0,
+        4800,
+        50,
+        2000,
+        (v) => meters(v),
+        () => update()
+    );
+    const across = control(
+        "rock across the line",
+        -1000,
+        1000,
+        25,
+        650,
+        (v) =>
+            v === 0
+                ? "on the line"
+                : `${meters(Math.abs(v))} ${v > 0 ? "below" : "above"}`,
+        () => update()
+    );
+    const radius = control(
+        "rock radius",
+        50,
+        1000,
+        10,
+        500,
+        (v) => meters(v),
+        () => update()
+    );
+    controls.appendChild(along.row);
+    controls.appendChild(across.row);
+    controls.appendChild(radius.row);
+
+    // 0.1 px per meter: the scanner at x = 40, the contact 400 px out.
+    const PX = 0.1;
+    const SX = 40;
+    const CY = 130;
+    const TX = SX + OCCLUSION_CONTACT_RANGE * PX;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 260",
+        role: "img",
+        "aria-label":
+            "A scanner on the left, a contact on the right, the ray between " +
+            "them and a rock that can be dragged across it; the ray turns red " +
+            "and dashed when the rock stands on it.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    for (let km = 1; km <= 5; km += 1) {
+        const x = SX + km * 1000 * PX;
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(x),
+                y1: "20",
+                x2: String(x),
+                y2: "240",
+                class: "widget-mark--grid",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(km === 5 ? x - 3 : x + 3),
+                    y: "250",
+                    "text-anchor": km === 5 ? "end" : "start",
+                    class: "widget-mark--axis",
+                },
+                `${km} km`
+            )
+        );
+    }
+    const rock = svgEl("circle", { class: "widget-mark--shadow-stroke" });
+    const ray = svgEl("line", {
+        x1: String(SX),
+        y1: String(CY),
+        x2: String(TX),
+        y2: String(CY),
+    });
+    const scanner = svgEl("path", {
+        d: `M${SX + 9} ${CY} L${SX - 7} ${CY - 7} L${SX - 3} ${CY} L${SX - 7} ${CY + 7} Z`,
+        class: "widget-mark--ship",
+    });
+    const contact = svgEl("circle", {
+        cx: String(TX),
+        cy: String(CY),
+        r: "5",
+        class: "widget-mark--blip",
+    });
+    const bracket = svgEl("rect", {
+        x: String(TX - 11),
+        y: String(CY - 11),
+        width: "22",
+        height: "22",
+        class: "widget-mark--navlock",
+    });
+    const theirBracket = svgEl("rect", {
+        x: String(SX - 12),
+        y: String(CY - 12),
+        width: "24",
+        height: "24",
+        class: "widget-mark--combatlock",
+    });
+    svg.appendChild(rock);
+    svg.appendChild(ray);
+    svg.appendChild(scanner);
+    svg.appendChild(contact);
+    svg.appendChild(bracket);
+    svg.appendChild(theirBracket);
+    const yourWord = svgEl(
+        "text",
+        { x: String(SX - 24), y: "36", class: "widget-mark--word" },
+        ""
+    );
+    const theirWord = svgEl(
+        "text",
+        {
+            x: String(TX + 24),
+            y: "36",
+            "text-anchor": "end",
+            class: "widget-mark--word",
+        },
+        ""
+    );
+    svg.appendChild(yourWord);
+    svg.appendChild(theirWord);
+
+    const stats = el("div", "widget__stats");
+    const approachStat = stat(stats, "closest approach");
+    const clearanceStat = stat(stats, "clearance");
+    const readout = el("p", "widget__readout");
+    const theirs = el("p", "widget__readout");
+
+    const update = (): void => {
+        const rx = Number(along.input.value);
+        const ry = Number(across.input.value);
+        const r = Number(radius.input.value);
+        const clearance = segmentClearance(
+            0,
+            0,
+            OCCLUSION_CONTACT_RANGE,
+            0,
+            rx,
+            ry,
+            r
+        );
+        const held = clearance > 0;
+        rock.setAttribute("cx", (SX + rx * PX).toFixed(1));
+        rock.setAttribute("cy", (CY + ry * PX).toFixed(1));
+        rock.setAttribute("r", (r * PX).toFixed(1));
+        ray.setAttribute(
+            "class",
+            held ? "widget-mark--now" : "widget-mark--gate"
+        );
+        bracket.setAttribute("visibility", held ? "visible" : "hidden");
+        theirBracket.setAttribute("visibility", held ? "visible" : "hidden");
+        yourWord.textContent = held ? "YOUR LOCK: HELD" : "YOUR LOCK: NO LINE";
+        theirWord.textContent = held
+            ? "THEIR LOCK: HELD"
+            : "THEIR LOCK: NO LINE";
+        yourWord.setAttribute(
+            "class",
+            held ? "widget-mark--word" : "widget-mark--word is-dead"
+        );
+        theirWord.setAttribute(
+            "class",
+            held ? "widget-mark--word" : "widget-mark--word is-dead"
+        );
+        approachStat.textContent = meters(clearance + r);
+        clearanceStat.textContent = held
+            ? meters(clearance)
+            : `${meters(-clearance)} inside`;
+        readout.classList.remove("is-fault");
+        theirs.classList.remove("is-fault");
+        if (held) {
+            const beyond = rx > OCCLUSION_CONTACT_RANGE && ry === 0;
+            readout.textContent = beyond
+                ? "LOCK HELD. The rock is beyond the contact, and the ray is " +
+                  "cast only as far as the body it is asked about: cover " +
+                  "behind a contact is no cover."
+                : `LOCK HELD. The ray passes ${meters(clearance)} clear of the ` +
+                  "rock's surface, so the radio link stands.";
+            theirs.textContent =
+                "The hostile's acquisition asks the same function of the same " +
+                "world, so it holds you too.";
+        } else {
+            readout.classList.add("is-fault");
+            theirs.classList.add("is-fault");
+            readout.textContent =
+                rx - r <= 0 && Math.abs(ry) <= r
+                    ? "NO LINE. The ray starts inside the rock. The cast is " +
+                      "solid, so inside cover is inside cover, not looking out " +
+                      "of a hollow shell."
+                    : `NO LINE. The rock stands ${meters(-clearance)} onto the ` +
+                      "ray. The lock lets go, and the log says why.";
+            theirs.textContent =
+                "Their lock on you breaks the same way: the hostile's ray is " +
+                "this line reversed, and it meets the same rock.";
+        }
+    };
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(theirs);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "The scope is a plane through the ray; the game casts the same " +
+                "ray in three dimensions against every collider marked as " +
+                "radar cover, a rock's own hull included. The two ends never " +
+                "block themselves: the ray to a rock goes through that rock's " +
+                "own hull to reach its centre, which is what makes a rock " +
+                "lockable at all."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: where a part may stand --------------------------------------
+
+// The shipped grammar's block: four cells across the starboard half, five
+// tall, eleven long (base_content/grammars.rs:44-53), collapsed on the half
+// and mirrored into the whole ship (nova_wfc/src/collapse.rs:581). The keel
+// runs along row `height / 2` (nova_wfc/src/lib.rs:304), and z = 0 is the
+// bow: the spinal gun seeds into cell (0, keel, 0) (collapse.rs:208). The
+// zone test is ruled on ONE cell (collapse.rs:96-111), which is what gives a
+// multi-cell part its "every cell inside" reading.
+const GRAMMAR_HALF_WIDTH = 4; // grammars.rs:48
+const GRAMMAR_HEIGHT = 5; // grammars.rs:49
+const GRAMMAR_LENGTH = 11; // grammars.rs:52
+const GRAMMAR_KEEL_ROW = Math.floor(GRAMMAR_HEIGHT / 2); // lib.rs:304
+
+export type GrammarZone =
+    "Bow" | "Amidships" | "Stern" | "Dorsal" | "Ventral" | "Flank";
+
+/** The six zones, in the order `GrammarZone` declares them
+ * (sections/ship_grammar.rs:105-118). */
+export const GRAMMAR_ZONES: GrammarZone[] = [
+    "Bow",
+    "Amidships",
+    "Stern",
+    "Dorsal",
+    "Ventral",
+    "Flank",
+];
+
+// The zone test on one cell of the starboard half, exactly as the collapse
+// rules on it (collapse.rs:103-111): thirds along the hull, above or below
+// the keel row - the row itself is neither - and the outboard half across.
+export function zoneAllows(
+    zone: GrammarZone,
+    x: number,
+    y: number,
+    z: number
+): boolean {
+    switch (zone) {
+        case "Bow":
+            return z * 3 < GRAMMAR_LENGTH;
+        case "Amidships":
+            return z * 3 >= GRAMMAR_LENGTH && z * 3 < GRAMMAR_LENGTH * 2;
+        case "Stern":
+            return z * 3 >= GRAMMAR_LENGTH * 2;
+        case "Dorsal":
+            return y > GRAMMAR_KEEL_ROW;
+        case "Ventral":
+            return y < GRAMMAR_KEEL_ROW;
+        case "Flank":
+            return x * 2 >= GRAMMAR_HALF_WIDTH;
+    }
+}
+
+interface ZonePart {
+    label: string;
+    /** The box the part stands in, cells across, tall, long. */
+    cells: Vec3T;
+}
+
+/** The parts on offer, with the box each stands in. */
+export const ZONE_PARTS: ZonePart[] = [
+    // reinforced_hull_section: the unit cube (standard.rs:590-596).
+    { label: "HULL CELL", cells: [1, 1, 1] },
+    // BAY_CELLS, standard.rs:318.
+    { label: "TORPEDO BAY", cells: [1, 1, 2] },
+    // LANCE_CELLS, standard.rs:321.
+    { label: "LANCE", cells: [1, 1, 3] },
+    // vector_thruster_section, standard.rs:666.
+    { label: "VECTOR DRIVE", cells: [3, 3, 2] },
+    // capital_thruster_section, standard.rs:683.
+    { label: "CAPITAL DRIVE", cells: [5, 5, 3] },
+];
+
+// Column `c` of the whole mirrored ship (port to starboard) as its distance
+// from the centreline in the starboard half's coordinates.
+export function halfColumn(c: number): number {
+    return c >= GRAMMAR_HALF_WIDTH
+        ? c - GRAMMAR_HALF_WIDTH
+        : GRAMMAR_HALF_WIDTH - 1 - c;
+}
+
+export interface ZonePlacements {
+    /** `lit[column][row][z]`: a cell some legal placement of the part covers. */
+    lit: boolean[][][];
+    /** Legal anchor positions of the part on the whole mirrored ship. */
+    placements: number;
+    /** Cells that pass every ticked zone on their own. */
+    cells: number;
+}
+
+// Every place the part may stand: an anchor is legal when every cell of the
+// block is inside the grid and passes every ticked zone.
+export function zonePlacements(
+    zones: GrammarZone[],
+    part: Vec3T
+): ZonePlacements {
+    const W = 2 * GRAMMAR_HALF_WIDTH;
+    const H = GRAMMAR_HEIGHT;
+    const L = GRAMMAR_LENGTH;
+    const pass = (c: number, y: number, z: number): boolean =>
+        zones.every((zone) => zoneAllows(zone, halfColumn(c), y, z));
+    const lit: boolean[][][] = [];
+    let cells = 0;
+    for (let c = 0; c < W; c += 1) {
+        lit.push([]);
+        for (let y = 0; y < H; y += 1) {
+            lit[c].push([]);
+            for (let z = 0; z < L; z += 1) {
+                lit[c][y].push(false);
+                if (pass(c, y, z)) cells += 1;
+            }
+        }
+    }
+    const [w, h, d] = part;
+    let placements = 0;
+    for (let c0 = 0; c0 + w <= W; c0 += 1) {
+        for (let y0 = 0; y0 + h <= H; y0 += 1) {
+            for (let z0 = 0; z0 + d <= L; z0 += 1) {
+                let legal = true;
+                for (let c = c0; legal && c < c0 + w; c += 1) {
+                    for (let y = y0; legal && y < y0 + h; y += 1) {
+                        for (let z = z0; z < z0 + d; z += 1) {
+                            if (!pass(c, y, z)) {
+                                legal = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!legal) continue;
+                placements += 1;
+                for (let c = c0; c < c0 + w; c += 1) {
+                    for (let y = y0; y < y0 + h; y += 1) {
+                        for (let z = z0; z < z0 + d; z += 1) {
+                            lit[c][y][z] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return { lit, placements, cells };
+}
+
+function initHullZones(host: HTMLElement): void {
+    header(
+        host,
+        "Zone scope: the standard hull's grid",
+        `The shipped grammar collapses a ${2 * GRAMMAR_HALF_WIDTH} x ` +
+            `${GRAMMAR_HEIGHT} x ${GRAMMAR_LENGTH} block, mirrored about its ` +
+            "centreline with the keel along the middle row. A zone is a " +
+            "region of that block, and a part may stand only where EVERY " +
+            "cell of it is inside every zone its grammar names. Pick a part, " +
+            "tick zones."
+    );
+
+    let partIndex = 0;
+    const ticked = new Set<GrammarZone>();
+    const partKeys = keyRow(
+        ZONE_PARTS.map((part) => part.label),
+        partIndex,
+        (index) => {
+            partIndex = index;
+            update();
+        }
+    );
+    const zoneKeys = el("div", "widget__keys");
+    for (const zone of GRAMMAR_ZONES) {
+        const button = el("button", "widget__btn", zone.toUpperCase());
+        button.type = "button";
+        button.setAttribute("aria-pressed", "false");
+        button.addEventListener("click", () => {
+            const on = !ticked.has(zone);
+            if (on) ticked.add(zone);
+            else ticked.delete(zone);
+            button.classList.toggle("is-on", on);
+            button.setAttribute("aria-pressed", String(on));
+            update();
+        });
+        zoneKeys.appendChild(button);
+    }
+
+    // Two views sharing the length axis: the side (rows) above, the top
+    // (columns) below, bow at the left.
+    const S = 22;
+    const X0 = 150;
+    const SIDE_Y = 36;
+    const TOP_Y = SIDE_Y + GRAMMAR_HEIGHT * S + 40;
+    const W = 2 * GRAMMAR_HALF_WIDTH;
+    const svg = svgEl("svg", {
+        viewBox: `0 0 560 ${TOP_Y + W * S + 24}`,
+        role: "img",
+        "aria-label":
+            "Two views of the hull grid, a side view and a top view, with " +
+            "the cells a part may stand in lit.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    const label = (
+        x: number,
+        y: number,
+        text: string,
+        cls = "widget-mark--word"
+    ): void => {
+        svg.appendChild(
+            svgEl("text", { x: String(x), y: String(y), class: cls }, text)
+        );
+    };
+    label(16, SIDE_Y + 14, "SIDE");
+    label(16, SIDE_Y + 30, "5 rows", "widget-mark--detail");
+    label(16, TOP_Y + 14, "TOP");
+    label(16, TOP_Y + 30, `${W} columns`, "widget-mark--detail");
+    label(X0, SIDE_Y - 10, "BOW", "widget-mark--axis");
+    label(
+        X0 + GRAMMAR_LENGTH * S - 36,
+        SIDE_Y - 10,
+        "STERN",
+        "widget-mark--axis"
+    );
+    const sideCells: SVGRectElement[][] = [];
+    for (let y = 0; y < GRAMMAR_HEIGHT; y += 1) {
+        sideCells.push([]);
+        for (let z = 0; z < GRAMMAR_LENGTH; z += 1) {
+            // Row 0 is the bottom of the hull, so it draws lowest.
+            const rect = svgEl("rect", {
+                x: String(X0 + z * S + 1),
+                y: String(SIDE_Y + (GRAMMAR_HEIGHT - 1 - y) * S + 1),
+                width: String(S - 2),
+                height: String(S - 2),
+                class: "widget-mark--zone",
+            });
+            sideCells[y].push(rect);
+            svg.appendChild(rect);
+        }
+    }
+    const keelY = SIDE_Y + (GRAMMAR_HEIGHT - 1 - GRAMMAR_KEEL_ROW) * S + S / 2;
+    svg.appendChild(
+        svgEl("line", {
+            x1: String(X0 - 6),
+            y1: String(keelY),
+            x2: String(X0 + GRAMMAR_LENGTH * S + 6),
+            y2: String(keelY),
+            class: "widget-mark--keel",
+        })
+    );
+    label(
+        X0 + GRAMMAR_LENGTH * S + 10,
+        keelY + 4,
+        "keel row",
+        "widget-mark--axis"
+    );
+    const topCells: SVGRectElement[][] = [];
+    for (let c = 0; c < W; c += 1) {
+        topCells.push([]);
+        for (let z = 0; z < GRAMMAR_LENGTH; z += 1) {
+            const rect = svgEl("rect", {
+                x: String(X0 + z * S + 1),
+                y: String(TOP_Y + c * S + 1),
+                width: String(S - 2),
+                height: String(S - 2),
+                class: "widget-mark--zone",
+            });
+            topCells[c].push(rect);
+            svg.appendChild(rect);
+        }
+    }
+    const seamY = TOP_Y + GRAMMAR_HALF_WIDTH * S;
+    svg.appendChild(
+        svgEl("line", {
+            x1: String(X0 - 6),
+            y1: String(seamY),
+            x2: String(X0 + GRAMMAR_LENGTH * S + 6),
+            y2: String(seamY),
+            class: "widget-mark--keel",
+        })
+    );
+    label(
+        X0 + GRAMMAR_LENGTH * S + 10,
+        seamY + 4,
+        "centreline",
+        "widget-mark--axis"
+    );
+    label(
+        X0 + GRAMMAR_LENGTH * S + 10,
+        TOP_Y + 12,
+        "port",
+        "widget-mark--axis"
+    );
+    label(
+        X0 + GRAMMAR_LENGTH * S + 10,
+        TOP_Y + W * S - 4,
+        "starboard",
+        "widget-mark--axis"
+    );
+
+    const stats = el("div", "widget__stats");
+    const cellStat = stat(stats, "cells in the zones");
+    const placeStat = stat(stats, "places for the part");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const part = ZONE_PARTS[partIndex];
+        const zones = GRAMMAR_ZONES.filter((zone) => ticked.has(zone));
+        const result = zonePlacements(zones, part.cells);
+        for (let y = 0; y < GRAMMAR_HEIGHT; y += 1) {
+            for (let z = 0; z < GRAMMAR_LENGTH; z += 1) {
+                const lit = result.lit.some((column) => column[y][z]);
+                sideCells[y][z].classList.toggle("is-lit", lit);
+            }
+        }
+        for (let c = 0; c < W; c += 1) {
+            for (let z = 0; z < GRAMMAR_LENGTH; z += 1) {
+                const lit = result.lit[c].some((row) => row[z]);
+                topCells[c][z].classList.toggle("is-lit", lit);
+            }
+        }
+        cellStat.textContent = String(result.cells);
+        placeStat.textContent = String(result.placements);
+        const [w, h, d] = part.cells;
+        const box = `${w}x${h}x${d}`;
+        const where =
+            zones.length === 0
+                ? "anywhere the mating rule allows"
+                : `inside ${zones.join(" and ")}`;
+        readout.classList.remove("is-fault", "is-warn");
+        if (result.placements > 0) {
+            readout.textContent =
+                `${result.placements} places for a ${box} ${part.label.toLowerCase()}, ` +
+                `every cell of it ${where}. Lit cells are the ones some legal ` +
+                "placement covers.";
+            return;
+        }
+        readout.classList.add("is-fault");
+        const thirds = zones.filter((zone) =>
+            ["Bow", "Amidships", "Stern"].includes(zone)
+        );
+        if (thirds.length >= 2) {
+            readout.textContent =
+                `Nothing stands here. ${thirds.join(" and ")} are different ` +
+                "thirds of the length, and no cell is in two of them at once.";
+        } else if (ticked.has("Dorsal") && ticked.has("Ventral")) {
+            readout.textContent =
+                "Nothing stands here. No cell is both above and below the " +
+                "keel row - and the keel row itself is neither: it is the " +
+                "spine, not a flank.";
+        } else {
+            readout.textContent =
+                `No place for a ${box} ${part.label.toLowerCase()} ${where}: ` +
+                "a zone holds a part only if EVERY cell of it is inside, and " +
+                "no run of that zone is big enough to take all of this one.";
+        }
+    };
+
+    host.appendChild(partKeys.row);
+    host.appendChild(zoneKeys);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "Counted on the whole mirrored ship, so a part that straddles the " +
+                "centreline counts once. The collapse also asks the mating " +
+                "rule, the aim and the clearance of every placement; this " +
+                "scope shows the zone test alone. Flank is the outboard half " +
+                "of each side: two columns of four, clear of the centreline."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: rock is a material -----------------------------------------
+
+// The five kind ids the base game ships, in pick-list order
+// (nova_scenario/src/objects/asteroid_kind.rs:294), with the one-line
+// summary the picker teaches them by (:303-312) and the sRGB palette each
+// look is authored in: the shade (low ground), the tint (high ground) and
+// the vein the Worley walls are painted (:344-420). `plain` is the control,
+// every knob off, the texture wearing StandardMaterial's white (:424-446);
+// it is drawn here at the texture's own mean luminance, linear 0.095
+// (`ROCK_TEXTURE_LINEAR_MID`, :283), which is sRGB 0.34.
+interface AsteroidKindSwatch {
+    id: string;
+    summary: string;
+    shade: string;
+    tint: string;
+    vein: string;
+    /** `vein_strength`: how hard the seam network is painted. */
+    veins: number;
+    /** `roughness_low`: the glossy end of the surface. */
+    gloss: number;
+}
+
+function srgb(r: number, g: number, b: number): string {
+    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+}
+
+export const ASTEROID_KINDS: AsteroidKindSwatch[] = [
+    {
+        id: "rock",
+        summary: "Ordinary stone: warm tan banded with cool slate",
+        shade: srgb(0.28, 0.3, 0.34),
+        tint: srgb(0.52, 0.45, 0.34),
+        vein: srgb(0.6, 0.56, 0.5),
+        veins: 0.06,
+        gloss: 0.7,
+    },
+    {
+        id: "metal",
+        summary: "Nickel-iron: cold, metallic, bright seams",
+        shade: srgb(0.21, 0.24, 0.3),
+        tint: srgb(0.5, 0.48, 0.44),
+        vein: srgb(0.76, 0.72, 0.64),
+        veins: 0.16,
+        gloss: 0.28,
+    },
+    {
+        id: "ice",
+        summary: "Water ice: pale blue, glossy, crackled through",
+        shade: srgb(0.42, 0.56, 0.72),
+        tint: srgb(0.84, 0.88, 0.91),
+        vein: srgb(0.93, 0.97, 1.0),
+        veins: 0.24,
+        gloss: 0.08,
+    },
+    {
+        id: "carbon",
+        summary: "Carbonaceous: near-black and matte",
+        shade: srgb(0.055, 0.062, 0.075),
+        tint: srgb(0.14, 0.13, 0.115),
+        vein: srgb(0.19, 0.18, 0.16),
+        veins: 0.06,
+        gloss: 0.88,
+    },
+    {
+        id: "plain",
+        summary: "The control: the texture with nothing done to it",
+        shade: srgb(0.34, 0.34, 0.34),
+        tint: srgb(0.34, 0.34, 0.34),
+        vein: srgb(0.34, 0.34, 0.34),
+        veins: 0,
+        gloss: 0.5,
+    },
+];
+
+// The kind a `draw` in 0..1 picks out of a WEIGHTED mix, exactly as
+// `asteroid_kind_from_mix` does (asteroid_kind.rs:100-117): the weights are
+// relative counts laid out in authored order, the draw is clamped, the
+// ticket is one below the total at most, and no weight at all picks nothing.
+export function asteroidKindFromMix(
+    mix: [string, number][],
+    draw: number
+): string | null {
+    const total = mix.reduce((sum, [, weight]) => sum + weight, 0);
+    if (total === 0) return null;
+    let ticket = Math.floor(clamp(draw, 0, 1) * total);
+    ticket = Math.min(ticket, total - 1);
+    let run = 0;
+    for (const [id, weight] of mix) {
+        run += weight;
+        if (ticket < run) return id;
+    }
+    return null;
+}
+
+// A small seeded generator (mulberry32) standing in for the scatter's own
+// seeded RNG, so a belt is the same belt for the same seed.
+export function seededDraws(seed: number, count: number): number[] {
+    let a = seed >>> 0;
+    const draws: number[] = [];
+    for (let i = 0; i < count; i += 1) {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        draws.push(((t ^ (t >>> 14)) >>> 0) / 4294967296);
+    }
+    return draws;
+}
+
+const BELT_BODIES = 24;
+
+// One body drawn as the kind's palette: a gradient from tint to shade, a
+// seam or crackle stroke where the look paints veins, and a highlight where
+// the surface has a glossy end.
+function asteroidGlyph(
+    kind: AsteroidKindSwatch,
+    x: number,
+    y: number,
+    r: number,
+    spin: number
+): SVGGElement {
+    const g = svgEl("g", {
+        transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(spin * 360).toFixed(0)})`,
+    });
+    g.appendChild(
+        svgEl("circle", {
+            r: r.toFixed(1),
+            fill: `url(#asteroid-kind-${kind.id})`,
+            stroke: kind.shade,
+            "stroke-width": "1",
+        })
+    );
+    if (kind.veins > 0.1) {
+        g.appendChild(
+            svgEl("path", {
+                d: `M${(-r * 0.7).toFixed(1)},${(-r * 0.2).toFixed(1)} L${(-r * 0.15).toFixed(1)},${(r * 0.15).toFixed(1)} L${(r * 0.25).toFixed(1)},${(-r * 0.25).toFixed(1)} L${(r * 0.65).toFixed(1)},${(r * 0.3).toFixed(1)}`,
+                fill: "none",
+                stroke: kind.vein,
+                "stroke-width": (r * 0.08).toFixed(2),
+                "stroke-opacity": Math.min(1, kind.veins * 3).toFixed(2),
+            })
+        );
+    }
+    if (kind.gloss < 0.3) {
+        g.appendChild(
+            svgEl("ellipse", {
+                cx: (-r * 0.35).toFixed(1),
+                cy: (-r * 0.4).toFixed(1),
+                rx: (r * 0.28).toFixed(1),
+                ry: (r * 0.16).toFixed(1),
+                fill: "white",
+                "fill-opacity": (0.5 - kind.gloss).toFixed(2),
+            })
+        );
+    }
+    return g;
+}
+
+function asteroidGradients(): SVGDefsElement {
+    const defs = svgEl("defs", {});
+    for (const kind of ASTEROID_KINDS) {
+        const gradient = svgEl("radialGradient", {
+            id: `asteroid-kind-${kind.id}`,
+            cx: "0.38",
+            cy: "0.35",
+            r: "0.75",
+        });
+        gradient.appendChild(
+            svgEl("stop", { offset: "0", "stop-color": kind.tint })
+        );
+        gradient.appendChild(
+            svgEl("stop", { offset: "1", "stop-color": kind.shade })
+        );
+        defs.appendChild(gradient);
+    }
+    return defs;
+}
+
+function initAsteroidKinds(host: HTMLElement): void {
+    header(
+        host,
+        "Belt scope: a weighted mix of kinds",
+        "Four kinds and a control. A scatter's mix is relative counts, not " +
+            "percentages - `[rock 24, carbon 5, metal 1]` is mostly rock, some " +
+            "carbon, rare metal, and stays that when a fourth entry is " +
+            `added. Set the weights and draw ${BELT_BODIES} bodies from them.`
+    );
+
+    // The swatch row: the five kinds at one size under one light.
+    const swatches = svgEl("svg", {
+        viewBox: "0 0 560 96",
+        role: "img",
+        "aria-label": "The five asteroid kinds as swatches, named.",
+    });
+    swatches.appendChild(asteroidGradients());
+    for (const [index, kind] of ASTEROID_KINDS.entries()) {
+        const x = 56 + index * 112;
+        swatches.appendChild(asteroidGlyph(kind, x, 38, 26, 0.1 * index));
+        swatches.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(x),
+                    y: "84",
+                    "text-anchor": "middle",
+                    class: "widget-mark--word",
+                },
+                kind.id.toUpperCase()
+            )
+        );
+    }
+    const swatchPlot = el("div", "widget__plot");
+    swatchPlot.appendChild(swatches);
+    const legend = el("div", "widget__stack");
+    for (const kind of ASTEROID_KINDS) {
+        legend.appendChild(sectionCell(kind.id, ` ${kind.summary}`, ""));
+    }
+
+    const controls = el("div", "widget__controls");
+    const weightOf = (id: string, value: number): Control =>
+        control(
+            `${id} weight`,
+            0,
+            30,
+            1,
+            value,
+            (v) => String(v),
+            () => update()
+        );
+    // The documented example mix, in pick-list order.
+    const weights: [string, Control][] = [
+        ["rock", weightOf("rock", 24)],
+        ["metal", weightOf("metal", 1)],
+        ["ice", weightOf("ice", 0)],
+        ["carbon", weightOf("carbon", 5)],
+    ];
+    for (const [, fader] of weights) controls.appendChild(fader.row);
+
+    let seed = 7;
+    const keys = el("div", "widget__keys");
+    const reseed = el("button", "widget__btn", "RESEED");
+    reseed.type = "button";
+    reseed.addEventListener("click", () => {
+        seed += 1;
+        update();
+    });
+    keys.appendChild(reseed);
+
+    const belt = svgEl("svg", {
+        viewBox: "0 0 560 150",
+        role: "img",
+        "aria-label":
+            "A belt of asteroids drawn from the mix, each in its kind's palette.",
+    });
+    belt.appendChild(asteroidGradients());
+    const bodies = svgEl("g", {});
+    belt.appendChild(bodies);
+    const beltPlot = el("div", "widget__plot");
+    beltPlot.appendChild(belt);
+
+    const stats = el("div", "widget__stats");
+    const drawnStats = new Map<string, HTMLElement>();
+    for (const kind of ASTEROID_KINDS) {
+        drawnStats.set(kind.id, stat(stats, kind.id));
+    }
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const mix: [string, number][] = weights.map(([id, fader]) => [
+            id,
+            Number(fader.input.value),
+        ]);
+        const draws = seededDraws(seed, BELT_BODIES * 4);
+        const counts = new Map<string, number>();
+        bodies.replaceChildren();
+        for (let i = 0; i < BELT_BODIES; i += 1) {
+            const picked = asteroidKindFromMix(mix, draws[i * 4]);
+            // A mix with no weight picks nothing, and the scatter keeps the
+            // kind its template authored; the control stands in for that.
+            const id = picked ?? "plain";
+            counts.set(id, (counts.get(id) ?? 0) + 1);
+            const kind =
+                ASTEROID_KINDS.find((k) => k.id === id) ?? ASTEROID_KINDS[4];
+            const x =
+                24 +
+                ((i + 0.5) / BELT_BODIES) * 512 +
+                (draws[i * 4 + 1] - 0.5) * 16;
+            const y = 40 + draws[i * 4 + 2] * 70;
+            const r = 8 + draws[i * 4 + 3] * 12;
+            bodies.appendChild(asteroidGlyph(kind, x, y, r, draws[i * 4 + 1]));
+        }
+        for (const kind of ASTEROID_KINDS) {
+            const value = drawnStats.get(kind.id);
+            if (value) value.textContent = String(counts.get(kind.id) ?? 0);
+        }
+        const total = mix.reduce((sum, [, weight]) => sum + weight, 0);
+        readout.classList.remove("is-warn");
+        if (total === 0) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                "A mix with no weight picks nothing. The scatter keeps " +
+                "whatever kind its template authored; the control stands in " +
+                "for it here.";
+            return;
+        }
+        const ratio = mix.map(([, weight]) => weight).join(":");
+        const summary = ASTEROID_KINDS.filter((kind) => kind.id !== "plain")
+            .map((kind) => `${counts.get(kind.id) ?? 0} ${kind.id}`)
+            .join(", ");
+        readout.textContent =
+            `${BELT_BODIES} bodies from a ${ratio} mix (rock:metal:ice:carbon), ` +
+            `seed ${seed}: ${summary}. Each draw is one ticket out of ${total}, ` +
+            "walked through the weights in authored order.";
+    };
+
+    host.appendChild(swatchPlot);
+    host.appendChild(legend);
+    host.appendChild(controls);
+    host.appendChild(keys);
+    host.appendChild(beltPlot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "Swatches are the authored palettes - shade, tint and vein in " +
+                "sRGB - not captures: the game shades each kind over a " +
+                "triplanar texture with its own strata, seams and specular. " +
+                "The draw rule is the game's; the seed here is the scope's " +
+                "own, standing in for the scatter's."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: where a sound is --------------------------------------------
+
+// Three routes (audio/bus.rs:48-67): Interface is never positional, Hull is
+// the pilot's own ship heard through its structure and is never attenuated
+// or panned, and Exterior - the post's "World" - is the one route that is
+// either (`is_positional`, bus.rs:83). An Exterior voice's sink gain is its
+// level times `distance_attenuation` times `pan_compensation`
+// (audio/voice.rs:190-201), and rodio splits that between the ears by the
+// mirrored `pan_gains`. Below `SFX_AUDIBLE_THRESHOLD` a one-shot is not
+// started at all (mixing.rs:33).
+//
+// Engine units: the rolloff band and the ear rig are world units
+// (mixing.rs:18-20, spatial.rs:31-38), so the faders' meters cross here.
+const SFX_NEAR_DISTANCE = 20; // mixing.rs:18 (world units)
+const SFX_FAR_DISTANCE = 320; // mixing.rs:20 (world units)
+const SFX_ROLLOFF_FLOOR = 0.05; // mixing.rs:29
+const SFX_AUDIBLE_THRESHOLD = 0.01; // mixing.rs:33
+const SPATIAL_EAR_GAP = 2; // spatial.rs:31 (world units)
+const SPATIAL_EMITTER_RADIUS = 2.5; // spatial.rs:38 (world units)
+
+// Distance rolloff in 0..1: full inside NEAR, silent past FAR, a geometric
+// decay toward the floor between, remapped to reach exactly zero
+// (mixing.rs:116-126).
+export function distanceAttenuation(distanceU: number): number {
+    if (distanceU <= SFX_NEAR_DISTANCE) return 1;
+    if (distanceU >= SFX_FAR_DISTANCE) return 0;
+    const t =
+        (distanceU - SFX_NEAR_DISTANCE) /
+        (SFX_FAR_DISTANCE - SFX_NEAR_DISTANCE);
+    const decayed = Math.pow(SFX_ROLLOFF_FLOOR, t);
+    return (decayed - SFX_ROLLOFF_FLOOR) / (1 - SFX_ROLLOFF_FLOOR);
+}
+
+// The (left, right) gains rodio applies to an emitter parked on the fixed
+// sphere in the bearing direction, listener-local: +X right, -Z ahead
+// (spatial.rs:73-88).
+export function panGains(bx: number, by: number, bz: number): [number, number] {
+    const ex = bx * SPATIAL_EMITTER_RADIUS;
+    const ey = by * SPATIAL_EMITTER_RADIUS;
+    const ez = bz * SPATIAL_EMITTER_RADIUS;
+    const halfGap = SPATIAL_EAR_GAP / 2;
+    const leftDistance = Math.hypot(ex + halfGap, ey, ez);
+    const rightDistance = Math.hypot(ex - halfGap, ey, ez);
+    const lean = (leftDistance - rightDistance) / SPATIAL_EAR_GAP;
+    const leftLean = Math.min(1, (lean + 1) / 4 + 0.5);
+    const rightLean = Math.min(1, (-lean + 1) / 4 + 0.5);
+    return [
+        leftLean * Math.min(1, 1 / (leftDistance * leftDistance)),
+        rightLean * Math.min(1, 1 / (rightDistance * rightDistance)),
+    ];
+}
+
+// The sink factor that cancels the pan's own loudness and leaves its ratio:
+// the two ears end up at RMS 1 (spatial.rs:95-103).
+export function panCompensation(bx: number, by: number, bz: number): number {
+    const [left, right] = panGains(bx, by, bz);
+    const power = Math.sqrt((left * left + right * right) / 2);
+    return power > Number.EPSILON ? 1 / power : 1;
+}
+
+export type SoundRoute = "Interface" | "Hull" | "Exterior";
+
+export interface EarLevels {
+    /** Linear gain written to the left channel. */
+    left: number;
+    /** Linear gain written to the right channel. */
+    right: number;
+    /** The distance-attenuated level before the pan, 0..1. */
+    level: number;
+}
+
+// A source `distanceM` out on `bearingDeg` (0 dead ahead, +90 to starboard),
+// as the two ears receive it on `route`.
+export function soundAtEars(
+    route: SoundRoute,
+    distanceM: number,
+    bearingDeg: number
+): EarLevels {
+    if (route !== "Exterior") return { left: 1, right: 1, level: 1 };
+    const rad = (bearingDeg * Math.PI) / 180;
+    const bx = Math.sin(rad);
+    const bz = -Math.cos(rad);
+    const level = distanceAttenuation(distanceM / METERS_PER_UNIT);
+    const gain = level * panCompensation(bx, 0, bz);
+    const [left, right] = panGains(bx, 0, bz);
+    return { left: left * gain, right: right * gain, level };
+}
+
+function decibels(gain: number): string {
+    if (gain <= 0) return "silent";
+    return `${(20 * Math.log10(gain)).toFixed(1)} dB`;
+}
+
+function initSoundMap(host: HTMLElement): void {
+    const NEAR_M = SFX_NEAR_DISTANCE * METERS_PER_UNIT;
+    const FAR_M = SFX_FAR_DISTANCE * METERS_PER_UNIT;
+    header(
+        host,
+        "Listening scope: three routes, one world",
+        "Interface cues have no position. Hull cues are your own ship heard " +
+            "through its structure: never attenuated, never panned. World " +
+            `cues are full inside ${meters(NEAR_M)}, silent past ${meters(FAR_M)}, ` +
+            "and pan with their bearing. Move a source around the ship."
+    );
+
+    const routes: SoundRoute[] = ["Interface", "Hull", "Exterior"];
+    let route: SoundRoute = "Exterior";
+    const keys = keyRow(["INTERFACE", "HULL", "WORLD"], 2, (index) => {
+        route = routes[index];
+        update();
+    });
+
+    const controls = el("div", "widget__controls");
+    const bearing = control(
+        "bearing",
+        -180,
+        180,
+        5,
+        45,
+        (v) =>
+            v === 0
+                ? "dead ahead"
+                : Math.abs(v) === 180
+                  ? "dead astern"
+                  : `${Math.abs(v)} deg to ${v > 0 ? "starboard" : "port"}`,
+        () => update()
+    );
+    const distance = control(
+        "distance",
+        0,
+        3500,
+        10,
+        800,
+        (v) => meters(v),
+        () => update()
+    );
+    controls.appendChild(bearing.row);
+    controls.appendChild(distance.row);
+
+    // Top-down scope, the ship at the centre and the far ring at the frame.
+    const CX = 280;
+    const CY = 150;
+    const PX = 136 / FAR_M;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 300",
+        role: "img",
+        "aria-label":
+            "Top-down scope with the ship at the centre, the full-volume " +
+            "ring and the silence ring, and the source placed by bearing and " +
+            "distance.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    for (const [radiusM, word] of [
+        [NEAR_M, "full inside"],
+        [FAR_M, "silent past"],
+    ] as [number, string][]) {
+        svg.appendChild(
+            svgEl("circle", {
+                cx: String(CX),
+                cy: String(CY),
+                r: (radiusM * PX).toFixed(1),
+                class: "widget-mark--ring",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(CX + radiusM * PX + 4),
+                    y: String(CY - 4),
+                    class: "widget-mark--axis",
+                },
+                `${word} ${meters(radiusM)}`
+            )
+        );
+    }
+    const bearingRay = svgEl("line", {
+        x1: String(CX),
+        y1: String(CY),
+        class: "widget-mark--ray",
+    });
+    svg.appendChild(bearingRay);
+    svg.appendChild(
+        svgEl("path", {
+            d: `M${CX} ${CY - 9} L${CX - 7} ${CY + 8} L${CX + 7} ${CY + 8} Z`,
+            class: "widget-mark--ship",
+        })
+    );
+    const source = svgEl("circle", { r: "6", class: "widget-mark--slug" });
+    svg.appendChild(source);
+    const sourceWord = svgEl("text", { class: "widget-mark--label-now" }, "");
+    svg.appendChild(sourceWord);
+    const chip = svgEl(
+        "text",
+        { x: "16", y: "24", class: "widget-mark--word" },
+        ""
+    );
+    svg.appendChild(chip);
+
+    const bars = el("div");
+    const barRow = (name: string): { fill: HTMLElement; word: HTMLElement } => {
+        bars.appendChild(el("p", "widget__rowlabel", name));
+        const bar = el("div", "widget__bar");
+        const fill = el("div", "widget__bar-fill");
+        bar.appendChild(fill);
+        bars.appendChild(bar);
+        const word = el("p", "widget__note", "");
+        bars.appendChild(word);
+        return { fill, word };
+    };
+    const leftBar = barRow("LEFT EAR");
+    const rightBar = barRow("RIGHT EAR");
+
+    const stats = el("div", "widget__stats");
+    const levelStat = stat(stats, "level");
+    const leftStat = stat(stats, "left");
+    const rightStat = stat(stats, "right");
+    const readout = el("p", "widget__readout");
+
+    // The loudest one ear reaches: hard abeam, where the compensation puts
+    // most of unit RMS on the near side.
+    const loudest = Math.max(...panGains(1, 0, 0)) * panCompensation(1, 0, 0);
+    const update = (): void => {
+        const deg = Number(bearing.input.value);
+        const m = Number(distance.input.value);
+        const ears = soundAtEars(route, m, deg);
+        const rad = (deg * Math.PI) / 180;
+        const sx = CX + Math.sin(rad) * m * PX;
+        const sy = CY - Math.cos(rad) * m * PX;
+        const positional = route === "Exterior";
+        source.setAttribute("cx", positional ? sx.toFixed(1) : String(CX));
+        source.setAttribute("cy", positional ? sy.toFixed(1) : String(CY));
+        source.setAttribute(
+            "visibility",
+            route === "Interface" ? "hidden" : "visible"
+        );
+        bearingRay.setAttribute("x2", positional ? sx.toFixed(1) : String(CX));
+        bearingRay.setAttribute("y2", positional ? sy.toFixed(1) : String(CY));
+        sourceWord.setAttribute("x", (positional ? sx : CX) + 10 + "");
+        sourceWord.setAttribute("y", (positional ? sy : CY) + 4 + "");
+        sourceWord.textContent =
+            route === "Interface"
+                ? ""
+                : route === "Hull"
+                  ? "your own hull"
+                  : "source";
+        chip.textContent =
+            route === "Interface"
+                ? "INTERFACE: NO POSITION"
+                : route === "Hull"
+                  ? "HULL: STRUCTURE-BORNE"
+                  : "WORLD: PLACED";
+        leftBar.fill.style.width = `${Math.min(100, (ears.left / loudest) * 100).toFixed(1)}%`;
+        rightBar.fill.style.width = `${Math.min(100, (ears.right / loudest) * 100).toFixed(1)}%`;
+        leftBar.word.textContent = `${(ears.left * 100).toFixed(0)}% (${decibels(ears.left)})`;
+        rightBar.word.textContent = `${(ears.right * 100).toFixed(0)}% (${decibels(ears.right)})`;
+        levelStat.textContent = `${(ears.level * 100).toFixed(0)}%`;
+        leftStat.textContent = decibels(ears.left);
+        rightStat.textContent = decibels(ears.right);
+        readout.classList.remove("is-warn", "is-fault");
+        if (route === "Interface") {
+            readout.textContent =
+                "Engine chrome: menu keys, objective chimes, the NOVA OS " +
+                "terminal. The cue has no position at all - full level in " +
+                "both ears wherever anything is.";
+            return;
+        }
+        if (route === "Hull") {
+            readout.textContent =
+                "Your own guns, your own drives, damage landing on your hull: " +
+                "the room the pilot is sitting in, not a place out in the " +
+                "world. Full level, both ears, at any range and bearing - by " +
+                "routing, not by a special case.";
+            return;
+        }
+        const side =
+            Math.abs(ears.left - ears.right) < 1e-3
+                ? "centred"
+                : ears.left > ears.right
+                  ? "leaning left"
+                  : "leaning right";
+        if (ears.level <= 0) {
+            readout.classList.add("is-fault");
+            readout.textContent =
+                `${meters(m)} out is past the ${meters(FAR_M)} ring: silent. ` +
+                "Nothing out there is heard, whatever it is.";
+        } else if (ears.level < SFX_AUDIBLE_THRESHOLD) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `${meters(m)} out on the ${bearing.input.value} deg bearing: ` +
+                `${(ears.level * 100).toFixed(1)}% of full, under the 1% floor a ` +
+                "one-shot is not even started at.";
+        } else {
+            readout.textContent =
+                `${meters(m)} out, ${side}: ${(ears.level * 100).toFixed(0)}% of ` +
+                `full (${decibels(ears.level)}) before the pan. The pan only ` +
+                "places it - the two ears together hold the same loudness a " +
+                "cue with no position has.";
+        }
+    };
+
+    host.appendChild(keys.row);
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(bars);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "Bearing is relative to where the camera looks, not to world " +
+                "axes: turn the ship and a fixed source crosses the stereo " +
+                "field. The falloff is geometric between the two rings, so " +
+                "it fades evenly to the ear instead of staying flat and then " +
+                "cliffing. The bars are scaled so a source hard abeam fills " +
+                "its near ear."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: RCS is a speed budget --------------------------------------
+
+// RCS reaches a cap of 100 m/s at 5 G whatever the ship weighs
+// (nova_ship/src/flight/state.rs:443-444: `rcs_speed_cap`, `rcs_accel`,
+// converted at the physics boundary). The rule that holds the cap is
+// `budgeted_rcs_delta_v` (flight/manual.rs:98-121): a push that slows the
+// hull is free, a push that grows the speed is tapered over the last fifth
+// of the cap (SPEED_CAP_TAPER_FRACTION, manual.rs:37, applied :335), and a
+// push that would leave the sphere is clamped to its surface - so at the cap
+// the stick TURNS the velocity instead of adding to it. The impulse is
+// scaled by mass so the hull gets exactly that delta-v (manual.rs:355-361).
+const RCS_CAP_M = RCS_SPEED_CAP * METERS_PER_UNIT;
+const RCS_ACCEL_M = RCS_ACCEL * METERS_PER_UNIT;
+const RCS_TAPER_FRACTION = 0.2;
+
+/** The delta-v the budget allows out of `push`, in the plane. Meters or
+ * world units alike: the rule has no scale of its own. */
+export function budgetedRcsDeltaV(
+    residual: [number, number],
+    push: [number, number],
+    cap: number,
+    taperBand: number
+): [number, number] {
+    const step = Math.hypot(push[0], push[1]);
+    if (step <= 0) return [0, 0];
+    const speed = Math.hypot(residual[0], residual[1]);
+    const grown = Math.hypot(residual[0] + push[0], residual[1] + push[1]);
+    if (grown <= speed) return push;
+    const growth = clamp((grown - speed) / step, 0, 1);
+    const taper = clamp(
+        (cap - speed) / Math.max(taperBand, Number.EPSILON),
+        0,
+        1
+    );
+    const scale = 1 - growth * (1 - taper);
+    const tapered: [number, number] = [push[0] * scale, push[1] * scale];
+    const radius = Math.max(speed, cap);
+    const result: [number, number] = [
+        residual[0] + tapered[0],
+        residual[1] + tapered[1],
+    ];
+    const length = Math.hypot(result[0], result[1]);
+    if (length <= radius) return tapered;
+    const held = radius / length;
+    return [result[0] * held - residual[0], result[1] * held - residual[1]];
+}
+
+export interface RcsPush {
+    /** Velocity before the burn, m/s in the plane. */
+    before: [number, number];
+    /** Velocity after `seconds` of holding the stick. */
+    after: [number, number];
+    /** The sphere held the vector on its surface at some tick. */
+    clamped: boolean;
+    /** The taper band took part of some tick. */
+    tapered: boolean;
+    /** Every tick was free: the push only ever slowed the hull. */
+    free: boolean;
+}
+
+/** `seconds` of holding the RCS stick toward `pushDeg` while moving at
+ * `speed` along `headingDeg`, integrated at the fixed tick. Bearings are
+ * compass-style: 0 up the plot, positive clockwise. */
+export function rcsPush(
+    speed: number,
+    headingDeg: number,
+    pushDeg: number,
+    seconds = 1
+): RcsPush {
+    const dir = (deg: number): [number, number] => {
+        const rad = (deg * Math.PI) / 180;
+        return [Math.sin(rad), Math.cos(rad)];
+    };
+    const heading = dir(headingDeg);
+    const before: [number, number] = [speed * heading[0], speed * heading[1]];
+    const stepLength = RCS_ACCEL_M / FIXED_TICK_HZ;
+    const pushDir = dir(pushDeg);
+    const push: [number, number] = [
+        pushDir[0] * stepLength,
+        pushDir[1] * stepLength,
+    ];
+    const taperBand = Math.max(RCS_CAP_M * RCS_TAPER_FRACTION, 1e-3);
+    let velocity: [number, number] = [before[0], before[1]];
+    let clamped = false;
+    let tapered = false;
+    let free = true;
+    const ticks = Math.round(seconds * FIXED_TICK_HZ);
+    for (let i = 0; i < ticks; i += 1) {
+        const delta = budgetedRcsDeltaV(velocity, push, RCS_CAP_M, taperBand);
+        const size = Math.hypot(delta[0], delta[1]);
+        const grownSpeed = Math.hypot(
+            velocity[0] + push[0],
+            velocity[1] + push[1]
+        );
+        if (grownSpeed > Math.hypot(velocity[0], velocity[1])) {
+            free = false;
+            if (size < stepLength - 1e-9) {
+                const next = Math.hypot(
+                    velocity[0] + delta[0],
+                    velocity[1] + delta[1]
+                );
+                if (
+                    next >=
+                    Math.max(Math.hypot(velocity[0], velocity[1]), RCS_CAP_M) -
+                        1e-6
+                ) {
+                    clamped = true;
+                } else {
+                    tapered = true;
+                }
+            }
+        }
+        velocity = [velocity[0] + delta[0], velocity[1] + delta[1]];
+    }
+    return { before, after: velocity, clamped, tapered, free };
+}
+
+function initRcsBudget(host: HTMLElement): void {
+    header(
+        host,
+        "Thrust scope: the RCS sphere",
+        `RCS holds every ship inside one sphere: ${metersPerSec(RCS_CAP_M)} ` +
+            `at ${metersPerSec2(RCS_ACCEL_M)}, whatever it weighs. Inside the ` +
+            "sphere the stick adds speed. On its surface the stick turns " +
+            "the velocity. Slowing down is always free. Set a speed and hold " +
+            "the stick for one second."
+    );
+
+    const controls = el("div", "widget__controls");
+    const speed = control(
+        "speed now",
+        0,
+        120,
+        1,
+        RCS_CAP_M,
+        (v) =>
+            v === RCS_CAP_M ? `${metersPerSec(v)} (the cap)` : metersPerSec(v),
+        () => update()
+    );
+    const heading = control(
+        "moving toward",
+        -180,
+        180,
+        5,
+        0,
+        (v) => `${v} deg`,
+        () => update()
+    );
+    const push = control(
+        "stick held toward",
+        -180,
+        180,
+        5,
+        90,
+        (v) => `${v} deg`,
+        () => update()
+    );
+    const mass = control(
+        "hull mass",
+        1,
+        8,
+        0.5,
+        1,
+        (v) => `x${v} the gunship`,
+        () => update()
+    );
+    controls.appendChild(speed.row);
+    controls.appendChild(heading.row);
+    controls.appendChild(push.row);
+    controls.appendChild(mass.row);
+
+    const CX = 280;
+    const CY = 150;
+    const PX = 110 / RCS_CAP_M;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 300",
+        role: "img",
+        "aria-label":
+            "The RCS speed sphere as a ring, the velocity before and after " +
+            "one second on the stick, and the direction the stick pushes.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    svg.appendChild(
+        svgEl("circle", {
+            cx: String(CX),
+            cy: String(CY),
+            r: (RCS_CAP_M * (1 - RCS_TAPER_FRACTION) * PX).toFixed(1),
+            fill: "none",
+            class: "widget-mark--ray",
+        })
+    );
+    svg.appendChild(
+        svgEl("circle", {
+            cx: String(CX),
+            cy: String(CY),
+            r: (RCS_CAP_M * PX).toFixed(1),
+            class: "widget-mark--now",
+        })
+    ).setAttribute("fill", "none");
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(CX + RCS_CAP_M * PX + 6),
+                y: String(CY - 4),
+                class: "widget-mark--axis",
+            },
+            `cap ${metersPerSec(RCS_CAP_M)}`
+        )
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(CX + RCS_CAP_M * (1 - RCS_TAPER_FRACTION) * PX + 6),
+                y: String(CY + 14),
+                class: "widget-mark--axis",
+            },
+            `taper from ${metersPerSec(RCS_CAP_M * (1 - RCS_TAPER_FRACTION))}`
+        )
+    );
+    svg.appendChild(
+        svgEl("circle", {
+            cx: String(CX),
+            cy: String(CY),
+            r: "3",
+            class: "widget-mark--dot-old",
+        })
+    );
+    const beforeLine = svgEl("line", {
+        x1: String(CX),
+        y1: String(CY),
+        class: "widget-mark--old",
+    });
+    const beforeDot = svgEl("circle", {
+        r: "4",
+        class: "widget-mark--dot-old",
+    });
+    const afterLine = svgEl("line", {
+        x1: String(CX),
+        y1: String(CY),
+        class: "widget-mark--now",
+    });
+    const afterDot = svgEl("circle", { r: "4", class: "widget-mark--dot-now" });
+    const pushLine = svgEl("line", { class: "widget-mark--plume" });
+    const pushHead = svgEl("polygon", { class: "widget-mark--slug" });
+    const beforeWord = svgEl(
+        "text",
+        { "text-anchor": "end", class: "widget-mark--label-old" },
+        ""
+    );
+    const afterWord = svgEl("text", { class: "widget-mark--label-now" }, "");
+    for (const node of [
+        beforeLine,
+        afterLine,
+        pushLine,
+        pushHead,
+        beforeDot,
+        afterDot,
+        beforeWord,
+        afterWord,
+    ]) {
+        svg.appendChild(node);
+    }
+
+    const stats = el("div", "widget__stats");
+    const afterStat = stat(stats, "speed after 1 s");
+    const gainedStat = stat(stats, "speed gained");
+    const turnedStat = stat(stats, "velocity turned");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const v0 = Number(speed.input.value);
+        const h = Number(heading.input.value);
+        const p = Number(push.input.value);
+        const result = rcsPush(v0, h, p, 1);
+        const at = (v: [number, number]): [number, number] => [
+            CX + v[0] * PX,
+            CY - v[1] * PX,
+        ];
+        const [bx, by] = at(result.before);
+        const [ax, ay] = at(result.after);
+        beforeLine.setAttribute("x2", bx.toFixed(1));
+        beforeLine.setAttribute("y2", by.toFixed(1));
+        beforeDot.setAttribute("cx", bx.toFixed(1));
+        beforeDot.setAttribute("cy", by.toFixed(1));
+        afterLine.setAttribute("x2", ax.toFixed(1));
+        afterLine.setAttribute("y2", ay.toFixed(1));
+        afterDot.setAttribute("cx", ax.toFixed(1));
+        afterDot.setAttribute("cy", ay.toFixed(1));
+        // The stick's direction drawn from the velocity's tip, one second's
+        // unbudgeted delta-v long.
+        const rad = (p * Math.PI) / 180;
+        const reach = RCS_ACCEL_M * PX;
+        const px = bx + Math.sin(rad) * reach;
+        const py = by - Math.cos(rad) * reach;
+        pushLine.setAttribute("x1", bx.toFixed(1));
+        pushLine.setAttribute("y1", by.toFixed(1));
+        pushLine.setAttribute("x2", px.toFixed(1));
+        pushLine.setAttribute("y2", py.toFixed(1));
+        pushHead.setAttribute(
+            "points",
+            arrowPoints(px, py, Math.sin(rad), -Math.cos(rad))
+        );
+        beforeWord.setAttribute("x", (bx - 8).toFixed(1));
+        beforeWord.setAttribute("y", (by - 8).toFixed(1));
+        beforeWord.textContent = "before";
+        afterWord.setAttribute("x", (ax + 8).toFixed(1));
+        afterWord.setAttribute("y", (ay + 14).toFixed(1));
+        afterWord.textContent = "after 1 s";
+        const speedAfter = Math.hypot(result.after[0], result.after[1]);
+        const gained = speedAfter - v0;
+        const angle = (a: [number, number], b: [number, number]): number => {
+            const la = Math.hypot(a[0], a[1]);
+            const lb = Math.hypot(b[0], b[1]);
+            if (la < 1e-6 || lb < 1e-6) return 0;
+            const cos = clamp((a[0] * b[0] + a[1] * b[1]) / (la * lb), -1, 1);
+            return (Math.acos(cos) * 180) / Math.PI;
+        };
+        const turned = angle(result.before, result.after);
+        afterStat.textContent = metersPerSec(Math.round(speedAfter));
+        gainedStat.textContent = `${gained >= 0 ? "+" : ""}${gained.toFixed(1)} m/s`;
+        turnedStat.textContent = `${turned.toFixed(0)} deg`;
+        const massWord = ` Hull mass x${mass.input.value}: same answer - the impulse is scaled by mass so every hull gets exactly this delta-v.`;
+        readout.classList.remove("is-warn", "is-fault");
+        if (result.free) {
+            readout.textContent =
+                `Free. The stick only slows the hull: ${metersPerSec(v0)} to ` +
+                `${metersPerSec(Math.round(speedAfter))} in a second, the full ` +
+                `${metersPerSec2(RCS_ACCEL_M)}, at the cap and past it.` +
+                massWord;
+        } else if (result.clamped) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `CLAMPED TO THE SPHERE. The push would leave the ${metersPerSec(RCS_CAP_M)} ` +
+                `sphere, so it is held on the surface: the velocity TURNS ${turned.toFixed(0)} deg ` +
+                `and gains ${gained.toFixed(1)} m/s. Reshuffle inside one sphere, never accumulate.` +
+                massWord;
+        } else if (result.tapered) {
+            readout.textContent =
+                `In the taper band. Inside the last ${metersPerSec(RCS_CAP_M * RCS_TAPER_FRACTION)} ` +
+                `below the cap the push fades toward zero, so it feels like drag rather than a wall: ` +
+                `+${gained.toFixed(1)} m/s this second, ${metersPerSec(Math.round(speedAfter))} after it.` +
+                massWord;
+        } else {
+            readout.textContent =
+                `Inside the sphere. The full ${metersPerSec2(RCS_ACCEL_M)} lands: ` +
+                `+${gained.toFixed(1)} m/s this second, ${metersPerSec(Math.round(speedAfter))} after it.` +
+                massWord;
+        }
+    };
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "A slice of the sphere through the two directions. The budget is " +
+                "measured against a reference velocity - zero here, the orbital " +
+                "velocity when the autopilot trims an orbit - and the sphere " +
+                "never shrinks below where the ship already is: an overspeed " +
+                "hull is held at its speed and may still turn."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: GOTO parks off the surface ---------------------------------
+
+// The arrival leg GOTO and GotoPos share (nova_ship/src/flight/autopilot.rs
+// :320-334): centre distance = target radius + mover radius + margin, the
+// margin being the GAP between the two surfaces. The mover's radius is its
+// structural arm, the furthest live section face from the centre of mass
+// (nova_ship/src/sections/hull_radius.rs:58-63), the same reach `hullState`
+// computes. The margin defaults to FlightSettings::arrival_standoff
+// (nova_ship/src/flight/state.rs:415), which used to be the whole distance
+// from the target's CENTRE.
+const ARRIVAL_STANDOFF_M = ARRIVAL_STANDOFF * METERS_PER_UNIT;
+
+// Targets GOTO can size, in meters of radius: a range beacon's orb
+// (base_content/scenarios/tutorial/range.rs:481, 2 u), the menu gauntlet's
+// beacon (main_menu/gauntlet.rs:183, 1 u), and the first shift's two
+// planetoids (first_shift_stage.rs:23,40: 95 u and 225 u).
+const STANDOFF_TARGETS: [number, string][] = [
+    [10, "menu beacon"],
+    [20, "range beacon"],
+    [950, "small planetoid"],
+    [2250, "large planetoid"],
+];
+
+// A block hull's cells: `block(origin, size)` and `union` as
+// base_content/ships/block.rs writes them, every cell the unit cube with the
+// hull plate's health (block.rs:129, `plate: HULL`).
+function blockCells(
+    group: string,
+    ox: number,
+    oy: number,
+    oz: number,
+    sx: number,
+    sy: number,
+    sz: number
+): ShipPart[] {
+    const cells: ShipPart[] = [];
+    for (let x = ox; x < ox + sx; x += 1) {
+        for (let y = oy; y < oy + sy; y += 1) {
+            for (let z = oz; z < oz + sz; z += 1) {
+                cells.push(
+                    cell(`${group}_${x}_${y}_${z}`, x, y, z, HULL_CELL, group)
+                );
+            }
+        }
+    }
+    return cells;
+}
+
+function unionCells(groups: ShipPart[][]): ShipPart[] {
+    const seen = new Set<string>();
+    const cells: ShipPart[] = [];
+    for (const group of groups) {
+        for (const part of group) {
+            const key = part.center.join(",");
+            if (seen.has(key)) continue;
+            seen.add(key);
+            cells.push(part);
+        }
+    }
+    return cells;
+}
+
+// The utility cutter (block.rs:129-147): one hull layer, two sponsons, a
+// dorsal cab and a pair of bell drives. The specials sit IN cells of the plan,
+// so the plan is the mass.
+export const CUTTER_CELLS: ShipPart[] = unionCells([
+    blockCells("hull", -1, 0, -3, 3, 1, 6),
+    blockCells("sponson_port", -2, 0, 0, 1, 1, 3),
+    blockCells("sponson_starboard", 2, 0, 0, 1, 1, 3),
+    [
+        cell("nose", 0, 0, -4, HULL_CELL, "nose"),
+        cell("cab", 0, 1, -1, HULL_CELL, "cab"),
+    ],
+]);
+
+// The industrial carrier (block.rs:262-330): the spine, two shoulders with
+// their berths cut out, decks, keel, transom, the berthed cutter laid on its
+// side with two lugs, and two capital drives (5x5x3, standard.rs:683) hung
+// off the transom.
+export const CARRIER_CELLS: ShipPart[] = (() => {
+    const cells = unionCells([
+        blockCells("spine", -2, -1, -16, 5, 3, 33),
+        blockCells("shoulder_port", -5, -3, -11, 3, 7, 23),
+        blockCells("shoulder_starboard", 3, -3, -11, 3, 7, 23),
+        blockCells("deck", -3, 2, -7, 7, 1, 15),
+        blockCells("house", -2, 3, -9, 5, 2, 19),
+        blockCells("bridge", -1, 5, -5, 3, 2, 11),
+        blockCells("keel", -1, -3, -9, 3, 2, 19),
+        blockCells("transom", -5, -2, 13, 11, 5, 5),
+    ]).filter(
+        (part) =>
+            !(
+                Math.abs(part.center[0]) === 5 &&
+                part.center[1] >= -2 &&
+                part.center[1] <= 2 &&
+                part.center[2] >= -4 &&
+                part.center[2] <= 2
+            )
+    );
+    const berthed = CUTTER_CELLS.map((part) =>
+        cell(
+            `berth_${part.id}`,
+            6 + part.center[1],
+            -part.center[0],
+            part.center[2],
+            HULL_CELL,
+            "berth"
+        )
+    );
+    const lugs = [
+        cell("lug_low", 5, -1, 0, HULL_CELL, "berth"),
+        cell("lug_high", 5, 1, 0, HULL_CELL, "berth"),
+    ];
+    const drives = [
+        cell("capital_drive_port", -3, 0, 19, CAPITAL_DRIVE, "drives"),
+        cell("capital_drive_starboard", 3, 0, 19, CAPITAL_DRIVE, "drives"),
+    ];
+    return unionCells([cells, berthed, lugs, drives]);
+})();
+
+/** A hull's radius as GOTO measures it: the structural arm, in meters. */
+export function hullRadiusMeters(parts: ShipPart[]): number {
+    return hullState(parts).arm * METERS_PER_UNIT;
+}
+
+export interface ArrivalPark {
+    /** Where the mover's centre stops, from the target's centre. */
+    centreDistance: number;
+    /** Surface to surface. */
+    gap: number;
+    /** The old rule: the margin alone, from the target's centre. */
+    oldCentreDistance: number;
+    /** The old rule's surface-to-surface gap; negative is inside the target. */
+    oldGap: number;
+}
+
+export function arrivalPark(
+    targetRadius: number,
+    moverRadius: number,
+    margin: number
+): ArrivalPark {
+    const centreDistance = Math.max(targetRadius, 0) + moverRadius + margin;
+    return {
+        centreDistance,
+        gap: centreDistance - targetRadius - moverRadius,
+        oldCentreDistance: margin,
+        oldGap: margin - targetRadius - moverRadius,
+    };
+}
+
+function initArrivalStandoff(host: HTMLElement): void {
+    const cutterRadius = hullRadiusMeters(CUTTER_CELLS);
+    const gunshipRadius = hullRadiusMeters(GUNSHIP_CELLS);
+    const carrierRadius = hullRadiusMeters(CARRIER_CELLS);
+    header(
+        host,
+        "Arrival scope: the park point",
+        "GOTO stops the ship's centre at the target's radius, plus the ship's " +
+            "own radius, plus the margin - so the margin is the gap between " +
+            "the two surfaces. The cutter on the top row and the hull you " +
+            "size on the bottom row are sent to the same mark."
+    );
+
+    const controls = el("div", "widget__controls");
+    const targetName = (r: number): string => {
+        const stop = STANDOFF_TARGETS.find(([radius]) => radius === r);
+        return stop ? `${meters(r)} (${stop[1]})` : meters(r);
+    };
+    const target = control("target radius", 10, 2250, 10, 950, targetName, () =>
+        update()
+    );
+    const lo = Math.round(cutterRadius);
+    const hi = Math.round(carrierRadius);
+    const hullName = (r: number): string =>
+        r <= lo
+            ? `${meters(r)} (utility cutter)`
+            : r >= hi
+              ? `${meters(r)} (industrial carrier)`
+              : Math.abs(r - Math.round(gunshipRadius)) < 1
+                ? `${meters(r)} (patrol gunship)`
+                : meters(r);
+    const hull = control("your hull radius", lo, hi, 1, hi, hullName, () =>
+        update()
+    );
+    const margin = control(
+        "arrival margin",
+        0,
+        1000,
+        10,
+        ARRIVAL_STANDOFF_M,
+        (v) =>
+            v === ARRIVAL_STANDOFF_M ? `${meters(v)} (shipped)` : meters(v),
+        () => update()
+    );
+    controls.appendChild(target.row);
+    controls.appendChild(hull.row);
+    controls.appendChild(margin.row);
+
+    // The target's limb is pinned at the left; its centre may lie off the
+    // frame for a planetoid. Two rows share it.
+    const PX = 0.14;
+    const LIMB_X = 150;
+    const ROW_Y = [66, 156];
+    const TARGET_Y = (ROW_Y[0] + ROW_Y[1]) / 2;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 220",
+        role: "img",
+        "aria-label":
+            "The target's limb at the left; the cutter and the sized hull " +
+            "parked off it on two rows, with the old rule's park point " +
+            "ghosted.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    const targetDisc = svgEl("circle", {
+        cy: String(TARGET_Y),
+        class: "widget-mark--shadow-stroke",
+    });
+    svg.appendChild(targetDisc);
+    const limb = svgEl("line", {
+        x1: String(LIMB_X),
+        y1: "18",
+        x2: String(LIMB_X),
+        y2: "200",
+        class: "widget-mark--gate",
+    });
+    svg.appendChild(limb);
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(LIMB_X - 6),
+                y: "30",
+                "text-anchor": "end",
+                class: "widget-mark--axis",
+            },
+            "target surface"
+        )
+    );
+    interface HullRow {
+        ghost: SVGCircleElement;
+        disc: SVGCircleElement;
+        name: SVGTextElement;
+        dim: SVGLineElement;
+        dimWord: SVGTextElement;
+    }
+    const rows: HullRow[] = ROW_Y.map((y) => {
+        const ghost = svgEl("circle", {
+            cy: String(y),
+            class: "widget-mark--old",
+        });
+        ghost.setAttribute("fill", "none");
+        ghost.setAttribute("stroke-dasharray", "3 3");
+        const disc = svgEl("circle", {
+            cy: String(y),
+            class: "widget-mark--ship",
+        });
+        const name = svgEl(
+            "text",
+            { y: String(y - 4), class: "widget-mark--label-now" },
+            ""
+        );
+        const dim = svgEl("line", {
+            y1: String(y + 24),
+            y2: String(y + 24),
+            class: "widget-mark--now",
+        });
+        const dimWord = svgEl(
+            "text",
+            {
+                y: String(y + 38),
+                "text-anchor": "middle",
+                class: "widget-mark--label-now",
+            },
+            ""
+        );
+        for (const node of [ghost, disc, name, dim, dimWord])
+            svg.appendChild(node);
+        return { ghost, disc, name, dim, dimWord };
+    });
+
+    const stats = el("div", "widget__stats");
+    const cutterGap = stat(stats, "cutter gap");
+    const hullGap = stat(stats, "your gap");
+    const centreStat = stat(stats, "your centre from theirs");
+    const readout = el("p", "widget__readout");
+
+    const place = (
+        row: HullRow,
+        radius: number,
+        park: ArrivalPark,
+        word: string
+    ): void => {
+        const targetR = Number(target.input.value);
+        const cx = LIMB_X + (park.centreDistance - targetR) * PX;
+        const r = Math.max(3, radius * PX);
+        row.disc.setAttribute("cx", cx.toFixed(1));
+        row.disc.setAttribute("r", r.toFixed(1));
+        row.name.setAttribute("x", (cx + r + 6).toFixed(1));
+        row.name.textContent = `${word}, ${meters(Math.round(radius))} radius`;
+        const oldCx = LIMB_X + (park.oldCentreDistance - targetR) * PX;
+        row.ghost.setAttribute("cx", oldCx.toFixed(1));
+        row.ghost.setAttribute("r", r.toFixed(1));
+        row.dim.setAttribute("x1", String(LIMB_X));
+        row.dim.setAttribute("x2", (cx - r).toFixed(1));
+        row.dimWord.setAttribute("x", ((LIMB_X + cx - r) / 2).toFixed(1));
+        row.dimWord.textContent = `gap ${meters(park.gap)}`;
+    };
+
+    const update = (): void => {
+        const targetR = Number(target.input.value);
+        const mine = Number(hull.input.value);
+        const m = Number(margin.input.value);
+        targetDisc.setAttribute("cx", (LIMB_X - targetR * PX).toFixed(1));
+        targetDisc.setAttribute("r", (targetR * PX).toFixed(1));
+        const cutterPark = arrivalPark(targetR, cutterRadius, m);
+        const minePark = arrivalPark(targetR, mine, m);
+        place(rows[0], cutterRadius, cutterPark, "cutter");
+        place(rows[1], mine, minePark, "your hull");
+        cutterGap.textContent = meters(cutterPark.gap);
+        hullGap.textContent = meters(minePark.gap);
+        centreStat.textContent = kilometers(minePark.centreDistance);
+        readout.classList.remove("is-warn", "is-fault");
+        const oldWord =
+            minePark.oldGap < 0
+                ? `${meters(-minePark.oldGap)} INSIDE the target`
+                : `${meters(minePark.oldGap)} clear`;
+        if (minePark.oldGap < 0) readout.classList.add("is-warn");
+        readout.textContent =
+            `Both hulls stop ${meters(m)} off the surface. Your ${meters(mine)} ` +
+            `hull parks its centre ${kilometers(minePark.centreDistance)} from ` +
+            `the target's; the cutter's ${kilometers(cutterPark.centreDistance)}. ` +
+            `The old rule stopped every ship ${meters(m)} from the CENTRE, ` +
+            `which would put your hull ${oldWord} - the dashed ghost.`;
+    };
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "Hull radii are the structural arm of each block hull's cell plan " +
+                `(cutter ${meters(Math.round(cutterRadius))}, gunship ` +
+                `${meters(Math.round(gunshipRadius))}, carrier ` +
+                `${meters(Math.round(carrierRadius))}), the furthest section ` +
+                "face from the centre of mass - the same figure the flight " +
+                "envelope reads. A GOTO that ends at a planetoid also lifts " +
+                "the park point to the ORBIT band's floor; that lift is not " +
+                "drawn here."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: 27 commands in four classes --------------------------------
+
+// The four classes (nova_os/src/commands.rs:32-43) and what each may do
+// (:66-71). The arming gate is one check in the dispatcher
+// (nova_console/src/dispatch.rs:21-25): a Cheat other than `cheats enable`
+// is refused while cheats are not armed. The rows are COMMAND_CATALOG
+// (commands.rs:168-460), the summary column the wiki's.
+export type CommandClass = "Utility" | "ReadOnly" | "Setting" | "Cheat";
+
+export const COMMAND_CLASSES: [CommandClass, string][] = [
+    ["Utility", "control the shell; abandon one scenario for another"],
+    ["ReadOnly", "look at the world and never touch it"],
+    ["Setting", "change the same saved settings the menu changes"],
+    ["Cheat", "change the live world; refused until armed"],
+];
+
+export interface CommandRow {
+    name: string;
+    usage: string;
+    cls: CommandClass;
+    what: string;
+}
+
+export const COMMAND_ROWS: CommandRow[] = [
+    {
+        name: "help",
+        usage: "help [command]",
+        cls: "Utility",
+        what: "this text, or one command's usage, class, arguments and examples",
+    },
+    {
+        name: "commands",
+        usage: "commands [class]",
+        cls: "Utility",
+        what: "the whole catalog, or one class of it",
+    },
+    {
+        name: "clear",
+        usage: "clear",
+        cls: "Utility",
+        what: "restore this shell's introduction",
+    },
+    {
+        name: "close",
+        usage: "close",
+        cls: "Utility",
+        what: "close the terminal and return to what was underneath",
+    },
+    {
+        name: "scenario load",
+        usage: "scenario load <id>",
+        cls: "Utility",
+        what: "abandon this attempt and load a fresh scenario",
+    },
+    {
+        name: "status",
+        usage: "status",
+        cls: "ReadOnly",
+        what: "a compact run and world summary",
+    },
+    {
+        name: "scenario",
+        usage: "scenario",
+        cls: "ReadOnly",
+        what: "the current scenario, its state and its outcome",
+    },
+    {
+        name: "ships",
+        usage: "ships",
+        cls: "ReadOnly",
+        what: "live ships by id",
+    },
+    {
+        name: "ship",
+        usage: "ship <id>",
+        cls: "ReadOnly",
+        what: "one ship: side, hull, sections, speed cap, magazines",
+    },
+    {
+        name: "sections",
+        usage: "sections <ship-id>",
+        cls: "ReadOnly",
+        what: "that ship's sections, with health and ammunition",
+    },
+    {
+        name: "section",
+        usage: "section <ship-id> <section-id>",
+        cls: "ReadOnly",
+        what: "one section of one ship",
+    },
+    {
+        name: "objectives",
+        usage: "objectives",
+        cls: "ReadOnly",
+        what: "the open objectives",
+    },
+    {
+        name: "variables",
+        usage: "variables",
+        cls: "ReadOnly",
+        what: "the scenario's variables",
+    },
+    {
+        name: "variable",
+        usage: "variable <name>",
+        cls: "ReadOnly",
+        what: "one of them",
+    },
+    {
+        name: "bindings",
+        usage: "bindings [action]",
+        cls: "ReadOnly",
+        what: "every input action and what it is bound to, or one of them",
+    },
+    {
+        name: "settings",
+        usage: "settings",
+        cls: "ReadOnly",
+        what: "every current setting",
+    },
+    {
+        name: "cheats status",
+        usage: "cheats status",
+        cls: "ReadOnly",
+        what: "whether cheats are armed, and whether the run is marked",
+    },
+    {
+        name: "graphics",
+        usage: "graphics [low|medium|high]",
+        cls: "Setting",
+        what: "the graphics-quality preset",
+    },
+    {
+        name: "volume",
+        usage: "volume [master|music|world|interface [0..1]]",
+        cls: "Setting",
+        what: "one mixer channel",
+    },
+    {
+        name: "window",
+        usage: "window [windowed|borderless]",
+        cls: "Setting",
+        what: "the window mode",
+    },
+    {
+        name: "bind",
+        usage: "bind <action> <source>",
+        cls: "Setting",
+        what: "rebind one action",
+    },
+    {
+        name: "bind reset",
+        usage: "bind reset <action>",
+        cls: "Setting",
+        what: "put an action back on its default",
+    },
+    {
+        name: "cheats enable",
+        usage: "cheats enable",
+        cls: "Cheat",
+        what: "arm cheats and mark this run, one way",
+    },
+    {
+        name: "ammo infinite",
+        usage: "ammo infinite <ship-id> <on|off>",
+        cls: "Cheat",
+        what: "unlimited ammunition on one ship's weapons",
+    },
+    {
+        name: "ammo refill",
+        usage: "ammo refill <ship-id>",
+        cls: "Cheat",
+        what: "top up every finite magazine on a ship",
+    },
+    {
+        name: "ammo refill section",
+        usage: "ammo refill section <ship-id> <section-id>",
+        cls: "Cheat",
+        what: "top up one magazine",
+    },
+    {
+        name: "speed-cap",
+        usage: "speed-cap <ship-id> <m/s|off>",
+        cls: "Cheat",
+        what: "change or remove a ship's manual speed cap",
+    },
+];
+
+// Whether the dispatcher runs the command: every class but Cheat always,
+// `cheats enable` always, any other cheat only once armed (dispatch.rs:21-25).
+export function commandAllowed(
+    name: string,
+    cls: CommandClass,
+    armed: boolean
+): boolean {
+    return cls !== "Cheat" || name === "cheats enable" || armed;
+}
+
+function initCommandCatalog(host: HTMLElement): void {
+    header(
+        host,
+        "Command shell: the catalog",
+        `${COMMAND_ROWS.length} commands in four classes. Filter by class, ` +
+            "then arm cheats and see what changes: the refused rows, the " +
+            "header, and the mark on the run."
+    );
+
+    let armed = false;
+    let filter: CommandClass | null = null;
+    const shell = el("div", "widget__shell");
+    const shellTitle = el(
+        "span",
+        "widget__shell-title",
+        "NOVA OS v0.13.0 // COMMANDS"
+    );
+    const shellState = el("span", "widget__shell-state", "CHEATS: OFF");
+    shell.appendChild(shellTitle);
+    shell.appendChild(shellState);
+
+    const filterKeys = keyRow(
+        ["ALL", "UTILITY", "READONLY", "SETTING", "CHEAT"],
+        0,
+        (index) => {
+            filter = index === 0 ? null : COMMAND_CLASSES[index - 1][0];
+            update();
+        }
+    );
+    const actions = el("div", "widget__keys");
+    const enable = el("button", "widget__btn", "cheats enable");
+    enable.type = "button";
+    const fresh = el("button", "widget__btn", "scenario load <id>");
+    fresh.type = "button";
+    let last = "";
+    enable.addEventListener("click", () => {
+        last = armed ? "already" : "armed";
+        armed = true;
+        update();
+    });
+    fresh.addEventListener("click", () => {
+        last = armed ? "cleared" : "fresh";
+        armed = false;
+        update();
+    });
+    actions.appendChild(enable);
+    actions.appendChild(fresh);
+
+    const list = el("div", "widget__cmds");
+    const rowNodes = COMMAND_ROWS.map((row) => {
+        const node = el("div", "widget__cmd");
+        if (row.cls === "Cheat") node.classList.add("is-cheat");
+        node.appendChild(el("code", undefined, row.usage));
+        node.appendChild(
+            el("span", "widget__cmd-class", row.cls.toLowerCase())
+        );
+        node.appendChild(el("span", "widget__cmd-what", row.what));
+        list.appendChild(node);
+        return node;
+    });
+
+    const stats = el("div", "widget__stats");
+    const shownStat = stat(stats, "shown");
+    const runStat = stat(stats, "would run");
+    const refusedStat = stat(stats, "refused");
+    const markStat = stat(stats, "run");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        shell.classList.toggle("is-armed", armed);
+        shellState.textContent = armed
+            ? "CHEATS: ON - RUN MARKED"
+            : "CHEATS: OFF";
+        enable.classList.toggle("is-hot", armed);
+        enable.setAttribute("aria-pressed", String(armed));
+        let shown = 0;
+        let refused = 0;
+        for (const [index, row] of COMMAND_ROWS.entries()) {
+            const visible = filter === null || row.cls === filter;
+            const allowed = commandAllowed(row.name, row.cls, armed);
+            rowNodes[index].hidden = !visible;
+            rowNodes[index].classList.toggle("is-refused", !allowed);
+            if (!visible) continue;
+            shown += 1;
+            if (!allowed) refused += 1;
+        }
+        shownStat.textContent = String(shown);
+        runStat.textContent = String(shown - refused);
+        refusedStat.textContent = String(refused);
+        markStat.textContent = armed ? "MARKED" : "clean";
+        readout.classList.remove("is-warn", "is-fault");
+        const cheats = COMMAND_ROWS.filter((row) => row.cls === "Cheat").length;
+        if (!armed) {
+            if (last === "cleared") {
+                readout.textContent =
+                    "A fresh scenario is a fresh run: cheats disarmed, mark " +
+                    `cleared. ${cheats - 1} cheats refused again until the next ` +
+                    "`cheats enable`.";
+            } else {
+                readout.textContent =
+                    `Run clean. ${cheats - 1} cheats are refused - cheats are not ` +
+                    "armed; run `cheats enable` first. Everything else runs, " +
+                    "and none of it marks the run.";
+            }
+            return;
+        }
+        readout.classList.add("is-warn");
+        readout.textContent =
+            last === "already"
+                ? "Already armed. Arming is one way: the second `cheats enable` " +
+                  "changes nothing, and the mark is already on the run."
+                : "Cheats armed. THIS RUN IS MARKED. Every cheat now runs, and " +
+                  "the mark stays until a fresh scenario is loaded - " +
+                  "`scenario load <id>` clears it.";
+    };
+
+    host.appendChild(shell);
+    host.appendChild(filterKeys.row);
+    host.appendChild(actions);
+    host.appendChild(list);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "The gate is one check in the dispatcher, not one in each cheat: " +
+                "a class is the permission model. `cheats status` reads the " +
+                "two flags without touching either. Tab completion draws " +
+                "ship and section ids from the live world, so a cheat names " +
+                "a section that exists."
+        )
+    );
+    update();
+}
+
+// ---- v0.13.0: three ceilings on one impact --------------------------------
+
+// The per-frame ceilings: 128 carve chips a frame (nova_gameplay/src/
+// integrity/spew.rs:299), 24 wreck-piece activations a frame (integrity/
+// chunk.rs:94), and the pre-cut centre-of-mass walk once per root per frame
+// (nova_ship/src/sections/integrity.rs). A wide crater throws the kinetic and
+// pierce looks' ceiling of seven chips (spew.rs:242,:255, clamped :232).
+//
+// The walk's cost is the stress_hull_collapse range's record: 55.18 ms for
+// the 1088 sections of one siege salvo before, 0.87 ms for 1063 after
+// (tasks/20260904-155338/TASK.md:139-140), scaled here per section. The
+// stress hull is 1296 cells (tasks/20260904-173517/TASK.md:45), and its
+// 720-piece collapse is the activation queue's record (:75,:219).
+const SHARDS_PER_FRAME = 128;
+const CHUNK_ACTIVATIONS_PER_FRAME = 24;
+const CHIPS_PER_WIDE_CRATER = 7;
+const STRESS_HULL_CELLS = 1296;
+const WALK_MS_PER_SECTION_OLD = 55.18 / 1088;
+const WALK_MS_PER_SECTION_NEW = 0.87 / 1063;
+
+export interface CollapseBudget {
+    walksOld: number;
+    walksNew: number;
+    walkMsOld: number;
+    walkMsNew: number;
+    chipsOld: number;
+    chipsNew: number;
+    /** Craters that arrive over the frame's chip budget and go unchipped. */
+    unchipped: number;
+    piecesOld: number;
+    piecesNew: number;
+    /** Frames the activation queue takes to make every piece solid. */
+    shedFrames: number;
+}
+
+export function collapseBudget(
+    sections: number,
+    craters: number
+): CollapseBudget {
+    const chipsOld = craters * CHIPS_PER_WIDE_CRATER;
+    const chipsNew = Math.min(chipsOld, SHARDS_PER_FRAME);
+    return {
+        walksOld: sections,
+        walksNew: 1,
+        walkMsOld: sections * WALK_MS_PER_SECTION_OLD,
+        walkMsNew: sections * WALK_MS_PER_SECTION_NEW,
+        chipsOld,
+        chipsNew,
+        unchipped: Math.max(
+            0,
+            craters - Math.floor(SHARDS_PER_FRAME / CHIPS_PER_WIDE_CRATER)
+        ),
+        piecesOld: sections,
+        piecesNew: Math.min(sections, CHUNK_ACTIVATIONS_PER_FRAME),
+        shedFrames: Math.ceil(sections / CHUNK_ACTIVATIONS_PER_FRAME),
+    };
+}
+
+function initCollapseBudget(host: HTMLElement): void {
+    header(
+        host,
+        "Frame scope: one impact, three ceilings",
+        "A shot destroys some sections and opens some craters in one frame. " +
+            "Drag both and compare what that frame used to cost with what it " +
+            "may cost now: the centre-of-mass walks, the carve chips, and " +
+            "the wreck pieces going solid."
+    );
+
+    const controls = el("div", "widget__controls");
+    const sections = control(
+        "sections destroyed",
+        1,
+        STRESS_HULL_CELLS,
+        1,
+        720,
+        (v) =>
+            v === STRESS_HULL_CELLS
+                ? `${v} (the whole stress hull)`
+                : String(v),
+        () => update()
+    );
+    const craters = control(
+        "craters opened",
+        1,
+        STRESS_HULL_CELLS,
+        1,
+        600,
+        (v) => String(v),
+        () => update()
+    );
+    controls.appendChild(sections.row);
+    controls.appendChild(craters.row);
+
+    // Three before/after pairs, each on its own scale: the frame before is
+    // the full bar, the frame now is the fill.
+    const ROWS: [string, string][] = [
+        ["CENTRE-OF-MASS WALKS", "per frame"],
+        ["CARVE CHIPS", "per frame"],
+        ["WRECK PIECES MADE SOLID", "per frame"],
+    ];
+    const BAR_X = 210;
+    const BAR_W = 320;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 180",
+        role: "img",
+        "aria-label":
+            "Three bars, one per ceiling, the frame's cost before as the full " +
+            "bar and now as the fill.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    interface BarRow {
+        fill: SVGRectElement;
+        before: SVGTextElement;
+        now: SVGTextElement;
+    }
+    const bars: BarRow[] = ROWS.map(([word, detail], index) => {
+        const y = 28 + index * 52;
+        svg.appendChild(
+            svgEl(
+                "text",
+                { x: "16", y: String(y + 4), class: "widget-mark--word" },
+                word
+            )
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                { x: "16", y: String(y + 18), class: "widget-mark--detail" },
+                detail
+            )
+        );
+        svg.appendChild(
+            svgEl("rect", {
+                x: String(BAR_X),
+                y: String(y - 8),
+                width: String(BAR_W),
+                height: "16",
+                class: "widget-mark--barframe",
+            })
+        );
+        const fill = svgEl("rect", {
+            x: String(BAR_X),
+            y: String(y - 8),
+            width: "0",
+            height: "16",
+            class: "widget-mark--barfill",
+        });
+        svg.appendChild(fill);
+        const before = svgEl(
+            "text",
+            {
+                x: String(BAR_X + BAR_W),
+                y: String(y + 24),
+                "text-anchor": "end",
+                class: "widget-mark--label-old",
+            },
+            ""
+        );
+        const now = svgEl(
+            "text",
+            {
+                x: String(BAR_X),
+                y: String(y + 24),
+                class: "widget-mark--label-now",
+            },
+            ""
+        );
+        svg.appendChild(before);
+        svg.appendChild(now);
+        return { fill, before, now };
+    });
+
+    const stats = el("div", "widget__stats");
+    const walkStat = stat(stats, "walk, before to now");
+    const chipStat = stat(stats, "chips this frame");
+    const pieceStat = stat(stats, "pieces solid over");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const s = Number(sections.input.value);
+        const c = Number(craters.input.value);
+        const b = collapseBudget(s, c);
+        const pairs: [number, number, string, string][] = [
+            [
+                b.walksOld,
+                b.walksNew,
+                `${b.walksOld} walks, ${b.walkMsOld.toFixed(1)} ms`,
+                `1 walk, ${b.walkMsNew.toFixed(2)} ms`,
+            ],
+            [
+                b.chipsOld,
+                b.chipsNew,
+                `${b.chipsOld} chips`,
+                `${b.chipsNew} chips`,
+            ],
+            [
+                b.piecesOld,
+                b.piecesNew,
+                `${b.piecesOld} pieces at once`,
+                `${b.piecesNew} a frame`,
+            ],
+        ];
+        for (const [
+            index,
+            [before, now, beforeWord, nowWord],
+        ] of pairs.entries()) {
+            const share = before > 0 ? now / before : 0;
+            bars[index].fill.setAttribute("width", (share * BAR_W).toFixed(1));
+            bars[index].before.textContent = `before: ${beforeWord}`;
+            bars[index].now.textContent = `now: ${nowWord}`;
+        }
+        walkStat.textContent = `${b.walkMsOld.toFixed(1)} ms to ${b.walkMsNew.toFixed(2)} ms`;
+        chipStat.textContent = `${b.chipsNew} of ${b.chipsOld}`;
+        pieceStat.textContent = `${b.shedFrames} frame${b.shedFrames === 1 ? "" : "s"}`;
+        readout.classList.remove("is-warn");
+        const underEvery =
+            s <= CHUNK_ACTIVATIONS_PER_FRAME && b.chipsOld <= SHARDS_PER_FRAME;
+        if (underEvery) {
+            readout.textContent =
+                `Under every ceiling. ${s} section${s === 1 ? "" : "s"} and ${c} ` +
+                `crater${c === 1 ? "" : "s"} fit in one frame's budget: every ` +
+                "chip is thrown, every piece goes solid at once, and the walk " +
+                "only ran once anyway. The ceilings cost a small hit nothing.";
+            return;
+        }
+        readout.classList.add("is-warn");
+        readout.textContent =
+            `Before, this frame walked the hull ${b.walksOld} times ` +
+            `(${b.walkMsOld.toFixed(1)} ms), threw ${b.chipsOld} chips and grew ` +
+            `${b.piecesOld} colliders at once. Now it walks once ` +
+            `(${b.walkMsNew.toFixed(2)} ms), throws ${b.chipsNew} chips` +
+            (b.unchipped > 0
+                ? ` - the ${b.unchipped} craters that arrive late go unchipped, ` +
+                  "in a frame already throwing real severed geometry -"
+                : "") +
+            ` and makes ${b.piecesNew} pieces solid a frame, the last of ` +
+            `${b.piecesOld} on frame ${b.shedFrames}` +
+            (b.shedFrames >= 30 ? " (about half a second at 60)." : ".");
+    };
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "The walk's milliseconds are the stress range's measured salvo " +
+                "(55 ms for 1,088 sections before, 0.87 ms for 1,063 after) " +
+                "scaled per section; a real frame's cost depends on the hull. " +
+                "A pending wreck piece is drawn and moves with its hull " +
+                "before it goes solid; it cannot be flown into yet."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -8185,6 +11733,16 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "ignition-delay": initIgnitionDelay,
     "pulse-sleep": initPulseSleep,
     "transient-lights": initTransientLights,
+    "sound-board": initSoundBoard,
+    "railgun-recoil": initRailgunRecoil,
+    "lock-occlusion": initLockOcclusion,
+    "hull-zones": initHullZones,
+    "asteroid-kinds": initAsteroidKinds,
+    "sound-map": initSoundMap,
+    "rcs-budget": initRcsBudget,
+    "arrival-standoff": initArrivalStandoff,
+    "command-catalog": initCommandCatalog,
+    "collapse-budget": initCollapseBudget,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is

@@ -358,7 +358,8 @@ What is on disk today, in reading order:
   computer (`screenshot_nova_os_terminal`, `screenshot_nova_os_apps`), the Rock
   hollow combat beats (`screenshot_radar_lock`, `screenshot_contextual_hud`,
   `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
-  `screenshot_hull_juice`, `screenshot_torpedo_run`), the spinal lance
+  `screenshot_hull_juice`, `screenshot_torpedo_run`, `screenshot_comms`), the
+  spinal lance
   (`screenshot_railgun`) and the flight computer around a real well
   (`screenshot_orbit`, `screenshot_goto_burn`, `screenshot_flip_burn`). The
   `loop_*` producers write only video; recording is not their

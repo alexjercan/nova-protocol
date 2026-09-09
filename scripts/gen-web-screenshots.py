@@ -178,6 +178,11 @@ FIGURES = [
     # its filters and action, and an expression opened as a page of rows.
     ("feature-editor-events.png",        "screenshot_editor"),
     ("news-0110-damage-levels.png",      "screenshot_damage_levels"),
+    # The comms stack with one card per channel, over the ship's shoulder.
+    ("news-0130-comms-channels.png",     "screenshot_comms"),
+    # The editor's Generate block with a landed hull, and its Save As window.
+    ("news-0130-hull-plan.png",          "loop_hull_generate"),
+    ("news-0130-editor-save-as.png",     "loop_hull_generate"),
     ("greeble-catalog.png",              "greeble_catalog"),
     # One ROW of that wall, read close enough that a piece's id, its box in
     # meters and its health are legible. The whole wall is a picture of how
@@ -217,6 +222,28 @@ TRIPTYCHS = [
         ("tutorial-menu.png", 0.45),
         ("wiki-sandbox-range.png", 0.50),
     ),
+    # The three same-stat hull builds side by side: personnel, cargo, tank.
+    (
+        "news-0130-hull-builds.png",
+        ("wiki-section-hull.png", 0.50),
+        ("wiki-section-hull-cargo.png", 0.50),
+        ("wiki-section-hull-tank.png", 0.50),
+    ),
+]
+
+# Figures cut from a staged bench frame under a news name: `(x, y, w, h)` is a
+# 16:9 window in source pixels, written at its own size (the site scales it).
+# The research benches - `asteroid_kinds`, `planet_types`, `wfc_ships`,
+# `first_shift_ships` - stage under their own names and print a readout across
+# the top of the frame, the seed line that makes a hand-run reproducible. A
+# post figure has no use for the readout, so its window starts under it; the
+# whole frame is the window (0, 0, 1920, 1080).
+#   web name                         stage source                window
+CUTS = [
+    ("news-0130-asteroid-kinds.png",  "asteroid-kinds-grid.png",  (0, 0, 1920, 1080)),
+    ("news-0130-planet-types.png",    "planet-types-lineup.png",  (107, 100, 1706, 960)),
+    ("news-0130-hull-row.png",        "wfc-ships-row.png",        (107, 60, 1706, 960)),
+    ("news-0130-block-fleet.png",     "first-shift-ships.png",    (120, 230, 1440, 810)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
@@ -239,6 +266,13 @@ ALIASES = {
     "news-0120-thruster-bell.png": "wiki-section-thruster.png",
     "news-0120-drives.png": "wiki-section-drives.png",
     "thumb-news-0.12.0.png": "feature-editor.png",
+    # The v0.13.0 post, on the same terms. The inspector figure reads the
+    # editor's living shot until a pose on a placed beacon exists.
+    "news-0130-railgun-sight.png": "wiki-section-railgun-sight.png",
+    "news-0130-menu-backdrop.png": "tutorial-menu.png",
+    "news-0130-volume-sliders.png": "wiki-settings.png",
+    "news-0130-editor-meters.png": "feature-editor.png",
+    "thumb-news-0.13.0.png": "wiki-section-railgun-sight.png",
     # The v0.10.0 and v0.11.0 posts, retrofitted into their namespaces.
     # Both shipped naming living shots, so a re-cut of the wiki or the
     # landing page silently reillustrated them.
@@ -753,6 +787,63 @@ def build_triptychs(stage_dir):
     return built, pending, failed
 
 
+def crop_window(pixels, sw, channels, window):
+    """Cut `window` = (x, y, w, h) out of a row-major buffer `sw` pixels wide."""
+    x, y, w, h = window
+    row_bytes = w * channels
+    out = bytearray(h * row_bytes)
+    for row in range(h):
+        src = ((y + row) * sw + x) * channels
+        out[row * row_bytes:(row + 1) * row_bytes] = pixels[src:src + row_bytes]
+    return out
+
+
+def opaque_rgba(pixels, channels):
+    """An opaque RGBA copy of an RGB or RGBA buffer, the shape `write_png` takes."""
+    if channels == 4:
+        out = bytearray(pixels)
+        out[3::4] = b"\xff" * (len(out) // 4)
+        return out
+    out = bytearray(len(pixels) // 3 * 4)
+    out[0::4] = pixels[0::3]
+    out[1::4] = pixels[1::3]
+    out[2::4] = pixels[2::3]
+    out[3::4] = b"\xff" * (len(out) // 4)
+    return out
+
+
+def build_cuts(stage_dir):
+    """Cut each CUTS window out of its staged frame."""
+    print("\nCuts (a 16:9 window of a staged bench frame):")
+    built, pending, failed = [], [], []
+    for name, source, window in CUTS:
+        if frozen(name):
+            print(f"  frozen  {name} (shipped with its post)")
+            continue
+        source_path = os.path.join(stage_dir, source)
+        if not os.path.exists(source_path):
+            print(f"  pending {name} (source {source} not staged)")
+            pending.append((name, None))
+            continue
+        x, y, w, h = window
+        if abs(w / h - FIGURE_ASPECT) > ASPECT_TOLERANCE:
+            failed.append((name, f"window {w}x{h} is not 16:9"))
+            continue
+        try:
+            sw, sh, channels, pixels = decode_png(source_path)
+        except ValueError as error:
+            failed.append((name, str(error)))
+            continue
+        if x < 0 or y < 0 or x + w > sw or y + h > sh:
+            failed.append((name, f"window {window} leaves the {sw}x{sh} frame"))
+            continue
+        cut = opaque_rgba(crop_window(pixels, sw, channels, window), channels)
+        write_png(os.path.join(WEB_ASSETS, name), w, h, cut)
+        print(f"  cut     {name}  ({w}x{h}) <- {source} at ({x}, {y})")
+        built.append(name)
+    return built, pending, failed
+
+
 def self_test():
     """Round-trip synthetic images through decode/resize/compose so the codec is
     checkable without any GPU-captured asset. Exercises all five PNG row filters
@@ -871,6 +962,8 @@ def manifest_owners():
         declared[name] = ("capturable", f"triptych of {sources}", True)
     for name, source in ALIASES.items():
         declared[name] = ("capturable", f"alias of {source}", True)
+    for name, source, _window in CUTS:
+        declared[name] = ("capturable", f"cut of {source}", True)
     for name, _section, _accent in ICONS:
         declared[name] = ("manual", "(generated icon)", False)
     return declared
@@ -1144,6 +1237,8 @@ def main():
     all_failed += comp[2]
     triptych = build_triptychs(args.stage_dir)
     all_failed += triptych[2]
+    cuts = build_cuts(args.stage_dir)
+    all_failed += cuts[2]
 
     if not args.no_icons:
         print("\nIcons (generated 44x44):")
@@ -1154,8 +1249,11 @@ def main():
 
     copied_count = (
         len(fig[0]) + len(thumb[0]) + aliased + len(comp[0]) + len(triptych[0])
+        + len(cuts[0])
     )
-    pending_count = len(fig[1]) + len(thumb[1]) + len(comp[1]) + len(triptych[1])
+    pending_count = (
+        len(fig[1]) + len(thumb[1]) + len(comp[1]) + len(triptych[1]) + len(cuts[1])
+    )
     print(f"\nDone: {copied_count} screenshot(s) copied/built, "
           f"{0 if args.no_icons else len(ICONS)} icon(s) generated, "
           f"{pending_count} screenshot(s) still pending.")

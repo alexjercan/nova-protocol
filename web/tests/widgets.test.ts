@@ -26,7 +26,34 @@ import {
     reachLadder,
     severedParts,
     structuralCeiling,
+    wavePath,
+    wavePeaks,
     weaveFade,
+    arrivalPark,
+    ASTEROID_KINDS,
+    asteroidKindFromMix,
+    budgetedRcsDeltaV,
+    CARRIER_CELLS,
+    collapseBudget,
+    COMMAND_CLASSES,
+    COMMAND_ROWS,
+    commandAllowed,
+    CUTTER_CELLS,
+    distanceAttenuation,
+    GRAMMAR_ZONES,
+    halfColumn,
+    hullRadiusMeters,
+    panCompensation,
+    panGains,
+    railgunRecoil,
+    rcsPush,
+    seededDraws,
+    segmentClearance,
+    soundAtEars,
+    soundCueUrl,
+    zoneAllows,
+    ZONE_PARTS,
+    zonePlacements,
 } from "../src/widgets";
 
 const HP = 200;
@@ -251,3 +278,352 @@ assert.deepEqual(lanceCorridor(0, HP, 5, 5, 4).profile, [1, 1, 1, 1]);
 
 // eslint-disable-next-line no-console
 console.log("widgets: the corridor scope reproduces the stand bank");
+
+// ---- sound board ----------------------------------------------------------
+
+// The waveform is a peak envelope normalised to the cue's loudest sample, so
+// a quiet cue still fills its row and a silent one draws a hairline.
+{
+    const samples = new Float32Array([0, 0.5, -0.25, 0, 0, -1, 0.125, 0]);
+    assert.deepEqual(
+        wavePeaks(samples, 4),
+        [0.5, 0.25, 1, 0.125],
+        "each bin is the loudest absolute sample in it, over the loudest overall"
+    );
+    assert.deepEqual(wavePeaks(new Float32Array(0), 4), []);
+    assert.deepEqual(
+        wavePeaks(new Float32Array([0, 0, 0, 0]), 2),
+        [0, 0],
+        "silence does not divide by zero"
+    );
+    assert.equal(
+        wavePath([], 240, 36),
+        "M0,18 L240,18",
+        "an undecoded cue is a hairline"
+    );
+    const d = wavePath([1, 0], 20, 10);
+    assert.ok(
+        d.startsWith("M0,5 L0.0,0.0"),
+        `full peak reaches the top edge: ${d}`
+    );
+    assert.ok(d.endsWith("Z"), "the envelope is closed");
+    assert.ok(
+        d.includes("L10.0,4.4"),
+        `a zero peak keeps a 0.6 hairline: ${d}`
+    );
+}
+
+// A cue's v0.12.0 recording lives beside the board's copy, under one
+// subdirectory, so the two keys on a row differ by path alone.
+{
+    assert.equal(
+        soundCueUrl("/", "impact", false),
+        "/assets/sounds/impact.wav"
+    );
+    assert.equal(
+        soundCueUrl("/nova/", "impact", true),
+        "/nova/assets/sounds/v0120/impact.wav"
+    );
+}
+
+// ---- v0.13.0: the news post's scopes --------------------------------------
+
+// Recoil: the impulse lands at the muzzle, so a lance on the axis only
+// pushes, and one off the axis yaws the bow toward its own side.
+{
+    const onAxis = railgunRecoil(0);
+    assert.ok(Math.abs(onAxis.yaw) < 1e-9, `no yaw on the axis: ${onAxis.yaw}`);
+    assert.ok(onAxis.push > 0, "the shove is aft");
+    assert.ok(railgunRecoil(2).yaw > 0, "a starboard mount yaws to starboard");
+    assert.ok(railgunRecoil(-2).yaw < 0, "a port mount yaws to port");
+    assert.ok(
+        Math.abs(railgunRecoil(3).yaw) > Math.abs(railgunRecoil(1).yaw),
+        "a wider offset yaws harder"
+    );
+    const heavy = railgunRecoil(2, 2);
+    const light = railgunRecoil(2, 1);
+    assert.ok(
+        Math.abs(heavy.push * 2 - light.push) < 1e-9,
+        "twice the mass halves the push"
+    );
+    assert.ok(
+        Math.abs(heavy.yaw * 2 - light.yaw) < 1e-9,
+        "twice the mass halves the yaw"
+    );
+    assert.equal(
+        heavy.leverArm,
+        light.leverArm,
+        "the arm is geometry, not mass"
+    );
+}
+
+// Occlusion: one solid ray from the scanner to the contact, blocked by a
+// rock whose surface the SEGMENT crosses.
+{
+    assert.ok(
+        segmentClearance(0, 0, 4000, 0, 2000, 0, 500) <= 0,
+        "a rock on the line blocks"
+    );
+    assert.ok(
+        segmentClearance(0, 0, 4000, 0, 2000, 3000, 500) > 0,
+        "a rock well across does not"
+    );
+    assert.ok(
+        segmentClearance(0, 0, 4000, 0, 6000, 0, 500) > 0,
+        "a rock beyond the contact does not"
+    );
+    assert.ok(
+        segmentClearance(0, 0, 4000, 0, 0, 0, 500) <= 0,
+        "a scanner inside a rock sees nothing"
+    );
+    assert.equal(
+        segmentClearance(0, 0, 4000, 0, 2000, 700, 500),
+        200,
+        "clearance is distance minus radius"
+    );
+}
+
+// Zones: thirds along the hull, above or below the keel row, the outboard
+// half across; a placement is legal only if every cell passes.
+{
+    assert.equal(GRAMMAR_ZONES.length, 6);
+    assert.ok(
+        zoneAllows("Bow", 0, 0, 3) && !zoneAllows("Bow", 0, 0, 4),
+        "Bow is z 0..3"
+    );
+    assert.ok(
+        zoneAllows("Amidships", 0, 0, 4) &&
+            zoneAllows("Amidships", 0, 0, 7) &&
+            !zoneAllows("Amidships", 0, 0, 8),
+        "Amidships is z 4..7"
+    );
+    assert.ok(
+        zoneAllows("Stern", 0, 0, 8) && !zoneAllows("Stern", 0, 0, 7),
+        "Stern is z 8..10"
+    );
+    assert.ok(
+        zoneAllows("Dorsal", 0, 3, 0) && !zoneAllows("Dorsal", 0, 2, 0),
+        "Dorsal is above the keel row"
+    );
+    assert.ok(
+        zoneAllows("Ventral", 0, 1, 0) && !zoneAllows("Ventral", 0, 2, 0),
+        "Ventral is below the keel row"
+    );
+    assert.ok(
+        zoneAllows("Flank", 2, 0, 0) && !zoneAllows("Flank", 1, 0, 0),
+        "Flank is the outboard two columns"
+    );
+    assert.deepEqual(
+        [0, 3, 4, 7].map(halfColumn),
+        [3, 0, 0, 3],
+        "columns mirror about the centreline"
+    );
+    assert.equal(ZONE_PARTS.length, 5);
+    const free = zonePlacements([], [1, 1, 1]);
+    assert.equal(free.cells, 440, "8 x 5 x 11 cells");
+    assert.equal(free.placements, 440);
+    assert.equal(
+        zonePlacements(["Bow", "Stern"], [1, 1, 1]).placements,
+        0,
+        "two thirds never overlap"
+    );
+    assert.equal(
+        zonePlacements(["Dorsal"], [5, 5, 3]).placements,
+        0,
+        "a capital drive does not fit above the keel"
+    );
+    const lance = zonePlacements(["Bow"], [1, 1, 3]);
+    assert.equal(
+        lance.placements,
+        80,
+        "a lance has 2 x 8 x 5 places in the bow"
+    );
+    assert.ok(
+        lance.lit[0][0][3] && !lance.lit[0][0][4],
+        "lit cells stop at the third"
+    );
+}
+
+// Kinds: the weighted draw, exactly as the scatter does it.
+{
+    assert.equal(ASTEROID_KINDS.length, 5);
+    const mix: [string, number][] = [
+        ["rock", 6],
+        ["ice", 3],
+        ["metal", 1],
+    ];
+    assert.equal(asteroidKindFromMix(mix, 0), "rock");
+    assert.equal(asteroidKindFromMix(mix, 0.59), "rock");
+    assert.equal(asteroidKindFromMix(mix, 0.61), "ice");
+    assert.equal(asteroidKindFromMix(mix, 0.89), "ice");
+    assert.equal(asteroidKindFromMix(mix, 0.91), "metal");
+    assert.equal(
+        asteroidKindFromMix(mix, 1),
+        "metal",
+        "a draw of 1 is the last ticket"
+    );
+    assert.equal(asteroidKindFromMix(mix, 2), "metal", "the draw is clamped");
+    assert.equal(asteroidKindFromMix(mix, -1), "rock");
+    assert.equal(
+        asteroidKindFromMix([["rock", 0]], 0.5),
+        null,
+        "no weight picks nothing"
+    );
+    const a = seededDraws(7, 5);
+    assert.deepEqual(a, seededDraws(7, 5), "a seed is a belt");
+    assert.ok(
+        a.every((d) => d >= 0 && d < 1),
+        "draws lie in [0, 1)"
+    );
+    assert.notDeepEqual(a, seededDraws(8, 5));
+}
+
+// Sound: the rolloff band, the pan law and its compensation, the routes.
+{
+    assert.equal(distanceAttenuation(0), 1);
+    assert.equal(distanceAttenuation(20), 1, "full inside NEAR");
+    assert.equal(distanceAttenuation(320), 0, "silent at FAR");
+    assert.equal(distanceAttenuation(420), 0);
+    assert.ok(
+        distanceAttenuation(100) > distanceAttenuation(200),
+        "monotone between"
+    );
+    assert.ok(
+        distanceAttenuation(319) > 0 && distanceAttenuation(319) < 0.01,
+        "reaches zero, not the floor"
+    );
+    const [l, r] = panGains(-1, 0, 0);
+    assert.ok(l > 2 * r, `hard to port favours the left ear: ${l} vs ${r}`);
+    const ahead = panGains(0, 0, -1);
+    assert.ok(Math.abs(ahead[0] - ahead[1]) < 1e-9, "dead ahead is centred");
+    const c = panCompensation(-1, 0, 0);
+    const rms = Math.sqrt(((l * c) ** 2 + (r * c) ** 2) / 2);
+    assert.ok(
+        Math.abs(rms - 1) < 1e-9,
+        `compensation restores unit RMS: ${rms}`
+    );
+    assert.deepEqual(
+        soundAtEars("Hull", 5000, 90),
+        { left: 1, right: 1, level: 1 },
+        "Hull is never attenuated or panned"
+    );
+    assert.deepEqual(soundAtEars("Interface", 5000, 90), {
+        left: 1,
+        right: 1,
+        level: 1,
+    });
+    const world = soundAtEars("Exterior", 3500, 0);
+    assert.equal(world.level, 0, "past the far ring the world is silent");
+    const abeam = soundAtEars("Exterior", 0, 90);
+    assert.ok(abeam.right > abeam.left, "a source to starboard leans right");
+}
+
+// RCS: free braking, full push inside the sphere, a turn on its surface.
+{
+    assert.deepEqual(
+        budgetedRcsDeltaV([0, 0], [1, 0], 100, 20),
+        [1, 0],
+        "inside the sphere the push lands whole"
+    );
+    assert.deepEqual(
+        budgetedRcsDeltaV([100, 0], [-1, 0], 100, 20),
+        [-1, 0],
+        "braking is free at the cap"
+    );
+    const turn = budgetedRcsDeltaV([100, 0], [0, 1], 100, 20);
+    const held = Math.hypot(100 + turn[0], turn[1]);
+    assert.ok(
+        Math.abs(held - 100) < 1e-6,
+        `the sphere holds the speed: ${held}`
+    );
+    assert.ok(turn[1] > 0.9, "and the push turns the vector");
+    const rest = rcsPush(0, 0, 0, 1);
+    assert.ok(
+        Math.abs(Math.hypot(...rest.after) - 49.05) < 1e-6,
+        "one second from rest is 49.05 m/s"
+    );
+    assert.ok(!rest.clamped && !rest.tapered && !rest.free);
+    const capped = rcsPush(100, 0, 90, 1);
+    assert.ok(capped.clamped, "pushing across at the cap is clamped");
+    assert.ok(
+        Math.abs(Math.hypot(...capped.after) - 100) < 1e-6,
+        "and stays at the cap"
+    );
+    const braking = rcsPush(100, 0, 180, 1);
+    assert.ok(braking.free, "pushing back is free");
+    assert.ok(Math.abs(Math.hypot(...braking.after) - 50.95) < 1e-6);
+}
+
+// Arrival: hull radii from the cell plans, and the park rule.
+{
+    const gunship = hullRadiusMeters(GUNSHIP_CELLS);
+    assert.ok(
+        Math.abs(gunship - GUNSHIP_ARM_U * METERS_PER_UNIT) < 0.1,
+        `the gunship's radius is its pinned structural arm: ${gunship}`
+    );
+    const cutter = hullRadiusMeters(CUTTER_CELLS);
+    const carrier = hullRadiusMeters(CARRIER_CELLS);
+    assert.ok(
+        cutter < gunship && gunship < carrier,
+        `cutter ${cutter} < gunship ${gunship} < carrier ${carrier}`
+    );
+    assert.equal(CUTTER_CELLS.length, 26, "the cutter's plan is 26 cells");
+    assert.ok(
+        CARRIER_CELLS.length > 800,
+        `the carrier's plan is hundreds of cells: ${CARRIER_CELLS.length}`
+    );
+    const park = arrivalPark(950, 100, 500);
+    assert.equal(park.centreDistance, 1550);
+    assert.equal(park.gap, 500, "the margin is the gap");
+    assert.equal(park.oldCentreDistance, 500);
+    assert.equal(park.oldGap, -550, "the old rule parked inside the planetoid");
+}
+
+// Commands: 27 rows, four classes, and one gate.
+{
+    assert.equal(COMMAND_CLASSES.length, 4);
+    assert.equal(COMMAND_ROWS.length, 27);
+    const count = (cls: string): number =>
+        COMMAND_ROWS.filter((row) => row.cls === cls).length;
+    assert.deepEqual(
+        [count("Utility"), count("ReadOnly"), count("Setting"), count("Cheat")],
+        [5, 12, 5, 5]
+    );
+    assert.ok(commandAllowed("status", "ReadOnly", false));
+    assert.ok(commandAllowed("graphics", "Setting", false));
+    assert.ok(
+        !commandAllowed("ammo refill", "Cheat", false),
+        "a cheat is refused unarmed"
+    );
+    assert.ok(
+        commandAllowed("cheats enable", "Cheat", false),
+        "except the one that arms"
+    );
+    assert.ok(commandAllowed("ammo refill", "Cheat", true));
+}
+
+// Ceilings: the walk once, 128 chips, 24 pieces a frame.
+{
+    const b = collapseBudget(720, 600);
+    assert.equal(b.walksOld, 720);
+    assert.equal(b.walksNew, 1);
+    assert.equal(b.chipsOld, 4200);
+    assert.equal(b.chipsNew, 128);
+    assert.equal(b.unchipped, 582);
+    assert.equal(b.piecesOld, 720);
+    assert.equal(b.piecesNew, 24);
+    assert.equal(b.shedFrames, 30, "720 pieces take 30 frames");
+    assert.ok(
+        b.walkMsOld > 30 && b.walkMsNew < 1,
+        `${b.walkMsOld} ms to ${b.walkMsNew} ms`
+    );
+    const small = collapseBudget(1, 1);
+    assert.equal(small.chipsOld, 7);
+    assert.equal(small.chipsNew, 7, "one crater is untouched");
+    assert.equal(small.unchipped, 0);
+    assert.equal(small.piecesNew, 1);
+    assert.equal(small.shedFrames, 1);
+}
+
+// eslint-disable-next-line no-console
+console.log("widgets: the v0.13.0 scopes follow the game's rules");

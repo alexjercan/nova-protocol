@@ -110,7 +110,7 @@ pub use nova_autopilot::{
     // done early rather than idling out the runway. They must reach the SAME
     // protocol instance the drivers register with, so it is re-exported here
     // alongside them.
-    completion::{HarnessCompletion, AUTOPILOT},
+    completion::{self, HarnessCompletion, AUTOPILOT},
     // The loop idiom rides the same route as the shot one: loop_start /
     // loop_end are the step calls, LoopCapturePlugin is the recorder an
     // example adds next to its autopilot, and the knobs are what the capture

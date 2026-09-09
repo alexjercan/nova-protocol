@@ -17,6 +17,12 @@
 //! ```text
 //! cargo run --example first_shift_ships --features debug
 //! ```
+//!
+//! Two harnessed modes, the fleet's capture idiom:
+//! - `NOVA_AUTOPILOT=1`: smoke path - load the row, frame it, exit clean.
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the row from the parking
+//!   pose as `first-shift-ships.png` (staged under `NOVA_CAPTURE_DIR`); the
+//!   v0.13.0 post cuts its fleet figure from it.
 
 use std::collections::HashSet;
 
@@ -44,9 +50,8 @@ fn main() -> bevy::app::AppExit {
         // frame-time claim - a posed row holds no steady-state load worth
         // grading.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(nova_protocol::nova_debug::harness::nova_screenshot(
-            nova_protocol::nova_debug::harness::nova_autopilot(),
-        ));
+        app.add_plugins(fleet_script());
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         app.add_systems(Update, freeze_bodies);
     }
 
@@ -185,6 +190,52 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &Gam
         "first_shift_ships: posed fleet failed content lint:\n  {}",
         errors.join("\n  "),
     );
+}
+
+/// The still the capture run writes: the whole row from [`FLEET_EYE`].
+#[cfg(feature = "debug")]
+const FLEET_SHOT: &str = "first-shift-ships.png";
+
+/// Where the lens stands for the still, in meters: high and back of the front
+/// row, so both rows sit in one frame at a common scale. The row is 500 m
+/// across and the lens spans about 1.5 times its distance at 16:9, so 650 m
+/// off the front row holds the whole set, carrier stern included.
+#[cfg(feature = "debug")]
+const FLEET_EYE: Meters3 = Meters3::new(0.0, 340.0, -470.0);
+
+/// What the still looks at, in meters: just behind the front row, so the
+/// back row sits in the upper third instead of the middle of the frame.
+#[cfg(feature = "debug")]
+const FLEET_LOOK: Meters3 = Meters3::new(0.0, 0.0, 80.0);
+
+/// Put the lens on the row and take the HUD (and its status bar) down.
+#[cfg(feature = "debug")]
+fn frame_the_fleet(world: &mut World) {
+    hide_hud(world);
+    pose_camera(world, FLEET_EYE, FLEET_LOOK);
+}
+
+/// The driven walk: wait for the row and its camera, settle, shoot.
+#[cfg(feature = "debug")]
+fn fleet_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        .step("wait for the fleet")
+        .enter(GameStates::Loading)
+        .until(and(
+            state_is(GameStates::Playing),
+            scenario_camera_present(),
+        ))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("frame the row")
+        .on_enter(frame_the_fleet)
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("shoot the row")
+        .on_enter(|world: &mut World| shoot(world, FLEET_SHOT))
+        .until(shot_written(FLEET_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
 }
 
 const CAMERA_TARGET: Vec3 = Vec3::new(0.0, 0.0, 15.0);

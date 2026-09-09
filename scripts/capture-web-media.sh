@@ -100,6 +100,11 @@ LOOPS=(
     "loop_damage_sequence|landing-damage-sequence||"
     "screenshot_railgun|loop-section-railgun||NOVA_RAILGUN_AFTERMATH=0.5"
     "screenshot_railgun|loop-section-railgun-live||NOVA_RAILGUN_LIVE=1 NOVA_RAILGUN_AFTERMATH=2.0"
+    "railgun_wake_bench|news-0130-railgun-wake||NOVA_WAKE_LOOP=1"
+    "stress_hull_collapse|news-0130-hull-collapse||NOVA_COLLAPSE_LOOP=1"
+    "system_lock_line_of_sight|news-0130-lock-occlusion||NOVA_SIGHT_LOOP=1"
+    "loop_hull_generate|news-0130-hull-generate||"
+    "loop_helm_orders|news-0130-helm-orders||"
 )
 
 # A second name for footage already captured above, when a second producer
@@ -126,6 +131,18 @@ ALIASES=(
     "news-0120-blast|torpedo-blast|loop_torpedo_blast"
     "news-0120-cold-launch|vfx-cold-launch|loop_vfx_range"
     "news-0120-vfx-range|vfx-range|loop_vfx_range"
+    # The v0.13.0 post. Interim: the lead and the duel both read the arena
+    # hero until the post gets a lead cut of its own; the cladding figure
+    # reads the landing damage sequence, which sheds plates since 615b239c.
+    "news-0130-release-lead|hero-wfc-duel|wfc_arena"
+    "news-0130-block-duel|hero-wfc-duel|wfc_arena"
+    "news-0130-railgun-commit|loop-section-railgun|screenshot_railgun"
+    "news-0130-railgun-corridor|loop-section-railgun-live|screenshot_railgun"
+    "news-0130-pdc-stow|loop-section-turret-stow|loop_turret_stow"
+    "news-0130-bay-iris|loop-section-torpedo-bay|system_torpedo_launch"
+    "news-0130-cladding|landing-damage-sequence|loop_damage_sequence"
+    "news-0130-command-shell|command-shell-open|loop_command_shell"
+    "news-0130-torpedo-blast|torpedo-blast|loop_torpedo_blast"
 )
 
 for alias in "${ALIASES[@]}"; do
@@ -144,7 +161,9 @@ done
 # packaged into nothing; it only reports. Empty: every loop a page asks for has
 # a producer.
 #   loop|why
-PENDING=()
+PENDING=(
+    "news-0130-goto-standoff|loop_goto_standoff records it, but GOTO's arrival creep parks the gunship inside the orb at any margin the frame can show (its park log has the numbers)"
+)
 
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
 # nova_autopilot::loops); a loop over budget FAILS the run - re-cut it or
@@ -272,6 +291,45 @@ for slot in "${PENDING[@]}"; do
     echo ">> ${loop}.webm: PENDING - ${why}"
 done
 
-count=$((${#LOOPS[@]} + ${#ALIASES[@]}))
+# Loops cut OUTSIDE a producer and checked in as they are: a window of a bench
+# movie (`bench play --record`), a split frame cut in content-machine. Nothing
+# stages them, so a sweep only reads them back out of the shipped tree; they
+# are news loops, so they are frozen by definition. The middle field names
+# where the footage came from and stands in the manifest's example column.
+#   loop|source|why
+IMPORTED=(
+    "news-0130-agent-run|bench-replay|cut from the recorded tutorial play in bench-runs/395a8f1b, wire lines overlaid from its audit"
+    "news-0130-cinematic|bench-replay|the opening of the same play: the title card, the trainer held in frame, the handback"
+    "news-0130-rcs-box|bench-replay|the same play's RCS lesson: the slide, then STOP"
+    "news-0130-basic-training|bench-replay|the same play's GOTO leg: the card, the chip, the park, the card that follows"
+    "news-0130-sections-before-after|loop_sections_compare|the left half is the content-machine v0.12.0 capsule scene sections-compare, composed by hand"
+    "news-0130-belt-before-after|loop_belt_compare|the left half is the content-machine v0.12.0 capsule scene belt-compare, composed by hand"
+    "news-0130-death-before-after|loop_death_compare|the left half is the content-machine v0.12.0 capsule scene death-compare, composed by hand"
+)
+
+package_import() {
+    local loop="$1" source="$2" file duration bytes
+    file="$OUT/${loop}.webm"
+    [[ -s "$file" ]] || {
+        echo "!! imported ${loop}.webm is not in ${OUT}: it is cut by hand, so nothing can restage it" >&2
+        exit 1
+    }
+    duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$file")"
+    bytes="$(stat -c%s "$file")"
+    [[ "$bytes" -le "$MAX_BYTES" ]] || {
+        echo "!! ${loop}.webm is ${bytes} bytes (budget ${MAX_BYTES}) - re-cut the import" >&2
+        exit 1
+    }
+    printf '%s\t%s\t%.1f\t%s\t%s\n' \
+        "${loop}.webm" "$source" "$duration" "$bytes" "frozen" >>"$MANIFEST"
+    echo ">> ${loop}.webm: ${duration%.*}s, ${bytes} bytes (${source}, imported)"
+}
+
+for import in "${IMPORTED[@]}"; do
+    IFS='|' read -r loop source _ <<<"$import"
+    package_import "$loop" "$source"
+done
+
+count=$((${#LOOPS[@]} + ${#ALIASES[@]} + ${#IMPORTED[@]}))
 echo ">> ${count} loop(s) in ${OUT} (manifest.txt lists them)"
 [[ "${#PENDING[@]}" -eq 0 ]] || echo ">> ${#PENDING[@]} loop(s) still pending a producer"

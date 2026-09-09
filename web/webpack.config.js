@@ -111,6 +111,13 @@ const sectionDocPages = (section) => {
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.13.0",
+        version: "v0.13.0",
+        date: "2026-09-XX",
+        description:
+            "Nova Protocol v0.13.0: a spinal railgun the ship has to aim, every section an authored machine - a PDC that stows, a bay with a muzzle iris - a block fleet the game generates from a grammar, planets by type and seed, asteroids by material, the first audio pass with positional sound, everything authored in meters, Basic Training as the new first hour, a command shell on the ship computer, cinematics and helm orders for scenarios, and an agent bench that seats a language model at the stick.",
+    },
+    {
         slug: "0.12.0",
         version: "v0.12.0",
         date: "2026-08-31",

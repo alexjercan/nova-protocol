@@ -24,6 +24,17 @@
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
+//! `NOVA_SIGHT_LOOP=1` records the news loop instead of running the
+//! assertions: the lock taken on the clear line, the rock DRIFTING across it
+//! at [`COVER_DRIFT_SPEED`] rather than teleporting, the bracket dropping as it
+//! covers the target. The teleport stays the assertion's move - a drift
+//! crosses the line at a time the ray decides, and an assertion wants the
+//! moment pinned.
+//! ```text
+//! NOVA_SIGHT_LOOP=1 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/loop-shots \
+//!   cargo run --example system_lock_line_of_sight --features debug
+//! ```
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_lock_line_of_sight --features debug
@@ -78,6 +89,125 @@ const DROP_SECS: f32 = 10.0;
 #[cfg(feature = "debug")]
 type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 
+/// Set to `1` to record the news loop instead of running the assertions.
+#[cfg(feature = "debug")]
+const LOOP_ENV: &str = "NOVA_SIGHT_LOOP";
+
+/// The loop the recording run writes.
+#[cfg(feature = "debug")]
+const LOOP_NAME: &str = "news-0130-lock-occlusion";
+
+/// Where the drifting cover starts, in meters: abeam of the line and further
+/// down it than the assertion parks the rock. At the assertion's stand-off
+/// the rock fills the frame from the cockpit; two thirds of the way to the
+/// target it reads as cover crossing a line, with the bracket still legible.
+#[cfg(feature = "debug")]
+const COVER_DRIFT_FROM: Meters3 = Meters3::new(480.0, 0.0, -1_000.0);
+
+/// How fast the cover crosses, in meters per second. Slow enough that the
+/// rock is on the line for a readable beat, fast enough that the whole
+/// crossing fits one loop.
+#[cfg(feature = "debug")]
+const COVER_DRIFT_SPEED: f32 = 200.0;
+
+/// How long the drift runs: the mirror-image exit, plus a beat.
+#[cfg(feature = "debug")]
+const COVER_DRIFT_SECS: f32 = 2.0 * 480.0 / COVER_DRIFT_SPEED + 0.4;
+
+/// The still beats either side of the crossing.
+#[cfg(feature = "debug")]
+const LOOP_HOLD_SECS: f32 = 0.7;
+
+/// Whether THIS run records the loop.
+#[cfg(feature = "debug")]
+fn sight_loop() -> bool {
+    let Ok(raw) = std::env::var(LOOP_ENV) else {
+        return false;
+    };
+    match raw.as_str() {
+        "0" => false,
+        "1" => true,
+        other => panic!("{LOOP_ENV}={other:?} must be 0 or 1"),
+    }
+}
+
+/// Present while the cover is sliding across the line, in meters per second.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct CoverDrift(Meters3);
+
+/// Put the cover on its start mark and set it going toward the far side.
+#[cfg(feature = "debug")]
+fn start_the_drift(world: &mut World) {
+    let rock = cover_root(world);
+    world
+        .entity_mut(rock)
+        .get_mut::<Transform>()
+        .expect("line of sight: the cover rock has no transform")
+        .translation = COVER_DRIFT_FROM.to_engine();
+    world.insert_resource(CoverDrift(Meters3::new(-COVER_DRIFT_SPEED, 0.0, 0.0)));
+    info!("line of sight: cover drifting across the line");
+}
+
+/// Slide the cover by its drift each frame. The transform is written directly,
+/// the way the assertion's teleport writes it: the rock is scenery with a
+/// collider, and the ray reads the collider wherever the transform put it.
+#[cfg(feature = "debug")]
+fn drift_the_cover(
+    time: Res<Time>,
+    drift: Res<CoverDrift>,
+    mut rocks: Query<(&EntityId, &mut Transform), With<AsteroidMarker>>,
+) {
+    for (id, mut transform) in &mut rocks {
+        if id.as_str() == ROCK {
+            transform.translation += drift.0.to_engine() * time.delta_secs();
+        }
+    }
+}
+
+/// Take the radar hold off once the lock is up, and leave the stance raised
+/// so the reticle and the bracket stay on the HUD through the crossing.
+#[cfg(feature = "debug")]
+fn keep_the_lock(world: &mut World) {
+    release_action("radar_hold")(world);
+}
+
+/// The loop: the lock taken on a clear line, the rock drifting across it,
+/// the bracket dropping. No assertion runs on this path; the assertions are
+/// the default script.
+#[cfg(feature = "debug")]
+fn sight_loop_script(script: Script) -> Script {
+    script
+        .step("hold the radar on the clear line")
+        .on_enter(open_the_radar)
+        .until(elapsed(1.0))
+        .add()
+        .step("open the loop on the held lock")
+        .on_enter(|world| {
+            keep_the_lock(world);
+            hide_status_bar(world);
+            loop_start(world, LOOP_NAME);
+        })
+        .until(elapsed(LOOP_HOLD_SECS))
+        .add()
+        .step("drift the cover across the line")
+        .on_enter(start_the_drift)
+        .until(elapsed(COVER_DRIFT_SECS))
+        .deadline(120.0)
+        .add()
+        .step("hold the cleared line")
+        .on_enter(|world| {
+            world.remove_resource::<CoverDrift>();
+        })
+        .until(elapsed(LOOP_HOLD_SECS))
+        .add()
+        .step("close the loop")
+        .on_enter(|world| loop_end(world, LOOP_NAME))
+        .until(loop_written(LOOP_NAME))
+        .deadline(120.0)
+        .add()
+}
+
 /// Every lock this run let go of, in order, with the branch that let go.
 ///
 /// A message is read once by each reader and the range's assertions run beats
@@ -95,6 +225,16 @@ fn main() -> bevy::app::AppExit {
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(sight_script());
+        if sight_loop() {
+            app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
+            app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+            app.add_systems(
+                Update,
+                drift_the_cover
+                    .run_if(resource_exists::<CoverDrift>)
+                    .run_if(in_state(GameStates::Playing)),
+            );
+        }
     }
 
     app.run()
@@ -469,7 +609,7 @@ fn assert_the_cleared_line_locks_again(world: &mut World) {
 
 #[cfg(feature = "debug")]
 fn sight_script() -> Script {
-    Script::new()
+    let script = Script::new()
         .step("load the range")
         .enter(GameStates::Loading)
         .until(scenario_camera_present())
@@ -478,7 +618,11 @@ fn sight_script() -> Script {
         .step("wait for the cast")
         .until(the_cast_is_present())
         .deadline(30.0)
-        .add()
+        .add();
+    if sight_loop() {
+        return sight_loop_script(script);
+    }
+    script
         .step("hold the radar on an empty sky")
         .on_enter(open_the_radar)
         .until(elapsed(1.0))

@@ -391,6 +391,12 @@ path = "examples/screenshots/screenshot_scenario_picker.rs"
 name = "screenshot_editor"
 path = "examples/screenshots/screenshot_editor.rs"
 
+# The editor rolling a hull out of the catalog, and the Save As window over
+# it: the v0.13.0 news loop and the two stills beside it.
+[[example]]
+name = "loop_hull_generate"
+path = "examples/screenshots/loop_hull_generate.rs"
+
 # A planet placed from the object palette and re-typed in the inspector: the
 # editor draws the real surface, so this is what proves a creator sees the type
 # and seed they picked.
@@ -447,6 +453,10 @@ path = "examples/screenshots/screenshot_combat_lock.rs"
 [[example]]
 name = "screenshot_combat_hud"
 path = "examples/screenshots/screenshot_combat_hud.rs"
+
+[[example]]
+name = "screenshot_comms"
+path = "examples/screenshots/screenshot_comms.rs"
 
 [[example]]
 name = "screenshot_combat_wide"
@@ -537,6 +547,26 @@ path = "examples/screenshots/loop_turret_stow.rs"
 [[example]]
 name = "loop_goto_arrival"
 path = "examples/screenshots/loop_goto_arrival.rs"
+
+[[example]]
+name = "loop_goto_standoff"
+path = "examples/screenshots/loop_goto_standoff.rs"
+
+[[example]]
+name = "loop_helm_orders"
+path = "examples/screenshots/loop_helm_orders.rs"
+
+[[example]]
+name = "loop_sections_compare"
+path = "examples/screenshots/loop_sections_compare.rs"
+
+[[example]]
+name = "loop_belt_compare"
+path = "examples/screenshots/loop_belt_compare.rs"
+
+[[example]]
+name = "loop_death_compare"
+path = "examples/screenshots/loop_death_compare.rs"
 
 [[example]]
 name = "loop_player_flight"

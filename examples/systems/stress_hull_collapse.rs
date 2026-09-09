@@ -47,6 +47,16 @@
 //! cost is the range's own reading, recorded on claim 4, and the profiled pass
 //! (`probe run stress_hull_collapse`) is what attributes it by system name.
 //!
+//! # The loop mode is a picture, not a reading
+//!
+//! `NOVA_COLLAPSE_LOOP=1` records the same collapse as the
+//! `news-0130-hull-collapse` documentation loop: the lens is posed off the
+//! block's entry corner, the HUD comes down, and the loop runs from the charge
+//! to [`LOOP_AFTERMATH_SECS`] past the shot. The loop capture pins the clock,
+//! so every millisecond claims 4 and 5 record on that run is the recorder's
+//! and not the collapse's. The invariants still hold and the walk still exits
+//! on its verdict, once the webm is written.
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //!
 //! ```text
@@ -62,6 +72,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use clap::Parser;
+#[cfg(feature = "debug")]
+use nova_protocol::nova_debug::harness::{
+    completion, HarnessCompletion, LoopCapturePlugin, LoopProfile,
+};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -170,6 +184,41 @@ const STALL_FRAMES: u32 = 12_000;
 /// How often the walk says where it is, in frames.
 const STATUS_EVERY: u32 = 120;
 
+// --- the loop mode ----------------------------------------------------------
+
+/// Set in the environment, the range records its collapse as a documentation
+/// loop instead of only reading it. See the module docs.
+const LOOP_ENV: &str = "NOVA_COLLAPSE_LOOP";
+#[cfg(feature = "debug")]
+const LOOP_NAME: &str = "news-0130-hull-collapse";
+/// The walk's name in the completion protocol. The recorder is a collector
+/// that reports done as soon as nothing else is pending, so a range with no
+/// autopilot script has to hold the run open itself until its verdict.
+#[cfg(feature = "debug")]
+const LOOP_COLLECTOR: &str = "hull_collapse";
+/// Where the lens stands and what it looks at, in meters: off the block's
+/// entry corner, high enough to see the roof, so the corridor opens toward
+/// the camera and the flank shows the pieces leaving.
+#[cfg(feature = "debug")]
+const LOOP_EYE: Meters3 = Meters3::new(170.0, 110.0, 40.0);
+#[cfg(feature = "debug")]
+const LOOP_LOOK: Meters3 = Meters3::new(0.0, 0.0, -140.0);
+/// How long the loop runs past the shot, in seconds: the corridor, the pieces
+/// going physical and the first of the drift, short of the settle the reading
+/// waits for.
+#[cfg(feature = "debug")]
+const LOOP_AFTERMATH_SECS: f32 = 6.0;
+/// The encoder's quality for this loop. Coarser than the documentation
+/// default: thousands of shards and pieces in motion are the worst case a
+/// frame can hand VP9, and at the default the 7 s came out over the site's
+/// 3 MB budget.
+#[cfg(feature = "debug")]
+const LOOP_CRF: u32 = 40;
+
+fn loop_requested() -> bool {
+    std::env::var_os(LOOP_ENV).is_some()
+}
+
 /// Marks one block cell with its lattice address, so a bite can be read as a
 /// place rather than as a count.
 #[derive(Component, Clone, Copy, Debug)]
@@ -236,6 +285,10 @@ struct CollapseProbe {
     /// Set once every claim has been read and reported.
     verified: bool,
     exit_delay: u32,
+    /// The loop mode's own progress: opened on the commit, closed
+    /// [`LOOP_AFTERMATH_SECS`] after the shot.
+    loop_opened: bool,
+    loop_closed: bool,
 }
 
 fn main() -> bevy::app::AppExit {
@@ -243,6 +296,19 @@ fn main() -> bevy::app::AppExit {
     let mut app = AppBuilder::new().with_game_plugins(range_plugin).build();
     // No frame-time capture - see the module docs.
     app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+    if loop_requested() {
+        #[cfg(feature = "debug")]
+        {
+            app.add_plugins(LoopCapturePlugin::new(LoopProfile {
+                crf: LOOP_CRF,
+                ..default()
+            }));
+            app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+            completion::register(&mut app, LOOP_COLLECTOR);
+        }
+        #[cfg(not(feature = "debug"))]
+        panic!("stress_hull_collapse: {LOOP_ENV} records a documentation loop and needs --features debug");
+    }
     app.run()
 }
 
@@ -452,6 +518,72 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     }
 }
 
+/// Open the loop on the commit: the lens onto the block, the HUD down, and
+/// the recorder rolling through the charge. Nothing outside the loop mode.
+fn open_the_loop(world: &mut World) {
+    if !loop_requested() || world.resource::<CollapseProbe>().loop_opened {
+        return;
+    }
+    #[cfg(feature = "debug")]
+    {
+        hide_hud(world);
+        hide_status_bar(world);
+        pose_camera(world, LOOP_EYE, LOOP_LOOK);
+        loop_start(world, LOOP_NAME);
+    }
+    world.resource_mut::<CollapseProbe>().loop_opened = true;
+}
+
+/// Close the loop [`LOOP_AFTERMATH_SECS`] after the shot left, once.
+fn close_the_loop(world: &mut World) {
+    let probe = world.resource::<CollapseProbe>();
+    if !probe.loop_opened || probe.loop_closed {
+        return;
+    }
+    let Some(opened) = probe.window_opened else {
+        return;
+    };
+    if world.resource::<Time>().elapsed_secs() - opened < LOOP_AFTERMATH_SECS {
+        return;
+    }
+    #[cfg(feature = "debug")]
+    loop_end(world, LOOP_NAME);
+    world.resource_mut::<CollapseProbe>().loop_closed = true;
+}
+
+/// Exit on the verdict. Outside the loop mode the range is the only actor and
+/// writes the exit itself; inside it the recorder is a collector too, so the
+/// walk reports done and the completion watcher decides.
+fn finish_the_walk(world: &mut World) {
+    if !loop_requested() {
+        world.write_message(AppExit::Success);
+        return;
+    }
+    #[cfg(feature = "debug")]
+    {
+        let mut completion = world.resource_mut::<HarnessCompletion>();
+        if completion.is_pending(LOOP_COLLECTOR) {
+            completion.done(LOOP_COLLECTOR);
+        }
+    }
+}
+
+/// Outside the loop mode there is nothing to wait for; inside it, the webm.
+fn the_loop_is_written(world: &World) -> bool {
+    if !loop_requested() {
+        return true;
+    }
+    #[cfg(feature = "debug")]
+    {
+        loop_written(LOOP_NAME)(world)
+    }
+    #[cfg(not(feature = "debug"))]
+    {
+        let _ = world;
+        true
+    }
+}
+
 /// Count the shots this lance actually fired, off the weapon's own report.
 fn count_shots(fired: On<RailgunFired>, mut probe: ResMut<CollapseProbe>) {
     if probe.lance == Some(fired.entity) {
@@ -572,12 +704,14 @@ fn drive_range(world: &mut World) {
                 probe.exit_delay += 1;
                 probe.exit_delay >= 30
             };
-            if exit {
-                world.write_message(AppExit::Success);
+            if exit && the_loop_is_written(world) {
+                finish_the_walk(world);
             }
         }
         return;
     }
+
+    close_the_loop(world);
 
     if world.resource::<CollapseProbe>().lance.is_none() {
         let found = world
@@ -634,6 +768,7 @@ fn drive_range(world: &mut World) {
         ) {
             the_block_is_inside_one_sweep(world, lance);
             world.resource_mut::<CollapseProbe>().committed = true;
+            open_the_loop(world);
         }
         return;
     }
@@ -942,6 +1077,21 @@ fn verify(world: &mut World) {
              verdict",
             worst.ms, worst.steps
         );
+    }
+    // RECORDED, never asserted: the hull's drift after the hit. The slug
+    // applies no impulse to what it strikes; what moves the shell is its own
+    // wreckage going solid inside it.
+    if let Some(block) = world.resource::<CollapseProbe>().block {
+        let drift = world.get::<LinearVelocity>(block).map(|v| v.0.length());
+        let spin = world.get::<AngularVelocity>(block).map(|w| w.0.length());
+        if let (Some(drift), Some(spin)) = (drift, spin) {
+            info!(
+                "hull_collapse: the shell drifts at {:.1} m/s and turns at {spin:.2} rad/s after \
+                 the collapse",
+                // Engine boundary: an avian velocity in world units per second.
+                MetersPerSecond::from_engine(drift).0,
+            );
+        }
     }
     info!("hull_collapse: every collapse invariant held");
 }

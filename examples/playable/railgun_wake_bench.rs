@@ -33,6 +33,9 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot one fixed-camera frame per
 //!   step, in slow motion so all three wakes are in flight at once (staged
 //!   under `NOVA_CAPTURE_DIR`).
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_WAKE_LOOP=1`: record the close pass
+//!   instead - one volley, slowed as its slug crosses the frame - as the
+//!   v0.13.0 post's `news-0130-railgun-wake.webm` (see [`LOOP_ENV`]).
 
 #[cfg(feature = "debug")]
 use std::sync::Arc;
@@ -120,6 +123,7 @@ fn main() -> bevy::app::AppExit {
         // wake's cost is measured on `loop_vfx_range` against the same
         // revision every run, not here.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         if capturing() {
             app.add_systems(Startup, hide_hud);
@@ -971,6 +975,69 @@ fn place_lane_labels(
 #[cfg(feature = "debug")]
 const CAPTURE_SPEED_STEP: usize = 3;
 
+/// Environment switch for the RECORDED cut.
+///
+/// `NOVA_WAKE_LOOP=1` records the close pass as [`LOOP_NAME`] instead of
+/// walking the stills: one run, one loop, because the recording is the world
+/// running and the stills pose it, so the two cuts are two rows of the capture
+/// table. A value other than `0` or `1` is an authoring error and panics
+/// rather than walking the stills under the loop's row.
+#[cfg(feature = "debug")]
+const LOOP_ENV: &str = "NOVA_WAKE_LOOP";
+
+/// The loop the recorded cut writes - the webm's file stem. A news figure,
+/// frozen once its post ships (`scripts/capture-web-media.sh`).
+#[cfg(feature = "debug")]
+const LOOP_NAME: &str = "news-0130-railgun-wake";
+
+/// The lane the recorded cut follows: the middle one, which the close pose
+/// frames broadside.
+#[cfg(feature = "debug")]
+const LOOP_LANE: usize = 1;
+
+/// The slow-motion step the crossing is recorded at: a twentieth speed, so
+/// the middle lane's slug takes most of a second to cross the close pose's
+/// window and the wake grows behind it frame by frame instead of appearing.
+#[cfg(feature = "debug")]
+const LOOP_SPEED_STEP: usize = 4;
+
+/// Engine world units the middle lane's slug has flown when the clock slows.
+///
+/// Well short of the close pose's window (which opens 128 units down the
+/// lane): the slowdown is asked for by a step and applied by `apply_clock` a
+/// frame later, and a frame of real time is 25 units of that lane, so a
+/// request made at the window's edge lands with the slug already across it
+/// and the crossing recorded at full speed - which is no crossing at all. Two
+/// real frames of margin, and the rest of the approach is under a second of
+/// slow motion with the plates still dark.
+#[cfg(feature = "debug")]
+const LOOP_SLOW_AT: f32 = 60.0;
+
+/// Engine world units the slug has flown when the clock is handed back: past
+/// the far edge of the window, so the crossing is recorded whole and the wake
+/// it left dissolves at its own speed. The loop then closes on the same empty
+/// range it opened on, which is what makes it loop.
+#[cfg(feature = "debug")]
+const LOOP_PASSED_AT: f32 = 156.0;
+
+/// Recorded seconds of the empty range either side of the volley, so a reader
+/// who arrives mid-loop sees the plates dark before anything lights them.
+#[cfg(feature = "debug")]
+const LOOP_HOLD_SECS: f32 = 0.6;
+
+/// Whether THIS run records the cut.
+#[cfg(feature = "debug")]
+fn loop_cut() -> bool {
+    let Ok(raw) = std::env::var(LOOP_ENV) else {
+        return false;
+    };
+    match raw.as_str() {
+        "0" => false,
+        "1" => true,
+        other => panic!("{LOOP_ENV}={other:?} must be 0 or 1"),
+    }
+}
+
 /// One frame of the capture walk.
 #[cfg(feature = "debug")]
 struct Shot {
@@ -1135,9 +1202,81 @@ fn lanes_clear() -> Arc<Predicate> {
     })
 }
 
+/// Take the bench's own text - the readout and the lane labels - out of the
+/// recording. The stills keep theirs, a caption being what makes a frame
+/// reproducible; a loop on a post is a picture, not a reading.
+#[cfg(feature = "debug")]
+fn strip_bench_text(world: &mut World) {
+    let text: Vec<Entity> = world
+        .query_filtered::<Entity, Or<(With<Readout>, With<LaneLabel>)>>()
+        .iter(world)
+        .collect();
+    for entity in text {
+        world.despawn(entity);
+    }
+}
+
+/// The recorded cut: the close pose under the shipped policy and preset, one
+/// volley slowed to a twentieth as the middle lane's slug enters the frame,
+/// and real time again once it has left, so the wake dissolves at its own
+/// speed and the loop closes on the empty range it opened on.
+#[cfg(feature = "debug")]
+fn wake_loop(
+    script: nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>,
+) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    script
+        .step("pose the close pass")
+        .on_enter(|world: &mut World| {
+            strip_bench_text(world);
+            let mut bench = world.resource_mut::<Bench>();
+            bench.policy = WakePolicy::default();
+            bench.camera = CameraPose::Close;
+            bench.haze = true;
+            bench.filaments = true;
+            bench.speed_step = 0;
+            world
+                .resource_mut::<GraphicsQuality>()
+                .set_if_neq(GraphicsQuality::High);
+        })
+        .until(budget_follows(GraphicsQuality::High))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("open the wake loop")
+        .on_enter(|world| loop_start(world, LOOP_NAME))
+        .add()
+        .step("hold the empty range")
+        .until(elapsed(LOOP_HOLD_SECS))
+        .add()
+        .step("volley at real time")
+        .on_enter(|world: &mut World| world.resource_mut::<VolleyClock>().requested = true)
+        .until(slug_flew(LOOP_LANE, LOOP_SLOW_AT))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("slow the crossing")
+        .on_enter(|world: &mut World| {
+            world.resource_mut::<Bench>().speed_step = LOOP_SPEED_STEP;
+        })
+        .until(slug_flew(LOOP_LANE, LOOP_PASSED_AT))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("let the wake go at real time")
+        .on_enter(|world: &mut World| world.resource_mut::<Bench>().speed_step = 0)
+        .until(lanes_clear())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("hold the empty range again")
+        .until(elapsed(LOOP_HOLD_SECS))
+        .add()
+        .step("close the wake loop")
+        .on_enter(|world| loop_end(world, LOOP_NAME))
+        .until(loop_written(LOOP_NAME))
+        .deadline(120.0)
+        .add()
+}
+
 /// The driven walk: stand the range up, then for each shot fire one volley
 /// in slow motion from its pose and shoot it once the lead slug is where the
-/// shot wants it.
+/// shot wants it. Under [`LOOP_ENV`] the walk records [`wake_loop`] instead.
 #[cfg(feature = "debug")]
 fn bench_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -1157,6 +1296,10 @@ fn bench_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         })
         .until(frames(SETTLE_FRAMES))
         .add();
+
+    if loop_cut() {
+        return wake_loop(script);
+    }
 
     for shot in SHOTS {
         let Shot {

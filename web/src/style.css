@@ -2127,6 +2127,235 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     min-width: 7ch;
     text-align: right;
 }
+/* Sound board: one row per cue of a family, the cue's own waveform drawn
+   from the decoded file, and a PLAY key. The played span of the wave lights
+   up behind a cursor while the cue runs; a loop cue laps it for a few
+   seconds and stops itself. */
+.widget__sounds {
+    display: grid;
+    gap: 6px;
+    margin: 14px 0 0;
+}
+/* Four lanes, named so the source order cannot re-flow them: the keys, the
+   wave, its length, then the words. The wave and the words split the slack,
+   so neither can run under the other. */
+.widget__sound {
+    display: grid;
+    grid-template-columns: auto minmax(150px, 5fr) auto minmax(0, 6fr);
+    grid-template-areas: "keys wave dur text";
+    gap: 6px 12px;
+    align-items: center;
+    padding: 6px 10px;
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+    opacity: 0.7;
+}
+.widget__sound.is-ready {
+    opacity: 1;
+}
+.widget__sound.is-missing {
+    opacity: 0.45;
+}
+.widget__sound.is-playing {
+    border-color: var(--edge);
+    background: var(--fill-hot);
+}
+.widget__sound-keys {
+    grid-area: keys;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 6.5ch;
+}
+.widget__sound-key {
+    padding: 6px 10px;
+}
+.widget__sound.is-playing .widget__sound-key[aria-pressed="true"] {
+    color: var(--phosphor-hot);
+    border-color: var(--phosphor-dim);
+}
+/* The v0.12.0 recording of the same event: an amber key, and the wave it
+   draws while it plays is amber too, so the ear and the eye agree on which
+   set is up. */
+.widget__sound-key--before {
+    padding: 2px 4px;
+    font-size: 0.58rem;
+    letter-spacing: 0.02em;
+    color: var(--amber);
+    border-color: var(--edge-amber);
+}
+.widget__sound.is-before .widget__sound-wave .wave-base {
+    fill: var(--edge-amber);
+    stroke: var(--edge-amber);
+}
+.widget__sound.is-before .widget__sound-wave .wave-hot {
+    fill: var(--amber);
+}
+.widget__sound-text {
+    grid-area: text;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.widget__sound-name {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    color: var(--phosphor);
+}
+.widget__sound-loop {
+    margin-left: 8px;
+    padding: 1px 6px;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid var(--edge-amber);
+    border-radius: var(--radius);
+}
+.widget__sound-on {
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: var(--text);
+    opacity: 0.8;
+}
+.widget__sound-dur {
+    grid-area: dur;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    min-width: 6ch;
+    text-align: right;
+    white-space: nowrap;
+    color: var(--phosphor-dim);
+}
+.widget__sound-wave {
+    grid-area: wave;
+    display: block;
+    width: 100%;
+    height: 36px;
+}
+.widget__sound-wave .wave-base {
+    fill: var(--phosphor-muted);
+    stroke: var(--phosphor-muted);
+    stroke-width: 0.6;
+    vector-effect: non-scaling-stroke;
+}
+.widget__sound-wave .wave-hot {
+    fill: var(--phosphor);
+}
+.widget__sound-wave .wave-cursor {
+    stroke: var(--phosphor-hot);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+}
+.widget__sound-wave .wave-cursor.is-live {
+    opacity: 1;
+}
+@media (max-width: 560px) {
+    .widget__sound {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "keys wave dur"
+            "text text text";
+    }
+}
+/* v0.13.0 scopes. Grid cells on the zone scope: unlit glass, lit where a
+   part may stand; the keel row and the centreline as amber hairlines. */
+.widget-mark--zone {
+    fill: var(--recess);
+    stroke: var(--edge-faint);
+}
+.widget-mark--zone.is-lit {
+    fill: var(--phosphor);
+    fill-opacity: 0.55;
+    stroke: var(--phosphor-dim);
+}
+.widget-mark--keel {
+    stroke: var(--amber);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+/* The command shell's header strip: phosphor while the run is clean, amber
+   once cheats are armed. */
+.widget__shell {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.75rem 0 0.5rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--edge-soft);
+    background: var(--recess);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--phosphor);
+}
+.widget__shell.is-armed {
+    border-color: var(--edge-amber);
+    background: var(--fill-amber);
+    color: var(--amber);
+}
+/* The catalog: one row per command, the usage in code, the class as a tag,
+   and a refused cheat struck through in red until cheats are armed. */
+.widget__cmds {
+    display: grid;
+    gap: 2px;
+    margin: 0.5rem 0;
+}
+.widget__cmd {
+    display: grid;
+    grid-template-columns: minmax(12rem, 2fr) 5.5rem 3fr;
+    gap: 0.6rem;
+    align-items: baseline;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--edge-faint);
+    background: var(--recess);
+    font-size: 0.82rem;
+}
+.widget__cmd code {
+    color: var(--phosphor);
+    font-size: 0.8rem;
+    white-space: normal;
+    word-break: break-word;
+}
+.widget__cmd.is-cheat code {
+    color: var(--amber);
+}
+.widget__cmd.is-refused {
+    opacity: 0.7;
+}
+.widget__cmd.is-refused code {
+    color: var(--red);
+    text-decoration: line-through;
+}
+.widget__cmd-class {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--phosphor-muted);
+}
+.widget__cmd-what {
+    color: var(--text);
+}
+@media (max-width: 560px) {
+    .widget__cmd {
+        grid-template-columns: 1fr 5rem;
+    }
+    .widget__cmd-what {
+        grid-column: 1 / span 2;
+    }
+    .widget__shell {
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+}
 /* Scope furniture on the glass: range rings, the bearing ray, and the blast
    shadow a surviving layer casts over the sector behind it. */
 .widget-mark--ring {
@@ -2740,8 +2969,10 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     /* the .prose article sits inside the grid column: drop its own centering
        and outer padding so the grid controls the gutters. The measure is a
        character count under mono, so it is a touch under the .prose default to
-       account for the wider column. */
+       account for the wider column. min-width: 0 lets the column shrink under
+       a wide code block; its pre scrolls instead of widening the page. */
     max-width: 70ch;
+    min-width: 0;
     margin: 0;
     padding: 0;
 }
@@ -2749,6 +2980,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .news__toc {
     position: sticky;
     top: 72px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -2801,6 +3033,9 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
         max-height: none;
     }
     .news__body {
+        /* width: 100% keeps the auto margins from shrink-wrapping the
+           article to its widest code line; the pre scrolls instead. */
+        width: 100%;
         max-width: 70ch;
         margin: 0 auto;
     }
