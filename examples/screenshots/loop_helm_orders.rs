@@ -25,6 +25,7 @@ const CROSSER_ID: &str = "orders_crosser";
 /// Where the gunship starts, and the mark its one leg flies to: 800 m due
 /// east along the route, so the leg runs left to right across the frame.
 const LEG_START: Meters3 = Meters3::new(-400.0, 0.0, 0.0);
+#[cfg(feature = "debug")]
 const LEG_END: Meters3 = Meters3::new(400.0, 0.0, 0.0);
 /// The margin the gunship's computer leaves at a waypoint. Small, so the leg
 /// visibly runs to its mark instead of ending 500 m short of it.
@@ -36,13 +37,16 @@ const WAYPOINT_MARGIN: Meters = Meters(30.0);
 /// this speed for the whole of that, so the fight stays in the frame instead
 /// of running off the bottom of it.
 const CROSSER_START: Meters3 = Meters3::new(120.0, 0.0, -300.0);
+#[cfg(feature = "debug")]
 const CROSSER_SPEED: MetersPerSecond = MetersPerSecond(35.0);
 /// The gunship's position along the route that sends the crosser: early in
 /// the leg, so the loop opens on a few seconds of the order being flown and
 /// spends the rest on the interruption.
+#[cfg(feature = "debug")]
 const SEND_AT_X: Meters = Meters(-250.0);
 
 /// The order's authored key, as it would read in a scenario's log.
+#[cfg(feature = "debug")]
 const ORDER_KEY: &str = "sweep_east";
 
 fn main() -> bevy::app::AppExit {

@@ -48,7 +48,9 @@ const BENCH: [(&str, &str, Meters3); 4] = [
 
 /// Where the lens stands and what it looks at, in meters. From 58 m the
 /// middle half of a 45-degree frame spans about 43 m; the grid spans 34.
+#[cfg(feature = "debug")]
 const EYE: Meters3 = Meters3::new(0.0, 4.0, 58.0);
+#[cfg(feature = "debug")]
 const LOOK: Meters3 = Meters3::new(0.0, -1.0, 0.0);
 
 /// How long the loop runs, and so how long one turn takes: the bench yaws

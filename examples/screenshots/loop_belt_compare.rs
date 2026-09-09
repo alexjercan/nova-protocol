@@ -54,10 +54,14 @@ const KINDS: [(&str, u32); 4] = [
 ];
 
 /// The flight line, in meters: straight down the lane, looking ahead.
+#[cfg(feature = "debug")]
 const DRIFT_FROM: Meters3 = Meters3::new(0.0, 0.0, 260.0);
+#[cfg(feature = "debug")]
 const DRIFT_TO: Meters3 = Meters3::new(0.0, 0.0, -180.0);
+#[cfg(feature = "debug")]
 const LOOK_AHEAD: Meters3 = Meters3::new(0.0, 0.0, -100.0);
 /// How long the flight, and the loop, runs.
+#[cfg(feature = "debug")]
 const LOOP_SECS: f32 = 9.0;
 
 fn main() -> bevy::app::AppExit {
@@ -76,11 +80,13 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn belt_plugin(app: &mut App) {
+    #[cfg(feature = "debug")]
     app.init_resource::<DriftClock>();
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_belt);
 }
 
 /// The sim second the flight started on; `None` until the script starts it.
+#[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct DriftClock(Option<f32>);
 

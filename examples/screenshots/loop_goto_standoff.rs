@@ -53,6 +53,7 @@ const GUNSHIP_BEARING: Vec3 = Vec3::new(0.2756, 0.0, 0.9613);
 /// measured from the centre of mass, which is where the hull radius is
 /// measured from, so the log reads the gap the same way. `NOVA_STANDOFF_TRACE`
 /// prints both legs against the plan while they fly.
+#[cfg(feature = "debug")]
 const ARRIVAL_MARGIN: Meters = Meters(150.0);
 
 fn main() -> bevy::app::AppExit {
@@ -272,6 +273,7 @@ fn both_parked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate
 
 /// Set to trace both legs while they fly: the plan the computer publishes
 /// beside what the hull does, five times a second of world time.
+#[cfg(feature = "debug")]
 const TRACE_ENV: &str = "NOVA_STANDOFF_TRACE";
 
 /// The leg trace behind [`TRACE_ENV`]: per hull, the centre distance and the

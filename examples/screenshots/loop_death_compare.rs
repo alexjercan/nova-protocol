@@ -23,19 +23,24 @@ use nova_protocol::prelude::*;
 
 const SUBJECT_ID: &str = "pyre_subject";
 /// The cell that dies: the plate's corner nearest the lens.
+#[cfg(feature = "debug")]
 const KILLED_CELL: &str = "cell_2_2";
 
 /// Where the lens stands and what it looks at, in meters: three-quarter
 /// above the killed corner, close enough that the flash's reach across the
 /// plate fills the middle half of the frame.
+#[cfg(feature = "debug")]
 const EYE: Meters3 = Meters3::new(30.0, 24.0, 40.0);
+#[cfg(feature = "debug")]
 const LOOK: Meters3 = Meters3::new(3.0, 0.0, 3.0);
 
 /// A beat of the intact plate before the hit, so the death lands inside the
 /// loop rather than on frame one.
+#[cfg(feature = "debug")]
 const INTACT_SECS: f32 = 1.5;
 /// How long the loop holds on the aftermath: past the flash and into the
 /// ejecta's own travel.
+#[cfg(feature = "debug")]
 const AFTERMATH_SECS: f32 = 5.0;
 
 fn main() -> bevy::app::AppExit {

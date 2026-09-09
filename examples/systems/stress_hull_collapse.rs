@@ -205,8 +205,7 @@ const LOOP_EYE: Meters3 = Meters3::new(170.0, 110.0, 40.0);
 const LOOP_LOOK: Meters3 = Meters3::new(0.0, 0.0, -140.0);
 /// How long the loop runs past the shot, in seconds: the corridor, the pieces
 /// going physical and the first of the drift, short of the settle the reading
-/// waits for.
-#[cfg(feature = "debug")]
+/// waits for. Read by the ungated close, so it is ungated too.
 const LOOP_AFTERMATH_SECS: f32 = 6.0;
 /// The encoder's quality for this loop. Coarser than the documentation
 /// default: thousands of shards and pieces in motion are the worst case a
