@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 50
-- TAGS: v0.13.0, story, comic
+- TAGS: v0.14.0,story,comic
 
 ## Goal
 
@@ -17,6 +17,9 @@ prerequisite. The season story itself is not yet complete or approved.
 
 The current release tag schedules this development work. It is not a promise to
 ship the whole comic season or a playable campaign in that release.
+
+Moved 2026-09-09 from v0.13.0 to the v0.14.0 board. The season is still being
+written, so it is not a v0.13.0 deliverable and does not gate that release.
 
 ## Maintained sources
 
