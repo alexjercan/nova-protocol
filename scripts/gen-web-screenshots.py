@@ -1063,6 +1063,54 @@ def scenario_thumbnail_rows():
     ]
 
 
+def registered_examples():
+    """Every `[[example]]` name in the workspace manifest, or None if unreadable.
+
+    Read rather than listed: a producer column is only worth having if what is
+    written in it is checked against the examples cargo can actually run."""
+    try:
+        with open(os.path.join(REPO_ROOT, "Cargo.toml"), encoding="utf-8") as handle:
+            manifest = handle.read()
+    except OSError:
+        return None
+    names = set()
+    for block in manifest.split("[[example]]")[1:]:
+        found = re.search(r'^\s*name\s*=\s*"([^"]+)"', block, re.MULTILINE)
+        if found:
+            names.add(found.group(1))
+    return names or None
+
+
+def check_producers():
+    """Refuse to run at all if a table names a producer no capture could use.
+
+    The producer columns are why `capture-web-shots.sh` keeps no example list
+    of its own, so a name that has stopped answering `cargo run --example` has
+    to stop the sweep HERE - at manifest read, in a second - and not at the end
+    of a capture that regenerated nothing and said so in a count. The CUTS rows
+    are what this exists for: a cut source is staged by its own producer and by
+    nothing else, so a blank or stale column there leaves four shipped news
+    figures with no way to make them again."""
+    problems = [
+        f"CUTS row {name} names no producer for its source {source}"
+        for name, source, producer, _window in CUTS
+        if not producer
+    ]
+    registered = registered_examples()
+    if registered is not None:
+        rows = [("FIGURES", name, producer) for name, producer in FIGURES]
+        rows += [("CUTS", name, producer) for name, _source, producer, _w in CUTS]
+        problems += [
+            f"{table} row {name} names producer {producer!r}, which is no [[example]] in Cargo.toml"
+            for table, name, producer in rows
+            if producer and producer not in registered
+        ]
+    if problems:
+        for problem in problems:
+            print(f"!! {problem}", file=sys.stderr)
+        sys.exit("the capture flow reads its producers from these tables - fix them first")
+
+
 def producers():
     """Print each capture example the manifest names, once, in manifest order.
 
@@ -1181,6 +1229,7 @@ def main():
     parser.add_argument("--producers", action="store_true",
                         help="print the capture examples the manifest names, one per line, and exit")
     args = parser.parse_args()
+    check_producers()
 
     if args.self_test:
         self_test()

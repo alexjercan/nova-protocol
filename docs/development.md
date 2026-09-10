@@ -385,7 +385,11 @@ What is on disk today, in reading order:
   still row; either would move to `playable/` the day it grows
   `greeble_catalog`'s selection layer.
   `scripts/gen-web-screenshots.py --producers` prints the list the site
-  actually consumes, so a capture flow never runs off a hand-kept array.
+  actually consumes, so a capture flow never runs off a hand-kept array. Every
+  run of that script first checks the producer columns against the workspace's
+  `[[example]]` names and refuses to do anything if one no longer answers, and
+  `scripts/capture-web-shots.sh` stops on an empty list rather than packaging
+  the shipped bytes back over themselves.
 
 When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in

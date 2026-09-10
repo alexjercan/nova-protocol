@@ -54,6 +54,14 @@ if [[ "$#" -gt 0 ]]; then
     producers=("$@")
 else
     mapfile -t producers < <(python3 scripts/gen-web-screenshots.py --producers)
+    # Process substitution cannot fail the pipeline, and `set -u` is happy with
+    # an empty array: without this a packager that refused to name its
+    # producers would capture nothing, package the shipped bytes back over
+    # themselves and report success.
+    [[ "${#producers[@]}" -gt 0 ]] || {
+        echo "!! the screenshot manifest named no producers - see the error above" >&2
+        exit 1
+    }
 fi
 
 for example in "${producers[@]}"; do
