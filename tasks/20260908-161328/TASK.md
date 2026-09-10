@@ -1,7 +1,7 @@
 # Write the shared season-one story
 
 - STATUS: OPEN
-- PRIORITY: 50
+- PRIORITY: 62
 - TAGS: v0.14.0,story,comic
 
 ## Goal

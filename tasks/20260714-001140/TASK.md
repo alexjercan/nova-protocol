@@ -1,8 +1,8 @@
 # Gamepad navigation, and a real playthrough on hardware
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,input,gamepad
+- PRIORITY: 50
+- TAGS: v0.14.0,input,gamepad
 
 Rescoped 2026-08-31 for v0.13.0. The mobile virtual pad (old Part B) split
 to `20260831-145917` and stays backlog, so its layout targets interactions
@@ -45,3 +45,22 @@ glyphs to a pad player.
 Done when: the menus and the editor are fully operable with a gamepad, a
 full hardware playthrough completes without touching the keyboard, and
 the findings list is closed or explicitly deferred.
+
+## Scheduled 2026-09-09 for v0.14.0
+
+Pulled from the backlog onto the store release board: a Steam page draws pad
+and Deck players, and the pad support has only ever met the harness. Part A
+(menu and editor navigation) and Part B (the hardware playthrough) both
+stay; Part B is the deliverable that matters for the store.
+
+Known before the playthrough starts, from the v0.13.0 review
+(`20260905-231735`, group I, "NOT fixed - a gamepad binding collision"):
+`default_binds` gives `SectionKind::Torpedo` `GamepadButton::LeftTrigger2`
+(`crates/nova_editor/src/.../placement.rs`) and `camera_bindings`'
+`combat_stance` ("Raise Weapons") holds the same button
+(`crates/nova_ship/src/input/bindings.rs`). On a pad, pulling L2 raises the
+weapons AND fires the tubes. The arena test
+`no_arena_weapon_binding_lands_on_a_key_the_flight_rig_spends` cannot see it
+because `flight_rig_reserved_sources` is derived from `flight_bindings()`
+only. Decide the pad layout, fix the collision, and extend that test to
+cover `camera_bindings()` too.
