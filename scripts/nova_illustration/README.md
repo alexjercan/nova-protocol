@@ -19,7 +19,7 @@ measured dialogue layout and its matching SVG export.
 | `portraits.py` | Close/conversational poses, work bodies and arms, Gantry's civilian bodies, and a supported Owen pose. |
 | `scenery.py` | Provisional Baikal/Aquila silhouettes, a local transfer-hall wall, Saturn, and a repeatable star field. |
 | `svg.py` | Shared SVG primitives in illustration coordinates. |
-| `lettering.py` | Speech balloons built from authored lines, separate from colored artwork. |
+| `lettering.py` | The one labelled speech balloon, built from authored lines, separate from colored artwork. |
 
 Add colors in `colors.py`, not as local hex literals in drawing functions.
 Elena's poses share one palette; the ship models share material roles. These
@@ -199,8 +199,9 @@ spine. `transfer_hall(w, h)` draws the wall of a pressurized, non-rotating work
 area. The scene supplies windows onto exterior berths, handholds, and a closed
 freight lock. This local freefall staging does not establish a station plan.
 
-`labelled_speech` adds speaker labels and authored `top`, `bottom`, `left`, or
-`right` tails. It retains literal text separately from art. Inspect wrapping and
+`labelled_speech` is the only balloon this package draws. It adds speaker labels
+and authored `top`, `bottom`, `left`, or `right` tails, and retains literal text
+separately from art. Inspect wrapping and
 face clearance in the rendered scene; a bounded tail does not validate layout.
 
 ## Lore exports
