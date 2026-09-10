@@ -40,7 +40,7 @@ function unique(items) {
         ids.add(item.id);
     }
 }
-function validatePanel(panel, illustrated) {
+function validatePanel(panel, illustrated, cast) {
     fields(
         panel,
         illustrated
@@ -64,6 +64,16 @@ function validatePanel(panel, illustrated) {
         fields(line, ["id", "speaker", "text"], "dialogue");
         text(line.speaker);
         text(line.text);
+        // The nameplate the reader sees and the transcript line they read are
+        // this string, so a misspelling ships silently unless it is checked
+        // against the episode's own cast.
+        const [name, ...rest] = line.speaker.split(" / ");
+        if (!cast.has(name))
+            throw new Error(`Speaker is not in the episode cast: ${name}`);
+        if (rest.length > 1)
+            throw new Error(`Speaker carries two deliveries: ${line.speaker}`);
+        if (rest.length && !DELIVERIES.includes(rest[0]))
+            throw new Error(`Unknown delivery: ${rest[0]}`);
     }
     if (!illustrated) return;
     id(panel.art);
@@ -145,11 +155,30 @@ function validatePanel(panel, illustrated) {
             throw new Error("Invalid location card width");
     }
 }
+/**
+ * How a line reaches the reader when it is not simply spoken in frame.
+ *
+ * Mirrors `DELIVERIES` in `comic-script.ts`; this file is plain JS and reads
+ * the compiled script, so the closed set is stated on both sides the way the
+ * palette roles below already are.
+ */
+const DELIVERIES = ["off-panel", "comms", "recording"];
+
 /** Validate the whole maintained script before drawing any art. */
 function validateScript(script, pageCount) {
-    fields(script, ["heading", "footer", "pages"], "episode script");
+    fields(script, ["heading", "footer", "cast", "pages"], "episode script");
     text(script.heading);
     text(script.footer);
+    list(script.cast, 64);
+    const cast = new Set();
+    for (const name of script.cast) {
+        text(name);
+        if (name.includes("/"))
+            throw new Error(`Cast name carries a delivery: ${name}`);
+        if (cast.has(name)) throw new Error(`Repeated cast name: ${name}`);
+        cast.add(name);
+    }
+    script.cast = [...cast];
     list(script.pages, 256);
     if (script.pages.length !== pageCount)
         throw new Error("Script page count differs from episode pageCount");
@@ -177,7 +206,17 @@ function validateScript(script, pageCount) {
                 "page layout"
             );
         for (const panel of page.panels) {
-            validatePanel(panel, illustrated);
+            // Named, because these checks fire on an author's edit and the
+            // message is the whole diagnostic: "Invalid balloon geometry" with
+            // eighteen pages of balloons in the tree is a search, not a report.
+            try {
+                validatePanel(panel, illustrated, cast);
+            } catch (cause) {
+                throw new Error(
+                    `${page.id}/${panel && panel.id}: ${cause.message}`,
+                    { cause }
+                );
+            }
             panelIds.push(panel);
             if (illustrated) {
                 const p = page.layout[panel.id];
@@ -266,6 +305,61 @@ function validatePalette(palette) {
         if (!Object.hasOwn(palette, role))
             throw new Error(`Missing comic color: ${role}`);
 }
+/**
+ * The drawn height of a location card, from `comic-panels.ts`.
+ *
+ * Fixed, because the card's four rows are at fixed offsets; stated here so the
+ * escape check below is arithmetic and not a guess.
+ */
+const CARD_HEIGHT = 137;
+
+/** The height of the shortest possible balloon: `42 + 27 * lines`, one line. */
+const BALLOON_MIN_HEIGHT = 69;
+
+/**
+ * Every lettered thing on a panel has to fit the panel's OWN scene.
+ *
+ * Neither failure is loud on its own. A card is drawn inside the panel's clip
+ * path, so one that runs off the scene is silently cropped away while the
+ * transcript still reads it out. A balloon is drawn OUTSIDE that clip - the
+ * panel layer is `overflow: visible`, deliberately, so a tail may cross the
+ * frame - so one that runs off the scene overdraws the NEIGHBOURING panel.
+ *
+ * A balloon's height is the one thing not knowable here: it is
+ * `42 + 27 * lines` and the wrap needs the browser's font metrics. So the
+ * check is the box origin, its right edge, its tail tip, and the single line
+ * every balloon has at minimum. A balloon that escapes only once it wraps to
+ * three lines is not caught, and is caught by eye in the rendered page.
+ *
+ * LABELS are not checked here and cannot be: `comic-panels.ts` appends a label
+ * inside the scene's own `data-story-slot` element, so `label.at` is in that
+ * SLOT's coordinate space, under whatever transform the generated art gave it -
+ * not the panel's. A slot that does not exist is already a loud error there.
+ */
+function fitsScene(panel, [width, height], where) {
+    const escaped = (x, y, w = 0, h = 0) =>
+        x < 0 || y < 0 || x + w > width || y + h > height;
+    for (const card of panel.cards)
+        if (escaped(card.at[0], card.at[1], card.width, CARD_HEIGHT))
+            throw new Error(
+                `Location card ${card.id} runs off panel ${where}: ` +
+                    `${card.width}x${CARD_HEIGHT} at ${card.at} in ${width}x${height}`
+            );
+    for (const line of panel.dialogue) {
+        const b = panel.lettering[line.id];
+        if (escaped(b.at[0], b.at[1], b.width, BALLOON_MIN_HEIGHT))
+            throw new Error(
+                `Balloon ${line.id} runs off panel ${where}: ` +
+                    `${b.width}x${BALLOON_MIN_HEIGHT}+ at ${b.at} in ${width}x${height}`
+            );
+        if (escaped(b.tail[0], b.tail[1]))
+            throw new Error(
+                `Balloon ${line.id}'s tail points off panel ${where}: ` +
+                    `${b.tail} in ${width}x${height}`
+            );
+    }
+}
+
 /** Resolve scene ids only for illustrated pages in the selected episode. */
 function compileScript(script, scenes, palette) {
     validatePalette(palette);
@@ -290,6 +384,7 @@ function compileScript(script, scenes, palette) {
                     if (!art) throw new Error(`Unknown scene: ${panel.art}`);
                     fields(art, ["file", "size", "slots"], "generated scene");
                     size(art.size);
+                    fitsScene(panel, art.size, `${page.id}/${panel.id}`);
                     list(art.slots);
                     const slots = new Set(art.slots);
                     if (slots.size !== art.slots.length)
@@ -373,10 +468,23 @@ function validatePanelDefinition(page, assertAsset) {
                 throw new Error("Unknown label color");
         return { ...story, art: "generated-scene" };
     });
+    // The cast is an AUTHORING registry: it catches a misspelled speaker in the
+    // source script, before this page was ever compiled. By the boundary the
+    // names are fixed, so re-deriving membership here would assert nothing -
+    // the synthetic cast is every name the page actually uses. What still
+    // bites at the boundary is the SHAPE of each speaker, which is checkable
+    // from the string alone: at most one delivery, and only a known one.
     validateScript(
         {
             heading: page.heading,
             footer: page.footer,
+            cast: [
+                ...new Set(
+                    panels.flatMap((p) =>
+                        p.dialogue.map((d) => d.speaker.split(" / ")[0])
+                    )
+                ),
+            ],
             pages: [
                 {
                     kind: "illustrated",

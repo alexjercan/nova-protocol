@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { wrapDialogue } from "../src/comics/comic-lettering";
+import { balloonOutline, wrapDialogue } from "../src/comics/comic-lettering";
 
 assert.deepEqual(
     wrapDialogue("Keep the protective covers on.", 20, (text) => text.length),
@@ -210,6 +210,94 @@ function shape<K extends SvgNode["kind"]>(
                 dot.center[1] <= 300,
             "stars stay inside the box"
         );
+    }
+}
+
+// A tailed balloon's outline never doubles back on itself.
+//
+// The failure this pins does not throw and does not look wrong in any data
+// assertion: when a tail's notch is wider than the straight run it cuts into,
+// the path reverses and the stroke draws a spur across the balloon. A balloon
+// is `42 + 27 * lines` tall, so the SHORT ones are exactly the ones at risk,
+// and one- and two-line balloons are most of what an episode letters.
+{
+    // The outline is drawn clockwise from the top-left corner, one corner
+    // quadratic per turn. So the straight runs between turn N and turn N+1
+    // belong to one edge, and each edge has one direction it may travel:
+    // right along the top, down the right, left along the bottom, up the
+    // left. A tail's `L` excursions to the tip are not part of the edge and
+    // are skipped; what must hold is that the edge itself never backs up.
+    const EDGE = [
+        { axis: "H", sign: 1, name: "top" },
+        { axis: "V", sign: 1, name: "right" },
+        { axis: "H", sign: -1, name: "bottom" },
+        { axis: "V", sign: -1, name: "left" },
+    ] as const;
+
+    function edgeFaults(d: string): string[] {
+        const steps = d.match(/[MHVLQZ][^MHVLQZ]*/g) ?? [];
+        let [x, y] = [0, 0];
+        let edge = 0;
+        const faults: string[] = [];
+        for (const step of steps) {
+            const command = step[0];
+            const numbers = (step.slice(1).match(/-?\d+(?:\.\d+)?/g) ?? []).map(
+                Number
+            );
+            if (command === "M" || command === "L") {
+                [x, y] = [numbers[0], numbers[1]];
+            } else if (command === "Q") {
+                [x, y] = [numbers[2], numbers[3]];
+                edge += 1;
+            } else if (command === "H" || command === "V") {
+                const here = EDGE[Math.min(edge, EDGE.length - 1)];
+                const from = command === "H" ? x : y;
+                const to = numbers[0];
+                if (command === "H") x = to;
+                else y = to;
+                if (here.axis !== command) continue;
+                if ((to - from) * here.sign < -1e-9)
+                    faults.push(
+                        `the ${here.name} edge runs ${from} -> ${to}, backwards`
+                    );
+            }
+        }
+        return faults;
+    }
+
+    for (const side of ["top", "right", "bottom", "left"] as const) {
+        for (const lines of [1, 2, 3, 4]) {
+            const h = 42 + 27 * lines;
+            const w = 260;
+            const tip: [number, number] =
+                side === "left"
+                    ? [-40, h / 2]
+                    : side === "right"
+                      ? [w + 40, h / 2]
+                      : side === "top"
+                        ? [120, -40]
+                        : [120, h + 40];
+            const faults = edgeFaults(balloonOutline(0, 0, w, h, side, tip).d);
+            assert.deepEqual(
+                faults,
+                [],
+                `a ${side} tail on a ${lines}-line balloon: ${faults.join("; ")}`
+            );
+        }
+    }
+
+    // A tail near a corner is clamped along the edge, not allowed off it.
+    for (const tip of [
+        [120, -400],
+        [-400, 4],
+        [900, 4],
+    ] as [number, number][]) {
+        for (const side of ["top", "right", "bottom", "left"] as const)
+            assert.deepEqual(
+                edgeFaults(balloonOutline(0, 0, 260, 69, side, tip).d),
+                [],
+                `a ${side} tail aimed at ${tip.join(",")} stays on its edge`
+            );
     }
 }
 

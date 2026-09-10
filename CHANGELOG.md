@@ -40,6 +40,12 @@ does NOT get an entry - and it is the only place they are written down.
   half the collapse actually runs on, and offers the one zone a part may carry.
 - The news-post widget tests read the game's constants and sound-cue filenames
   out of the Rust source, so a change on that side fails them by name.
+- A comic balloon with a side tail draws a clean outline at any height. One- and
+  two-line balloons, most of an episode, used to double the path back and stroke
+  a spur across the balloon.
+- A comic speaker is checked against the episode's cast, and lettering that runs
+  off its own panel fails the build instead of overdrawing the next panel or
+  being clipped away.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow

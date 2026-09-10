@@ -71,10 +71,31 @@ export interface ScriptPage {
     purpose: string;
     panels: ScriptPanel[];
 }
+/**
+ * How a line reaches the reader when it is not simply spoken in frame.
+ *
+ * A closed set, because it is a NAMEPLATE: it is drawn on the balloon and read
+ * out in the transcript, so a new spelling of an existing idea is a second
+ * nameplate for one thing. Written after the speaker as `Name / delivery`.
+ */
+export const DELIVERIES = ["off-panel", "comms", "recording"] as const;
+export type Delivery = (typeof DELIVERIES)[number];
+
 /** One maintained episode script in reading order. */
 export interface EpisodeScript {
     heading: string;
     footer: string;
+    /**
+     * Everyone who may speak in this episode, spelled the way their nameplate
+     * is drawn.
+     *
+     * The speaker was the one id in this DSL with no registry, so `Lelia` for
+     * `Leila`, or a delivery in the wrong case, built green and shipped a wrong
+     * nameplate and a wrong transcript line. A `say()` speaker now has to be a
+     * name on this list, optionally followed by ` / ` and one of
+     * [`DELIVERIES`].
+     */
+    cast: string[];
     pages: (IllustratedPage | ScriptPage)[];
 }
 

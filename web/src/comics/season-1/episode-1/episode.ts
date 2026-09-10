@@ -21,6 +21,18 @@ import page18 from "./pages/page-18";
 export default episode({
     heading: "SEASON 1 / EPISODE 1",
     footer: "A USEFUL JOB",
+    cast: [
+        "Daniel",
+        "Elena",
+        "Ivo",
+        "Jonah",
+        "Leila",
+        "Nadia",
+        "Owen",
+        "Rina",
+        "Samir",
+        "Tomas",
+    ],
     pages: [
         page1,
         page2,

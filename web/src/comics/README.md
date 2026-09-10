@@ -64,8 +64,10 @@ season-1/
       test_transfer.py
 ```
 
-`episode.ts` imports the pages explicitly, in reading order. Each page owns its
-action, dialogue, story labels, and composition. Python owns only scene artwork.
+`episode.ts` imports the pages explicitly, in reading order, and declares the
+episode's `cast`: everyone who may speak, spelled the way their nameplate is
+drawn. Each page owns its action, dialogue, story labels, and composition.
+Python owns only scene artwork.
 A panel's `action` is the reader's transcript and describes what the panel
 shows. `NOTES.md` holds production constraints and illustration directives, not
 a second copy of the dialogue.
@@ -94,12 +96,21 @@ panel("2b", {
 
 A `page({ id, title, purpose, panels, layout })` places those panels. Its layout
 is keyed by panel id, with `at: [x, y]` and `size: [width, height]`. These are
-illustration coordinates, not physical measurements. Panel art, text, and
-balloons share the scene's local coordinate system; page placement scales them
-together without deforming them.
+illustration coordinates, not physical measurements. Panel art, cards and
+balloons share the scene's local coordinate system, and the build refuses a card
+or a balloon that runs off it; page placement scales them together without
+deforming them.
 
-- `say(id, speaker, text)` contains a whole spoken line or paragraph. Speaker
-  labels are literal text, including comms and off-panel qualifiers.
+A `label(...)` is the exception, and the one to keep straight: it is inserted
+INSIDE the `text_slot` the Python scene left for it, so its `at` is in that
+SLOT's coordinate system - under whatever transform the art gave the slot, which
+is the point of slots. Position a label against the rendered panel, not against
+the scene's own width and height.
+
+- `say(id, speaker, text)` names a speaker from the episode's `cast`, optionally
+  with a delivery: `"Leila / comms"`, `"Jonah / off-panel"`. Both halves are
+  checked - a misspelled name or an unknown delivery fails the build - because
+  the string is drawn as the nameplate and read out in the transcript.
 - `balloon(...)` owns position, width, tail endpoint, and tail side. An absent
   side means `bottom`. An absent or empty `breakAfter` means automatic browser
   wrapping. Deliberate breaks use ascending word counts, not copied text.

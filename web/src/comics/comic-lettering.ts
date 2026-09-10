@@ -102,6 +102,105 @@ export interface LetteringLayer {
 
 const node = svgNode;
 
+/** The corner radius the outline turns on, so the straight runs are inset by it. */
+const CORNER = 24;
+
+/**
+ * How far a tail's notch reaches either side of where it attaches, in the
+ * direction the outline is being drawn. Asymmetric on purpose: the tail leans
+ * into the reading direction, so the far lip is the long one.
+ */
+const NOTCH = {
+    top: { lead: 5, trail: 18 },
+    bottom: { lead: 5, trail: 18 },
+    left: { lead: 12, trail: 10 },
+    right: { lead: 12, trail: 10 },
+} as const;
+
+/**
+ * Where a tail cuts its notch out of one straight run of the outline.
+ *
+ * Both lips have to land INSIDE the run. Outside it the outline reverses - the
+ * path doubles back over itself and the stroke draws a spur across the balloon
+ * - and it does not fail loudly, it just draws wrong. Two things can push a lip
+ * out: an attachment point near a corner, which the clamp handles, and a run
+ * shorter than the notch itself, which no clamp can. A balloon is
+ * `42 + 27 * lines` tall, so a one-line balloon leaves `69 - 2 * 24` = 21 px of
+ * vertical run against a 22 px notch; the notch shrinks to fit rather than the
+ * balloon growing to hold it, because the balloon's height is the text's.
+ *
+ * Returns the two lips in drawing order, low coordinate first; a run drawn
+ * backwards emits them the other way round.
+ */
+function tailCut(
+    anchor: number,
+    runStart: number,
+    runEnd: number,
+    lead: number,
+    trail: number
+): [number, number] {
+    const run = Math.max(0, runEnd - runStart);
+    const fit = Math.min(1, (run * 0.8) / (lead + trail));
+    const [near, far] = [lead * fit, trail * fit];
+    const at = Math.min(Math.max(anchor, runStart + near), runEnd - far);
+    return [at - near, at + far];
+}
+
+/**
+ * The balloon's closed outline, and the tail tip the outline actually reaches.
+ *
+ * Pure geometry, separate from the DOM the rest of this module builds, so the
+ * one thing about a balloon that can be wrong without looking wrong in a test
+ * fixture - a reversed outline - can be asserted directly.
+ */
+export function balloonOutline(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    side: "top" | "bottom" | "left" | "right",
+    tip: [number, number]
+): { d: string; tip: [number, number] } {
+    let [tx, ty] = tip;
+    const ax =
+        side === "left"
+            ? x
+            : side === "right"
+              ? x + w
+              : Math.max(x + 25, Math.min(x + w - 30, tx));
+    const ay = side === "top" ? y : side === "bottom" ? y + h : y + h * 0.65;
+    const length = Math.hypot(tx - ax, ty - ay);
+    if (length > 65) {
+        tx = ax + ((tx - ax) * 65) / length;
+        ty = ay + ((ty - ay) * 65) / length;
+    }
+    const across = tailCut(
+        ax,
+        x + CORNER,
+        x + w - CORNER,
+        NOTCH.top.lead,
+        NOTCH.top.trail
+    );
+    const down = tailCut(
+        ay,
+        y + CORNER,
+        y + h - CORNER,
+        NOTCH.right.lead,
+        NOTCH.right.trail
+    );
+    let d = `M${x + CORNER} ${y}`;
+    if (side === "top") d += `H${across[0]}L${tx} ${ty}L${across[1]} ${y}`;
+    d += `H${x + w - CORNER}Q${x + w} ${y} ${x + w} ${y + CORNER}`;
+    if (side === "right") d += `V${down[0]}L${tx} ${ty}L${x + w} ${down[1]}`;
+    d += `V${y + h - CORNER}Q${x + w} ${y + h} ${x + w - CORNER} ${y + h}`;
+    if (side === "bottom")
+        d += `H${across[1]}L${tx} ${ty}L${across[0]} ${y + h}`;
+    d += `H${x + CORNER}Q${x} ${y + h} ${x} ${y + h - CORNER}`;
+    if (side === "left") d += `V${down[1]}L${tx} ${ty}L${x} ${down[0]}`;
+    d += `V${y + CORNER}Q${x} ${y} ${x + CORNER} ${y}Z`;
+    return { d, tip: [tx, ty] };
+}
+
 /** Letter literal text in panel-local or page-local drawing coordinates. */
 export function drawBalloons(
     page: Pick<LetteredPage, "balloons" | "palette">
@@ -119,31 +218,7 @@ export function drawBalloons(
             (text) => canvas.measureText(text).width
         );
         const h = 42 + 27 * lines.length;
-        let [tx, ty] = balloon.tip;
-        const ax =
-            side === "left"
-                ? x
-                : side === "right"
-                  ? x + w
-                  : Math.max(x + 25, Math.min(x + w - 30, tx));
-        const ay =
-            side === "top" ? y : side === "bottom" ? y + h : y + h * 0.65;
-        const length = Math.hypot(tx - ax, ty - ay);
-        if (length > 65) {
-            tx = ax + ((tx - ax) * 65) / length;
-            ty = ay + ((ty - ay) * 65) / length;
-        }
-        let d = `M${x + 24} ${y}`;
-        if (side === "top") d += `H${ax - 5}L${tx} ${ty}L${ax + 18} ${y}`;
-        d += `H${x + w - 24}Q${x + w} ${y} ${x + w} ${y + 24}`;
-        if (side === "right")
-            d += `V${ay - 12}L${tx} ${ty}L${x + w} ${ay + 10}`;
-        d += `V${y + h - 24}Q${x + w} ${y + h} ${x + w - 24} ${y + h}`;
-        if (side === "bottom")
-            d += `H${ax + 18}L${tx} ${ty}L${ax - 5} ${y + h}`;
-        d += `H${x + 24}Q${x} ${y + h} ${x} ${y + h - 24}`;
-        if (side === "left") d += `V${ay + 10}L${tx} ${ty}L${x} ${ay - 12}`;
-        d += `V${y + 24}Q${x} ${y} ${x + 24} ${y}Z`;
+        const { d } = balloonOutline(x, y, w, h, side, balloon.tip);
         const group = node("g", { "data-balloon": boxes.length });
         group.append(
             node("path", {

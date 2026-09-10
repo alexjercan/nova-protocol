@@ -31,6 +31,7 @@ const panel = {
 const script = {
     heading: "Fixture",
     footer: "Fixture only",
+    cast: ["Worker"],
     pages: [
         {
             kind: "illustrated",
@@ -55,6 +56,12 @@ for (const mutate of [
     (s) => (s.pages[0].layout.wrong = s.pages[0].layout.one),
     (s) => (s.pages[0].layout.one.at = [1400, 900]),
     (s) => (s.pages[0].panels[0].art = "../escape"),
+    // The speaker is an id like every other id in the DSL.
+    (s) => (s.pages[0].panels[0].dialogue[0].speaker = "Wroker"),
+    (s) => (s.pages[0].panels[0].dialogue[0].speaker = "Worker / Comms"),
+    (s) => (s.pages[0].panels[0].dialogue[0].speaker = "Worker / comms / rec"),
+    (s) => (s.cast = ["Worker", "Worker"]),
+    (s) => (s.cast = ["Worker / comms"]),
 ]) {
     const invalid = structuredClone(script);
     mutate(invalid);
@@ -79,6 +86,13 @@ const silent = {
 assert(transcript(silent).includes("No dialogue."));
 const nonsequential = { ...script, pages: [silent, ...script.pages] };
 validateScript(nonsequential, 2);
+
+// A delivery on a cast member is fine; the delivery itself is the closed set.
+{
+    const delivered = structuredClone(script);
+    delivered.pages[0].panels[0].dialogue[0].speaker = "Worker / comms";
+    validateScript(delivered, 1);
+}
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "comic-dsl-"));
 const root = path.join(temp, "source"),
@@ -234,6 +248,74 @@ try {
         () => compileScript(labelled, scenes, palette),
         /Unknown label color/
     );
+
+    // Lettering that runs off its own panel. Neither of these fails loudly at
+    // read time: a card is clipped away and a balloon overdraws its neighbour.
+    // Its own scene, with no slots, so `script` (which letters none) compiles.
+    const bare = { cover: { file: "cover.svg", size: [1416, 857], slots: [] } };
+    for (const [mutate, pattern] of [
+        [
+            (s) => (s.pages[0].panels[0].lettering.report.at = [1300, 20]),
+            /Balloon report runs off panel/,
+        ],
+        [
+            (s) => (s.pages[0].panels[0].lettering.report.at = [20, 820]),
+            /Balloon report runs off panel/,
+        ],
+        [
+            (s) => (s.pages[0].panels[0].lettering.report.tail = [20, 1200]),
+            /tail points off panel/,
+        ],
+        [
+            (s) =>
+                (s.pages[0].panels[0].cards = [
+                    {
+                        id: "where",
+                        name: "GANTRY",
+                        place: "Belt",
+                        date: "2231",
+                        note: "Idle.",
+                        at: [1200, 760],
+                        width: 300,
+                    },
+                ]),
+            /Location card where runs off panel/,
+        ],
+    ]) {
+        const escaped = structuredClone(script);
+        mutate(escaped);
+        assert.throws(() => compileScript(escaped, bare, palette), pattern);
+    }
+    // And the same card, placed where it fits, compiles.
+    {
+        const fits = structuredClone(script);
+        fits.pages[0].panels[0].cards = [
+            {
+                id: "where",
+                name: "GANTRY",
+                place: "Belt",
+                date: "2231",
+                note: "Idle.",
+                at: [40, 680],
+                width: 300,
+            },
+        ];
+        assert.equal(
+            compileScript(fits, bare, palette)[0].definition.panels[0].cards[0]
+                .id,
+            "where"
+        );
+    }
+
+    // A failing check names the page and the panel it fired on.
+    {
+        const broken = structuredClone(script);
+        broken.pages[0].panels[0].lettering.report.side = "sideways";
+        assert.throws(
+            () => validateScript(broken, 1),
+            /^Error: one\/one: Invalid balloon geometry$/
+        );
+    }
     compile();
     assert(!fs.existsSync(path.join(output, "season-1/episode-2")));
     put("season-1/episode-2/episode.json", { ...episode, pageCount: 2 });
