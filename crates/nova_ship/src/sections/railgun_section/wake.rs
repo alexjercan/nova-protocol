@@ -211,10 +211,19 @@ impl RailgunWakeArt {
 /// load already has a loading screen over it, and a tier with particles off
 /// builds nothing here either, which is what the lazy build was really
 /// protecting - but the shader generation and the pipeline compiles are NOT
-/// what this moves. Those are still paid on the first slug, which is
-/// synchronous on web and macOS and late enough on native to lose the head of a
-/// 1.2 s wake. `pyre`'s warm-up spawns a hidden instance per graph, which is
-/// what mints a shader; this one does not.
+/// what this moves. Those are still paid on the first slug, on the render
+/// thread of EVERY backend: `nova_core` asks for
+/// `synchronous_pipeline_compilation` on purpose (an async compile task still
+/// in flight at exit tears the Vulkan device down under itself), so native
+/// Linux blocks there exactly as web and macOS do - late enough to lose the
+/// head of a 1.2 s wake. `pyre`'s warm-up spawns a hidden instance per graph,
+/// which is what mints a shader; this one does not.
+///
+/// It runs on entering `Playing`, which a tier RAISED mid-run never enters
+/// again: a player who starts spawn-less and picks a higher preset from the
+/// pause overlay builds these graphs on the first slug after all. `pyre`'s
+/// warm-up watches [`GraphicsBudget`] for exactly that case; this one does
+/// not.
 pub(super) fn warm_railgun_wake_art(
     budget: Option<Res<GraphicsBudget>>,
     mut art: ResMut<RailgunWakeArt>,
