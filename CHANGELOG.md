@@ -19,6 +19,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A GOTO engaged while already drifting at the target no longer turns the ship
   tail-first and coasts with the drive cold: the leg commits to its brake only
   once it is past the flip point.
+- The frame that recovers from a long stall no longer sheds sixteen ticks' worth
+  of plating at once: the shed cap bounds the FRAME again, and the plates it
+  holds back come off on the next one.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow

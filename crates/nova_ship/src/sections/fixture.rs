@@ -67,19 +67,63 @@ const SHED_KICK: Range<f32> = 3.0..7.0;
 /// fixture one tick skipped still matches the query on the next.
 ///
 /// The cap is per FIXED-STEP tick, and that is what bounds the backlog in
-/// TIME. Health empties on the fixed step, so draining there too means 64
-/// drains a second whatever the renderer is managing: a hull stripped to the
-/// last of those 263 fixtures clears in about a sixth of a second, on a
-/// software rasteriser drawing a second a frame just as much as at 120 Hz. Per
-/// FRAME it was the renderer that set the rate, and a collapse window - the
-/// exact window this backlog forms in - is measured on this project's own
-/// captures at 15 ms a frame and worse.
+/// TIME. Health empties on the fixed step, so draining there too means 24
+/// drains a tick whatever the renderer is managing: at the default 64 Hz a
+/// hull stripped to the last of those 263 fixtures clears in about a sixth of
+/// a second, and a slow renderer no longer slows the drain the way a per-frame
+/// cap did.
+///
+/// It does NOT bound the archetype moves one frame pays, which is why
+/// [`ShedBudget`] sits on top of it. Bevy banks up to `Time<Virtual>`'s
+/// `max_delta` of fixed steps into a single frame - 0.25 s, or 16 steps, since
+/// nothing in shipping code lowers it - and the frame that banks the most is
+/// the collapse frame this cap exists to protect. Without the frame ceiling
+/// one such frame performs 16 x 24 = 384 `try_remove` + `try_insert` pairs.
+/// `crates/nova_gameplay/src/integrity/spew.rs` states the same rule for the
+/// same reason.
 ///
 /// A deferred plate is not only a queue entry either. It keeps its `Collider`
 /// until it is shed, so a piercing round crossing it still burns one of its
 /// layers and pays that plate's MAX health over the pierce multiplier, dead or
 /// not. The backlog is charged in rounds as well as in ticks.
 const SHED_TICK_CAP: usize = 24;
+
+/// How many fixtures one FRAME may still shed.
+///
+/// A frame and not a fixed step, because the archetype moves are paid by the
+/// frame: several fixed steps flush into one, and the longest frame banks the
+/// most of them. [`SHED_TICK_CAP`] bounds the drain in TIME; this bounds what
+/// one frame can be asked to do. Reset in `First`, spent by
+/// [`shed_dead_fixtures`], and a resource rather than a `Local` because the
+/// reset and the drain are different systems - the shape
+/// `integrity::spew::ShardBudget` and `integrity::pyre::PyreBudget` already
+/// use.
+#[derive(Resource, Debug)]
+pub(crate) struct ShedBudget {
+    left: usize,
+}
+
+impl Default for ShedBudget {
+    fn default() -> Self {
+        Self {
+            left: SHED_FRAME_CAP,
+        }
+    }
+}
+
+/// The ceiling on fixtures shed in one frame.
+///
+/// Above [`SHED_TICK_CAP`], so an ordinary frame carrying one fixed step is
+/// unaffected and only a frame that banked several steps is clamped. Overflow
+/// is deferred on exactly the terms the per-tick cap defers it: shedding is
+/// what removes `ChildOf`, so a fixture held back still matches the query next
+/// frame.
+const SHED_FRAME_CAP: usize = SHED_TICK_CAP * 2;
+
+/// Hand the frame its shed allowance back.
+pub(crate) fn refill_shed_budget(mut budget: ResMut<ShedBudget>) {
+    budget.left = SHED_FRAME_CAP;
+}
 
 /// How fast a shed fixture tumbles as it leaves, in radians per second.
 ///
@@ -200,8 +244,15 @@ pub(crate) fn shed_dead_fixtures(
     // Held across ticks rather than allocated per fixture: the descendant walk
     // below sits inside a loop the cap already lets reach two dozen plates.
     mut greebles: Local<Vec<Entity>>,
+    mut budget: ResMut<ShedBudget>,
 ) {
-    for (fixture, frame, ChildOf(section), collider) in q_dead.iter().take(SHED_TICK_CAP) {
+    let allowance = SHED_TICK_CAP.min(budget.left);
+    if allowance == 0 {
+        return;
+    }
+    let mut shed = 0usize;
+    for (fixture, frame, ChildOf(section), collider) in q_dead.iter().take(allowance) {
+        shed += 1;
         let transform = frame.compute_transform();
         // Outward from the middle of the ship, which for cladding is the way it
         // already faces: a plate stands on the hull's outer surface, so this is
@@ -252,6 +303,7 @@ pub(crate) fn shed_dead_fixtures(
             }
         }
     }
+    budget.left -= shed;
 }
 
 #[cfg(test)]
@@ -267,12 +319,17 @@ mod tests {
     ///
     /// The clock is stated, because the drain is on the fixed step and real
     /// deltas between test frames are microseconds - left alone, `app.update()`
-    /// would run no tick at all. One frame's manual delta is one timestep, so
-    /// a frame here is exactly one drain and the cap can be counted.
+    /// would run no tick at all. The FIRST frame of a manual clock still has a
+    /// delta of zero (`bevy_time`'s `update_with_instant` returns early while
+    /// `last_update` is `None`), which is what the warm-up `app.update()` below
+    /// absorbs; every frame after it is exactly one timestep, so a frame here
+    /// is exactly one drain and the cap can be counted.
     fn shed_app(offset: Vec3) -> (App, Entity, Entity) {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, TransformPlugin, NovaHealthPlugin));
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
+        app.init_resource::<ShedBudget>();
+        app.add_systems(First, refill_shed_budget);
         app.add_systems(FixedUpdate, shed_dead_fixtures);
         let timestep = app.world().resource::<Time<Fixed>>().timestep();
         app.insert_resource(TimeUpdateStrategy::ManualDuration(timestep));
@@ -461,6 +518,8 @@ mod tests {
 
         let mut app = unfinished_integrity_physics_app();
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
+        app.init_resource::<ShedBudget>();
+        app.add_systems(First, refill_shed_budget);
         app.add_systems(FixedUpdate, shed_dead_fixtures);
         app.finish();
 
@@ -635,9 +694,10 @@ mod tests {
         for _ in 2..ticks {
             app.update();
         }
-        assert!(
-            shed_so_far(&app) < plates.len(),
-            "the hull was stripped in fewer ticks than the cap allows",
+        assert_eq!(
+            shed_so_far(&app),
+            SHED_TICK_CAP * (ticks - 1),
+            "every tick before the last sheds exactly the cap",
         );
 
         app.update();
@@ -645,6 +705,52 @@ mod tests {
             shed_so_far(&app),
             plates.len(),
             "a plate the cap deferred was never shed at all",
+        );
+    }
+
+    /// A long frame banks several fixed steps, and the archetype moves are
+    /// paid by the frame that banks them. The per-tick cap alone does not
+    /// bound that: at `Time<Virtual>`'s default 0.25 s `max_delta` one frame
+    /// can carry 16 steps, and the frame that carries the most is the collapse
+    /// frame the cap exists to protect.
+    #[test]
+    fn a_frame_that_banks_several_fixed_steps_still_pays_for_one_frame() {
+        let (mut app, _, section) = shed_app(Vec3::ZERO);
+        let timestep = app.world().resource::<Time<Fixed>>().timestep();
+        let plates: Vec<Entity> = (0..SHED_FRAME_CAP * 2)
+            .map(|_| {
+                app.world_mut()
+                    .spawn((
+                        ChildOf(section),
+                        SectionFixture,
+                        Health::new(10.0),
+                        Collider::cuboid(1.0, 1.0, 1.0),
+                        Transform::default(),
+                    ))
+                    .id()
+            })
+            .collect();
+        app.update();
+        for plate in &plates {
+            app.world_mut().trigger(HealthApplyDamage {
+                entity: *plate,
+                source: None,
+                amount: 1000.0,
+            });
+        }
+
+        // One frame carrying eight fixed steps. Without the frame ceiling this
+        // sheds 8 x SHED_TICK_CAP.
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(timestep * 8));
+        app.update();
+
+        let shed = plates
+            .iter()
+            .filter(|plate| app.world().get::<ShedFixtureMarker>(**plate).is_some())
+            .count();
+        assert_eq!(
+            shed, SHED_FRAME_CAP,
+            "a frame banking eight steps sheds one frame's worth, not eight ticks' worth",
         );
     }
 }

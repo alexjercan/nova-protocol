@@ -47,7 +47,7 @@ use crate::sections::{
     clearance::prelude::SectionExit,
     fixture::{
         prelude::{SectionFixture, ShedFixtureMarker},
-        shed_dead_fixtures,
+        refill_shed_budget, shed_dead_fixtures, ShedBudget,
     },
     integrity::build_ship_integrity_graph,
     link_points::prelude::{LinkPoint, SectionLinkPoints},
@@ -1144,7 +1144,11 @@ impl Plugin for ShipSkinPlugin {
         );
         // On the fixed step, which is the clock the damage that empties a
         // plate's health resolves on - see `shed_dead_fixtures`. Nothing to
-        // order it against: `IntegritySystems` is an `Update` set.
+        // order it against: `IntegritySystems` is an `Update` set. The frame
+        // ceiling it spends is refilled in `First`, so a frame that banked
+        // several fixed steps still pays for only one frame's worth.
+        app.init_resource::<ShedBudget>();
+        app.add_systems(First, refill_shed_budget);
         app.add_systems(FixedUpdate, shed_dead_fixtures);
 
         if self.render {
