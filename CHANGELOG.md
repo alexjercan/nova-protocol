@@ -41,9 +41,9 @@ does NOT get an entry - and it is the only place they are written down.
   no longer strands the route on its first mark.
 - A spent hull plate comes off in the same step as the round that killed it
   again, instead of staying visibly bolted on for one more.
-- The death-fireball warm-up runs at startup once the graphics tier has settled,
-  and again when the tier changes, so menu-backdrop deaths and a tier raised
-  mid-run no longer hitch.
+- The death-fireball warm-up runs as soon as the graphics tier has settled and
+  a camera is up, and again when the tier changes, so menu-backdrop deaths and a
+  tier raised mid-run no longer hitch.
 - The v0.13.0 news post's hull-zone scope counts placements on the starboard
   half the collapse actually runs on, and offers the one zone a part may carry.
 - The news-post widget tests read the game's constants and sound-cue filenames

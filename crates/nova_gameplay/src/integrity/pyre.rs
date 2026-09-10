@@ -533,20 +533,32 @@ fn drawable<'w>(
 /// away on the next frame's `Update`, which is the earliest point at which
 /// `PostUpdate`'s compile and the render world's extract have both had them.
 ///
-/// In `PostStartup` after [`SettingsSystems`], and again in `Update` whenever
-/// [`GraphicsBudget`] changes while the graphs are still cold
-/// ([`pyres_are_cold`]). The tier is the reason for both times.
+/// In `Update`, on the first frame that has all three of a cold store
+/// ([`pyres_are_cold`]), a tier that draws particles at all
+/// ([`the_tier_draws_particles`]) and a camera to render from
+/// ([`a_view_exists`]). The settings have settled long before that - they are
+/// applied in `PostStartup` and again on change, both inside
+/// [`SettingsSystems`] - so this never builds the graphs a spawn-less run
+/// exists to skip, and a tier RAISED from the pause overlay re-opens the gate
+/// without re-entering a state, which is how a budget change is reached by no
+/// `OnEnter`.
 ///
-/// `PostStartup` is the first point at which the persisted preset a player
-/// chose has been applied, so this never builds the graphs a spawn-less run
-/// exists to skip. It is also before the first frame of ANY state, which is
-/// what a state transition cannot promise: the main-menu backdrop is a
-/// scenario whose whole loop is a torpedo erasing a ship, so an earlier cut
-/// that warmed on entering `Playing` left the first deaths a player ever sees
-/// to mint their own shaders. The `Update` pass covers the one other way a
-/// cold store becomes worth filling: a tier RAISED from the pause overlay,
-/// which changes the budget without re-entering a state and so is reached by
-/// no `OnEnter`.
+/// As early as that, and not on entering `Playing`: the main-menu backdrop is
+/// a scenario whose whole loop is a torpedo erasing a ship, so an earlier cut
+/// that warmed on `OnEnter(Playing)` left the first deaths a player ever sees
+/// to mint their own shaders. That backdrop raises its camera frames before
+/// its first death, so waiting for a view still wins the race it has to win.
+///
+/// The view is not a preference, and this is why. `bevy_hanabi` gives every
+/// live instance a row in one `BufferTable` of draw arguments, and reconciles
+/// that table in `prepare_gpu_resources`, which returns EARLY while no view
+/// exists. Four rows taken and given back with no view in between leave the
+/// table holding four pending row writes against a row count that has fallen
+/// back to three, and the first frame that does have a view then allocates a
+/// 60-byte buffer and writes 80 bytes into it: `slice offset 0 size 80 is out
+/// of range for buffer of size 60`, a panic in the render schedule at boot. An
+/// earlier cut warmed in `PostStartup`, which is before any scenario has
+/// spawned a camera, and did exactly that.
 ///
 /// A hidden instance warms the WGSL and the two COMPUTE pipelines, and not the
 /// render one. `compile_effects` generates the source for hidden instances on
@@ -560,9 +572,8 @@ fn drawable<'w>(
 /// what these assets take). So the first death of a run still creates one
 /// render pipeline, and `nova_core` asks for `synchronous_pipeline_compilation`
 /// on every backend, so that creation is paid on the render thread rather than
-/// on a task. Warming it would take a VISIBLE instance in a live view, which
-/// this cannot have where it runs: `PostStartup` is before any scenario has
-/// spawned a camera, so there is no view to be visible to.
+/// on a task. Warming it would take a VISIBLE instance, which a warm-up is
+/// not: these are hidden exactly so that nothing draws them.
 fn warm_the_pyres(
     mut commands: Commands,
     effects: Option<ResMut<Assets<EffectAsset>>>,
@@ -605,6 +616,28 @@ fn pyres_are_cold(pyres: Res<PyreEffects>) -> bool {
     pyres.section.is_none() || pyres.hulk.is_none()
 }
 
+/// Whether the budget in force draws particles at all.
+///
+/// [`drawable`] asks the same question of the same resource and is what
+/// actually refuses the work; this is here so the question is asked by a run
+/// condition too. A spawn-less run leaves [`pyres_are_cold`] true for its whole
+/// length, so without this the warm-up would be woken on every frame of it to
+/// decide again that it has nothing to do. A settings-less app is full quality.
+fn the_tier_draws_particles(tier: Option<Res<GraphicsBudget>>) -> bool {
+    tier.as_deref().is_none_or(|tier| tier.particles)
+}
+
+/// Whether there is a camera for the render world to build a view from.
+///
+/// [`warm_the_pyres`] states what a view has to do with a warm-up that draws
+/// nothing: hanabi only reconciles its table of draw arguments on a frame that
+/// has one, and instances that appear and vanish entirely between such frames
+/// leave it inconsistent enough to panic. An inactive camera produces no view,
+/// so it does not count.
+fn a_view_exists(cameras: Query<&Camera>) -> bool {
+    cameras.iter().any(|camera| camera.is_active)
+}
+
 /// Take the warm-up's throwaway instances away again.
 ///
 /// In `Update` and not in the same frame's `PostUpdate` or `Last`: hanabi
@@ -614,6 +647,11 @@ fn pyres_are_cold(pyres: Res<PyreEffects>) -> bool {
 /// WGSL and specializes its two compute pipelines. [`Ref::is_added`] is what draws that
 /// line - on the frame they were spawned these are still new, on the next they
 /// are not.
+///
+/// That line only falls where it says after [`warm_the_pyres`], which spawns in
+/// the same schedule: the ordering is what puts a sync point between the two,
+/// so the instances are here to be judged new on their own frame rather than
+/// first seen, and skipped, on the frame after.
 fn cool_the_warm_pyres(mut commands: Commands, warm: Query<(Entity, Ref<PyreWarmMarker>)>) {
     for (entity, marker) in &warm {
         if !marker.is_added() {
@@ -751,15 +789,16 @@ impl Plugin for PyrePlugin {
         // no armed section still dies, so the pyre cannot rely on a turret
         // having been here.
         app.init_resource::<SoftDot>();
-        app.add_systems(PostStartup, warm_the_pyres.after(SettingsSystems));
         app.add_systems(
             Update,
             warm_the_pyres
-                .run_if(resource_exists_and_changed::<GraphicsBudget>)
-                .run_if(pyres_are_cold),
+                .after(SettingsSystems)
+                .run_if(pyres_are_cold)
+                .run_if(the_tier_draws_particles)
+                .run_if(a_view_exists),
         );
         app.add_systems(First, refill_pyre_budget);
-        app.add_systems(Update, cool_the_warm_pyres);
+        app.add_systems(Update, cool_the_warm_pyres.after(warm_the_pyres));
         app.add_observer(light_the_pyre);
     }
 }
@@ -795,7 +834,19 @@ mod tests {
     /// `tier` is the graphics budget the app runs at. `None` is a
     /// settings-less app, which is the only case the rest of this module's
     /// tests exercise and which means full quality.
+    ///
+    /// The camera is not decoration: the warm-up waits for one, so an app
+    /// without it never warms at all.
     fn pyre_app_at(tier: Option<GraphicsBudget>) -> App {
+        let mut app = viewless_pyre_app_at(tier);
+        app.world_mut().spawn(Camera::default());
+        app.update();
+        app
+    }
+
+    /// The same app with nothing to render from, for the tests that are about
+    /// the wait itself.
+    fn viewless_pyre_app_at(tier: Option<GraphicsBudget>) -> App {
         let mut app = App::new();
         app.insert_resource(Assets::<EffectAsset>::default());
         app.insert_resource(Assets::<Image>::default());
@@ -803,7 +854,6 @@ mod tests {
             app.insert_resource(tier);
         }
         app.add_plugins(PyrePlugin);
-        app.update();
         app
     }
 
@@ -940,6 +990,44 @@ mod tests {
             warm_instances(&mut app),
             0,
             "the warm-up's instances outlived the frame they were compiled in",
+        );
+    }
+
+    /// Every warm instance takes a row in the one table of draw arguments
+    /// `bevy_hanabi` keeps, and hanabi reconciles that table only on a frame
+    /// that has a view. Instances that come and go entirely between such frames
+    /// leave it holding more pending row writes than the buffer it then
+    /// allocates has room for, which is a panic in the render schedule on the
+    /// first frame a camera appears. So the warm-up waits for one.
+    #[test]
+    fn the_warm_up_waits_for_a_camera_and_runs_on_the_frame_one_arrives() {
+        let mut app = viewless_pyre_app_at(None);
+        app.update();
+        app.world_mut().spawn(Camera {
+            is_active: false,
+            ..default()
+        });
+        app.update();
+
+        assert_eq!(
+            warm_instances(&mut app),
+            0,
+            "a camera that renders nothing was taken for a view",
+        );
+        assert_eq!(built(&app), (0, 0), "and the graphs were minted against it");
+
+        app.world_mut().spawn(Camera::default());
+        app.update();
+
+        assert_eq!(
+            warm_instances(&mut app),
+            4,
+            "the frame a camera arrived left the pyres cold",
+        );
+        assert_eq!(
+            built(&app),
+            (4, 1),
+            "a core and an ejecta for each of the two sizes, and the one shared mask",
         );
     }
 
