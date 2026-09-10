@@ -322,11 +322,19 @@ impl Default for GraphicsBudget {
 }
 
 /// System set holding every apply pass, so a plugin that reads a derived
-/// setting can order against the point it settles.
+/// setting can order against the point it settles. The reader it exists for is
+/// `integrity::pyre`'s `warm_the_pyres`, which runs
+/// `PostStartup.after(SettingsSystems)` so that it never builds the effect
+/// graphs a spawn-less tier is there to skip.
 ///
 /// It spans two schedules on purpose: the `PostStartup` pass is the one that
 /// makes the derived state true before the first frame, and the `Update` pass
-/// is the one that keeps it true while the menu changes it.
+/// is the one that keeps it true while the menu changes it. Ordering is
+/// per-schedule, so ordering against this set constrains a system in those two
+/// schedules and nowhere else: a `FixedUpdate` system written
+/// `.after(SettingsSystems)` silently gets no constraint. A reader on any other
+/// clock watches the derived resource instead -
+/// `resource_changed::<GraphicsBudget>`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SettingsSystems;
 
