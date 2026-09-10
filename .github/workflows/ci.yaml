@@ -57,10 +57,25 @@ jobs:
       - name: Formatting
         run: cargo fmt --check
 
+      # Every generator that owns COMMITTED build output and carries a
+      # `--check`: each one rebuilds its pieces in memory and compares them
+      # byte for byte with the tree, so a stale commit or a non-deterministic
+      # edit fails here instead of churning art in an unrelated diff. The list
+      # was greebles + thruster shells only, which left the section parts, the
+      # scenario and news thumbnails and both lore exporters ungated - the same
+      # contract, unenforced. All seven are stdlib-only Python and cost 14s
+      # together. `gen-web-screenshots.py` is NOT here and cannot be: it has no
+      # `--check`, and its inputs are captured game renders, not a pure
+      # function of the sources.
       - name: Generated art is deterministic
         run: |
           python3 scripts/gen-greebles.py --check
           python3 scripts/gen-thruster-shells.py --check
+          python3 scripts/gen-section-parts.py --check
+          python3 scripts/gen-scenario-thumbnails.py --check
+          python3 scripts/gen-news-thumbnails.py --check
+          python3 scripts/gen-lore-designs.py --check
+          python3 scripts/gen-lore-portraits.py --check
 
       # The probe job shards by naming its categories, so a NEW examples/<dir>
       # would never run and nothing would say so - the sweep would still report
@@ -112,6 +127,93 @@ jobs:
       # unit/integration gate.
       - name: Tests
         run: cargo test --workspace --features debug
+
+  # The non-Rust half of the tree, which had NO job until now: `npm ci` +
+  # `npm run build:*` in the two deploy workflows was the only npm anywhere,
+  # so `web/package.json`'s `ci` script - format, lint, fourteen test suites
+  # and the released-only build - ran nowhere, and neither did the 62 Python
+  # tests under `scripts/nova_illustration/` and the episode `art/` modules.
+  #
+  # Its own job because it shares nothing with the Rust gates: no toolchain, no
+  # apt tier, no cargo cache. The whole thing measured 1m19s locally against
+  # `check`'s 45-minute budget, so the web signal arrives while the compile
+  # gate is still linking.
+  web:
+    name: web / npm suite + python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The comic determinism step below diffs two generated trees, and every
+      # art module is imported from inside the checkout. Stray `__pycache__`
+      # would join the comparison and the `find` sweep alike.
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22 matches both deploy workflows - this job must fail on what they
+      # would fail on. The npm cache is keyed on the lockfile, the same
+      # contract the Rust jobs' cache has with Cargo.lock.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      # `npm run ci` IS the suite, run as the script rather than as its parts
+      # so this job and a local run cannot drift: format:check, eslint, the
+      # fourteen test suites (site, story-reader, theme, widgets, comic-page,
+      # comic-renderer, comics, comic-script, story-build,
+      # scripts/test_deploy_pages.py, ron, lore, assets) and the released-only
+      # webpack build. `test:deploy` inside it is the publicPath gate - it
+      # builds the story at `/` and at `/nova-protocol/` and asserts every
+      # emitted resource resolves under its prefix.
+      - name: Web suite
+        working-directory: web
+        run: npm run ci
+
+      # The shared drawing library: ships, faces, expressions, scenes. The
+      # invocation is the one its README documents.
+      - name: Illustration library tests
+        run: python3 -m unittest discover -s scripts/nova_illustration -p 'test_*.py'
+
+      # The episode art modules. This FINDS its suites rather than listing
+      # them, so a new season/episode's tests join by existing - and it fails
+      # loudly when it finds none, which is the same insurance the probe-matrix
+      # step above carries: a directory rename must stop the build, not stop
+      # the testing.
+      - name: Comic art tests
+        run: |
+          mapfile -t suites < <(find web/src/comics -name 'test_*.py' -printf '%h\n' | sort -u)
+          if [ ${#suites[@]} -eq 0 ]; then
+            echo "::error::no comic art tests found under web/src/comics"
+            exit 1
+          fi
+          for art in "${suites[@]}"; do
+            echo "== $art"
+            python3 -m unittest discover -s "$art" -t "$art" -p 'test_*.py'
+          done
+
+      # The comic generator's determinism gate. It cannot be a byte-compare
+      # against the tree the way `check`'s art step is: the ~12 MB of SVG it
+      # emits lands in `web/.cache/` and is never committed. So the property is
+      # that two PROCESSES agree - `PYTHONHASHSEED` moves string hashing, which
+      # moves set iteration, which is the one order in this pipeline that can
+      # silently reshuffle a painter pass or a definition block. It lives here
+      # rather than in `check` because reaching the generator means running the
+      # Node build that selects the scenes.
+      - name: Comic generator is deterministic
+        working-directory: web
+        run: |
+          rm -rf .cache/story
+          PYTHONHASHSEED=0 npm run build:story
+          mv .cache/story/release/generated "$RUNNER_TEMP/comic-seed-0"
+          rm -rf .cache/story
+          PYTHONHASHSEED=524287 npm run build:story
+          diff -r "$RUNNER_TEMP/comic-seed-0" .cache/story/release/generated
 
   # SHARDED BY CATEGORY, and the shard axis is across RUNNERS on purpose. Under
   # lavapipe the render is CPU work, so running several examples at once on one
