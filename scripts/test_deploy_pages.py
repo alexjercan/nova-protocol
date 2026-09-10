@@ -152,7 +152,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('ref: refs/tags/${{ steps.tag.outputs.name }}', comic)
         self.assertIn('npm run build:story', comic)
         self.assertNotIn('npm run build:site', comic)
-        self.assertNotIn('npm run test:deploy', comic)
+        # `test:deploy` is this file plus web/tests/story-build.test.js, the only
+        # test that builds the story at both `/` and `/nova-protocol/` and proves
+        # every emitted resource resolves under its prefix. A comic tag publishes
+        # under the prefix, so the gate has to run on the exact tagged tree.
+        self.assertIn('npm run test:deploy', comic)
         self.assertNotIn('trunk build', comic)
         self.assertIn('npm run build:site', (root / '.github/workflows/deploy-page.yaml').read_text())
 
