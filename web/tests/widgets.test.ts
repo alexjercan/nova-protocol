@@ -619,7 +619,10 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(b.walksNew, 1);
     assert.equal(b.chipsOld, 4200);
     assert.equal(b.chipsNew, 128);
-    assert.equal(b.unchipped, 582);
+    // 128 chips at 7 to a wide crater: 18 craters carve whole, the 19th gets
+    // the last 2 chips (`count` is clamped to what is left, spew.rs:567-575),
+    // and the 581 after it arrive at an empty budget and throw nothing.
+    assert.equal(b.unchipped, 581);
     assert.equal(b.piecesOld, 720);
     assert.equal(b.piecesNew, 24);
     assert.equal(b.shedFrames, 30, "720 pieces take 30 frames");

@@ -11497,7 +11497,8 @@ export interface CollapseBudget {
     walkMsNew: number;
     chipsOld: number;
     chipsNew: number;
-    /** Craters that arrive over the frame's chip budget and go unchipped. */
+    /** Craters that arrive with the frame's chip budget already at zero and
+     * throw nothing at all. */
     unchipped: number;
     piecesOld: number;
     piecesNew: number;
@@ -11518,9 +11519,15 @@ export function collapseBudget(
         walkMsNew: sections * WALK_MS_PER_SECTION_NEW,
         chipsOld,
         chipsNew,
+        // The budget is spent in CHIPS, not in craters: `count` is the look's
+        // count clamped to what is left, and a crater goes unchipped only when
+        // that leaves zero (spew.rs:567-575). So the last crater the budget
+        // reaches gets a SHORT carve out of the remainder rather than nothing -
+        // 128 chips cover 18 full craters and part of a nineteenth - and it is
+        // the twentieth on that counts as unchipped.
         unchipped: Math.max(
             0,
-            craters - Math.floor(SHARDS_PER_FRAME / CHIPS_PER_WIDE_CRATER)
+            craters - Math.ceil(SHARDS_PER_FRAME / CHIPS_PER_WIDE_CRATER)
         ),
         piecesOld: sections,
         piecesNew: Math.min(sections, CHUNK_ACTIVATIONS_PER_FRAME),
