@@ -68,7 +68,6 @@ def coffee_break():
 
 def pump_inspection():
     """Draw the pump inspection scene."""
-    w = 1416
     art = machinery_wall(836, 857)
     pipes, housing = pump(245, 735, 1.1)
     body, hands = work_inspection('leila')
@@ -79,7 +78,6 @@ def pump_inspection():
 
 def residential_console():
     """Draw the residential console scene."""
-    w = 1416
     art = machinery_wall(560, 364)
     body, hands = work_inspection('samir')
     art += group(body, 'translate(295 20) scale(.65)')
@@ -93,7 +91,6 @@ def residential_console():
 
 def repair_choice():
     """Draw the repair choice scene."""
-    w = 1416
     return Scene(560, 473, machinery_wall(560, 473) + group(work_portrait('leila'), 'translate(265 164) scale(1.02)'))
 
 def assignment_window():
@@ -104,7 +101,7 @@ def assignment_window():
     view += path('M440 349L714 282L759 259', stroke=INTERIOR['structure'], width=18)
     view += path('M444 344L714 276L759 254', stroke=INTERIOR['structure_light'], width=4)
     view += render_ship('ebro', 'forward-quarter', 846, 254, 0.64, False)
-    art += tag('defs', tag('clipPath', rect(425, 16, 990, 337, 'white', radius=72), id='window')) + group(view, clip_path='url(#window)')
+    art += tag('defs', tag('clipPath', rect(425, 16, 990, 337, 'white', radius=72), id='window')) + group(view, clip_path='url(#window)', data_prop='pressure-window')
     art += rect(419, 10, 1002, 349, 'none', INK, 21, 78) + rect(421, 12, 998, 345, 'none', INTERIOR['window_frame'], 13, 76)
     art += path('M476 322V110Q476 61 515 61M1378 19V350', stroke=INTERIOR['window_light'], width=3)
     art += path('M410 372H1416', stroke=INTERIOR['panel'], width=19)
@@ -113,7 +110,6 @@ def assignment_window():
 
 def delivery_record():
     """Draw the delivery record scene."""
-    w = 1416
     art = warm_room(680, 422) + group(elena_close(), 'translate(340 126) scale(.94)')
     record = rect(-120, -65, 240, 153, WORK['screen'], INK, 3, 7) + text_slot('label-1') + text_slot('label-2') + text_slot('label-3')
     art += group(record, 'translate(164 312) rotate(-8)')
@@ -121,7 +117,6 @@ def delivery_record():
 
 def borrowed_mug():
     """Draw the borrowed mug scene."""
-    w = 1416
     art = warm_room(716, 422) + group(elena_close(), 'translate(322 131)') + mug_hand(177, 340, 0.9)
     return Scene(716, 422, art)
 

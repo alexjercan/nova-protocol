@@ -5,7 +5,7 @@ These drawings specify neither an injury nor a permanent cabin or medical bay.
 """
 
 from nova_illustration.colors import INK, FREIGHT, WORK, MATERIALS, RINA, IVO
-from nova_illustration.portraits import gantry_portrait, work_portrait, supported_owen, freefall_guide, gripping_arm, stretcher_grip, rail_grip_hand
+from nova_illustration.portraits import gantry_portrait, standing_body, supported_owen, freefall_guide, gripping_arm, stretcher_grip, rail_grip_hand
 from nova_illustration.scenery import stars
 from nova_illustration.scenes import Scene, text_slot
 from nova_illustration.svg import group, path, rect, tag
@@ -73,7 +73,7 @@ def guide_layers(name, grip, scale, side):
     mirrored = side == 'right'
     wrist_x = -96 if mirrored else 430
     x, y = grip[0] - wrist_x * scale, grip[1] - 433 * scale
-    body = freefall_guide(name) if name in ('rina', 'ivo') else work_portrait(name)
+    body = freefall_guide(name) if name in ('rina', 'ivo') else standing_body(name)
     wall = handhold(0, 0, 1) + gripping_arm(name)
     arm = stretcher_grip(name)
     if mirrored:

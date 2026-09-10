@@ -1,7 +1,7 @@
 """Episode-local scene artwork. No story, dialogue, or page assembly."""
 
 from nova_illustration.colors import INK, MINT, FREIGHT, WORK, RINA
-from nova_illustration.portraits import gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait
+from nova_illustration.portraits import gripping_arm, reaching_arm, standing_body, work_inspection
 from nova_illustration.scenery import aquila, stars, transfer_hall
 from nova_illustration.ships import render_ship
 from nova_illustration.svg import group, path, rect, tag
@@ -20,7 +20,7 @@ def window(key, x, y, w, h, view):
 
 def held_person(name, x, y, scale, reach=False):
     """Anchor a frontal person at a drawn rail without rotating their likeness."""
-    body = gantry_portrait(name) if name == 'nadia' else jonah_listener() if name == 'jonah' else work_portrait(name)
+    body = standing_body(name)
     art = group(body, f'translate({x} {y}) scale({scale})') + handhold(x, y, scale)
     arm = reaching_arm(name) if reach else gripping_arm(name)
     return art + group(arm, f'translate({x} {y}) scale({scale})')
@@ -42,7 +42,6 @@ def approach_aquila():
 
 def collection_check():
     """Draw the collection check scene."""
-    w = 1416
     art = transfer_hall(700, 487)
     art += window('collection-window', 210, 142, 250, 147, stars(700, 300) + render_ship('kaveri', 'forward-quarter', 342, 232, 0.29, False))
     art += held_person('rina', 39, 136, 0.64) + held_person('samir', 453, 147, 0.65)
@@ -55,7 +54,6 @@ def collection_check():
 
 def assembly_inspection():
     """Draw the assembly inspection scene."""
-    w = 1416
     art = transfer_hall(696, 487)
     body, hands = work_inspection('leila')
     art += handhold(390, 145, 0.72) + group(body, 'translate(390 145) scale(.72)')
@@ -75,14 +73,12 @@ def shared_workspace():
 
 def introductions():
     """Draw the introductions scene."""
-    w = 1416
     art = transfer_hall(680, 437) + freight_lock(225, 126, 0.77)
     art += held_person('jonah', 8, 125, 0.62) + held_person('nadia', 444, 132, 0.6)
     return Scene(680, 437, art)
 
 def safe_trip():
     """Draw the safe trip scene."""
-    w = 1416
     art = transfer_hall(716, 437) + freight_lock(261, 162, 0.51)
     art += held_person('nadia', 17, 151, 0.64, True) + held_person('jonah', 426, 142, 0.64)
     art += clear_signal(354, 409)
@@ -103,14 +99,12 @@ def gantry_departure():
 
 def outbound_aquila():
     """Draw the outbound aquila scene."""
-    w = 1416
     art = rect(0, 0, 680, 487, 'url(#space)') + stars(680, 487) + aquila(166, 126, 0.29)
     art += render_ship('kaveri', 'aft-quarter', 438, 371, 0.81, True, cargo=assembly_faces())
     return Scene(680, 487, art)
 
 def thoughts_of_home():
     """Draw the thoughts of home scene."""
-    w = 1416
     art = rect(0, 0, 716, 487, WORK['wall'])
     art += path('M286 0V487M652 0V487', stroke=WORK['wall_shadow'], width=18)
     art += held_person('leila', 24, 159, 0.7) + held_person('jonah', 413, 168, 0.65)

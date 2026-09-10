@@ -53,11 +53,14 @@ does NOT get an entry - and it is the only place they are written down.
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
   Kaveri's replacement pickup, rescue, and return. Released-only Story builds
   now include it.
+- Illustration art exports at the precision its drawn size can show: episode-one
+  panel art falls from 11.7 MB to 10.5 MB and the committed lore design sheets
+  by 10%, with no visible change.
 
 ### Internals & Tooling
 - A `web` CI job runs `npm run ci` - format, lint, fourteen suites, the
-  released-only build - plus the 62 Python illustration and episode-art tests.
-  None of it ran in any workflow before.
+  released-only build - plus the Python illustration and episode-art tests. None
+  of it ran in any workflow before.
 - The generated-art gate now covers every generator that carries `--check`, not
   just greebles and thruster shells, and diffs two comic builds made under
   different Python hash seeds.
@@ -69,6 +72,9 @@ does NOT get an entry - and it is the only place they are written down.
   gestures.
 - A comic that names a scene the art modules do not register fails with the ids
   it could not find and the ids on offer, instead of a bare Python KeyError.
+- The four episode-art modules that had no test have one: 43 art tests hold
+  Gantry whole at Aquila, its crew heard and not seen until the ships join, and
+  every interior view a marked pressure window.
 
 ## [0.13.0] - 2026-09-09
 
