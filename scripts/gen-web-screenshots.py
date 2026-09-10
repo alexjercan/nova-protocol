@@ -233,18 +233,23 @@ TRIPTYCHS = [
 
 # Figures cut from a staged bench frame under a news name: `(x, y, w, h)` is a
 # 16:9 window in source pixels, written at its own size (the site scales it).
-# The research benches - `asteroid_kinds`, `planet_types`, `wfc_ships`,
-# `first_shift_ships` - stage under their own names and print a readout across
+# The research benches stage under their own names and print a readout across
 # the top of the frame, the seed line that makes a hand-run reproducible. A
 # post figure has no use for that line, so three of the four windows start
 # below it. The asteroid grid is the exception: its window is the whole
 # 1920x1080 frame, so that figure ships WITH the readout.
-#   web name                         stage source                window
+#
+# The producer column is why this table is a table: `--producers` walks it, so
+# a cut source is captured by the sweep like every other name here. The bench
+# frame itself gets no FIGURES row - it carries the readout, which is the whole
+# reason the post figure is a CUT of it - and without this column nothing would
+# ever run the bench again.
+#   web name                         stage source                producer             window
 CUTS = [
-    ("news-0130-asteroid-kinds.png",  "asteroid-kinds-grid.png",  (0, 0, 1920, 1080)),
-    ("news-0130-planet-types.png",    "planet-types-lineup.png",  (107, 100, 1706, 960)),
-    ("news-0130-hull-row.png",        "wfc-ships-row.png",        (107, 60, 1706, 960)),
-    ("news-0130-block-fleet.png",     "first-shift-ships.png",    (120, 230, 1440, 810)),
+    ("news-0130-asteroid-kinds.png",  "asteroid-kinds-grid.png",  "asteroid_kinds",    (0, 0, 1920, 1080)),
+    ("news-0130-planet-types.png",    "planet-types-lineup.png",  "planet_types",      (107, 100, 1706, 960)),
+    ("news-0130-hull-row.png",        "wfc-ships-row.png",        "wfc_ships",         (107, 60, 1706, 960)),
+    ("news-0130-block-fleet.png",     "first-shift-ships.png",    "first_shift_ships", (120, 230, 1440, 810)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
@@ -817,7 +822,7 @@ def build_cuts(stage_dir):
     """Cut each CUTS window out of its staged frame."""
     print("\nCuts (a 16:9 window of a staged bench frame):")
     built, pending, failed = [], [], []
-    for name, source, window in CUTS:
+    for name, source, _producer, window in CUTS:
         if frozen(name):
             print(f"  frozen  {name} (shipped with its post)")
             continue
@@ -963,8 +968,8 @@ def manifest_owners():
         declared[name] = ("capturable", f"triptych of {sources}", True)
     for name, source in ALIASES.items():
         declared[name] = ("capturable", f"alias of {source}", True)
-    for name, source, _window in CUTS:
-        declared[name] = ("capturable", f"cut of {source}", True)
+    for name, source, producer, _window in CUTS:
+        declared[name] = ("capturable", f"cut of {source} ({producer})", True)
     for name, _section, _accent in ICONS:
         declared[name] = ("manual", "(generated icon)", False)
     return declared
@@ -1064,9 +1069,15 @@ def producers():
     The capture flow reads its example list from HERE rather than from a
     hand-kept shell array: a figure whose producer was renamed then fails to
     be captured loudly, instead of quietly staying whatever was last copied
-    into web/src/assets."""
+    into web/src/assets. Every table that names a producer is walked - FIGURES
+    for the shots that ship as they are, CUTS for the bench frames a news
+    figure is cut out of. A source named by neither is a figure nothing can
+    make again."""
     seen = []
     for _name, example in FIGURES:
+        if example and example not in seen:
+            seen.append(example)
+    for _name, _source, example, _window in CUTS:
         if example and example not in seen:
             seen.append(example)
     for example in seen:
