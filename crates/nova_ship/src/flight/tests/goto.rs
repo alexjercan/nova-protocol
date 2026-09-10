@@ -382,6 +382,61 @@ fn goto_radius_resolution_prefers_the_larger_source() {
 }
 
 #[test]
+fn a_goto_at_a_rock_anchors_on_the_origin_its_radius_was_measured_from() {
+    // A carved field rock. `BodyRadius` is the mesh's outermost vertex from
+    // the object ORIGIN, so the goal the arrival subtracts it from has to be
+    // that origin too. The convex hull's centre of mass is nowhere near it -
+    // put the offset ALONG the closing line, where anchoring on the centre of
+    // mass would move the park point by the whole 40 u (400 m).
+    let mut app = flight_app();
+    let (ship, _, _) = spawn_ship(&mut app);
+    let origin = Vec3::new(0.0, 0.0, -300.0);
+    let com = Vec3::new(0.0, 0.0, 40.0);
+    let target = app
+        .world_mut()
+        .spawn((
+            Transform::from_translation(origin),
+            GlobalTransform::from(Transform::from_translation(origin)),
+            Position(origin),
+            Rotation::default(),
+            ComputedCenterOfMass(com),
+            BodyRadius(30.0),
+        ))
+        .id();
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+    app.update();
+    let goal = app
+        .world()
+        .get::<ManeuverTelemetry>(ship)
+        .expect("engaged GOTO publishes telemetry")
+        .goal;
+    assert!(
+        goal.distance(origin) < 1e-3,
+        "the goal sits on the origin BodyRadius was measured from, got {goal}"
+    );
+
+    // And the rock tumbles. A goal anchored on the centre of mass would swing
+    // the whole 80 u across half a turn; this one must not move at all.
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Rotation(Quat::from_rotation_y(std::f32::consts::PI)));
+    app.update();
+    let spun = app
+        .world()
+        .get::<ManeuverTelemetry>(ship)
+        .expect("engaged GOTO publishes telemetry")
+        .goal;
+    assert!(
+        spun.distance(goal) < 1e-3,
+        "spinning the rock must not sweep the goal, {goal} -> {spun}"
+    );
+}
+
+#[test]
 fn goto_disengages_when_the_target_is_gone() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);

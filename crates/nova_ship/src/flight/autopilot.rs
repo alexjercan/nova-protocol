@@ -583,31 +583,57 @@ pub(super) fn autopilot_system(
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                // The LARGEST size the target publishes: a solid body's
-                // BodyRadius, a hull's own HullRadius, the well's physics
-                // body_radius. Max is conservative if two ever disagree;
-                // a target that publishes none is a point.
-                let target_radius = body_radius
-                    .map_or(0.0, |r| **r)
-                    .max(target_hull.map_or(0.0, |r| **r))
-                    .max(
-                        q_wells
-                            .get(target)
-                            .map_or(0.0, |(_, well)| well.body_radius),
-                    );
+                // The LARGEST size the target publishes, AND THE POINT IT WAS
+                // MEASURED FROM. The two travel together or the leg parks
+                // wrong: a radius is a distance from somewhere, and the goal
+                // the arrival subtracts it from has to be that same somewhere.
+                //
+                // `HullRadius` is COM-relative by definition - "the distance
+                // from its live centre of mass to the outer FACE"
+                // (`hull_radius.rs`) - so a hull target is anchored at its
+                // centre of mass. `BodyRadius` is the mesh's outermost vertex
+                // from the object ORIGIN
+                // (`nova_scenario/src/objects/asteroid.rs`), and a well's
+                // `body_radius` is its physics body, which `well_position.0`,
+                // `orbit_band_floor` and the ORBIT park handoff below all
+                // measure from the origin as well. So those two anchor at the
+                // origin.
+                //
+                // Mixing them is not a rounding error. A field rock is a
+                // dynamic convex hull of a noise-displaced, per-seed-stretched
+                // mesh, so its centre of mass is nowhere near its origin, and
+                // carving moves it further; the rock also TUMBLES, so the COM
+                // offset sweeps around the origin once a rotation and would
+                // drag the goal, the readout anchor and the park point with
+                // it - the ship parking a COM offset inside the authored
+                // margin on one side of the spin and outside it on the other.
+                //
+                // Max is conservative if two ever disagree. A target that
+                // publishes no size at all is a point, and there the two
+                // anchors are equally arbitrary: it keeps the centre of mass,
+                // which is the one of the pair that means something physical.
+                let hull_radius = target_hull.map_or(0.0, |r| **r);
+                let origin_radius = body_radius.map_or(0.0, |r| **r).max(
+                    q_wells
+                        .get(target)
+                        .map_or(0.0, |(_, well)| well.body_radius),
+                );
                 // A well-bearing target parks no closer than the ring ORBIT
                 // would accept, so the handoff below never has to burn the
                 // ship back outward to reach a legal ring.
                 let floor = q_wells.get(target).map_or(0.0, |(_, well)| {
                     orbit_band_floor(&band_well(target, well), &gravity_settings, &settings)
                 });
-                let goal_position = target_position.map_or_else(
-                    || target_transform.translation(),
-                    |p| {
-                        let com = target_com.map_or(Vec3::ZERO, |c| c.0);
-                        p.0 + target_rotation.map_or(com, |r| r.mul_vec3(com))
-                    },
-                );
+                let target_origin =
+                    target_position.map_or_else(|| target_transform.translation(), |p| p.0);
+                let (target_radius, goal_position) = if origin_radius > hull_radius {
+                    (origin_radius, target_origin)
+                } else {
+                    let com = target_position.and(target_com).map_or(Vec3::ZERO, |c| {
+                        target_rotation.map_or(c.0, |r| r.mul_vec3(c.0))
+                    });
+                    (hull_radius, target_origin + com)
+                };
                 let (desired, mut numbers) = arrival_desired(goal_position, target_radius, floor);
                 // Arrived means INSIDE the park envelope, not merely
                 // "wants zero velocity": the degraded no-stopping-plan

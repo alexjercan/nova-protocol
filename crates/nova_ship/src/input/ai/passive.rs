@@ -26,8 +26,9 @@ const AI_WAYPOINT_SLACK: f32 = 25.0;
 /// waypoint reached. Small = the ship presses in close to each mark and the
 /// loop reads deliberate (a nav drill hugging its beacons); the default 250 m
 /// keeps combat patrols flowing. The autopilot still brakes toward rest one
-/// resolved margin off this hull's own face, and the gate counts both, so
-/// slack below ~20 m risks asymptoting outside it - author small, not zero.
+/// resolved margin off this hull's own face, and the gate counts both and
+/// measures from the same centre of mass the leg parks - so the slack has only
+/// the arrival's own terminal drift left to cover. Author small, not zero.
 /// Authored in meters via `AIControllerConfig::waypoint_slack`; this component
 /// holds the world units the patrol compares against.
 #[derive(Component, Debug, Clone, Reflect)]
@@ -180,6 +181,7 @@ pub(super) fn update_passive_flight(
             Option<&AIWaypointSlack>,
             Option<&FlightArrivalStandoff>,
             Option<&HullRadius>,
+            Option<&ComputedCenterOfMass>,
         ),
         // A ship under a scenario helm order does not fly its own routine:
         // the order owns the helm until it is interrupted or reaches a
@@ -219,6 +221,7 @@ pub(super) fn update_passive_flight(
         slack,
         standoff,
         hull_radius,
+        center_of_mass,
     ) in &mut q_spaceship
     {
         let has_autopilot = autopilot.is_some();
@@ -230,6 +233,20 @@ pub(super) fn update_passive_flight(
         // route would never turn.
         let rest_radius =
             resolved_arrival_standoff(standoff, &settings) + hull_radius.map_or(0.0, |r| **r);
+        // WHERE THE SHIP IS, in the frame the flight computer answers in.
+        // Every radius this routine spends is measured from the centre of
+        // mass - `rest_radius` is `HullRadius`, which is COM-to-face, and the
+        // leg the autopilot flies closes `goal - com_world` - so the position
+        // they are compared against has to be the centre of mass too. On a
+        // hull whose origin is well forward of it (49 m aft on the block
+        // warship) the origin sits that much further from the waypoint than
+        // the COM does: with the default 250 m slack the offset is absorbed,
+        // but the menu weave authors 50 m (`main_menu/weave.rs`), which leaves
+        // about a metre of headroom - and under the offset the route never
+        // advances, `on_station` never latches, and the ship re-runs the same
+        // GOTO forever, which is the exact churn the gate exists to prevent.
+        let position = transform.translation
+            + center_of_mass.map_or(Vec3::ZERO, |com| transform.rotation.mul_vec3(com.0));
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the
@@ -246,7 +263,6 @@ pub(super) fn update_passive_flight(
                 // shoved onto its waypoint (or re-entering Patrol on top of
                 // one) advances too.
                 let arrive_radius = rest_radius + waypoint_slack;
-                let position = transform.translation;
                 let mut detour = detour.map(|detour| detour.0);
                 if position.distance(waypoint) <= arrive_radius {
                     route.advance();
@@ -909,6 +925,41 @@ mod patrol_idle_tests {
             world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
             Some(AutopilotAction::GotoPos { position: W2 }),
             "the new leg is engaged immediately"
+        );
+    }
+
+    /// Regression: the gate spends a COM-relative radius, so it must measure
+    /// a COM-relative position. The menu weave authors 50 m of slack
+    /// (`main_menu/weave.rs`) and the block warship's centre of mass is about
+    /// 49 m off its origin - an origin-measured gate leaves a metre of
+    /// headroom, and under it the route never turns.
+    #[test]
+    fn a_hull_whose_origin_is_off_its_centre_of_mass_still_turns_onto_the_next_leg() {
+        let (mut world, ship) = patrol_world();
+        let standoff = world.resource::<FlightSettings>().arrival_standoff;
+        // The weave's own slack, in the world units the component holds.
+        let slack = 5.0;
+        let offset = 4.9;
+        // At the arrival the ship is braking retrograde, so its nose points
+        // back up the approach and the hull's AFT centre of mass lies on the
+        // waypoint side of the origin: the origin is the far one.
+        world.entity_mut(ship).insert((
+            AIWaypointSlack(slack),
+            ComputedCenterOfMass(Vec3::new(0.0, 0.0, offset)),
+        ));
+        let mut entity = world.entity_mut(ship);
+        let mut transform = entity.get_mut::<Transform>().unwrap();
+        transform.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+        // Centre of mass just inside the gate, origin just outside it.
+        transform.translation = W1 + Vec3::new(0.0, 0.0, standoff + slack - 1.0 + offset);
+        drop(transform);
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<AIPatrolRoute>().unwrap().current,
+            1,
+            "the gate measures the centre of mass the arrival parks, not the origin"
         );
     }
 

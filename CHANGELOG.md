@@ -25,6 +25,12 @@ does NOT get an entry - and it is the only place they are written down.
 - A STOP no longer pirouettes the hull for the last m/s it is allowed to
   accept: a brake owed less than the settle band is the crumb the deadband
   documents, and the ship is handed back.
+- A GOTO at a rock or a well parks off the origin its size was measured from,
+  not off its centre of mass: a tumbling, carved rock no longer sweeps the park
+  point around itself once a turn.
+- An AI patrol turns onto its next leg where the arrival actually parks the
+  hull. A tight waypoint slack on a hull whose origin is off its centre of mass
+  no longer strands the route on its first mark.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
