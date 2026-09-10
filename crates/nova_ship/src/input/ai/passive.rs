@@ -952,7 +952,6 @@ mod patrol_idle_tests {
         transform.rotation = Quat::from_rotation_y(std::f32::consts::PI);
         // Centre of mass just inside the gate, origin just outside it.
         transform.translation = W1 + Vec3::new(0.0, 0.0, standoff + slack - 1.0 + offset);
-        drop(transform);
 
         run_pipeline(&mut world);
 
