@@ -46,11 +46,27 @@ does NOT get an entry - and it is the only place they are written down.
 - A comic speaker is checked against the episode's cast, and lettering that runs
   off its own panel fails the build instead of overdrawing the next panel or
   being clipped away.
+- A comic link to a page that no longer exists says so and corrects the address
+  bar, instead of quietly opening page one under the old page's fragment.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
   Kaveri's replacement pickup, rescue, and return. Released-only Story builds
   now include it.
+
+### Internals & Tooling
+- A `web` CI job runs `npm run ci` - format, lint, fourteen suites, the
+  released-only build - plus the 62 Python illustration and episode-art tests.
+  None of it ran in any workflow before.
+- The generated-art gate now covers every generator that carries `--check`, not
+  just greebles and thruster shells, and diffs two comic builds made under
+  different Python hash seeds.
+- A comic tag runs `npm run test:deploy` before it publishes, so a story built
+  under the wrong `publicPath` fails on the tag instead of shipping 404s. The
+  workflow test asserted the opposite.
+- The comic reader is covered against a stand-in document: paging, fragments,
+  the contents pane, the panel dialog, and the wheel, keyboard and touch
+  gestures.
 
 ## [0.13.0] - 2026-09-09
 

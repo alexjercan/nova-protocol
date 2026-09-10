@@ -63,10 +63,26 @@ export class ComicPlayer {
         this.go(-1);
     }
 
+    /**
+     * Show the page a fragment names, or the first page.
+     *
+     * An unknown id FALLS BACK rather than failing: a fragment is a bookmark,
+     * and a bookmark taken before the episode was re-paginated has to still
+     * open the comic. But it does not fall back silently - the address bar
+     * would go on naming a page the reader is not showing, and the next
+     * `hashchange` would be judged against it. Say so, and correct the
+     * fragment to the page actually on screen.
+     */
     open(pageId?: string): void {
         const requested = pageId
             ? this.pages.findIndex((page) => page.id === pageId)
             : 0;
+        if (pageId && requested < 0) {
+            console.warn(`No comic page "${pageId}"; opening the first page.`);
+            this.current = 0;
+            this.updateState(true);
+            return;
+        }
         this.current = requested >= 0 ? requested : 0;
         this.updateState(false);
     }
