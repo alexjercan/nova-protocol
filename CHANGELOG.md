@@ -15,6 +15,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Fixes
+- A GOTO engaged while already drifting at the target no longer turns the ship
+  tail-first and coasts with the drive cold: the leg commits to its brake only
+  once it is past the flip point.
+
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
   Kaveri's replacement pickup, rescue, and return. Released-only Story builds

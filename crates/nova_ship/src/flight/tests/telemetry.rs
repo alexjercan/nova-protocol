@@ -152,6 +152,7 @@ fn despawning_an_autopiloting_ship_queues_no_stale_telemetry_command() {
         park_point: Vec3::new(0.0, 0.0, -290.0),
         distance: 300.0,
         closing_speed: 5.0,
+        braking: false,
         brake_accel: 1.0,
         flip_point: None,
         seconds_to_flip: None,

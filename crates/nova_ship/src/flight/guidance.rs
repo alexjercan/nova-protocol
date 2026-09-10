@@ -77,17 +77,42 @@ pub(super) fn goto_desired_velocity(
     (to_target / distance) * speed
 }
 
+/// The lowest closing speed the coast estimate is meaningful at, u/s.
+///
+/// Below it the coast seconds are the ratio of two numbers the leg is about to
+/// replan anyway, and dividing by it magnifies the noise rather than the
+/// signal. A leg under this speed has no published flip point and is NOT
+/// braking: [`FlipEstimate::Unknown`] is what says so.
+pub(super) const FLIP_ESTIMATE_FLOOR: f32 = 0.5;
+
+/// Where a GOTO leg is against its flip-and-burn point.
+///
+/// Three states, and they are three because the caller acts differently on
+/// each. The absence of a flip point used to carry all three at once, and a
+/// leg that could not be estimated read as a leg already braking - which
+/// pointed the drive retrograde and then held it there, because a cold drive
+/// never leaves the band that produced the estimate.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum FlipEstimate {
+    /// The flip is still ahead: its distance from the goal center, and the
+    /// coast seconds until the ship reaches it.
+    Ahead { from_goal: f32, seconds: f32 },
+    /// The ship is at or past the flip point. Braking has begun, and the
+    /// execution side may commit the drive to the brake attitude.
+    Braking,
+    /// No honest estimate: the closing speed is under [`FLIP_ESTIMATE_FLOOR`],
+    /// or the well pull eats the whole brake authority so no stopping plan
+    /// exists. NOT a synonym for braking.
+    Unknown,
+}
+
 /// Where the flip-and-burn starts for the current state of a GOTO leg. Mirrors
 /// the arrival rule the autopilot actually flies ([`arrival_speed_limit`]):
 /// with a well pull of `gravity_along` toward the goal, the lead window covers
 /// `v*lead + g*lead^2/2` and the brake ramp `(v + g*lead)^2 / (2*(brake_accel -
-/// g))`, so the flip sits that far outside the standoff. Returns `(distance
-/// from the goal center, coast seconds until the ship gets there)`, or `None`
-/// when braking has already begun, the closing speed is too small for the coast
-/// estimate to mean anything, or the pull eats the whole brake authority (no
-/// stopping plan exists). The coast estimate uses the current closing speed;
-/// gravity's coast-phase gain is absorbed by per-tick replanning. Pure for unit
-/// testing.
+/// g))`, so the flip sits that far outside the standoff. The coast estimate
+/// uses the current closing speed; gravity's coast-phase gain is absorbed by
+/// per-tick replanning. Pure for unit testing.
 pub(super) fn goto_flip_point(
     distance: f32,
     closing_speed: f32,
@@ -95,11 +120,11 @@ pub(super) fn goto_flip_point(
     lead_time: f32,
     standoff: f32,
     gravity_along: f32,
-) -> Option<(f32, f32)> {
+) -> FlipEstimate {
     let g = gravity_along.max(0.0);
     let effective = brake_accel - g;
-    if closing_speed < 0.5 || effective <= 0.0 {
-        return None;
+    if closing_speed < FLIP_ESTIMATE_FLOOR || effective <= 0.0 {
+        return FlipEstimate::Unknown;
     }
     let lead = lead_time.max(0.0);
     let brake_entry_speed = closing_speed + g * lead;
@@ -107,9 +132,12 @@ pub(super) fn goto_flip_point(
     let flip_from_goal = standoff + closing_speed * lead + 0.5 * g * lead * lead + brake_distance;
     let coast = distance - flip_from_goal;
     if coast <= 0.0 {
-        return None;
+        return FlipEstimate::Braking;
     }
-    Some((flip_from_goal, coast / closing_speed))
+    FlipEstimate::Ahead {
+        from_goal: flip_from_goal,
+        seconds: coast / closing_speed,
+    }
 }
 
 /// Rough arrival estimate for a GOTO leg: coast to the flip point plus the
@@ -126,7 +154,7 @@ pub(super) fn arrival_eta(
     standoff: f32,
     gravity_along: f32,
 ) -> Option<f32> {
-    if closing_speed < 0.5 {
+    if closing_speed < FLIP_ESTIMATE_FLOOR {
         return None;
     }
     let g = gravity_along.max(0.0);
@@ -142,14 +170,16 @@ pub(super) fn arrival_eta(
         standoff,
         gravity_along,
     ) {
-        Some((_, coast)) => {
+        FlipEstimate::Ahead { seconds: coast, .. } => {
             // The brake ramp runs from the lead-window exit speed down to
             // rest at the gravity-reduced deceleration.
             let lead = lead_time.max(0.0);
             let brake_entry_speed = closing_speed + g * lead;
             Some(coast + lead + brake_entry_speed / (brake_accel - g).max(1e-3))
         }
-        None => Some(2.0 * remaining / closing_speed),
+        // Both guards above already returned, so this is the braking case:
+        // the mean speed of a linear ramp to rest covers the rest of the leg.
+        FlipEstimate::Braking | FlipEstimate::Unknown => Some(2.0 * remaining / closing_speed),
     }
 }
 
@@ -632,15 +662,50 @@ mod tests {
         // goal, and 300 - 81.2 = 218.8u of coast at 12 u/s. This mirrors
         // arrival_speed_limit's v*lead + v^2/(2a) exactly - the marker
         // must sit where the ship actually flips.
-        let flip = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 0.0).expect("flip ahead");
-        assert!((flip.0 - 81.2).abs() < 1e-3, "got {}", flip.0);
-        assert!((flip.1 - 218.8 / 12.0).abs() < 1e-3, "got {}", flip.1);
+        let FlipEstimate::Ahead { from_goal, seconds } =
+            goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 0.0)
+        else {
+            panic!("flip ahead");
+        };
+        assert!((from_goal - 81.2).abs() < 1e-3, "got {from_goal}");
+        assert!((seconds - 218.8 / 12.0).abs() < 1e-3, "got {seconds}");
 
-        // Already inside the flip distance: braking has begun, no flip.
-        assert_eq!(goto_flip_point(80.0, 12.0, 10.0, 2.0, 50.0, 0.0), None);
-        // Near-zero closing speed or no brake authority: no estimate.
-        assert_eq!(goto_flip_point(300.0, 0.1, 10.0, 2.0, 50.0, 0.0), None);
-        assert_eq!(goto_flip_point(300.0, 12.0, 0.0, 2.0, 50.0, 0.0), None);
+        // Already inside the flip distance: braking has begun.
+        assert_eq!(
+            goto_flip_point(80.0, 12.0, 10.0, 2.0, 50.0, 0.0),
+            FlipEstimate::Braking
+        );
+        // Near-zero closing speed or no brake authority: no estimate, and
+        // Unknown is NOT Braking - a leg too slow to estimate is coasting,
+        // and answering Braking here points its drive backwards.
+        assert_eq!(
+            goto_flip_point(300.0, 0.1, 10.0, 2.0, 50.0, 0.0),
+            FlipEstimate::Unknown
+        );
+        assert_eq!(
+            goto_flip_point(300.0, 12.0, 0.0, 2.0, 50.0, 0.0),
+            FlipEstimate::Unknown
+        );
+    }
+
+    #[test]
+    fn a_leg_under_the_estimate_floor_is_unknown_and_not_braking() {
+        // The gap this pins: stop_speed_epsilon is 0.2 u/s and the estimate
+        // floor is 0.5, so a leg closing in between publishes no flip point
+        // while being nowhere near its brake. Answering Braking there was
+        // what turned a 3 m/s approach tail-first with the drive cold.
+        for closing in [0.21_f32, 0.3, 0.49] {
+            assert_eq!(
+                goto_flip_point(4000.0, closing, 10.0, 2.0, 50.0, 0.0),
+                FlipEstimate::Unknown,
+                "{closing} u/s is under the floor and far outside the standoff"
+            );
+        }
+        // At the floor the estimate resumes, and 4 km out it is still ahead.
+        assert!(matches!(
+            goto_flip_point(4000.0, FLIP_ESTIMATE_FLOOR, 10.0, 2.0, 50.0, 0.0),
+            FlipEstimate::Ahead { .. }
+        ));
     }
 
     #[test]
@@ -720,14 +785,27 @@ mod tests {
         // The flip must trigger earlier when the well fights the brake:
         // lead window gains g*lead^2/2 of drift and g*lead of speed, and
         // the ramp runs at the reduced deceleration.
-        let flat = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 0.0).expect("flip");
-        let pulled = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 3.0).expect("flip");
+        let FlipEstimate::Ahead {
+            from_goal: flat, ..
+        } = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 0.0)
+        else {
+            panic!("flip");
+        };
+        let FlipEstimate::Ahead {
+            from_goal: pulled, ..
+        } = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 3.0)
+        else {
+            panic!("flip");
+        };
         // g=3: lead exit speed 18, ramp 18^2/(2*7) = 23.14, lead drift
         // 24 + 6 = 30 -> flip at 50 + 30 + 23.14 = 103.14.
-        assert!((pulled.0 - 103.142_86).abs() < 1e-3, "got {}", pulled.0);
-        assert!(pulled.0 > flat.0);
-        // Pull >= brake authority: no plan.
-        assert_eq!(goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 10.0), None);
+        assert!((pulled - 103.142_86).abs() < 1e-3, "got {pulled}");
+        assert!(pulled > flat);
+        // Pull >= brake authority: no plan, and no brake either.
+        assert_eq!(
+            goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 10.0),
+            FlipEstimate::Unknown
+        );
 
         // The same terms lengthen a STOP's predicted rest.
         let rest_flat = stop_rest_distance(12.0, 10.0, 2.0, 0.0).expect("rest");

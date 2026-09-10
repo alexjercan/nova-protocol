@@ -252,6 +252,17 @@ pub struct ManeuverTelemetry {
     pub distance: f32,
     /// Speed along the line to the goal, u/s (negative = opening).
     pub closing_speed: f32,
+    /// Whether the leg is PAST its flip point and braking.
+    ///
+    /// Explicit, and not inferred from a missing [`Self::flip_point`]: that is
+    /// `None` for three different reasons, and only one of them is "the brake
+    /// has begun". Reading the absence as the reason turned a leg whose coast
+    /// estimate was merely unavailable into a committed brake, which pointed
+    /// the drive retrograde and then starved it - a state nothing could leave,
+    /// because leaving it needed the thrust the commitment had just cut.
+    ///
+    /// Always true for STOP, whose whole verb is the brake.
+    pub braking: bool,
     /// The EFFECTIVE deceleration the arrival plan brakes with, u/s^2: margin
     /// applied, then reduced by the well pull toward the goal. Zero inside the
     /// standoff, and zero outside it when the pull meets or exceeds the brake

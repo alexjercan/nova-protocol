@@ -16,7 +16,7 @@ use super::{
     guidance::{
         arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
-        ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance,
+        ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance, FlipEstimate,
     },
     state::RcsReference,
     thrusters::{
@@ -406,6 +406,7 @@ pub(super) fn autopilot_system(
                             park_point,
                             distance: (distance - radii).max(0.0),
                             closing_speed,
+                            braking: false,
                             brake_accel: 0.0,
                             flip_point: None,
                             seconds_to_flip: None,
@@ -464,9 +465,18 @@ pub(super) fn autopilot_system(
                             park_point,
                             distance: (distance - radii).max(0.0),
                             closing_speed,
+                            braking: flip == FlipEstimate::Braking,
                             brake_accel,
-                            flip_point: flip.map(|(from_goal, _)| goal - closing_dir * from_goal),
-                            seconds_to_flip: flip.map(|(_, seconds)| seconds),
+                            flip_point: match flip {
+                                FlipEstimate::Ahead { from_goal, .. } => {
+                                    Some(goal - closing_dir * from_goal)
+                                }
+                                FlipEstimate::Braking | FlipEstimate::Unknown => None,
+                            },
+                            seconds_to_flip: match flip {
+                                FlipEstimate::Ahead { seconds, .. } => Some(seconds),
+                                FlipEstimate::Braking | FlipEstimate::Unknown => None,
+                            },
                             eta,
                         },
                     )
@@ -547,6 +557,9 @@ pub(super) fn autopilot_system(
                             park_point: goal,
                             distance: rest,
                             closing_speed: speed,
+                            // A STOP is the brake; there is no coast phase to
+                            // be ahead of.
+                            braking: true,
                             brake_accel: effective,
                             flip_point: None,
                             seconds_to_flip: None,
@@ -859,7 +872,10 @@ pub(super) fn autopilot_system(
         // not yet facing the burn) turns at the full rate the plan budgeted
         // the lead with.
         let brake = telemetry.and_then(|numbers| {
-            let due = numbers.flip_point.is_none()
+            // PAST the flip point, not merely "no flip point published". The
+            // leg publishes none for three reasons and only this one is a
+            // brake; see `FlipEstimate`.
+            let due = numbers.braking
                 && numbers.brake_accel > 0.0
                 && numbers.closing_speed > settings.stop_speed_epsilon;
             let brake_dir = -velocity.normalize_or_zero();

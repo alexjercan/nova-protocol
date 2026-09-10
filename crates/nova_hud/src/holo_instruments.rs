@@ -290,6 +290,7 @@ mod tests {
             goal_entity: None,
             park_point: park_point(goal),
             distance: goal.length(),
+            braking: flip.is_none(),
             closing_speed: 10.0,
             brake_accel: 10.0,
             flip_point: flip,

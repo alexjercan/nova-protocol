@@ -620,3 +620,75 @@ fn goto_at_a_well_hands_the_ship_back_when_orbit_is_withheld() {
         "the ship is handed back at the standoff, got {distance}"
     );
 }
+
+#[test]
+fn a_goto_engaged_below_the_estimate_floor_burns_toward_the_goal() {
+    // The gap between `stop_speed_epsilon` (0.2 u/s) and the flip estimate's
+    // own floor (0.5 u/s). A leg engaged while closing in that band publishes
+    // no flip point because the estimate is meaningless there, not because
+    // the brake has begun. Reading the absence as a brake pointed the hull
+    // retrograde; the drive then fell outside the prograde authority cone,
+    // went cold, and the ship stayed in the band that caused it - forever.
+    let mut app = flight_app();
+    let (ship, _, _) = spawn_ship(&mut app);
+    let goal = Vec3::new(0.0, 0.0, -400.0);
+    let target = app
+        .world_mut()
+        .spawn((
+            Transform::from_translation(goal),
+            GlobalTransform::from(Transform::from_translation(goal)),
+        ))
+        .id();
+    settle(&mut app);
+
+    // Drifting at 0.3 u/s straight at the goal: inside the band, and far
+    // enough out that the real flip point is still a long way ahead.
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(LinearVelocity(Vec3::new(0.0, 0.0, -0.3)));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+    // The first published plan is the one the bug read wrong.
+    run(&mut app, 4);
+    let telemetry = *app
+        .world()
+        .get::<ManeuverTelemetry>(ship)
+        .expect("an engaged leg publishes telemetry");
+    assert!(
+        !telemetry.braking,
+        "a leg drifting at 0.3 u/s, 400u out, has not begun braking"
+    );
+
+    // Fly the approach and hold the hull to account for as long as the leg
+    // says it is not braking. That is the contract the bug broke: a leg that
+    // is not braking points at its goal and burns.
+    let mut fastest: f32 = 0.0;
+    let mut braked = false;
+    for tick in 0..2000 {
+        app.update();
+        let Some(numbers) = app.world().get::<ManeuverTelemetry>(ship).copied() else {
+            break;
+        };
+        if numbers.braking {
+            braked = true;
+            break;
+        }
+        fastest = fastest.max(-velocity_of(&app, ship).z);
+        let facing = forward_of(&app, ship);
+        assert!(
+            facing.z < 0.0,
+            "tick {tick}: not braking, so the hull must hold the goal; got {facing}"
+        );
+    }
+
+    assert!(
+        fastest > 0.5,
+        "the leg must accelerate out of the estimate band, got {fastest} u/s"
+    );
+    assert!(
+        braked,
+        "the leg must still reach its flip point and brake normally"
+    );
+}
