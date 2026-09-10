@@ -428,6 +428,33 @@ def contour_segments(face):
     return result
 
 
+DRAW_TOLERANCE = .2
+"""Largest coordinate error the export may leave in the placed drawing, in drawn units."""
+
+
+def draw_precision(scale):
+    """Give a projection the decimals its placement can show, not a fixed count.
+
+A model carries the same coordinates however small it is drawn. At scale one a
+third decimal of a model unit is a thousandth of a drawn unit, and below that it
+buys nothing at all, so the emitted precision follows the placement.
+"""
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError('Finite placement and a positive drawing scale are required')
+    return max(0,math.ceil(math.log10(scale/DRAW_TOLERANCE)))
+
+
+def _placed(value, digits):
+    """Quantise one projected coordinate, without exporting a negative zero."""
+    return round(value,digits) or 0.
+
+
+def _quantised(points, digits):
+    """Quantise a projected outline and drop the neighbours it collapses together."""
+    corners = [(_placed(a,digits),_placed(b,digits)) for a,b in points]
+    return [corner for i,corner in enumerate(corners) if corner != corners[i-1]]
+
+
 def render_faces(surfaces, view, x, y, scale):
     """Project an authored prop with the same occlusion and ink as ship surfaces.
 
@@ -435,10 +462,10 @@ Coordinates and scale are drawing proportions, not physical measurements.
 """
     if not all(math.isfinite(v) for v in (x,y,scale)) or scale <= 0:
         raise ValueError('Finite placement and a positive drawing scale are required')
-    return group(_surface_art(surfaces,view),f'translate({x} {y}) scale({scale})')
+    return group(_surface_art(surfaces,view,draw_precision(scale)),f'translate({x} {y}) scale({scale})')
 
 
-def _surface_art(surfaces, view):
+def _surface_art(surfaces, view, digits):
     _, _, toward = basis(view)
     faces = []
     for f in surfaces:
@@ -453,8 +480,10 @@ def _surface_art(surfaces, view):
             faces.append((f,n))
     art = ''
     for f, n in painter_order(faces):
-        p = [project(v,view) for v in f.vertices]
-        points = ' '.join(f'{a:.3f},{b:.3f}' for a,b,_ in p)
+        corners = _quantised([project(v,view)[:2] for v in f.vertices],digits)
+        if len(corners) < 3:
+            continue
+        points = ' '.join(f'{a:.{digits}f},{b:.{digits}f}' for a,b in corners)
         lighting = 1.05 if n[2] > .5 else (0.87 if n[1] < -.3 else 0.73)
         fill = shade(MATERIALS[f.material],lighting)
         if not f.outline:
@@ -463,9 +492,10 @@ def _surface_art(surfaces, view):
             art += tag('polygon', points=points, fill=fill, stroke=fill, stroke_width=1.2, data_component=f.component)
             edges = ''
             for a,b in contour_segments(f):
-                ax,ay,_ = project(a,view)
-                bx,by,_ = project(b,view)
-                edges += f'M{ax:.3f} {ay:.3f}L{bx:.3f} {by:.3f}'
+                ends = _quantised([project(a,view)[:2],project(b,view)[:2]],digits)
+                if len(ends) == 2:
+                    (ax,ay),(bx,by) = ends
+                    edges += f'M{ax:.{digits}f} {ay:.{digits}f}L{bx:.{digits}f} {by:.{digits}f}'
             if edges:
                 art += path(edges,stroke=SHIP_INK,width=1.2)
     return art
@@ -483,6 +513,7 @@ coordinates and share its painter pass; this does not validate physical fit.
     if not all(math.isfinite(v) for v in (x,y,scale)) or scale <= 0:
         raise ValueError('Finite placement and a positive drawing scale are required')
     _, _, toward = basis(view)
+    digits = draw_precision(scale)
     surfaces = ship_faces(name,state)+tuple(cargo)
     if state != 'intact' and thrust:
         raise ValueError('A stranded ship cannot show main-drive thrust')
@@ -491,9 +522,9 @@ coordinates and share its painter pass; this does not validate physical fit.
         nozzles = ((-314,0,18,34,360),) if name == 'gantry' else ((-304,-105,13,22,371),(-304,105,13,22,371))
         for aft,side,height,radius,length in nozzles:
             outline = [(aft,side-radius,height),(aft-length,side,height),(aft,side+radius,height)]
-            p = [project(v,view) for v in outline]
-            art += path('M'+'L'.join(f'{a:.3f} {b:.3f}' for a,b,_ in p)+'Z',EXHAUST,'none',opacity=0.35)
-    art += _surface_art(surfaces,view)
+            plume = _quantised([project(v,view)[:2] for v in outline],digits)
+            art += path('M'+'L'.join(f'{a:.{digits}f} {b:.{digits}f}' for a,b in plume)+'Z',EXHAUST,'none',opacity=0.35)
+    art += _surface_art(surfaces,view,digits)
     if toward[1] < -0.1:
         anchor = (-46,-103,80) if name == 'gantry' else (-55,-74,-20)
         origin = project(anchor,view)

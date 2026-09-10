@@ -177,8 +177,13 @@ their visual language, not their dimensions or a mapping to game ship content.
 
 The projector culls back faces and uses plane partitions to order overlapping
 surfaces. It splits polygons where needed, but inks only their original edges.
-This keeps a broad plate behind its hatches and hazard bands. It remains a small
-flat-surface illustration renderer, not a CAD kernel. Inspect new forms and
+This keeps a broad plate behind its hatches and hazard bands. Each projection is
+exported at the precision its placement can show: `draw_precision(scale)` gives
+the decimals a placement earns, no exported point moves further than
+`DRAW_TOLERANCE` of a drawn unit, and a surface that this quantisation collapses
+is dropped instead of inked as a sliver. A ship drawn small therefore costs a
+small export, and rescaling an existing drawing changes its exported bytes. It
+remains a small flat-surface illustration renderer, not a CAD kernel. Inspect new forms and
 views for overlaps. It does not provide construction tolerances,
 interior plans, rigging, simulation behavior, or automatic damage states.
 Baikal and Aquila are reusable two-dimensional silhouettes, not multi-view

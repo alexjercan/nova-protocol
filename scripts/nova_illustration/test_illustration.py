@@ -18,7 +18,7 @@ from nova_illustration.faces import FACES, expression_names, frontal_head
 from nova_illustration.lettering import labelled_speech
 from nova_illustration.portraits import elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait, supported_owen, freefall_guide, stretcher_grip, rail_grip_hand
 from nova_illustration.scenery import aquila, transfer_hall
-from nova_illustration.ships import Face, MODELS, VIEWS, bounds, box, contour_segments, dot, hull_segment, normal, painter_order, render_faces, render_ship, ship_faces, split_surface, sub
+from nova_illustration.ships import DRAW_TOLERANCE, Face, MODELS, VIEWS, bounds, box, contour_segments, dot, draw_precision, hull_segment, normal, painter_order, render_faces, render_ship, ship_faces, split_surface, sub
 from nova_illustration.styles import present
 
 
@@ -328,6 +328,32 @@ class IllustrationTests(unittest.TestCase):
             prop = ET.fromstring(render_faces(cargo,view,0,0,1))
             self.assertTrue(prop.findall('.//polygon'))
         self.assertEqual(len(cargo),6)
+
+    def test_exported_precision_follows_the_drawn_size_rather_than_the_model(self):
+        self.assertEqual([draw_precision(s) for s in (.16,.19,.23,.64,1.15,2.4,3.4)],[0,0,1,1,1,2,2])
+        for scale in (.05,.16,.5,1,2.4,17,240):
+            digits = draw_precision(scale)
+            self.assertLessEqual(scale*10**-digits,DRAW_TOLERANCE)
+            self.assertGreater(scale*10**(1-digits),DRAW_TOLERANCE if digits else 0)
+        for name in MODELS:
+            for scale in (.16,1.15,3.4):
+                quantum = 10**draw_precision(scale)
+                drawing = render_ship(name,'forward-quarter',0,0,scale,False)
+                emitted = [float(n) for p in ET.fromstring(drawing).iter('polygon')
+                           for pair in p.get('points').split() for n in pair.split(',')]
+                self.assertTrue(emitted)
+                for value in emitted:
+                    self.assertAlmostEqual(value*quantum,round(value*quantum),places=6)
+            self.assertLess(len(render_ship(name,'forward-quarter',0,0,.16,False)),
+                            len(render_ship(name,'forward-quarter',0,0,3.4,False)))
+        for scale in (0,-1,float('nan'),float('inf')):
+            with self.assertRaises(ValueError):
+                draw_precision(scale)
+
+    def test_a_surface_smaller_than_its_own_drawn_precision_leaves_no_sliver(self):
+        speck = tuple(box((0,0,0),(.02,.02,.02),'metal','speck'))
+        self.assertFalse(ET.fromstring(render_faces(speck,'top',0,0,DRAW_TOLERANCE)).findall('.//polygon'))
+        self.assertTrue(ET.fromstring(render_faces(speck,'top',0,0,200)).findall('.//polygon'))
 
     def test_invalid_prop_surfaces_and_placement_fail_before_svg_is_written(self):
         valid = tuple(box((0,0,0),(10,10,10),'metal','prop'))
