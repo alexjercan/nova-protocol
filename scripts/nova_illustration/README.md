@@ -82,6 +82,13 @@ Each has a separately authored civilian body and one registered frontal head.
 These starting identities have no injury variant or military rank marking.
 The same head/body drawing supplies comic scenes and the public lore portrait.
 
+`standing_body(name, expression='original')` is the only answer to which full
+body a character has: the work bust for `WORK_CREW`, the civilian workship body
+for `GANTRY_CREW`, and the listening body for Jonah. A scene that places a person
+at a rail calls it rather than re-deriving the mapping. Elena is the one
+registered face without a standing body, and raises `KeyError` here; her authored
+drawings are the close and gesturing conversational busts.
+
 `gripping_arm(name)` and `reaching_arm(name)` are separate forearm/hand layers.
 They contain no head, expression, or fixture. The closed grip meets a scene-owned
 rail at `(5, 425)` in the work-bust drawing frame; place that rail above the body

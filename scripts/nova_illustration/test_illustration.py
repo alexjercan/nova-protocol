@@ -16,7 +16,7 @@ from nova_illustration.colors import ELENA, MATERIALS
 from nova_illustration.expressions import EXPRESSIONS, facial_features
 from nova_illustration.faces import FACES, expression_names, frontal_head
 from nova_illustration.lettering import labelled_speech
-from nova_illustration.portraits import elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait, supported_owen, freefall_guide, stretcher_grip, rail_grip_hand
+from nova_illustration.portraits import GANTRY_CREW, WORK_CREW, elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, standing_body, work_inspection, work_portrait, supported_owen, freefall_guide, stretcher_grip, rail_grip_hand
 from nova_illustration.scenery import aquila, transfer_hall
 from nova_illustration.ships import DRAW_TOLERANCE, Face, MODELS, VIEWS, bounds, box, contour_segments, dot, draw_precision, hull_segment, normal, painter_order, render_faces, render_ship, ship_faces, split_surface, sub
 from nova_illustration.styles import present
@@ -146,6 +146,24 @@ class IllustrationTests(unittest.TestCase):
             lore = ET.fromstring('<svg>'+present(drawing,'lore','green')+'</svg>')
             paths = lambda root: [n.attrib for n in root.findall('.//path')]
             self.assertEqual(paths(comic),paths(lore))
+
+    def test_one_registry_answers_which_body_every_character_has(self):
+        self.assertEqual(set(WORK_CREW)|set(GANTRY_CREW)|{'jonah'},set(FACES)-{'elena'})
+        self.assertFalse(set(WORK_CREW)&set(GANTRY_CREW))
+        for name in WORK_CREW:
+            self.assertEqual(standing_body(name),work_portrait(name))
+        for name in GANTRY_CREW:
+            self.assertEqual(standing_body(name),gantry_portrait(name))
+        self.assertEqual(standing_body('jonah'),jonah_listener())
+        for name in set(FACES)-{'elena'}:
+            for expression in expression_names(name):
+                with self.subTest(name=name,expression=expression):
+                    body = standing_body(name,expression)
+                    self.assertEqual(body,standing_body(name,expression))
+                    self.assertIn(frontal_head(name,expression),body)
+        for name in ('elena','unknown',''):
+            with self.assertRaises(KeyError):
+                standing_body(name)
 
     def test_unregistered_heads_and_work_busts_are_errors(self):
         for name in ('unknown',''):

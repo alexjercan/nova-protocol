@@ -4,6 +4,12 @@ from .colors import ELENA, JONAH, JADE
 from .faces import FACE_COLORS, frontal_head
 from .svg import group, path
 
+WORK_CREW = ('leila', 'rina', 'samir', 'tomas')
+"""Characters whose standing body is the shared work bust."""
+
+GANTRY_CREW = ('nadia', 'owen', 'ivo')
+"""Characters whose standing body is a separately authored civilian workship body."""
+
 
 def elena_close(expression='original'):
     """Keep the close-up body; expression selects features and defaults to the original."""
@@ -53,8 +59,8 @@ def jonah_listener(expression='original'):
 
 
 def work_portrait(name, expression='original'):
-    """Stage Leila, Rina, Samir, or Tomas with the original features unless overridden."""
-    if name not in ('leila', 'rina', 'samir', 'tomas'):
+    """Stage a work-crew body with the original features unless overridden."""
+    if name not in WORK_CREW:
         raise KeyError(name)
     c = FACE_COLORS[name]
     art = path('M125 209L211 210L211 276L240 297L170 348L97 297L126 267Z',c['skin'],width=2.2)
@@ -72,7 +78,7 @@ def work_portrait(name, expression='original'):
 
 def gantry_portrait(name, expression='original'):
     """Stage the three new frontal identities in separately authored civilian work clothes."""
-    if name not in ('nadia','owen','ivo'):
+    if name not in GANTRY_CREW:
         raise KeyError(name)
     c = FACE_COLORS[name]
     art = path('M126 211L211 211L210 274L232 297L167 337L103 295L126 265Z',c['skin'],width=2)
@@ -104,6 +110,23 @@ def gantry_portrait(name, expression='original'):
         art += path('M62 420H128M205 420H268M15 393L-3 478M288 391L303 476',stroke=c['coat_light'],width=2)
     art += group(frontal_head(name,expression),'translate(-130 -121)')
     return group(art,data_character=name,data_pose='gantry-work')
+
+
+def standing_body(name, expression='original'):
+    """Return the one full body drawn for a character, whichever pose helper owns it.
+
+A scene places a person, not the helper that happens to hold their clothes, so
+this is the only place that answers the question. Every registered face has a
+standing body except Elena, whose authored drawings are the close and gesturing
+conversational busts rather than a body a scene can hang on a rail.
+"""
+    if name in WORK_CREW:
+        return work_portrait(name, expression)
+    if name in GANTRY_CREW:
+        return gantry_portrait(name, expression)
+    if name == 'jonah':
+        return jonah_listener(expression)
+    raise KeyError(f'No standing body is drawn for {name!r}')
 
 
 def reaching_arm(name):
@@ -191,7 +214,7 @@ def freefall_guide(name):
     art += path('M20 641L68 725L73 825L51 1048M259 644L222 728L221 827L250 1046M149 628L150 730', stroke=c['coat_light'], width=2.5)
     art += path('M23 1091L94 1108L90 1179L-22 1204Q-49 1200-36 1180L9 1141ZM210 1108L278 1091L293 1141L337 1180Q351 1200 323 1204L213 1179Z', c['coat_shadow'], width=2.5)
     art += path('M-22 1186L78 1165M222 1165L324 1186', stroke=c['coat_light'], width=3)
-    body = work_portrait(name) if name == 'rina' else gantry_portrait(name)
+    body = standing_body(name)
     return group(art + body, data_character=name, data_pose='freefall-guide')
 
 
