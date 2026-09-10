@@ -243,11 +243,20 @@ const SECTION_PYRE: PyreScale = PyreScale {
 ///
 /// The fragments carry it after that, and they are most of the picture: the
 /// flash is over in a third of a second, while at up to 8 units per second for
-/// 1.7 s these cross about 13 units, 130 m - half again the length of the hull
-/// they came off, still leaving the wreck when the light has gone out, which
-/// is the order a vacuum burst happens in. Wider than the wreck on purpose: a
-/// field of debris that stopped at the hull's own silhouette would read as the
-/// ship having merely broken rather than having been destroyed.
+/// 1.7 s these cross about 13 units - 130 m of reach out of the root, still
+/// leaving the wreck when the light has gone out, which is the order a vacuum
+/// burst happens in.
+///
+/// One fixed size serves every integrity root, and the gunship is the hull it
+/// was cut against. On that hull and the smaller ones the fragments reach past
+/// the silhouette, which is the read wanted: a debris field that stopped at
+/// the hull's own outline says the ship has merely broken rather than been
+/// destroyed. On the two capital hulls they do not - `block_warship` is 21.5
+/// units stem to stern, 215 m, and `block_carrier` 36 units, 360 m - so a
+/// carrier death lights the middle of a wreck whose ends the fragments never
+/// get near. That is a THIRD scale this module does not have, not a constant
+/// to retune: see [`PyreSize`], which is the enum a capital scale would be
+/// added to.
 const HULK_PYRE: PyreScale = PyreScale {
     core: PyreCore {
         size: 1.30,
