@@ -8765,15 +8765,17 @@ function arrowPoints(x: number, y: number, dx: number, dy: number): string {
 // ---- v0.13.0: the gun shoves the ship -------------------------------------
 
 // The lance's recoil is one raw impulse per shot, in the register a thruster's
-// per-tick magnitude uses (standard.rs:1160-1165; both shipped lances share
-// it, standard.rs:1344), applied at the MUZZLE along minus the bore direction
-// with `apply_linear_impulse_at_point` (railgun_section/firing.rs:222-232),
-// so the lever arm from the balance point to the muzzle is what turns the
-// hull. The muzzle is the lance's brake face, half the part forward of its
-// centre (standard.rs:1146, `muzzle_offset = NEG_Z * LANCE_CELLS.z / 2`), and
-// the lance is a 1x1x3 box (standard.rs:321). Engine register throughout:
-// mass is box volume (base_section.rs:376, density 1), the impulse is mass x
-// world units per second, and only the readout converts.
+// per-tick magnitude uses (standard.rs:1162-1165; both shipped lances are
+// built by `railgun_lance_prototype` and the impulse is hardcoded in it rather
+// than taken from the spec, standard.rs:1120,:1165), applied at the MUZZLE
+// along minus the bore direction with `apply_linear_impulse_at_point`
+// (railgun_section/firing.rs:222-232), so the lever arm from the balance point
+// to the muzzle is what turns the hull. The muzzle is the lance's brake face,
+// half the part forward of its centre (standard.rs:1145, `muzzle_offset =
+// NEG_Z * LANCE_CELLS.z / 2`), and the lance is a 1x1x3 box (standard.rs:321).
+// Engine register throughout: mass is box volume (base_section.rs:470-474,
+// density 1), the impulse is mass x world units per second, and only the
+// readout converts.
 const LANCE_RECOIL_IMPULSE = 45; // standard.rs:1165
 const LANCE_CELLS_BOX: Vec3T = [1, 1, 3]; // standard.rs:321
 // Where the widget's lance stands on the gunship: ahead of the bow spur,
@@ -9094,10 +9096,15 @@ function initRailgunRecoil(host: HTMLElement): void {
 // would hold, exactly as long as the gap between them, and solid: a ray that
 // starts inside cover is inside cover (input/targeting/occlusion.rs:47-71).
 // Anything wearing `RadarOccluder` on the line stops it, except the two ends
-// themselves (occlusion.rs:80-90). The AI's acquisition asks the same
-// question of the same world (module docs), which is why the hostile's lock
-// on you breaks under the same rock. The game file's own fixture stands a
-// contact 4 km out behind a 500 m rock at 2 km (occlusion.rs:196-200).
+// themselves (`stops_radar_between`, occlusion.rs:79-87). The AI's acquisition
+// asks the same question of the same world (module docs), which is why the
+// hostile's lock on you breaks under the same rock.
+//
+// The scene is the game file's own fixture, in meters: a contact 400 u out
+// behind a 50 u rock at 200 u
+// (`a_rock_between_the_ship_and_a_contact_stops_the_radar`,
+// occlusion.rs:179-187 - a TEST, and named as one, because the ray itself
+// carries no distance of its own).
 const OCCLUSION_CONTACT_RANGE = 4000;
 
 // How far the segment a-b passes from the surface of a circle of radius `r`
@@ -9361,7 +9368,7 @@ function initLockOcclusion(host: HTMLElement): void {
 // and mirrored into the whole ship (nova_wfc/src/collapse.rs:581). The keel
 // runs along row `height / 2` (nova_wfc/src/lib.rs:304), and z = 0 is the
 // bow: the spinal gun seeds into cell (0, keel, 0) (collapse.rs:208). The
-// zone test is ruled on ONE cell (collapse.rs:96-111), which is what gives a
+// zone test is ruled on ONE cell (collapse.rs:86-93), which is what gives a
 // multi-cell part its "every cell inside" reading.
 const GRAMMAR_HALF_WIDTH = 4; // grammars.rs:48
 const GRAMMAR_HEIGHT = 5; // grammars.rs:49
@@ -9383,7 +9390,7 @@ export const GRAMMAR_ZONES: GrammarZone[] = [
 ];
 
 // The zone test on one cell of the starboard half, exactly as the collapse
-// rules on it (collapse.rs:103-111): thirds along the hull, above or below
+// rules on it (collapse.rs:104-111): thirds along the hull, above or below
 // the keel row - the row itself is neither - and the outboard half across.
 export function zoneAllows(
     zone: GrammarZone,
@@ -9415,7 +9422,8 @@ interface ZonePart {
 
 /** The parts on offer, with the box each stands in. */
 export const ZONE_PARTS: ZonePart[] = [
-    // reinforced_hull_section: the unit cube (standard.rs:590-596).
+    // reinforced_hull_section: no authored collider, so the unit cube
+    // (standard.rs:590,:599).
     { label: "HULL CELL", cells: [1, 1, 1] },
     // BAY_CELLS, standard.rs:318.
     { label: "TORPEDO BAY", cells: [1, 1, 2] },
@@ -9740,14 +9748,14 @@ function initHullZones(host: HTMLElement): void {
 
 // ---- v0.13.0: rock is a material -----------------------------------------
 
-// The five kind ids the base game ships, in pick-list order
-// (nova_scenario/src/objects/asteroid_kind.rs:294), with the one-line
-// summary the picker teaches them by (:303-312) and the sRGB palette each
-// look is authored in: the shade (low ground), the tint (high ground) and
-// the vein the Worley walls are painted (:344-420). `plain` is the control,
-// every knob off, the texture wearing StandardMaterial's white (:424-446);
-// it is drawn here at the texture's own mean luminance, linear 0.095
-// (`ROCK_TEXTURE_LINEAR_MID`, :283), which is sRGB 0.34.
+// The five kind ids the base game ships, in pick-list order (`ASTEROID_KINDS`,
+// nova_scenario/src/objects/asteroid_kind.rs:233), with the one-line summary
+// the picker teaches them by (`ASTEROID_KIND_SUMMARIES`, :241-250) and the
+// sRGB palette each look is authored in: the shade (low ground), the tint
+// (high ground) and the vein the Worley walls are painted (:282-404). `plain`
+// is the control, every knob off, the texture wearing StandardMaterial's white
+// (:383-404); it is drawn here at the texture's own mean luminance, linear
+// 0.095 (`ROCK_TEXTURE_LINEAR_MID`, :224), which is sRGB 0.34.
 interface AsteroidKindSwatch {
     id: string;
     summary: string;
@@ -9813,7 +9821,7 @@ export const ASTEROID_KINDS: AsteroidKindSwatch[] = [
 ];
 
 // The kind a `draw` in 0..1 picks out of a WEIGHTED mix, exactly as
-// `asteroid_kind_from_mix` does (asteroid_kind.rs:100-117): the weights are
+// `asteroid_kind_from_mix` does (asteroid_kind.rs:100-119): the weights are
 // relative counts laid out in authored order, the draw is clamped, the
 // ticket is one below the total at most, and no weight at all picks nothing.
 export function asteroidKindFromMix(
@@ -10076,14 +10084,15 @@ function initAsteroidKinds(host: HTMLElement): void {
 
 // ---- v0.13.0: where a sound is --------------------------------------------
 
-// Three routes (audio/bus.rs:48-67): Interface is never positional, Hull is
-// the pilot's own ship heard through its structure and is never attenuated
-// or panned, and Exterior - the post's "World" - is the one route that is
-// either (`is_positional`, bus.rs:83). An Exterior voice's sink gain is its
-// level times `distance_attenuation` times `pan_compensation`
-// (audio/voice.rs:190-201), and rodio splits that between the ears by the
-// mirrored `pan_gains`. Below `SFX_AUDIBLE_THRESHOLD` a one-shot is not
-// started at all (mixing.rs:33).
+// Three of the four routes `AudioRoute` declares - Music is reserved and
+// nothing routes to it yet (audio/bus.rs:48-66). Interface is never
+// positional, Hull is the pilot's own ship heard through its structure and is
+// never attenuated or panned, and Exterior - the post's "World" - is the one
+// route that is either (`is_positional`, bus.rs:80-82). An Exterior voice's
+// sink gain is its level times `distance_attenuation` times
+// `pan_compensation` (audio/voice.rs:190-201), and rodio splits that between
+// the ears by the mirrored `pan_gains`. Below `SFX_AUDIBLE_THRESHOLD` a
+// one-shot is not started at all (mixing.rs:33).
 //
 // Engine units: the rolloff band and the ear rig are world units
 // (mixing.rs:18-20, spatial.rs:31-38), so the faders' meters cross here.
@@ -10109,7 +10118,7 @@ export function distanceAttenuation(distanceU: number): number {
 
 // The (left, right) gains rodio applies to an emitter parked on the fixed
 // sphere in the bearing direction, listener-local: +X right, -Z ahead
-// (spatial.rs:73-88).
+// (`pan_gains`, spatial.rs:70-84).
 export function panGains(bx: number, by: number, bz: number): [number, number] {
     const ex = bx * SPATIAL_EMITTER_RADIUS;
     const ey = by * SPATIAL_EMITTER_RADIUS;
@@ -10127,7 +10136,7 @@ export function panGains(bx: number, by: number, bz: number): [number, number] {
 }
 
 // The sink factor that cancels the pan's own loudness and leaves its ratio:
-// the two ears end up at RMS 1 (spatial.rs:95-103).
+// the two ears end up at RMS 1 (`pan_compensation`, spatial.rs:92-100).
 export function panCompensation(bx: number, by: number, bz: number): number {
     const [left, right] = panGains(bx, by, bz);
     const power = Math.sqrt((left * left + right * right) / 2);
@@ -10400,9 +10409,9 @@ function initSoundMap(host: HTMLElement): void {
 // ---- v0.13.0: RCS is a speed budget --------------------------------------
 
 // RCS reaches a cap of 100 m/s at 5 G whatever the ship weighs
-// (nova_ship/src/flight/state.rs:443-444: `rcs_speed_cap`, `rcs_accel`,
+// (nova_ship/src/flight/state.rs:455-456: `rcs_speed_cap`, `rcs_accel`,
 // converted at the physics boundary). The rule that holds the cap is
-// `budgeted_rcs_delta_v` (flight/manual.rs:98-121): a push that slows the
+// `budgeted_rcs_delta_v` (flight/manual.rs:98-120): a push that slows the
 // hull is free, a push that grows the speed is tapered over the last fifth
 // of the cap (SPEED_CAP_TAPER_FRACTION, manual.rs:37, applied :335), and a
 // push that would leave the sphere is clamped to its surface - so at the cap
@@ -10770,30 +10779,32 @@ function initRcsBudget(host: HTMLElement): void {
 
 // ---- v0.13.0: GOTO parks off the surface ---------------------------------
 
-// The arrival leg GOTO and GotoPos share (nova_ship/src/flight/autopilot.rs
-// :320-334): centre distance = target radius + mover radius + margin, the
-// margin being the GAP between the two surfaces. The mover's radius is its
+// The arrival leg GOTO and GotoPos share (`arrival_desired`,
+// nova_ship/src/flight/autopilot.rs:374-387): centre distance = target radius
+// + mover radius + margin, the margin being the GAP between the two surfaces.
+// The mover's radius is its
 // structural arm, the furthest live section face from the centre of mass
-// (nova_ship/src/sections/hull_radius.rs:58-63), the same reach `hullState`
+// (nova_ship/src/sections/hull_radius.rs:58-68), the same reach `hullState`
 // computes. The margin defaults to FlightSettings::arrival_standoff
-// (nova_ship/src/flight/state.rs:415), which used to be the whole distance
+// (nova_ship/src/flight/state.rs:427), which used to be the whole distance
 // from the target's CENTRE.
 const ARRIVAL_STANDOFF_M = ARRIVAL_STANDOFF * METERS_PER_UNIT;
 
-// Targets GOTO can size, in meters of radius: a range beacon's orb
-// (base_content/scenarios/tutorial/range.rs:481, 2 u), the menu gauntlet's
-// beacon (main_menu/gauntlet.rs:183, 1 u), and the first shift's two
-// planetoids (first_shift_stage.rs:23,40: 95 u and 225 u).
+// Targets GOTO can size, in meters of radius, every one of them authored in
+// meters: the menu gauntlet's foreground rock (base_content/scenarios/
+// main_menu/gauntlet.rs:183, 10 m), a range beacon's orb (base_content/
+// scenarios/tutorial/range.rs:481, 20 m), and the first shift's two planetoids
+// (examples/playable/shared/first_shift_stage.rs:23,:40 - 950 m and 2 250 m).
 const STANDOFF_TARGETS: [number, string][] = [
-    [10, "menu beacon"],
+    [10, "menu rock"],
     [20, "range beacon"],
     [950, "small planetoid"],
     [2250, "large planetoid"],
 ];
 
 // A block hull's cells: `block(origin, size)` and `union` as
-// base_content/ships/block.rs writes them, every cell the unit cube with the
-// hull plate's health (block.rs:129, `plate: HULL`).
+// base_content/ships/block.rs writes them (block.rs:692,:702), every cell the
+// unit cube with the hull plate's health (`plate: HULL`, block.rs:142,:334).
 function blockCells(
     group: string,
     ox: number,
@@ -10830,7 +10841,7 @@ function unionCells(groups: ShipPart[][]): ShipPart[] {
     return cells;
 }
 
-// The utility cutter (block.rs:129-147): one hull layer, two sponsons, a
+// The utility cutter (block.rs:129-145): one hull layer, two sponsons, a
 // dorsal cab and a pair of bell drives. The specials sit IN cells of the plan,
 // so the plan is the mass.
 export const CUTTER_CELLS: ShipPart[] = unionCells([
@@ -10843,7 +10854,7 @@ export const CUTTER_CELLS: ShipPart[] = unionCells([
     ],
 ]);
 
-// The industrial carrier (block.rs:262-330): the spine, two shoulders with
+// The industrial carrier (block.rs:262-337): the spine, two shoulders with
 // their berths cut out, decks, keel, transom, the berthed cutter laid on its
 // side with two lugs, and two capital drives (5x5x3, standard.rs:683) hung
 // off the transom.
@@ -11127,11 +11138,11 @@ function initArrivalStandoff(host: HTMLElement): void {
 
 // ---- v0.13.0: 27 commands in four classes --------------------------------
 
-// The four classes (nova_os/src/commands.rs:32-43) and what each may do
-// (:66-71). The arming gate is one check in the dispatcher
+// The four classes (nova_os/src/commands.rs:32-42) and what each may do
+// (`CommandClass::summary`, :64-71). The arming gate is one check in the dispatcher
 // (nova_console/src/dispatch.rs:21-25): a Cheat other than `cheats enable`
 // is refused while cheats are not armed. The rows are COMMAND_CATALOG
-// (commands.rs:168-460), the summary column the wiki's.
+// (commands.rs:168-464), the summary column the wiki's.
 export type CommandClass = "Utility" | "ReadOnly" | "Setting" | "Cheat";
 
 export const COMMAND_CLASSES: [CommandClass, string][] = [
