@@ -4,11 +4,11 @@ export default page({
     id: "page-11",
     title: "Across the gap",
     purpose:
-        "Make the journey and the change of course tangible without a fight.",
+        "Kaveri crosses the distance on the new course and comes within sight of Gantry.",
     panels: [
         panel("11a", {
             art: scene("across-the-gap"),
-            action: "A broad exterior: Kaveri on the new course, its replacement assembly still secured. The ship is small against the distance. Do not draw looping jet-fighter trails or a continuous burn simply to fill the panel. No dialogue.",
+            action: "A broad exterior: Kaveri on the new course, its replacement assembly still secured. The ship is small against the distance.",
             dialogue: [],
             lettering: {},
             labels: [],

@@ -3,7 +3,8 @@ import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 export default page({
     id: "page-8",
     title: "A familiar voice",
-    purpose: "Replace the routine return with a specific, credible need.",
+    purpose:
+        "A distress call from Gantry reaches Kaveri, and Nadia reports what is left aboard.",
     panels: [
         panel("8a", {
             art: scene("familiar-signal"),
@@ -47,7 +48,7 @@ export default page({
         }),
         panel("8b", {
             art: scene("answering-gantry"),
-            action: "Jonah answers. Stay aboard Kaveri; no cutaway to the attack or Gantry's interior.",
+            action: "Jonah answers from the cabin. The call stays on the console speaker; Nadia is heard, not seen.",
             dialogue: [
                 say(
                     "jonah-1",
@@ -91,7 +92,7 @@ export default page({
         }),
         panel("8c", {
             art: scene("recording-report"),
-            action: "Samir records the report while Tomas begins checking the relative tracks. Information comes from Nadia, not an omniscient map labelling every danger.",
+            action: "Samir records the report while Tomas begins checking the relative tracks. Everything they know arrives over the channel from Nadia.",
             dialogue: [
                 say("samir-1", "Samir", "What's still working?"),
                 say(

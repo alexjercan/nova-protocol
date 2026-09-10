@@ -3,11 +3,12 @@ import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 export default page({
     id: "page-15",
     title: "All three",
-    purpose: "Finish the evacuation without inventing a hull destruction.",
+    purpose:
+        "Nadia crosses last, the passage is closed, and Kaveri backs away from Gantry.",
     panels: [
         panel("15a", {
             art: scene("last-across"),
-            action: "From Kaveri's side of the passage, Jonah sees Nadia cross last. She brings the crew's working records, not a conveniently labelled conspiracy file.",
+            action: "From Kaveri's side of the passage, Jonah sees Nadia cross last. A secured case of the crew's working records comes across with her.",
             dialogue: [
                 say(
                     "nadia-1",
@@ -33,7 +34,7 @@ export default page({
         }),
         panel("15b", {
             art: scene("transfer-side-clear"),
-            action: "Rina checks that the passage is clear. Leila prepares the separation. Owen stays with Samir; do not crowd everyone onto the flight deck for a group portrait.",
+            action: "Rina checks that the passage is clear while Leila works the closing checks at her console. The port is shut behind them.",
             dialogue: [
                 say("rina-1", "Rina", "Transfer side clear."),
                 say("leila-2", "Leila", "Closing and checking."),
@@ -63,7 +64,7 @@ export default page({
         }),
         panel("15c", {
             art: scene("leaving-gantry"),
-            action: "Kaveri separates from Gantry. Hold enough space around the abandoned hull to let its loss of usefulness register. It does not explode. No pirates appear.",
+            action: "Kaveri withdraws along the same connection axis. Gantry is left stranded and whole, with space around it.",
             dialogue: [
                 say(
                     "jonah-1",

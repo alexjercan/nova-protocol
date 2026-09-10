@@ -3,7 +3,8 @@ import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 export default page({
     id: "page-2",
     title: "One line down",
-    purpose: "A repair judgment, not a residential life-support crisis.",
+    purpose:
+        "A failed circulation pump, an isolated line, and the choice to fit a replacement.",
     panels: [
         panel("2a", {
             art: scene("pump-inspection"),
@@ -63,7 +64,7 @@ export default page({
         }),
         panel("2c", {
             art: scene("repair-choice"),
-            action: "Leila explains why replacing the assembly is quicker than an overhaul.",
+            action: "Leila answers from the machinery wall, the isolated pump housing beside her. Jonah's question comes from off-panel.",
             dialogue: [
                 say("jonah-1", "Jonah / off-panel", "Can you rebuild it here?"),
                 say(

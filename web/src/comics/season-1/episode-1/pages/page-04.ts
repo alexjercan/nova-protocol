@@ -11,7 +11,7 @@ export default page({
     id: "page-4",
     title: "Outbound",
     purpose:
-        "A silent departure. Aquila is the next destination, not an arrival shown here.",
+        "The crew take their stations and Kaveri leaves Baikal for Aquila.",
     panels: [
         panel("4a", {
             art: scene("departure-stations"),
@@ -53,7 +53,7 @@ export default page({
         }),
         panel("4b", {
             art: scene("outbound-baikal"),
-            action: "Kaveri departs with its cradle empty and handling arm stowed. Baikal and Ebro recede. No attack or pursuit appears.",
+            action: "Kaveri departs with its cradle empty and handling arm stowed. Baikal and Ebro recede.",
             dialogue: [],
             lettering: {},
         }),

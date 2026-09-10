@@ -3,7 +3,8 @@ import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 export default page({
     id: "page-10",
     title: "The decision",
-    purpose: "Refusal changes who pays, not whether preparation proceeds.",
+    purpose:
+        "Jonah asks Clearwell, EarthWorks refuses the cost, and Elena covers it herself.",
     panels: [
         panel("10a", {
             art: scene("asking-clearwell"),
@@ -51,7 +52,7 @@ export default page({
         }),
         panel("10b", {
             art: scene("cost-refusal"),
-            action: "Aboard Kaveri, Samir monitors Elena's call with Daniel Reed at EarthWorks Operations. Clear speaker labels identify the two ends of the call. Keep the panel on that exchange, rather than crowding the other preparations behind him.",
+            action: "Aboard Kaveri, Samir monitors Elena's call with Daniel Reed at EarthWorks Operations. The console labels both ends of the exchange, and neither speaker appears.",
             dialogue: [
                 say(
                     "elena-1",
@@ -135,7 +136,7 @@ export default page({
         }),
         panel("10c", {
             art: scene("taking-intercept"),
-            action: "Elena speaks to Jonah again. He looks to Tomas, not toward an imaginary approval indicator. Leave room around the final instruction.",
+            action: "Elena speaks to Jonah again from the comms display. He turns toward Tomas as he gives the order.",
             dialogue: [
                 say(
                     "elena-1",

@@ -3,11 +3,12 @@ import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 export default page({
     id: "page-9",
     title: "What it will cost",
-    purpose: "Let each crewmember contribute to an informed decision.",
+    purpose:
+        "Tomas, Rina, and Leila each set out what the diversion would take and what it would cost.",
     panels: [
         panel("9a", {
             art: scene("arrival-order"),
-            action: "Tomas brings the revised route to Jonah. No invented numerical countdown is printed. The drawing distinguishes Kaveri's possible arrival from Gantry's expected endurance. Only the arrival ordering matters here, not a plotted orbit.",
+            action: "Tomas brings the revised route to Jonah. His console shows an ordering of arrivals: Kaveri, then Gantry's remaining reserves, then the scheduled recovery.",
             dialogue: [
                 say(
                     "tomas-1",
@@ -70,7 +71,7 @@ export default page({
         }),
         panel("9b", {
             art: scene("transfer-assessment"),
-            action: "Rina and Leila assess the transfer route beside the secured assembly. The replacement stays aboard. Make the distinction between preserving cargo and clearing an assisted passage visible.",
+            action: "Rina and Leila assess the transfer route beside the secured assembly. Through the window, the replacement stays clamped in its cradle outside.",
             dialogue: [
                 say(
                     "rina-1",
@@ -115,7 +116,7 @@ export default page({
         }),
         panel("9c", {
             art: scene("honest-warning"),
-            action: "Tomas is not isolated as the scene's unkind person. Jonah takes the warning seriously before making a commitment on Clearwell's behalf.",
+            action: "Tomas stays at the shared work station with the route in front of him. Jonah listens from across the cabin and takes the warning seriously.",
             dialogue: [
                 say(
                     "tomas-1",

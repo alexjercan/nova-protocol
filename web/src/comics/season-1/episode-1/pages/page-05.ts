@@ -12,11 +12,11 @@ export default page({
     id: "page-5",
     title: "Arrivals",
     purpose:
-        "Arrive at a working freight town and show the crew sharing the pickup.",
+        "Kaveri reaches Aquila, and the crew check and accept the replacement assembly.",
     panels: [
         panel("5a", {
             art: scene("approach-aquila"),
-            action: "Aquila from Kaveri's approach. Give the port useful scale and activity without adding a roster of identifiable background ships. Kaveri remains the camera's anchor. A location card says AQUILA / Saturn system / Later / Farspan's freight hub; \"Later\" is a draft stamp, not a fixed travel duration.",
+            action: "Aquila from Kaveri's approach. The freight town spreads across the distance, with Kaveri holding the foreground.",
             dialogue: [
                 say(
                     "tomas-1",
@@ -46,7 +46,7 @@ export default page({
         }),
         panel("5b", {
             art: scene("collection-check"),
-            action: "In Aquila's pressurized, non-rotating transfer hall, Leila checks the assembly's connections in person. Rina controls its motion with the handling frame and restraints; Samir compares its identification with the order and delivery record. Handholds and tethered equipment establish freefall, not a standing warehouse. Jonah keeps the shared access clear, just outside this closer view. Both ships remain outside, visible through berth windows. Leila's closer check follows in 5c; she has travelled aboard Kaveri with them, not stayed at Baikal.",
+            action: "In Aquila's pressurized transfer hall, Rina controls the assembly's motion with the handling frame and restraints while Samir compares its identification with the order and delivery record. Crew and equipment hold to handholds and tethers in freefall. Kaveri waits at its berth beyond the hall window.",
             dialogue: [
                 say("rina-1", "Rina", "This is ours?"),
                 say("samir-2", "Samir", "Matches the order. Leila?"),

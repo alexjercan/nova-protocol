@@ -4,11 +4,11 @@ export default page({
     id: "page-16",
     title: "The return",
     purpose:
-        "Let the survivors react differently without instant political conversion.",
+        "During the return, Ivo learns of the refusal and Nadia asks for the record.",
     panels: [
         panel("16a", {
             art: scene("asking-for-record"),
-            action: "Later aboard Kaveri. Owen rests with support nearby. Ivo has learned of the funding refusal. Nadia asks Samir for the actual record rather than joining in an accusation she cannot yet support.",
+            action: "Later aboard Kaveri. Owen rests on his secured support with the first-aid case nearby. Ivo has learned of the funding refusal, and Nadia asks Samir for the record itself.",
             dialogue: [
                 say("ivo-1", "Ivo", "They knew we were alive?"),
                 say(
@@ -59,7 +59,7 @@ export default page({
         }),
         panel("16b", {
             art: scene("quiet-thanks"),
-            action: "Jonah pauses beside them during the return. A quiet acknowledgement, not a speech about what kind of person he is.",
+            action: "Jonah pauses beside Nadia during the return, with the stars of the coast in the window behind them.",
             dialogue: [
                 say("nadia-1", "Nadia", "Thank you for coming."),
                 say("jonah-2", "Jonah", "I'm glad we reached you."),

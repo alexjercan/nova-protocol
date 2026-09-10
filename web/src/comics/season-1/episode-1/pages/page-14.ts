@@ -4,11 +4,11 @@ export default page({
     id: "page-14",
     title: "Bring him through",
     purpose:
-        "Rescue people through coordinated work, without an on-foot game promise.",
+        "Rina and Ivo bring Owen through the passage, and Samir secures him aboard Kaveri.",
     panels: [
         panel("14a", {
             art: scene("meeting-at-opening"),
-            action: "After the seal and pressure checks, Rina meets Ivo at the opened passage, using a handhold to stop herself. We enter Gantry's space only with Rina. Owen is alert but cannot move safely unaided. He is supported and secured on a padded stretcher with straps for the freefall transfer; his exact injury remains unspecified.",
+            action: "After the seal and pressure checks, Rina meets Ivo at the opened passage, using a handhold to stop herself. Owen is alert but cannot move safely unaided. He is supported and secured on a padded stretcher with straps for the freefall transfer.",
             dialogue: [
                 say("rina-1", "Rina", "I'm Rina. Tell me what he can manage."),
                 say(
@@ -49,7 +49,7 @@ export default page({
         }),
         panel("14b", {
             art: scene("moving-together"),
-            action: "Rina and Ivo guide Owen and his support through the passage, controlling his motion with handholds. They do not carry his weight under their arms. Give the secured body, their hands, and the clear route enough space to show how they start and stop together. Weightlessness does not remove his injury or inertia.",
+            action: "Rina and Ivo guide Owen and his stretcher through the passage feet first, controlling his motion with handholds. Their hands stay on the frame, and the route ahead is clear.",
             dialogue: [
                 say("rina-1", "Rina", "Good. We move together. Ready?"),
                 say("owen-2", "Owen", "Ready."),
@@ -71,7 +71,7 @@ export default page({
         }),
         panel("14c", {
             art: scene("securing-support"),
-            action: "Samir receives Owen on Kaveri's side. Rina and Ivo keep his motion controlled until Samir has secured his support at the receiving position. Nobody lets go and expects him to stay put. The scene does not imply he needs no further care.",
+            action: "Samir receives Owen on Kaveri's side. Rina and Ivo keep his motion controlled until Samir has closed the clamps that hold the support to the receiving rail.",
             dialogue: [
                 say(
                     "samir-1",

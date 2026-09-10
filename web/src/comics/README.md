@@ -59,11 +59,16 @@ season-1/
       homecoming.py
       props.py
       opening_props.py
+      test_docking.py
+      test_homecoming.py
+      test_transfer.py
 ```
 
 `episode.ts` imports the pages explicitly, in reading order. Each page owns its
 action, dialogue, story labels, and composition. Python owns only scene artwork.
-`NOTES.md` holds production constraints, not a second copy of the dialogue.
+A panel's `action` is the reader's transcript and describes what the panel
+shows. `NOTES.md` holds production constraints and illustration directives, not
+a second copy of the dialogue.
 There is no episode-specific `generate.py` or maintained Markdown script.
 
 The [page language](comic-script.ts) keeps words separate from placement. This
@@ -73,15 +78,15 @@ excerpt omits the console's screen labels; see the complete
 ```ts
 panel("2b", {
     art: scene("residential-console"),
-    action: "Samir checks residential supplies at the processing console.",
-    dialogue: [
-        say("supply-normal", "Samir", "Residential supply is normal."),
-    ],
+    action: "Samir checks residential supplies at the processing console while Leila examines the isolated line.",
+    dialogue: [say("samir-1", "Samir", "Residential supply is normal.")],
     lettering: {
-        "supply-normal": balloon({
+        "samir-1": balloon({
             at: [16, 18],
             width: 307,
             tail: [373, 167],
+            side: "bottom",
+            breakAfter: [2],
         }),
     },
 });

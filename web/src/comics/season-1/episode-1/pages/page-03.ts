@@ -4,7 +4,7 @@ export default page({
     id: "page-3",
     title: "A useful job",
     purpose:
-        "The same pickup, delivery commitment, and borrowed-mug exchange, framed closer.",
+        "Elena assigns the Aquila pickup, records the delivery commitment, and asks for her mug back.",
     panels: [
         panel("3a", {
             art: scene("assignment-window"),

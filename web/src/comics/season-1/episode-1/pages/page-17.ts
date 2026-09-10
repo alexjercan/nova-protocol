@@ -4,11 +4,11 @@ export default page({
     id: "page-17",
     title: "Back to work",
     purpose:
-        "Deliver both the people and the intact part; the community can continue.",
+        "Baikal receives the rescued crew and the replacement, and the processing line returns to service.",
     panels: [
         panel("17a", {
             art: scene("welcome-to-baikal"),
-            action: "Kaveri back at Baikal. Elena meets Jonah's crew and Gantry's people at arrival. Owen still receives assistance. Keep the welcome practical and relieved rather than staging a civic ceremony.",
+            action: "Kaveri back at Baikal. Elena meets Jonah's crew and Gantry's people at arrival. Samir brings Owen through on the same padded support.",
             dialogue: [
                 say(
                     "elena-1",
@@ -35,7 +35,7 @@ export default page({
         }),
         panel("17b", {
             art: scene("covers-still-on"),
-            action: "Leila and Rina bring the replacement into processing. Return to the visual anchors of page 2: isolated line, surrounding plant still safely operating.",
+            action: "Leila and Rina bring the covered replacement into processing, beside the isolated line and the plant still running around it.",
             dialogue: [
                 say("rina-1", "Rina", "Every cover still on it."),
                 say("leila-2", "Leila", "Now we can take them off."),
@@ -65,7 +65,7 @@ export default page({
         }),
         panel("17c", {
             art: scene("line-back-in-service"),
-            action: "Later, with the assembly installed and checks complete, the isolated line returns to service. This is a time cut, not an instant repair. Ebro is still waiting for the delayed load; restarting a pump does not create the missing production immediately.",
+            action: "Later, with the assembly installed and the checks complete, the isolated line returns to service. Through the window, Ebro is still waiting for its load.",
             dialogue: [
                 say(
                     "leila-1",

@@ -4,11 +4,11 @@ export default page({
     id: "page-6",
     title: "Another crew's work",
     purpose:
-        "Establish Nadia and Gantry as working colleagues, not doomed victims.",
+        "Two crews share the transfer hall at Aquila, clear each other's loads, and introduce themselves.",
     panels: [
         panel("6a", {
             art: scene("shared-workspace"),
-            action: "Nadia and Rina share the pressurized transfer hall. Through its windows we see Gantry intact outside. Nadia waits while Rina guides Clearwell's restrained assembly toward the freight lock. Gantry's name is visible on its hull. Its unarmed workship design should be recognizable again at the rescue.",
+            action: "Nadia and Rina share the pressurized transfer hall. Through its windows we see Gantry intact outside. Nadia waits while Rina guides Clearwell's restrained assembly toward the freight lock. Gantry's name is visible on its hull.",
             dialogue: [
                 say(
                     "nadia-1",
@@ -44,7 +44,7 @@ export default page({
         }),
         panel("6b", {
             art: scene("introductions"),
-            action: "Jonah joins Nadia at the hall's handholds after the load clears their shared access. The freight lock has closed behind them, with the assembly restrained inside. Both doors are never open together. This is still a working exchange, not a meeting-room conversation.",
+            action: "Jonah joins Nadia at the hall's handholds after the load clears their shared access. The freight lock has closed behind them, with the assembly restrained inside. Both keep a grip while they talk.",
             dialogue: [
                 say("jonah-1", "Jonah", "Thanks for waiting."),
                 say(
@@ -91,7 +91,7 @@ export default page({
         }),
         panel("6c", {
             art: scene("safe-trip"),
-            action: "Rina signals that the assembly is secure for the freight-lock cycle. Nadia releases her handhold to return to her own job; the frontal likeness stays unchanged, and her reaching arm carries the movement. Both crews have somewhere to be. The sealed freight lock and exterior handling gear transfer the assembly to Kaveri's external cradle between this scene and 7a; no open doorway connects the pressurized hall to space.",
+            action: "Rina signals that the assembly is secure for the freight-lock cycle. Nadia lets go of her handhold and reaches away, turning back to her own job. Both crews have somewhere to be.",
             dialogue: [
                 say("nadia-1", "Nadia", "Replacement?"),
                 say("jonah-2", "Jonah", "Baikal's lost a processing line."),

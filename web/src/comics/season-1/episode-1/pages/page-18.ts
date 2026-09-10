@@ -4,11 +4,11 @@ export default page({
     id: "page-18",
     title: "The bill",
     purpose:
-        "Put institutional unfairness beside a successful rescue, then end at home.",
+        "Elena and Jonah count the cost of the diversion at the office window, and the mug comes home.",
     panels: [
         panel("18a", {
             art: scene("penalty-at-window"),
-            action: "Jonah and Elena at the familiar window. Ebro remains part of their working view. Elena has already spoken with Mara; there is no cutaway aboard Foundation.",
+            action: "Jonah and Elena at the same office window, with Ebro still waiting outside.",
             dialogue: [
                 say(
                     "elena-1",
@@ -41,7 +41,7 @@ export default page({
         }),
         panel("18b", {
             art: scene("carrying-the-cost"),
-            action: "Jonah listens while Elena lays out the consequence without passing blame down to the crew. This is lost margin and rescheduling, not Clearwell's destruction.",
+            action: "Jonah listens while Elena lays out what the delay costs the company.",
             dialogue: [
                 say("jonah-1", "Jonah", "Can we carry it?"),
                 say(
@@ -67,7 +67,7 @@ export default page({
         }),
         panel("18c", {
             art: scene("mug-back-home"),
-            action: "Jonah puts the borrowed mug back within Elena's reach. Through the window: Baikal's ordinary work continuing. End on the object and the people, not an ominous pirate silhouette or an invitation to cheer an unpaid bill.",
+            action: "Jonah puts the borrowed mug back on the worktop within Elena's reach. Through the window, Ebro waits and Baikal's ordinary work continues.",
             dialogue: [
                 say("jonah-1", "Jonah", "At least this one's back on budget."),
                 say("elena-2", "Elena", "One problem solved."),

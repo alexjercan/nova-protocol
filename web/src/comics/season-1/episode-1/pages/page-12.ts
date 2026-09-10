@@ -3,11 +3,12 @@ import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 export default page({
     id: "page-12",
     title: "One way in",
-    purpose: "Give the stranded crew useful judgment in their own rescue.",
+    purpose:
+        "Leila checks Gantry's port with its crew while Kaveri prepares to receive them.",
     panels: [
         panel("12a", {
             art: scene("visible-port"),
-            action: "Leila studies the port area as Kaveri closes. Do not reveal hidden interior systems through an impossible scan. Her questions go to the people aboard.",
+            action: "Leila studies the port area on an external camera view as Kaveri closes. Her questions go to the people aboard.",
             dialogue: [
                 say(
                     "leila-1",
@@ -45,7 +46,7 @@ export default page({
         }),
         panel("12b", {
             art: scene("receiving-space"),
-            action: "Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings first-aid equipment. No equipment specification or permanent passenger layout is established by this staging.",
+            action: "Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings the first-aid case.",
             dialogue: [
                 say(
                     "leila-1",
@@ -94,7 +95,7 @@ export default page({
         }),
         panel("12c", {
             art: scene("ready-to-help"),
-            action: "Jonah glances toward Samir rather than asking him to perform a miracle.",
+            action: "Jonah and Samir hold their handholds in the cabin, with the first-aid case stowed beside them. Jonah glances across at Samir.",
             dialogue: [
                 say("jonah-1", "Jonah", "Ready for him?"),
                 say(
