@@ -336,11 +336,14 @@ fn stop_accepts_a_crumb_without_pirouetting() {
     let (ship, _, _) = spawn_ship(&mut app);
     withhold_rcs(&mut app, ship);
     settle(&mut app);
-    // Slow lateral creep, below the deadband; killing it would need a
-    // ~90 degree pirouette.
+    // Slow lateral creep, inside the crumb band; killing it would need a
+    // ~90 degree pirouette. ABOVE the telemetry publish gate
+    // (2 x stop_speed_epsilon = 0.4 u/s) on purpose: under that gate the leg
+    // publishes no brake at all, so a crumb test below it proves nothing
+    // about the brake's own crumb rule.
     app.world_mut()
         .entity_mut(ship)
-        .insert(LinearVelocity(Vec3::new(0.3, 0.0, 0.0)));
+        .insert(LinearVelocity(Vec3::new(0.5, 0.0, 0.0)));
     app.world_mut()
         .entity_mut(ship)
         .insert(Autopilot::engage(AutopilotAction::Stop));
@@ -362,7 +365,7 @@ fn stop_accepts_a_crumb_without_pirouetting() {
     );
     let v = velocity_of(&app, ship);
     assert!(
-        (v - Vec3::new(0.3, 0.0, 0.0)).length() < 0.05,
+        (v - Vec3::new(0.5, 0.0, 0.0)).length() < 0.05,
         "the crumb is accepted as-is, got {v}"
     );
 }

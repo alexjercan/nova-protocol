@@ -849,13 +849,20 @@ pub(super) fn autopilot_system(
         // error finishes it, and a residual only a rotation could remove is
         // accepted. This is what stops the ship twitching after perfection.
         //
-        // The brake is never a crumb. A leg that ends at rest and is past its
-        // flip point is committed to the brake, and the tick's error there
-        // starts at zero (the ship is on the curve) and grows only as fast as
-        // the curve falls - a band's worth of it is half a second at speed,
-        // and half a second of coast at 82 m/s is 40 m of park point. The
-        // plan says when the brake is due (no flip point left, still closing,
-        // a stopping plan in hand); the band decides nothing there. The
+        // A brake that still OWES more than a crumb is never a crumb itself.
+        // A leg that ends at rest and is past its flip point is committed to
+        // the brake, and the tick's error there starts at zero (the ship is
+        // on the curve) and grows only as fast as the curve falls - a band's
+        // worth of it is half a second at speed, and half a second of coast at
+        // 82 m/s is 40 m of park point. So the plan says when the brake is due
+        // (past the flip point, still closing, a stopping plan in hand) and
+        // the band does not judge the TICK's error there. It does judge what
+        // the brake owes: below the band that leftover is the residual
+        // `settle_deadband` accepts, and a STOP publishes a brake for the
+        // whole of its life, so without the floor the last band of every stop
+        // is chased to `stop_speed_epsilon` with the attitude swings the
+        // deadband exists to prevent - worst where the RCS verb is withheld
+        // and the settle falls back to the main drive. The
         // brake leg holds one attitude: the group the plan chose, against
         // the velocity the leg owes - the whole of it, lateral included, the
         // way STOP brakes. Not the tick's error: at the flip point that is a
@@ -875,16 +882,14 @@ pub(super) fn autopilot_system(
             // PAST the flip point, not merely "no flip point published". The
             // leg publishes none for three reasons and only this one is a
             // brake; see `FlipEstimate`.
+            let owed = velocity.length();
             let due = numbers.braking
                 && numbers.brake_accel > 0.0
-                && numbers.closing_speed > settings.stop_speed_epsilon;
+                && numbers.closing_speed > settings.stop_speed_epsilon
+                && owed > crumb_band;
             let brake_dir = -velocity.normalize_or_zero();
-            (due && brake_dir != Vec3::ZERO).then(|| {
-                (
-                    brake_dir,
-                    velocity.length().max(settings.min_approach_speed),
-                )
-            })
+            (due && brake_dir != Vec3::ZERO)
+                .then(|| (brake_dir, owed.max(settings.min_approach_speed)))
         });
         let flip_pending = brake.is_some_and(|(brake_dir, brake_speed)| {
             choose_group(

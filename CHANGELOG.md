@@ -22,6 +22,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The frame that recovers from a long stall no longer sheds sixteen ticks' worth
   of plating at once: the shed cap bounds the FRAME again, and the plates it
   holds back come off on the next one.
+- A STOP no longer pirouettes the hull for the last m/s it is allowed to
+  accept: a brake owed less than the settle band is the crumb the deadband
+  documents, and the ship is handed back.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
