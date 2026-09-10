@@ -2625,9 +2625,11 @@ const CAPITAL_DRIVE: SectionProto = {
     health: 1250,
     cells: [5, 5, 3],
 };
-const SIEGE_LANCE: SectionProto = {
-    // siege_railgun_lance_section, standard.rs:923-926, collider LANCE_CELLS
-    // 1x1x3 (standard.rs:321,:1131).
+const RAILGUN_LANCE: SectionProto = {
+    // Both shipped lances - the standard one and siege_railgun_lance_section
+    // (standard.rs:923-926) - are built by `railgun_lance_prototype`, which
+    // gives each the same RAILGUN_BASE_HEALTH (standard.rs:40,:1126) and the
+    // same LANCE_CELLS collider, 1x1x3 (standard.rs:321,:1131).
     label: "LANCE",
     health: 180,
     cells: [1, 1, 3],
@@ -6635,7 +6637,7 @@ const ARMOUR_PARTS: ArmourPart[] = [
     CAPITAL_ROW,
     armourPart(VECTOR_DRIVE, "Vector Thruster Section"),
     armourPart(HULL_CELL, "Reinforced Hull Section"),
-    armourPart(SIEGE_LANCE, "Siege Railgun Lance"),
+    armourPart(RAILGUN_LANCE, "Siege Railgun Lance"),
     PDC_ROW,
     armourPart(HEAVY_BAY, "Siege Torpedo Bay Section"),
     armourPart(CONTROLLER_CELL, "Basic Controller Section"),
@@ -8777,11 +8779,9 @@ function arrowPoints(x: number, y: number, dx: number, dy: number): string {
 // density 1), the impulse is mass x world units per second, and only the
 // readout converts.
 const LANCE_RECOIL_IMPULSE = 45; // standard.rs:1165
-const LANCE_CELLS_BOX: Vec3T = [1, 1, 3]; // standard.rs:321
 // Where the widget's lance stands on the gunship: ahead of the bow spur,
 // which ends at z = -4 (`plate_43` above), so the part runs z -7..-4.
 const LANCE_MOUNT_Z = -5.5;
-const RAILGUN_BASE_HEALTH = 180; // standard.rs:40
 
 export interface RecoilKick {
     /** Hull mass, engine units (box volume), lance included. */
@@ -8803,14 +8803,14 @@ export interface RecoilKick {
 // on a hull `massScale` times the gunship's mass with the same shape (so its
 // inertia scales with it). Pure, so the test can pin it.
 export function railgunRecoil(offsetCells: number, massScale = 1): RecoilKick {
-    const lance: ShipPart = {
-        id: "lance",
-        label: "LANCE",
-        health: RAILGUN_BASE_HEALTH,
-        center: [offsetCells, 0, LANCE_MOUNT_Z],
-        size: [...LANCE_CELLS_BOX],
-        group: "lance",
-    };
+    const lance = cell(
+        "lance",
+        offsetCells,
+        0,
+        LANCE_MOUNT_Z,
+        RAILGUN_LANCE,
+        "lance"
+    );
     const parts = [...GUNSHIP_CELLS, lance];
     const state = hullState(parts);
     const com = state.centerOfMass;
