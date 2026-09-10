@@ -46,10 +46,18 @@ def main():
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
+        if not isinstance(getattr(module,'SCENES',None),dict):
+            raise ValueError(f'{source.name} registers no SCENES dict')
         for key,draw in module.SCENES.items():
             if not re.fullmatch(r'[a-z0-9][a-z0-9-]*',key) or key in scenes or not callable(draw):
                 raise ValueError(f'Invalid or duplicate scene registration: {key}')
             scenes[key] = draw
+    # The caller picks scene ids out of the episode script, so a typo or a
+    # renamed scene arrives here and nowhere earlier. Name every id that is
+    # missing, and what IS on offer, instead of a bare KeyError on the first.
+    missing = [key for key in dict.fromkeys(requested) if key not in scenes]
+    if missing:
+        raise ValueError(f'Unregistered scene ids: {", ".join(missing)}. Registered: {", ".join(sorted(scenes))}')
     output.mkdir(parents=True,exist_ok=True)
     metadata = {}
     for key in dict.fromkeys(requested):

@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
 const os = require("node:os");
 const path = require("node:path");
 const { discoverComics, compileComics } = require("../comic-sources");
@@ -513,6 +514,38 @@ for (const mutate of [
     mutate(invalid);
     assert.throws(() => validatePageDefinition(invalid, asset));
 }
+// A scene id reaches Python only after the script has been read, so a typo or
+// a renamed scene surfaces THERE. It must arrive as an authoring error naming
+// every id it could not find and every id it has, not a bare KeyError on the
+// first one. Nothing renders, so this costs a process start.
+{
+    const rejected = path.join(os.tmpdir(), "nova-unreachable-scene");
+    fs.rmSync(rejected, { recursive: true, force: true });
+    const generator = spawnSync(
+        "python3",
+        [
+            path.join(__dirname, "../build-comics.py"),
+            "--source",
+            path.join(
+                __dirname,
+                "../src/comics/season-1/episode-1/art/opening.py"
+            ),
+            "--scenes",
+            JSON.stringify(["coffee-break", "nope", "gone"]),
+            "--output",
+            rejected,
+        ],
+        { encoding: "utf8" }
+    );
+    assert.equal(generator.status, 1, "an unknown scene fails the generation");
+    assert.match(
+        generator.stderr,
+        /ValueError: Unregistered scene ids: nope, gone\. Registered: assignment-window, /,
+        "the error names what is missing and what is on offer"
+    );
+    assert(!fs.existsSync(rejected), "a rejected request renders nothing");
+}
+
 assert(
     discoverComics().length > 0,
     "Repository metadata can be discovered independently of publication state"

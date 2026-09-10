@@ -67,6 +67,8 @@ does NOT get an entry - and it is the only place they are written down.
 - The comic reader is covered against a stand-in document: paging, fragments,
   the contents pane, the panel dialog, and the wheel, keyboard and touch
   gestures.
+- A comic that names a scene the art modules do not register fails with the ids
+  it could not find and the ids on offer, instead of a bare Python KeyError.
 
 ## [0.13.0] - 2026-09-09
 

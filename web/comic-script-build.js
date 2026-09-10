@@ -380,6 +380,10 @@ function compileScript(script, scenes, palette) {
                 footer: script.footer,
                 palette,
                 panels: page.panels.map((panel) => {
+                    // The generator resolves the same ids first and rejects a
+                    // missing one by name, so in the real pipeline this never
+                    // fires. It is the contract for a direct call with a scene
+                    // table the generator did not write.
                     const art = scenes[panel.art];
                     if (!art) throw new Error(`Unknown scene: ${panel.art}`);
                     fields(art, ["file", "size", "slots"], "generated scene");
