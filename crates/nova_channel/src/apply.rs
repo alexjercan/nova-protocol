@@ -259,7 +259,24 @@ fn apply_input(world: &mut World, line: usize, wire: &str, phase: InputPhase) {
 
 fn apply_section(world: &mut World, line: usize, id: &str, phase: InputPhase, phase_word: &str) {
     let wire = format!("section.{id}");
-    let Some(source) = section_source(world, id) else {
+    // A RELEASE lifts what the PRESS pushed, and only falls back to resolving
+    // the id again when nothing was recorded under it. The mount a `start`
+    // reached can be shot off between the two lines - the section despawns
+    // with it - and re-resolving would then find nothing and refuse, leaving
+    // the source the press pushed held down for the rest of the process with
+    // every other consumer bound to it reading it held. Resolving is refused
+    // for a PRESS alone: that is the line naming a section that is not there.
+    let source = match phase {
+        InputPhase::Press => section_source(world, id),
+        InputPhase::Release => {
+            dispatch::driven_press(world, &wire).or_else(|| section_source(world, id))
+        }
+    };
+    let Some(source) = source else {
+        if phase == InputPhase::Release {
+            // Nothing was pushed and nothing resolves, so nothing is held.
+            return ack(world, entry(line, &wire, phase_word));
+        }
         return refuse(world, line, format!("no section `{id}` on the ship"));
     };
     // Press only, for the reason `apply_input` states above it.
@@ -271,6 +288,7 @@ fn apply_section(world: &mut World, line: usize, id: &str, phase: InputPhase, ph
         return ack(world, entry(line, &wire, phase_word));
     }
     dispatch::press_source(world, source, phase);
+    dispatch::record_press(world, &wire, source, phase);
     ack(world, entry(line, &wire, phase_word));
 }
 
@@ -696,5 +714,76 @@ mod tests {
                 .pressed(MouseButton::Left),
             "the stop was swallowed with the context and the mount stayed hot"
         );
+    }
+
+    /// The other half of that invariant, over the seam the context gate does
+    /// not cover: the mount is SHOT OFF between the start and the stop, so the
+    /// id the stop names resolves to nothing. Re-resolving per line would
+    /// refuse the stop and leave the source the start pushed held for the rest
+    /// of the process, with every other consumer bound to it reading it held.
+    #[test]
+    fn a_section_stop_still_lifts_the_trigger_after_the_mount_is_destroyed() {
+        use nova_input::prelude::{ActionContext, ActiveContexts};
+
+        let mut world = ack_world();
+        world.init_resource::<ButtonInput<MouseButton>>();
+        let mut contexts = ActiveContexts::default();
+        contexts.set(ActionContext::Flight, true);
+        world.insert_resource(contexts);
+
+        let ship = world
+            .spawn((PlayerSpaceshipMarker, SpaceshipRootMarker))
+            .id();
+        let turret = world
+            .spawn((
+                SectionMarker,
+                EntityId::new("port_turret"),
+                SpaceshipTurretInputBinding(vec![InputSource::Mouse(MouseButton::Left)]),
+                ChildOf(ship),
+            ))
+            .id();
+
+        apply_section(&mut world, 1, "port_turret", InputPhase::Press, "start");
+        assert!(
+            world
+                .resource::<ButtonInput<MouseButton>>()
+                .pressed(MouseButton::Left),
+            "the press never reached the mount"
+        );
+
+        world.entity_mut(turret).despawn();
+        apply_section(&mut world, 2, "port_turret", InputPhase::Release, "stop");
+
+        assert!(
+            !world
+                .resource::<ButtonInput<MouseButton>>()
+                .pressed(MouseButton::Left),
+            "the stop was refused with the mount and the trigger stayed held"
+        );
+        let (applied, refused) = drain_acks(&mut world, 7);
+        assert!(refused.is_empty(), "the stop was refused: {refused:?}");
+        assert_eq!(applied.len(), 2, "both lines answered on their own line");
+    }
+
+    /// A `stop` for a section that was never started and is not there is not a
+    /// refusal: nothing is held, so nothing has to be lifted. The `start` that
+    /// named it is where the driver was told.
+    #[test]
+    fn a_section_stop_for_a_mount_that_was_never_started_is_a_no_op() {
+        let mut world = ack_world();
+        world.init_resource::<ButtonInput<MouseButton>>();
+        world.insert_resource(ActiveContexts::default());
+
+        apply_section(&mut world, 1, "port_turret", InputPhase::Press, "start");
+        apply_section(&mut world, 2, "port_turret", InputPhase::Release, "stop");
+
+        let (applied, refused) = drain_acks(&mut world, 7);
+        assert_eq!(
+            refused.len(),
+            1,
+            "the start named a section that is not there"
+        );
+        assert_eq!(refused[0].0, 1);
+        assert_eq!(applied.len(), 1, "the stop answered without a verdict");
     }
 }

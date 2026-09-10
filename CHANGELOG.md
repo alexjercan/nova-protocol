@@ -56,6 +56,9 @@ does NOT get an entry - and it is the only place they are written down.
   being clipped away.
 - A comic link to a page that no longer exists says so and corrects the address
   bar, instead of quietly opening page one under the old page's fragment.
+- A process-channel `section` stop lifts the trigger the start pushed even when
+  the mount was shot off between the two lines, instead of being refused and
+  leaving it held.
 
 ### Internals & Tooling
 - A `web` CI job runs `npm run ci` - format, lint, fourteen suites, the
@@ -75,6 +78,26 @@ does NOT get an entry - and it is the only place they are written down.
 - The four episode-art modules that had no test have one: 43 art tests hold
   Gantry whole at Aquila, its crew heard and not seen until the ships join, and
   every interior view a marked pressure window.
+- `NOVA_COLLAPSE_LOOP=0` now turns the collapse loop off instead of arming it.
+  It parses `0`/`1` and panics on anything else, like the wake and sight
+  switches beside it.
+- A hand-composed news split is held to 1280x720 like a staged loop. Nothing can
+  restage an import, so an off-spec cut used to ship with a success line.
+- The four bench frames the news figures are cut from are named by a producer
+  again, so a re-cut sweep runs them. It used to capture none of them and still
+  exit 0.
+- A screenshot sweep refuses to start when a producer column names something
+  that is no longer a workspace example, and stops on an empty producer list
+  instead of repackaging what shipped.
+- `docs/environment-variables.md` indexes every `NOVA_*` name again: the three
+  `*_LOOP` switches, `NOVA_STANDOFF_TRACE`, `NOVA_UNFREEZE`, `NOVA_REUSE_STAGE`
+  and the retired `NOVA_MENU_PATH`.
+- A capture deadline counts rendered frames from plugin build, not from
+  `loop_start`: the harness book and `loops.rs` had an author budget a pre-loop
+  beat in wall seconds.
+- The bench targeting page separates the lock dwell (0.645 s at 1 km, 0.7125 s
+  at 2500 m) from the 15-tick search window it used to fold into the same
+  figure.
 
 ## [0.13.0] - 2026-09-09
 

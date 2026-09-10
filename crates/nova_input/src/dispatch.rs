@@ -102,19 +102,7 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
         InputPhase::Release => held_source(world, name)?,
     };
     press_source(world, source, phase);
-    match phase {
-        InputPhase::Press => {
-            world
-                .get_resource_or_init::<DrivenPresses>()
-                .0
-                .insert(name.to_string(), source);
-        }
-        InputPhase::Release => {
-            if let Some(mut held) = world.get_resource_mut::<DrivenPresses>() {
-                held.0.remove(name);
-            }
-        }
-    }
+    record_press(world, name, source, phase);
     Ok(())
 }
 
@@ -125,7 +113,7 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
 /// carries its own binding list off the ship, outside this registry, and
 /// pressing it must still reach the synthesized pad when the source is a pad
 /// button. Such a caller owns its own press/release pairing, so nothing here
-/// touches [`DrivenPresses`].
+/// touches [`DrivenPresses`]; [`record_press`] is how it keeps that record.
 pub fn press_source(world: &mut World, source: InputSource, phase: InputPhase) {
     match (source, phase) {
         (InputSource::Keyboard(key), InputPhase::Press) => {
@@ -148,6 +136,42 @@ pub fn press_source(world: &mut World, source: InputSource, phase: InputPhase) {
     }
 }
 
+/// The source a caller that pairs its own press and release pushed down under
+/// `key`, if one is still recorded.
+///
+/// [`held_source`] solves this for the named actions [`apply`] drives: resolve
+/// the source twice and a rebind between the two calls lets up something
+/// nothing is holding. A caller that resolved a source ITSELF has the same
+/// problem and a worse one - the process channel's `section.<id>` lane resolves
+/// through a hull section, and a section can be DESTROYED between the press and
+/// the release, so re-resolving finds nothing at all and the source it pushed
+/// stays down for the rest of the process.
+pub fn driven_press(world: &World, key: &str) -> Option<InputSource> {
+    world
+        .get_resource::<DrivenPresses>()
+        .and_then(|held| held.0.get(key))
+        .copied()
+}
+
+/// Keep or drop the record [`driven_press`] reads, for a caller that owns its
+/// own press/release pairing. A `key` is that caller's own address for what it
+/// pushed, and shares one map with the action names [`apply`] records.
+pub fn record_press(world: &mut World, key: &str, source: InputSource, phase: InputPhase) {
+    match phase {
+        InputPhase::Press => {
+            world
+                .get_resource_or_init::<DrivenPresses>()
+                .0
+                .insert(key.to_string(), source);
+        }
+        InputPhase::Release => {
+            if let Some(mut held) = world.get_resource_mut::<DrivenPresses>() {
+                held.0.remove(key);
+            }
+        }
+    }
+}
+
 /// The source each named action is currently held down through.
 ///
 /// A press and its release are two calls, and a rebind can land between them.
@@ -156,8 +180,9 @@ pub fn press_source(world: &mut World, source: InputSource, phase: InputPhase) {
 /// its analog value still at 1.0, so a rig keeps firing with no key held. The
 /// press records what it pushed, and the release lets up exactly that.
 ///
-/// Only [`apply`] writes this. A caller pressing a source itself - the pointer
-/// helpers, which need a window - owns its own release.
+/// [`apply`] writes this for a named action and [`record_press`] for a caller
+/// that resolved a source itself. A caller pressing a source without recording
+/// it - the pointer helpers, which need a window - owns its own release.
 #[derive(Resource, Debug, Default)]
 pub struct DrivenPresses(HashMap<String, InputSource>);
 

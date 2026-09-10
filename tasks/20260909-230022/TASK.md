@@ -1022,3 +1022,86 @@ blind rerun of G6-G11 would cost.
   contracts that span both, G5a craft found the shared-helper duplication that
   spans both - so the residual gap is small.
 - Nothing ran the test suite or Clippy in any group. CI owns both, by contract.
+
+## Fixed 2026-09-10
+
+Everything the disposition marked **Fix now**, every finding in G6-G11, and the
+G1/G2 backlog the disposition had scheduled later. Forty-one commits between
+`23414634b` (the v0.13.0 release) and `5453fe51c`. Every behavioural fix was
+proven twice: green after the change, and RED with the old semantics restored
+from a scratchpad copy.
+
+### Closed
+
+| Group | Finding | Landed in |
+|-|-|-|
+| G2 | BLOCKER: GOTO at 2-5 m/s flies tail-first and never burns | `28a14db97` |
+| G2 | `fine` requires `brake.is_none()`; the STOP crumb | `b16321d12` |
+| G2 | GOTO anchors on the COM against origin-measured radii | `01b368441` |
+| G2 | The AI patrol gate measures the origin, not the arrival | `01b368441` |
+| G1 | Shed cap bounds the tick but not the banked FRAME | `f6e10edb9` |
+| G1 | The shed runs in the wrong PHASE for the deaths it reads | `010a6cb25` |
+| G1 | The pyre warm-up misses the tier a player raises mid-run | `6882fc2c4` |
+| G1 | `Visibility::Hidden` warms no render pipeline; the doc claimed it did | `6e6411d99` |
+| G1 | `HULK_PYRE` claims a width it has only on small hulls | `7cf2056dc` |
+| G1 | `PyreEffects::pair` answers the scale twice | `031c88144` |
+| G1 | `SettingsSystems` has no production consumer | `10c3b6f62`, `6882fc2c4` |
+| G1 | The wake's "synchronous on web and macOS" understates native | `67936e962` |
+| G1 | `docs/sections.md` states the drain rate 24x high | `f6e10edb9` |
+| G3+G4 | A `section` STOP is refused when the mount is gone | this range |
+| G5a+G5b | `NOVA_COLLAPSE_LOOP=0` arms the loop; `package_import` skips the gate | `fc8bb6e7a` |
+| G5b | The `CUTS` sources are reachable from no producer | `ded4b00e4`, `5453fe51c` |
+| G5a+G5b | The docs sweep (env index, harness deadline, targeting, agent-bench, development) | `b5d7f341c` |
+| G6 | `zonePlacements` counts the mirrored ship, not the starboard half | `3414c6f19` |
+| G6 | A part carries one zone, not an intersection | `e4edd0cbd` |
+| G6 | The widget tests pin ratios, not the game's constants | `174e4148f` |
+| G6 | The MINOR list: provenance, chip budget, dead constant, audio route | `421cf100f`, `33dcf22c3`, `1891ce66d`, `77bf539f8` |
+| G7 | Nine First Shift scenes documented and never shipped | `f063e6637` |
+| G7 | `ScatterObjects` is a shipped format break with no marker | `f063e6637` |
+| G8+G10 | No CI job runs any web or Python test | `db671775e`, `8ef9751b6` |
+| G9 | A side-tailed balloon draws a malformed outline | `087bde783` |
+| G9 | The speaker is the one id with no registry | `087bde783` |
+| G9 | Lettering geometry is never checked against the panel | `087bde783` |
+| G9 | The compositor and the reader have no test | `087bde783`, `f92c3f1e7` |
+| G9 | An unknown fragment silently opens page 1 | `f92c3f1e7` |
+| G9 | "Unknown scene" is unreachable; Python raises `KeyError` first | `cf3bd8013` |
+| G10 | Three inconsistent body-coverage sets | `2d376ba43`, `3b475024b` |
+| G10 | Ships export at a precision their drawn size cannot show | `7dd7cfda7` |
+| G10 | 33 of 50 scene functions entered by no test | `3b475024b` |
+| G10 | The MINOR cluster: dead `speech`, duplicated grip, unvalidated art, dead widths, locale encoding | `e6bd754bf`, `231db18eb`, `ee2665579`, `3b475024b`, `f5a80a2c1` |
+| G11 | Both BLOCKERs and both MAJORs: the transcript and the page `aria-label` | `c96b03c11` |
+
+### Where the review was wrong
+
+- **G11's directive quotes were already stale.** `page-11.ts:11` and
+  `page-09.ts:118` no longer held the text the finding quoted by the time the
+  fix lane opened; the rewrite in `c96b03c11` had landed inside this session.
+  The finding was right about the shape and right about the pipeline.
+- **G5b's `CUTS` fix as prescribed does not stop the exit-0.** `mapfile` cannot
+  fail a pipeline and `set -u` accepts an empty array, so a packager that names
+  no producers still skipped the whole capture phase and repackaged the shipped
+  bytes. `5453fe51c` closes it at both ends.
+- **`NOVA_MENU_PATH` does not live in `examples/` or `scripts/`.** It survives
+  only as a module comment saying the branch is gone. It is documented as
+  retired, not as a knob.
+- **G10's "35 untested scene functions" is 33**, and its "~19k lines of
+  committed generated art" is not attributable to the scripts named - the comic
+  generator's output is not committed at all.
+- **G8's "62 Python tests" was right on the day**; the art suite is 43 now, so
+  the changelog entry names no count.
+
+### Still open, and why
+
+- The **measurement gap** is untouched and is still the largest hole in the
+  review. `loop_helm_orders`' unpinned seed, the in-loop deadlines, and
+  `manifest.txt`'s provenance all want a quiet capture host with a serialised
+  slot. `NOVA_COLLAPSE_LOOP=0` was proven past its switch but could not be
+  driven to its outcome markers: lavapipe dies inside `bevy_hanabi`'s
+  `prepare_gpu_resources` on this box.
+- `both_parked()` treating any disengage as arrival, and the park log's
+  fabricated zeroes: capture-pipeline correctness, and the shipped webm is
+  right. The gate for the next re-shoot.
+- `give_the_order` re-deriving `install_ship_order`: craft, wants
+  `install_ship_order` public through the prelude.
+- The `examples/screenshots/shared/` consolidation and the maintainability
+  batch, both MINOR and both one task rather than eight commits.
