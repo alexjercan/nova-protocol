@@ -54,10 +54,9 @@ use super::components::prelude::*;
 use crate::{
     integrity::spew::prelude::{inherited_material, CarveDebris},
     lifetime::TempEntity,
-    settings::prelude::GraphicsBudget,
+    settings::prelude::{GraphicsBudget, SettingsSystems},
     soft_dot::prelude::{declare_soft_dot_slot, soft_dot_modifier, SoftDot},
     transient_light::prelude::LightFlash,
-    GameStates,
 };
 
 /// `PyrePlugin` and the marker its instances carry.
@@ -102,9 +101,9 @@ struct PyreBudget(u32);
 
 /// The shared graphs. Two per size: the core and its ejecta.
 ///
-/// Warmed on entering [`GameStates::Playing`] by [`warm_the_pyres`] rather than
-/// built by [`FromWorld`], so an app with no asset stores and one running at a
-/// graphics tier with particles off still build nothing. The slots stay
+/// Warmed by [`warm_the_pyres`] rather than built by [`FromWorld`], so an app
+/// with no asset stores and one running at a graphics tier with particles off
+/// still build nothing. The slots stay
 /// optional because that is what lets those two apps hold the resource without
 /// paying for it, and because the warm-up is a system and not a constructor.
 #[derive(Resource, Default, Debug)]
@@ -523,11 +522,20 @@ fn drawable<'w>(
 /// away on the next frame's `Update`, which is the earliest point at which
 /// `PostUpdate`'s compile and the render world's extract have both had them.
 ///
-/// On entering [`GameStates::Playing`] rather than at startup, for two reasons:
-/// the state is never `Playing` on frame one, so the graphics tier a player
-/// chose in the menu is settled before this reads it; and a scene load already
-/// has a loading screen over it. The sibling
-/// `warm_railgun_wake_art` is wired the same way.
+/// In `PostStartup` after [`SettingsSystems`], and again in `Update` whenever
+/// [`GraphicsBudget`] changes while the graphs are still cold
+/// ([`pyres_are_cold`]). The tier is the reason for both times.
+///
+/// `PostStartup` is the first point at which the persisted preset a player
+/// chose has been applied, so this never builds the graphs a spawn-less run
+/// exists to skip. It is also before the first frame of ANY state, which is
+/// what a state transition cannot promise: the main-menu backdrop is a
+/// scenario whose whole loop is a torpedo erasing a ship, so an earlier cut
+/// that warmed on entering `Playing` left the first deaths a player ever sees
+/// to mint their own shaders. The `Update` pass covers the one other way a
+/// cold store becomes worth filling: a tier RAISED from the pause overlay,
+/// which changes the budget without re-entering a state and so is reached by
+/// no `OnEnter`.
 fn warm_the_pyres(
     mut commands: Commands,
     effects: Option<ResMut<Assets<EffectAsset>>>,
@@ -558,12 +566,24 @@ fn warm_the_pyres(
     }
 }
 
+/// Whether the graphs are still unbuilt, which is the only state a re-warm has
+/// anything to do in.
+///
+/// Once both pairs stand the shaders behind them are minted, and running the
+/// warm-up again would spawn four instances to build nothing. A tier LOWERED
+/// mid-run therefore keeps the graphs it already has: they are four assets and
+/// a mask, and dropping them while a fireball is still drawing from one is a
+/// bigger question than the memory is worth.
+fn pyres_are_cold(pyres: Res<PyreEffects>) -> bool {
+    pyres.section.is_none() || pyres.hulk.is_none()
+}
+
 /// Take the warm-up's throwaway instances away again.
 ///
 /// In `Update` and not in the same frame's `PostUpdate` or `Last`: hanabi
 /// compiles in `PostUpdate` and the render world extracts after the whole main
-/// schedule, so an instance spawned from `OnEnter` has to survive its own frame
-/// to be both compiled and specialized. [`Ref::is_added`] is what draws that
+/// schedule, so a warm instance has to survive the frame it was spawned in to
+/// be both compiled and specialized. [`Ref::is_added`] is what draws that
 /// line - on the frame they were spawned these are still new, on the next they
 /// are not.
 fn cool_the_warm_pyres(mut commands: Commands, warm: Query<(Entity, Ref<PyreWarmMarker>)>) {
@@ -702,7 +722,13 @@ impl Plugin for PyrePlugin {
         // no armed section still dies, so the pyre cannot rely on a turret
         // having been here.
         app.init_resource::<SoftDot>();
-        app.add_systems(OnEnter(GameStates::Playing), warm_the_pyres);
+        app.add_systems(PostStartup, warm_the_pyres.after(SettingsSystems));
+        app.add_systems(
+            Update,
+            warm_the_pyres
+                .run_if(resource_exists_and_changed::<GraphicsBudget>)
+                .run_if(pyres_are_cold),
+        );
         app.add_systems(First, refill_pyre_budget);
         app.add_systems(Update, cool_the_warm_pyres);
         app.add_observer(light_the_pyre);
@@ -722,38 +748,32 @@ mod tests {
     /// resource the plugin forgets to register fails HERE instead of in the
     /// first crate that adds the plugin for real.
     ///
-    /// It is handed to the tests already in `Playing` and one frame past the
-    /// transition, which is the state a death happens in: the warm-up runs on
-    /// entering it, and its throwaway instances are gone by the time a test
-    /// asks what a death spawned.
+    /// It is handed to the tests one frame past the warm-up, which is where a
+    /// death happens: the graphs stand, and the warm-up's throwaway instances
+    /// are gone by the time a test asks what a death spawned.
     fn pyre_app() -> App {
-        let mut app = playing_pyre_app();
+        let mut app = warm_pyre_app();
         app.update();
         app
     }
 
-    /// The same app stopped one frame earlier, on the transition frame itself,
-    /// for the tests that are about the warm-up.
-    fn playing_pyre_app() -> App {
-        playing_pyre_app_at(None)
+    /// The same app stopped one frame earlier, on the warm-up frame itself, for
+    /// the tests that are about the warm-up.
+    fn warm_pyre_app() -> App {
+        pyre_app_at(None)
     }
 
     /// `tier` is the graphics budget the app runs at. `None` is a
     /// settings-less app, which is the only case the rest of this module's
     /// tests exercise and which means full quality.
-    fn playing_pyre_app_at(tier: Option<GraphicsBudget>) -> App {
+    fn pyre_app_at(tier: Option<GraphicsBudget>) -> App {
         let mut app = App::new();
-        app.add_plugins(bevy::state::app::StatesPlugin);
-        app.init_state::<GameStates>();
         app.insert_resource(Assets::<EffectAsset>::default());
         app.insert_resource(Assets::<Image>::default());
         if let Some(tier) = tier {
             app.insert_resource(tier);
         }
         app.add_plugins(PyrePlugin);
-        app.world_mut()
-            .resource_mut::<NextState<GameStates>>()
-            .set(GameStates::Playing);
         app.update();
         app
     }
@@ -873,7 +893,7 @@ mod tests {
     /// the store leaves the WGSL generation to the collapse frame.
     #[test]
     fn the_warm_up_spawns_an_instance_per_graph_and_takes_them_away_the_next_frame() {
-        let mut app = playing_pyre_app();
+        let mut app = warm_pyre_app();
 
         assert_eq!(
             warm_instances(&mut app),
@@ -899,7 +919,7 @@ mod tests {
     /// settings fires its whole burst on its first tick.
     #[test]
     fn a_warm_instance_is_hidden_and_its_spawner_is_held_shut() {
-        let mut app = playing_pyre_app();
+        let mut app = warm_pyre_app();
         let warm: Vec<Entity> = app
             .world_mut()
             .query_filtered::<Entity, With<PyreWarmMarker>>()
@@ -930,7 +950,7 @@ mod tests {
     /// shipping app either.
     #[test]
     fn the_low_tier_builds_no_graph_no_mask_and_no_instance() {
-        let mut app = playing_pyre_app_at(Some(GraphicsBudget::for_quality(GraphicsQuality::Low)));
+        let mut app = pyre_app_at(Some(GraphicsBudget::for_quality(GraphicsQuality::Low)));
 
         assert_eq!(
             built(&app),
@@ -1032,6 +1052,36 @@ mod tests {
                 "a fireball that stays where the ship WAS reads as a second, unrelated event"
             );
         }
+    }
+
+    /// The gap an `OnEnter` warm-up left. A player who starts on the
+    /// spawn-less tier and raises it from the PAUSE overlay never re-enters a
+    /// state, so the budget itself has to be what warms the graphs - otherwise
+    /// the next death pays the whole cold path.
+    #[test]
+    fn a_tier_raised_mid_run_warms_the_graphs_the_low_tier_skipped() {
+        let mut app = pyre_app_at(Some(GraphicsBudget::for_quality(GraphicsQuality::Low)));
+        app.update();
+        assert_eq!(
+            built(&app),
+            (0, 0),
+            "delivery guard: the spawn-less tier built something",
+        );
+
+        *app.world_mut().resource_mut::<GraphicsBudget>() =
+            GraphicsBudget::for_quality(GraphicsQuality::High);
+        app.update();
+
+        assert_eq!(
+            built(&app),
+            (4, 1),
+            "the raised tier left the four graphs and the mask cold",
+        );
+        assert_eq!(
+            warm_instances(&mut app),
+            4,
+            "and left the shaders behind them to the first death",
+        );
     }
 
     /// The case every other test here is blind to, because they all hand the

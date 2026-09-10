@@ -512,15 +512,23 @@ what `explode` does not. `pyre.rs` observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`.
 
-Nothing about those graphs is built at the death. `warm_the_pyres` runs on
-entering `Playing` - under the loading screen, and late enough that the
-graphics tier a player picked in the menu is settled - and it does the whole
-job: the four graphs, the shared soft-dot mask, and one hidden instance of each
-graph. The instance is the part that matters, because `bevy_hanabi` generates a
-shader from a spawned INSTANCE and never from an asset, so a warm-up that only
-filled the asset store left the WGSL to be generated on the collapse frame.
-Those four are silent, invisible, and despawned the next frame. A tier with
-particles off builds none of it and lights nothing.
+Nothing about those graphs is built at the death. `warm_the_pyres` runs in
+`PostStartup` after the settings pass that derives the graphics budget - late
+enough that the tier a player picked is settled, early enough to be before the
+first frame of any state - and it does the whole job: the four graphs, the
+shared soft-dot mask, and one hidden instance of each graph. The instance is
+the part that matters, because `bevy_hanabi` generates a shader from a spawned
+INSTANCE and never from an asset, so a warm-up that only filled the asset store
+left the WGSL to be generated on the collapse frame. Those four are silent,
+invisible, and despawned the next frame. A tier with particles off builds none
+of it and lights nothing.
+
+Startup and not a state transition, because deaths are not confined to
+`Playing`: the main menu's backdrop is a scenario whose whole loop is a torpedo
+erasing a ship. There is a second pass on `Update`, run only when the graphics
+budget changes while the graphs are still cold, for the other path a state
+transition misses - a tier RAISED from the pause overlay, which never
+re-enters anything.
 
 What a death still mints is instances, so this half DOES need a budget:
 `PYRE_FRAME_CAP` bounds how many fireballs one frame lights, and a root's own is
