@@ -9436,47 +9436,53 @@ export function halfColumn(c: number): number {
 }
 
 export interface ZonePlacements {
-    /** `lit[column][row][z]`: a cell some legal placement of the part covers. */
+    /** `lit[x][y][z]` on the STARBOARD HALF, `x = 0` at the centreline: a cell
+     * some legal placement of the part covers. */
     lit: boolean[][][];
-    /** Legal anchor positions of the part on the whole mirrored ship. */
+    /** Legal anchor positions of the part on the starboard half. */
     placements: number;
-    /** Cells that pass every ticked zone on their own. */
+    /** Cells of the half that pass the ticked zones on their own. */
     cells: number;
 }
 
-// Every place the part may stand: an anchor is legal when every cell of the
-// block is inside the grid and passes every ticked zone.
+// Every place the part may stand, counted on the HALF GRID the collapse runs
+// in - `Grid::starboard_half` is `(half_width, height, length)`, four cells
+// across (grid.rs:43-52, nova_wfc/src/lib.rs:246-250) - not on the mirrored
+// ship. An anchor is legal when every cell of the block is inside the half and
+// passes every ticked zone. So a 5-wide capital drive has nowhere to stand at
+// all, which is the same answer `runnable` gives a grammar too narrow for its
+// own seeded stern drive (lib.rs:138-140).
 export function zonePlacements(
     zones: GrammarZone[],
     part: Vec3T
 ): ZonePlacements {
-    const W = 2 * GRAMMAR_HALF_WIDTH;
+    const W = GRAMMAR_HALF_WIDTH;
     const H = GRAMMAR_HEIGHT;
     const L = GRAMMAR_LENGTH;
-    const pass = (c: number, y: number, z: number): boolean =>
-        zones.every((zone) => zoneAllows(zone, halfColumn(c), y, z));
+    const pass = (x: number, y: number, z: number): boolean =>
+        zones.every((zone) => zoneAllows(zone, x, y, z));
     const lit: boolean[][][] = [];
     let cells = 0;
-    for (let c = 0; c < W; c += 1) {
+    for (let x = 0; x < W; x += 1) {
         lit.push([]);
         for (let y = 0; y < H; y += 1) {
-            lit[c].push([]);
+            lit[x].push([]);
             for (let z = 0; z < L; z += 1) {
-                lit[c][y].push(false);
-                if (pass(c, y, z)) cells += 1;
+                lit[x][y].push(false);
+                if (pass(x, y, z)) cells += 1;
             }
         }
     }
     const [w, h, d] = part;
     let placements = 0;
-    for (let c0 = 0; c0 + w <= W; c0 += 1) {
+    for (let x0 = 0; x0 + w <= W; x0 += 1) {
         for (let y0 = 0; y0 + h <= H; y0 += 1) {
             for (let z0 = 0; z0 + d <= L; z0 += 1) {
                 let legal = true;
-                for (let c = c0; legal && c < c0 + w; c += 1) {
+                for (let x = x0; legal && x < x0 + w; x += 1) {
                     for (let y = y0; legal && y < y0 + h; y += 1) {
                         for (let z = z0; z < z0 + d; z += 1) {
-                            if (!pass(c, y, z)) {
+                            if (!pass(x, y, z)) {
                                 legal = false;
                                 break;
                             }
@@ -9485,10 +9491,10 @@ export function zonePlacements(
                 }
                 if (!legal) continue;
                 placements += 1;
-                for (let c = c0; c < c0 + w; c += 1) {
+                for (let x = x0; x < x0 + w; x += 1) {
                     for (let y = y0; y < y0 + h; y += 1) {
                         for (let z = z0; z < z0 + d; z += 1) {
-                            lit[c][y][z] = true;
+                            lit[x][y][z] = true;
                         }
                     }
                 }
@@ -9502,12 +9508,14 @@ function initHullZones(host: HTMLElement): void {
     header(
         host,
         "Zone scope: the standard hull's grid",
-        `The shipped grammar collapses a ${2 * GRAMMAR_HALF_WIDTH} x ` +
-            `${GRAMMAR_HEIGHT} x ${GRAMMAR_LENGTH} block, mirrored about its ` +
-            "centreline with the keel along the middle row. A zone is a " +
-            "region of that block, and a part may stand only where EVERY " +
-            "cell of it is inside every zone its grammar names. Pick a part, " +
-            "tick zones."
+        `The shipped grammar collapses a ${GRAMMAR_HALF_WIDTH} x ` +
+            `${GRAMMAR_HEIGHT} x ${GRAMMAR_LENGTH} STARBOARD HALF and mirrors ` +
+            `it into a ${2 * GRAMMAR_HALF_WIDTH}-wide ship, keel along the ` +
+            "middle row. Every placement is decided on that half, so the " +
+            "widest part the hull can take is four cells across. A zone is a " +
+            "region of the half, and a part may stand only where EVERY cell " +
+            "of it is inside every zone its grammar names. Pick a part, tick " +
+            "zones."
     );
 
     let partIndex = 0;
@@ -9537,7 +9545,9 @@ function initHullZones(host: HTMLElement): void {
     }
 
     // Two views sharing the length axis: the side (rows) above, the top
-    // (columns) below, bow at the left.
+    // (columns) below, bow at the left. Both draw the MIRRORED ship, because
+    // that is the hull a builder sees; the half the collapse decided on is the
+    // starboard four columns, and the port four are its reflection.
     const S = 22;
     const X0 = 150;
     const SIDE_Y = 36;
@@ -9565,7 +9575,12 @@ function initHullZones(host: HTMLElement): void {
     label(16, SIDE_Y + 14, "SIDE");
     label(16, SIDE_Y + 30, "5 rows", "widget-mark--detail");
     label(16, TOP_Y + 14, "TOP");
-    label(16, TOP_Y + 30, `${W} columns`, "widget-mark--detail");
+    label(
+        16,
+        TOP_Y + 30,
+        `${W} columns, ${GRAMMAR_HALF_WIDTH} a side`,
+        "widget-mark--detail"
+    );
     label(X0, SIDE_Y - 10, "BOW", "widget-mark--axis");
     label(
         X0 + GRAMMAR_LENGTH * S - 36,
@@ -9650,8 +9665,8 @@ function initHullZones(host: HTMLElement): void {
     );
 
     const stats = el("div", "widget__stats");
-    const cellStat = stat(stats, "cells in the zones");
-    const placeStat = stat(stats, "places for the part");
+    const cellStat = stat(stats, "half cells in the zones");
+    const placeStat = stat(stats, "places on the half");
     const readout = el("p", "widget__readout");
 
     const update = (): void => {
@@ -9664,9 +9679,11 @@ function initHullZones(host: HTMLElement): void {
                 sideCells[y][z].classList.toggle("is-lit", lit);
             }
         }
+        // Both halves of the top view read the SAME half-grid column: what the
+        // collapse lit to starboard is mirrored to port.
         for (let c = 0; c < W; c += 1) {
             for (let z = 0; z < GRAMMAR_LENGTH; z += 1) {
-                const lit = result.lit[c].some((row) => row[z]);
+                const lit = result.lit[halfColumn(c)].some((row) => row[z]);
                 topCells[c][z].classList.toggle("is-lit", lit);
             }
         }
@@ -9681,16 +9698,23 @@ function initHullZones(host: HTMLElement): void {
         readout.classList.remove("is-fault", "is-warn");
         if (result.placements > 0) {
             readout.textContent =
-                `${result.placements} places for a ${box} ${part.label.toLowerCase()}, ` +
-                `every cell of it ${where}. Lit cells are the ones some legal ` +
-                "placement covers.";
+                `${result.placements} places on the half for a ${box} ` +
+                `${part.label.toLowerCase()}, every cell of it ${where}. Lit ` +
+                "cells are the ones some legal placement covers, drawn on both " +
+                "sides because the half is mirrored.";
             return;
         }
         readout.classList.add("is-fault");
         const thirds = zones.filter((zone) =>
             ["Bow", "Amidships", "Stern"].includes(zone)
         );
-        if (thirds.length >= 2) {
+        if (w > GRAMMAR_HALF_WIDTH) {
+            readout.textContent =
+                `Nowhere at all. A ${box} ${part.label.toLowerCase()} is ${w} ` +
+                `cells across and the collapse runs on a ${GRAMMAR_HALF_WIDTH}` +
+                "-cell half, so no zone can help it: the grammar has to be " +
+                "widened before this part can stand anywhere on the hull.";
+        } else if (thirds.length >= 2) {
             readout.textContent =
                 `Nothing stands here. ${thirds.join(" and ")} are different ` +
                 "thirds of the length, and no cell is in two of them at once.";
@@ -9716,11 +9740,13 @@ function initHullZones(host: HTMLElement): void {
         el(
             "p",
             "widget__note",
-            "Counted on the whole mirrored ship, so a part that straddles the " +
-                "centreline counts once. The collapse also asks the mating " +
-                "rule, the aim and the clearance of every placement; this " +
-                "scope shows the zone test alone. Flank is the outboard half " +
-                "of each side: two columns of four, clear of the centreline."
+            "Counted on the starboard half, which is where the collapse " +
+                "decides: nothing straddles the centreline, because the port " +
+                "half is the starboard half reflected. The collapse also asks " +
+                "the mating rule, the aim and the clearance of every " +
+                "placement; this scope shows the zone test alone. Flank is " +
+                "the outboard half of the grid: two columns of the four, " +
+                "clear of the centreline."
         )
     );
     update();

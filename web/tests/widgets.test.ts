@@ -420,23 +420,36 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     );
     assert.equal(ZONE_PARTS.length, 5);
     const free = zonePlacements([], [1, 1, 1]);
-    assert.equal(free.cells, 440, "8 x 5 x 11 cells");
-    assert.equal(free.placements, 440);
+    assert.equal(free.cells, 220, "the STARBOARD HALF is 4 x 5 x 11 cells");
+    assert.equal(free.placements, 220);
     assert.equal(
         zonePlacements(["Bow", "Stern"], [1, 1, 1]).placements,
         0,
         "two thirds never overlap"
     );
+    // The headline the widget used to get wrong: the collapse runs on the
+    // half, so a part wider than the half has nowhere to stand at ALL - not
+    // 36 places on an 8-wide ship it is never judged against.
     assert.equal(
-        zonePlacements(["Dorsal"], [5, 5, 3]).placements,
+        zonePlacements([], [5, 5, 3]).placements,
         0,
-        "a capital drive does not fit above the keel"
+        "a 5-wide capital drive does not fit the 4-wide half, zone or none"
+    );
+    assert.equal(
+        zonePlacements(["Dorsal"], [3, 3, 2]).placements,
+        0,
+        "a vector drive does not fit in the two rows above the keel"
+    );
+    assert.equal(
+        zonePlacements([], [3, 3, 2]).placements,
+        60,
+        "a vector drive has 2 x 3 x 10 places on the unzoned half"
     );
     const lance = zonePlacements(["Bow"], [1, 1, 3]);
     assert.equal(
         lance.placements,
-        80,
-        "a lance has 2 x 8 x 5 places in the bow"
+        40,
+        "a lance has 4 x 5 x 2 places in the bow of the half"
     );
     assert.ok(
         lance.lit[0][0][3] && !lance.lit[0][0][4],
