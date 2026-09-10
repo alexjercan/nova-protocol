@@ -522,6 +522,22 @@ fn drawable<'w>(
 /// away on the next frame's `Update`, which is the earliest point at which
 /// `PostUpdate`'s compile and the render world's extract have both had them.
 ///
+/// A hidden instance warms the WGSL and the two COMPUTE pipelines, and not the
+/// render one. `compile_effects` generates the source for hidden instances on
+/// purpose - that is the background compile hanabi documents - and neither
+/// `allocate_effects` nor `prepare_init_update_pipelines` has a visibility
+/// gate, so the init and update pipelines are specialized from these. The
+/// render pipeline is specialized only in `emit_sorted_draw`, from a view's
+/// `RenderVisibleEntities`, which a hidden entity is never in; hanabi in fact
+/// drops it a stage earlier, where `prepare_batch_inputs` skips an invisible
+/// effect whose asset is `SimulationCondition::WhenVisible` (the default, and
+/// what these assets take). So the first death of a run still creates one
+/// render pipeline, and `nova_core` asks for `synchronous_pipeline_compilation`
+/// on every backend, so that creation is paid on the render thread rather than
+/// on a task. Warming it would take a VISIBLE instance in a live view, which
+/// this cannot have where it runs: `PostStartup` is before any scenario has
+/// spawned a camera, so there is no view to be visible to.
+///
 /// In `PostStartup` after [`SettingsSystems`], and again in `Update` whenever
 /// [`GraphicsBudget`] changes while the graphs are still cold
 /// ([`pyres_are_cold`]). The tier is the reason for both times.
@@ -583,7 +599,8 @@ fn pyres_are_cold(pyres: Res<PyreEffects>) -> bool {
 /// In `Update` and not in the same frame's `PostUpdate` or `Last`: hanabi
 /// compiles in `PostUpdate` and the render world extracts after the whole main
 /// schedule, so a warm instance has to survive the frame it was spawned in to
-/// be both compiled and specialized. [`Ref::is_added`] is what draws that
+/// be compiled and to reach the render world at all - which is what mints its
+/// WGSL and specializes its two compute pipelines. [`Ref::is_added`] is what draws that
 /// line - on the frame they were spawned these are still new, on the next they
 /// are not.
 fn cool_the_warm_pyres(mut commands: Commands, warm: Query<(Entity, Ref<PyreWarmMarker>)>) {
