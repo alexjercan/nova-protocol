@@ -281,22 +281,24 @@ const HULK_PYRE: PyreScale = PyreScale {
 
 impl PyreEffects {
     /// The pair for a death, building it on the first one that needs it.
-    fn pair(&mut self, size: PyreSize, effects: &mut Assets<EffectAsset>) -> (PyrePair, PyreScale) {
+    ///
+    /// The graphs alone. [`PyreSize::scale`] is the one place a caller asks
+    /// what a size is authored at, so adding a size cannot leave two answers
+    /// to disagree.
+    fn pair(&mut self, size: PyreSize, effects: &mut Assets<EffectAsset>) -> PyrePair {
         let (scale, name) = (size.scale(), size.name());
         let slot = match size {
             PyreSize::Section => &mut self.section,
             PyreSize::Hulk => &mut self.hulk,
         };
-        let pair = slot
-            .get_or_insert_with(|| PyrePair {
-                core: effects.add(build_pyre_core(scale.core, &format!("pyre_{name}_core"))),
-                ejecta: effects.add(build_pyre_ejecta(
-                    scale.ejecta,
-                    &format!("pyre_{name}_ejecta"),
-                )),
-            })
-            .clone();
-        (pair, scale)
+        slot.get_or_insert_with(|| PyrePair {
+            core: effects.add(build_pyre_core(scale.core, &format!("pyre_{name}_core"))),
+            ejecta: effects.add(build_pyre_ejecta(
+                scale.ejecta,
+                &format!("pyre_{name}_ejecta"),
+            )),
+        })
+        .clone()
     }
 }
 
@@ -574,7 +576,7 @@ fn warm_the_pyres(
     };
     let dot = soft_dot.handle(&mut images);
     for size in [PyreSize::Section, PyreSize::Hulk] {
-        let (pair, _) = pyres.pair(size, &mut effects);
+        let pair = pyres.pair(size, &mut effects);
         for handle in [pair.core, pair.ejecta] {
             commands.spawn((
                 Name::new("Pyre Warm-Up"),
@@ -677,7 +679,8 @@ fn light_the_pyre(
     } else {
         PyreSize::Section
     };
-    let (pair, scale) = pyres.pair(size, &mut effects);
+    let scale = size.scale();
+    let pair = pyres.pair(size, &mut effects);
     let drift = inherited_drift(entity, &q_drift, &q_parents);
     let at = frame.translation();
     let dot = soft_dot.handle(&mut images);
