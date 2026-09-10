@@ -1,6 +1,6 @@
 # Release v0.13.0
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 10
 - TAGS: v0.13.0,release,meta
 

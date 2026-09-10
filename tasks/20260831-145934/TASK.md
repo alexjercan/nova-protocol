@@ -1,6 +1,6 @@
 # Epic: v0.13.0 puts the game on screen
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.13.0,epic
 
