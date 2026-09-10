@@ -15,6 +15,14 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Web & Platform
+- Complete comic episode one, "A useful job": eighteen illustrated pages follow
+  Kaveri's replacement pickup, rescue, and return. Released-only Story builds
+  now include it.
+- Illustration art exports at the precision its drawn size can show: episode-one
+  panel art falls from 11.7 MB to 10.5 MB and the committed lore design sheets
+  by 10%, with no visible change.
+
 ### Fixes
 - A GOTO engaged while already drifting at the target no longer turns the ship
   tail-first and coasts with the drive cold: the leg commits to its brake only
@@ -48,14 +56,6 @@ does NOT get an entry - and it is the only place they are written down.
   being clipped away.
 - A comic link to a page that no longer exists says so and corrects the address
   bar, instead of quietly opening page one under the old page's fragment.
-
-### Web & Platform
-- Complete comic episode one, "A useful job": eighteen illustrated pages follow
-  Kaveri's replacement pickup, rescue, and return. Released-only Story builds
-  now include it.
-- Illustration art exports at the precision its drawn size can show: episode-one
-  panel art falls from 11.7 MB to 10.5 MB and the committed lore design sheets
-  by 10%, with no visible change.
 
 ### Internals & Tooling
 - A `web` CI job runs `npm run ci` - format, lint, fourteen suites, the
