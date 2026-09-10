@@ -140,6 +140,13 @@ def reaching_arm(name):
     return group(art,data_character=name,data_pose='reach-handhold')
 
 
+def _closed_hand(name):
+    """Draw the closed hand alone, gripping the work-bust frame's rail at (5, 425)."""
+    c = FACE_COLORS[name]
+    art = path('M-2 410L-11 395Q-14 387-7 386Q-1 386 6 402L17 404Q29 405 28 416L23 438Q21 446 13 445L-5 438Q-11 434-9 428L-1 422Z',c['skin'],width=1.8)
+    return art+path('M4 411L24 416M1 420L23 425M0 430L20 435',stroke=c['lines'],width=1.3)
+
+
 def gripping_arm(name):
     """Draw a bent sleeve and closed hand; the scene supplies a rail at (5, 425).
 
@@ -150,8 +157,7 @@ expression, and owns no equipment. The grip fits the work-bust drawing frame.
     art = path('M57 327Q13 333-9 373L-29 416L3 449L33 423L28 394L73 368Z',c['coat'],width=2.5)
     art += path('M45 345L14 375L-5 410M-18 418L2 434',stroke=c['coat_light'],width=2)
     art += path('M-10 403L17 405L24 431L-3 440L-18 423Z',c['coat_shadow'],width=2)
-    art += path('M-2 410L-11 395Q-14 387-7 386Q-1 386 6 402L17 404Q29 405 28 416L23 438Q21 446 13 445L-5 438Q-11 434-9 428L-1 422Z',c['skin'],width=1.8)
-    art += path('M4 411L24 416M1 420L23 425M0 430L20 435',stroke=c['lines'],width=1.3)
+    art += _closed_hand(name)
     return group(art,data_character=name,data_pose='handhold-grip')
 
 
@@ -235,7 +241,4 @@ this layer contains no head, equipment, or assumption about gravity.
 
 def rail_grip_hand(name):
     """Close a hand around a vertical scene rail at the local origin, without an arm."""
-    c = FACE_COLORS[name]
-    art = path('M-2 410L-11 395Q-14 387-7 386Q-1 386 6 402L17 404Q29 405 28 416L23 438Q21 446 13 445L-5 438Q-11 434-9 428L-1 422Z', c['skin'], width=1.8)
-    art += path('M4 411L24 416M1 420L23 425M0 430L20 435', stroke=c['lines'], width=1.3)
-    return group(group(art, 'translate(-5 -425)'), data_character=name, data_pose='rail-grip-hand')
+    return group(group(_closed_hand(name), 'translate(-5 -425)'), data_character=name, data_pose='rail-grip-hand')

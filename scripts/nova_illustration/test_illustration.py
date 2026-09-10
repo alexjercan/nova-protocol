@@ -16,7 +16,7 @@ from nova_illustration.colors import ELENA, MATERIALS
 from nova_illustration.expressions import EXPRESSIONS, facial_features
 from nova_illustration.faces import FACES, expression_names, frontal_head
 from nova_illustration.lettering import labelled_speech
-from nova_illustration.portraits import GANTRY_CREW, WORK_CREW, elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, standing_body, work_inspection, work_portrait, supported_owen, freefall_guide, stretcher_grip, rail_grip_hand
+from nova_illustration.portraits import GANTRY_CREW, WORK_CREW, _closed_hand, elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, standing_body, work_inspection, work_portrait, supported_owen, freefall_guide, stretcher_grip, rail_grip_hand
 from nova_illustration.scenery import aquila, transfer_hall
 from nova_illustration.ships import DRAW_TOLERANCE, Face, MODELS, VIEWS, bounds, box, contour_segments, dot, draw_precision, hull_segment, normal, painter_order, render_faces, render_ship, ship_faces, split_surface, sub
 from nova_illustration.styles import present
@@ -44,6 +44,14 @@ class IllustrationTests(unittest.TestCase):
             self.assertEqual(ET.fromstring(art).get('data-pose'), 'freefall-guide')
         with self.assertRaises(KeyError):
             freefall_guide('unknown')
+
+    def test_the_rail_hand_and_the_gripping_arm_draw_one_shared_hand(self):
+        for name in FACES:
+            hand = _closed_hand(name)
+            self.assertEqual(gripping_arm(name).count(hand), 1)
+            self.assertEqual(rail_grip_hand(name).count(hand), 1)
+        with self.assertRaises(KeyError):
+            _closed_hand('unknown')
 
     def test_support_grips_own_no_heads_or_rails_and_reject_unknown_people(self):
         for name in ('rina', 'ivo', 'samir'):
