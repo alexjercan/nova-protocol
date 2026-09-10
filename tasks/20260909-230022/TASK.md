@@ -808,6 +808,176 @@ not fix that one separately.
 6. The GOTO BLOCKER is independent of all of the above and is the only item
    here that a player can hit.
 
+## Continued 2026-09-10: G6-G11
+
+Dispatched two lanes at a time on 2026-09-10, against `88a7445b4` for G6/G7 and
+against HEAD for G8-G11. The comic groups were RE-SCOPED as the earlier
+disposition asked: the comic work has since landed at `8896f385f`, so those
+lanes reviewed the completed episode rather than the superseded tree.
+
+Still no measurement slot. Every claim below is from reading code, running unit
+suites, or arithmetic - no rendered example, no probe, no pixel comparison.
+
+| # | Group | Lane | Status |
+|-|-|-|-|
+| G6 | News-post web widgets | correctness | COMPLETE (path-scoped to the physics widgets) |
+| G7 | Release v0.13.0 and changelog | contracts | COMPLETE |
+| G8 | Comic build and deployment | contracts | COMPLETE |
+| G9 | Comic DSL, lettering, panels, reader | correctness | COMPLETE |
+| G10 | Illustration library and episode art | correctness | COMPLETE (re-scoped to HEAD) |
+| G11 | Episode pages as content | contracts | COMPLETE (re-scoped to HEAD) |
+
+### G11 - the two that ship to readers
+
+**BLOCKER - `web/src/comics/season-1/episode-1/pages/*.ts` - 29 of 50 panel
+`action` fields are illustrator directives, and they ship verbatim as the
+reader-facing transcript.** `comic-script-build.js:199-213` builds the
+transcript from `action`, and `comic-build.js:141-142` publishes it as both the
+`<noscript>` fallback and the Transcript modal. So a screen-reader user reads
+"Do not draw looping jet-fighter trails" (`page-11.ts:11`) and "Tomas is not
+isolated as the scene's unkind person" (`page-09.ts:118`) instead of a
+description. Panels 2C, 9C, 12C and 13B carry no visual description at all.
+`README.md:66` already says production constraints belong in `NOTES.md`.
+
+**BLOCKER - `page-04.ts:56` and four more - the transcript tells the
+accessibility audience the plot the sighted reader is denied.** Five `action`
+clauses name the attack, the rescue and the conspiracy; zero dialogue lines do.
+`lore/seasons/season-1.md` states the rule: "The audience learns about the
+attack alongside them ... no independent cutaway." Page 4 says "No attack or
+pursuit appears" four pages before the distress call; page 15 says "not a
+conveniently labelled conspiracy file". The POV contract is broken only for the
+readers who cannot see the art.
+
+**MAJOR - all 18 `purpose` fields become the page's `aria-label`**
+(`comic-script-build.js:281` -> `comic-lettering.ts:280`). Shipped alt text
+includes "Establish Nadia and Gantry as working colleagues, not doomed victims"
+and "without an on-foot game promise".
+
+**MAJOR - `page-05.ts:19`** - the released episode's transcript calls its own
+location card "a draft stamp". MINOR: `page-07.ts:54` and `page-11.ts:11`
+hand-write "No dialogue." that the DSL already appends; `README.md:70-87`'s
+sample uses a dialogue id scheme no page uses.
+
+### G9 - the comic engine
+
+**MAJOR - `comic-lettering.ts:140,145` - a one-line balloon with a left or
+right tail draws a malformed outline, and five ship in episode one.**
+Re-derived arithmetically: `h = 42 + 27 * lines` and the tail re-attaches at
+`0.65h + 10` while the next command is `V(h - 24)`, so the outline reverses
+unless `h >= 97.14`. One line (`h = 69`) backtracks 9.85 px, two lines
+(`h = 96`) by 0.40. Twelve left/right-tailed balloons ship.
+
+**MAJOR - `comic-script.ts:86` - the speaker is the one id in the DSL with no
+registry**, so `Lelia` or `Leila / Comms` builds green and ships a wrong
+nameplate and a wrong transcript line. Every other id is checked.
+
+**MAJOR - `comic-script-build.js:288-318` - lettering and card geometry is
+never checked against the panel's own scene size.** An escaped balloon
+overdraws the neighbouring panel (`comic-panels.ts:84-92`, `overflow: visible`);
+an escaped card is silently clipped away while the transcript still lists it.
+Zero violations in the shipped episode.
+
+**MAJOR - the compositor has no automated test.** `comic-lettering.ts` and
+`comic-panels.ts` are covered only by three `wrapDialogue` assertions.
+`ComicPlayer`'s 290 lines have none. MINOR: DSL errors name no page or panel;
+an unknown fragment silently opens page 1; the README documents the wrong
+coordinate space for `label`; `compileScript`'s "Unknown scene" is unreachable
+because Python raises `KeyError` first.
+
+### G6 - the news-post widgets
+
+**MAJOR - `widgets.ts` `zonePlacements` counts anchors on the 8-wide mirrored
+ship; the collapse decides on the 4-wide starboard half.** Re-derived:
+`Grid::starboard_half` sets `size = (half_width, height, length)` = (4, 5, 11)
+(`grid.rs:43-52`, `nova_wfc/src/lib.rs:246-250`), and `lib.rs:138-139` refuses a
+grammar whose half-width is short of a seeded drive - proof the half grid is
+where placement is judged. A 5-wide capital drive reports 36 places and has
+zero.
+
+**MAJOR - the same widget intersects several zones per part; `zone` is
+`Option<GrammarZone>`** in both `ship_grammar.rs:155` and `tiles.rs:33` ("The
+only region of the hull this part may stand in"). The multi-select key row and
+its two "impossible intersection" readouts describe an authoring path that does
+not exist, and a test blesses it.
+
+**MAJOR - `widgets.test.ts` pins ratios and signs, not the game constants**, so
+`LANCE_RECOIL_IMPULSE`, `OCCLUSION_CONTACT_RANGE`, `ARRIVAL_STANDOFF`, the
+spatial-audio constants and the sound-cue filenames all drift silently. Every
+value is correct today; nothing would catch the next Rust edit.
+
+MINOR: thirteen `file.rs:NNN` provenance citations point at the wrong lines,
+two into `#[cfg(test)]` code; `collapseBudget.unchipped` is one crater high
+because `spew.rs:567` spends the budget per chip, not per crater, and
+`widgets.test.ts:612` pins the wrong value; `RAILGUN_BASE_HEALTH` is dead;
+an HTML comment names an `AudioRoute` variant that does not exist.
+
+### G7 - the release record
+
+**MAJOR - `CHANGELOG.md:437-438` documents nine First Shift production scenes
+that were deleted in the same cycle and never shipped.** Re-derived: at tag
+`v0.13.0`, `examples/playable/` holds only `first_shift_map.rs` and
+`first_shift_ships.rs`, and `first_shift_scene.rs` returns zero hits in the
+tagged tree. `220509616` removed the six chapter entries and missed this one.
+
+**MAJOR - `CHANGELOG.md:136-138` is a shipped format break with no marker.**
+`spawn.rs:328` declares `asteroid_kinds: Vec<(String, u32)>` with no
+`serde(default)`, where both its neighbours carry it. The field did not exist at
+v0.12.0, and nine base scenarios plus two portal mods used `ScatterObjects`
+then. The entry directly above IS marked `**(breaking)**`; this one is not, and
+it breaks non-asteroid scatters the marked entry never mentions.
+
+MINOR: the fleet-move entry carries its marker but drops the migration sentence
+the news post has; `nova_mod_format/src/lib.rs:140` says the story campaign
+ships `enabled_by_default` and the flag has zero users.
+
+Verified and clean: all 165 entries under the 200-character cap, subsystem
+order, the version bump across 29 manifests and both link refs, and 138
+backticked identifiers.
+
+### G8 and G10 - one finding, found from two sides
+
+**MAJOR - no CI job runs any web or Python test.** `ci.yaml` has six jobs and no
+Node step; the only `npm` in any workflow is `npm ci` + `npm run build:*` in the
+two deploy workflows. `web/package.json` defines a full `ci` script chaining
+fourteen suites - including `widgets.test.ts` and `test:deploy` - and none of it
+runs anywhere. `scripts/test_deploy_pages.py:155` actively asserts
+`assertNotIn('npm run test:deploy', comic)`, pinning the comic workflow out of
+the one test written to catch a broken `publicPath`. The "Generated art is
+deterministic" step (`ci.yaml:60`) covers `gen-greebles.py` and
+`gen-thruster-shells.py` only - not the 62 Python illustration tests, not
+`gen-lore-designs.py --check`, and not the comic generator, so ~19k lines of
+committed generated art have no reproducibility gate. The G10 lane ran all of
+it: 62 tests pass and the comic build is byte-identical across processes with
+randomised hash seeds, so nothing is broken - only ungated.
+
+### G10 - the illustration library
+
+**MAJOR - "which body does this character have" is re-derived in three places
+with three inconsistent coverage sets** (`portraits.py:194`, `aquila.py:23`,
+`transfer.py:76`). `held_person('ivo')` and `guide_layers('nadia')` raise
+`KeyError` for characters who have a registered body and appear in the episode.
+
+**MAJOR - 35 of 50 scene functions are entered by no test**, including
+`opening.coffee_break`, the sole caller of both authored facial expressions -
+the feature `4797eab8b` is named for. Two tests assert expressions ABSENT and
+none asserts one present. Four art modules have no test file.
+
+**MAJOR - `ships.py:457` emits full polygon counts at fixed 3-decimal precision
+regardless of draw scale**: 11.7 MB over 50 scenes, one 1 MB panel whose ship
+occupies 85x48 px with 1,666 polygons.
+
+MINOR: `lettering.speech()` has no caller in the shipped tree; `rail_grip_hand`
+is duplicated verbatim inside `gripping_arm`; the pressure-window frame is
+implemented three ways and one drops its `data-prop`; eleven dead `w = 1416`
+assignments contradict the scenes they sit in; `render_scene` validates the
+frame but never the art inside it; `build-comics.py:21` reads and writes with
+the locale encoding.
+
+### Groups now complete
+
+G1-G11 have all run. The review's remaining hole is unchanged and is not a
+coverage gap: NO LANE IN ANY GROUP HELD THE MEASUREMENT SLOT.
+
 ## Remaining review gaps
 
 ### Groups that never ran
