@@ -186,8 +186,9 @@ const STATUS_EVERY: u32 = 120;
 
 // --- the loop mode ----------------------------------------------------------
 
-/// Set in the environment, the range records its collapse as a documentation
-/// loop instead of only reading it. See the module docs.
+/// Set to `1`, the range records its collapse as a documentation loop instead
+/// of only reading it. See the module docs. A value other than `0` or `1` is
+/// an authoring error and panics rather than picking a path.
 const LOOP_ENV: &str = "NOVA_COLLAPSE_LOOP";
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "news-0130-hull-collapse";
@@ -215,7 +216,14 @@ const LOOP_AFTERMATH_SECS: f32 = 6.0;
 const LOOP_CRF: u32 = 40;
 
 fn loop_requested() -> bool {
-    std::env::var_os(LOOP_ENV).is_some()
+    let Ok(raw) = std::env::var(LOOP_ENV) else {
+        return false;
+    };
+    match raw.as_str() {
+        "0" => false,
+        "1" => true,
+        other => panic!("{LOOP_ENV}={other:?} must be 0 or 1"),
+    }
 }
 
 /// Marks one block cell with its lattice address, so a bite can be read as a
@@ -526,7 +534,6 @@ fn open_the_loop(world: &mut World) {
     #[cfg(feature = "debug")]
     {
         hide_hud(world);
-        hide_status_bar(world);
         pose_camera(world, LOOP_EYE, LOOP_LOOK);
         loop_start(world, LOOP_NAME);
     }

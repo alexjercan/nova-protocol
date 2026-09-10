@@ -295,6 +295,12 @@ done
 # stages them, so a sweep only reads them back out of the shipped tree; they
 # are news loops, so they are frozen by definition. The middle field names
 # where the footage came from and stands in the manifest's example column.
+#
+# They face the SAME shape and budget gates a staged loop does. A producer
+# writes 1280x720 because the profile says so; a hand-composed split is cut at
+# whatever the editor was set to, and 1920x1080 is the natural size to reach
+# for since that is what every producer shoots at. Nothing can restage an
+# import, so the gate that catches it here is the only one there is.
 #   loop|source|why
 IMPORTED=(
     "news-0130-agent-run|bench-replay|cut from the recorded tutorial play in bench-runs/395a8f1b, wire lines overlaid from its audit"
@@ -307,14 +313,20 @@ IMPORTED=(
 )
 
 package_import() {
-    local loop="$1" source="$2" file duration bytes
+    local loop="$1" source="$2" file duration width height bytes
     file="$OUT/${loop}.webm"
     [[ -s "$file" ]] || {
         echo "!! imported ${loop}.webm is not in ${OUT}: it is cut by hand, so nothing can restage it" >&2
         exit 1
     }
     duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$file")"
+    width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$file")"
+    height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$file")"
     bytes="$(stat -c%s "$file")"
+    [[ "$width" == "1280" && "$height" == "720" ]] || {
+        echo "!! imported ${loop}.webm is ${width}x${height}, expected 1280x720 - re-cut the import" >&2
+        exit 1
+    }
     [[ "$bytes" -le "$MAX_BYTES" ]] || {
         echo "!! ${loop}.webm is ${bytes} bytes (budget ${MAX_BYTES}) - re-cut the import" >&2
         exit 1
