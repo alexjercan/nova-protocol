@@ -15,15 +15,17 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
-### Performance
-- The skybox cubemaps ship at 1024 px faces, not 4096. The sky costs 24 MB of
-  video memory instead of 384 MB, and as much again of browser heap, so the web
-  build loads on a nearly full GPU.
+## [0.13.2] - 2026-09-10
 
 ### Modding & Mod Portal
 - A content file that fails to load names the mod and the file it came from, and
   says that a downloaded mod which no longer parses was built for an older game
   version and wants an update.
+
+### Performance
+- The skybox cubemaps ship at 1024 px faces, not 4096. The sky costs 24 MB of
+  video memory instead of 384 MB, and as much again of browser heap, so the web
+  build loads on a nearly full GPU.
 
 ### Fixes
 - The editor's Generate never hands back a hull with no drive: a bare transom
@@ -2195,7 +2197,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.13.1...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/alexjercan/nova-protocol/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/alexjercan/nova-protocol/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/alexjercan/nova-protocol/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/alexjercan/nova-protocol/compare/v0.11.0...v0.12.0
