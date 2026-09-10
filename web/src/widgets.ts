@@ -9441,7 +9441,7 @@ export interface ZonePlacements {
     lit: boolean[][][];
     /** Legal anchor positions of the part on the starboard half. */
     placements: number;
-    /** Cells of the half that pass the ticked zones on their own. */
+    /** Cells of the half that pass the zone on their own. */
     cells: number;
 }
 
@@ -9449,18 +9449,23 @@ export interface ZonePlacements {
 // in - `Grid::starboard_half` is `(half_width, height, length)`, four cells
 // across (grid.rs:43-52, nova_wfc/src/lib.rs:246-250) - not on the mirrored
 // ship. An anchor is legal when every cell of the block is inside the half and
-// passes every ticked zone. So a 5-wide capital drive has nowhere to stand at
+// passes the part's zone. So a 5-wide capital drive has nowhere to stand at
 // all, which is the same answer `runnable` gives a grammar too narrow for its
 // own seeded stern drive (lib.rs:138-140).
+//
+// ONE zone, or none: `GrammarPart::zone` is an `Option<GrammarZone>` - "the
+// only region of the hull this part may stand in, or `None` for a part free to
+// stand anywhere the mating rule allows" (ship_grammar.rs:146-155). There is
+// no authoring path that intersects two.
 export function zonePlacements(
-    zones: GrammarZone[],
+    zone: GrammarZone | null,
     part: Vec3T
 ): ZonePlacements {
     const W = GRAMMAR_HALF_WIDTH;
     const H = GRAMMAR_HEIGHT;
     const L = GRAMMAR_LENGTH;
     const pass = (x: number, y: number, z: number): boolean =>
-        zones.every((zone) => zoneAllows(zone, x, y, z));
+        zone === null || zoneAllows(zone, x, y, z);
     const lit: boolean[][][] = [];
     let cells = 0;
     for (let x = 0; x < W; x += 1) {
@@ -9512,14 +9517,15 @@ function initHullZones(host: HTMLElement): void {
             `${GRAMMAR_HEIGHT} x ${GRAMMAR_LENGTH} STARBOARD HALF and mirrors ` +
             `it into a ${2 * GRAMMAR_HALF_WIDTH}-wide ship, keel along the ` +
             "middle row. Every placement is decided on that half, so the " +
-            "widest part the hull can take is four cells across. A zone is a " +
-            "region of the half, and a part may stand only where EVERY cell " +
-            "of it is inside every zone its grammar names. Pick a part, tick " +
-            "zones."
+            "widest part the hull can take is four cells across. A part " +
+            "carries ONE zone or none, and it may stand only where EVERY cell " +
+            "of it is inside that zone. Pick a part, pick its zone."
     );
 
     let partIndex = 0;
-    const ticked = new Set<GrammarZone>();
+    // `None` is the first key, because it is `GrammarPart::zone`'s default and
+    // what most of the shipped grammar's parts carry.
+    let zone: GrammarZone | null = null;
     const partKeys = keyRow(
         ZONE_PARTS.map((part) => part.label),
         partIndex,
@@ -9528,21 +9534,14 @@ function initHullZones(host: HTMLElement): void {
             update();
         }
     );
-    const zoneKeys = el("div", "widget__keys");
-    for (const zone of GRAMMAR_ZONES) {
-        const button = el("button", "widget__btn", zone.toUpperCase());
-        button.type = "button";
-        button.setAttribute("aria-pressed", "false");
-        button.addEventListener("click", () => {
-            const on = !ticked.has(zone);
-            if (on) ticked.add(zone);
-            else ticked.delete(zone);
-            button.classList.toggle("is-on", on);
-            button.setAttribute("aria-pressed", String(on));
+    const zoneKeys = keyRow(
+        ["NO ZONE", ...GRAMMAR_ZONES.map((one) => one.toUpperCase())],
+        0,
+        (index) => {
+            zone = index === 0 ? null : GRAMMAR_ZONES[index - 1];
             update();
-        });
-        zoneKeys.appendChild(button);
-    }
+        }
+    );
 
     // Two views sharing the length axis: the side (rows) above, the top
     // (columns) below, bow at the left. Both draw the MIRRORED ship, because
@@ -9665,14 +9664,13 @@ function initHullZones(host: HTMLElement): void {
     );
 
     const stats = el("div", "widget__stats");
-    const cellStat = stat(stats, "half cells in the zones");
+    const cellStat = stat(stats, "half cells in the zone");
     const placeStat = stat(stats, "places on the half");
     const readout = el("p", "widget__readout");
 
     const update = (): void => {
         const part = ZONE_PARTS[partIndex];
-        const zones = GRAMMAR_ZONES.filter((zone) => ticked.has(zone));
-        const result = zonePlacements(zones, part.cells);
+        const result = zonePlacements(zone, part.cells);
         for (let y = 0; y < GRAMMAR_HEIGHT; y += 1) {
             for (let z = 0; z < GRAMMAR_LENGTH; z += 1) {
                 const lit = result.lit.some((column) => column[y][z]);
@@ -9692,9 +9690,9 @@ function initHullZones(host: HTMLElement): void {
         const [w, h, d] = part.cells;
         const box = `${w}x${h}x${d}`;
         const where =
-            zones.length === 0
+            zone === null
                 ? "anywhere the mating rule allows"
-                : `inside ${zones.join(" and ")}`;
+                : `inside ${zone}`;
         readout.classList.remove("is-fault", "is-warn");
         if (result.placements > 0) {
             readout.textContent =
@@ -9705,24 +9703,12 @@ function initHullZones(host: HTMLElement): void {
             return;
         }
         readout.classList.add("is-fault");
-        const thirds = zones.filter((zone) =>
-            ["Bow", "Amidships", "Stern"].includes(zone)
-        );
         if (w > GRAMMAR_HALF_WIDTH) {
             readout.textContent =
                 `Nowhere at all. A ${box} ${part.label.toLowerCase()} is ${w} ` +
                 `cells across and the collapse runs on a ${GRAMMAR_HALF_WIDTH}` +
                 "-cell half, so no zone can help it: the grammar has to be " +
                 "widened before this part can stand anywhere on the hull.";
-        } else if (thirds.length >= 2) {
-            readout.textContent =
-                `Nothing stands here. ${thirds.join(" and ")} are different ` +
-                "thirds of the length, and no cell is in two of them at once.";
-        } else if (ticked.has("Dorsal") && ticked.has("Ventral")) {
-            readout.textContent =
-                "Nothing stands here. No cell is both above and below the " +
-                "keel row - and the keel row itself is neither: it is the " +
-                "spine, not a flank.";
         } else {
             readout.textContent =
                 `No place for a ${box} ${part.label.toLowerCase()} ${where}: ` +
@@ -9732,7 +9718,7 @@ function initHullZones(host: HTMLElement): void {
     };
 
     host.appendChild(partKeys.row);
-    host.appendChild(zoneKeys);
+    host.appendChild(zoneKeys.row);
     host.appendChild(plot);
     host.appendChild(stats);
     host.appendChild(readout);
