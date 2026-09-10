@@ -533,6 +533,21 @@ fn drawable<'w>(
 /// away on the next frame's `Update`, which is the earliest point at which
 /// `PostUpdate`'s compile and the render world's extract have both had them.
 ///
+/// In `PostStartup` after [`SettingsSystems`], and again in `Update` whenever
+/// [`GraphicsBudget`] changes while the graphs are still cold
+/// ([`pyres_are_cold`]). The tier is the reason for both times.
+///
+/// `PostStartup` is the first point at which the persisted preset a player
+/// chose has been applied, so this never builds the graphs a spawn-less run
+/// exists to skip. It is also before the first frame of ANY state, which is
+/// what a state transition cannot promise: the main-menu backdrop is a
+/// scenario whose whole loop is a torpedo erasing a ship, so an earlier cut
+/// that warmed on entering `Playing` left the first deaths a player ever sees
+/// to mint their own shaders. The `Update` pass covers the one other way a
+/// cold store becomes worth filling: a tier RAISED from the pause overlay,
+/// which changes the budget without re-entering a state and so is reached by
+/// no `OnEnter`.
+///
 /// A hidden instance warms the WGSL and the two COMPUTE pipelines, and not the
 /// render one. `compile_effects` generates the source for hidden instances on
 /// purpose - that is the background compile hanabi documents - and neither
@@ -548,21 +563,6 @@ fn drawable<'w>(
 /// on a task. Warming it would take a VISIBLE instance in a live view, which
 /// this cannot have where it runs: `PostStartup` is before any scenario has
 /// spawned a camera, so there is no view to be visible to.
-///
-/// In `PostStartup` after [`SettingsSystems`], and again in `Update` whenever
-/// [`GraphicsBudget`] changes while the graphs are still cold
-/// ([`pyres_are_cold`]). The tier is the reason for both times.
-///
-/// `PostStartup` is the first point at which the persisted preset a player
-/// chose has been applied, so this never builds the graphs a spawn-less run
-/// exists to skip. It is also before the first frame of ANY state, which is
-/// what a state transition cannot promise: the main-menu backdrop is a
-/// scenario whose whole loop is a torpedo erasing a ship, so an earlier cut
-/// that warmed on entering `Playing` left the first deaths a player ever sees
-/// to mint their own shaders. The `Update` pass covers the one other way a
-/// cold store becomes worth filling: a tier RAISED from the pause overlay,
-/// which changes the budget without re-entering a state and so is reached by
-/// no `OnEnter`.
 fn warm_the_pyres(
     mut commands: Commands,
     effects: Option<ResMut<Assets<EffectAsset>>>,
