@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -366,33 +366,71 @@ names its own root on <code>SettingsStorePlugin</code> instead.</p>
 </div>
 <h2 id="not-on-the-roster"><a class="header" href="#not-on-the-roster">Not on the roster</a></h2>
 <ul>
-<li><strong>Example-local knobs.</strong> <code>NOVA_STRESS_PD_*</code>, <code>NOVA_EDITOR_FRAMELOG</code>,
+<li>
+<p><strong>Example-local knobs.</strong> <code>NOVA_STRESS_PD_*</code>, <code>NOVA_EDITOR_FRAMELOG</code>,
 <code>NOVA_SOAK_SCENARIO</code>, <code>NOVA_SOAK_SECS</code>, <code>NOVA_VFX_RANGE_BARE_SLUG</code>,
-<code>NOVA_RAILGUN_AFTERMATH</code>, <code>NOVA_RAILGUN_LIVE</code> belong to one example each and
-stay literals beside the range that reads them. The two railgun names pick
-which of the shipped loops <code>screenshot_railgun</code> records - the aftermath cut,
-and the real-speed pass against the default slowed clock - and
-<code>scripts/capture-web-media.sh</code> sets them. Neither goes wrong quietly.
+<code>NOVA_RAILGUN_AFTERMATH</code>, <code>NOVA_RAILGUN_LIVE</code>, <code>NOVA_WAKE_LOOP</code>,
+<code>NOVA_COLLAPSE_LOOP</code>, <code>NOVA_SIGHT_LOOP</code> and <code>NOVA_STANDOFF_TRACE</code> belong to
+one example each and stay literals beside the range that reads them. The two
+railgun names pick which of the shipped loops <code>screenshot_railgun</code> records -
+the aftermath cut, and the real-speed pass against the default slowed clock -
+and <code>scripts/capture-web-media.sh</code> sets them. Neither goes wrong quietly.
 <code>NOVA_RAILGUN_AFTERMATH</code> is a duration: unset it falls back to the
 producer’s own window, and a value that is not a positive number of seconds
 panics. A row that forgets <code>NOVA_RAILGUN_LIVE=1</code> records the SLOWED loop
 name, so the live row’s file never appears - and the script <code>rm -f</code>s that
 file before the run and hard-checks it after, so the capture aborts naming
 the missing loop, having overwritten the already-staged slowed row on the
-way.</li>
-<li><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
+way.</p>
+<p>The three <code>*_LOOP</code> names put one range each on its RECORDING path instead of
+its reading one, and <code>scripts/capture-web-media.sh</code> sets them.
+<code>NOVA_WAKE_LOOP=1</code> records <code>railgun_wake_bench</code>’s close pass as
+<code>news-0130-railgun-wake</code> instead of walking the stills.
+<code>NOVA_COLLAPSE_LOOP=1</code> records <code>stress_hull_collapse</code>’s collapse as
+<code>news-0130-hull-collapse</code>; the range still checks its invariants, but the
+loop pins the clock, so that run’s millisecond claims are the recorder’s and
+not the collapse’s. <code>NOVA_SIGHT_LOOP=1</code> records
+<code>system_lock_line_of_sight</code>’s drifting cover as <code>news-0130-lock-occlusion</code>
+and runs no assertions at all. Each takes <code>0</code> or <code>1</code>, and any other value is
+an authoring error that panics rather than picking a path.</p>
+<p><code>NOVA_STANDOFF_TRACE</code> is a diagnostic and not a mode: set to anything, it
+adds <code>loop_goto_standoff</code>’s per-leg print - the plan the computer publishes
+beside what the hull does, five times a second of world time - and changes
+nothing the producer records.</p>
+</li>
+<li>
+<p><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
 variable: they are <code>const Color</code>, layout and volume values in <code>nova_os_ui</code>,
 <code>nova_os</code> and <code>nova_gameplay::audio</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
-by them, so count <code>env::var</code> call sites instead of identifiers.</li>
-<li><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
+by them, so count <code>env::var</code> call sites instead of identifiers.</p>
+</li>
+<li>
+<p><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
 <code>NOVA_MODS_DIR</code>, <code>NOVA_PORT_LO</code>/<code>_HI</code> are read by <code>scripts/</code> and
 <code>web/webpack.config.js</code>; <code>NOVA_BENCH_MODEL</code>, <code>NOVA_BENCH_EFFORT</code> and
 <code>NOVA_BENCH_PERSONA</code> by <code>benchmark/</code>, which is the CODING benchmark and not
-the agent bench above. No Rust reads any of them.</li>
-<li><strong>Foreign variables the code legitimately reads</strong>: <code>DISPLAY</code>,
+the agent bench above. No Rust reads any of them.</p>
+<p>The media packagers own two more. <code>NOVA_UNFREEZE</code> takes a comma-separated
+prefix list and re-opens the frozen <code>news-</code> names of the post being authored
+(<code>NOVA_UNFREEZE=news-0130</code>), in <code>scripts/gen-web-screenshots.py</code> for stills
+and <code>scripts/capture-web-media.sh</code> for loops; without it a name a post
+already ships is never overwritten. <code>NOVA_REUSE_STAGE=1</code> tells
+<code>scripts/capture-web-media.sh</code> to package a completed <code>target/loop-shots</code>
+set rather than re-run the producers, which is the repackage path after a
+capture that finished.</p>
+</li>
+<li>
+<p><strong>Retired.</strong> <code>NOVA_MENU_PATH</code> is read by nothing. <code>examples/ui/editor.rs</code>
+owns the create-a-ship-and-Play sequence end to end, so <code>system_menu_boot</code>
+dropped the branch; the only surviving mention is that example’s module doc
+saying the branch is gone.</p>
+</li>
+<li>
+<p><strong>Foreign variables the code legitimately reads</strong>: <code>DISPLAY</code>,
 <code>WAYLAND_DISPLAY</code>, <code>RUST_LOG</code>, <code>BEVY_ASSET_ROOT</code>, <code>CARGO_*</code>, <code>CI</code>,
 <code>XDG_DATA_HOME</code>, <code>XDG_CONFIG_HOME</code>, <code>LVP_ICD</code>, <code>RUSTFLAGS</code>, <code>VK_ICD_FILENAMES</code>,
-<code>VK_DRIVER_FILES</code>, <code>WGPU_BACKEND</code>, <code>TRACE_CHROME</code>.</li>
+<code>VK_DRIVER_FILES</code>, <code>WGPU_BACKEND</code>, <code>TRACE_CHROME</code>.</p>
+</li>
 </ul>
 <h2 id="adding-one"><a class="header" href="#adding-one">Adding one</a></h2>
 <ol>

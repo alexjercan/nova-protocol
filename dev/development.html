@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -525,11 +525,20 @@ spinal lance
 (<code>screenshot_orbit</code>, <code>screenshot_goto_burn</code>, <code>screenshot_flip_burn</code>). The
 <code>loop_*</code> producers write only video; recording is not their
 privilege, though - a <code>loop_start</code>/<code>loop_end</code> pair records from any harnessed
-example, so <code>screenshot_railgun</code>, <code>screenshot_editor</code>, <code>wfc_arena</code> and
-<code>system_torpedo_launch</code> each ship a loop beside their stills. What a run makes
-is decided by <code>scripts/capture-web-media.sh</code> (loops) and
-<code>scripts/gen-web-screenshots.py</code> (stills), which name every producer and every
-file it writes. The posed LINEUPS live here too -
+example, so <code>screenshot_railgun</code>, <code>screenshot_editor</code>, <code>wfc_arena</code>,
+<code>system_torpedo_launch</code>, <code>railgun_wake_bench</code>, <code>stress_hull_collapse</code> and
+<code>system_lock_line_of_sight</code> each ship a loop beside their stills or their
+readings. What a run makes is decided by <code>scripts/capture-web-media.sh</code>
+(loops) and <code>scripts/gen-web-screenshots.py</code> (stills), which name the
+producer behind every file they package - with one deliberate gap. The three
+before/after splits are composed BY HAND from a capsule scene of the old
+release and a loop of the new one, so they enter the media script as
+IMPORTS: it names the split and the producer of its new half, but never runs
+that producer and never names the
+<code>news-0130-{sections,belt,death}-after.webm</code> file it writes.
+<code>loop_sections_compare</code>, <code>loop_belt_compare</code> and <code>loop_death_compare</code> are
+therefore run by hand, and the module doc on each says how. The posed
+LINEUPS live here too -
 <code>screenshot_thruster_gallery</code> (the shipped drive, the proposed shell family
 and the CC0 candidates in one named row) and <code>screenshot_damage_levels</code> (the
 same ship at five damage levels, side by side, which is one comparison and so
@@ -537,7 +546,11 @@ one producer). Neither registers a key, so a hand-run is a free-fly look at a
 still row; either would move to <code>playable/</code> the day it grows
 <code>greeble_catalog</code>’s selection layer.
 <code>scripts/gen-web-screenshots.py --producers</code> prints the list the site
-actually consumes, so a capture flow never runs off a hand-kept array.</li>
+actually consumes, so a capture flow never runs off a hand-kept array. Every
+run of that script first checks the producer columns against the workspace’s
+<code>[[example]]</code> names and refuses to do anything if one no longer answers, and
+<code>scripts/capture-web-shots.sh</code> stops on an empty list rather than packaging
+the shipped bytes back over themselves.</li>
 </ul>
 <p>When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in

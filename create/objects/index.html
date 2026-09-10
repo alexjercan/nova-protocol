@@ -584,7 +584,7 @@ crashing, so a missing dependency is visible instead of fatal.</p>
 <td><code>waypoint_slack</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td>patrol arrival slack override in meters on top of where the leg comes to rest (hull + arrival standoff); the default is 250 m. Small = the ship turns onto the next leg closer to each waypoint. Below ~20 m risks stalling outside the advance gate - author small, not zero</td>
+<td>patrol arrival slack override in meters on top of where the leg comes to rest (hull + arrival standoff); the default is 250 m. Small = the ship turns onto the next leg closer to each waypoint. The gate is measured from the same point the leg parks, so the slack has only the arrival's own terminal drift left to cover - author small, not zero</td>
 </tr>
 <tr>
 <td><code>arrival_standoff</code></td>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -474,12 +474,14 @@ drawing it and the greebles standing on it come along untouched. Its
 colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
 claim <code>spew</code> makes for its shards - because a hull wears hundreds of plates
 and a dynamic body per plate is the cost a dying section already refuses.</li>
-<li>The shed is CAPPED and runs on the FIXED STEP. <code>SHED_TICK_CAP</code> bounds it to
-24 fixtures a tick; the rest are deferred, never dropped, because shedding is
-what removes the <code>ChildOf</code> a plate is matched by, so a deferred one matches
-again on the next tick. On the fixed step the drain rate is 64 a second
-whatever the renderer is managing, which matters because a hull loses its
-skin in exactly the frames a collapse has already made the longest. A
+<li>The shed is CAPPED and runs on the FIXED STEP, in the phase the deaths
+arrive in. <code>SHED_TICK_CAP</code> bounds it to 24 fixtures a TICK and <code>ShedBudget</code>
+bounds it to 48 a FRAME; the rest are deferred, never dropped, because
+shedding is what removes the <code>ChildOf</code> a plate is matched by, so a deferred
+one matches again next time. Two caps and not one, because a frame recovering
+from a long stall banks up to 16 fixed steps (<code>Time&lt;Virtual&gt;</code>’s 0.25 s
+<code>max_delta</code>) and pays for all of them at once - and the frames a hull loses
+its skin in are exactly the ones a collapse has already made the longest. A
 deferred plate still wears its collider, so a piercing round crossing it
 still burns a layer.</li>
 <li><code>ShipSkinPlugin { render }</code> is split at the render line, not at the look line:
@@ -651,15 +653,31 @@ spawn queue - there is nothing left to ration.</p>
 what <code>explode</code> does not. <code>pyre.rs</code> observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at <code>SECTION_PYRE</code>, a whole hull at <code>HULK_PYRE</code>.</p>
-<p>Nothing about those graphs is built at the death. <code>warm_the_pyres</code> runs on
-entering <code>Playing</code> - under the loading screen, and late enough that the
-graphics tier a player picked in the menu is settled - and it does the whole
-job: the four graphs, the shared soft-dot mask, and one hidden instance of each
-graph. The instance is the part that matters, because <code>bevy_hanabi</code> generates a
-shader from a spawned INSTANCE and never from an asset, so a warm-up that only
-filled the asset store left the WGSL to be generated on the collapse frame.
-Those four are silent, invisible, and despawned the next frame. A tier with
-particles off builds none of it and lights nothing.</p>
+<p>Almost nothing about those graphs is built at the death. <code>warm_the_pyres</code>
+runs in <code>PostStartup</code> after the settings pass that derives the graphics budget</p>
+<ul>
+<li>late enough that the tier a player picked is settled, early enough to be
+before the first frame of any state - and it does the whole job: the four
+graphs, the shared soft-dot mask, and one hidden instance of each graph. The
+instance is the part that matters, because <code>bevy_hanabi</code> generates a shader
+from a spawned INSTANCE and never from an asset, so a warm-up that only filled
+the asset store left the WGSL to be generated on the collapse frame. Those four
+are silent, invisible, and despawned the next frame. A tier with particles off
+builds none of it and lights nothing.</li>
+</ul>
+<p>Startup and not a state transition, because deaths are not confined to
+<code>Playing</code>: the main menu’s backdrop is a scenario whose whole loop is a torpedo
+erasing a ship. There is a second pass on <code>Update</code>, run only when the graphics
+budget changes while the graphs are still cold, for the other path a state
+transition misses - a tier RAISED from the pause overlay, which never
+re-enters anything.</p>
+<p>The ALMOST is one pipeline. A hidden instance is compiled and gets its two
+compute pipelines, but <code>bevy_hanabi</code> specializes the RENDER pipeline only for
+entities a camera can see, so the first death of a run still creates one - on
+the render thread, because <code>nova_core</code> asks for
+<code>synchronous_pipeline_compilation</code> on every backend. Warming that would take a
+visible instance in a live view, and the warm-up runs before any scenario has a
+camera.</p>
 <p>What a death still mints is instances, so this half DOES need a budget:
 <code>PYRE_FRAME_CAP</code> bounds how many fireballs one frame lights, and a root’s own is
 never the one dropped, because that is the one the whole death reads as.

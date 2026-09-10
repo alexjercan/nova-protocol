@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -630,11 +630,16 @@ counting the moment a walk opens either - and a beat that stalls there holds the
 run open with nothing naming the step. Both clocks that time a run read
 <code>Time&lt;Real&gt;</code> for that reason: the step deadline, and the run-level watcher’s own
 <code>elapsed</code>.</p>
-<p>One exception, and it is by design: a loop capture pins the REAL clock to its
-profile’s frame duration, so a deadline inside a loop counts RENDERED FRAMES
-over the profile fps and not wall seconds. Budget a beat between <code>loop_start</code>
-and <code>loop_end</code> in frames, and expect a slow capture host to spend longer in the
-room than the deadline names.</p>
+<p>One exception, and it is by design: an ARMED run pins the REAL clock to the
+loop profile’s frame duration, so every deadline on it counts RENDERED FRAMES
+over the profile fps and not wall seconds. <code>LoopCapturePlugin::build</code> inserts
+the pin as soon as <code>NOVA_CAPTURE</code> is set - at plugin build, before any loop
+opens - so the pin covers the armed run END TO END and a beat outside a loop is
+frame-clocked too. Budget every beat of a capture script in frames, and expect
+a slow capture host to spend longer in the room than the deadline names. A
+pre-loop beat sized in wall seconds is silently a frame count:
+<code>loop_command_shell</code>’s <code>.deadline(30.0)</code> on its load step is 900 frames at the
+default 30 fps.</p>
 <h3 id="do-not-enter-a-state-something-else-owns"><a class="header" href="#do-not-enter-a-state-something-else-owns">Do not <code>enter</code> a state something else owns</a></h3>
 <p><code>enter</code> force-sets <code>NextState</code>, which is why a Nova script does not enter
 <code>GameStates::Playing</code>: the <code>Loading -&gt; Playing</code> transition is asset-gated by the

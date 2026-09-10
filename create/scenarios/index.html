@@ -114,6 +114,12 @@ folder and bundle shape.</p>
 </tr>
 </tbody>
 </table>
+<p>A skybox is six square faces stacked vertically in one PNG, with a <code>.png.meta</code>
+sidecar that reinterprets the stack (see
+<a href="../base-content/">Base content</a>). Size the faces for the memory they cost, not
+for the detail the source can give: every face is uploaded uncompressed, so
+1024 px faces cost 24 MB of video memory and 4096 px faces cost 384 MB. The base
+skies ship at 1024.</p>
 <p>A menu backdrop POSES ITS OWN CAMERA: author a
 <a href="../actions/#setcamera"><code>SetCamera</code></a> in its <code>OnStart</code> (the reference shot is
 <code>position: (0, 570, 1920)</code> in meters, looking at the origin, which frames

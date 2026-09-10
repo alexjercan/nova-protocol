@@ -36,19 +36,19 @@ assets" below:
   cylinders, tapers, ribs, discs), not derived from any third-party model, so
   they carry the project's own license like the rest of this section; see the
   README in that directory.
-- **Textures** (`assets/textures/*.png`, except the skybox cubemaps
+- **Textures** (`assets/base/textures/*.png`, except the skybox cubemaps
   `cubemap.png` and `cubemap_alt.png` listed under "Third-party assets")
   and **UI icons**
-  (`assets/icons/*.png`, `assets/banner.png`) - authored for the project.
+  (`assets/icons/*.png`, `assets/base/banner.png`) - authored for the project.
 - **Shaders** (`assets/shaders/*.wgsl`) - written for the project.
 
 ## Third-party assets
 
 - **Bevy icon** - [MIT License](licenses/Bevy_MIT_License.md).
-- **Skybox cubemaps** (`assets/textures/cubemap.png`,
-  `assets/textures/cubemap_alt.png`) - generated with
-  [space-3d](https://tools.wwwtyro.net/space-3d/) by Rye Terrell (wwwtyro),
-  released into the public domain under
+- **Skybox cubemaps** (`assets/base/textures/cubemap.png`,
+  `assets/base/textures/cubemap_alt.png`) - generated with
+  [space-3d](https://tools.wwwtyro.net/space-3d/) by Rye Terrell (wwwtyro)
+  and downscaled to 1024 px faces, released into the public domain under
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is
   required; credited as a courtesy.
 - **Kenney Space Kit** (`art/kenney-space-kit/`, cut into the modelled ship

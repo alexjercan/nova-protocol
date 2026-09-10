@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -660,11 +660,20 @@ spinal lance
 (<code>screenshot_orbit</code>, <code>screenshot_goto_burn</code>, <code>screenshot_flip_burn</code>). The
 <code>loop_*</code> producers write only video; recording is not their
 privilege, though - a <code>loop_start</code>/<code>loop_end</code> pair records from any harnessed
-example, so <code>screenshot_railgun</code>, <code>screenshot_editor</code>, <code>wfc_arena</code> and
-<code>system_torpedo_launch</code> each ship a loop beside their stills. What a run makes
-is decided by <code>scripts/capture-web-media.sh</code> (loops) and
-<code>scripts/gen-web-screenshots.py</code> (stills), which name every producer and every
-file it writes. The posed LINEUPS live here too -
+example, so <code>screenshot_railgun</code>, <code>screenshot_editor</code>, <code>wfc_arena</code>,
+<code>system_torpedo_launch</code>, <code>railgun_wake_bench</code>, <code>stress_hull_collapse</code> and
+<code>system_lock_line_of_sight</code> each ship a loop beside their stills or their
+readings. What a run makes is decided by <code>scripts/capture-web-media.sh</code>
+(loops) and <code>scripts/gen-web-screenshots.py</code> (stills), which name the
+producer behind every file they package - with one deliberate gap. The three
+before/after splits are composed BY HAND from a capsule scene of the old
+release and a loop of the new one, so they enter the media script as
+IMPORTS: it names the split and the producer of its new half, but never runs
+that producer and never names the
+<code>news-0130-{sections,belt,death}-after.webm</code> file it writes.
+<code>loop_sections_compare</code>, <code>loop_belt_compare</code> and <code>loop_death_compare</code> are
+therefore run by hand, and the module doc on each says how. The posed
+LINEUPS live here too -
 <code>screenshot_thruster_gallery</code> (the shipped drive, the proposed shell family
 and the CC0 candidates in one named row) and <code>screenshot_damage_levels</code> (the
 same ship at five damage levels, side by side, which is one comparison and so
@@ -672,7 +681,11 @@ one producer). Neither registers a key, so a hand-run is a free-fly look at a
 still row; either would move to <code>playable/</code> the day it grows
 <code>greeble_catalog</code>’s selection layer.
 <code>scripts/gen-web-screenshots.py --producers</code> prints the list the site
-actually consumes, so a capture flow never runs off a hand-kept array.</li>
+actually consumes, so a capture flow never runs off a hand-kept array. Every
+run of that script first checks the producer columns against the workspace’s
+<code>[[example]]</code> names and refuses to do anything if one no longer answers, and
+<code>scripts/capture-web-shots.sh</code> stops on an empty list rather than packaging
+the shipped bytes back over themselves.</li>
 </ul>
 <p>When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
@@ -2469,12 +2482,14 @@ drawing it and the greebles standing on it come along untouched. Its
 colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
 claim <code>spew</code> makes for its shards - because a hull wears hundreds of plates
 and a dynamic body per plate is the cost a dying section already refuses.</li>
-<li>The shed is CAPPED and runs on the FIXED STEP. <code>SHED_TICK_CAP</code> bounds it to
-24 fixtures a tick; the rest are deferred, never dropped, because shedding is
-what removes the <code>ChildOf</code> a plate is matched by, so a deferred one matches
-again on the next tick. On the fixed step the drain rate is 64 a second
-whatever the renderer is managing, which matters because a hull loses its
-skin in exactly the frames a collapse has already made the longest. A
+<li>The shed is CAPPED and runs on the FIXED STEP, in the phase the deaths
+arrive in. <code>SHED_TICK_CAP</code> bounds it to 24 fixtures a TICK and <code>ShedBudget</code>
+bounds it to 48 a FRAME; the rest are deferred, never dropped, because
+shedding is what removes the <code>ChildOf</code> a plate is matched by, so a deferred
+one matches again next time. Two caps and not one, because a frame recovering
+from a long stall banks up to 16 fixed steps (<code>Time&lt;Virtual&gt;</code>’s 0.25 s
+<code>max_delta</code>) and pays for all of them at once - and the frames a hull loses
+its skin in are exactly the ones a collapse has already made the longest. A
 deferred plate still wears its collider, so a piercing round crossing it
 still burns a layer.</li>
 <li><code>ShipSkinPlugin { render }</code> is split at the render line, not at the look line:
@@ -2646,15 +2661,31 @@ spawn queue - there is nothing left to ration.</p>
 what <code>explode</code> does not. <code>pyre.rs</code> observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at <code>SECTION_PYRE</code>, a whole hull at <code>HULK_PYRE</code>.</p>
-<p>Nothing about those graphs is built at the death. <code>warm_the_pyres</code> runs on
-entering <code>Playing</code> - under the loading screen, and late enough that the
-graphics tier a player picked in the menu is settled - and it does the whole
-job: the four graphs, the shared soft-dot mask, and one hidden instance of each
-graph. The instance is the part that matters, because <code>bevy_hanabi</code> generates a
-shader from a spawned INSTANCE and never from an asset, so a warm-up that only
-filled the asset store left the WGSL to be generated on the collapse frame.
-Those four are silent, invisible, and despawned the next frame. A tier with
-particles off builds none of it and lights nothing.</p>
+<p>Almost nothing about those graphs is built at the death. <code>warm_the_pyres</code>
+runs in <code>PostStartup</code> after the settings pass that derives the graphics budget</p>
+<ul>
+<li>late enough that the tier a player picked is settled, early enough to be
+before the first frame of any state - and it does the whole job: the four
+graphs, the shared soft-dot mask, and one hidden instance of each graph. The
+instance is the part that matters, because <code>bevy_hanabi</code> generates a shader
+from a spawned INSTANCE and never from an asset, so a warm-up that only filled
+the asset store left the WGSL to be generated on the collapse frame. Those four
+are silent, invisible, and despawned the next frame. A tier with particles off
+builds none of it and lights nothing.</li>
+</ul>
+<p>Startup and not a state transition, because deaths are not confined to
+<code>Playing</code>: the main menu’s backdrop is a scenario whose whole loop is a torpedo
+erasing a ship. There is a second pass on <code>Update</code>, run only when the graphics
+budget changes while the graphs are still cold, for the other path a state
+transition misses - a tier RAISED from the pause overlay, which never
+re-enters anything.</p>
+<p>The ALMOST is one pipeline. A hidden instance is compiled and gets its two
+compute pipelines, but <code>bevy_hanabi</code> specializes the RENDER pipeline only for
+entities a camera can see, so the first death of a run still creates one - on
+the render thread, because <code>nova_core</code> asks for
+<code>synchronous_pipeline_compilation</code> on every backend. Warming that would take a
+visible instance in a live view, and the warm-up runs before any scenario has a
+camera.</p>
 <p>What a death still mints is instances, so this half DOES need a budget:
 <code>PYRE_FRAME_CAP</code> bounds how many fireballs one frame lights, and a root’s own is
 never the one dropped, because that is the one the whole death reads as.
@@ -4395,11 +4426,16 @@ counting the moment a walk opens either - and a beat that stalls there holds the
 run open with nothing naming the step. Both clocks that time a run read
 <code>Time&lt;Real&gt;</code> for that reason: the step deadline, and the run-level watcher’s own
 <code>elapsed</code>.</p>
-<p>One exception, and it is by design: a loop capture pins the REAL clock to its
-profile’s frame duration, so a deadline inside a loop counts RENDERED FRAMES
-over the profile fps and not wall seconds. Budget a beat between <code>loop_start</code>
-and <code>loop_end</code> in frames, and expect a slow capture host to spend longer in the
-room than the deadline names.</p>
+<p>One exception, and it is by design: an ARMED run pins the REAL clock to the
+loop profile’s frame duration, so every deadline on it counts RENDERED FRAMES
+over the profile fps and not wall seconds. <code>LoopCapturePlugin::build</code> inserts
+the pin as soon as <code>NOVA_CAPTURE</code> is set - at plugin build, before any loop
+opens - so the pin covers the armed run END TO END and a beat outside a loop is
+frame-clocked too. Budget every beat of a capture script in frames, and expect
+a slow capture host to spend longer in the room than the deadline names. A
+pre-loop beat sized in wall seconds is silently a frame count:
+<code>loop_command_shell</code>’s <code>.deadline(30.0)</code> on its load step is 900 frames at the
+default 30 fps.</p>
 <h3 id="do-not-enter-a-state-something-else-owns"><a class="header" href="#do-not-enter-a-state-something-else-owns">Do not <code>enter</code> a state something else owns</a></h3>
 <p><code>enter</code> force-sets <code>NextState</code>, which is why a Nova script does not enter
 <code>GameStates::Playing</code>: the <code>Loading -&gt; Playing</code> transition is asset-gated by the
@@ -4545,7 +4581,7 @@ agent’s vocabulary is relative and a transcript is replayable.</p>
 <tr><td><code>{"press": "&lt;wire&gt;"}</code></td><td>one <code>input ... start</code> line; the referee remembers it as held</td></tr>
 <tr><td><code>{"release": "&lt;wire&gt;"}</code></td><td>one <code>input ... stop</code> line</td></tr>
 <tr><td><code>{"tap": "&lt;wire&gt;"}</code></td><td>start on one tick, stop on the next</td></tr>
-<tr><td><code>{"aim": "&lt;wire&gt;", "delta": [x, y], "ticks": K}</code></td><td>K aim lines, one per tick</td></tr>
+<tr><td><code>{"aim": "&lt;wire&gt;", "delta": [x, y], "ticks": K}</code></td><td>K aim lines, one per tick; K is a whole number from 1 to 3600, refused outside that</td></tr>
 <tr><td><code>{"command": "..."}</code>, <code>{"text": "..."}</code>, <code>{"key": "..."}</code>, <code>{"pointer": {...}}</code></td><td>passthrough, one line each</td></tr>
 </tbody>
 </table>
@@ -4983,33 +5019,71 @@ names its own root on <code>SettingsStorePlugin</code> instead.</p>
 </div>
 <h2 id="not-on-the-roster"><a class="header" href="#not-on-the-roster">Not on the roster</a></h2>
 <ul>
-<li><strong>Example-local knobs.</strong> <code>NOVA_STRESS_PD_*</code>, <code>NOVA_EDITOR_FRAMELOG</code>,
+<li>
+<p><strong>Example-local knobs.</strong> <code>NOVA_STRESS_PD_*</code>, <code>NOVA_EDITOR_FRAMELOG</code>,
 <code>NOVA_SOAK_SCENARIO</code>, <code>NOVA_SOAK_SECS</code>, <code>NOVA_VFX_RANGE_BARE_SLUG</code>,
-<code>NOVA_RAILGUN_AFTERMATH</code>, <code>NOVA_RAILGUN_LIVE</code> belong to one example each and
-stay literals beside the range that reads them. The two railgun names pick
-which of the shipped loops <code>screenshot_railgun</code> records - the aftermath cut,
-and the real-speed pass against the default slowed clock - and
-<code>scripts/capture-web-media.sh</code> sets them. Neither goes wrong quietly.
+<code>NOVA_RAILGUN_AFTERMATH</code>, <code>NOVA_RAILGUN_LIVE</code>, <code>NOVA_WAKE_LOOP</code>,
+<code>NOVA_COLLAPSE_LOOP</code>, <code>NOVA_SIGHT_LOOP</code> and <code>NOVA_STANDOFF_TRACE</code> belong to
+one example each and stay literals beside the range that reads them. The two
+railgun names pick which of the shipped loops <code>screenshot_railgun</code> records -
+the aftermath cut, and the real-speed pass against the default slowed clock -
+and <code>scripts/capture-web-media.sh</code> sets them. Neither goes wrong quietly.
 <code>NOVA_RAILGUN_AFTERMATH</code> is a duration: unset it falls back to the
 producer’s own window, and a value that is not a positive number of seconds
 panics. A row that forgets <code>NOVA_RAILGUN_LIVE=1</code> records the SLOWED loop
 name, so the live row’s file never appears - and the script <code>rm -f</code>s that
 file before the run and hard-checks it after, so the capture aborts naming
 the missing loop, having overwritten the already-staged slowed row on the
-way.</li>
-<li><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
+way.</p>
+<p>The three <code>*_LOOP</code> names put one range each on its RECORDING path instead of
+its reading one, and <code>scripts/capture-web-media.sh</code> sets them.
+<code>NOVA_WAKE_LOOP=1</code> records <code>railgun_wake_bench</code>’s close pass as
+<code>news-0130-railgun-wake</code> instead of walking the stills.
+<code>NOVA_COLLAPSE_LOOP=1</code> records <code>stress_hull_collapse</code>’s collapse as
+<code>news-0130-hull-collapse</code>; the range still checks its invariants, but the
+loop pins the clock, so that run’s millisecond claims are the recorder’s and
+not the collapse’s. <code>NOVA_SIGHT_LOOP=1</code> records
+<code>system_lock_line_of_sight</code>’s drifting cover as <code>news-0130-lock-occlusion</code>
+and runs no assertions at all. Each takes <code>0</code> or <code>1</code>, and any other value is
+an authoring error that panics rather than picking a path.</p>
+<p><code>NOVA_STANDOFF_TRACE</code> is a diagnostic and not a mode: set to anything, it
+adds <code>loop_goto_standoff</code>’s per-leg print - the plan the computer publishes
+beside what the hull does, five times a second of world time - and changes
+nothing the producer records.</p>
+</li>
+<li>
+<p><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
 variable: they are <code>const Color</code>, layout and volume values in <code>nova_os_ui</code>,
 <code>nova_os</code> and <code>nova_gameplay::audio</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
-by them, so count <code>env::var</code> call sites instead of identifiers.</li>
-<li><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
+by them, so count <code>env::var</code> call sites instead of identifiers.</p>
+</li>
+<li>
+<p><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
 <code>NOVA_MODS_DIR</code>, <code>NOVA_PORT_LO</code>/<code>_HI</code> are read by <code>scripts/</code> and
 <code>web/webpack.config.js</code>; <code>NOVA_BENCH_MODEL</code>, <code>NOVA_BENCH_EFFORT</code> and
 <code>NOVA_BENCH_PERSONA</code> by <code>benchmark/</code>, which is the CODING benchmark and not
-the agent bench above. No Rust reads any of them.</li>
-<li><strong>Foreign variables the code legitimately reads</strong>: <code>DISPLAY</code>,
+the agent bench above. No Rust reads any of them.</p>
+<p>The media packagers own two more. <code>NOVA_UNFREEZE</code> takes a comma-separated
+prefix list and re-opens the frozen <code>news-</code> names of the post being authored
+(<code>NOVA_UNFREEZE=news-0130</code>), in <code>scripts/gen-web-screenshots.py</code> for stills
+and <code>scripts/capture-web-media.sh</code> for loops; without it a name a post
+already ships is never overwritten. <code>NOVA_REUSE_STAGE=1</code> tells
+<code>scripts/capture-web-media.sh</code> to package a completed <code>target/loop-shots</code>
+set rather than re-run the producers, which is the repackage path after a
+capture that finished.</p>
+</li>
+<li>
+<p><strong>Retired.</strong> <code>NOVA_MENU_PATH</code> is read by nothing. <code>examples/ui/editor.rs</code>
+owns the create-a-ship-and-Play sequence end to end, so <code>system_menu_boot</code>
+dropped the branch; the only surviving mention is that example’s module doc
+saying the branch is gone.</p>
+</li>
+<li>
+<p><strong>Foreign variables the code legitimately reads</strong>: <code>DISPLAY</code>,
 <code>WAYLAND_DISPLAY</code>, <code>RUST_LOG</code>, <code>BEVY_ASSET_ROOT</code>, <code>CARGO_*</code>, <code>CI</code>,
 <code>XDG_DATA_HOME</code>, <code>XDG_CONFIG_HOME</code>, <code>LVP_ICD</code>, <code>RUSTFLAGS</code>, <code>VK_ICD_FILENAMES</code>,
-<code>VK_DRIVER_FILES</code>, <code>WGPU_BACKEND</code>, <code>TRACE_CHROME</code>.</li>
+<code>VK_DRIVER_FILES</code>, <code>WGPU_BACKEND</code>, <code>TRACE_CHROME</code>.</p>
+</li>
 </ul>
 <h2 id="adding-one"><a class="header" href="#adding-one">Adding one</a></h2>
 <ol>
@@ -6261,10 +6335,10 @@ top of them.</li>
 <li><strong>Effect:</strong> a ship gains a recognisable island, which with the derived skin
 becomes a plated superstructure rather than a lump. It also gives the decoration
 scatter’s <code>PlateFacing::Up</code> rules somewhere meaningful to fire.</li>
-<li><strong>Risk, and it is real:</strong> a seeded tower is a stud, and <code>erode_studs</code> exists to
-take those off. It would need the same treatment the keel gets - either enough
-seeded neighbours to pass <code>SPIKE_SUPPORT</code>, or an exemption. Budget a couple of
-hours, not ten minutes.</li>
+<li><strong>Risk, and it was real:</strong> a seeded tower is a stud, and <code>erode_studs</code> exists
+to take those off. <code>run</code> now marks every cell the seed passes write, widens the
+mark over a part’s joints, and erosion skips it - so a tower seeded the way the
+stern is inherits the exemption rather than needing its own.</li>
 </ul>
 <h3 id="5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped"><a class="header" href="#5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped">5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED</a></h3>
 <p>The general form of items 1-4: split <code>z</code> into bow / midships / engineering bands

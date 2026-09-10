@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -378,10 +378,10 @@ top of them.</li>
 <li><strong>Effect:</strong> a ship gains a recognisable island, which with the derived skin
 becomes a plated superstructure rather than a lump. It also gives the decoration
 scatter’s <code>PlateFacing::Up</code> rules somewhere meaningful to fire.</li>
-<li><strong>Risk, and it is real:</strong> a seeded tower is a stud, and <code>erode_studs</code> exists to
-take those off. It would need the same treatment the keel gets - either enough
-seeded neighbours to pass <code>SPIKE_SUPPORT</code>, or an exemption. Budget a couple of
-hours, not ten minutes.</li>
+<li><strong>Risk, and it was real:</strong> a seeded tower is a stud, and <code>erode_studs</code> exists
+to take those off. <code>run</code> now marks every cell the seed passes write, widens the
+mark over a part’s joints, and erosion skips it - so a tower seeded the way the
+stern is inherits the exemption rather than needing its own.</li>
 </ul>
 <h3 id="5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped"><a class="header" href="#5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped">5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED</a></h3>
 <p>The general form of items 1-4: split <code>z</code> into bow / midships / engineering bands

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45d65662.js";
+            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e8ad555.js"></script>
@@ -273,7 +273,7 @@ agent’s vocabulary is relative and a transcript is replayable.</p>
 <tr><td><code>{"press": "&lt;wire&gt;"}</code></td><td>one <code>input ... start</code> line; the referee remembers it as held</td></tr>
 <tr><td><code>{"release": "&lt;wire&gt;"}</code></td><td>one <code>input ... stop</code> line</td></tr>
 <tr><td><code>{"tap": "&lt;wire&gt;"}</code></td><td>start on one tick, stop on the next</td></tr>
-<tr><td><code>{"aim": "&lt;wire&gt;", "delta": [x, y], "ticks": K}</code></td><td>K aim lines, one per tick</td></tr>
+<tr><td><code>{"aim": "&lt;wire&gt;", "delta": [x, y], "ticks": K}</code></td><td>K aim lines, one per tick; K is a whole number from 1 to 3600, refused outside that</td></tr>
 <tr><td><code>{"command": "..."}</code>, <code>{"text": "..."}</code>, <code>{"key": "..."}</code>, <code>{"pointer": {...}}</code></td><td>passthrough, one line each</td></tr>
 </tbody>
 </table>
