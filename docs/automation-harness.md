@@ -489,11 +489,16 @@ run open with nothing naming the step. Both clocks that time a run read
 `Time<Real>` for that reason: the step deadline, and the run-level watcher's own
 `elapsed`.
 
-One exception, and it is by design: a loop capture pins the REAL clock to its
-profile's frame duration, so a deadline inside a loop counts RENDERED FRAMES
-over the profile fps and not wall seconds. Budget a beat between `loop_start`
-and `loop_end` in frames, and expect a slow capture host to spend longer in the
-room than the deadline names.
+One exception, and it is by design: an ARMED run pins the REAL clock to the
+loop profile's frame duration, so every deadline on it counts RENDERED FRAMES
+over the profile fps and not wall seconds. `LoopCapturePlugin::build` inserts
+the pin as soon as `NOVA_CAPTURE` is set - at plugin build, before any loop
+opens - so the pin covers the armed run END TO END and a beat outside a loop is
+frame-clocked too. Budget every beat of a capture script in frames, and expect
+a slow capture host to spend longer in the room than the deadline names. A
+pre-loop beat sized in wall seconds is silently a frame count:
+`loop_command_shell`'s `.deadline(30.0)` on its load step is 900 frames at the
+default 30 fps.
 
 ### Do not `enter` a state something else owns
 

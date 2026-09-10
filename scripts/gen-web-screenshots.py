@@ -236,8 +236,9 @@ TRIPTYCHS = [
 # The research benches - `asteroid_kinds`, `planet_types`, `wfc_ships`,
 # `first_shift_ships` - stage under their own names and print a readout across
 # the top of the frame, the seed line that makes a hand-run reproducible. A
-# post figure has no use for the readout, so its window starts under it; the
-# whole frame is the window (0, 0, 1920, 1080).
+# post figure has no use for that line, so three of the four windows start
+# below it. The asteroid grid is the exception: its window is the whole
+# 1920x1080 frame, so that figure ships WITH the readout.
 #   web name                         stage source                window
 CUTS = [
     ("news-0130-asteroid-kinds.png",  "asteroid-kinds-grid.png",  (0, 0, 1920, 1080)),

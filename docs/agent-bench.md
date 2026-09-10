@@ -96,7 +96,7 @@ agent's vocabulary is relative and a transcript is replayable.
 | `{"press": "<wire>"}` | one `input ... start` line; the referee remembers it as held |
 | `{"release": "<wire>"}` | one `input ... stop` line |
 | `{"tap": "<wire>"}` | start on one tick, stop on the next |
-| `{"aim": "<wire>", "delta": [x, y], "ticks": K}` | K aim lines, one per tick |
+| `{"aim": "<wire>", "delta": [x, y], "ticks": K}` | K aim lines, one per tick; K is a whole number from 1 to 3600, refused outside that |
 | `{"command": "..."}`, `{"text": "..."}`, `{"key": "..."}`, `{"pointer": {...}}` | passthrough, one line each |
 
 Gestures in one act land on the same tick, in order. A held input stays held

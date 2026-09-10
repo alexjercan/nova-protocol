@@ -175,11 +175,12 @@ names its own root on `SettingsStorePlugin` instead.
 
 - **Example-local knobs.** `NOVA_STRESS_PD_*`, `NOVA_EDITOR_FRAMELOG`,
   `NOVA_SOAK_SCENARIO`, `NOVA_SOAK_SECS`, `NOVA_VFX_RANGE_BARE_SLUG`,
-  `NOVA_RAILGUN_AFTERMATH`, `NOVA_RAILGUN_LIVE` belong to one example each and
-  stay literals beside the range that reads them. The two railgun names pick
-  which of the shipped loops `screenshot_railgun` records - the aftermath cut,
-  and the real-speed pass against the default slowed clock - and
-  `scripts/capture-web-media.sh` sets them. Neither goes wrong quietly.
+  `NOVA_RAILGUN_AFTERMATH`, `NOVA_RAILGUN_LIVE`, `NOVA_WAKE_LOOP`,
+  `NOVA_COLLAPSE_LOOP`, `NOVA_SIGHT_LOOP` and `NOVA_STANDOFF_TRACE` belong to
+  one example each and stay literals beside the range that reads them. The two
+  railgun names pick which of the shipped loops `screenshot_railgun` records -
+  the aftermath cut, and the real-speed pass against the default slowed clock -
+  and `scripts/capture-web-media.sh` sets them. Neither goes wrong quietly.
   `NOVA_RAILGUN_AFTERMATH` is a duration: unset it falls back to the
   producer's own window, and a value that is not a positive number of seconds
   panics. A row that forgets `NOVA_RAILGUN_LIVE=1` records the SLOWED loop
@@ -187,6 +188,23 @@ names its own root on `SettingsStorePlugin` instead.
   file before the run and hard-checks it after, so the capture aborts naming
   the missing loop, having overwritten the already-staged slowed row on the
   way.
+
+  The three `*_LOOP` names put one range each on its RECORDING path instead of
+  its reading one, and `scripts/capture-web-media.sh` sets them.
+  `NOVA_WAKE_LOOP=1` records `railgun_wake_bench`'s close pass as
+  `news-0130-railgun-wake` instead of walking the stills.
+  `NOVA_COLLAPSE_LOOP=1` records `stress_hull_collapse`'s collapse as
+  `news-0130-hull-collapse`; the range still checks its invariants, but the
+  loop pins the clock, so that run's millisecond claims are the recorder's and
+  not the collapse's. `NOVA_SIGHT_LOOP=1` records
+  `system_lock_line_of_sight`'s drifting cover as `news-0130-lock-occlusion`
+  and runs no assertions at all. Each takes `0` or `1`, and any other value is
+  an authoring error that panics rather than picking a path.
+
+  `NOVA_STANDOFF_TRACE` is a diagnostic and not a mode: set to anything, it
+  adds `loop_goto_standoff`'s per-leg print - the plan the computer publishes
+  beside what the hull does, five times a second of world time - and changes
+  nothing the producer records.
 - **`NOVA_OS_*`.** Around 180 of these exist and NONE is an environment
   variable: they are `const Color`, layout and volume values in `nova_os_ui`,
   `nova_os` and `nova_gameplay::audio`. A grep for `NOVA_[A-Z_]*` is dominated
@@ -196,6 +214,19 @@ names its own root on `SettingsStorePlugin` instead.
   `web/webpack.config.js`; `NOVA_BENCH_MODEL`, `NOVA_BENCH_EFFORT` and
   `NOVA_BENCH_PERSONA` by `benchmark/`, which is the CODING benchmark and not
   the agent bench above. No Rust reads any of them.
+
+  The media packagers own two more. `NOVA_UNFREEZE` takes a comma-separated
+  prefix list and re-opens the frozen `news-` names of the post being authored
+  (`NOVA_UNFREEZE=news-0130`), in `scripts/gen-web-screenshots.py` for stills
+  and `scripts/capture-web-media.sh` for loops; without it a name a post
+  already ships is never overwritten. `NOVA_REUSE_STAGE=1` tells
+  `scripts/capture-web-media.sh` to package a completed `target/loop-shots`
+  set rather than re-run the producers, which is the repackage path after a
+  capture that finished.
+- **Retired.** `NOVA_MENU_PATH` is read by nothing. `examples/ui/editor.rs`
+  owns the create-a-ship-and-Play sequence end to end, so `system_menu_boot`
+  dropped the branch; the only surviving mention is that example's module doc
+  saying the branch is gone.
 - **Foreign variables the code legitimately reads**: `DISPLAY`,
   `WAYLAND_DISPLAY`, `RUST_LOG`, `BEVY_ASSET_ROOT`, `CARGO_*`, `CI`,
   `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `LVP_ICD`, `RUSTFLAGS`, `VK_ICD_FILENAMES`,

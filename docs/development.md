@@ -364,11 +364,20 @@ What is on disk today, in reading order:
   (`screenshot_orbit`, `screenshot_goto_burn`, `screenshot_flip_burn`). The
   `loop_*` producers write only video; recording is not their
   privilege, though - a `loop_start`/`loop_end` pair records from any harnessed
-  example, so `screenshot_railgun`, `screenshot_editor`, `wfc_arena` and
-  `system_torpedo_launch` each ship a loop beside their stills. What a run makes
-  is decided by `scripts/capture-web-media.sh` (loops) and
-  `scripts/gen-web-screenshots.py` (stills), which name every producer and every
-  file it writes. The posed LINEUPS live here too -
+  example, so `screenshot_railgun`, `screenshot_editor`, `wfc_arena`,
+  `system_torpedo_launch`, `railgun_wake_bench`, `stress_hull_collapse` and
+  `system_lock_line_of_sight` each ship a loop beside their stills or their
+  readings. What a run makes is decided by `scripts/capture-web-media.sh`
+  (loops) and `scripts/gen-web-screenshots.py` (stills), which name the
+  producer behind every file they package - with one deliberate gap. The three
+  before/after splits are composed BY HAND from a capsule scene of the old
+  release and a loop of the new one, so they enter the media script as
+  IMPORTS: it names the split and the producer of its new half, but never runs
+  that producer and never names the
+  `news-0130-{sections,belt,death}-after.webm` file it writes.
+  `loop_sections_compare`, `loop_belt_compare` and `loop_death_compare` are
+  therefore run by hand, and the module doc on each says how. The posed
+  LINEUPS live here too -
   `screenshot_thruster_gallery` (the shipped drive, the proposed shell family
   and the CC0 candidates in one named row) and `screenshot_damage_levels` (the
   same ship at five damage levels, side by side, which is one comparison and so
