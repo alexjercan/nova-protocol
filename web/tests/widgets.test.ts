@@ -5,7 +5,12 @@
 // 15 000 m/s down the centre, and the cells-per-layer profile the probe
 // recorded for each stand. Run with `npm test`.
 import { strict as assert } from "node:assert";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
+    ARRIVAL_STANDOFF,
+    CHIPS_PER_WIDE_CRATER,
+    CHUNK_ACTIVATIONS_PER_FRAME,
     engineKilometers,
     engineMeters,
     engineMetersPerSec,
@@ -40,23 +45,80 @@ import {
     commandAllowed,
     CUTTER_CELLS,
     distanceAttenuation,
+    GRAMMAR_HALF_WIDTH,
+    GRAMMAR_HEIGHT,
+    GRAMMAR_LENGTH,
     GRAMMAR_ZONES,
     halfColumn,
     hullRadiusMeters,
+    LANCE_RECOIL_IMPULSE,
+    OCCLUSION_CONTACT_RANGE,
     panCompensation,
     panGains,
     railgunRecoil,
+    RCS_ACCEL,
+    RCS_SPEED_CAP,
     rcsPush,
     seededDraws,
     segmentClearance,
+    SFX_AUDIBLE_THRESHOLD,
+    SFX_FAR_DISTANCE,
+    SFX_NEAR_DISTANCE,
+    SFX_ROLLOFF_FLOOR,
+    SHARDS_PER_FRAME,
     soundAtEars,
     soundCueUrl,
+    SOUND_FAMILIES,
+    SPATIAL_EAR_GAP,
+    SPATIAL_EMITTER_RADIUS,
     zoneAllows,
     ZONE_PARTS,
     zonePlacements,
 } from "../src/widgets";
 
 const HP = 200;
+
+// ---- reading the game's own sources ---------------------------------------
+//
+// A scope that quotes a game constant is only as good as the constant. Pinning
+// a RATIO or a SIGN passes for ever after the figure it was drawn from moves,
+// so the blocks below read the declaration out of `crates/` and compare. An
+// edit on the Rust side breaks this file by name, which is the whole point:
+// nothing else on the web side is watching.
+
+/** The repository root, from wherever `tsc` dropped this file. */
+function repoRoot(): string {
+    let at = __dirname;
+    while (!existsSync(join(at, "crates", "nova_wfc", "Cargo.toml"))) {
+        const up = dirname(at);
+        assert.notEqual(up, at, `no repository root above ${__dirname}`);
+        at = up;
+    }
+    return at;
+}
+
+const REPO = repoRoot();
+
+/** The one text `pattern` captures in the game source at `rel`. */
+function rustSays(rel: string, pattern: RegExp): string {
+    const text = readFileSync(join(REPO, rel), "utf8");
+    const flags = pattern.flags.includes("g")
+        ? pattern.flags
+        : pattern.flags + "g";
+    const hits = [...text.matchAll(new RegExp(pattern.source, flags))];
+    assert.equal(
+        hits.length,
+        1,
+        `${rel}: ${String(pattern)} matched ${hits.length} declarations, not ` +
+            "one - it moved, was renamed, or changed shape"
+    );
+    return hits[0][1];
+}
+
+/** The one number `pattern` captures in the game source at `rel`. */
+function rustNumber(rel: string, pattern: RegExp): number {
+    return Number(rustSays(rel, pattern));
+}
 
 // ---- units ----------------------------------------------------------------
 
@@ -327,6 +389,188 @@ console.log("widgets: the corridor scope reproduces the stand bank");
 }
 
 // ---- v0.13.0: the news post's scopes --------------------------------------
+
+// Every game constant the v0.13.0 scopes quote, against the declaration it was
+// copied from. Engine constants are compared in world units and the authored
+// ones in meters, because that is the register each is written in.
+{
+    const STANDARD =
+        "crates/nova_authoring/src/base_content/sections/standard.rs";
+    const FLIGHT = "crates/nova_ship/src/flight/state.rs";
+    const MIXING = "crates/nova_gameplay/src/audio/mixing.rs";
+    const SPATIAL = "crates/nova_gameplay/src/audio/spatial.rs";
+    const SPEW = "crates/nova_gameplay/src/integrity/spew.rs";
+    const CHUNK = "crates/nova_gameplay/src/integrity/chunk.rs";
+    const GRAMMARS = "crates/nova_authoring/src/base_content/grammars.rs";
+    const OCCLUSION = "crates/nova_ship/src/input/targeting/occlusion.rs";
+
+    // The lance's recoil, hardcoded in the shared `railgun_lance_prototype`
+    // rather than taken from either lance's spec.
+    assert.equal(
+        LANCE_RECOIL_IMPULSE,
+        rustNumber(STANDARD, /\n {12}recoil_impulse: ([0-9.]+),/),
+        "railgun_lance_prototype's recoil_impulse"
+    );
+
+    // `FlightSettings` is engine tuning, so its defaults are authored in SI and
+    // converted; the scopes model in world units and print in meters.
+    assert.equal(
+        ARRIVAL_STANDOFF * METERS_PER_UNIT,
+        rustNumber(FLIGHT, /arrival_standoff: Meters\(([0-9_.]+)\)\.to_engine/),
+        "FlightSettings::arrival_standoff, in meters"
+    );
+    assert.equal(
+        RCS_SPEED_CAP * METERS_PER_UNIT,
+        rustNumber(
+            FLIGHT,
+            /rcs_speed_cap: MetersPerSecond\(([0-9_.]+)\)\.to_engine/
+        ),
+        "FlightSettings::rcs_speed_cap, in m/s"
+    );
+    assert.equal(
+        RCS_ACCEL * METERS_PER_UNIT,
+        5 * 9.81,
+        "the RCS ceiling is 5 G"
+    );
+    assert.equal(
+        rustSays(
+            FLIGHT,
+            /rcs_accel: MetersPerSecondSquared\(([^)]+)\)\.to_engine/
+        ),
+        "5.0 * 9.81",
+        "FlightSettings::rcs_accel is still authored as 5 G"
+    );
+
+    // The mixing and pan laws, both in world units.
+    assert.equal(
+        SFX_NEAR_DISTANCE,
+        rustNumber(MIXING, /const SFX_NEAR_DISTANCE: f32 = ([0-9.]+);/)
+    );
+    assert.equal(
+        SFX_FAR_DISTANCE,
+        rustNumber(MIXING, /const SFX_FAR_DISTANCE: f32 = ([0-9.]+);/)
+    );
+    assert.equal(
+        SFX_ROLLOFF_FLOOR,
+        rustNumber(MIXING, /const SFX_ROLLOFF_FLOOR: f32 = ([0-9.]+);/)
+    );
+    assert.equal(
+        SFX_AUDIBLE_THRESHOLD,
+        rustNumber(MIXING, /const SFX_AUDIBLE_THRESHOLD: f32 = ([0-9.]+);/)
+    );
+    assert.equal(
+        SPATIAL_EAR_GAP,
+        rustNumber(SPATIAL, /const SPATIAL_EAR_GAP: f32 = ([0-9.]+);/)
+    );
+    assert.equal(
+        SPATIAL_EMITTER_RADIUS,
+        rustNumber(SPATIAL, /const SPATIAL_EMITTER_RADIUS: f32 = ([0-9.]+);/)
+    );
+
+    // The frame ceilings the collapse scope prices.
+    assert.equal(
+        SHARDS_PER_FRAME,
+        rustNumber(SPEW, /const SHARDS_PER_FRAME: usize = ([0-9]+);/)
+    );
+    assert.equal(
+        CHUNK_ACTIVATIONS_PER_FRAME,
+        rustNumber(
+            CHUNK,
+            /const CHUNK_ACTIVATIONS_PER_FRAME: usize = ([0-9]+);/
+        )
+    );
+    // Kinetic and Pierce are deliberately two entries holding the same numbers,
+    // so the ceiling is read off the kinetic look by name.
+    assert.equal(
+        CHIPS_PER_WIDE_CRATER,
+        rustNumber(
+            SPEW,
+            /const KINETIC_SHARDS: ShardLook = [^;]*?most: ([0-9]+),/s
+        ),
+        "KINETIC_SHARDS.most, the widest carve a hit may throw"
+    );
+
+    // The shipped grammar's grid, the block the zone scope collapses.
+    const grid = rustSays(GRAMMARS, /grid: GrammarGrid \{([\s\S]*?)\n {8}\},/);
+    for (const [name, want] of [
+        ["half_width", GRAMMAR_HALF_WIDTH],
+        ["height", GRAMMAR_HEIGHT],
+        ["length", GRAMMAR_LENGTH],
+    ] as [string, number][]) {
+        const found = new RegExp(`${name}: ([0-9]+),`).exec(grid);
+        assert.ok(found, `standard_hull's grid declares no ${name}`);
+        assert.equal(Number(found[1]), want, `standard_hull's ${name}`);
+    }
+
+    // The occlusion scene has no constant of its own to pin: the ray is exactly
+    // as long as the gap it is asked about, so the 4 km / 2 km / 500 m scene is
+    // the game's own fixture read in meters. That fixture IS pinnable.
+    const fixture = rustSays(
+        OCCLUSION,
+        /fn a_rock_between_the_ship_and_a_contact_stops_the_radar\(\) \{([\s\S]*?)\n {4}\}/
+    );
+    assert.ok(
+        fixture.includes(
+            "spawn_contact(&mut app, Vec3::new(0.0, 0.0, -400.0))"
+        ),
+        `the fixture's contact is no longer 400 u out: ${fixture}`
+    );
+    assert.ok(
+        fixture.includes(
+            "spawn_rock(&mut app, Vec3::new(0.0, 0.0, -200.0), 50.0)"
+        ),
+        `the fixture's rock is no longer a 50 u body at 200 u: ${fixture}`
+    );
+    assert.equal(
+        OCCLUSION_CONTACT_RANGE,
+        400 * METERS_PER_UNIT,
+        "the scope's contact stands where the fixture's does, in meters"
+    );
+}
+
+// Every cue on the sound board is a file the game ships AND a file the site
+// copied, under the same name. A rename on the game side breaks the board's
+// audio silently in a browser; here it breaks loudly.
+{
+    const GAME_SOUNDS = ["assets/sounds", "assets/base/sounds"];
+    const files = Object.values(SOUND_FAMILIES).flatMap((family) =>
+        family.cues.map((cue) => cue.file)
+    );
+    assert.equal(new Set(files).size, files.length, "a cue is listed twice");
+    assert.equal(files.length, 43, "the five boards carry 43 cues");
+    for (const file of files) {
+        assert.ok(
+            GAME_SOUNDS.some((dir) =>
+                existsSync(join(REPO, dir, `${file}.wav`))
+            ),
+            `${file}.wav is on the board and in neither ${GAME_SOUNDS.join(" nor ")}`
+        );
+        assert.ok(
+            existsSync(join(REPO, "web/src/assets/sounds", `${file}.wav`)),
+            `${file}.wav is on the board and was never copied into the site`
+        );
+    }
+    // The amber second key: only cues whose file existed at v0.12.0 carry one,
+    // and the site ships that recording beside the new one. The post says
+    // sixteen rows, so sixteen is pinned in both directions.
+    const amber = Object.values(SOUND_FAMILIES).flatMap((family) =>
+        family.cues.filter((cue) => cue.before).map((cue) => cue.file)
+    );
+    assert.equal(amber.length, 16, "sixteen rows carry a v0.12.0 key");
+    for (const file of amber) {
+        assert.ok(
+            existsSync(
+                join(REPO, "web/src/assets/sounds/v0120", `${file}.wav`)
+            ),
+            `${file} offers a v0.12.0 key with no v0.12.0 file`
+        );
+    }
+    assert.deepEqual(
+        readdirSync(join(REPO, "web/src/assets/sounds/v0120")).sort(),
+        amber.map((file) => `${file}.wav`).sort(),
+        "a v0.12.0 recording ships that no row plays"
+    );
+}
 
 // Recoil: the impulse lands at the muzzle, so a lance on the axis only
 // pushes, and one off the axis yaws the bow toward its own side.

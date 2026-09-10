@@ -100,7 +100,7 @@ const COMBAT_DECAY_SECS = 30; // contacts.rs:24
 // models in world units and converts only where it prints.
 // Cited by FIELD, not by line: the file moves and a stale line number reads
 // like a checked fact.
-const ARRIVAL_STANDOFF = 50; // FlightSettings::arrival_standoff (world units)
+export const ARRIVAL_STANDOFF = 50; // FlightSettings::arrival_standoff (world units)
 const DECEL_MARGIN = 0.85; // FlightSettings::decel_margin
 const MIN_APPROACH_SPEED = 1.5; // FlightSettings::min_approach_speed (u/s)
 const ARRIVAL_SPOOL_PAD = 0.5; // FlightSettings::arrival_spool_pad
@@ -108,8 +108,8 @@ const STOP_SPEED_EPSILON = 0.2; // FlightSettings::stop_speed_epsilon (u/s)
 const TURN_RATE_SCALE = 0.9; // FlightSettings::turn_rate_scale
 const TURN_RATE_MIN_DEG = 10; // FlightSettings::turn_rate_min_deg
 const TURN_RATE_MAX_DEG = 240; // FlightSettings::turn_rate_max_deg
-const RCS_ACCEL = 4.905; // FlightSettings::rcs_accel (world units/s^2)
-const RCS_SPEED_CAP = 10.0; // FlightSettings::rcs_speed_cap (world units/s)
+export const RCS_ACCEL = 4.905; // FlightSettings::rcs_accel (world units/s^2)
+export const RCS_SPEED_CAP = 10.0; // FlightSettings::rcs_speed_cap (world units/s)
 
 // ---- units -----------------------------------------------------------------
 //
@@ -8186,7 +8186,7 @@ interface SoundFamily {
 // A loop cue is auditioned for a few seconds rather than forever.
 const SOUND_LOOP_AUDITION_SECS = 4;
 
-const SOUND_FAMILIES: Record<string, SoundFamily> = {
+export const SOUND_FAMILIES: Record<string, SoundFamily> = {
     guns: {
         title: "The guns and their machinery",
         hint: "World cues on another ship, hull cues on your own: your guns never attenuate or pan. Heavy to light, the guns are separated by pitch, not decoration.",
@@ -8778,7 +8778,7 @@ function arrowPoints(x: number, y: number, dx: number, dy: number): string {
 // Engine register throughout: mass is box volume (base_section.rs:470-474,
 // density 1), the impulse is mass x world units per second, and only the
 // readout converts.
-const LANCE_RECOIL_IMPULSE = 45; // standard.rs:1165
+export const LANCE_RECOIL_IMPULSE = 45; // standard.rs:1165
 // Where the widget's lance stands on the gunship: ahead of the bow spur,
 // which ends at z = -4 (`plate_43` above), so the part runs z -7..-4.
 const LANCE_MOUNT_Z = -5.5;
@@ -9105,7 +9105,7 @@ function initRailgunRecoil(host: HTMLElement): void {
 // (`a_rock_between_the_ship_and_a_contact_stops_the_radar`,
 // occlusion.rs:179-187 - a TEST, and named as one, because the ray itself
 // carries no distance of its own).
-const OCCLUSION_CONTACT_RANGE = 4000;
+export const OCCLUSION_CONTACT_RANGE = 4000;
 
 // How far the segment a-b passes from the surface of a circle of radius `r`
 // at `c`, meters: negative once the rock stands on the line. The closest
@@ -9370,9 +9370,9 @@ function initLockOcclusion(host: HTMLElement): void {
 // bow: the spinal gun seeds into cell (0, keel, 0) (collapse.rs:208). The
 // zone test is ruled on ONE cell (collapse.rs:86-93), which is what gives a
 // multi-cell part its "every cell inside" reading.
-const GRAMMAR_HALF_WIDTH = 4; // grammars.rs:48
-const GRAMMAR_HEIGHT = 5; // grammars.rs:49
-const GRAMMAR_LENGTH = 11; // grammars.rs:52
+export const GRAMMAR_HALF_WIDTH = 4; // grammars.rs:48
+export const GRAMMAR_HEIGHT = 5; // grammars.rs:49
+export const GRAMMAR_LENGTH = 11; // grammars.rs:52
 const GRAMMAR_KEEL_ROW = Math.floor(GRAMMAR_HEIGHT / 2); // lib.rs:304
 
 export type GrammarZone =
@@ -10096,12 +10096,12 @@ function initAsteroidKinds(host: HTMLElement): void {
 //
 // Engine units: the rolloff band and the ear rig are world units
 // (mixing.rs:18-20, spatial.rs:31-38), so the faders' meters cross here.
-const SFX_NEAR_DISTANCE = 20; // mixing.rs:18 (world units)
-const SFX_FAR_DISTANCE = 320; // mixing.rs:20 (world units)
-const SFX_ROLLOFF_FLOOR = 0.05; // mixing.rs:29
-const SFX_AUDIBLE_THRESHOLD = 0.01; // mixing.rs:33
-const SPATIAL_EAR_GAP = 2; // spatial.rs:31 (world units)
-const SPATIAL_EMITTER_RADIUS = 2.5; // spatial.rs:38 (world units)
+export const SFX_NEAR_DISTANCE = 20; // mixing.rs:18 (world units)
+export const SFX_FAR_DISTANCE = 320; // mixing.rs:20 (world units)
+export const SFX_ROLLOFF_FLOOR = 0.05; // mixing.rs:29
+export const SFX_AUDIBLE_THRESHOLD = 0.01; // mixing.rs:33
+export const SPATIAL_EAR_GAP = 2; // spatial.rs:31 (world units)
+export const SPATIAL_EMITTER_RADIUS = 2.5; // spatial.rs:38 (world units)
 
 // Distance rolloff in 0..1: full inside NEAR, silent past FAR, a geometric
 // decay toward the floor between, remapped to reach exactly zero
@@ -11483,9 +11483,9 @@ function initCommandCatalog(host: HTMLElement): void {
 // (tasks/20260904-155338/TASK.md:139-140), scaled here per section. The
 // stress hull is 1296 cells (tasks/20260904-173517/TASK.md:45), and its
 // 720-piece collapse is the activation queue's record (:75,:219).
-const SHARDS_PER_FRAME = 128;
-const CHUNK_ACTIVATIONS_PER_FRAME = 24;
-const CHIPS_PER_WIDE_CRATER = 7;
+export const SHARDS_PER_FRAME = 128;
+export const CHUNK_ACTIVATIONS_PER_FRAME = 24;
+export const CHIPS_PER_WIDE_CRATER = 7;
 const STRESS_HULL_CELLS = 1296;
 const WALK_MS_PER_SECTION_OLD = 55.18 / 1088;
 const WALK_MS_PER_SECTION_NEW = 0.87 / 1063;
