@@ -15,6 +15,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-09-10
+
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
   Kaveri's replacement pickup, rescue, and return. Released-only Story builds
@@ -2178,7 +2180,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.13.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/alexjercan/nova-protocol/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/alexjercan/nova-protocol/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/alexjercan/nova-protocol/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/alexjercan/nova-protocol/compare/v0.10.0...v0.11.0
