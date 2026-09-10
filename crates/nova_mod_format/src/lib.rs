@@ -124,7 +124,7 @@ pub struct BundleManifest {
 /// asset root (the catalog lives at the root). `base` marks the base game's own
 /// entry - enabled by default and (in the UI) locked on. `enabled_by_default`
 /// marks a shipped mod a fresh install switches on and the player may switch
-/// off again.
+/// off again; no shipped mod sets it today.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModEntry {
     /// Stable id - the enable/disable key and the merge-overlay namespace.
@@ -137,8 +137,10 @@ pub struct ModEntry {
     /// True for a shipped mod that a FRESH install enables - one with no saved
     /// enabled-mods set yet. Unlike `base` it is a plain toggle afterwards:
     /// the player's choice persists, and a later boot never re-enables it.
-    /// The story campaign ships this way, so it is on the Scenarios board out
-    /// of the box and gone when the player says so.
+    /// The story campaign shipped this way until the campaign was retired; no
+    /// entry in `assets/mods.catalog.ron` sets it now, and the semantics are
+    /// pinned by nova_assets' synthetic-catalog tests - the same standing as
+    /// [`Self::hidden`].
     #[serde(default)]
     pub enabled_by_default: bool,
     /// True for dev/tooling mods: omitted from the player-facing mods list, but

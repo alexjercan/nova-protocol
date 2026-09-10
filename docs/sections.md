@@ -323,12 +323,14 @@ neighbours. The same structure always gives the same skin.
   colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
   claim `spew` makes for its shards - because a hull wears hundreds of plates
   and a dynamic body per plate is the cost a dying section already refuses.
-- The shed is CAPPED and runs on the FIXED STEP. `SHED_TICK_CAP` bounds it to
-  24 fixtures a tick; the rest are deferred, never dropped, because shedding is
-  what removes the `ChildOf` a plate is matched by, so a deferred one matches
-  again on the next tick. On the fixed step the drain rate is 64 a second
-  whatever the renderer is managing, which matters because a hull loses its
-  skin in exactly the frames a collapse has already made the longest. A
+- The shed is CAPPED and runs on the FIXED STEP, in the phase the deaths
+  arrive in. `SHED_TICK_CAP` bounds it to 24 fixtures a TICK and `ShedBudget`
+  bounds it to 48 a FRAME; the rest are deferred, never dropped, because
+  shedding is what removes the `ChildOf` a plate is matched by, so a deferred
+  one matches again next time. Two caps and not one, because a frame recovering
+  from a long stall banks up to 16 fixed steps (`Time<Virtual>`'s 0.25 s
+  `max_delta`) and pays for all of them at once - and the frames a hull loses
+  its skin in are exactly the ones a collapse has already made the longest. A
   deferred plate still wears its collider, so a piercing round crossing it
   still burns a layer.
 - `ShipSkinPlugin { render }` is split at the render line, not at the look line:

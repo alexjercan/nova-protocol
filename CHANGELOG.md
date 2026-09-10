@@ -36,6 +36,10 @@ does NOT get an entry - and it is the only place they are written down.
 - The death-fireball warm-up runs at startup once the graphics tier has settled,
   and again when the tier changes, so menu-backdrop deaths and a tier raised
   mid-run no longer hitch.
+- The v0.13.0 news post's hull-zone scope counts placements on the starboard
+  half the collapse actually runs on, and offers the one zone a part may carry.
+- The news-post widget tests read the game's constants and sound-cue filenames
+  out of the Rust source, so a change on that side fails them by name.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow
@@ -119,8 +123,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A siege railgun lance joins the catalog beside the standard one: the same gun
   at capital grade, 500 damage through 360,000 power and a 30 m rake.
 - **(breaking)** The base game ships BLOCK hulls only: the modelled Racer,
-  CargoA and CargoB fleet and its part prototypes move into The Ledger, which
-  now carries their meshes itself.
+  CargoA and CargoB fleet and its part prototypes move into The Ledger. A mod
+  that named one of them must depend on The Ledger.
 - Cladding shot off a hull FLIES. A spent skin plate comes away where it
   stood, takes its greebles and tumbles clear on the ship's own motion,
   instead of vanishing the frame it died.
@@ -155,9 +159,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** An asteroid's `material` names its KIND and is now required:
   `rock`, `metal`, `ice`, `carbon` or `plain`. A rock without one fails to
   load, and an id nobody ships is a lint error.
-- `ScatterObjects` takes `asteroid_kinds`, a weighted mix drawn from the
-  scatter's own seed, so one field is mostly rock with a little metal. An
-  asteroid template must author one.
+- **(breaking)** `ScatterObjects` takes `asteroid_kinds`, a weighted mix from
+  the scatter's seed. Every scatter must carry the field - write
+  `asteroid_kinds: []` on one that scatters anything else.
 
 ### Modding & Mod Portal
 - A catalog entry can set `enabled_by_default`: a fresh install with no saved
@@ -457,8 +461,6 @@ does NOT get an entry - and it is the only place they are written down.
 - New `railgun_wake_bench` example: the slug's ionized wake at three speeds
   under three lifetime policies, every knob live and in slow motion, driving
   the weapon's own tuning.
-- First Shift is composed from nine reusable production scenes; matching
-  numbered examples add only preview ship poses and an explicit end message.
 - `loop_vfx_range` parks a lance above the shooter and fires it over the
   target once per pass, so the cycle measures the wake; `NOVA_VFX_RANGE_BARE_SLUG=1`
   runs the same cycle with a bare slug.
