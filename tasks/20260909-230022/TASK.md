@@ -1026,8 +1026,8 @@ blind rerun of G6-G11 would cost.
 ## Fixed 2026-09-10
 
 Everything the disposition marked **Fix now**, every finding in G6-G11, and the
-G1/G2 backlog the disposition had scheduled later. Forty-one commits between
-`23414634b` (the v0.13.0 release) and `5453fe51c`. Every behavioural fix was
+G1/G2 backlog the disposition had scheduled later. Forty commits between
+`23414634b` (the v0.13.0 release) and `a8041de57`. Every behavioural fix was
 proven twice: green after the change, and RED with the old semantics restored
 from a scratchpad copy.
 
@@ -1048,7 +1048,7 @@ from a scratchpad copy.
 | G1 | `SettingsSystems` has no production consumer | `10c3b6f62`, `6882fc2c4` |
 | G1 | The wake's "synchronous on web and macOS" understates native | `67936e962` |
 | G1 | `docs/sections.md` states the drain rate 24x high | `f6e10edb9` |
-| G3+G4 | A `section` STOP is refused when the mount is gone | this range |
+| G3+G4 | A `section` STOP is refused when the mount is gone | `a8041de57` |
 | G5a+G5b | `NOVA_COLLAPSE_LOOP=0` arms the loop; `package_import` skips the gate | `fc8bb6e7a` |
 | G5b | The `CUTS` sources are reachable from no producer | `ded4b00e4`, `5453fe51c` |
 | G5a+G5b | The docs sweep (env index, harness deadline, targeting, agent-bench, development) | `b5d7f341c` |
