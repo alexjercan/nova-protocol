@@ -16,7 +16,7 @@ from nova_illustration.colors import ELENA, MATERIALS
 from nova_illustration.expressions import EXPRESSIONS, facial_features
 from nova_illustration.faces import FACES, expression_names, frontal_head
 from nova_illustration.lettering import labelled_speech
-from nova_illustration.portraits import elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait
+from nova_illustration.portraits import elena_close, elena_gesture, gantry_portrait, gripping_arm, reaching_arm, jonah_listener, work_inspection, work_portrait, supported_owen, freefall_guide, stretcher_grip, rail_grip_hand
 from nova_illustration.scenery import aquila, transfer_hall
 from nova_illustration.ships import Face, MODELS, VIEWS, bounds, box, contour_segments, dot, hull_segment, normal, painter_order, render_faces, render_ship, ship_faces, split_surface, sub
 from nova_illustration.styles import present
@@ -24,6 +24,38 @@ from nova_illustration.styles import present
 
 class IllustrationTests(unittest.TestCase):
     """Protect identity, projection, palette ownership, and deterministic exports."""
+
+    def test_supported_body_keeps_owens_original_head_without_equipment_or_injury(self):
+        art = supported_owen()
+        self.assertEqual(art, supported_owen())
+        self.assertIn(frontal_head('owen'), art)
+        root = ET.fromstring(art)
+        self.assertEqual(root.get('data-pose'), 'supported-recline')
+        self.assertFalse(any(n.get('data-prop') or n.get('data-expression') for n in root.iter()))
+        self.assertNotIn('rotate(', art)
+        for scheme in ('comic', 'lore'):
+            self.assertIn(frontal_head('owen'), present(art, scheme, 'supported'))
+
+    def test_freefall_guides_continue_the_existing_bodies_without_replacing_the_faces(self):
+        for name, original in [('rina', work_portrait('rina')), ('ivo', gantry_portrait('ivo'))]:
+            art = freefall_guide(name)
+            self.assertIn(original, art)
+            self.assertEqual(art, freefall_guide(name))
+            self.assertEqual(ET.fromstring(art).get('data-pose'), 'freefall-guide')
+        with self.assertRaises(KeyError):
+            freefall_guide('unknown')
+
+    def test_support_grips_own_no_heads_or_rails_and_reject_unknown_people(self):
+        for name in ('rina', 'ivo', 'samir'):
+            for draw in (stretcher_grip, rail_grip_hand):
+                art = draw(name)
+                self.assertEqual(art, draw(name))
+                root = ET.fromstring(art)
+                self.assertFalse(any(n.get('data-face') or n.get('data-prop') for n in root.iter()))
+            self.assertEqual(ET.fromstring(stretcher_grip(name)).get('data-grip'), '430 433')
+        for draw in (stretcher_grip, rail_grip_hand):
+            with self.assertRaises(KeyError):
+                draw('unknown')
 
     def test_ship_models_have_finite_planar_faces_and_known_materials(self):
         for name,build in MODELS.items():

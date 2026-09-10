@@ -13,7 +13,8 @@ not a separate novel. Keep this request and its follow-up work in this task.
 
 The user accepted the four-page visual direction and Baikal card placement.
 Story writing is now the main work; more illustration trials are not a
-prerequisite. The season story itself is not yet complete or approved.
+prerequisite. Episode one, **A useful job**, is complete and approved. The wider
+season story is not yet complete or approved, so this task remains OPEN.
 
 The current release tag schedules this development work. It is not a promise to
 ship the whole comic season or a playable campaign in that release.
@@ -28,11 +29,11 @@ written, so it is not a v0.13.0 deliverable and does not gate that release.
 - [Public encyclopedia source](../../web/src/lore/index.md).
 - [Reusable illustration library](../../scripts/nova_illustration/README.md).
 
-Keep approved world facts and shared continuity in those sources. Keep draft
-artwork, page experiments, scripts, working dialogue, reviews, and proof here.
-Do not create a second maintained story specification in the task.
+Keep approved world facts and shared continuity in those sources. Maintained
+scripts and art belong under `web/src/comics/`. Keep experiments, reviews, and
+proof here, not a second maintained story specification.
 
-## Current batch: episode-one script and reader structure
+## Authoring and reader groundwork
 
 The user approved organizing `/story/` as a series landing, season contents,
 and episode reader. Comic publication is separate from campaign availability;
@@ -53,9 +54,9 @@ private artwork. That script review included seven illustrated pages, with
 pages 8-18 still scripted. The user accepted these pages and chose the real
 website reader as the working preview, with a featured current season and
 ordered episode lists. Maintained page/script sources now live under
-`web/src/comics/season-1/episode-1/`. Normal local serving includes the draft;
-deployable builds exclude it. The user requested this single source home and
-removal of the demo. Task-local page boards and their `.txt` source
+`web/src/comics/season-1/episode-1/`. At that stage, normal local serving included
+the draft and deployable builds excluded it. The user requested this single
+source home and removal of the demo. Task-local page boards and their `.txt` source
 snapshots are frozen evidence, not parallel readers. The wider season and its
 critical choices are incomplete.
 
@@ -84,17 +85,88 @@ iteration. [Season browser review](SEASON-BROWSER-REVIEW.md) records the checks.
   [art review](GANTRY-REVIEW.md).
 - [Aquila pages 5-7](aquila-pages/index.html) and [batch review](AQUILA-REVIEW.md).
 
-## Current illustrations: pages 8-10
+## Accepted illustrations: pages 8-10
 
 The next three script pages now have draft artwork: the distress call, rescue
 assessment, and funding refusal. All action and dialogue remain unchanged.
-The episode has ten illustrated pages out of eighteen; pages 11-18 stay scripted.
+That batch brought the episode to ten illustrated pages out of eighteen.
 The first seven page exports remain pixel-identical. The spare stays outside the
 pressure window, the timing display shows only arrival order, and Daniel is
 heard over comms without a new likeness. [Distress review](DISTRESS-REVIEW.md)
 records the source, browser, layout, and publication-isolation checks. The user
 accepted these pages and requested their commit, followed by the next pages.
 The episode and wider season remain unfinished.
+
+## Accepted direction: pages 11-12
+
+Pages 8-10 were committed as `88a7445b4`, with full website CI passing. The next
+two pages now show Kaveri's coast, the stranded hull, exterior port inspection,
+and receiving preparations. The episode is twelve of eighteen pages illustrated;
+all action and dialogue remain unchanged. The first ten page exports are exact.
+[Intercept review](INTERCEPT-REVIEW.md) records the checks and page-13 decision.
+
+The user approved the direction and chose the short rigid sealed connector.
+
+## Docking illustration: page 13
+
+Page 13 now shows the held approach, Leila and Tomas's checks, and the joined
+collars. One opposed-heading arrangement supplies both exterior views. Shared
+hulls, damage, and secured cargo are unchanged. Geometry checks cover hull
+separation through closure and a hollow sleeve clear of the surrounding plating.
+They are drawing checks, not engineering approval or a docking standard.
+
+That batch brought the episode to thirteen illustrated pages. Spoken dialogue
+is exact; the page-13 action records the approved connector choice. All first
+twelve page exports are pixel-identical. [Docking review](DOCKING-REVIEW.md)
+records the source, geometry, reader, and draft-isolation checks. The user then
+approved continuing with the padded stretcher and straps.
+
+## Transfer illustrations: pages 14-15
+
+The new pages show the supported transfer, Samir's secured handover, Nadia's
+last crossing, closing checks, and quiet separation. Rina and Ivo keep their
+frame grips while Samir closes two temporary receiving clamps. New shared
+body and arm poses retain the original frontal identities; the scene owns the
+stretcher and equipment. No exact injury or medical capability is selected.
+
+That batch brought the episode to fifteen illustrated pages. Dialogue remains
+730 spoken words; panel 14a records the approved support equipment. The first
+thirteen page exports are pixel-identical. [Transfer review](TRANSFER-REVIEW.md)
+records source, illustration, reader, and draft-isolation checks. The user then
+requested the next pages, carrying these poses into the return.
+
+## Final illustrations: pages 16-18
+
+The final three pages show the survivors' distinct reactions, practical Baikal
+welcome, covered replacement in processing, later return to service, and the
+recoverable penalty. Owen stays supported. Ebro still waits for the delayed load.
+The last page returns to the same window and borrowed mug, without a new threat
+or a claim that rescue alone destroys Clearwell.
+
+All eighteen pages are now illustrated: fifty panels and 730 spoken words. The
+new batch changes no action, dialogue, or purpose. The first fifteen page exports
+remain pixel-identical, including the extracted receiving-clamp helper's output.
+[Homecoming review](HOMECOMING-REVIEW.md) records the illustration, source, reader,
+and fully-illustrated-draft exclusion checks.
+
+That batch completed the artwork and left the episode awaiting final review.
+The user then accepted the complete episode and requested task completion,
+removal of its draft mentions, and a source commit.
+
+## Episode-one completion
+
+- [x] Complete and approve all eighteen pages, fifty panels, and 730 spoken words.
+- [x] Replace the private page heading/footer with the season, episode, and title.
+- [x] Mark the episode `released` so normal released-only builds include it and
+  the reader, library, and episode list no longer show draft labels.
+- [x] Keep panel art, action, dialogue, and composition exact during finalization.
+- [x] Verify full website CI, illustration continuity, released root/prefix
+  readers, exports, and unchanged panels after the framing-text substitutions.
+
+[Completion review](COMPLETION-REVIEW.md) records the final build and browser
+checks for the requested commit. The seven whole-season writing checks below
+remain open; completing this episode does not complete the campaign or season.
+No push, comic tag, or live deployment is authorized by this request.
 
 ## Comic publishing follow-up
 
@@ -103,7 +175,10 @@ The user approved independent `comic-*` releases. Comic-only builds own
 one lock and exact source commits. The first rollout needs an empty-library
 bootstrap before legacy root-level reader files can be removed. No release tag
 or live deployment was created. [Deployment review](DEPLOYMENT-REVIEW.md) records
-the build, publisher, and browser checks. The eighteen-page episode stays draft.
+the build, publisher, and browser checks. Episode one is now selected by
+released-only builds; live publication remains a separate step. The empty-library
+bootstrap must use an earlier reviewed commit with no released episodes, not
+the completed-episode commit.
 
 ## Writing plan
 
@@ -136,8 +211,8 @@ the build, publisher, and browser checks. The eighteen-page episode stays draft.
   crew survival are separate decisions.
 - Preserve the distinction between approved direction and open choices in the
   production outline. Do not invent completeness or technical specifications.
-- The four-page draft stops at departure from Baikal. It is not an episode
-  boundary, released comic, or implementation of a campaign mission.
+- The historical four-page study stops at departure from Baikal. That was not
+  an episode boundary or an implementation of a campaign mission.
 
 ## Visual baseline and later work
 
@@ -179,11 +254,13 @@ this story work stay in this task. Do not move unrelated design studies:
 
 ## Scope and constraints
 
-1. The opening artwork and reusable-expression work are committed. The current
-   request authorizes the season/episode website structure and first-episode
-   script. It does not authorize publishing the draft or implementing missions.
-2. Preserve the accepted studies, comparison copies, and evidence. New scripts
-   and reviews stay with this task. Keep generated art and its sources together.
+1. The user approved the complete opening episode and requested its source
+   commit with draft labels removed. Its metadata selects it for released-only
+   builds. No live publishing, game release, or mission implementation is
+   authorized.
+2. Preserve the accepted studies, comparison copies, and evidence. New
+   verification scripts and reviews stay with this task. Keep generated art
+   and its sources together.
 3. Keep the production outline unpublished. Public subject histories follow
    released comic or campaign events, with spoiler scope and release links.
 4. Do not edit wiki pages, gameplay code, unrelated media, or other tasks.

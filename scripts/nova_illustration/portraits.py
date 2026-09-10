@@ -151,3 +151,68 @@ The scene supplies the equipment. Neither the pose nor its hands own a tool.
     hand += path('M178 443L187 452M175 462L188 459',stroke=c['lines'],width=1.3)
     arms += group(hand,'translate(70 -15)')
     return body, group(arms,data_pose='inspection-forearms',data_character=name)
+
+
+def supported_owen():
+    """Recline Owen toward a foot-end viewer, keeping the original frontal head.
+
+The foreshortened body owns no stretcher, restraints, injury, or treatment.
+The scene must supply support behind him and retain control of its motion.
+"""
+    c = FACE_COLORS['owen']
+    art = path('M104 423L241 423L267 493L306 587L274 635L196 618L169 513L142 618L65 635L29 587L76 487Z', c['coat'], width=2.5)
+    art += path('M171 467L194 502L220 599L271 617L274 635L196 618L169 513L142 618L109 625L142 498Z', c['coat_shadow'], 'none')
+    art += path('M73 502L105 521L72 577M222 509L256 534L279 580', stroke=c['coat_light'], width=2.5)
+    art += path('M61 596L139 599L151 650Q151 674 118 680L28 679Q11 674 19 652Z', c['coat_shadow'], width=2.5)
+    art += path('M199 599L279 596L320 652Q329 674 310 679L222 680Q190 674 190 650Z', c['coat_shadow'], width=2.5)
+    art += path('M27 657L139 655M203 655L310 657M45 637L131 635M209 635L294 637', stroke=c['coat_light'], width=3)
+    art += path('M143 211L197 211L212 273L237 296L168 330L104 292L126 264Z', c['skin'], width=2)
+    art += path('M141 237Q168 253 198 237L201 258L168 277L137 257Z', c['shadow'], 'none', opacity=.5)
+    art += path('M115 276L57 297Q16 324 24 371L67 472L270 472L307 368Q316 324 249 298L211 275L168 308Z', c['coat'], width=2.5)
+    art += path('M211 276L249 298Q316 324 307 368L270 472H186L192 333Z', c['coat_shadow'], 'none')
+    art += path('M115 278L167 310L211 277L223 312L197 350L169 340L144 353L98 313Z', c['shirt'], width=2)
+    art += path('M117 279L147 325L127 345L81 309M211 278L192 328L219 346L258 308', c['coat'], width=2)
+    art += path('M146 354L148 463M185 352L187 463M61 364H122V415H61ZM213 364H273V415H213Z', stroke=c['coat_light'], width=1.8)
+    art += path('M56 300Q16 314 14 356L20 421L71 486L102 468L63 404L77 344M250 300Q313 316 320 357L314 421L264 486L232 468L271 404L243 344', c['coat'], width=2.5)
+    art += path('M30 357L38 416L81 468M301 358L296 416L251 468', stroke=c['coat_light'], width=2)
+    art += path('M72 468L95 456L114 480L119 502Q116 510 110 503L99 486L107 511Q106 520 100 514L86 490L93 513Q92 521 86 514L73 490Z', c['skin'], width=1.8)
+    art += path('M263 468L240 456L221 480L216 502Q219 510 225 503L236 486L228 511Q229 520 235 514L249 490L242 513Q243 521 249 514L262 490Z', c['skin'], width=1.8)
+    head = group(frontal_head('owen'), 'translate(-130 -121)')
+    art += group(head, 'translate(167 215) scale(.7) translate(-167 -215)')
+    return group(art, data_character='owen', data_pose='supported-recline')
+
+
+def freefall_guide(name):
+    """Continue Rina's or Ivo's work bust into a body, so a distant guide is not a cutout."""
+    if name not in ('rina', 'ivo'):
+        raise KeyError(name)
+    c = FACE_COLORS[name]
+    art = path('M-20 540H318L303 694L267 825L278 1108L212 1147L165 893L150 730L130 886L90 1138L25 1107L35 817L-9 678Z', c['coat_shadow'], width=2.5)
+    art += path('M20 641L68 725L73 825L51 1048M259 644L222 728L221 827L250 1046M149 628L150 730', stroke=c['coat_light'], width=2.5)
+    art += path('M23 1091L94 1108L90 1179L-22 1204Q-49 1200-36 1180L9 1141ZM210 1108L278 1091L293 1141L337 1180Q351 1200 323 1204L213 1179Z', c['coat_shadow'], width=2.5)
+    art += path('M-22 1186L78 1165M222 1165L324 1186', stroke=c['coat_light'], width=3)
+    body = work_portrait(name) if name == 'rina' else gantry_portrait(name)
+    return group(art + body, data_character=name, data_pose='freefall-guide')
+
+
+def stretcher_grip(name):
+    """Reach from the work-body shoulder to a scene rail at (430, 433).
+
+Mirror this arm layer alone for a left-hand grip. The scene owns the rail;
+this layer contains no head, equipment, or assumption about gravity.
+"""
+    c = FACE_COLORS[name]
+    fabric = c['shirt'] if name == 'ivo' else c['coat']
+    art = path('M246 305Q280 300 295 348L321 397L421 415L418 449L304 435Q285 433 277 412L246 354Z', fabric, width=2.5)
+    art += path('M270 320L299 403Q304 415 321 418L410 433', stroke=c['coat_light'], width=2)
+    art += path('M409 412L428 416L429 448L411 451Z', c['coat_shadow'], width=2)
+    art += group(rail_grip_hand(name), 'translate(430 433) scale(-1 1)')
+    return group(art, data_character=name, data_pose='stretcher-grip', data_grip='430 433')
+
+
+def rail_grip_hand(name):
+    """Close a hand around a vertical scene rail at the local origin, without an arm."""
+    c = FACE_COLORS[name]
+    art = path('M-2 410L-11 395Q-14 387-7 386Q-1 386 6 402L17 404Q29 405 28 416L23 438Q21 446 13 445L-5 438Q-11 434-9 428L-1 422Z', c['skin'], width=1.8)
+    art += path('M4 411L24 416M1 420L23 425M0 430L20 435', stroke=c['lines'], width=1.3)
+    return group(group(art, 'translate(-5 -425)'), data_character=name, data_pose='rail-grip-hand')

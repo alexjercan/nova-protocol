@@ -1,0 +1,13 @@
+{
+  "noServer": true,
+  "seasonLibrary": true,
+  "episodeLists": true,
+  "browserHistory": true,
+  "modalChecks": false,
+  "noLayoutUi": true,
+  "base": "/",
+  "reports": [],
+  "pixels": [],
+  "errors": [],
+  "canceledRequests": []
+}

@@ -53,6 +53,10 @@ season-1/
       opening.py
       aquila.py
       distress.py
+      intercept.py
+      docking.py
+      transfer.py
+      homecoming.py
       props.py
       opening_props.py
 ```
@@ -113,7 +117,10 @@ unlettered slots, duplicate ids, and invalid geometry fail the build. Empty
 label/card arrays mean none are present; the `panel` helper supplies them when
 omitted. Silent panels still have authored action and a useful derived transcript.
 
-Episode one has eighteen script pages. Ten are illustrated; it remains a draft.
+Episode one, **A useful job**, is complete and approved: eighteen illustrated
+pages, selected by released-only builds. Its metadata is explicitly `released`;
+completion does not automatically publish any later draft. Live publication
+still requires the separate comic tag and deployment below.
 
 ## Python panel art
 
@@ -191,9 +198,10 @@ Actions-artifact source. The workflows require `contents: write` and
 `CNAME` is preserved, and `.nojekyll` remains present.
 
 First publish an empty-library bootstrap tag, such as `comic-reader-1`, from a
-commit containing this workflow. Drafts stay excluded. Do this before the first
-site-only deployment: an older Story page may still depend on root-level reader
-files. The publisher refuses to replace the surrounding site until a comic
+reviewed commit containing this workflow and no released episodes. Do not use
+the completed-episode commit for that empty-library bootstrap. Drafts stay
+excluded. Do this before the first site-only deployment: an older Story page
+may still depend on root-level reader files. The publisher refuses to replace the surrounding site until a comic
 release record establishes the new ownership boundary. Run the full-site
 workflow from current `master`; old workflow revisions lack this protection.
 

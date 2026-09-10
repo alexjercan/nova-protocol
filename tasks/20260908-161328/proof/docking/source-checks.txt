@@ -1,0 +1,1 @@
+{"protectedFiles": 1357, "scriptPages": 18, "panels": 50, "spokenWords": 730, "illustratedPages": 13, "newScenes": 3, "rawScenes": 36, "unchangedEarlierPixels": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "markdownSources": 5, "localLinks": 66, "serverStarted": false, "draftOnly": true, "head": "88a7445b416575f16ca7ab16fddaaa7735a6fad6"}

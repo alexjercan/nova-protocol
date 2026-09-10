@@ -1,0 +1,12 @@
+{
+  "noServer": true,
+  "seasonLibrary": true,
+  "episodeLists": true,
+  "browserHistory": true,
+  "modalChecks": false,
+  "noLayoutUi": true,
+  "base": "/nova-protocol/",
+  "reports": [],
+  "pixels": [],
+  "errors": []
+}

@@ -1,0 +1,60 @@
+
+> nova-protocol-web@1.0.0 build:story
+> webpack --config webpack.config.js --env target=story --mode production
+
+assets by path story/assets/season-1/episode-1/*.svg 11.2 MiB
+  assets by status 10.5 MiB [big]
+    asset story/assets/season-1/episode-1/baikal-work.svg 1000 KiB [emitted] [big]
+    asset story/assets/season-1/episode-1/outbound-baikal.svg 984 KiB [emitted] [big]
+    asset story/assets/season-1/episode-1/checking-seal.svg 897 KiB [emitted] [big]
+    + 14 assets
+  + 33 assets
+assets by path story/season-1/ 103 KiB
+  asset story/season-1/episode-1/index.html 101 KiB [emitted]
+  asset story/season-1/index.html 2.43 KiB [emitted]
+assets by status 76.2 KiB [compared for emit]
+  asset story/assets/promptfont.woff2 75.3 KiB [compared for emit] [from: src/assets/promptfont.woff2] (auxiliary name: story)
+  asset story/favicon.svg 891 bytes [compared for emit] [from: src/favicon.svg] [copied]
+asset story/reader.js 127 KiB [emitted] [minimized] (name: story)
+asset story/index.html 2.32 KiB [emitted]
+orphan modules 48.6 KiB [orphan] 8 modules
+runtime modules 1.62 KiB 6 modules
+cacheable modules 153 KiB (javascript) 75.3 KiB (asset)
+  modules by path ./node_modules/ 8.73 KiB
+    modules by path ./node_modules/style-loader/dist/runtime/*.js 5.84 KiB 6 modules
+    modules by path ./node_modules/css-loader/dist/runtime/*.js 2.89 KiB
+      ./node_modules/css-loader/dist/runtime/noSourceMaps.js 64 bytes [built] [code generated]
+      + 2 modules
+  modules by path ./src/ 145 KiB (javascript) 75.3 KiB (asset)
+    modules by path ./src/*.css 95.1 KiB
+      ./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/style.css 91.3 KiB [built] [code generated]
+      ./node_modules/css-loader/dist/cjs.js!./node_modules/postcss-loader/dist/cjs.js!./src/story.css 3.79 KiB [built] [code generated]
+    ./src/story.ts + 8 modules 49.5 KiB [built] [code generated]
+    ./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+
+WARNING in asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+This can impact web performance.
+Assets:
+  story/assets/season-1/episode-1/baikal-work.svg (1000 KiB)
+  story/assets/season-1/episode-1/assignment-window.svg (572 KiB)
+  story/assets/season-1/episode-1/outbound-baikal.svg (984 KiB)
+  story/assets/season-1/episode-1/approach-aquila.svg (745 KiB)
+  story/assets/season-1/episode-1/collection-check.svg (518 KiB)
+  story/assets/season-1/episode-1/shared-workspace.svg (385 KiB)
+  story/assets/season-1/episode-1/gantry-departure.svg (316 KiB)
+  story/assets/season-1/episode-1/outbound-aquila.svg (645 KiB)
+  story/assets/season-1/episode-1/across-the-gap.svg (632 KiB)
+  story/assets/season-1/episode-1/gantry-in-sight.svg (306 KiB)
+  story/assets/season-1/episode-1/visible-port.svg (294 KiB)
+  story/assets/season-1/episode-1/holding-at-port.svg (887 KiB)
+  story/assets/season-1/episode-1/checking-seal.svg (897 KiB)
+  story/assets/season-1/episode-1/leaving-gantry.svg (887 KiB)
+  story/assets/season-1/episode-1/line-back-in-service.svg (565 KiB)
+  story/assets/season-1/episode-1/penalty-at-window.svg (572 KiB)
+  story/assets/season-1/episode-1/mug-back-home.svg (570 KiB)
+
+WARNING in webpack performance recommendations:
+You can limit the size of your bundles by using import() or require.ensure to lazy load some parts of your application.
+For more info visit https://webpack.js.org/guides/code-splitting/
+
+webpack 5.108.4 compiled with 2 warnings in 7118 ms

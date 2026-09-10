@@ -1,0 +1,13 @@
+file:///home/alex/personal/nova-protocol/tasks/20260908-161328/proof/inspect-docking.mjs:37
+browser.stdio[4].on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\0'))>=0){const m=JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(JSON.stringify(m.error))):p.resolve(m.result);}else if(m.method==='Fetch.requestPaused')void intercept(m);else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);}});
+                                                                                                                                                                                                                                                       ^
+
+Error: {"code":-32000,"message":"Inspected target navigated or closed"}
+    at Socket.<anonymous> (file:///home/alex/personal/nova-protocol/tasks/20260908-161328/proof/inspect-docking.mjs:37:248)
+    at Socket.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at Readable.push (node:internal/streams/readable:394:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v24.18.0

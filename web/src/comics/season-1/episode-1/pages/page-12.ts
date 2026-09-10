@@ -1,14 +1,14 @@
-import { scriptPage, scriptPanel, say } from "../../../comic-script";
+import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 
-export default scriptPage({
+export default page({
     id: "page-12",
     title: "One way in",
     purpose: "Give the stranded crew useful judgment in their own rescue.",
     panels: [
-        scriptPanel(
-            "12a",
-            "Leila studies the port area as Kaveri closes. Do not reveal hidden interior systems through an impossible scan. Her questions go to the people aboard.",
-            [
+        panel("12a", {
+            art: scene("visible-port"),
+            action: "Leila studies the port area as Kaveri closes. Do not reveal hidden interior systems through an impossible scan. Her questions go to the people aboard.",
+            dialogue: [
                 say(
                     "leila-1",
                     "Leila",
@@ -19,12 +19,34 @@ export default scriptPage({
                     "Owen / comms",
                     "Not that branch. We isolated the main distribution. Leave it isolated."
                 ),
-            ]
-        ),
-        scriptPanel(
-            "12b",
-            "Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings first-aid equipment. No equipment specification or permanent passenger layout is established by this staging.",
-            [
+            ],
+            lettering: {
+                "leila-1": balloon({
+                    at: [18, 18],
+                    width: 608,
+                    tail: [183, 194],
+                    side: "bottom",
+                }),
+                "owen-2": balloon({
+                    at: [648, 18],
+                    width: 750,
+                    tail: [1315, 170],
+                    side: "bottom",
+                }),
+            },
+            labels: [
+                label("camera", "GANTRY / EXTERIOR VIEW", {
+                    slot: "camera",
+                    at: [520, 178],
+                    size: 19,
+                    color: "mint",
+                }),
+            ],
+        }),
+        panel("12b", {
+            art: scene("receiving-space"),
+            action: "Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings first-aid equipment. No equipment specification or permanent passenger layout is established by this staging.",
+            dialogue: [
                 say(
                     "leila-1",
                     "Leila / comms",
@@ -40,19 +62,74 @@ export default scriptPage({
                     "Rina",
                     "Stay with him. We'll meet you at the opening."
                 ),
-            ]
-        ),
-        scriptPanel(
-            "12c",
-            "Jonah glances toward Samir rather than asking him to perform a miracle.",
-            [
+            ],
+            lettering: {
+                "leila-1": balloon({
+                    at: [18, 18],
+                    width: 405,
+                    tail: [58, 199],
+                    side: "bottom",
+                }),
+                "ivo-2": balloon({
+                    at: [441, 18],
+                    width: 387,
+                    tail: [483, 201],
+                    side: "bottom",
+                }),
+                "rina-3": balloon({
+                    at: [439, 366],
+                    width: 389,
+                    tail: [634, 321],
+                    side: "top",
+                }),
+            },
+            labels: [
+                label("first-aid", "FIRST AID", {
+                    slot: "first-aid",
+                    at: [259, 403],
+                    size: 18,
+                    color: "ink",
+                }),
+            ],
+        }),
+        panel("12c", {
+            art: scene("ready-to-help"),
+            action: "Jonah glances toward Samir rather than asking him to perform a miracle.",
+            dialogue: [
                 say("jonah-1", "Jonah", "Ready for him?"),
                 say(
                     "samir-2",
                     "Samir",
                     "Ready to help him aboard. I'll need their account of the injury."
                 ),
-            ]
-        ),
+            ],
+            lettering: {
+                "jonah-1": balloon({
+                    at: [18, 18],
+                    width: 230,
+                    tail: [146, 151],
+                    side: "bottom",
+                }),
+                "samir-2": balloon({
+                    at: [275, 18],
+                    width: 257,
+                    tail: [428, 244],
+                    side: "bottom",
+                }),
+            },
+            labels: [
+                label("first-aid", "FIRST AID", {
+                    slot: "first-aid",
+                    at: [188, 417],
+                    size: 18,
+                    color: "ink",
+                }),
+            ],
+        }),
     ],
+    layout: {
+        "12a": { at: [42, 86], size: [1416, 348] },
+        "12b": { at: [42, 454], size: [846, 489] },
+        "12c": { at: [908, 454], size: [550, 489] },
+    },
 });

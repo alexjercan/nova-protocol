@@ -1,40 +1,89 @@
-import { scriptPage, scriptPanel, say } from "../../../comic-script";
+import { page, panel, scene, say, balloon, label } from "../../../comic-script";
 
-export default scriptPage({
+export default page({
     id: "page-15",
     title: "All three",
     purpose: "Finish the evacuation without inventing a hull destruction.",
     panels: [
-        scriptPanel(
-            "15a",
-            "From Kaveri's side of the passage, Jonah sees Nadia cross last. She brings the crew's working records, not a conveniently labelled conspiracy file.",
-            [
+        panel("15a", {
+            art: scene("last-across"),
+            action: "From Kaveri's side of the passage, Jonah sees Nadia cross last. She brings the crew's working records, not a conveniently labelled conspiracy file.",
+            dialogue: [
                 say(
                     "nadia-1",
                     "Nadia",
                     "That's everyone. Three aboard Kaveri."
                 ),
                 say("jonah-2", "Jonah", "All accounted for."),
-            ]
-        ),
-        scriptPanel(
-            "15b",
-            "Rina checks that the passage is clear. Leila prepares the separation. Owen stays with Samir; do not crowd everyone onto the flight deck for a group portrait.",
-            [
+            ],
+            lettering: {
+                "nadia-1": balloon({
+                    at: [18, 18],
+                    width: 412,
+                    tail: [144, 200],
+                    side: "bottom",
+                }),
+                "jonah-2": balloon({
+                    at: [448, 18],
+                    width: 390,
+                    tail: [694, 200],
+                    side: "bottom",
+                }),
+            },
+        }),
+        panel("15b", {
+            art: scene("transfer-side-clear"),
+            action: "Rina checks that the passage is clear. Leila prepares the separation. Owen stays with Samir; do not crowd everyone onto the flight deck for a group portrait.",
+            dialogue: [
                 say("rina-1", "Rina", "Transfer side clear."),
                 say("leila-2", "Leila", "Closing and checking."),
-            ]
-        ),
-        scriptPanel(
-            "15c",
-            "Kaveri separates from Gantry. Hold enough space around the abandoned hull to let its loss of usefulness register. It does not explode. No pirates appear.",
-            [
+            ],
+            lettering: {
+                "rina-1": balloon({
+                    at: [18, 18],
+                    width: 224,
+                    tail: [104, 230],
+                    side: "bottom",
+                }),
+                "leila-2": balloon({
+                    at: [242, 18],
+                    width: 280,
+                    tail: [430, 220],
+                    side: "bottom",
+                }),
+            },
+            labels: [
+                label("closing", "PORT CHECK", {
+                    slot: "closing",
+                    at: [353, 367],
+                    size: 16,
+                    color: "work-card-text",
+                }),
+            ],
+        }),
+        panel("15c", {
+            art: scene("leaving-gantry"),
+            action: "Kaveri separates from Gantry. Hold enough space around the abandoned hull to let its loss of usefulness register. It does not explode. No pirates appear.",
+            dialogue: [
                 say(
                     "jonah-1",
                     "Jonah / comms",
                     "Baikal, Kaveri. We have all three. Coming home."
                 ),
-            ]
-        ),
+            ],
+            lettering: {
+                "jonah-1": balloon({
+                    at: [18, 18],
+                    width: 460,
+                    tail: [700, 150],
+                    side: "bottom",
+                }),
+            },
+        }),
     ],
+    layout: {
+        "15a": { at: [42, 86], size: [856, 407] },
+        "15b": { at: [918, 86], size: [540, 407] },
+        "15c": { at: [42, 513], size: [1416, 430] },
+    },
 });

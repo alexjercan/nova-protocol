@@ -1,0 +1,904 @@
+{
+  "noServer": true,
+  "seasonLibrary": true,
+  "episodeLists": true,
+  "browserHistory": true,
+  "modalChecks": true,
+  "noLayoutUi": true,
+  "base": "/nova-protocol/",
+  "reports": [
+    {
+      "width": 1440,
+      "id": "page-1",
+      "issues": [],
+      "panels": [
+        {
+          "id": "1a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/baikal-work.svg",
+          "composed": "blob:https://nova-review.invalid/80cfb935-f2af-427a-be32-1d6d8a8b4e7c"
+        },
+        {
+          "id": "1b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/coffee-break.svg",
+          "composed": "blob:https://nova-review.invalid/0b19559a-6325-445a-830e-d42788a87618"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/05e28d60-a67e-45f0-bb13-ba3d7ebec815",
+      "text": "Panel 1A: Baikal at work, with Ebro and Kaveri berthed against Saturn.\nLocation: BAIKAL / Saturn system / 2078 / Clearwell Waterworks' main base\nNo dialogue.\n\nPanel 1B: Rina and Jonah share a coffee break in Baikal before Leila calls from processing.\nDisplay: GAME NIGHT\nRina: Coffee's still hot. Take a minute before somebody finds you another job.\nJonah: I'll settle for half a minute.\nLeila / comms: Jonah? Processing line's stopped. Can you come down?"
+    },
+    {
+      "width": 1440,
+      "id": "page-2",
+      "issues": [],
+      "panels": [
+        {
+          "id": "2a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/pump-inspection.svg",
+          "composed": "blob:https://nova-review.invalid/7748a66f-5873-4ab8-a7bc-450b6fd38f8c"
+        },
+        {
+          "id": "2b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/residential-console.svg",
+          "composed": "blob:https://nova-review.invalid/7abcb0d2-dcc3-41c8-b1c2-bfffdd37d75a"
+        },
+        {
+          "id": "2c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/repair-choice.svg",
+          "composed": "blob:https://nova-review.invalid/9d6ca217-c8f1-4627-aec4-a90f95802b98"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/dad51f19-bc82-442a-a9c8-a1f3a189b59f",
+      "text": "Panel 2A: Leila examines the isolated pump housing with her hands while Jonah listens beside the machinery.\nLeila: Circulation pump's failed. We've isolated the line. The others are still running.\n\nPanel 2B: Samir checks residential supplies at the processing console while Leila examines the isolated line.\nDisplay: RESIDENTIAL SUPPLIES\nDisplay: NORMAL\nSamir: Residential supply is normal.\n\nPanel 2C: Leila explains why replacing the assembly is quicker than an overhaul.\nJonah / off-panel: Can you rebuild it here?\nLeila: Yes. But we'd lose more production waiting on the overhaul. A replacement gets us running sooner."
+    },
+    {
+      "width": 1440,
+      "id": "page-3",
+      "issues": [],
+      "panels": [
+        {
+          "id": "3a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/assignment-window.svg",
+          "composed": "blob:https://nova-review.invalid/d622d00b-035b-4d5e-b5a9-7faf7d1fbb4f"
+        },
+        {
+          "id": "3b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/delivery-record.svg",
+          "composed": "blob:https://nova-review.invalid/fde444df-3506-4a27-a87e-c88fa6eca642"
+        },
+        {
+          "id": "3c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/borrowed-mug.svg",
+          "composed": "blob:https://nova-review.invalid/d19bd246-1aec-4df7-bfa5-5ebc13a5121c"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/d171c06a-d036-4af1-b984-37f0fb6240f7",
+      "text": "Panel 3A: Elena and Jonah arrange the Aquila pickup, with the waiting Ebro framed by the window.\nElena: Aquila has a replacement assembly. Can Kaveri collect it?\nJonah: Yes. We can leave as soon as everyone's aboard.\n\nPanel 3B: A delivery record connects Ebro and Foundation while Elena explains the commitment.\nDisplay: EBRO\nDisplay: WATER DELIVERY\nDisplay: FOUNDATION\nElena: EarthWorks is expecting Ebro's load aboard Foundation. We need that line back to have it ready on time.\n\nPanel 3C: Elena closes the exchange with the borrowed-mug joke; Jonah answers from the foreground.\nElena: And bring the mug back. We haven't budgeted for a replacement.\nJonah: I'll put it on the cargo list."
+    },
+    {
+      "width": 1440,
+      "id": "page-4",
+      "issues": [],
+      "panels": [
+        {
+          "id": "4a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/departure-stations.svg",
+          "composed": "blob:https://nova-review.invalid/e50a3016-6ed4-439a-a31e-b8057a224a5a"
+        },
+        {
+          "id": "4b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/outbound-baikal.svg",
+          "composed": "blob:https://nova-review.invalid/2e210035-d7d3-4d59-9ead-2f788329d989"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/bad8a363-e0ed-42cc-890c-a2edc8171135",
+      "text": "Panel 4A: A Kaveri location card introduces the move aboard. Tomas reports readiness and Jonah gives the departure order.\nLocation: KAVERI / Departing Baikal / Later that day / Clearwell Waterworks' workship\nTomas: All aboard. Cargo space is clear, and the Aquila course is ready.\nJonah: All right. Take us out.\n\nPanel 4B: Kaveri departs with its cradle empty and handling arm stowed. Baikal and Ebro recede. No attack or pursuit appears.\nNo dialogue."
+    },
+    {
+      "width": 1440,
+      "id": "page-5",
+      "issues": [],
+      "panels": [
+        {
+          "id": "5a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/approach-aquila.svg",
+          "composed": "blob:https://nova-review.invalid/5683b3ce-d23b-4e0b-9d4c-60864820d8fc"
+        },
+        {
+          "id": "5b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/collection-check.svg",
+          "composed": "blob:https://nova-review.invalid/897d8fce-ffe9-4984-8795-89e4d948ffdf"
+        },
+        {
+          "id": "5c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/assembly-inspection.svg",
+          "composed": "blob:https://nova-review.invalid/48b4ead5-36ce-4fd2-8dec-307aaaa255b2"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/721117b6-c0db-4fe2-bb78-e0b3ac61f872",
+      "text": "Panel 5A: Aquila from Kaveri's approach. Give the port useful scale and activity without adding a roster of identifiable background ships. Kaveri remains the camera's anchor. A location card says AQUILA / Saturn system / Later / Farspan's freight hub; \"Later\" is a draft stamp, not a fixed travel duration.\nLocation: AQUILA / Saturn system / Later / Farspan's freight hub\nTomas / comms: Aquila, Kaveri. Inbound for the Clearwell collection.\n\nPanel 5B: In Aquila's pressurized, non-rotating transfer hall, Leila checks the assembly's connections in person. Rina controls its motion with the handling frame and restraints; Samir compares its identification with the order and delivery record. Handholds and tethered equipment establish freefall, not a standing warehouse. Jonah keeps the shared access clear, just outside this closer view. Both ships remain outside, visible through berth windows. Leila's closer check follows in 5c; she has travelled aboard Kaveri with them, not stayed at Baikal.\nDisplay: CLEARWELL\nDisplay: ORDER MATCH\nRina: This is ours?\nSamir: Matches the order. Leila?\nRina: Before I strap it down.\n\nPanel 5C: Leila finishes checking the connection faces in person. Samir is beside her, ready to complete the receipt; Rina waits for her check before securing the load.\nLeila: That's the right one. Keep the protective covers on.\nSamir: Even the awkward one?\nLeila: Especially the awkward one."
+    },
+    {
+      "width": 1440,
+      "id": "page-6",
+      "issues": [],
+      "panels": [
+        {
+          "id": "6a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/shared-workspace.svg",
+          "composed": "blob:https://nova-review.invalid/6629ef7c-a93e-4d78-b7c8-853479bee3b2"
+        },
+        {
+          "id": "6b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/introductions.svg",
+          "composed": "blob:https://nova-review.invalid/d27e4116-2756-40a1-b0ed-985c215ffa71"
+        },
+        {
+          "id": "6c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/safe-trip.svg",
+          "composed": "blob:https://nova-review.invalid/e7ea7335-a009-49e2-9576-768884ad4541"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/b40bfc55-59c2-4d5f-b306-799b58fb6d4a",
+      "text": "Panel 6A: Nadia and Rina share the pressurized transfer hall. Through its windows we see Gantry intact outside. Nadia waits while Rina guides Clearwell's restrained assembly toward the freight lock. Gantry's name is visible on its hull. Its unarmed workship design should be recognizable again at the rescue.\nNadia: Gantry here. Are you finished with that space?\nRina: Nearly. It's awkward to turn.\nNadia: I'll keep our load clear.\n\nPanel 6B: Jonah joins Nadia at the hall's handholds after the load clears their shared access. The freight lock has closed behind them, with the assembly restrained inside. Both doors are never open together. This is still a working exchange, not a meeting-room conversation.\nDisplay: FREIGHT LOCK\nJonah: Thanks for waiting.\nNadia: Better than chasing both loads. Sen. Gantry.\nJonah: Mercer. Kaveri.\n\nPanel 6C: Rina signals that the assembly is secure for the freight-lock cycle. Nadia releases her handhold to return to her own job; the frontal likeness stays unchanged, and her reaching arm carries the movement. Both crews have somewhere to be. The sealed freight lock and exterior handling gear transfer the assembly to Kaveri's external cradle between this scene and 7a; no open doorway connects the pressurized hall to space.\nDisplay: FREIGHT LOCK\nNadia: Replacement?\nJonah: Baikal's lost a processing line.\nNadia: Glad you found one.\nJonah: So are we. Safe trip."
+    },
+    {
+      "width": 1440,
+      "id": "page-7",
+      "issues": [],
+      "panels": [
+        {
+          "id": "7a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/gantry-departure.svg",
+          "composed": "blob:https://nova-review.invalid/d2a1ca68-8edc-4094-9431-f16478e0c656"
+        },
+        {
+          "id": "7b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/outbound-aquila.svg",
+          "composed": "blob:https://nova-review.invalid/10c23e2c-757a-45b1-9477-88e4c93a3120"
+        },
+        {
+          "id": "7c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/thoughts-of-home.svg",
+          "composed": "blob:https://nova-review.invalid/a05b599d-dde0-489d-875b-aac81f553a6e"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/cfdcb0e6-a310-42e9-b5c2-8b7a99837375",
+      "text": "Panel 7A: Back inside Kaveri, Rina and Samir finish the restraint and access checks after the assembly has been clamped into the external cradle. The display confirms the load; they do not stand outside without suits. Through the window, Gantry leaves first, intact. No threatening shape watches it depart, and no departure interval is printed.\nDisplay: LOAD SECURED / COVERS ON\nDisplay: PASSAGE CLEAR\nRina: Load's secured. Passage is clear.\nSamir: And every cover is still on it.\n\nPanel 7B: Kaveri outbound from Aquila, with the same covered assembly visible in its external cradle. A quiet, wider panel with the town falling behind. No dialogue. No promise that the next panel is only moments later.\nNo dialogue.\n\nPanel 7C: Later in the return leg. Leila checks the load record near Jonah. The work is under control, and her attention can briefly return to home.\nDisplay: COLLECTION COMPLETE\nDisplay: BAIKAL\nLeila: I might make game night after all.\nJonah: Is that good news for everyone else?\nLeila: They can practice while I'm away."
+    },
+    {
+      "width": 1440,
+      "id": "page-8",
+      "issues": [],
+      "panels": [
+        {
+          "id": "8a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/familiar-signal.svg",
+          "composed": "blob:https://nova-review.invalid/a518f52a-71b8-4f7f-8cb8-39421b96fa71"
+        },
+        {
+          "id": "8b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/answering-gantry.svg",
+          "composed": "blob:https://nova-review.invalid/e44b39d8-2229-403c-b357-0adf6db9a5f0"
+        },
+        {
+          "id": "8c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/recording-report.svg",
+          "composed": "blob:https://nova-review.invalid/819342a1-ba61-4a2f-a9a9-8a5a1bd7a155"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/01545aae-9a4e-4e1f-bcc7-9d013fd3d52e",
+      "text": "Panel 8A: Samir at communications. A distress call interrupts the quiet. Jonah turns before Samir has finished identifying the sender.\nDisplay: GANTRY / INCOMING\nDisplay: REQUESTING ASSISTANCE\nNadia / comms: Gantry, requesting assistance. Main propulsion disabled.\nSamir: That's the captain from Aquila.\n\nPanel 8B: Jonah answers. Stay aboard Kaveri; no cutaway to the attack or Gantry's interior.\nDisplay: GANTRY\nDisplay: OPEN CHANNEL\nJonah: Gantry, Kaveri. We hear you. How many aboard?\nNadia / comms: Three. All alive. Owen's hurt. We've isolated the damaged spaces.\n\nPanel 8C: Samir records the report while Tomas begins checking the relative tracks. Information comes from Nadia, not an omniscient map labelling every danger.\nDisplay: GANTRY / CREW REPORT\nDisplay: RESERVES / REQUESTED\nDisplay: PORT STATUS / REQUESTED\nSamir: What's still working?\nNadia / comms: Emergency power. Comms, attitude control, limited life support. They took the cargo and left us here.\nJonah: Send your reserve estimate and the port status. We're checking an intercept."
+    },
+    {
+      "width": 1440,
+      "id": "page-9",
+      "issues": [],
+      "panels": [
+        {
+          "id": "9a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/arrival-order.svg",
+          "composed": "blob:https://nova-review.invalid/edb4bb73-f145-4164-8361-aebfe4158b5c"
+        },
+        {
+          "id": "9b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/transfer-assessment.svg",
+          "composed": "blob:https://nova-review.invalid/49923ab3-0bb5-4580-a5e8-ce0eb71d275b"
+        },
+        {
+          "id": "9c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/honest-warning.svg",
+          "composed": "blob:https://nova-review.invalid/260ca80c-c7a1-44f4-b6bd-8e5ddfd0ab57"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/0b38233a-1083-4966-86fc-a0b3e54dc6dc",
+      "text": "Panel 9A: Tomas brings the revised route to Jonah. No invented numerical countdown is printed. The drawing distinguishes Kaveri's possible arrival from Gantry's expected endurance. Only the arrival ordering matters here, not a plotted orbit.\nDisplay: ARRIVAL ORDER / NOT TO SCALE\nDisplay: KAVERI\nDisplay: RESERVES END\nDisplay: RECOVERY\nTomas: We can reach them before their reserves run out. The scheduled recovery can't.\nJonah: And Baikal?\nTomas: Later. Enough that we miss the repair plan. Ebro's load won't be ready.\n\nPanel 9B: Rina and Leila assess the transfer route beside the secured assembly. The replacement stays aboard. Make the distinction between preserving cargo and clearing an assisted passage visible.\nDisplay: EXTERNAL CRADLE / SECURED\nRina: We can bring three people through here. The assembly stays tied down.\nLeila: If their port is sound, we can dock. We don't need to restart their main bus.\nRina: Then let's get them off it.\n\nPanel 9C: Tomas is not isolated as the scene's unkind person. Jonah takes the warning seriously before making a commitment on Clearwell's behalf.\nDisplay: ROUTE WORK\nTomas: I want them out too. I want Elena to know what we're spending.\nJonah: She will. Keep working the intercept."
+    },
+    {
+      "width": 1440,
+      "id": "page-10",
+      "issues": [],
+      "panels": [
+        {
+          "id": "10a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/asking-clearwell.svg",
+          "composed": "blob:https://nova-review.invalid/f3fbb307-e828-4d8b-86ee-3fc852761e20"
+        },
+        {
+          "id": "10b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/cost-refusal.svg",
+          "composed": "blob:https://nova-review.invalid/e708681a-6f16-4cdd-a93d-81b538099e50"
+        },
+        {
+          "id": "10c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/taking-intercept.svg",
+          "composed": "blob:https://nova-review.invalid/bc4d319c-fd85-4f76-b2ba-c2e87ec0b2dd"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/be388d3e-cbd2-4c3a-9cca-eb4468d3c052",
+      "text": "Panel 10A: Elena on Kaveri's comms display. Behind Jonah, Tomas continues the route work.\nDisplay: ELENA WARD\nDisplay: BAIKAL\nJonah: Three people. We can reach them. It will put the replacement in late.\nElena / comms: Understood. I'll ask EarthWorks to cover the diversion. Keep preparing.\n\nPanel 10B: Aboard Kaveri, Samir monitors Elena's call with Daniel Reed at EarthWorks Operations. Clear speaker labels identify the two ends of the call. Keep the panel on that exchange, rather than crowding the other preparations behind him.\nDisplay: BAIKAL\nDisplay: ELENA WARD\nDisplay: EARTHWORKS\nDisplay: OPERATIONS\nDisplay: DANIEL REED\nElena / comms: Kaveri can reach your crew in time. Will EarthWorks cover the diversion?\nDaniel / comms: No. We have a recovery scheduled.\nElena / comms: Your people won't last that long.\nDaniel / comms: I'm not approving the cost.\n\nPanel 10C: Elena speaks to Jonah again. He looks to Tomas, not toward an imaginary approval indicator. Leave room around the final instruction.\nDisplay: ELENA / BAIKAL\nElena / comms: Clearwell will cover it. Bring them home.\nJonah: Tomas. Take the intercept."
+    },
+    {
+      "width": 1440,
+      "id": "page-11",
+      "issues": [],
+      "panels": [
+        {
+          "id": "11a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/across-the-gap.svg",
+          "composed": "blob:https://nova-review.invalid/b6c8a42f-0c12-4210-a061-ab9c4f85aaf3"
+        },
+        {
+          "id": "11b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/gantry-in-sight.svg",
+          "composed": "blob:https://nova-review.invalid/88b89f4f-bff3-48a3-9e83-de5d98ca6fe3"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/11450065-37fd-457f-9433-e4f426e1e053",
+      "text": "Panel 11A: A broad exterior: Kaveri on the new course, its replacement assembly still secured. The ship is small against the distance. Do not draw looping jet-fighter trails or a continuous burn simply to fill the panel. No dialogue.\nNo dialogue.\n\nPanel 11B: Later, with Gantry now resolved ahead, Kaveri's crew compares the transmitted condition report with what they can see. The hull is stable, not tumbling. Damage interrupts the form we saw intact at Aquila.\nDisplay: GANTRY / COMMS\nTomas: Gantry in sight. Matching their motion.\nNadia / comms: We can hold attitude. Main drive is out.\nJonah: Understood. We come to you."
+    },
+    {
+      "width": 1440,
+      "id": "page-12",
+      "issues": [],
+      "panels": [
+        {
+          "id": "12a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/visible-port.svg",
+          "composed": "blob:https://nova-review.invalid/e879c405-2810-4c68-b585-1309795752b3"
+        },
+        {
+          "id": "12b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/receiving-space.svg",
+          "composed": "blob:https://nova-review.invalid/bccbed0f-be4e-43c3-a154-8ae5eb363a54"
+        },
+        {
+          "id": "12c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/ready-to-help.svg",
+          "composed": "blob:https://nova-review.invalid/7ec762d6-00bc-4f68-8a7b-edb012acf180"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/4cb725b8-b698-4d3d-b0f3-77cd67b65761",
+      "text": "Panel 12A: Leila studies the port area as Kaveri closes. Do not reveal hidden interior systems through an impossible scan. Her questions go to the people aboard.\nDisplay: GANTRY / EXTERIOR VIEW\nLeila: Gantry, did the electrical fault reach the docking equipment?\nOwen / comms: Not that branch. We isolated the main distribution. Leave it isolated.\n\nPanel 12B: Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings first-aid equipment. No equipment specification or permanent passenger layout is established by this staging.\nDisplay: FIRST AID\nLeila / comms: Agreed. We'll check the connection before anyone crosses.\nIvo / comms: The access is clear. Owen needs help moving.\nRina: Stay with him. We'll meet you at the opening.\n\nPanel 12C: Jonah glances toward Samir rather than asking him to perform a miracle.\nDisplay: FIRST AID\nJonah: Ready for him?\nSamir: Ready to help him aboard. I'll need their account of the injury."
+    },
+    {
+      "width": 1440,
+      "id": "page-13",
+      "issues": [],
+      "panels": [
+        {
+          "id": "13a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/holding-at-port.svg",
+          "composed": "blob:https://nova-review.invalid/6ed31710-506b-4141-94a3-ecae124ca220"
+        },
+        {
+          "id": "13b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/checked-alignment.svg",
+          "composed": "blob:https://nova-review.invalid/0a782468-4a9d-4963-9173-c77ad86289ae"
+        },
+        {
+          "id": "13c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/checking-seal.svg",
+          "composed": "blob:https://nova-review.invalid/6f70caa0-0f61-445b-b5cd-9c80b027b5c0"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/459f61f7-efae-4a4c-bd32-d13f3df68e5c",
+      "text": "Panel 13A: Exterior close enough to understand the remaining gap. Gantry's damaged systems stay inactive. Kaveri approaches the verified port; keep both hull identities clear and do not add a second docking arrangement for this view.\nDisplay: KAVERI\nDisplay: GANTRY\nTomas / comms: Holding here for the port check.\nLeila / comms: Give me the alignment view.\n\nPanel 13B: Leila and Tomas concentrate on their different parts of the same operation. Neither explains basic flight controls to the competent captain.\nLeila: That's the port we checked. Approach is clear.\nTomas: Coming in.\n\nPanel 13C: The ships connected, their bulk suddenly close. Both coast without thrust; the transfer spaces are in freefall. The moment is quiet rather than triumphant. Pressure and seal checks occur before the following page's opening. The short rigid sealed connector joins the existing side collars with the ships facing opposite directions.\nLeila / comms: Connection secure. Checking the seal."
+    },
+    {
+      "width": 1440,
+      "id": "page-14",
+      "issues": [],
+      "panels": [
+        {
+          "id": "14a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/meeting-at-opening.svg",
+          "composed": "blob:https://nova-review.invalid/4356cf50-139b-4378-b198-538710e0b58f"
+        },
+        {
+          "id": "14b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/moving-together.svg",
+          "composed": "blob:https://nova-review.invalid/391b9481-23d1-4418-aa0b-22e726584a18"
+        },
+        {
+          "id": "14c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/securing-support.svg",
+          "composed": "blob:https://nova-review.invalid/5d1362f6-87d0-43f4-890b-755c2b619250"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/5c0143bb-5603-4115-b9bd-ccd0405c4f51",
+      "text": "Panel 14A: After the seal and pressure checks, Rina meets Ivo at the opened passage, using a handhold to stop herself. We enter Gantry's space only with Rina. Owen is alert but cannot move safely unaided. He is supported and secured on a padded stretcher with straps for the freefall transfer; his exact injury remains unspecified.\nDisplay: GANTRY / TRANSFER SIDE\nRina: I'm Rina. Tell me what he can manage.\nIvo: He's been helping with the checks. Moving is the problem.\nOwen: I can tell you when to stop.\n\nPanel 14B: Rina and Ivo guide Owen and his support through the passage, controlling his motion with handholds. They do not carry his weight under their arms. Give the secured body, their hands, and the clear route enough space to show how they start and stop together. Weightlessness does not remove his injury or inertia.\nRina: Good. We move together. Ready?\nOwen: Ready.\n\nPanel 14C: Samir receives Owen on Kaveri's side. Rina and Ivo keep his motion controlled until Samir has secured his support at the receiving position. Nobody lets go and expects him to stay put. The scene does not imply he needs no further care.\nSamir: Owen, I'm Samir. Let's get you supported before we do anything else.\nOwen: I'd like that.",
+      "contacts": [
+        {
+          "holder": "rina",
+          "error": 0.000014200512289844168
+        },
+        {
+          "holder": "ivo",
+          "error": 0.000023613215038838945
+        },
+        {
+          "holder": "rina",
+          "error": 0.00000955166391801029
+        },
+        {
+          "holder": "ivo",
+          "error": 0.000005866561389163701
+        },
+        {
+          "holder": "samir",
+          "error": 0.000011869587399304496
+        }
+      ],
+      "faceCropClearance": [
+        39.29238483170229,
+        8.096460398889775,
+        93.59493734867041,
+        50.506751755339394
+      ]
+    },
+    {
+      "width": 1440,
+      "id": "page-15",
+      "issues": [],
+      "panels": [
+        {
+          "id": "15a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/last-across.svg",
+          "composed": "blob:https://nova-review.invalid/4f04bda0-e2e9-40cf-8f95-e89720de6dea"
+        },
+        {
+          "id": "15b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/transfer-side-clear.svg",
+          "composed": "blob:https://nova-review.invalid/9750023d-87fa-4b7f-9211-bd146ff50122"
+        },
+        {
+          "id": "15c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/leaving-gantry.svg",
+          "composed": "blob:https://nova-review.invalid/239ab973-165b-472b-8d97-d553eb2e0872"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/3a2e133e-f98d-46d3-809a-c946d1d9dde5",
+      "text": "Panel 15A: From Kaveri's side of the passage, Jonah sees Nadia cross last. She brings the crew's working records, not a conveniently labelled conspiracy file.\nNadia: That's everyone. Three aboard Kaveri.\nJonah: All accounted for.\n\nPanel 15B: Rina checks that the passage is clear. Leila prepares the separation. Owen stays with Samir; do not crowd everyone onto the flight deck for a group portrait.\nDisplay: PORT CHECK\nRina: Transfer side clear.\nLeila: Closing and checking.\n\nPanel 15C: Kaveri separates from Gantry. Hold enough space around the abandoned hull to let its loss of usefulness register. It does not explode. No pirates appear.\nJonah / comms: Baikal, Kaveri. We have all three. Coming home."
+    },
+    {
+      "width": 390,
+      "id": "page-1",
+      "issues": [],
+      "panels": [
+        {
+          "id": "1a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/baikal-work.svg",
+          "composed": "blob:https://nova-review.invalid/29c0e19b-3980-42c1-a599-77214b6b0f56"
+        },
+        {
+          "id": "1b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/coffee-break.svg",
+          "composed": "blob:https://nova-review.invalid/e2ca463b-be7a-4574-906c-9fc79e5a19c9"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/f704a46d-05cb-4d52-b3bd-48ddc9fd98f4",
+      "text": "Panel 1A: Baikal at work, with Ebro and Kaveri berthed against Saturn.\nLocation: BAIKAL / Saturn system / 2078 / Clearwell Waterworks' main base\nNo dialogue.\n\nPanel 1B: Rina and Jonah share a coffee break in Baikal before Leila calls from processing.\nDisplay: GAME NIGHT\nRina: Coffee's still hot. Take a minute before somebody finds you another job.\nJonah: I'll settle for half a minute.\nLeila / comms: Jonah? Processing line's stopped. Can you come down?"
+    },
+    {
+      "width": 390,
+      "id": "page-2",
+      "issues": [],
+      "panels": [
+        {
+          "id": "2a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/pump-inspection.svg",
+          "composed": "blob:https://nova-review.invalid/3ad7eea1-c11d-43ac-acad-f80819cd652f"
+        },
+        {
+          "id": "2b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/residential-console.svg",
+          "composed": "blob:https://nova-review.invalid/504b3689-8f59-4bf3-86d6-33161cdcbce0"
+        },
+        {
+          "id": "2c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/repair-choice.svg",
+          "composed": "blob:https://nova-review.invalid/90e5fed8-ed6c-4dbd-8c00-79c75658959e"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/d4264c3b-665a-4174-9fe9-b8550dd32b15",
+      "text": "Panel 2A: Leila examines the isolated pump housing with her hands while Jonah listens beside the machinery.\nLeila: Circulation pump's failed. We've isolated the line. The others are still running.\n\nPanel 2B: Samir checks residential supplies at the processing console while Leila examines the isolated line.\nDisplay: RESIDENTIAL SUPPLIES\nDisplay: NORMAL\nSamir: Residential supply is normal.\n\nPanel 2C: Leila explains why replacing the assembly is quicker than an overhaul.\nJonah / off-panel: Can you rebuild it here?\nLeila: Yes. But we'd lose more production waiting on the overhaul. A replacement gets us running sooner."
+    },
+    {
+      "width": 390,
+      "id": "page-3",
+      "issues": [],
+      "panels": [
+        {
+          "id": "3a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/assignment-window.svg",
+          "composed": "blob:https://nova-review.invalid/32678f22-0232-4625-bbea-7cc621e9d440"
+        },
+        {
+          "id": "3b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/delivery-record.svg",
+          "composed": "blob:https://nova-review.invalid/84d88d38-ef49-48af-8c68-a1b50e358996"
+        },
+        {
+          "id": "3c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/borrowed-mug.svg",
+          "composed": "blob:https://nova-review.invalid/313bc622-9ad0-4f21-83d4-a7b86de88774"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/509db31a-c553-45bf-8017-7a816e0b4c1c",
+      "text": "Panel 3A: Elena and Jonah arrange the Aquila pickup, with the waiting Ebro framed by the window.\nElena: Aquila has a replacement assembly. Can Kaveri collect it?\nJonah: Yes. We can leave as soon as everyone's aboard.\n\nPanel 3B: A delivery record connects Ebro and Foundation while Elena explains the commitment.\nDisplay: EBRO\nDisplay: WATER DELIVERY\nDisplay: FOUNDATION\nElena: EarthWorks is expecting Ebro's load aboard Foundation. We need that line back to have it ready on time.\n\nPanel 3C: Elena closes the exchange with the borrowed-mug joke; Jonah answers from the foreground.\nElena: And bring the mug back. We haven't budgeted for a replacement.\nJonah: I'll put it on the cargo list."
+    },
+    {
+      "width": 390,
+      "id": "page-4",
+      "issues": [],
+      "panels": [
+        {
+          "id": "4a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/departure-stations.svg",
+          "composed": "blob:https://nova-review.invalid/f337107e-1c20-4cba-8c07-cb30def6a2d4"
+        },
+        {
+          "id": "4b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/outbound-baikal.svg",
+          "composed": "blob:https://nova-review.invalid/aba7bfd1-4740-46b6-a083-6cedb6b66e3b"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/ae03e67c-4a5c-4f5d-a88a-ac4e7b4275e0",
+      "text": "Panel 4A: A Kaveri location card introduces the move aboard. Tomas reports readiness and Jonah gives the departure order.\nLocation: KAVERI / Departing Baikal / Later that day / Clearwell Waterworks' workship\nTomas: All aboard. Cargo space is clear, and the Aquila course is ready.\nJonah: All right. Take us out.\n\nPanel 4B: Kaveri departs with its cradle empty and handling arm stowed. Baikal and Ebro recede. No attack or pursuit appears.\nNo dialogue."
+    },
+    {
+      "width": 390,
+      "id": "page-5",
+      "issues": [],
+      "panels": [
+        {
+          "id": "5a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/approach-aquila.svg",
+          "composed": "blob:https://nova-review.invalid/f758cf69-112a-45ac-b2ac-f857f37b0745"
+        },
+        {
+          "id": "5b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/collection-check.svg",
+          "composed": "blob:https://nova-review.invalid/cf01cf4d-282a-42dc-97af-9daeac2bbfc9"
+        },
+        {
+          "id": "5c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/assembly-inspection.svg",
+          "composed": "blob:https://nova-review.invalid/344010f7-3268-41be-b4a3-1d169af4eb19"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/1b16fc05-415d-4e6f-a323-4a140b664c4a",
+      "text": "Panel 5A: Aquila from Kaveri's approach. Give the port useful scale and activity without adding a roster of identifiable background ships. Kaveri remains the camera's anchor. A location card says AQUILA / Saturn system / Later / Farspan's freight hub; \"Later\" is a draft stamp, not a fixed travel duration.\nLocation: AQUILA / Saturn system / Later / Farspan's freight hub\nTomas / comms: Aquila, Kaveri. Inbound for the Clearwell collection.\n\nPanel 5B: In Aquila's pressurized, non-rotating transfer hall, Leila checks the assembly's connections in person. Rina controls its motion with the handling frame and restraints; Samir compares its identification with the order and delivery record. Handholds and tethered equipment establish freefall, not a standing warehouse. Jonah keeps the shared access clear, just outside this closer view. Both ships remain outside, visible through berth windows. Leila's closer check follows in 5c; she has travelled aboard Kaveri with them, not stayed at Baikal.\nDisplay: CLEARWELL\nDisplay: ORDER MATCH\nRina: This is ours?\nSamir: Matches the order. Leila?\nRina: Before I strap it down.\n\nPanel 5C: Leila finishes checking the connection faces in person. Samir is beside her, ready to complete the receipt; Rina waits for her check before securing the load.\nLeila: That's the right one. Keep the protective covers on.\nSamir: Even the awkward one?\nLeila: Especially the awkward one."
+    },
+    {
+      "width": 390,
+      "id": "page-6",
+      "issues": [],
+      "panels": [
+        {
+          "id": "6a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/shared-workspace.svg",
+          "composed": "blob:https://nova-review.invalid/f3e6041a-98f8-47c7-831f-098d377fcaa5"
+        },
+        {
+          "id": "6b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/introductions.svg",
+          "composed": "blob:https://nova-review.invalid/0601e154-14f1-4ac9-9cc6-b7a57b7dc70e"
+        },
+        {
+          "id": "6c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/safe-trip.svg",
+          "composed": "blob:https://nova-review.invalid/0e64a972-6e2c-416f-bc78-c7db21473115"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/2445474b-aaf1-4db9-a29b-5dbcb275f58d",
+      "text": "Panel 6A: Nadia and Rina share the pressurized transfer hall. Through its windows we see Gantry intact outside. Nadia waits while Rina guides Clearwell's restrained assembly toward the freight lock. Gantry's name is visible on its hull. Its unarmed workship design should be recognizable again at the rescue.\nNadia: Gantry here. Are you finished with that space?\nRina: Nearly. It's awkward to turn.\nNadia: I'll keep our load clear.\n\nPanel 6B: Jonah joins Nadia at the hall's handholds after the load clears their shared access. The freight lock has closed behind them, with the assembly restrained inside. Both doors are never open together. This is still a working exchange, not a meeting-room conversation.\nDisplay: FREIGHT LOCK\nJonah: Thanks for waiting.\nNadia: Better than chasing both loads. Sen. Gantry.\nJonah: Mercer. Kaveri.\n\nPanel 6C: Rina signals that the assembly is secure for the freight-lock cycle. Nadia releases her handhold to return to her own job; the frontal likeness stays unchanged, and her reaching arm carries the movement. Both crews have somewhere to be. The sealed freight lock and exterior handling gear transfer the assembly to Kaveri's external cradle between this scene and 7a; no open doorway connects the pressurized hall to space.\nDisplay: FREIGHT LOCK\nNadia: Replacement?\nJonah: Baikal's lost a processing line.\nNadia: Glad you found one.\nJonah: So are we. Safe trip."
+    },
+    {
+      "width": 390,
+      "id": "page-7",
+      "issues": [],
+      "panels": [
+        {
+          "id": "7a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/gantry-departure.svg",
+          "composed": "blob:https://nova-review.invalid/5d877521-193b-44d5-97df-6aad984fb0e0"
+        },
+        {
+          "id": "7b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/outbound-aquila.svg",
+          "composed": "blob:https://nova-review.invalid/117ba8cf-4217-4b2f-b0bc-3aa990f291b4"
+        },
+        {
+          "id": "7c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/thoughts-of-home.svg",
+          "composed": "blob:https://nova-review.invalid/eaeb28de-3d41-4386-bdf1-769609957ee0"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/d5b942f0-00b0-4c32-91cb-7937b972e888",
+      "text": "Panel 7A: Back inside Kaveri, Rina and Samir finish the restraint and access checks after the assembly has been clamped into the external cradle. The display confirms the load; they do not stand outside without suits. Through the window, Gantry leaves first, intact. No threatening shape watches it depart, and no departure interval is printed.\nDisplay: LOAD SECURED / COVERS ON\nDisplay: PASSAGE CLEAR\nRina: Load's secured. Passage is clear.\nSamir: And every cover is still on it.\n\nPanel 7B: Kaveri outbound from Aquila, with the same covered assembly visible in its external cradle. A quiet, wider panel with the town falling behind. No dialogue. No promise that the next panel is only moments later.\nNo dialogue.\n\nPanel 7C: Later in the return leg. Leila checks the load record near Jonah. The work is under control, and her attention can briefly return to home.\nDisplay: COLLECTION COMPLETE\nDisplay: BAIKAL\nLeila: I might make game night after all.\nJonah: Is that good news for everyone else?\nLeila: They can practice while I'm away."
+    },
+    {
+      "width": 390,
+      "id": "page-8",
+      "issues": [],
+      "panels": [
+        {
+          "id": "8a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/familiar-signal.svg",
+          "composed": "blob:https://nova-review.invalid/ef45a0c0-0932-4402-af88-3ed633eb0dd4"
+        },
+        {
+          "id": "8b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/answering-gantry.svg",
+          "composed": "blob:https://nova-review.invalid/ab340751-d40c-478a-b5f8-e3adf97ea459"
+        },
+        {
+          "id": "8c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/recording-report.svg",
+          "composed": "blob:https://nova-review.invalid/7ad7ad76-9278-4ec7-a809-121558fd7c9e"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/4b04f107-a5be-42d1-8506-2dc5b3798ce3",
+      "text": "Panel 8A: Samir at communications. A distress call interrupts the quiet. Jonah turns before Samir has finished identifying the sender.\nDisplay: GANTRY / INCOMING\nDisplay: REQUESTING ASSISTANCE\nNadia / comms: Gantry, requesting assistance. Main propulsion disabled.\nSamir: That's the captain from Aquila.\n\nPanel 8B: Jonah answers. Stay aboard Kaveri; no cutaway to the attack or Gantry's interior.\nDisplay: GANTRY\nDisplay: OPEN CHANNEL\nJonah: Gantry, Kaveri. We hear you. How many aboard?\nNadia / comms: Three. All alive. Owen's hurt. We've isolated the damaged spaces.\n\nPanel 8C: Samir records the report while Tomas begins checking the relative tracks. Information comes from Nadia, not an omniscient map labelling every danger.\nDisplay: GANTRY / CREW REPORT\nDisplay: RESERVES / REQUESTED\nDisplay: PORT STATUS / REQUESTED\nSamir: What's still working?\nNadia / comms: Emergency power. Comms, attitude control, limited life support. They took the cargo and left us here.\nJonah: Send your reserve estimate and the port status. We're checking an intercept."
+    },
+    {
+      "width": 390,
+      "id": "page-9",
+      "issues": [],
+      "panels": [
+        {
+          "id": "9a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/arrival-order.svg",
+          "composed": "blob:https://nova-review.invalid/9e698ea0-819f-4242-af0d-5e7897f2e1f2"
+        },
+        {
+          "id": "9b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/transfer-assessment.svg",
+          "composed": "blob:https://nova-review.invalid/ce27bc0a-1963-4497-ab9b-0ebbc4e48e2d"
+        },
+        {
+          "id": "9c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/honest-warning.svg",
+          "composed": "blob:https://nova-review.invalid/b438895d-f27b-48e8-8f04-2808594c8695"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/4ef23195-7fb9-422d-b089-107a0c32f525",
+      "text": "Panel 9A: Tomas brings the revised route to Jonah. No invented numerical countdown is printed. The drawing distinguishes Kaveri's possible arrival from Gantry's expected endurance. Only the arrival ordering matters here, not a plotted orbit.\nDisplay: ARRIVAL ORDER / NOT TO SCALE\nDisplay: KAVERI\nDisplay: RESERVES END\nDisplay: RECOVERY\nTomas: We can reach them before their reserves run out. The scheduled recovery can't.\nJonah: And Baikal?\nTomas: Later. Enough that we miss the repair plan. Ebro's load won't be ready.\n\nPanel 9B: Rina and Leila assess the transfer route beside the secured assembly. The replacement stays aboard. Make the distinction between preserving cargo and clearing an assisted passage visible.\nDisplay: EXTERNAL CRADLE / SECURED\nRina: We can bring three people through here. The assembly stays tied down.\nLeila: If their port is sound, we can dock. We don't need to restart their main bus.\nRina: Then let's get them off it.\n\nPanel 9C: Tomas is not isolated as the scene's unkind person. Jonah takes the warning seriously before making a commitment on Clearwell's behalf.\nDisplay: ROUTE WORK\nTomas: I want them out too. I want Elena to know what we're spending.\nJonah: She will. Keep working the intercept."
+    },
+    {
+      "width": 390,
+      "id": "page-10",
+      "issues": [],
+      "panels": [
+        {
+          "id": "10a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/asking-clearwell.svg",
+          "composed": "blob:https://nova-review.invalid/a6ccaeac-4331-4d1a-b66f-6aeeebb9bbfd"
+        },
+        {
+          "id": "10b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/cost-refusal.svg",
+          "composed": "blob:https://nova-review.invalid/bd407f3c-1170-4c51-b890-1965fdfae3c1"
+        },
+        {
+          "id": "10c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/taking-intercept.svg",
+          "composed": "blob:https://nova-review.invalid/74e27068-e9c4-4d29-9c4a-da488f366acb"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/661b98d7-5eb2-4480-99cd-8b57aa38846a",
+      "text": "Panel 10A: Elena on Kaveri's comms display. Behind Jonah, Tomas continues the route work.\nDisplay: ELENA WARD\nDisplay: BAIKAL\nJonah: Three people. We can reach them. It will put the replacement in late.\nElena / comms: Understood. I'll ask EarthWorks to cover the diversion. Keep preparing.\n\nPanel 10B: Aboard Kaveri, Samir monitors Elena's call with Daniel Reed at EarthWorks Operations. Clear speaker labels identify the two ends of the call. Keep the panel on that exchange, rather than crowding the other preparations behind him.\nDisplay: BAIKAL\nDisplay: ELENA WARD\nDisplay: EARTHWORKS\nDisplay: OPERATIONS\nDisplay: DANIEL REED\nElena / comms: Kaveri can reach your crew in time. Will EarthWorks cover the diversion?\nDaniel / comms: No. We have a recovery scheduled.\nElena / comms: Your people won't last that long.\nDaniel / comms: I'm not approving the cost.\n\nPanel 10C: Elena speaks to Jonah again. He looks to Tomas, not toward an imaginary approval indicator. Leave room around the final instruction.\nDisplay: ELENA / BAIKAL\nElena / comms: Clearwell will cover it. Bring them home.\nJonah: Tomas. Take the intercept."
+    },
+    {
+      "width": 390,
+      "id": "page-11",
+      "issues": [],
+      "panels": [
+        {
+          "id": "11a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/across-the-gap.svg",
+          "composed": "blob:https://nova-review.invalid/2ad279ac-24de-4e88-85e4-95fe616fed16"
+        },
+        {
+          "id": "11b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/gantry-in-sight.svg",
+          "composed": "blob:https://nova-review.invalid/97c3ce74-2294-4fb8-be7a-be540f5c518f"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/524ec642-5dd4-4daf-b7c5-256019817a10",
+      "text": "Panel 11A: A broad exterior: Kaveri on the new course, its replacement assembly still secured. The ship is small against the distance. Do not draw looping jet-fighter trails or a continuous burn simply to fill the panel. No dialogue.\nNo dialogue.\n\nPanel 11B: Later, with Gantry now resolved ahead, Kaveri's crew compares the transmitted condition report with what they can see. The hull is stable, not tumbling. Damage interrupts the form we saw intact at Aquila.\nDisplay: GANTRY / COMMS\nTomas: Gantry in sight. Matching their motion.\nNadia / comms: We can hold attitude. Main drive is out.\nJonah: Understood. We come to you."
+    },
+    {
+      "width": 390,
+      "id": "page-12",
+      "issues": [],
+      "panels": [
+        {
+          "id": "12a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/visible-port.svg",
+          "composed": "blob:https://nova-review.invalid/310c3831-40f0-4fc4-8462-9f8c25f033d2"
+        },
+        {
+          "id": "12b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/receiving-space.svg",
+          "composed": "blob:https://nova-review.invalid/30d4d75b-ed32-4b63-be84-e92b65f8be30"
+        },
+        {
+          "id": "12c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/ready-to-help.svg",
+          "composed": "blob:https://nova-review.invalid/2cfaf9de-99d6-4735-ac90-956a7d4e8542"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/358a7c6d-580f-4959-a743-5288be3c7b4b",
+      "text": "Panel 12A: Leila studies the port area as Kaveri closes. Do not reveal hidden interior systems through an impossible scan. Her questions go to the people aboard.\nDisplay: GANTRY / EXTERIOR VIEW\nLeila: Gantry, did the electrical fault reach the docking equipment?\nOwen / comms: Not that branch. We isolated the main distribution. Leave it isolated.\n\nPanel 12B: Rina prepares Kaveri's transfer side. Samir clears a receiving space and brings first-aid equipment. No equipment specification or permanent passenger layout is established by this staging.\nDisplay: FIRST AID\nLeila / comms: Agreed. We'll check the connection before anyone crosses.\nIvo / comms: The access is clear. Owen needs help moving.\nRina: Stay with him. We'll meet you at the opening.\n\nPanel 12C: Jonah glances toward Samir rather than asking him to perform a miracle.\nDisplay: FIRST AID\nJonah: Ready for him?\nSamir: Ready to help him aboard. I'll need their account of the injury."
+    },
+    {
+      "width": 390,
+      "id": "page-13",
+      "issues": [],
+      "panels": [
+        {
+          "id": "13a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/holding-at-port.svg",
+          "composed": "blob:https://nova-review.invalid/fb414011-d0fe-4f2d-8613-687a76d4842b"
+        },
+        {
+          "id": "13b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/checked-alignment.svg",
+          "composed": "blob:https://nova-review.invalid/b73dfb5e-628e-4032-b1b7-9f40f9bd4842"
+        },
+        {
+          "id": "13c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/checking-seal.svg",
+          "composed": "blob:https://nova-review.invalid/20765725-b4c1-4c2f-8447-2b465c102112"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/4113b760-8f66-4d35-80ff-15f8562403f2",
+      "text": "Panel 13A: Exterior close enough to understand the remaining gap. Gantry's damaged systems stay inactive. Kaveri approaches the verified port; keep both hull identities clear and do not add a second docking arrangement for this view.\nDisplay: KAVERI\nDisplay: GANTRY\nTomas / comms: Holding here for the port check.\nLeila / comms: Give me the alignment view.\n\nPanel 13B: Leila and Tomas concentrate on their different parts of the same operation. Neither explains basic flight controls to the competent captain.\nLeila: That's the port we checked. Approach is clear.\nTomas: Coming in.\n\nPanel 13C: The ships connected, their bulk suddenly close. Both coast without thrust; the transfer spaces are in freefall. The moment is quiet rather than triumphant. Pressure and seal checks occur before the following page's opening. The short rigid sealed connector joins the existing side collars with the ships facing opposite directions.\nLeila / comms: Connection secure. Checking the seal."
+    },
+    {
+      "width": 390,
+      "id": "page-14",
+      "issues": [],
+      "panels": [
+        {
+          "id": "14a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/meeting-at-opening.svg",
+          "composed": "blob:https://nova-review.invalid/56ea2e5e-50f6-4305-86f8-f8f0f4202798"
+        },
+        {
+          "id": "14b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/moving-together.svg",
+          "composed": "blob:https://nova-review.invalid/8be36ff4-fc05-4788-8cdc-0854d338781c"
+        },
+        {
+          "id": "14c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/securing-support.svg",
+          "composed": "blob:https://nova-review.invalid/37bd0a7d-07d9-48d3-a8d3-981e94a93957"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/71c98448-fcbf-401c-a716-1a7439c5ffad",
+      "text": "Panel 14A: After the seal and pressure checks, Rina meets Ivo at the opened passage, using a handhold to stop herself. We enter Gantry's space only with Rina. Owen is alert but cannot move safely unaided. He is supported and secured on a padded stretcher with straps for the freefall transfer; his exact injury remains unspecified.\nDisplay: GANTRY / TRANSFER SIDE\nRina: I'm Rina. Tell me what he can manage.\nIvo: He's been helping with the checks. Moving is the problem.\nOwen: I can tell you when to stop.\n\nPanel 14B: Rina and Ivo guide Owen and his support through the passage, controlling his motion with handholds. They do not carry his weight under their arms. Give the secured body, their hands, and the clear route enough space to show how they start and stop together. Weightlessness does not remove his injury or inertia.\nRina: Good. We move together. Ready?\nOwen: Ready.\n\nPanel 14C: Samir receives Owen on Kaveri's side. Rina and Ivo keep his motion controlled until Samir has secured his support at the receiving position. Nobody lets go and expects him to stay put. The scene does not imply he needs no further care.\nSamir: Owen, I'm Samir. Let's get you supported before we do anything else.\nOwen: I'd like that.",
+      "contacts": [
+        {
+          "holder": "rina",
+          "error": 0.00000413296686901474
+        },
+        {
+          "holder": "ivo",
+          "error": 0.000006872472835953926
+        },
+        {
+          "holder": "rina",
+          "error": 0.000002779949810501415
+        },
+        {
+          "holder": "ivo",
+          "error": 0.0000017074246006888307
+        },
+        {
+          "holder": "samir",
+          "error": 0.0000034545662606574538
+        }
+      ],
+      "faceCropClearance": [
+        39.29238483170241,
+        8.096460398889917,
+        93.5949373486706,
+        50.50675175533959
+      ]
+    },
+    {
+      "width": 390,
+      "id": "page-15",
+      "issues": [],
+      "panels": [
+        {
+          "id": "15a",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/last-across.svg",
+          "composed": "blob:https://nova-review.invalid/2c1b9ec7-fdd2-45b1-904c-8288691124c1"
+        },
+        {
+          "id": "15b",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/transfer-side-clear.svg",
+          "composed": "blob:https://nova-review.invalid/bbe15b55-5d94-42ba-9051-cc5f42b809f6"
+        },
+        {
+          "id": "15c",
+          "art": "/nova-protocol/story/assets/season-1/episode-1/leaving-gantry.svg",
+          "composed": "blob:https://nova-review.invalid/a3daa930-b20e-4f5e-95e9-9092f4a46d48"
+        }
+      ],
+      "image": "blob:https://nova-review.invalid/322f8c76-3359-47bc-b945-a460b1ec4c31",
+      "text": "Panel 15A: From Kaveri's side of the passage, Jonah sees Nadia cross last. She brings the crew's working records, not a conveniently labelled conspiracy file.\nNadia: That's everyone. Three aboard Kaveri.\nJonah: All accounted for.\n\nPanel 15B: Rina checks that the passage is clear. Leila prepares the separation. Owen stays with Samir; do not crowd everyone onto the flight deck for a group portrait.\nDisplay: PORT CHECK\nRina: Transfer side clear.\nLeila: Closing and checking.\n\nPanel 15C: Kaveri separates from Gantry. Hold enough space around the abandoned hull to let its loss of usefulness register. It does not explode. No pirates appear.\nJonah / comms: Baikal, Kaveri. We have all three. Coming home."
+    }
+  ],
+  "pixels": [
+    {
+      "page": 1,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 2,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 3,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 4,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 5,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 6,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 7,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 8,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 9,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 10,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 11,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 12,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    },
+    {
+      "page": 13,
+      "pixels": 0,
+      "max": 0,
+      "bounds": [
+        1500,
+        1000,
+        0,
+        0
+      ]
+    }
+  ],
+  "errors": [],
+  "canceledRequests": []
+}

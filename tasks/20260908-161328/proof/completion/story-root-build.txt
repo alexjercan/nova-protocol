@@ -1,0 +1,30 @@
+assets by path story/assets/season-1/episode-1/*.svg 11.2 MiB
+  asset story/assets/season-1/episode-1/baikal-work.svg 1000 KiB [emitted]
+  asset story/assets/season-1/episode-1/outbound-baikal.svg 984 KiB [emitted]
+  asset story/assets/season-1/episode-1/checking-seal.svg 897 KiB [emitted]
+  asset story/assets/season-1/episode-1/leaving-gantry.svg 887 KiB [emitted]
+  asset story/assets/season-1/episode-1/holding-at-port.svg 887 KiB [emitted]
+  asset story/assets/season-1/episode-1/approach-aquila.svg 745 KiB [emitted]
+  + 44 assets
+assets by path story/season-1/ 103 KiB
+  asset story/season-1/episode-1/index.html 101 KiB [emitted]
+  asset story/season-1/index.html 2.18 KiB [emitted]
+asset story/reader.js 189 KiB [emitted] (name: story)
+asset story/assets/promptfont.woff2 75.3 KiB [emitted] [from: src/assets/promptfont.woff2] (auxiliary name: story)
+asset story/index.html 2.07 KiB [emitted]
+asset story/favicon.svg 891 bytes [emitted] [from: src/favicon.svg] [copied]
+runtime modules 1.85 KiB 7 modules
+javascript modules 153 KiB
+  modules by path ./src/ 145 KiB
+    modules by path ./src/*.css 97.5 KiB 4 modules
+    modules by path ./src/comics/*.ts 30.6 KiB 4 modules
+    modules by path ./src/*.ts 16.5 KiB
+      ./src/story.ts 918 bytes [built] [code generated]
+      + 2 modules
+  modules by path ./node_modules/ 8.73 KiB
+    modules by path ./node_modules/style-loader/dist/runtime/*.js 5.84 KiB 6 modules
+    modules by path ./node_modules/css-loader/dist/runtime/*.js 2.89 KiB
+      ./node_modules/css-loader/dist/runtime/noSourceMaps.js 64 bytes [built] [code generated]
+      + 2 modules
+./src/assets/promptfont.woff2 75.3 KiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.108.4 compiled successfully in 6646 ms

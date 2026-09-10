@@ -1,0 +1,1 @@
+All 50 raw scenes are byte-identical to the approved complete draft. Released-only generation produces them without a draft override.

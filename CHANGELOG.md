@@ -15,6 +15,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Web & Platform
+- Complete comic episode one, "A useful job": eighteen illustrated pages follow
+  Kaveri's replacement pickup, rescue, and return. Released-only Story builds
+  now include it.
+
 ## [0.13.0] - 2026-09-09
 
 ### Gameplay & Flight

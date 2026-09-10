@@ -19,8 +19,8 @@ import page17 from "./pages/page-17";
 import page18 from "./pages/page-18";
 
 export default episode({
-    heading: "OPENING / CLEAN-LINE DRAFT",
-    footer: "PRIVATE COMIC DRAFT / DESIGNS AND DIALOGUE PROVISIONAL",
+    heading: "SEASON 1 / EPISODE 1",
+    footer: "A USEFUL JOB",
     pages: [
         page1,
         page2,

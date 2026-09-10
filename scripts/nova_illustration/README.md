@@ -16,7 +16,7 @@ measured dialogue layout and its matching SVG export.
 | `ships.py` | Kaveri, Ebro, and Gantry models, named views, a Gantry condition, and shared prop/cargo projection. |
 | `faces.py` | Nine forward-facing identities, expression selection, and original features outside the Jonah/Rina variants. |
 | `expressions.py` | Original and variant facial features for Jonah and Rina, with character-specific linework. |
-| `portraits.py` | Close/conversational poses, work busts, inspection/grip/reach arms, and Gantry's civilian bodies. |
+| `portraits.py` | Close/conversational poses, work bodies and arms, Gantry's civilian bodies, and a supported Owen pose. |
 | `scenery.py` | Provisional Baikal/Aquila silhouettes, a local transfer-hall wall, Saturn, and a repeatable star field. |
 | `svg.py` | Shared SVG primitives in illustration coordinates. |
 | `lettering.py` | Speech balloons built from authored lines, separate from colored artwork. |
@@ -87,6 +87,19 @@ They contain no head, expression, or fixture. The closed grip meets a scene-owne
 rail at `(5, 425)` in the work-bust drawing frame; place that rail above the body
 and below the hand. The open reaching pose signals movement without rotating a
 flat likeness. These drawing coordinates are not physical measurements.
+
+`supported_owen()` keeps his original frontal head on a foreshortened reclining
+body, viewed from the foot end. The scene owns padding, body straps, receiving
+restraints, and any continuing care. The pose selects no injury or treatment.
+`freefall_guide(name)` extends Rina's or Ivo's existing work body below the bust;
+use an actual foreground boundary when a distant person's lower body is hidden.
+
+`stretcher_grip(name)` reaches from the work-body shoulder to a scene rail at
+`(430, 433)`. `rail_grip_hand(name)` supplies only a closed hand at the local
+origin for a cropped foreground arm. Mirror an arm or hand layer, never the
+frontal head. Place the frame before the gripping layer and use the same anchor
+for both. These are illustration coordinates, not physical dimensions. The
+existing public portraits and earlier pose functions remain unchanged.
 
 ## Shared assets versus local scene work
 

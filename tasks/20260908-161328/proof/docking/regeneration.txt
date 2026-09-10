@@ -1,0 +1,1 @@
+All 36 raw scenes regenerate byte for byte, including the three new scenes.

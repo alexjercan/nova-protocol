@@ -391,8 +391,12 @@ No separate emergency rescue fleet is introduced to explain the refusal.
 
 1. Kaveri changes its planned return trajectory to intercept Gantry.
 2. The crews establish the condition of the surviving docking port.
-3. Kaveri matches motion and docks directly.
-4. Rina coordinates the transfer. Samir receives Owen and provides first aid.
+3. Kaveri matches motion and docks through a short rigid sealed connector
+   between the existing side collars. The ships face opposite directions and
+   coast during transfer. Seal and pressure checks precede opening the passage.
+4. Rina and Ivo guide Owen feet first on a padded stretcher with straps. They
+   keep control until Samir secures it on Kaveri's side. Samir provides first aid;
+   Owen still needs support and continuing care.
 5. Nadia, Owen, and Ivo leave aboard Kaveri. Gantry's hull remains a separate
    recovery problem.
 
@@ -402,8 +406,10 @@ does not require an EVA evacuation or a walkable interior. Kaveri's eventual
 design must support temporary carriage of all three survivors, including
 assisted boarding for Owen.
 
-Exact equipment, port arrangements, intercept conditions, the delivery
-commitment, and timing still need definition. These beats do not establish
+The connector's staging does not establish physical dimensions or a hardware
+standard. The local transfer view is not a complete interior plan. Owen's exact
+injury, precise intercept conditions, the delivery commitment, and timing still
+need definition. These beats do not establish
 episode boundaries or claim that docking and evacuation interactions are
 already implemented.
 

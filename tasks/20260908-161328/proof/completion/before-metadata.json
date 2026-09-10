@@ -1,0 +1,18 @@
+{
+    "title": "A useful job",
+    "summary": "An ordinary replacement pickup becomes a rescue with a cost.",
+    "publication": "draft",
+    "pageCount": 18,
+    "source": "episode.ts",
+    "art": [
+        "art/opening.py",
+        "art/aquila.py",
+        "art/distress.py",
+        "art/intercept.py",
+        "art/docking.py",
+        "art/transfer.py",
+        "art/homecoming.py"
+    ],
+    "cover": "baikal-work",
+    "coverAlt": "Baikal at the start of an ordinary working day."
+}
