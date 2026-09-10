@@ -1,6 +1,6 @@
 # Web build quits at boot on a GPU device OOM: the 384 MiB skybox cubemap
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.13.2
 
