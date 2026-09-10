@@ -156,7 +156,7 @@ impl Collapse<'_> {
     /// The keel is mirrored like everything else, so a ship carries a symmetric
     /// PAIR of the computer. One would do (it is the ship's heart, not a
     /// resource) and two are no worse.
-    fn seed_keel(&self, domains: &mut [Vec<bool>]) -> Result<(), String> {
+    fn seed_keel(&self, domains: &mut [Vec<bool>], seeded: &mut [bool]) -> Result<(), String> {
         let length = self.grid.size.z as usize;
         let bow = self.bow_span()?.z as usize;
         let stern = self.stern_span()?.z as usize;
@@ -179,6 +179,7 @@ impl Collapse<'_> {
                 ));
             }
             assign(domains, cell, keel);
+            seeded[cell] = true;
         }
         Ok(())
     }
@@ -199,7 +200,7 @@ impl Collapse<'_> {
     ///
     /// A hull with no spinal gun seeds nothing here, and the keel starts at
     /// `z = 0` exactly as it did before.
-    fn seed_bow(&self, domains: &mut [Vec<bool>]) -> Result<(), String> {
+    fn seed_bow(&self, domains: &mut [Vec<bool>], seeded: &mut [bool]) -> Result<(), String> {
         let Some(prototype) = self.keel.bow_gun.as_deref() else {
             return Ok(());
         };
@@ -213,6 +214,7 @@ impl Collapse<'_> {
             ));
         }
         assign(domains, cell, gun);
+        seeded[cell] = true;
         Ok(())
     }
 
@@ -248,7 +250,7 @@ impl Collapse<'_> {
     /// emits - and propagation lays the rest of it out. A domain that empties
     /// while it does is a grammar whose drive does not fit its grid, which
     /// [`crate::runnable`] has already refused.
-    fn seed_stern(&self, domains: &mut [Vec<bool>]) -> Result<(), String> {
+    fn seed_stern(&self, domains: &mut [Vec<bool>], seeded: &mut [bool]) -> Result<(), String> {
         let (length, height) = (self.grid.size.z as usize, self.grid.size.y as usize);
         let span = self.stern_span()?;
         let (across, tall, deep) = (span.x as usize, span.y as usize, span.z as usize);
@@ -270,6 +272,7 @@ impl Collapse<'_> {
                     ));
                 }
                 assign(domains, cell, deck);
+                seeded[cell] = true;
             }
         }
 
@@ -287,6 +290,7 @@ impl Collapse<'_> {
             ));
         }
         assign(domains, corner, drive);
+        seeded[corner] = true;
         Ok(())
     }
 
@@ -424,6 +428,30 @@ impl Collapse<'_> {
         }
     }
 
+    /// Widen a per-cell mark to cover every cell of each part it touches.
+    ///
+    /// The counterpart of [`Self::drop_part`], and there for the same reason:
+    /// a part is its whole block. A seed is written to the ONE cell that emits
+    /// and propagation lays the rest of the block out, so a mark left on the
+    /// corner alone would let erosion take a segment beside it and pull the
+    /// corner off with it.
+    fn widen_to_whole_parts(&self, chosen: &[usize], marked: &mut [bool]) {
+        let mut pending: VecDeque<usize> = (0..self.grid.cells())
+            .filter(|cell| marked[*cell])
+            .collect();
+        while let Some(cell) = pending.pop_front() {
+            for face in 0..FACES.len() {
+                let Some(next) = self.grid.neighbour(cell, face) else {
+                    continue;
+                };
+                if !marked[next] && self.tiles[chosen[cell]].joints[face] == Some(chosen[next]) {
+                    marked[next] = true;
+                    pending.push_back(next);
+                }
+            }
+        }
+    }
+
     /// Erode the studs off the structure.
     ///
     /// This is here because of the SKIN. A hull cell hanging off the ship by
@@ -437,15 +465,24 @@ impl Collapse<'_> {
     /// fewer. A PDC mount carries one socket and so is never eroded for having
     /// one neighbour; a six-socket hull cube standing on one is.
     ///
+    /// The SEEDED cells are spared, along with the whole keel column, because
+    /// support is read off what the roll left AROUND a part and the roll is
+    /// free to leave nothing. Vacuum is priced up in the last row so the
+    /// drives have somewhere to stand, so a bare transom is the common case:
+    /// the drive deck then carries two neighbours - the keel and the drive -
+    /// where a six-socket plate is asked for [`SPIKE_SUPPORT`]. Taking the
+    /// deck off stranded the drive for [`Self::keel_component`] to drop, and
+    /// the hull came out with no thrust at all.
+    ///
     /// Erosion only removes, and a removal can only lower a neighbour's count,
     /// so it settles. It can strand a limb, which is why
     /// [`Self::keel_component`] runs after.
-    fn erode_studs(&self, chosen: &[usize], kept: &mut [bool]) {
+    fn erode_studs(&self, chosen: &[usize], seeded: &[bool], kept: &mut [bool]) {
         loop {
             let mut changed = false;
             for cell in 0..self.grid.cells() {
                 let (x, y, _) = self.grid.coords(cell);
-                if !kept[cell] || (x == 0 && y == self.keel_row) {
+                if !kept[cell] || seeded[cell] || (x == 0 && y == self.keel_row) {
                     continue;
                 }
                 let tile = &self.tiles[chosen[cell]];
@@ -655,19 +692,27 @@ impl Collapse<'_> {
     /// where it stands, pack the dents, and prune again because erosion can
     /// strand whatever a stud was holding on.
     ///
+    /// The SEEDED spine is spared by erosion. It is laid by hand precisely
+    /// because the collapse cannot be trusted to find it, and a pass that
+    /// reads support off whatever the roll left AROUND it was free to take it
+    /// away again - which is how a hull came out with no drive on it.
+    ///
     /// Clearing the lanes BEFORE the dents are packed is what keeps the hull
     /// solid: the cell a blocked bay is taken out of is a dent like any other,
     /// and packing it afterwards leaves hull rather than a hole for the skin to
     /// line. The filler is handed the surviving lanes so it cannot undo them.
     pub(crate) fn run(&self, seed: u64) -> Result<(Vec<usize>, Vec<bool>), String> {
         let mut domains = self.domains();
-        self.seed_keel(&mut domains)?;
-        self.seed_stern(&mut domains)?;
-        self.seed_bow(&mut domains)?;
+        let mut seeded = vec![false; self.grid.cells()];
+        self.seed_keel(&mut domains, &mut seeded)?;
+        self.seed_stern(&mut domains, &mut seeded)?;
+        self.seed_bow(&mut domains, &mut seeded)?;
         let mut chosen = self.solve(domains, seed)?;
 
+        self.widen_to_whole_parts(&chosen, &mut seeded);
+
         let mut kept = self.keel_component(&chosen, &vec![true; self.grid.cells()]);
-        self.erode_studs(&chosen, &mut kept);
+        self.erode_studs(&chosen, &seeded, &mut kept);
         self.erode_blocked_exits(&chosen, &mut kept);
         let (structure, exits) = ship_lattice(&self.ship_cells(&chosen, &kept));
         let lanes: HashSet<IVec3> = exit_lanes(&structure, &exits).into_iter().collect();

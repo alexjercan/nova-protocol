@@ -221,10 +221,10 @@ standing proud.
 - **Effect:** a ship gains a recognisable island, which with the derived skin
   becomes a plated superstructure rather than a lump. It also gives the decoration
   scatter's `PlateFacing::Up` rules somewhere meaningful to fire.
-- **Risk, and it is real:** a seeded tower is a stud, and `erode_studs` exists to
-  take those off. It would need the same treatment the keel gets - either enough
-  seeded neighbours to pass `SPIKE_SUPPORT`, or an exemption. Budget a couple of
-  hours, not ten minutes.
+- **Risk, and it was real:** a seeded tower is a stud, and `erode_studs` exists
+  to take those off. `run` now marks every cell the seed passes write, widens the
+  mark over a part's joints, and erosion skips it - so a tower seeded the way the
+  stern is inherits the exemption rather than needing its own.
 
 ### 5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED
 

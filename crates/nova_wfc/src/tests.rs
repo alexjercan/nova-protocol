@@ -466,6 +466,50 @@ fn a_drive_bigger_than_one_cell_reaches_the_transom_of_every_hull() {
     }
 }
 
+/// Every hull comes out with THRUST, however bare the transom the roll leaves
+/// around the drive.
+///
+/// The drive is bolted to the keel through a deck, and `erode_studs` reads
+/// support off the cells AROUND a part. Vacuum is priced up in the last row so
+/// the drives have somewhere to stand, which makes a bare transom the common
+/// case rather than the corner: the deck then carries two neighbours - the
+/// keel and the drive - where a six-socket plate is asked for three. Taking
+/// the deck off stranded the drive, the component pass dropped it, and the
+/// generator handed back a ship that cannot move.
+///
+/// The SEEDED drive is the one under test, read by the cell it was seeded in.
+/// A thruster the collapse drew somewhere else on the transom does not answer
+/// for it - the guarantee is that every hull is laid a drive, not that most
+/// hulls happen to roll one.
+#[test]
+fn a_bare_transom_leaves_the_seeded_drive_bolted_to_the_keel() {
+    let sections = GameSections(nova_authoring::generation::build_section_catalog());
+    let mut grammar = shipped_grammar();
+    grammar.keel.bow_gun = Some("railgun_lance_section".to_string());
+    let set = TileSet::build(&sections, &grammar).expect("the grammar builds");
+    let drive = grammar.keel.stern_drive.clone();
+    // The shipped drive is one cell, so `seed_stern` writes it to the column
+    // beside the seam, on the keel line, in the stern-most row.
+    let corner = format!(
+        "starboard_1_{}_{}",
+        grammar.grid.height / 2,
+        grammar.grid.length - 1
+    );
+
+    for seed in 0..64u64 {
+        let hull = set
+            .hull(seed, true, None)
+            .unwrap_or_else(|why| panic!("seed {seed}: {why}"));
+        let seeded = hull.sections.iter().find(|section| section.id == corner);
+        assert!(
+            matches!(seeded.map(|section| &section.source),
+                Some(SectionSource::Prototype(p)) if *p == drive),
+            "seed {seed} eroded the seeded '{drive}' out of cell {corner} and handed back a \
+             hull with no thrust of its own: {seeded:?}"
+        );
+    }
+}
+
 /// A grid too small for the drive it seeds is refused with the size it wants,
 /// rather than collapsing into a domain that empties deep in the solve.
 #[test]

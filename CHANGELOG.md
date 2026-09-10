@@ -15,6 +15,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Fixes
+- The editor's Generate never hands back a hull with no drive: a bare transom
+  no longer erodes the deck the seeded thruster is bolted to, which stranded the
+  drive and left the ship unable to move.
+
 ## [0.13.1] - 2026-09-10
 
 ### Web & Platform
