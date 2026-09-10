@@ -125,8 +125,11 @@ Local drawings still use `colors.py` and the common SVG primitives.
 `scenes.py` supplies `Scene(width, height, art)` and blank `text_slot(name)`
 insertion points. The slot preserves painter order but owns no words or text
 styling. `render_scene` supplies shared sky definitions and face-contour markers,
-and rejects unsafe SVG before raw scene assets can be opened. It adds no page
-frame, dialogue, or transcript. Episode art modules register named drawing
+and rejects unsafe SVG before raw scene assets can be opened. It checks the art
+as well as the frame: a `url(#...)` reference the document never defines, an
+unregistered `data-face`, and a marked face missing its own head contour all
+fail the export rather than render as nothing. It adds no page frame, dialogue,
+or transcript. Episode art modules register named drawing
 functions in `SCENES`; the shared web builder calls only referenced scenes.
 
 ## Reuse

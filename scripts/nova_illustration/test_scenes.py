@@ -38,6 +38,19 @@ class SceneTests(unittest.TestCase):
             with self.subTest(art=art),self.assertRaises(ValueError):
                 render_scene(Scene(200,100,art))
 
+    def test_art_naming_a_missing_definition_fails_instead_of_rendering_blank(self):
+        for art in ('<g clip-path="url(#absent)"><rect width="10" height="10"/></g>','<rect width="10" height="10" fill="url(#absent)"/>'):
+            with self.subTest(art=art),self.assertRaises(ValueError):
+                render_scene(Scene(200,100,art))
+        defined = '<defs><clipPath id="present"><rect width="10" height="10"/></clipPath></defs><g clip-path="url(#present)"><rect width="10" height="10"/></g>'
+        self.assertIn('url(#present)',render_scene(Scene(200,100,defined)))
+        self.assertIn('url(#space)',render_scene(Scene(200,100,'<rect width="10" height="10" fill="url(#space)"/>')))
+
+    def test_a_face_marker_needs_a_registered_head_and_its_own_contour(self):
+        for art in ('<g data-face="nobody"><path d="M0 0"/></g>','<g data-face="leila"><path d="M0 0"/></g>'):
+            with self.subTest(art=art),self.assertRaises(ValueError):
+                render_scene(Scene(200,100,art))
+
     def test_scene_ids_and_story_slots_are_unique(self):
         for art in ('<g id="same"/><g id="same"/>',text_slot('display')+text_slot('display')):
             with self.subTest(art=art),self.assertRaises(ValueError):

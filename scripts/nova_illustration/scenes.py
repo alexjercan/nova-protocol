@@ -33,7 +33,12 @@ def space_definitions():
 
 
 def render_scene(scene):
-    """Wrap scene art and annotate face contours for reader diagnostics."""
+    """Wrap scene art, validate what it draws, and annotate face contours.
+
+The frame, the elements, the attributes, and the art's own references are all
+checked here: a reference to an identifier the document never defines renders as
+nothing at all in a browser, so it fails the export instead.
+"""
     if not all(isinstance(n,(int,float)) and not isinstance(n,bool) and isfinite(n) and 0<n<=10000 for n in (scene.width,scene.height)):
         raise ValueError('Scene dimensions must be positive, finite, and bounded')
     if len(scene.art)>2_000_000 or re.search(r'<!DOCTYPE|<!ENTITY',scene.art,re.I):
@@ -43,6 +48,7 @@ def render_scene(scene):
     tags = {'svg','title','desc','defs','g','path','rect','ellipse','circle','polygon','polyline','line','text','linearGradient','radialGradient','stop','clipPath'}
     ids = set()
     slots = set()
+    references = set()
     for element in root.iter():
         if not element.tag.startswith('{http://www.w3.org/2000/svg}') or element.tag.split('}')[-1] not in tags:
             raise ValueError('Unsafe comic SVG element')
@@ -58,11 +64,20 @@ def render_scene(scene):
             slots.add(slot)
         for key,value in element.attrib.items():
             key = key.split('}')[-1].lower()
-            if key.startswith('on') or key in ('href','style') or ('url(' in value.lower() and not re.fullmatch(r'url\(#[a-zA-Z0-9_-]+\)',value)):
+            reference = re.fullmatch(r'url\(#([a-zA-Z0-9_-]+)\)',value)
+            if key.startswith('on') or key in ('href','style') or ('url(' in value.lower() and not reference):
                 raise ValueError('Unsafe comic SVG attribute')
+            if reference:
+                references.add(reference.group(1))
+    if not references <= ids:
+        raise ValueError(f'Comic scene reference without a definition: {min(references-ids)}')
     for face in root.iter():
         name = face.get('data-face')
         if name:
-            contour = next(child for child in face if child.get('d')==FACES[name].head)
+            if name not in FACES:
+                raise ValueError(f'Unregistered comic scene face: {name}')
+            contour = next((child for child in face if child.get('d')==FACES[name].head),None)
+            if contour is None:
+                raise ValueError(f'Comic scene face drawn without its head contour: {name}')
             contour.set('data-protect-face',name)
     return ET.tostring(root,encoding='unicode')+'\n'
