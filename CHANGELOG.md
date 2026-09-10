@@ -31,6 +31,11 @@ does NOT get an entry - and it is the only place they are written down.
 - An AI patrol turns onto its next leg where the arrival actually parks the
   hull. A tight waypoint slack on a hull whose origin is off its centre of mass
   no longer strands the route on its first mark.
+- A spent hull plate comes off in the same step as the round that killed it
+  again, instead of staying visibly bolted on for one more.
+- The death-fireball warm-up runs at startup once the graphics tier has settled,
+  and again when the tier changes, so menu-backdrop deaths and a tier raised
+  mid-run no longer hitch.
 
 ### Web & Platform
 - Complete comic episode one, "A useful job": eighteen illustrated pages follow

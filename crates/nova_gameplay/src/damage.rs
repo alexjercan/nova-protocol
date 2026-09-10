@@ -43,8 +43,8 @@ pub mod prelude {
         apply_blast_damage, apply_damage, closing_speed, damage_type_color, hit_bite,
         kinetic_damage_multiplier, nova_blast, pierce_power_multiplier, pierce_remainder,
         representative_kinetic_damage, spend_piercing_damage, DamageType, NovaBlast,
-        NovaDamagePlugin, ProjectileDamage, SectionClass, SurfaceImpact, MAX_PIERCE_LAYERS,
-        NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER, REFERENCE_CLOSING_SPEED,
+        NovaDamagePlugin, NovaDamageSystems, ProjectileDamage, SectionClass, SurfaceImpact,
+        MAX_PIERCE_LAYERS, NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER, REFERENCE_CLOSING_SPEED,
     };
 }
 
@@ -773,6 +773,15 @@ fn resolve_nova_blast_hits(
     }
 }
 
+/// Ordering handle for [`resolve_nova_blast_hits`], so work that has to see a
+/// blast's casualties can run after it. The sibling of
+/// [`NovaRoundSystems`](crate::rounds::prelude::NovaRoundSystems): between them
+/// they cover every production path that empties a health pool, and a system
+/// after both is guaranteed to see this tick's `HealthZeroMarker`s rather than
+/// last tick's.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NovaDamageSystems;
+
 /// Registers typed damage plus atomic blast collection and resolution.
 ///
 /// The application helper ([`apply_damage`]) is called from weapon-hit
@@ -796,7 +805,9 @@ impl Plugin for NovaDamagePlugin {
         app.add_observer(collect_nova_blast_collision);
         app.add_systems(
             FixedPostUpdate,
-            resolve_nova_blast_hits.after(PhysicsSystems::Last),
+            resolve_nova_blast_hits
+                .after(PhysicsSystems::Last)
+                .in_set(NovaDamageSystems),
         );
     }
 }

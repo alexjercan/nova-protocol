@@ -223,12 +223,21 @@ pub struct ShedFixtureMarker(pub Entity);
 /// middle - a plate hangs off the floor of its cell, a greeble stands with its
 /// foot at the origin - so that centre is not the entity origin either.
 ///
-/// # On the fixed step, because that is the clock the deaths arrive on
+/// # On the fixed step, in the phase the deaths actually arrive in
 ///
 /// Health empties on the fixed step, so this drains on it too and the rate is
 /// the TICK rate. In `Update` the drain rate was the frame rate, and the frames
 /// a backlog forms in are the worst ones the game has - see [`SHED_TICK_CAP`]
-/// for what that costs. No ordering against `IntegritySystems` is stated or
+/// for what that costs.
+///
+/// The PHASE has to be `FixedPostUpdate`, not `FixedUpdate`. `HealthZeroMarker`
+/// is raised by the `on_damage` observer, and every production trigger of it
+/// runs after the physics step - `advance_rounds` (`NovaRoundSystems`) and
+/// `resolve_nova_blast_hits` (`NovaDamageSystems`), both in `FixedPostUpdate`.
+/// From `FixedUpdate` a plate killed in tick N was first seen in tick N+1 and
+/// stayed visibly bolted on one extra step; ordering after both sets puts the
+/// shed in the same step as the round that earned it, which is what the old
+/// `Update` placement had. No ordering against `IntegritySystems` is stated or
 /// needed: that set is in `Update`, and every write below is already a `try_`,
 /// which covers the race an ordering would.
 pub(crate) fn shed_dead_fixtures(
@@ -330,7 +339,7 @@ mod tests {
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
         app.init_resource::<ShedBudget>();
         app.add_systems(First, refill_shed_budget);
-        app.add_systems(FixedUpdate, shed_dead_fixtures);
+        app.add_systems(FixedPostUpdate, shed_dead_fixtures);
         let timestep = app.world().resource::<Time<Fixed>>().timestep();
         app.insert_resource(TimeUpdateStrategy::ManualDuration(timestep));
 
@@ -520,7 +529,7 @@ mod tests {
         app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
         app.init_resource::<ShedBudget>();
         app.add_systems(First, refill_shed_budget);
-        app.add_systems(FixedUpdate, shed_dead_fixtures);
+        app.add_systems(FixedPostUpdate, shed_dead_fixtures);
         app.finish();
 
         let ship = app
@@ -705,6 +714,50 @@ mod tests {
             shed_so_far(&app),
             plates.len(),
             "a plate the cap deferred was never shed at all",
+        );
+    }
+
+    /// The phase, not just the clock. Every production raiser of
+    /// `HealthZeroMarker` triggers from `FixedPostUpdate` after the physics
+    /// step, so a shed registered in `FixedUpdate` reads a marker one whole
+    /// tick after the round that earned it and the plate stays visibly bolted
+    /// on for the extra step. This stands in for the round sweep: same
+    /// schedule, same phase, same observer path.
+    #[test]
+    fn a_plate_killed_by_the_tick_comes_off_in_that_tick() {
+        let (mut app, _, section) = shed_app(Vec3::ZERO);
+        let plate = app
+            .world_mut()
+            .spawn((
+                ChildOf(section),
+                SectionFixture,
+                Health::new(10.0),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                Transform::default(),
+            ))
+            .id();
+        app.update();
+
+        #[derive(Resource)]
+        struct Kill(Entity);
+        app.insert_resource(Kill(plate));
+        app.add_systems(
+            FixedPostUpdate,
+            (|mut commands: Commands, kill: Res<Kill>| {
+                commands.trigger(HealthApplyDamage {
+                    entity: kill.0,
+                    source: None,
+                    amount: 1000.0,
+                });
+            })
+            .before(shed_dead_fixtures),
+        );
+
+        app.update();
+
+        assert!(
+            app.world().get::<ShedFixtureMarker>(plate).is_some(),
+            "the plate comes off in the step its health emptied, not the next one",
         );
     }
 

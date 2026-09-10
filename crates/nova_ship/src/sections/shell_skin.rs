@@ -39,7 +39,8 @@ use bevy::{
     prelude::*,
 };
 use nova_gameplay::prelude::{
-    destructible_body, IntegritySystems, SectionMarker, SpaceshipRootMarker,
+    destructible_body, IntegritySystems, NovaDamageSystems, NovaRoundSystems, SectionMarker,
+    SpaceshipRootMarker,
 };
 
 use crate::sections::{
@@ -1142,14 +1143,20 @@ impl Plugin for ShipSkinPlugin {
                 .after(build_ship_integrity_graph)
                 .before(IntegritySystems),
         );
-        // On the fixed step, which is the clock the damage that empties a
-        // plate's health resolves on - see `shed_dead_fixtures`. Nothing to
-        // order it against: `IntegritySystems` is an `Update` set. The frame
+        // On the fixed step, AFTER the physics phase the damage that empties a
+        // plate's health resolves in - see `shed_dead_fixtures`, which owns the
+        // reasoning for both the clock and the phase. `IntegritySystems` is an
+        // `Update` set and is not among the things to order against. The frame
         // ceiling it spends is refilled in `First`, so a frame that banked
         // several fixed steps still pays for only one frame's worth.
         app.init_resource::<ShedBudget>();
         app.add_systems(First, refill_shed_budget);
-        app.add_systems(FixedUpdate, shed_dead_fixtures);
+        app.add_systems(
+            FixedPostUpdate,
+            shed_dead_fixtures
+                .after(NovaRoundSystems)
+                .after(NovaDamageSystems),
+        );
 
         if self.render {
             app.register_type::<SkinSurfaceMarker>();
@@ -1205,8 +1212,11 @@ mod tests {
         app.add_systems(Update, spawn_ship_skin);
         // The drain is on the fixed step, and real deltas between test frames
         // are microseconds - a frame is stated to be one timestep so that it is
-        // also exactly one drain.
-        app.add_systems(FixedUpdate, shed_dead_fixtures);
+        // also exactly one drain. Same schedule and phase the plugin registers,
+        // budget included, so the rig drains the way the game does.
+        app.init_resource::<ShedBudget>();
+        app.add_systems(First, refill_shed_budget);
+        app.add_systems(FixedPostUpdate, shed_dead_fixtures);
         let timestep = app.world().resource::<Time<Fixed>>().timestep();
         app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(timestep));
         // The first tick of a manual clock is dt 0, so anything spawned before
