@@ -15,6 +15,16 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Performance
+- The skybox cubemaps ship at 1024 px faces, not 4096. The sky costs 24 MB of
+  video memory instead of 384 MB, and as much again of browser heap, so the web
+  build loads on a nearly full GPU.
+
+### Modding & Mod Portal
+- A content file that fails to load names the mod and the file it came from, and
+  says that a downloaded mod which no longer parses was built for an older game
+  version and wants an update.
+
 ### Fixes
 - The editor's Generate never hands back a hull with no drive: a bare transom
   no longer erodes the deck the seeded thruster is bolted to, which stranded the

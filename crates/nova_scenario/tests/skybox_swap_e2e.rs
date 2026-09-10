@@ -59,9 +59,8 @@ fn headless_skybox_app() -> App {
     app
 }
 
-/// Pump updates until `handle` reaches `Loaded`, panicking on failure or timeout. The
-/// 4096x24576 PNGs take a few seconds to decode in dev builds; the deadline only
-/// bounds a hang.
+/// Pump updates until `handle` reaches `Loaded`, panicking on failure or timeout.
+/// The deadline only bounds a hang, it is not a perf assertion.
 fn wait_loaded(app: &mut App, asset_server: &AssetServer, handle: &Handle<Image>, what: &str) {
     let deadline = Instant::now() + Duration::from_secs(120);
     loop {

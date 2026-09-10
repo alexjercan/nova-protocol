@@ -9,13 +9,14 @@
 //! tests pin the APP config: if `assets_plugin()` stops reading a shipped
 //! cubemap's meta, they fail.
 //!
-//! A cubemap whose meta is ignored loads as a single-layer 4096x24576 image.
+//! A cubemap whose meta is ignored loads as a single-layer stacked image.
 //! The SkyboxPlugin fallback reinterpret hides that in the normal path, but
 //! a scenario teardown during the PNG decode leaves the raw stacked image to be
-//! uploaded as-is - over the 16384 texture limit of llvmpipe/WebGL2-class GPUs,
-//! a fatal wgpu validation error. `cubemap_alt.png` is pinned alongside
-//! `cubemap.png` because it was once missing from the old `meta_check` Paths
-//! set and hit exactly that.
+//! uploaded as-is - a plain 2D texture no skybox can bind, and for a mod
+//! shipping 4096 px faces also over the 16384 texture limit of
+//! llvmpipe/WebGL2-class GPUs, a fatal wgpu validation error. `cubemap_alt.png`
+//! is pinned alongside `cubemap.png` because it was once missing from the old
+//! `meta_check` Paths set and hit exactly that.
 //!
 //! `mods/example/textures/nebula.png` is the example mod's OWN skybox, pinned
 //! to prove the config honors a MOD-shipped sidecar too: a per-path Paths set
@@ -50,8 +51,7 @@ fn assert_app_config_loads_as_six_layer_array(path: &str) {
     let asset_server = app.world().resource::<AssetServer>().clone();
     let handle: Handle<Image> = asset_server.load(path.to_string());
 
-    // The PNG decode of a 4096x24576 image takes a few seconds in dev
-    // builds; the deadline only bounds a hang, it is not a perf assertion.
+    // The deadline only bounds a hang, it is not a perf assertion.
     let deadline = Instant::now() + Duration::from_secs(120);
     loop {
         app.update();

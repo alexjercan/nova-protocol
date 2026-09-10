@@ -51,6 +51,13 @@ folder and bundle shape.
 | `watches` | list | `[]` | Read-only queries sampled into auto-updating variables, entries of `(variable: "...", query: ...)`. See [Queries and watched variables](../expressions/#queries-and-watched-variables). |
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
+A skybox is six square faces stacked vertically in one PNG, with a `.png.meta`
+sidecar that reinterprets the stack (see
+[Base content](../base-content/)). Size the faces for the memory they cost, not
+for the detail the source can give: every face is uploaded uncompressed, so
+1024 px faces cost 24 MB of video memory and 4096 px faces cost 384 MB. The base
+skies ship at 1024.
+
 A menu backdrop POSES ITS OWN CAMERA: author a
 [`SetCamera`](../actions/#setcamera) in its `OnStart` (the reference shot is
 `position: (0, 570, 1920)` in meters, looking at the origin, which frames

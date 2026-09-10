@@ -140,10 +140,12 @@ pub fn register_bundles(
     // skipped above), so this id->handle map never drops a bundle.
     let by_id: HashMap<&str, &Handle<BundleAsset>> =
         ordered.iter().map(|(id, h)| (*id, *h)).collect();
-    let bundle_handles: Vec<&Handle<BundleAsset>> = topo
+    // Paired with the mod id, so a bundle or content file that fails to load
+    // can name the mod it belongs to.
+    let bundle_handles: Vec<(&str, &Handle<BundleAsset>)> = topo
         .order
         .iter()
-        .filter_map(|id| by_id.get(id.as_str()).copied())
+        .filter_map(|id| by_id.get(id.as_str()).map(|handle| (id.as_str(), *handle)))
         .collect();
 
     // Flatten each enabled bundle into its ordered `Content` items (missing
@@ -162,10 +164,10 @@ pub fn register_bundles(
     // dependents, so its `resource_base`/`resources` are already loaded here.
     let mut bundle_items: Vec<Vec<Content>> = Vec::new();
     let mut undeclared_ref_issues: Vec<(String, String)> = Vec::new();
-    for bundle_handle in bundle_handles {
+    for (mod_id, bundle_handle) in bundle_handles {
         let Some(bundle) = bundles.get(bundle_handle) else {
             error!(
-                "register_bundles: a bundle asset was not loaded; skipping it \
+                "register_bundles: mod '{mod_id}' has no loaded bundle asset; skipping it \
                  (the other bundles still register)"
             );
             continue;
@@ -214,9 +216,14 @@ pub fn register_bundles(
         let mut items: Vec<Content> = Vec::new();
         for content_handle in &bundle.content {
             let Some(content) = contents.get(content_handle) else {
+                let path = content_handle
+                    .path()
+                    .map_or_else(|| "<unknown>".to_string(), ToString::to_string);
                 error!(
-                    "register_bundles: a content asset was not loaded; skipping it \
-                     (the other content still registers)"
+                    "register_bundles: mod '{mod_id}' content '{path}' did not load (the \
+                     loader error above says why); skipping it (the other content still \
+                     registers). A downloaded mod that no longer parses was built for an \
+                     older game version: update it in Mods > Explore."
                 );
                 continue;
             };

@@ -3,10 +3,12 @@
 //! 6 layer array at load time.
 //!
 //! This guards the skybox upload race: the renderer eagerly uploads every
-//! loaded image, and the raw stacked form (24576 px tall) exceeds the 16384
-//! texture limit of smaller GPUs, turning into a fatal render validation
-//! error. Reinterpreting in the loader means the oversized 2D form never
-//! exists. If someone deletes or breaks `cubemap.png.meta`, this test fails.
+//! loaded image, and the raw stacked form is a single 2D texture no skybox can
+//! bind - and a tall enough stack (a mod may ship 4096 px faces, 24576 px
+//! stacked) also exceeds the 16384 texture limit of smaller GPUs, turning into
+//! a fatal render validation error. Reinterpreting in the loader means the
+//! stacked 2D form never exists. If someone deletes or breaks
+//! `cubemap.png.meta`, this test fails.
 //!
 //! It proves the meta FILE, not the app: this rig uses `AssetPlugin`'s default
 //! `meta_check` (Always). The shipped app also reads metas with
@@ -42,8 +44,7 @@ fn cubemap_meta_loads_six_layer_array() {
     let asset_server = app.world().resource::<AssetServer>().clone();
     let handle: Handle<Image> = asset_server.load("base/textures/cubemap.png");
 
-    // The PNG decode of a 4096x24576 image takes a few seconds in dev builds;
-    // the deadline only bounds a hang.
+    // The deadline only bounds a hang, it is not a perf assertion.
     let deadline = Instant::now() + Duration::from_secs(120);
     loop {
         app.update();
