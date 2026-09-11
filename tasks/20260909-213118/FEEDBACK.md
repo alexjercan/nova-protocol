@@ -171,9 +171,10 @@ cone, and the hull's attitude WAS its flight direction.
 | nose while flying the envelope | along the flight direction | on the target |
 | brake regime | a separate "point opposite the velocity" heading | the velocity error itself |
 
-No systems range stages an AI ship that fights - every AI hull on the ranges
-is authored with a 10 m engage range and stays parked - so the proof is the
-physics pair in `ai/maneuver.rs`, which runs the real `NovaFlightPlugin`.
+No systems range staged an AI ship that fights when this landed - every AI
+hull on the ranges was authored with a 10 m engage range and stayed parked -
+so the proof is the physics pair in `ai/maneuver.rs`, which runs the real
+`NovaFlightPlugin`. `system_ai_combat` stages one now; see below.
 `the_burn_lights_one_cluster_not_every_engine` flies a four-engine hull
 (mains, retro, two laterals) straight in at a target for 45 s and measures
 the mains at 0.90 of full throttle with the other three engines at exactly
@@ -192,3 +193,45 @@ is never handed the maneuver at all. The autopilot would refuse it and
 disengage, and the driver would engage it again the next frame: on
 `bug_neutralized_quiet` that churned 386 engage/disengage pairs in a nine
 second run before the gate went in, and zero after.
+
+### AI engagement geometry, 2026-09-12
+
+The three AI flight items left in the sweep - the standoff range, the orbit
+speed and the jink leg - all move where a fight sits and how fast, so each
+needs a reading of a live fight before it lands. `system_ai_combat` is that
+reading. It stages two engagements far enough apart that neither scanner hears
+the other: `block_picket` against a parked `block_skiff`, and `block_warship`
+(the only capital combatant in the base fleet) against a parked
+`block_carrier`. Every magazine on the range is empty, because a live fight is
+over before the flying settles - the picket guts the skiff in nineteen seconds
+and the warship's first salvo breaks the carrier into six bodies inside two -
+and a dry gun changes nothing about how a hull flies.
+
+Read sixty seconds after both movers commit, at `f3f7457`:
+
+| figure | picket vs skiff | warship vs carrier |
+| --- | --- | --- |
+| mover arm (`HullRadius`) | 50.0 m | 118.0 m |
+| target arm (`HullRadius`) | 47.8 m | 194.2 m |
+| centre gap | 1,011 m | 1,015 m |
+| face gap | 913 m | 703 m |
+| speed | 80.0 m/s | 80.0 m/s |
+| closing | +3 m/s | +5 m/s |
+| facing asked for, off the line of sight | 0.0 deg | 0.0 deg |
+| nose achieved, off the line of sight | 17.3 deg | 38.4 deg |
+| largest live throttle | 0.000 | 0.000 |
+
+Three rows there are the "before" of items still to land. The centre gap is the
+same on both fights and the face gap is not: the standoff is written anchor to
+anchor, so the larger the two hulls the less space is left between their skins,
+210 m less here, and the fleet ships nothing bigger than this pair. The speed is
+the same on both fights too, to a tenth of a metre per second, because the orbit
+floor is a constant rather than a reading of what either hull can hold. And the
+whole steady state is flown on RCS: no drive on either mover is lit while the
+fight holds station.
+
+The achieved nose angle is the honest cost of the facing hold. The facing is a
+REQUEST, so the hull settles onto it at its own turn rate while the orbit keeps
+moving the line of sight, and a capital hull lags it by tens of degrees. The
+range records that figure and asserts only the request, because a snapshot of
+the lag is a sample of an oscillation.
