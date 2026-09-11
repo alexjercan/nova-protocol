@@ -56,6 +56,7 @@ arm or torque; a lifecycle item should read as unchanged.
 | angular hit radii | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | pierce power alone | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | launcher-safe arming | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
+| fractional thrust taper | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 
 Lock range enters the table with the signature item: before it, every ship root
 was lockable out to the observer's whole cap, so the column was the cap and not
@@ -104,3 +105,26 @@ engage and died there as duds. The near gate now stands at 450 m, which is the
 shortest shot a Serpent can actually take. That is the balance consequence of
 the item, stated where it is visible: a torpedo bay has a minimum range, and
 it is roughly its own blast radius.
+
+### Thrust taper, 2026-09-11
+
+The taper band a torpedo eases thrust off over was a flat 5 u/s under the
+authored cruise, so its WIDTH was the same for every type and its SHARE was
+not. It is now 15 percent of the type's own cruise.
+
+| type | cruise | band before | share before | band after | share after |
+| --- | --- | --- | --- | --- | --- |
+| Lance | 350 m/s | 50 m/s | 14.3 % | 52.5 m/s | 15 % |
+| Serpent | 320 m/s | 50 m/s | 15.6 % | 48.0 m/s | 15 % |
+| Breaker | 700 m/s | 50 m/s | 7.1 % | 105.0 m/s | 15 % |
+| a 60 m/s loiterer | 60 m/s | 50 m/s | 83.3 % | 9.0 m/s | 15 % |
+
+Nothing shipped moves by more than a percentage point, which is why the live
+proof is that the shipped ordnance still makes its cap rather than a changed
+figure: `system_torpedo_launch` now measures the best along-nose speed as a
+share of the type's own authored cruise and holds it above 85 percent, the
+width of the band. It reads 88 percent on the gate round and 90 on the
+crossing round, stable across three runs. The loiterer row is the case the
+change is FOR, and no shipped type is slow enough to stand in for it, so that
+one is proved by unit test
+(`a_slow_warhead_gets_the_same_share_of_its_envelope_as_a_fast_one`).

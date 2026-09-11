@@ -550,20 +550,30 @@ pub(super) fn torpedo_sync_system(
     }
 }
 
-/// Width of the taper band below `max_speed` over which thrust fades to zero, in
-/// units per second.
-const THRUST_TAPER_BAND: f32 = 5.0;
+/// Fraction of the authored cruise speed the thrust taper is spread over.
+///
+/// A FRACTION, not a fixed width. The band used to be a flat 5 u/s under
+/// whatever the type cruised at, which is a sensible approach on a 32 u/s
+/// Serpent and nonsense on a slow one: a 6 u/s loitering warhead spent 83
+/// percent of its whole envelope inside the taper and never made cruise. Every
+/// type now eases off over the same share of its own speed.
+const THRUST_TAPER_FRACTION: f32 = 0.15;
 
 /// Thrust remaining given the velocity component *along the nose*: 1.0 well
 /// below `max_speed`, fading linearly to 0.0 over the last
-/// [`THRUST_TAPER_BAND`] u/s. Gating on the along-nose speed (not total speed)
-/// caps cruise speed without killing steering: at cruise, pointing straight
-/// ahead means no thrust, but the moment guidance swings the nose to turn, the
-/// along-nose component drops and thrust returns as lateral authority. A cap on
-/// total speed instead leaves the torpedo ballistic at cruise - unable to steer
-/// at all. Never negative: the cap cuts thrust, it does not brake.
+/// [`THRUST_TAPER_FRACTION`] of it. Gating on the along-nose speed (not total
+/// speed) caps cruise speed without killing steering: at cruise, pointing
+/// straight ahead means no thrust, but the moment guidance swings the nose to
+/// turn, the along-nose component drops and thrust returns as lateral
+/// authority. A cap on total speed instead leaves the torpedo ballistic at
+/// cruise - unable to steer at all. Never negative: the cap cuts thrust, it
+/// does not brake.
 pub(super) fn thrust_headroom(speed_along_nose: f32, max_speed: f32) -> f32 {
-    ((max_speed - speed_along_nose) / THRUST_TAPER_BAND).clamp(0.0, 1.0)
+    // A type authored at zero cruise has no band to taper over, and the
+    // division would hand back NaN rather than the "no thrust" the author
+    // asked for.
+    let band = (max_speed * THRUST_TAPER_FRACTION).max(f32::EPSILON);
+    ((max_speed - speed_along_nose) / band).clamp(0.0, 1.0)
 }
 
 /// Thrust along the nose: full thrust when the nose is aligned with the steering
@@ -1204,15 +1214,42 @@ mod tests {
         // Below the taper band: full thrust. At/above cruise: none. The cap keeps
         // the turning circle (speed / turn rate) tight enough that the torpedo
         // cannot end up orbiting its target instead of closing on it.
+        // The band is 15 percent of 35, so 5.25 u/s wide and half gone at 32.375.
         assert_eq!(thrust_headroom(0.0, 35.0), 1.0);
         assert_eq!(thrust_headroom(20.0, 35.0), 1.0);
-        assert!((thrust_headroom(32.5, 35.0) - 0.5).abs() < 1e-6);
+        assert!((thrust_headroom(32.375, 35.0) - 0.5).abs() < 1e-6);
         assert_eq!(thrust_headroom(35.0, 35.0), 0.0);
         assert_eq!(
             thrust_headroom(50.0, 35.0),
             0.0,
             "cap cuts thrust, never brakes"
         );
+    }
+
+    #[test]
+    fn a_slow_warhead_gets_the_same_share_of_its_envelope_as_a_fast_one() {
+        // The defect the fraction fixes. A 6 u/s loiterer under a flat 5 u/s
+        // band was inside the taper from 1 u/s upward and crawled the last
+        // 83 percent of its envelope; the same share now buys it the same
+        // run-up a 35 u/s type gets.
+        let slow = 6.0;
+        let fast = 35.0;
+        for share in [0.0, 0.5, 0.8, 0.85, 1.0] {
+            assert!(
+                (thrust_headroom(slow * share, slow) - thrust_headroom(fast * share, fast)).abs()
+                    < 1e-6,
+                "at {share} of cruise the slow type has {} thrust and the fast one {}",
+                thrust_headroom(slow * share, slow),
+                thrust_headroom(fast * share, fast),
+            );
+        }
+        assert_eq!(thrust_headroom(1.0, 6.0), 1.0, "full thrust at 1 u/s");
+    }
+
+    #[test]
+    fn a_type_authored_at_no_speed_gets_no_thrust_rather_than_a_nan() {
+        assert_eq!(thrust_headroom(0.0, 0.0), 0.0);
+        assert_eq!(thrust_headroom(5.0, 0.0), 0.0);
     }
 
     #[test]

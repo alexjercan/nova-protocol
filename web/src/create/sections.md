@@ -766,10 +766,12 @@ kind: Torpedo((
     meant to tell apart want different colours: it is the only difference visible
     before the flight paths have diverged.
   - `max_speed` (m/s; `350.0` on the Lance, `320.0` on the Serpent) - cruise speed
-    cap. The thruster tapers off as the torpedo approaches it, so it decides
-    time to target and, with `projectile_lifetime`, how far the ordnance can
-    reach. **This is where an evasive type pays for its weave**, and it has to
-    be authored: see the note below.
+    cap. The thruster tapers off over the last **15 percent** of it, so every
+    type gets the same run-up in its own terms and a slow one is not stranded
+    inside its own taper. It decides time to target and, with
+    `projectile_lifetime`, how far the ordnance can reach. **This is where an
+    evasive type pays for its weave**, and it has to be authored: see the note
+    below.
   - `weave_angle` (rad; `0.44`, ~25 degrees, on the Serpent) - the terminal
     weave: how far off the guidance solution an armed torpedo corkscrews. It
     PERTURBS the solution rather than replacing it and fades linearly to nothing

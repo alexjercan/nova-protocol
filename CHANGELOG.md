@@ -44,6 +44,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A torpedo also has to clear the hull that fired it plus its own blast before
   it arms: about 324 m off a boat, 494 m off a carrier. Inside that it is inert,
   so a torpedo is a standoff weapon.
+- Torpedo thrust eases off over the last 15 percent of the type's own cruise,
+  not a flat 50 m/s, so a slow warhead is no longer stranded inside its taper.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

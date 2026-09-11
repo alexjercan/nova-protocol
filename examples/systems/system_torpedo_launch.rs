@@ -126,6 +126,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<RangeOutcome>();
         app.init_resource::<ArmingSafety>();
+        app.init_resource::<BestCruiseFraction>();
         app.init_resource::<HeldInput>();
         app.init_resource::<RangeGizmos>();
         app.init_resource::<TransientsAtSwitch>();
@@ -168,7 +169,10 @@ fn main() -> bevy::app::AppExit {
                 outcome.armed |= q_armed.iter().any(|arming| arming.is_armed());
             },
         );
-        app.add_systems(Update, watch_arming_safety.after(SpaceshipSectionSystems));
+        app.add_systems(
+            Update,
+            (watch_arming_safety, watch_cruise_fraction).after(SpaceshipSectionSystems),
+        );
         // Probe wiring (task 20260719-210443; each plugin is inert without
         // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
@@ -260,6 +264,25 @@ fn watch_arming_safety(
     }
     armed_before.retain(|torpedo, _| q_torpedo.contains(*torpedo));
 }
+
+/// The largest share of its own authored cruise any torpedo reached this round.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct BestCruiseFraction(f32);
+
+/// How much of its authored cruise a torpedo has to actually make.
+///
+/// Thrust eases off over the last 15 percent of the authored speed, so a type
+/// that drives into that band is a type the taper is not stranding. The floor
+/// is the width of the band itself: reach the band, and the only thing left
+/// between the torpedo and its cap is the cap.
+///
+/// The live margin is thin on purpose. The gate round reads 88 percent and the
+/// crossing round 90, because neither run-in is long enough to settle at the
+/// cap - the shots are 450 m and 980 m. A slack floor would pass a taper that
+/// had taken a whole type's top end away, which is the defect this guards.
+#[cfg(feature = "debug")]
+const CRUISE_FRACTION_FLOOR: f32 = 0.85;
 
 /// Every transient alive at the instant the range switch was ordered - torpedoes
 /// in flight, detonation blasts and their cosmetics, gate debris. Recorded by
@@ -735,6 +758,32 @@ fn report_torpedo_speed(
     }
     if let Some(speed) = q_torpedo.iter().map(|v| v.length()).max_by(f32::total_cmp) {
         info!("guidance: torpedo speed {:.1}", speed);
+    }
+}
+
+/// Track how close to its OWN authored cruise each torpedo actually drives,
+/// as a fraction, taking the best any torpedo reached this round.
+///
+/// Along the nose, because that is the speed the thrust taper gates on: total
+/// speed picks up lateral drift the taper never sees, so grading on it would
+/// pass a torpedo the taper had stranded.
+#[cfg(feature = "debug")]
+fn watch_cruise_fraction(
+    q_torpedo: Query<
+        (&Transform, &LinearVelocity, &TorpedoGuidance),
+        (
+            With<TorpedoProjectileMarker>,
+            Without<nova_protocol::prelude::TorpedoColdLaunch>,
+        ),
+    >,
+    mut best: ResMut<BestCruiseFraction>,
+) {
+    for (transform, velocity, guidance) in &q_torpedo {
+        if guidance.max_speed <= f32::EPSILON {
+            continue;
+        }
+        let along_nose = velocity.dot(transform.forward().into());
+        best.0 = best.0.max(along_nose / guidance.max_speed);
     }
 }
 
@@ -1461,6 +1510,7 @@ fn fire_round(script: Script, round: &'static str) -> Script {
         .step("assert the warhead cleared its own hull")
         .on_enter(move |world: &mut World| {
             assert_the_warhead_clears_the_hull_that_fired_it(world, round);
+            assert_the_ordnance_makes_its_authored_cruise(world, round);
         })
         .add()
 }
@@ -1480,6 +1530,7 @@ fn load_crossing_range(world: &mut World) {
     };
     *world.resource_mut::<RangeOutcome>() = RangeOutcome::default();
     *world.resource_mut::<ArmingSafety>() = ArmingSafety::default();
+    *world.resource_mut::<BestCruiseFraction>() = BestCruiseFraction::default();
     world.resource_mut::<BestApproach>().0 = f32::INFINITY;
     *world.resource_mut::<BestLeadDeg>() = BestLeadDeg::default();
     // RELEASE the trigger, do not merely stop re-pressing it. `ButtonInput`
@@ -1804,6 +1855,36 @@ fn assert_the_warhead_clears_the_hull_that_fired_it(world: &mut World, round: &s
             "tightest_arming_separation_m": tightest,
             "armings": safety.armings,
         }),
+    );
+}
+
+/// Invariant 10: the ordnance drives up to the cruise it was authored with.
+///
+/// The thrust taper is what could take this away. It eases thrust off over the
+/// last share of the authored speed, and a band written as a FIXED width in
+/// u/s is a different share of every type: sensible on a fast one and most of
+/// a slow one's whole envelope. A type that never reaches its band is a type
+/// whose authored cruise is fiction.
+#[cfg(feature = "debug")]
+fn assert_the_ordnance_makes_its_authored_cruise(world: &mut World, round: &str) {
+    let best = world.resource::<BestCruiseFraction>().0;
+    assert!(
+        best >= CRUISE_FRACTION_FLOOR,
+        "range ({round}): the fastest torpedo made {:.0}% of its authored cruise \
+         along the nose (need {:.0}%) - the thrust taper is stranding the \
+         ordnance below the speed it was written with",
+        best * 100.0,
+        CRUISE_FRACTION_FLOOR * 100.0,
+    );
+    info!(
+        "range: {round} - the ordnance made {:.0}% of its authored cruise",
+        best * 100.0
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: the ordnance makes its authored cruise",
+        serde_json::json!({ "t": elapsed, "round": round, "cruise_fraction": best }),
     );
 }
 

@@ -169,7 +169,7 @@ gameplay feedback ledger (`20260909-213118`).
       amidships bay arms with 180 m of its own hull alongside and the
       carrier eats its own warhead. Measure the safety distance against
       the launching hull's `HullRadius`.
-- [ ] `torpedo_section/projectile.rs:541` `THRUST_TAPER_BAND` 5 u/s below
+- [x] `torpedo_section/projectile.rs:541` `THRUST_TAPER_BAND` 5 u/s below
       `max_speed`: a 60 m/s loitering warhead tapers over 83 percent of its
       envelope. Make it a fraction of the authored speed.
 
