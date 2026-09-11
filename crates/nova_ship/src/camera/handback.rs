@@ -143,6 +143,13 @@ mod tests {
         app.add_plugins(ChaseCameraPlugin);
         app.add_observer(on_autopilot_disengaged);
         app.add_systems(Update, update_chase_camera_input);
+        // The blend advances on `Time`, so a wall clock would make this
+        // assertion depend on how loaded the machine running it is: one slow
+        // update is enough to carry the anchor past the "did not snap" band.
+        // One 60 Hz frame per update instead.
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(1.0 / 60.0),
+        ));
 
         let held = Quat::IDENTITY;
         let hull = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
