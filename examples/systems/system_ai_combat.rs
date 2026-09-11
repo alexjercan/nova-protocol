@@ -412,6 +412,12 @@ struct Engagement {
     on_the_computer: bool,
     /// The largest throttle any live drive on the mover is carrying.
     throttle: f32,
+    /// What the mover's live drive can still do to its live mass: the figure
+    /// the AI stops and circles on.
+    drive_accel: MetersPerSecondSquared,
+    /// How fast the mover can still swing its nose. A circle is bounded by
+    /// this once the hull is too big to turn as fast as it can accelerate.
+    turn_rate_deg: f32,
 }
 
 /// Read one staged fight out of the live world.
@@ -440,6 +446,11 @@ fn read_engagement(world: &World, fight: Fight) -> Engagement {
     let (_, target_anchor, target_velocity) = pose(target);
     let radius =
         |root: Entity| Meters::from_engine(world.get::<HullRadius>(root).map_or(0.0, |r| **r));
+
+    let authority = world
+        .get::<FlightAuthority>(mover)
+        .copied()
+        .unwrap_or_default();
 
     let to_target = target_anchor - mover_anchor;
     let centre_gap = Meters::from_engine(to_target.length());
@@ -482,6 +493,8 @@ fn read_engagement(world: &World, fight: Fight) -> Engagement {
         facing_error_deg: held.flatten().map(|facing| angle_to_los(*facing)),
         on_the_computer: held.is_some(),
         throttle,
+        drive_accel: MetersPerSecondSquared::from_engine(authority.linear_acceleration),
+        turn_rate_deg: authority.turn_rate.to_degrees(),
     }
 }
 
@@ -490,7 +503,7 @@ fn log_engagement(fight: Fight, engagement: Engagement) {
     info!(
         "ai combat: {}: {} vs {}: centre_gap={:.0} m face_gap={:.0} m radii={:.0} m / {:.0} m \
          speed={:.0} m/s closing={:+.0} m/s nose_error={:.1} deg facing_error={:.1} deg \
-         on_the_computer={} throttle={:.3}",
+         on_the_computer={} throttle={:.3} drive_accel={:.1} m/s2 turn_rate={:.1} deg/s",
         fight.label,
         fight.mover,
         fight.target,
@@ -504,6 +517,8 @@ fn log_engagement(fight: Fight, engagement: Engagement) {
         engagement.facing_error_deg.unwrap_or(f32::NAN),
         engagement.on_the_computer,
         engagement.throttle,
+        engagement.drive_accel.get(),
+        engagement.turn_rate_deg,
     );
 }
 
@@ -522,6 +537,8 @@ fn engagement_payload(fight: Fight, engagement: Engagement) -> serde_json::Value
         "facing_error_deg": engagement.facing_error_deg,
         "on_the_computer": engagement.on_the_computer,
         "throttle": engagement.throttle,
+        "drive_accel_mps2": engagement.drive_accel.get(),
+        "turn_rate_deg_s": engagement.turn_rate_deg,
     })
 }
 

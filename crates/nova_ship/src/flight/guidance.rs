@@ -13,7 +13,8 @@ use nova_gameplay::prelude::*;
 use crate::prelude::*;
 
 /// The fastest speed the ship may still carry `distance` short of its goal and
-/// still be able to stop there, budgeting `lead_time` seconds of un-braked
+/// still be able to stop there - the one stopping rule in the game, flown by
+/// the player's arrival legs and asked by the AI for its own approach, budgeting `lead_time` seconds of un-braked
 /// travel for the flip and a well pull of `gravity_along` toward the goal: the
 /// `v` solving `v*lead + g*lead^2/2 + (v + g*lead)^2 / (2*(a*margin - g)) =
 /// distance`. Gravity keeps accelerating through the lead window (`g*lead` of
@@ -22,7 +23,7 @@ use crate::prelude::*;
 /// exactly; with the pull at or above the brake authority no stopping plan
 /// exists and the limit is zero. Zero at (or past) the goal. Pure for unit
 /// testing.
-fn arrival_speed_limit(
+pub(crate) fn arrival_speed_limit(
     distance: f32,
     accel: f32,
     margin: f32,

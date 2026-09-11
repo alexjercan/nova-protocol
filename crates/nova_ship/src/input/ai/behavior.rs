@@ -164,11 +164,13 @@ pub struct AILeash {
 /// combat states keep holding on any acquired target, as before.
 ///
 /// This is the APPROACH-LENGTH knob, not a reach knob: the gap between it and
-/// the fire gate is how long a committed ship flies before it can shoot -
-/// `(400 - 180) / AI_MAX_CHASE_SPEED` = 11 s of silent closing. It has to
-/// come down with `projectile_lifetime` or the approach stretches instead of
-/// the fight tightening (at the old 800 u against a 180 u gate it would be
-/// 31 s). See AI_FIRE_RANGE_FACTOR in `guns.rs` for the chain.
+/// the fire gate is how long a committed ship flies before it can shoot. The
+/// 220 u of it is crossed at whatever speed the hull can still stop from
+/// (`ai_radial_speed` in `maneuver.rs`), which is seconds on a picket and
+/// tens of them on a barge. It has to come down with `projectile_lifetime` or
+/// the approach stretches instead of the fight tightening (at the old 800 u
+/// against a 180 u gate it was four times this). See AI_FIRE_RANGE_FACTOR in
+/// `guns.rs` for the chain.
 const AI_ENGAGE_RANGE: f32 = 400.0;
 
 /// Per-ship override of the hostile-detection range: a passive ship leaves

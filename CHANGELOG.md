@@ -22,6 +22,9 @@ does NOT get an entry - and it is the only place they are written down.
 - An enemy circles at 1 km of clear space between the two HULLS, not the two
   centres, so a carrier is fought at the distance a skiff is. An authored
   `standoff_clearance` overrides it; 0 m is contact.
+- An enemy closes and circles at the speed its own live drive and nose can
+  hold, not at two fixed caps, so it brakes once instead of pumping the
+  throttle all fight.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the

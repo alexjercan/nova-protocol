@@ -37,6 +37,7 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
+mod authority;
 mod autopilot;
 mod guidance;
 mod manual;
@@ -50,13 +51,8 @@ mod tests;
 // Only the input layer's turn-rate tests derive the rate independently.
 #[cfg(test)]
 pub(crate) use self::guidance::hull_turn_rate;
-use self::{
-    autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
-    manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
-    order::{drive_scripted_align, drive_ship_orders},
-    state::remove_maneuver_telemetry,
-};
 pub use self::{
+    authority::prelude::FlightAuthority,
     guidance::orbit_radius_band,
     order::{
         cancel_ship_order, interrupt_ship_order, resume_ship_order, retire_ship_order_execution,
@@ -70,21 +66,28 @@ pub use self::{
         OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
     },
 };
+use self::{
+    authority::publish_flight_authority,
+    autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
+    manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
+    order::{drive_scripted_align, drive_ship_orders},
+    state::remove_maneuver_telemetry,
+};
 pub(crate) use self::{
-    guidance::{ship_turn_rate, slew_rotation},
+    guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
 };
 
-/// The flight intent, settings and speed caps, the autopilot and orbit plan, RCS state, maneuver
-/// telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
+/// The flight intent, settings, authority and speed caps, the autopilot and orbit plan, RCS
+/// state, maneuver telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
         cancel_ship_order, interrupt_ship_order, orbit_radius_band, resolved_arrival_standoff,
         resume_ship_order, retire_ship_order_execution, AIOrderInterrupted, Autopilot,
-        AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent,
-        FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems,
-        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
-        ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
+        AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightAuthority,
+        FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin,
+        NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap,
+        ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
         ShipOrderReports, SuspendedArrivalStandoff,
     };
@@ -121,6 +124,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<ManeuverTelemetry>()
             .register_type::<PlayerAutopilotCompleted>()
             .register_type::<BodyRadius>()
+            .register_type::<FlightAuthority>()
             .register_type::<FlightSpeedCap>()
             .register_type::<FlightArrivalStandoff>()
             .register_type::<RcsIntent>()
@@ -160,6 +164,12 @@ impl Plugin for NovaFlightPlugin {
         app.add_systems(
             FixedUpdate,
             (
+                // What every decider downstream reads off this hull. First in
+                // the chain because it is the tick's reading of the hull, not
+                // a maneuver: the order layer, the autopilot and the AI - one
+                // schedule later - all decide against the sections that are
+                // live NOW.
+                publish_flight_authority,
                 // Before the autopilot, so a maneuver this tick's order
                 // engages burns this tick rather than next: an order layer
                 // that lagged the physics by a frame would put every beat

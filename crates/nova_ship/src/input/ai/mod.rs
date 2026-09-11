@@ -59,19 +59,22 @@ pub use self::{
     torpedo::{AITorpedoBay, AI_TORPEDO_MAX_RANGE},
 };
 
-/// A world for an AI unit test: bare, plus the two things the sensor pass
-/// reads.
+/// A world for an AI unit test: bare, plus the three things the passes under
+/// test read.
 ///
 /// Sensing asks for line of sight, and that question goes through avian's
 /// `SpatialQuery`, which refuses to run without `ColliderTrees`. A rig that
 /// spawns no colliders wants exactly this: an empty tree, in which nothing
 /// stands between anybody. The pass also reads the shipped
-/// [`TargetingSettings`], so the defaults stand in for a scenario's.
+/// [`TargetingSettings`], so the defaults stand in for a scenario's, and the
+/// combat envelope reads the shipped [`FlightSettings`] for the stopping
+/// rule's own margin.
 #[cfg(test)]
 pub(super) fn ai_test_world() -> World {
     let mut world = World::new();
     world.init_resource::<avian3d::collider_tree::ColliderTrees>();
     world.init_resource::<crate::input::targeting::prelude::TargetingSettings>();
+    world.init_resource::<crate::prelude::FlightSettings>();
     world
 }
 

@@ -16,18 +16,23 @@ use super::acquisition::update_ai_target;
 use super::behavior::update_behavior_state;
 #[cfg(test)]
 use crate::input::targeting::update_sensor_contacts;
-use crate::prelude::*;
+use crate::{
+    flight::{arrival_speed_limit, flip_lead},
+    prelude::*,
+};
 
 // AI "brain" tuning constants. The AI flies a standoff envelope around its
 // target: approach when far, orbit at the preferred range, extend when too
 // close, and brake when it overshoots.
-/// Target speed per unit of RANGE ERROR (distance outside the standoff
-/// band), so the ship slows as it nears the band instead of the target.
-const AI_CHASE_SPEED_GAIN: f32 = 0.2;
-/// Orbit speed floor: inside the band the ship keeps circling at least this
-/// fast, so it stays a moving target instead of a parked one.
-const AI_ORBIT_SPEED: f32 = 8.0;
-const AI_MAX_CHASE_SPEED: f32 = 20.0;
+/// How much of a hull's live authority the ORBIT term may spend.
+///
+/// Circling is not free: holding a radius costs `v^2 / r` of continuous
+/// lateral acceleration and holding the guns on the target costs `v / r` of
+/// continuous turn. Both are paid out of the same authority the ship needs
+/// for everything else it does in a fight - closing, extending, jinking,
+/// correcting - so the circle is allowed half of each and no more. A ship
+/// that spent all of it would be committed to its own orbit.
+const AI_ORBIT_AUTHORITY_RESERVE: f32 = 0.25;
 /// Preferred engagement clearance (u): the space a fight SETTLES with between
 /// the two hulls' FACES, so this - not the fire gate - is the distance a
 /// player sees combat happen at. 100 u = 1.0 km.
@@ -76,22 +81,41 @@ pub const AI_STANDOFF_OUTER_EDGE: f32 = AI_STANDOFF_CLEARANCE + AI_STANDOFF_BAND
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIStandoffClearance(pub f32);
-/// The speed (u/s) an evading ship flies its jink legs at. A jink leg is a
+/// The speed (u/s) an evading ship flies its jink legs at.
+///
+/// Still a constant, and the last one in this module: a jink leg is a
 /// DISPLACEMENT - it has to carry the hull out from under the guns inside one
-/// leg - so it is budgeted the whole chase cap instead of the envelope's
-/// range-scaled share.
-pub(super) const AI_EVADE_SPEED: f32 = AI_MAX_CHASE_SPEED;
+/// leg - so its speed follows from the clearance the leg has to make and the
+/// authority the hull has to make it with. Deriving that is the evade item's
+/// own work; until then this holds the figure the chase cap used to set.
+pub(super) const AI_EVADE_SPEED: f32 = 20.0;
 
 /// The velocity an engaged AI ship wants to be flying: the standoff envelope
-/// around its target, whose preferred CENTRE distance `standoff` is. Far
-/// outside the band it approaches; inside the band it orbits (tangential to
-/// the line of sight, stable handedness); too close it extends away - pure
-/// pursuit is what parked the old AI at zero range in a turret duel, or
-/// rammed.
+/// around its target, whose preferred CENTRE distance `standoff` is. Outside
+/// the band it closes; inside the band it circles (tangential to the line of
+/// sight, stable handedness); too close it extends away - pure pursuit is
+/// what parked the old AI at zero range in a turret duel, or rammed.
 ///
 /// `standoff` is a centre distance because that is what `to_target` measures:
 /// the caller sums both hulls' live arms and the authored face clearance, so
 /// this function never sees a hull.
+///
+/// TWO terms, summed, each bounded by what the hull can actually do and each
+/// weighted by how far outside the band the ship is:
+///
+/// - The RADIAL term is the player's own arrival rule ([`ai_radial_speed`]):
+///   a ship closes as fast as it can still stop on the ring, and no faster,
+///   so a hull with its drives shot off creeps in rather than promising a
+///   closing speed it cannot shed. It owns the whole velocity from the band's
+///   outer edge outward.
+/// - The TANGENTIAL term is [`ai_orbit_speed`]: what the hull can hold the
+///   RING at while keeping its guns on the target. It fades in across the
+///   band and owns the whole velocity on the ring itself.
+///
+/// Neither is a constant any more. A picket and a barge used to circle at the
+/// same 80 m/s and close at the same 200, which is why a carrier spent a
+/// whole fight alternating thrust and brake against a speed it was never
+/// going to hold.
 ///
 /// A VELOCITY rather than a heading, because the flight computer flies it.
 /// The old heading had to carry a brake regime of its own - point opposite
@@ -101,7 +125,12 @@ pub(super) const AI_EVADE_SPEED: f32 = AI_MAX_CHASE_SPEED;
 ///
 /// Falls back to the line of sight if the envelope direction degenerates.
 /// Pure for unit testing.
-fn ai_desired_velocity(to_target: Vec3, standoff: f32) -> Vec3 {
+fn ai_desired_velocity(
+    to_target: Vec3,
+    standoff: f32,
+    authority: FlightAuthority,
+    settings: &FlightSettings,
+) -> Vec3 {
     let distance = to_target.length();
     if distance <= f32::EPSILON {
         return Vec3::ZERO;
@@ -117,17 +146,70 @@ fn ai_desired_velocity(to_target: Vec3, standoff: f32) -> Vec3 {
         .cross(Vec3::Y)
         .try_normalize()
         .unwrap_or_else(|| los.cross(Vec3::X).normalize());
-    // Radial weight ramps with how far outside the band the ship is; inside
-    // the band the orbit term dominates.
-    let radial_weight = (range_error.abs() / AI_STANDOFF_BAND).clamp(0.0, 1.0);
-    let radial = los * range_error.signum();
-    let direction = (radial * radial_weight + tangent * (1.0 - radial_weight)).normalize_or(los);
 
-    // The speed budget scales with the RANGE ERROR, so the ship slows as it
-    // nears the band rather than as it nears the target, and never drops
-    // below the orbit floor - a parked ship is a free shot.
-    let speed = (range_error.abs() * AI_CHASE_SPEED_GAIN).clamp(AI_ORBIT_SPEED, AI_MAX_CHASE_SPEED);
-    direction * speed
+    // Radial weight ramps with how far outside the band the ship is; inside
+    // the band the orbit term takes over. The band is the HANDOVER width,
+    // and it is the only thing it is: both speeds are read off the hull.
+    let radial_weight = (range_error.abs() / AI_STANDOFF_BAND).clamp(0.0, 1.0);
+    let radial = los
+        * range_error.signum()
+        * ai_radial_speed(range_error, authority, settings)
+        * radial_weight;
+    radial + tangent * ai_orbit_speed(standoff, authority) * (1.0 - radial_weight)
+}
+
+/// The radial speed (u/s) a hull may carry toward - or away from - the ring
+/// it circles, `range_error` out from it.
+///
+/// The shared arrival rule ([`arrival_speed_limit`]) and the shared flip
+/// budget ([`flip_lead`]), asked with this hull's live brake authority, turn
+/// rate and tracking lag.
+///
+/// The brake angle budgeted is a HALF TURN, the worst one: the decision is
+/// made before the computer has chosen a cluster to brake with, so a hull
+/// with retros turns less than that and a main-drive-only hull turns exactly
+/// that. The lead is what the approach is actually bounded by - at a quarter
+/// of it the test rig closed from 900 u, flipped two seconds late and dived
+/// to 40 m of a target it meant to circle at a kilometre. A hull that cannot
+/// turn at all gets a lead long enough to make the whole approach a crawl,
+/// which is the honest answer rather than a special case. Pure for unit
+/// testing.
+fn ai_radial_speed(range_error: f32, authority: FlightAuthority, settings: &FlightSettings) -> f32 {
+    arrival_speed_limit(
+        range_error.abs(),
+        authority.linear_acceleration,
+        settings.decel_margin,
+        flip_lead(
+            core::f32::consts::PI,
+            authority.turn_rate.max(1e-3),
+            authority.tracking_lag,
+            settings.align_cos,
+            settings.arrival_spool_pad,
+        ),
+        0.0,
+    )
+}
+
+/// The speed (u/s) a hull may circle a target at, on a ring `radius` out.
+///
+/// The lower of the two limits a circle is actually bounded by, each spending
+/// [`AI_ORBIT_AUTHORITY_RESERVE`] of its authority:
+///
+/// - CENTRIPETAL, `sqrt(a * r)`: the lateral acceleration that holds the
+///   radius. It is what stops a heavy hull from being asked for a circle its
+///   drives have to fight all the way round.
+/// - ATTITUDE, `w * r`: the line of sight sweeps at `v / r`, and a ship whose
+///   guns are on the target is turning at exactly that rate all fight. Past
+///   it the nose falls behind the target it is circling, which is the 38
+///   degrees of lag `system_ai_combat` measured on the warship.
+///
+/// Zero at zero radius, which is the honest answer: nothing circles a point
+/// it is standing on. Pure for unit testing.
+fn ai_orbit_speed(radius: f32, authority: FlightAuthority) -> f32 {
+    let radius = radius.max(0.0) * AI_ORBIT_AUTHORITY_RESERVE;
+    let centripetal = (authority.linear_acceleration.max(0.0) * radius).sqrt();
+    let attitude = authority.turn_rate.max(0.0) * radius;
+    centripetal.min(attitude)
 }
 
 /// The centre distance a fight between these two hulls should settle at: the
@@ -196,6 +278,9 @@ pub(super) fn ai_target_anchor(
 /// for a velocity the way every other maneuver does.
 pub(super) fn update_combat_flight(
     mut commands: Commands,
+    // The shared stopping rule's own margin: the AI plans its approach with
+    // the same discipline the player's arrival legs are flown with.
+    settings: Res<FlightSettings>,
     mut q_spaceship: Query<
         (
             Entity,
@@ -205,6 +290,10 @@ pub(super) fn update_combat_flight(
             &AITarget,
             &AIEvade,
             Option<&AIStandoffClearance>,
+            // What this hull can still do, published a schedule earlier. A
+            // hull that has not been weighed yet reads as having nothing, and
+            // holds station for the tick it takes to be measured.
+            Option<&FlightAuthority>,
             Option<&mut Autopilot>,
         ),
         // Silent while a scenario order holds the helm: the order's own drive
@@ -234,7 +323,9 @@ pub(super) fn update_combat_flight(
         ),
     >,
 ) {
-    for (ship, transform, com, state, target, evade, clearance, autopilot) in &mut q_spaceship {
+    for (ship, transform, com, state, target, evade, clearance, authority, autopilot) in
+        &mut q_spaceship
+    {
         let held = autopilot.as_deref().is_some_and(|autopilot| {
             matches!(autopilot.action, AutopilotAction::MatchVelocity { .. })
         });
@@ -274,6 +365,8 @@ pub(super) fn update_combat_flight(
                     arm(enemy),
                     clearance.map_or(AI_STANDOFF_CLEARANCE, |clearance| clearance.0.max(0.0)),
                 ),
+                authority.copied().unwrap_or_default(),
+                &settings,
             )
         };
         let action = AutopilotAction::MatchVelocity {
@@ -303,9 +396,18 @@ mod combat_flight_tests {
 
     use super::*;
 
-    /// An engine and a flight computer, so the hull can actually be handed a
-    /// maneuver.
+    /// The authority the rigs below publish: enough of both to be handed a
+    /// maneuver, and round numbers so a case can name what it expects.
+    const FLYABLE: FlightAuthority = FlightAuthority {
+        linear_acceleration: 20.0,
+        turn_rate: 0.5,
+        tracking_lag: 0.5,
+    };
+
+    /// An engine, a flight computer and the authority pass's reading of them,
+    /// so the hull can actually be handed a maneuver.
     fn make_flyable(world: &mut World, ship: Entity) {
+        world.entity_mut(ship).insert(FLYABLE);
         world.spawn((
             ChildOf(ship),
             ThrusterSectionMarker,
@@ -366,7 +468,12 @@ mod combat_flight_tests {
         };
         assert_eq!(
             velocity,
-            ai_desired_velocity(Vec3::new(0.0, 0.0, -1000.0), AI_STANDOFF_CLEARANCE),
+            ai_desired_velocity(
+                Vec3::new(0.0, 0.0, -1000.0),
+                AI_STANDOFF_CLEARANCE,
+                FLYABLE,
+                &FlightSettings::default(),
+            ),
             "the held velocity is the envelope's"
         );
     }
@@ -618,6 +725,26 @@ mod physics_tests {
         app
     }
 
+    /// A hostile hull for the AI to fight, `at`, with its nose pointed up
+    /// the world Y axis.
+    ///
+    /// Looking AWAY is the point. A hostile holding its nose on the AI
+    /// inside `AI_THREAT_AIM_RANGE` breaks Engage into an evade cycle, and
+    /// an orbiting ship crosses a fixed nose once a lap - so a rig that
+    /// measures the engage envelope has to be a rig the AI is not being
+    /// aimed at. The evade cycle has its own tests in `threat.rs`.
+    fn spawn_unthreatening_player(app: &mut App, at: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(at)
+                    .with_rotation(Quat::from_rotation_x(core::f32::consts::FRAC_PI_2)),
+            ))
+            .id()
+    }
+
     /// An AI hull with a hull block, one main drive aft and a live flight
     /// computer of the given attitude authority.
     fn spawn_ai_ship(app: &mut App, max_angular_acceleration: f32) -> Entity {
@@ -669,50 +796,54 @@ mod physics_tests {
         // regime): a 90-degree swing from the AI's initial -Z onto +X. The
         // 5u structural arm returns 56u, which gates at 1665u, so the picket
         // can see it out there.
-        app.world_mut().spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            RigidBody::Dynamic,
-            HullRadius(5.0),
-            Transform::from_translation(Vec3::new(1000.0, 0.0, 0.0)),
-        ));
+        let player = spawn_unthreatening_player(&mut app, Vec3::new(1000.0, 0.0, 0.0));
+        app.world_mut().entity_mut(player).insert(HullRadius(5.0));
         // High authority keeps the swing short; the chase is what this rig
         // measures, not the slew.
         let ship = spawn_ai_ship(&mut app, 10.0);
 
         settle(&mut app);
-        // 10 simulated seconds: ample for the swing plus settling.
-        for _ in 0..600 {
+        // 60 simulated seconds: the swing, the run-in, the flip and the
+        // capture. The run-in is no longer a 20 u/s crawl - this rig's drive
+        // stops it from 155 u/s inside the 900 u it has - so the nose spends
+        // part of the leg retrograde, on the brake, by design.
+        for _ in 0..3600 {
             app.update();
         }
 
         // No limit cycle on the aim: the nose must be ON the player and STAY
-        // there for a further simulated second. The chase velocity and the
-        // requested facing are the same bearing out here, so the hull holds
-        // one attitude whether the burn or the facing hold owns it.
+        // there for a further simulated second. The hull is circling now, so
+        // the bearing it holds is a MOVING one and the nose trails it by the
+        // loop's tracking lag - this rig settles at 198 m/s on a 1,090 m ring,
+        // a line of sight turning at 0.18 rad/s, which its 0.5 s lag puts 5.2
+        // degrees behind. What must not appear is a hunt on top of that.
         let mut min_aim = f32::INFINITY;
-        let mut max_spin = 0.0f32;
+        let mut max_roll = 0.0f32;
         for _ in 0..60 {
             app.update();
             let forward: Vec3 = app.world().get::<Transform>(ship).unwrap().forward().into();
-            min_aim = min_aim.min(forward.dot(Vec3::X));
-            let spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
-            max_spin = max_spin.max(spin);
+            let to_player = (Vec3::new(1000.0, 0.0, 0.0)
+                - app.world().get::<Transform>(ship).unwrap().translation)
+                .normalize();
+            min_aim = min_aim.min(forward.dot(to_player));
+            let spin = **app.world().get::<AngularVelocity>(ship).unwrap();
+            max_roll = max_roll.max(spin.dot(forward).abs());
         }
         assert!(
-            min_aim > 0.996,
-            "the hull must hold its nose on the player (within ~5 degrees) \
+            min_aim > 0.99,
+            "the hull must hold its nose on the player (within ~8 degrees) \
              for a full second, worst aim cos {min_aim}"
         );
-        // The aim axes are quiet and, since the bcs inertia-frame fix, so is
-        // the roll: the residual spin in this rig measures ~5e-6 rad/s. The
+        // The turn that tracks the target is about an axis ACROSS the nose;
+        // about the nose itself the hull must stay quiet. Since the bcs
+        // inertia-frame fix the roll in this rig measures ~5e-6 rad/s, so the
         // bound leaves ~4 orders of margin for solver noise while still
         // tripping on any real roll-damping regression (the pre-fix amplitude
         // was ~0.23 rad/s).
         assert!(
-            max_spin < 0.05,
-            "residual spin must stay damped (20260709-125640), \
-             got {max_spin} rad/s"
+            max_roll < 0.05,
+            "residual roll must stay damped (20260709-125640), \
+             got {max_roll} rad/s"
         );
     }
 
@@ -726,12 +857,7 @@ mod physics_tests {
         // mains - thrust it paid for and then cancelled, plus whatever torque
         // the asymmetry left.
         let mut app = combat_physics_app();
-        app.world_mut().spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            RigidBody::Dynamic,
-            Transform::from_translation(Vec3::new(0.0, 0.0, -600.0)),
-        ));
+        spawn_unthreatening_player(&mut app, Vec3::new(0.0, 0.0, -600.0));
         let ship = app
             .world_mut()
             .spawn((RigidBody::Dynamic, Transform::default(), AISpaceshipMarker))
@@ -792,16 +918,26 @@ mod physics_tests {
         let input =
             |app: &App, engine: Entity| **app.world().get::<ThrusterSectionInput>(engine).unwrap();
         let mut hottest_main = 0.0f32;
-        let mut hottest_idle = 0.0f32;
-        // 45 simulated seconds: the run-in AND the settle into the band, so a
-        // reversal has every chance to light something it should not.
+        let mut worst_cancelled = 0.0f32;
+        // 45 simulated seconds: the run-in, the flip and the settle into the
+        // band, so every regime gets its chance to light something it should
+        // not. WHICH engine burns is the planner's to choose - the retro is
+        // the right answer on the brake leg, a lateral is the right answer on
+        // a trim, and the allocator may recruit a third for counter-torque -
+        // so the claim is about OPPOSED engines: whatever the plan, the ship
+        // must not be paying for thrust it cancels. The broadcast writer ran
+        // every opposed pair at 1.0 against 1.0; the worst this measures is
+        // 9.5 percent, on the brake leg.
         for _ in 0..2700 {
             app.update();
             hottest_main = hottest_main.max(input(&app, main));
-            hottest_idle = hottest_idle
-                .max(input(&app, retro))
-                .max(input(&app, port))
-                .max(input(&app, starboard));
+            for (one, other) in [(main, retro), (port, starboard)] {
+                let (one, other) = (input(&app, one), input(&app, other));
+                let (quiet, loud) = (one.min(other), one.max(other));
+                if loud > 0.05 {
+                    worst_cancelled = worst_cancelled.max(quiet / loud);
+                }
+            }
         }
 
         assert!(
@@ -809,9 +945,10 @@ mod physics_tests {
             "the run-in must actually burn its mains, hottest {hottest_main}"
         );
         assert!(
-            hottest_idle < 0.05,
-            "only the cluster the burn needs may light; the other three engines \
-             reached {hottest_idle} (the broadcast writer put all four at 1.0)"
+            worst_cancelled < 0.15,
+            "an opposed pair burned together at {:.0} percent of each other; \
+             that is thrust the ship paid for and cancelled",
+            worst_cancelled * 100.0
         );
     }
 
@@ -821,20 +958,16 @@ mod physics_tests {
 
         // The target dead ahead (-Z), outside the band.
         let player_position = Vec3::new(0.0, 0.0, -600.0);
-        app.world_mut().spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            RigidBody::Dynamic,
-            Transform::from_translation(player_position),
-        ));
+        spawn_unthreatening_player(&mut app, player_position);
         // Deliberately weak attitude authority: the envelope has to be flown
         // by a hull that turns slowly, which is where the old broadcast
         // throttle alternated thrust and brake.
         let ship = spawn_ai_ship(&mut app, 0.5);
 
         settle(&mut app);
-        // Fly for 45 simulated seconds: approach (~500 u at up to ~20 u/s)
-        // plus braking and orbit capture.
+        // Fly for 45 simulated seconds: the approach (~500 u, and this hull
+        // turns so slowly that the flip budget holds it to a fraction of what
+        // its drive could carry), plus braking and orbit capture.
         let mut min_distance = f32::INFINITY;
         for _ in 0..2700 {
             app.update();
@@ -928,18 +1061,42 @@ mod standoff_tests {
     /// about hulls wants to read.
     const BARE: f32 = AI_STANDOFF_CLEARANCE;
 
+    /// A hull that can fly: roughly a shipped escort's acceleration and a
+    /// turn rate that carries its nose around a kilometre-wide circle.
+    const ESCORT: FlightAuthority = FlightAuthority {
+        linear_acceleration: 20.0,
+        turn_rate: 0.5,
+        tracking_lag: 0.5,
+    };
+
+    /// A hull that can barely fly: a tenth of the escort's drive and a fifth
+    /// of its turn rate, which is the shape of a capital against a picket.
+    const BARGE: FlightAuthority = FlightAuthority {
+        linear_acceleration: 2.0,
+        turn_rate: 0.1,
+        tracking_lag: 1.0,
+    };
+
+    fn envelope(to_target: Vec3, authority: FlightAuthority) -> Vec3 {
+        ai_desired_velocity(to_target, BARE, authority, &FlightSettings::default())
+    }
+
+    fn radial(range_error: f32, authority: FlightAuthority) -> f32 {
+        ai_radial_speed(range_error, authority, &FlightSettings::default())
+    }
+
     #[test]
     fn far_outside_the_band_the_ship_approaches() {
         let to_target = Vec3::new(0.0, 0.0, -1000.0);
-        let desired = ai_desired_velocity(to_target, BARE);
+        let desired = envelope(to_target, ESCORT);
         assert!(
             desired.normalize().dot(to_target.normalize()) > 0.999,
             "far away: fly straight at the target, got {desired:?}"
         );
         assert_eq!(
             desired.length(),
-            AI_MAX_CHASE_SPEED,
-            "and at the chase cap, 900 u of range error past the band"
+            radial(900.0, ESCORT),
+            "and at the speed it could still stop from"
         );
     }
 
@@ -948,7 +1105,7 @@ mod standoff_tests {
         // Dead on the preferred range: the radial term vanishes and the
         // desired velocity is tangential to the line of sight.
         let to_target = Vec3::new(0.0, 0.0, -BARE);
-        let desired = ai_desired_velocity(to_target, BARE);
+        let desired = envelope(to_target, ESCORT);
         assert!(
             desired.normalize().dot(to_target.normalize()).abs() < 0.05,
             "in band: orbit, not chase (los dot {})",
@@ -956,15 +1113,15 @@ mod standoff_tests {
         );
         assert_eq!(
             desired.length(),
-            AI_ORBIT_SPEED,
-            "at the orbit floor: a parked ship is a free shot"
+            ai_orbit_speed(BARE, ESCORT),
+            "at the circle the hull can hold: a parked ship is a free shot"
         );
     }
 
     #[test]
     fn too_close_the_ship_extends_away() {
         let to_target = Vec3::new(0.0, 0.0, -50.0);
-        let desired = ai_desired_velocity(to_target, BARE);
+        let desired = envelope(to_target, ESCORT);
         assert!(
             desired.normalize().dot(to_target.normalize()) < -0.9,
             "well inside the envelope: extend AWAY from the target, got {desired:?}"
@@ -974,16 +1131,64 @@ mod standoff_tests {
     #[test]
     fn the_speed_budget_falls_as_the_ship_nears_the_band() {
         // The budget is earned by RANGE ERROR, not by distance: a ship half
-        // the way in from the cap is commanded slower, and the envelope hands
-        // the computer the brake rather than carrying a brake regime of its
-        // own.
-        let far = ai_desired_velocity(Vec3::new(0.0, 0.0, -1000.0), BARE).length();
-        let near = ai_desired_velocity(Vec3::new(0.0, 0.0, -BARE - 50.0), BARE).length();
+        // the way in is commanded slower, and the envelope hands the computer
+        // the brake rather than carrying a brake regime of its own.
+        let far = envelope(Vec3::new(0.0, 0.0, -1000.0), ESCORT).length();
+        let near = envelope(Vec3::new(0.0, 0.0, -BARE - 50.0), ESCORT).length();
         assert!(
             near < far,
             "closing on the band must lower the budget, {near} u/s against {far} u/s"
         );
-        assert_eq!(near, 50.0 * AI_CHASE_SPEED_GAIN);
+        assert_eq!(near, radial(50.0, ESCORT));
+    }
+
+    #[test]
+    fn a_weaker_hull_is_asked_for_less_of_everything() {
+        // The item: the speeds are readings of the hull, not constants. The
+        // same geometry asks a barge to close slower than an escort and to
+        // circle slower than it too.
+        let run_in = Vec3::new(0.0, 0.0, -1000.0);
+        let on_the_ring = Vec3::new(0.0, 0.0, -BARE);
+        assert!(
+            envelope(run_in, BARGE).length() < 0.5 * envelope(run_in, ESCORT).length(),
+            "a barge must not be asked for the escort's closing speed"
+        );
+        assert!(
+            envelope(on_the_ring, BARGE).length() < 0.5 * envelope(on_the_ring, ESCORT).length(),
+            "nor for its circle"
+        );
+    }
+
+    #[test]
+    fn a_hull_with_nothing_left_asks_for_nothing() {
+        // The tick before a root is weighed, and every tick after its drives
+        // are gone: no authority is no plan, not a plan the hull cannot fly.
+        assert_eq!(
+            envelope(Vec3::new(0.0, 0.0, -1000.0), FlightAuthority::default()),
+            Vec3::ZERO
+        );
+    }
+
+    #[test]
+    fn the_circle_is_bounded_by_the_nose_not_only_by_the_drives() {
+        // A hull with drive to spare and a slow helm is held to the rate its
+        // guns can track at - the limit that separates a capital's circle
+        // from a picket's.
+        let strong_and_slow = FlightAuthority {
+            linear_acceleration: 200.0,
+            turn_rate: 0.05,
+            tracking_lag: 0.5,
+        };
+        let held = ai_orbit_speed(BARE, strong_and_slow);
+        assert_eq!(
+            held,
+            strong_and_slow.turn_rate * AI_ORBIT_AUTHORITY_RESERVE * BARE,
+            "the attitude limit binds, got {held} u/s"
+        );
+        assert!(
+            held < (strong_and_slow.linear_acceleration * AI_ORBIT_AUTHORITY_RESERVE * BARE).sqrt(),
+            "and it is the lower of the two"
+        );
     }
 
     #[test]
@@ -991,7 +1196,7 @@ mod standoff_tests {
         // Line of sight straight up Y: the Y-cross tangent degenerates and
         // the X fallback must keep the orbit term finite.
         let to_target = Vec3::new(0.0, BARE, 0.0);
-        let desired = ai_desired_velocity(to_target, BARE);
+        let desired = envelope(to_target, ESCORT);
         assert!(
             desired.is_finite() && desired.length() > 0.9,
             "polar approach must not degenerate, got {desired:?}"

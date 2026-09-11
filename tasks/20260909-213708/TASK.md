@@ -180,7 +180,7 @@ gameplay feedback ledger (`20260909-213118`).
       face to face, a modded hull over 50 u is inside the other ship. Sum
       both `HullRadius` plus an authored standoff; add the override to
       `AIControllerConfig` beside `engage_range`.
-- [ ] `maneuver.rs:28-29` `AI_ORBIT_SPEED` 8 u/s and `AI_MAX_CHASE_SPEED`
+- [x] `maneuver.rs:28-29` `AI_ORBIT_SPEED` 8 u/s and `AI_MAX_CHASE_SPEED`
       20 u/s regardless of drive-to-mass: the carrier alternates thrust and
       brake all fight. Derive from live thruster authority over mass, the
       figures `flight/thrusters.rs` computes.

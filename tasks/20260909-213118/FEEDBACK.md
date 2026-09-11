@@ -272,3 +272,59 @@ distance. On the shipped fleet's largest pair that turns 1,250 m of band into
 1,562 m of travel against the weakest gun's 1,800 m gate. A mod whose hulls
 carry arms of several hundred metres has to author reach for them, and both
 `guns.rs` and the constant say so.
+
+### The fight is flown at the hull's own speed, 2026-09-12
+
+`AI_ORBIT_SPEED` 8 u/s and `AI_MAX_CHASE_SPEED` 20 u/s were the same two
+numbers for every hull in the game, so a picket and a capital circled at
+exactly the same 80 m/s and both closed under one 200 m/s ceiling neither of
+them had the drive to hold. The caps are gone. A new per-tick
+`FlightAuthority` publishes what each live hull can still do - drive
+acceleration over live mass, turn rate, and the flight computer's tracking lag
+- and combat flight reads it:
+
+- The radial term asks `arrival_speed_limit`, the SAME stopping rule the
+  player's arrival legs are flown with, for the speed the hull can still stop
+  from at its distance off the band, with the flip lead `flip_lead` computes
+  from that hull's own turn rate and lag.
+- The orbit term is the lower of the centripetal limit `sqrt(R * a * r)` and
+  the attitude limit `R * w * r`, both taken at the STANDOFF radius, with
+  `R = AI_ORBIT_AUTHORITY_RESERVE = 0.25`. The reserve is literal: holding
+  that circle costs exactly `R * a` of continuous lateral thrust forever, so a
+  quarter is what the fight may commit and three quarters stay free for
+  closing, extending and jinking.
+
+`system_ai_combat`, both movers settled:
+
+| figure | picket vs skiff | warship vs carrier |
+| --- | --- | --- |
+| published drive | 39.3 m/s2 | 28.4 m/s2 |
+| published turn rate | 56.8 deg/s | 37.3 deg/s |
+| orbit speed, before | 80 m/s | 80 m/s |
+| orbit speed, after | 91 m/s | 83 m/s |
+| centripetal limit | 104 m/s | 97 m/s |
+| attitude limit | 272 m/s | 214 m/s |
+| peak approach speed | 163 m/s | 125 m/s |
+| throttle at the settle | 0.000 | 0.000 |
+
+The before column is one constant printed twice. The after column is two
+readings of two hulls, and the shipped fleet is bound by its drive on both
+fights: the attitude limit sits 2.6x and 2.2x above it. That limit is the
+guard for the hull the drive test cannot catch - a long modded arm on weak
+RCS, which can accelerate into a circle it cannot keep its guns on.
+
+A per-second trace of the settle says the approach is now one curve:
+accelerate to a peak at about 5 s, brake smoothly to 41 m/s at the band, then
+spin up into the circle, with the nose inside 2.6 deg of the target the whole
+way and no throttle at all once the circle is held. The circle is flown on
+RCS, because a quarter of the drive at this radius is less than the RCS
+already carries.
+
+Two readings in that table need their caveat. The 60 s sample of the escort
+fight in the range log is 91 m/s at 55 s but 72 m/s at 60 s, because the skiff
+swings its nose across the picket at 56 s and the picket is four seconds into
+an evade cycle when the range measures it; 91 m/s is the last clean Engage
+sample. And both fights are still converging at 60 s - the face gap is
+drifting in by 1 to 2 m/s and the speed up toward the centripetal limit as the
+radial term hands its share to the orbit term. The settle is asymptotic by
+construction, not a step.
