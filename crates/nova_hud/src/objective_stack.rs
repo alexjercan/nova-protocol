@@ -35,7 +35,10 @@
 use bevy::prelude::*;
 use nova_gameplay::{objectives::GameObjectives, prelude::*};
 use nova_input::prelude::{source_label, InputBindings};
-use nova_ui::hud::{chip_node, ChipTone};
+use nova_ui::{
+    hud::{chip_node, ChipTone},
+    prelude::bottom_edge_px,
+};
 
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
 use crate::prelude::*;
@@ -225,13 +228,7 @@ fn clear_the_readout_strip(
 ) {
     let bottom = q_strip
         .iter()
-        .map(|(node, computed)| {
-            let top = match node.top {
-                Val::Px(px) => px,
-                _ => 0.0,
-            };
-            top + computed.size().y * computed.inverse_scale_factor()
-        })
+        .map(|(node, computed)| bottom_edge_px(node, computed))
         .fold(0.0f32, f32::max);
     let want = Val::Px((bottom + STACK_GAP_PX).max(STACK_TOP_MIN_PX));
     for mut stack in &mut q_stack {

@@ -34,7 +34,10 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{prelude::StatusBarRootMarker, theme::combat};
+use nova_ui::{
+    prelude::{bottom_edge_px, StatusBarRootMarker},
+    theme::combat,
+};
 
 use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
@@ -518,13 +521,7 @@ fn clear_the_status_bar(
 ) {
     let bottom = q_bar
         .iter()
-        .map(|(node, computed)| {
-            let top = match node.top {
-                Val::Px(px) => px,
-                _ => 0.0,
-            };
-            top + computed.size().y * computed.inverse_scale_factor()
-        })
+        .map(|(node, computed)| bottom_edge_px(node, computed))
         .fold(0.0f32, f32::max);
     let want = Val::Px((bottom + INSET_STATUS_GAP_PX).max(INSET_TOP_MIN_PX));
     for mut inset in &mut q_inset {

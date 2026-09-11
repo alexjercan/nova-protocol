@@ -76,3 +76,22 @@ pub fn clear_of(anchor: Vec2, clearance: Vec2, viewport: Vec2, standing: &mut Ve
     standing.push(spot);
     spot
 }
+
+/// The logical y a top-anchored `node` reaches down to, measured rather than
+/// assumed.
+///
+/// Beside [`hang_at`] because it is the same conversion on a widget that hangs
+/// off ANOTHER WIDGET instead of off the world: [`ComputedNode::size`] is
+/// PHYSICAL pixels and `Node`'s `top` is LOGICAL, and a caller that adds them
+/// as written places the thing below by its own height on a HiDPI screen.
+///
+/// A `top` that is not in pixels reads as zero: this answers where an
+/// ABSOLUTE top-anchored widget ends, and a widget placed by a flex parent has
+/// no absolute top to report.
+pub fn bottom_edge_px(node: &Node, computed: &ComputedNode) -> f32 {
+    let top = match node.top {
+        Val::Px(px) => px,
+        _ => 0.0,
+    };
+    top + computed.size().y * computed.inverse_scale_factor()
+}

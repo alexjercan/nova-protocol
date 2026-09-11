@@ -23,6 +23,12 @@
 //! that only stamped the chip's offsets watched Play and the Ship menu draw
 //! over each other.
 //!
+//! The status bar's bottom edge is read at every shape too. It is the same
+//! unit contract on a widget that hangs off another WIDGET rather than off the
+//! world: in flight the target inset is placed at this number instead of the
+//! 44 px it was once hand-read at, and a bar measured in physical pixels
+//! reports an edge that doubles with the scale factor.
+//!
 //! The stage's nameplates are read at the end, from the scenario the editor
 //! opens with: several hulks a hand's width apart project to the same few
 //! pixels, and a placement with no de-collision draws `Derelict Hulk 1` and
@@ -224,6 +230,54 @@ fn read_the_legend(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + '
             rect.height()
         );
         info!("scale: at {shape} the legend is {} tall", rect.height());
+    }
+}
+
+/// Where the status bar's bottom edge stands, in logical pixels.
+#[cfg(feature = "debug")]
+#[derive(Resource, Debug, Clone, Copy)]
+struct BarBottom(f32);
+
+/// The status bar's live bottom edge, read the way the widgets BELOW it read
+/// it: through `nova_ui::screen::bottom_edge_px`.
+///
+/// In flight the target inset hangs off this number instead of the 44 px it
+/// used to be hand-read at, and the editor is where the number can be swept
+/// across scales and shapes. It is the stacking half of the same unit contract
+/// the chip above proves for a world-anchored label: `ComputedNode::size` is
+/// PHYSICAL and `Node::top` is LOGICAL, so a bar measured as written reports a
+/// bottom edge that doubles with the scale factor and pushes everything under
+/// it off its own corner.
+#[cfg(feature = "debug")]
+fn bar_bottom_px(world: &mut World) -> f32 {
+    world
+        .query_filtered::<(&Node, &ComputedNode), With<nova_ui::prelude::StatusBarRootMarker>>()
+        .iter(world)
+        .map(|(node, computed)| nova_ui::prelude::bottom_edge_px(node, computed))
+        .fold(f32::NEG_INFINITY, f32::max)
+}
+
+/// The bar ends at the same logical y it was stamped at.
+#[cfg(feature = "debug")]
+fn read_the_bar_bottom(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let stamped = world
+            .get_resource::<BarBottom>()
+            .expect("the baseline beat stamped the bar's bottom edge")
+            .0;
+        let now = bar_bottom_px(world);
+        assert!(
+            (now - stamped).abs() < DRIFT_PX,
+            "at {shape} the status bar ends at {now} instead of {stamped}: the widgets that \
+             hang under it are placed at this number, and a PHYSICAL height read into a \
+             LOGICAL position moves every one of them by the bar's own height"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the bar under-widgets measure ends where it did",
+            serde_json::json!({ "shape": shape, "bottom_px": now }),
+        );
+        info!("scale: at {shape} the status bar still ends at {now}");
     }
 }
 
@@ -482,6 +536,9 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .on_enter(|world: &mut World| {
             let offsets = offsets_now(world);
             world.insert_resource(offsets);
+            let bottom = bar_bottom_px(world);
+            assert!(bottom.is_finite(), "the app draws a status bar");
+            world.insert_resource(BarBottom(bottom));
             read_the_bar("1024x768")(world);
             read_the_legend("1024x768")(world);
             info!(
@@ -508,6 +565,9 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("scale: the bar reads at 2x")
         .on_enter(read_the_bar("2x"))
         .add()
+        .step("scale: the bar ends where it did at 2x")
+        .on_enter(read_the_bar_bottom("2x"))
+        .add()
         // And back, so the shapes below are read in the scale they were sized
         // in.
         .step("scale: back to 1x")
@@ -531,6 +591,9 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("scale: the bar reads wide")
         .on_enter(read_the_bar("1280x600"))
         .add()
+        .step("scale: the bar ends where it did wide")
+        .on_enter(read_the_bar_bottom("1280x600"))
+        .add()
         .step("scale: go narrow")
         .on_enter(set_size(760.0, 600.0))
         .until(the_window_reshaped(760.0, 600.0))
@@ -548,6 +611,9 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // came apart at.
         .step("scale: the bar reads narrow")
         .on_enter(read_the_bar("760x600"))
+        .add()
+        .step("scale: the bar ends where it did narrow")
+        .on_enter(read_the_bar_bottom("760x600"))
         .add()
         .step("scale: the legend keeps its bound narrow")
         .on_enter(read_the_legend("760x600"))

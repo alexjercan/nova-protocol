@@ -433,7 +433,7 @@ fn a_bar_over_a_pane_that_is_gone_is_not_painted() {
 mod float {
     use bevy::prelude::*;
 
-    use crate::screen::{clear_of, hang_at, Hang};
+    use crate::screen::{bottom_edge_px, clear_of, hang_at, Hang};
 
     /// A node measured at some scale factor, sized in PHYSICAL pixels the way
     /// layout reports it.
@@ -615,5 +615,43 @@ mod float {
         assert_eq!(spots[1], Vec2::new(400.0, 42.0), "no room up, so it falls");
         assert_eq!(spots[2], Vec2::new(400.0, 64.0));
         assert_eq!(spots[3], Vec2::new(400.0, 86.0));
+    }
+
+    /// The same defect on the other side: a widget that hangs off the widget
+    /// above it. Layout reports the strip's height in physical pixels, and a
+    /// stack placed at that number lands its own height too low on a 2x
+    /// screen, over the thing it was measuring to clear.
+    #[test]
+    fn a_widget_reaches_its_logical_height_below_its_own_top() {
+        let strip = Node {
+            top: Val::Px(16.0),
+            ..default()
+        };
+
+        assert_eq!(
+            bottom_edge_px(&strip, &measured(Vec2::new(160.0, 49.0), 1.0)),
+            65.0
+        );
+        assert_eq!(
+            bottom_edge_px(&strip, &measured(Vec2::new(160.0, 49.0), 2.0)),
+            65.0,
+            "the same strip on a 2x screen ends at the same logical y"
+        );
+    }
+
+    /// A widget a flex parent placed has no absolute top to report, and a
+    /// caller stacking under it is measuring the wrong thing: it reads as its
+    /// height alone rather than as an invented offset.
+    #[test]
+    fn a_widget_without_an_absolute_top_reports_its_height() {
+        let flowed = Node {
+            top: Val::Auto,
+            ..default()
+        };
+
+        assert_eq!(
+            bottom_edge_px(&flowed, &measured(Vec2::new(160.0, 49.0), 2.0)),
+            49.0
+        );
     }
 }
