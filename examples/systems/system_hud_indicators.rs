@@ -76,12 +76,27 @@ const FEED_TOLERANCE: Meters = Meters(50.0);
 #[cfg(feature = "debug")]
 const INSET_SHOT: &str = "inset_shot.png";
 
+/// The fixed top the objective stack used to be authored at - "one two-line
+/// readout" - and the defect the measured layout is about. A scenario with
+/// three readout slots is taller than that, so a stack still wearing this
+/// number would be drawing over the strip.
+#[cfg(feature = "debug")]
+const STACK_WAS_PX: f32 = 96.0;
+
+/// How far a measured gap may move between scale factors. Layout rounds to
+/// whole physical pixels, so the same logical gap can read a hair differently
+/// at 2x; two pixels covers that and still fails a gap that moved by a
+/// widget's height, which is what mixing physical and logical pixels does.
+#[cfg(feature = "debug")]
+const GAP_TOLERANCE_PX: f32 = 2.0;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {
+        app.init_resource::<LayoutProbe>();
         // Probe wiring (task 20260719-210443; each plugin is inert without
         // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
@@ -153,6 +168,36 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(assert_goto_indicators)
                 .until(elapsed(0.4))
                 .add()
+                // The two layouts that used to carry a hand-read number for
+                // the widget above them: the objective stack under the readout
+                // strip, the target inset under the status bar. The objective
+                // posts first so the stack is a real column and not an empty
+                // container.
+                .step("post an objective")
+                .on_enter(post_objective)
+                .until(elapsed(0.4))
+                .add()
+                .step("assert the measured layouts")
+                .on_enter(|world: &mut World| assert_measured_layouts(world, "1x"))
+                .until(elapsed(0.3))
+                .add()
+                // The same reading at 2x: both placements are computed from
+                // `ComputedNode::size()`, which is PHYSICAL pixels, into
+                // `Node::top`, which is LOGICAL - the unit mix that moved
+                // every HiDPI chip by its own height. The logical answer must
+                // not move.
+                .step("double the scale factor")
+                .on_enter(set_scale(2.0))
+                .until(elapsed(0.5))
+                .add()
+                .step("assert the measured layouts at 2x")
+                .on_enter(|world: &mut World| assert_measured_layouts(world, "2x"))
+                .until(elapsed(0.3))
+                .add()
+                .step("back to 1x")
+                .on_enter(set_scale(1.0))
+                .until(elapsed(0.5))
+                .add()
                 .step("kill the target")
                 .on_enter(kill_target)
                 .until(elapsed(0.4))
@@ -191,6 +236,141 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
         &game_assets,
         &sections,
     )));
+}
+
+/// What the measured layouts read at 1x, so the 2x pass compares against a
+/// measured number rather than a guessed one.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct LayoutProbe {
+    /// `(stack gap, inset gap)` in logical px: how far each widget was placed
+    /// below the live bottom edge of the one above it.
+    at_1x: Option<(f32, f32)>,
+}
+
+/// Post an objective, so the stack is a real column of chips and not an empty
+/// container with a top.
+#[cfg(feature = "debug")]
+fn post_objective(world: &mut World) {
+    world
+        .resource_mut::<GameObjectives>()
+        .objectives
+        .push(Objective::new("layout", "HOLD STATION AND READ THE STRIP"));
+    info!("hud range: objective posted");
+}
+
+/// Set the window's scale factor, the way a HiDPI screen does.
+#[cfg(feature = "debug")]
+fn set_scale(factor: f32) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let mut windows = world.query_filtered::<&mut Window, With<bevy::window::PrimaryWindow>>();
+        let mut window = windows.single_mut(world).expect("one primary window");
+        window.resolution.set_scale_factor_override(Some(factor));
+        info!("hud range: scale factor {factor}");
+    }
+}
+
+/// The live bottom edge (logical px) of whatever `Above` marks - the same
+/// measurement the production layout makes, taken here independently.
+#[cfg(feature = "debug")]
+fn live_bottom_px<Above: Component>(world: &mut World, what: &str) -> f32 {
+    let bottom = world
+        .query_filtered::<(&Node, &bevy::ui::ComputedNode), With<Above>>()
+        .iter(world)
+        .map(|(node, computed)| {
+            let top = match node.top {
+                Val::Px(px) => px,
+                _ => 0.0,
+            };
+            top + computed.size().y * computed.inverse_scale_factor()
+        })
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(bottom.is_finite(), "hud range: no {what} to measure");
+    bottom
+}
+
+/// The logical `top` a widget was placed at.
+#[cfg(feature = "debug")]
+fn placed_top_px<Below: Component>(world: &mut World, what: &str) -> f32 {
+    let node = world
+        .query_filtered::<&Node, With<Below>>()
+        .iter(world)
+        .next()
+        .unwrap_or_else(|| panic!("hud range: no {what}"));
+    match node.top {
+        Val::Px(px) => px,
+        other => panic!("hud range: the {what} was placed at {other:?}, not in pixels"),
+    }
+}
+
+/// The two layouts that used to carry a hand-read number for the widget above
+/// them: the objective stack under the readout strip, and the target inset
+/// under the status bar.
+///
+/// Three claims, at every scale factor: neither widget overlaps the one it
+/// hangs from, the stack is past the fixed top it used to be authored at (a
+/// three-slot strip is taller than "one two-line readout"), and each gap is the
+/// same LOGICAL distance at 1x and at 2x - the unit mix that moved every HiDPI
+/// chip by its own height would show up here as a gap that changed with the
+/// scale factor.
+#[cfg(feature = "debug")]
+fn assert_measured_layouts(world: &mut World, shape: &str) {
+    let strip = live_bottom_px::<HudReadoutStripMarker>(world, "readout strip");
+    let stack = placed_top_px::<ObjectiveStackHudMarker>(world, "objective stack");
+    let bar = live_bottom_px::<nova_ui::prelude::StatusBarRootMarker>(world, "status bar");
+    let inset = placed_top_px::<TargetInsetHudMarker>(world, "target inset");
+
+    assert!(
+        stack >= strip,
+        "hud range ({shape}): the objective stack starts at {stack:.1} px, over a readout \
+         strip that runs to {strip:.1} px"
+    );
+    assert!(
+        stack > STACK_WAS_PX,
+        "hud range ({shape}): the objective stack is at {stack:.1} px, no further down than \
+         the fixed {STACK_WAS_PX:.0} px it used to be authored at, with three readout slots up"
+    );
+    assert!(
+        inset >= bar,
+        "hud range ({shape}): the target inset starts at {inset:.1} px, over a status bar \
+         that runs to {bar:.1} px"
+    );
+
+    let gaps = (stack - strip, inset - bar);
+    let mut probe = world.resource_mut::<LayoutProbe>();
+    match probe.at_1x {
+        None => probe.at_1x = Some(gaps),
+        Some((stack_gap, inset_gap)) => {
+            assert!(
+                (gaps.0 - stack_gap).abs() <= GAP_TOLERANCE_PX,
+                "hud range ({shape}): the stack hangs {:.1} px under the strip, not the \
+                 {stack_gap:.1} px it hung at 1x",
+                gaps.0
+            );
+            assert!(
+                (gaps.1 - inset_gap).abs() <= GAP_TOLERANCE_PX,
+                "hud range ({shape}): the inset hangs {:.1} px under the status bar, not the \
+                 {inset_gap:.1} px it hung at 1x",
+                gaps.1
+            );
+        }
+    }
+
+    nova_probe::probe_marker(
+        world,
+        "outcome: the stacked layouts measure the widget above them",
+        serde_json::json!({
+            "shape": shape,
+            "strip_bottom_px": strip,
+            "stack_top_px": stack,
+            "bar_bottom_px": bar,
+            "inset_top_px": inset,
+        }),
+    );
+    info!(
+        "hud range ({shape}): stack {stack:.0} px under a {strip:.0} px strip, inset \
+         {inset:.0} px under a {bar:.0} px status bar"
+    );
 }
 
 /// Build the range scenario: a player ship at the origin and an uncontrolled
@@ -265,6 +445,20 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
         })
     };
 
+    // THREE readout slots, which is the layout the objective stack used to get
+    // wrong: its top was authored as "one two-line readout" and a scenario with
+    // more slots stacked its chips over the run clock. Three rows push the
+    // strip past that assumption, so the stack has to have MEASURED it.
+    let readout = |slot: &str, label: &str| {
+        EventActionConfig::HudReadout(HudReadoutActionConfig {
+            slot: slot.to_string(),
+            variable: "scenario_elapsed".to_string(),
+            format: HudReadoutFormatConfig::Time,
+            label: Some(label.to_string()),
+            visible: true,
+        })
+    };
+
     let events = vec![ScenarioEventConfig {
         label: None,
         name: EventConfig::OnStart,
@@ -285,6 +479,11 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
                     target,
                 ),
             ],
+            vec![
+                readout("timer", "TIME"),
+                readout("hold", "HOLD"),
+                readout("drift", "DRIFT"),
+            ],
             ThreePointRig::around("range", Meters3::ZERO, 5.0).actions(),
         ]
         .concat(),
@@ -292,6 +491,14 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
 
     ScenarioConfig {
         description: "A test range for the screen-projected HUD indicators.".to_string(),
+        // The readouts are bound to the run clock, which is a typed watch like
+        // any other variable - the three slots all show the same one.
+        watches: vec![WatchConfig {
+            variable: "scenario_elapsed".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+        }],
         events,
         ..ScenarioConfig::new(
             "hud_indicators".to_string(),
