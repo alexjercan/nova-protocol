@@ -712,8 +712,13 @@ kind: Torpedo((
   not the speed it flies at. That comes from the drive, once it lights.
 - `projectile_lifetime` - torpedo lifetime in seconds.
 - `arm_time`, `arm_distance` - the torpedo may detonate only after this many
-  seconds OR this many METERS from the muzzle (arms on whichever comes first),
-  so it clears the firing ship.
+  seconds OR this many METERS from the muzzle (arms on whichever comes first).
+  This is the WARHEAD's condition and it is not the only one: the torpedo must
+  ALSO be clear of the hull that launched it plus the full `blast_radius`, a
+  distance snapshotted at launch and not authorable from here. That second
+  condition is what actually sets the bay's minimum range - about 324 m off a
+  small boat with a 300 m warhead, 494 m off a 194 m carrier - so authoring a
+  shorter `arm_distance` buys nothing below it.
 - `ignition_delay` - seconds the torpedo coasts INERT before its drive lights.
   For that whole window it has no thrust, no guidance, no fuze and no colliders:
   it can neither be shot down nor touch the ship it is leaving. Size it against
