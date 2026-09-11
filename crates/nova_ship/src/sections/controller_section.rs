@@ -357,7 +357,7 @@ fn stack_curve(n: f32, limit: f32) -> f32 {
 
 /// The hull state the attitude ceiling is derived from: the inertia the
 /// computers twist, the spin already spent, and the arm the metal tears at -
-/// published by `publish_hull_radius` ahead of this pass, so the arrival rule
+/// published by `publish_hull_radii` ahead of this pass, so the arrival rule
 /// and the envelope size the same hull.
 type HullBody<'w> = (
     &'w ComputedAngularInertia,
@@ -961,7 +961,7 @@ mod tests {
         app.add_systems(
             FixedUpdate,
             (
-                crate::sections::hull_radius::publish_hull_radius,
+                crate::sections::hull_radius::publish_hull_radii,
                 update_controller_stack_tuning,
             )
                 .chain(),

@@ -406,6 +406,15 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_hud_shell",
+        &[
+            "both shells enclose the live hull",
+            "the flight chips clear the outer shell",
+            "severing the hull shrinks its shells",
+            "the shells stay nested through the shrink",
+        ],
+    ),
+    (
         "system_hud_indicators",
         &[
             "the lock is live under the sweep",
@@ -579,7 +588,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 244;
+const SYSTEMS_INVARIANTS: usize = 248;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

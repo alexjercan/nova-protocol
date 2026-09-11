@@ -25,6 +25,7 @@
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 use nova_ship::prelude::*;
@@ -43,6 +44,7 @@ pub mod edge_indicators;
 pub mod emphasis;
 pub mod flight_status;
 pub mod holo_instruments;
+pub mod hull_shell;
 pub mod item_highlights;
 pub mod key_glyphs;
 pub mod keybind_dock;
@@ -72,14 +74,14 @@ pub mod prelude {
         bore_sight::prelude::*, cinematic_prompt::prelude::*, cinematic_title::prelude::*,
         comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
         emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        item_highlights::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
-        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
-        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
-        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudContextGate, HudNovaOsExempt, HudSelfDrivenVisibility,
-        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        hull_shell::prelude::*, item_highlights::prelude::*, key_glyphs::prelude::*,
+        keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
+        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
+        objective_markers::prelude::*, objective_stack::prelude::*, readout::prelude::*,
+        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
+        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudContextGate,
+        HudNovaOsExempt, HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier,
+        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -320,6 +322,7 @@ impl Plugin for NovaHudPlugin {
                 .before(bevy::ui::UiSystems::Layout),
         );
         app.add_plugins(velocity::VelocityHudPlugin);
+        app.add_plugins(hull_shell::HullShellPlugin);
         app.add_plugins(flight_status::FlightStatusHudPlugin);
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_dock::KeybindDockPlugin);
@@ -652,30 +655,35 @@ fn setup_hud_velocity(
         return;
     };
 
+    // Both shells spawn SIZELESS: how big they are is the hull's answer, not a
+    // constant, and `hull_shell` holds each one hidden until its hull has
+    // published an envelope to stand outside of.
     commands.spawn((
         HudTier::Instrument,
         velocity_hud(VelocityHudConfig {
-            radius: 5.0,
+            radius: 0.0,
             sharpness: 20.0,
             target: spaceship,
             ..default()
         }),
+        hull_shell(HULL_CLEARANCE),
     ));
     // The gravity indicator: same widget, yellow, pointing down the
-    // dominant well's pull, hidden in flat space. Nested slightly outside
-    // the velocity sphere so the two shells never z-fight.
+    // dominant well's pull, hidden in flat space. Nested outside the velocity
+    // sphere by the authored separation so the two shells never z-fight.
     commands.spawn((
         HudTier::Instrument,
         // Hides itself in flat space; the level-change restore must not
         // overrule that.
         HudSelfDrivenVisibility,
         velocity_hud(VelocityHudConfig {
-            radius: 5.6,
+            radius: 0.0,
             sharpness: 20.0,
             target: spaceship,
             source: VelocityHudSource::Gravity,
             palette: VelocityHudPalette::GRAVITY,
         }),
+        hull_shell(Meters(HULL_CLEARANCE.get() + SHELL_SEPARATION.get())),
     ));
 }
 

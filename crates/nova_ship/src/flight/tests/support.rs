@@ -22,7 +22,7 @@ use crate::{
             sync_controller_section_forces, update_controller_section_rotation_input,
             update_controller_stack_tuning,
         },
-        hull_radius::publish_hull_radius,
+        hull_radius::publish_hull_radii,
         thruster_section::thruster_impulse_system,
     },
 };
@@ -64,7 +64,7 @@ fn unfinished_flight_app() -> App {
             // one that turns it into an attitude ceiling. First in the chain:
             // everything below reads what they write, and a rig that skipped
             // them would fly on a ceiling nobody derived.
-            publish_hull_radius,
+            publish_hull_radii,
             update_controller_stack_tuning,
             autopilot_system,
             // Production order: the two never coexist on one ship, but the

@@ -1,6 +1,6 @@
 # Velocity and gravity spheres enclose the live hull
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 86
 - TAGS: v0.14.0, bug, hud
 
@@ -153,3 +153,129 @@ COM.
 - Run the screenshot producer-map checks after registering
   `wiki-hud-shell.png`.
 - Run `cd web && npm run ci` after the wiki and screenshot mapping changes.
+
+## Before shot (2026-09-11)
+
+`target/hud-shell-comparison/before/hud-shell-carrier.png`, captured from the
+unfixed build through the new `screenshot_hud_shell` example at 1920x1080.
+`block_carrier` is the player hull, on station under 140 m/s of held velocity,
+inside a 4.9 km ice-world SOI so the gravity shell is up.
+
+Inspected at native resolution:
+
+- The 50 m velocity shell is not visible at all. It is entirely buried inside
+  the 360 m hull.
+- The 56 m gravity shell shows only as a small yellow bulge poking through the
+  keel near frame centre. The rest of it is inside the ship.
+- The speed chip (`140.0 m/s`) sits ON the hull at its fixed 120 px offset,
+  because the offset was authored for a shell 56 m across.
+
+This is the defect the owner reported, in one frame: neither sphere encloses
+the hull, and the readout parked "beside the sphere" is parked on the ship.
+
+## After shot (2026-09-11)
+
+`target/hud-shell-comparison/after/hud-shell-carrier.png`, from the fixed build
+through the same unchanged `screenshot_hud_shell` example and the same
+1920x1080 framing. Both captures inspected at native resolution and side by
+side; the dark hemisphere was also read under a shadow boost, because the shell
+surface only lights where a cone rides it.
+
+- Both spheres now enclose the hull. The halo is centred on the carrier's
+  centre of mass and stands clear of the nose and the stern, where the before
+  shot has no shell outside the hull at all.
+- The blue velocity cone rides the shell OUTSIDE the stern, in open sky. In the
+  before shot it is inside the ship.
+- The yellow gravity cone hangs well below the keel, pointing down at the well,
+  instead of bulging through the plating.
+- The gravity shell is outside the velocity shell: the yellow cone stands
+  further out than the blue one by the authored 6 m.
+- The speed chip (`140.0 m/s`) is off the hull and clear of the outer shell
+  edge, where the before shot parks it on the superstructure.
+
+The mode chip is blank in both captures. The carrier flies manually here, and
+`drive_mode_chip` shows nothing without an engaged maneuver - a quiet HUD is
+the manual look. Both chips are graded together in the `system_hud_shell`
+range, which engages a GOTO leg for exactly that reason.
+
+## Scripted-camera indicator ordering
+
+The first after shot came back with no chips at all. `ScreenIndicatorSystems`
+and `anchor_flight_chips` were ordered after `ChaseCameraSystems::Sync`, which
+sits in `CameraAuthoritySystems::Solve`, but a `ScriptedCameraPose` - photo
+mode, a capture script, a cinematic - overwrites the solved pose afterwards in
+`CameraAuthoritySystems::Override`. Every scripted frame therefore projected
+its indicators through a camera that was not the one rendering them: here the
+chase pose stands 26 m off the carrier's stern, so a 205 m shell edge falls 43
+degrees off axis against a 36 degree half-angle and the widget hid it.
+
+Both sets now order after `CameraAuthoritySystems::Override`, which is what the
+existing comment already asked for: sample the same camera pose the frame
+renders with.
+
+## Result (2026-09-11)
+
+Done. The shells are sized off `HullEnvelopeRadius`, published beside
+`HullRadius` from the same live section scan, and both spheres and the two
+flight chips are driven from one eased envelope per hull.
+
+Verification run:
+
+- `cargo test -p nova_hud --lib`: 270 pass.
+- `cargo test -p nova_ship --lib sections::`: 397 pass.
+  `cargo test -p nova_ship --lib flight::`: 126 pass.
+- `cargo test -p nova_probe_cli --test catalog_drift`: 2 pass.
+- `probe run system_hud_shell --correctness-only`, then rendered: OK, 7/8
+  measured, 0 invariant violations over 391 frames, `capture_simulated` PASS,
+  `log_clean` PASS. All four outcomes fire on BOTH hulls - skiff envelope
+  48.3 m (shells 53.3 / 59.3 m), carrier 194.3 m (shells 199.3 / 205.3 m);
+  after the sever, 40.6 m (45.6 / 51.6 m) and 187.9 m (192.9 / 198.9 m).
+- `screenshot_hud_shell` captured before and after, inspected at native
+  resolution and side by side: see the two sections above.
+- `scripts/gen-web-screenshots.py` packaged `wiki-hud-shell.png` into
+  `web/src/assets/`; producer map checks pass.
+- `cd web && npm run ci`: pass, the new asset emitted.
+- `cargo fmt --check`: clean.
+
+## CI gates (2026-09-11)
+
+Every job in `.github/workflows/ci.yaml` reproduced locally.
+
+- `cargo fmt --check`, the seven generated-art `--check` gates and the
+  probe-matrix step: clean.
+- `cargo clippy --workspace --all-targets --features debug -- -D warnings`:
+  clean. It caught a `single_match` in `publish_hull_radii`, now a `let ... else`.
+- `cargo test --workspace --features debug`: clean.
+- `RUSTFLAGS=-D warnings cargo check --workspace --all-targets` (DEFAULT
+  features): clean. It wanted `#[cfg(feature = "debug")]` on the two example
+  constants that only debug-gated code reads.
+- `CLIPPY_CONF_DIR=ci/wasm-clippy cargo clippy ... --target
+  wasm32-unknown-unknown -- -D warnings`: clean.
+- `cd web && npm run ci`: clean.
+
+### The probe shards, under the rasterizer CI uses
+
+Both new examples were run the way the probe job runs them - lavapipe
+(`llvmpipe`, `device_type: Cpu`), Xvfb, four cores, `NOVA_AUTOPILOT_DEADLINE=280`,
+`--correctness-only --timeout 300`. Both OK, 0 invariant violations, 0 offending
+log lines, and all eight outcome markers fire with the same numbers as on the
+GPU.
+
+The first pass of the range took 167 s in-process against the 280 s run
+backstop, and 99 s of that was the ONE appended screenshot: thirty settle frames
+of 2 081 sections cost ~3 s each under a software rasterizer. The round order is
+now carrier first, skiff second, so the picture is taken of the small hull. Same
+two rounds, same four invariants on both, 77 s in-process. The per-beat
+deadlines are `SHELL_STEP_DEADLINE_SECS` (90 s) against a 16 s worst beat,
+instead of the bare 20 s they were.
+
+### One unrelated flake fixed
+
+`nova_ship::camera::handback::tests::handback_blends_the_anchor_instead_of_snapping`
+failed inside the full workspace run and passed on its own. It drives
+`MinimalPlugins`, so the handback blend advances on the WALL clock: one update
+slowed by a loaded machine carries the anchor past the "did not snap" band
+(0.339 rad against 0.05). It now runs on
+`TimeUpdateStrategy::ManualDuration(1/60 s)`, the pattern the `nova_hud` tests
+already use. Not caused by this task - it would fail on a busy runner either
+way.

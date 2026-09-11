@@ -17,7 +17,7 @@ use bevy::{
 use nova_gameplay::{
     gravity::prelude::*, mesh::prelude::TriangleMeshBuilder, transform::prelude::*,
 };
-use nova_ship::flight::prelude::*;
+use nova_ship::{flight::prelude::*, prelude::live_structure_anchor};
 /// The `velocity_hud` spawner, its config, palette and source components, and `VelocityHudPlugin`.
 pub mod prelude {
     pub use super::{
@@ -178,6 +178,14 @@ pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct VelocityHudTargetEntity(Entity);
 
+impl VelocityHudTargetEntity {
+    /// The widget reads `target`. For a caller assembling a widget's parts by
+    /// hand - the shell tests - rather than going through [`velocity_hud`].
+    pub fn new(target: Entity) -> Self {
+        Self(target)
+    }
+}
+
 /// The shaded sphere's edge sharpness (higher = tighter terminator), carried
 /// from [`VelocityHudConfig::sharpness`] into the sphere material at spawn.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
@@ -256,7 +264,7 @@ fn source_vector(
     }
 }
 
-fn update_velocity_hud_input(
+pub(crate) fn update_velocity_hud_input(
     mut q_hud: Query<
         (
             &mut DirectionalSphereOrbitInput,
@@ -293,10 +301,22 @@ fn update_velocity_hud_input(
     }
 }
 
+/// Park the widget on its target's LIVE CENTRE OF MASS, a radius out along the
+/// direction it reads.
+///
+/// The centre is the centre of mass, not the root translation. The root origin
+/// is only where a ship's first sections were built, and asymmetric
+/// construction or a lost section moves the hull off it - a shell centred there
+/// would leave the far end of the hull outside the sphere that promises to
+/// contain it. The offset is taken from the orbit's CURRENT radius rather than
+/// the output's own length, because the output is last frame's: a shell that
+/// just resized would otherwise sit off-centre by the difference for a frame,
+/// which is the one frame it had to be right for.
 fn sync_orbit_state(
     mut q_orbit: Query<
         (
             &mut Transform,
+            &DirectionalSphereOrbit,
             &DirectionalSphereOrbitOutput,
             &VelocityHudTargetEntity,
         ),
@@ -305,10 +325,10 @@ fn sync_orbit_state(
             With<VelocityHudMarker>,
         ),
     >,
-    q_target: Query<&Transform, Without<VelocityHudMarker>>,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>), Without<VelocityHudMarker>>,
 ) {
-    for (mut transform, output, target) in &mut q_orbit {
-        let Ok(target_transform) = q_target.get(**target) else {
+    for (mut transform, orbit, output, target) in &mut q_orbit {
+        let Ok((target_transform, center_of_mass)) = q_target.get(**target) else {
             error!(
                 "sync_orbit_state: entity {:?} not found in q_target",
                 target
@@ -316,10 +336,10 @@ fn sync_orbit_state(
             continue;
         };
 
-        let origin = target_transform.translation;
-        let dir = **output;
-        transform.translation = origin + dir;
-        transform.rotation = Quat::from_rotation_arc(Vec3::NEG_Z, dir.normalize_or_zero());
+        let origin = live_structure_anchor(target_transform, center_of_mass);
+        let dir = (**output - orbit.center).normalize_or_zero();
+        transform.translation = origin + dir * orbit.radius;
+        transform.rotation = Quat::from_rotation_arc(Vec3::NEG_Z, dir);
     }
 }
 
@@ -919,6 +939,92 @@ mod tests {
             *world.entity(widget).get::<Visibility>().unwrap(),
             Visibility::Visible,
             "the velocity readout never toggles itself"
+        );
+    }
+
+    /// The widget rides the target's LIVE CENTRE OF MASS, not its root origin,
+    /// and the offset comes from the orbit's CURRENT radius rather than from
+    /// last frame's output - so the sphere child, which sits a radius back down
+    /// the same axis, lands exactly on that centre.
+    #[test]
+    fn the_widget_is_centred_on_the_live_centre_of_mass() {
+        let mut world = World::new();
+        // A hull turned a quarter turn about Y with its mass 2 u forward of its
+        // root origin: the rotation is what makes a root-centred widget wrong in
+        // a way a translation-only test cannot see.
+        let ship = world
+            .spawn((
+                Transform::from_xyz(10.0, 0.0, 0.0)
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+                ComputedCenterOfMass(Vec3::new(0.0, 0.0, 2.0)),
+            ))
+            .id();
+        let radius = 7.0;
+        let widget = world
+            .spawn((
+                VelocityHudMarker,
+                VelocityHudTargetEntity::new(ship),
+                Transform::default(),
+                DirectionalSphereOrbit {
+                    radius,
+                    center: Vec3::ZERO,
+                    direction: Vec3::NEG_Z,
+                    smoothing: 0.0,
+                },
+                // Length 5, deliberately NOT the radius: a widget that took its
+                // offset from the output would sit 2 u short.
+                DirectionalSphereOrbitOutput(Vec3::new(0.0, 5.0, 0.0)),
+            ))
+            .id();
+
+        world.run_system_once(sync_orbit_state).unwrap();
+
+        // The quarter turn carries the local (0, 0, 2) mass offset onto +X.
+        let center_of_mass = Vec3::new(12.0, 0.0, 0.0);
+        let transform = *world.entity(widget).get::<Transform>().unwrap();
+        assert!(
+            (transform.translation - (center_of_mass + Vec3::Y * radius)).length() < 1e-4,
+            "got {:?}",
+            transform.translation
+        );
+        // The contract the shell depends on: the sphere child sits at local
+        // (0, 0, radius), and the widget's rotation has to put that point back
+        // on the centre of mass.
+        let sphere_center = transform.transform_point(Vec3::new(0.0, 0.0, radius));
+        assert!(
+            (sphere_center - center_of_mass).length() < 1e-4,
+            "the sphere must be centred on the hull, got {sphere_center:?}"
+        );
+    }
+
+    /// A target without a centre of mass - anything that is not a physics body -
+    /// keeps the old behaviour of riding its origin.
+    #[test]
+    fn a_target_without_a_centre_of_mass_rides_its_origin() {
+        let mut world = World::new();
+        let ship = world.spawn(Transform::from_xyz(0.0, 4.0, 0.0)).id();
+        let widget = world
+            .spawn((
+                VelocityHudMarker,
+                VelocityHudTargetEntity::new(ship),
+                Transform::default(),
+                DirectionalSphereOrbit {
+                    radius: 3.0,
+                    center: Vec3::ZERO,
+                    direction: Vec3::NEG_Z,
+                    smoothing: 0.0,
+                },
+                DirectionalSphereOrbitOutput(Vec3::new(1.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        world.run_system_once(sync_orbit_state).unwrap();
+
+        let transform = *world.entity(widget).get::<Transform>().unwrap();
+        assert!(
+            (transform.translation - Vec3::new(3.0, 4.0, 0.0)).length() < 1e-4,
+            "got {:?}",
+            transform.translation
         );
     }
 }

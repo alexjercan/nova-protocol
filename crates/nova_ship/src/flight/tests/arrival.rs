@@ -5,7 +5,7 @@
 //! ```
 //!
 //! Engine units, like the rest of this tree: a distance here is a world unit
-//! (10 m). The rig's sections carry no `SectionMarker`, so `publish_hull_radius`
+//! (10 m). The rig's sections carry no `SectionMarker`, so `publish_hull_radii`
 //! writes nothing for these hulls and a test's authored [`HullRadius`] is the
 //! only mover size in play - which is what makes the arithmetic below exact
 //! rather than mesh-dependent.

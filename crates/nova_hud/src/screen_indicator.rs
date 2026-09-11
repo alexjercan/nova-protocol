@@ -19,7 +19,7 @@
 
 use avian3d::prelude::*;
 use bevy::{prelude::*, ui::UiSystems};
-use nova_ship::camera::chase::ChaseCameraSystems;
+use nova_ship::prelude::CameraAuthoritySystems;
 
 /// The screen-indicator spawners, its anchor, offset, size and offscreen components, and
 /// `ScreenIndicatorPlugin` with `ScreenIndicatorSystems`.
@@ -226,15 +226,21 @@ impl Plugin for ScreenIndicatorPlugin {
         // Projection must sample the SAME camera pose the frame renders
         // with. In Update the chase camera has not moved yet (the rig moves it
         // in PostUpdate), so indicators lagged the world by one frame of
-        // camera motion - a visible HUD twitch. The slot is: after the chase
-        // camera writes the camera Transform, before UI layout consumes the
-        // node positions (bevy_ui runs layout BEFORE transform propagation,
-        // so fresh poses are computed via TransformHelper inside the system
-        // rather than read from GlobalTransform).
+        // camera motion - a visible HUD twitch. The slot is: after the LAST
+        // camera writer, before UI layout consumes the node positions (bevy_ui
+        // runs layout BEFORE transform propagation, so fresh poses are computed
+        // via TransformHelper inside the system rather than read from
+        // GlobalTransform).
+        //
+        // The last writer is `Override`, not the chase rig: a scripted pose - a
+        // cinematic, photo mode, a capture script - overwrites the solved pose
+        // afterwards, and indicators ordered against the rig alone projected
+        // every one of those frames through a camera that was not the one
+        // rendering them.
         app.configure_sets(
             PostUpdate,
             ScreenIndicatorSystems
-                .after(ChaseCameraSystems::Sync)
+                .after(CameraAuthoritySystems::Override)
                 .before(UiSystems::Layout),
         );
         app.add_systems(

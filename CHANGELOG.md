@@ -15,6 +15,16 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Interface & HUD
+- The velocity and gravity spheres enclose the hull at any size: both are drawn
+  5 m and 11 m outside the live hull about its centre of mass, and the speed and
+  mode chips park off the outer one.
+
+### Fixes
+- Screen markers land where they belong under a scripted camera: photo mode,
+  cinematics and capture scripts pose the camera last, and the indicators were
+  projected through the pose it replaced.
+
 ## [0.13.2] - 2026-09-10
 
 ### Modding & Mod Portal

@@ -114,6 +114,38 @@ impl SectionCollider {
         Mat3::from_cols(basis.x_axis.abs(), basis.y_axis.abs(), basis.z_axis.abs())
             * self.aabb_half_extents()
     }
+
+    /// Distance from `point` to the furthest point of this collider, posed at
+    /// `translation` with `rotation` in the frame `point` is given in.
+    ///
+    /// EXACT per shape rather than the corner of a rotated bounding box. A long
+    /// section turned off axis has empty box corners, and a containment radius
+    /// taken off them stands a shell metres further out than the hull reaches.
+    /// [`HullEnvelopeRadius`](crate::prelude::HullEnvelopeRadius) is the reader,
+    /// and a shell that promises to clear the hull by a stated margin has to
+    /// measure the hull.
+    pub fn furthest_distance(self, translation: Vec3, rotation: Quat, point: Vec3) -> f32 {
+        // The query point in the collider's own frame, where each shape's
+        // support point has a closed form. Only the offset is transformed: a
+        // distance is the same in either frame.
+        let local = rotation.inverse() * (point - translation);
+        match self {
+            Self::Cuboid { size } => (local.abs() + size * 0.5).length(),
+            Self::Sphere { radius } => local.length() + radius,
+            // The furthest of the two segment ends, then the cap radius: the
+            // far end is always the one on the opposite side of local Y.
+            Self::Capsule { radius, length } => {
+                Vec3::new(local.x, local.y.abs() + length * 0.5, local.z).length() + radius
+            }
+            // The far rim: the opposite end cap in Y, and the opposite side of
+            // the barrel in the XZ plane.
+            Self::Cylinder { radius, height } => {
+                let radial = local.xz().length() + radius;
+                let axial = local.y.abs() + height * 0.5;
+                (radial * radial + axial * axial).sqrt()
+            }
+        }
+    }
 }
 
 /// Cell dimensions occupied by one section in its local frame.
@@ -758,5 +790,99 @@ mod tests {
         assert!(ron.contains("hide_in_editor:true"), "flagged: {ron}");
         let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
         assert!(back.hide_in_editor);
+    }
+
+    /// Every supported shape reports its OWN furthest point, translated and
+    /// rotated - the number a containment shell is sized from. Each case is
+    /// hand-derived, never re-run through the formula under test.
+    #[test]
+    fn every_collider_shape_reports_its_exact_furthest_point() {
+        let origin = Vec3::ZERO;
+        let quarter = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+        let close = |got: f32, want: f32, what: &str| {
+            assert!((got - want).abs() < 1e-4, "{what}: got {got}, want {want}");
+        };
+
+        // A 2x2x2 box on the origin: the corner is sqrt(3).
+        let cube = SectionCollider::Cuboid {
+            size: Vec3::splat(2.0),
+        };
+        close(
+            cube.furthest_distance(Vec3::ZERO, Quat::IDENTITY, origin),
+            3.0f32.sqrt(),
+            "cube corner",
+        );
+        // Slid 4 along x: the far corner is at x = 5, y = z = 1.
+        close(
+            cube.furthest_distance(Vec3::new(4.0, 0.0, 0.0), Quat::IDENTITY, origin),
+            (25.0f32 + 1.0 + 1.0).sqrt(),
+            "cube translated",
+        );
+
+        // A sphere is rotation-free: centre distance plus the radius.
+        let sphere = SectionCollider::Sphere { radius: 1.5 };
+        close(
+            sphere.furthest_distance(Vec3::new(0.0, 0.0, 4.0), quarter, origin),
+            5.5,
+            "sphere",
+        );
+
+        // A capsule stands on local Y: a 6-long segment capped at 1 reaches 4
+        // from its centre along its own axis. Rotated a quarter turn about Z
+        // that axis is world X, so a query point 10 along X is 14 away.
+        let capsule = SectionCollider::Capsule {
+            radius: 1.0,
+            length: 6.0,
+        };
+        close(
+            capsule.furthest_distance(Vec3::ZERO, Quat::IDENTITY, Vec3::new(0.0, 10.0, 0.0)),
+            14.0,
+            "capsule upright",
+        );
+        close(
+            capsule.furthest_distance(Vec3::ZERO, quarter, Vec3::new(10.0, 0.0, 0.0)),
+            14.0,
+            "capsule turned onto x",
+        );
+
+        // A cylinder's far point is the OPPOSITE rim, so the two legs add
+        // before the hypotenuse: from 10 along its axis, 10 + 4 axially and 2
+        // radially.
+        let cylinder = SectionCollider::Cylinder {
+            radius: 2.0,
+            height: 8.0,
+        };
+        close(
+            cylinder.furthest_distance(Vec3::ZERO, Quat::IDENTITY, Vec3::new(0.0, 10.0, 0.0)),
+            (14.0f32 * 14.0 + 4.0).sqrt(),
+            "cylinder along its axis",
+        );
+        // Turned onto world X and queried from 10 along world Y: the axis now
+        // lies along X, so the 10 is radial and the half height is axial.
+        close(
+            cylinder.furthest_distance(Vec3::ZERO, quarter, Vec3::new(0.0, 10.0, 0.0)),
+            (12.0f32 * 12.0 + 16.0).sqrt(),
+            "cylinder across its axis",
+        );
+    }
+
+    /// The exact shapes must not be replaced by a rotated bounding box: a long
+    /// section turned off axis has empty box corners, and a shell sized off
+    /// them stands further out than the hull reaches.
+    #[test]
+    fn the_exact_capsule_beats_its_rotated_bounding_box() {
+        let capsule = SectionCollider::Capsule {
+            radius: 0.5,
+            length: 8.0,
+        };
+        let rotation = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
+        let exact = capsule.furthest_distance(Vec3::ZERO, rotation, Vec3::ZERO);
+        let boxed = capsule.rotated_aabb_half_extents(rotation).length();
+
+        assert!((exact - 4.5).abs() < 1e-4, "half the capsule: {exact}");
+        assert!(
+            boxed > exact + 0.5,
+            "the box corner must be the looser number ({boxed} vs {exact})"
+        );
     }
 }

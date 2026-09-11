@@ -223,14 +223,16 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
         app.register_type::<hull_radius::prelude::HullRadius>();
+        app.register_type::<hull_radius::prelude::HullEnvelopeRadius>();
         // The hull's own size, derived once per tick for every reader: the
         // attitude stack (SyncStack) turns it into the structural turn
-        // ceiling, and the flight layer - pinned after SyncStack - adds it to
-        // the arrival. Both must see THIS tick's hull, so the pass runs ahead
-        // of the earlier of the two.
+        // ceiling, the flight layer - pinned after SyncStack - adds it to
+        // the arrival, and the HUD stands its shells outside the envelope.
+        // All must see THIS tick's hull, so the pass runs ahead of the
+        // earliest of them.
         app.add_systems(
             FixedUpdate,
-            hull_radius::publish_hull_radius
+            hull_radius::publish_hull_radii
                 .before(controller_section::prelude::ControllerSectionSystems::SyncStack),
         );
         app.add_plugins(integrity::ShipIntegrityPlugin);

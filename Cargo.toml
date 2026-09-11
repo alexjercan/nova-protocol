@@ -283,6 +283,10 @@ name = "system_hud_indicators"
 path = "examples/systems/system_hud_indicators.rs"
 
 [[example]]
+name = "system_hud_shell"
+path = "examples/systems/system_hud_shell.rs"
+
+[[example]]
 name = "system_lock_line_of_sight"
 path = "examples/systems/system_lock_line_of_sight.rs"
 
@@ -376,6 +380,11 @@ path = "examples/screenshots/screenshot_gravity.rs"
 [[example]]
 name = "screenshot_hero_ship"
 path = "examples/screenshots/screenshot_hero_ship.rs"
+
+# The directional-HUD shells around the fleet's biggest hull.
+[[example]]
+name = "screenshot_hud_shell"
+path = "examples/screenshots/screenshot_hud_shell.rs"
 
 # The menu, its panels and the editor, driven by real pointer gestures over the
 # shipped app.

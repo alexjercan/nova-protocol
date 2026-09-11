@@ -12,10 +12,13 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_ship::flight::prelude::*;
+use nova_ship::{flight::prelude::*, prelude::CameraAuthoritySystems};
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
-use super::{emphasis::prelude::*, screen_indicator::prelude::*, situation::prelude::*, NAV_CYAN};
+use super::{
+    emphasis::prelude::*, hull_shell::prelude::*, screen_indicator::prelude::*,
+    situation::prelude::*, NAV_CYAN,
+};
 
 /// The flight-status and autopilot-destination spawners with their configs, markers and
 /// `FlightStatusHudPlugin`.
@@ -24,6 +27,7 @@ pub mod prelude {
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,
         AutopilotDestinationHudMarker, AutopilotDestinationUIMarker, FlightStatusHudConfig,
         FlightStatusHudMarker, FlightStatusHudPlugin, FlightStatusHudTargetEntity,
+        ModeChipUIMarker, SpeedChipUIMarker,
     };
 }
 
@@ -39,20 +43,23 @@ const SPEED_FONT_PX: f32 = 15.0;
 /// Every other chip's text size (px).
 const CHIP_FONT_PX: f32 = 12.0;
 
-/// The speed chip parks to the right of the ship, clear of the velocity
-/// sphere (world radius 5.6 u - 56 m - for the outer gravity shell) at typical
-/// chase-camera distance. Fixed px in v1; a projected-radius offset is the
-/// richer option if the fixed one misbehaves at extreme zooms.
-/// Lifted clear of the bottom-centre keybind dock: the
-/// ship sits low-centre under the chase camera, so a chip level with it landed
-/// on the dock's chips. This is the demo's `.speed` band (~120 px off the
-/// bottom) expressed as a ship-relative offset, so the readout stays parked on
-/// the ship rather than becoming screen furniture.
-const SPEED_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -90.0);
+/// The clear space between the projected edge of the outer gravity shell and
+/// the NEAR EDGE of a flight chip (px). A fixed pixel gap rather than a world
+/// distance: this is the space between a drawn sphere and a text chip, and that
+/// reads the same whatever the hull behind it measures.
+const CHIP_SHELL_GAP_PX: f32 = 12.0;
 
-/// The mode chip stacks one row above the speed chip (screen y grows
-/// downward), keeping the same 24 px gap after the lift above.
-const MODE_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -114.0);
+/// How far the speed chip rides above the ship's centre of mass (px; screen y
+/// grows downward). Lifted clear of the bottom-centre keybind dock: the ship
+/// sits low-centre under the chase camera, so a chip level with it landed on
+/// the dock's chips. This is the demo's `.speed` band (~120 px off the bottom)
+/// expressed as a ship-relative offset, so the readout stays parked on the ship
+/// rather than becoming screen furniture.
+const SPEED_CHIP_LIFT_PX: f32 = -90.0;
+
+/// The mode chip stacks one row above the speed chip, keeping the same 24 px
+/// gap after the lift above.
+const MODE_CHIP_LIFT_PX: f32 = -114.0;
 
 /// Peak scale of the speed chip while the autopilot flies - demo 2's
 /// `.speed.emph`.
@@ -68,13 +75,22 @@ pub struct FlightStatusHudMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct FlightStatusHudTargetEntity(pub Entity);
 
-/// Marker for the speed chip.
+/// Marker for the speed chip. Public so range examples can assert on where the
+/// chip ended up.
 #[derive(Component, Debug, Clone, Reflect)]
-struct SpeedChipUIMarker;
+pub struct SpeedChipUIMarker;
 
-/// Marker for the autopilot mode (verb + phase) chip.
+/// Marker for the autopilot mode (verb + phase) chip. Public for the same
+/// reason as [`SpeedChipUIMarker`].
 #[derive(Component, Debug, Clone, Reflect)]
-struct ModeChipUIMarker;
+pub struct ModeChipUIMarker;
+
+/// Which row a flight chip rides on (px above its ship's centre of mass) and,
+/// by carrying it, that the chip is one [`anchor_flight_chips`] places. The
+/// horizontal half of the placement is not authored here - it is whatever this
+/// frame's outer gravity shell projects to.
+#[derive(Component, Debug, Clone, Copy, Deref, Reflect)]
+struct FlightChipLift(f32);
 
 /// Spawn-time settings for a [`flight_status_hud`] layer: the ship whose speed
 /// and autopilot mode the chips report. Not a component - consumed by
@@ -95,15 +111,23 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     // The chips hug their text (`Content`): a fixed box would either clip
     // "1.24 km/s" or pad "0 m/s" into an empty slab now that the chip has a
     // visible fill and border.
-    let chip = |anchor: Option<ScreenIndicatorAnchorKind>, offset: Vec2| {
-        screen_indicator_node(
-            ScreenIndicatorConfig {
-                anchor,
-                size: ScreenIndicatorSize::Content,
-                offset,
-                offscreen: ScreenIndicatorOffscreen::Hide,
-            },
-            chip_node(),
+    //
+    // The spawn offset is the bare gap on the chip's own row: until the hull
+    // has published an envelope there is no shell edge to stand outside of, and
+    // hugging the centre of mass for the frame or two a hull takes to assemble
+    // is better than parking at a guessed radius.
+    let chip = |anchor: Option<ScreenIndicatorAnchorKind>, lift: f32| {
+        (
+            FlightChipLift(lift),
+            screen_indicator_node(
+                ScreenIndicatorConfig {
+                    anchor,
+                    size: ScreenIndicatorSize::Content,
+                    offset: Vec2::new(CHIP_SHELL_GAP_PX, lift),
+                    offscreen: ScreenIndicatorOffscreen::Hide,
+                },
+                chip_node(),
+            ),
         )
     };
 
@@ -118,7 +142,7 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 SpeedChipUIMarker,
                 chip(
                     Some(ScreenIndicatorAnchorKind::Entity(config.target)),
-                    SPEED_CHIP_OFFSET,
+                    SPEED_CHIP_LIFT_PX,
                 ),
                 Text::new(""),
                 TextFont::from_font_size(SPEED_FONT_PX),
@@ -135,7 +159,7 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
             (
                 Name::new("ModeChipUI"),
                 ModeChipUIMarker,
-                chip(None, MODE_CHIP_OFFSET),
+                chip(None, MODE_CHIP_LIFT_PX),
                 Text::new(""),
                 TextFont::from_font_size(CHIP_FONT_PX),
                 TextLayout {
@@ -217,7 +241,9 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
 /// Drives the diegetic flight readouts: the speed chip, the autopilot mode
 /// chip, and the destination marker anchor.
 /// Adds `drive_speed_chip`, `emphasize_speed_on_burn`, `drive_mode_chip` and
-/// `drive_destination_anchor` in Update within [`super::NovaHudSystems`].
+/// `drive_destination_anchor` in Update within [`super::NovaHudSystems`], plus
+/// `anchor_flight_chips` in PostUpdate between the chase camera and the
+/// indicator projection.
 #[derive(Default)]
 pub struct FlightStatusHudPlugin;
 
@@ -235,6 +261,108 @@ impl Plugin for FlightStatusHudPlugin {
             )
                 .in_set(super::NovaHudSystems),
         );
+        // Placement needs the camera pose this frame RENDERS with, so it sits
+        // in the same PostUpdate slot the projection does: after the last
+        // camera writer, before the indicators read the anchors. In Update the
+        // camera has not moved yet and a chip parked off a projected world
+        // radius would lag every zoom by a frame.
+        app.add_systems(
+            PostUpdate,
+            anchor_flight_chips
+                .after(CameraAuthoritySystems::Override)
+                .before(ScreenIndicatorSystems),
+        );
+    }
+}
+
+/// Park the live flight chips just outside the ship's outer gravity shell.
+///
+/// The chips used to sit a fixed 120 px right of the ship ROOT, which is beside
+/// the shell only while the shell is a constant too. Both ends of that are now
+/// live: the shell is sized off the hull, and the hull's centre of mass - not
+/// its root origin, which on an asymmetric build is somewhere inside the
+/// structure - is what both spheres are centred on.
+///
+/// So the chip is anchored on the centre of mass and pushed out by the shell's
+/// own projected radius, plus [`CHIP_SHELL_GAP_PX`] and half the chip's own
+/// width: a projected world radius tracks hull size and camera zoom together,
+/// which a pixel constant cannot.
+/// The OUTER radius is used even in flat space, where the gravity shell is
+/// hidden, so the readouts do not jump sideways when a ship leaves a well.
+///
+/// Whether a chip is shown at all stays with its driver: this only moves the
+/// ones that are already on.
+fn anchor_flight_chips(
+    envelopes: Res<HudShellEnvelopes>,
+    q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
+    mut q_chip: Query<(
+        &mut ScreenIndicatorAnchor,
+        &mut ScreenIndicatorOffset,
+        &FlightChipLift,
+        &ComputedNode,
+        &ChildOf,
+    )>,
+    q_ship: Query<Option<&ComputedCenterOfMass>>,
+    // UI layout runs before this frame's transform propagation, so
+    // `GlobalTransform` is still last frame's. Composing the camera and the
+    // ship fresh is what the indicator pass itself does, and the chip has to
+    // agree with it to the pixel.
+    transform_helper: TransformHelper,
+    q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
+) {
+    let Some((camera_entity, camera)) = q_camera.iter().next() else {
+        return;
+    };
+    let Ok(camera_transform) = transform_helper.compute_global_transform(camera_entity) else {
+        return;
+    };
+
+    for (mut anchor, mut offset, lift, computed, &ChildOf(parent)) in &mut q_chip {
+        if anchor.is_none() {
+            continue;
+        }
+        let Ok(ship) = q_hud.get(parent) else {
+            continue;
+        };
+        let Ok(center_of_mass) = q_ship.get(**ship) else {
+            continue;
+        };
+        let Ok(ship_transform) = transform_helper.compute_global_transform(**ship) else {
+            continue;
+        };
+        let com = match center_of_mass {
+            Some(center_of_mass) => ship_transform.transform_point(center_of_mass.0),
+            None => ship_transform.translation(),
+        };
+        anchor.set_if_neq(ScreenIndicatorAnchor(Some(
+            ScreenIndicatorAnchorKind::Point(com),
+        )));
+
+        // No envelope yet (a hull still assembling): the chip keeps the offset
+        // it has rather than snapping to a radius nobody has measured.
+        let Some(radius) = outer_shell_radius(&envelopes, **ship) else {
+            continue;
+        };
+        // One radius along the camera's own right vector, so the projected
+        // distance is the shell's on-screen radius at this zoom whatever the
+        // ship's attitude.
+        let edge = com + camera_transform.right() * radius;
+        let (Ok(projected_com), Ok(projected_edge)) = (
+            camera.world_to_viewport(&camera_transform, com),
+            camera.world_to_viewport(&camera_transform, edge),
+        ) else {
+            continue;
+        };
+        // The widget CENTRES the node on the offset point, so the gap is a
+        // gap only once half the chip is added to it. `ComputedNode::size` is
+        // physical and is last frame's measurement - the same one the widget
+        // centres `Content` chips with - so a chip that changes length is off
+        // by half that change for exactly one frame.
+        let half_width = computed.size().x * computed.inverse_scale_factor() / 2.0;
+        offset.set_if_neq(ScreenIndicatorOffset(Vec2::new(
+            projected_edge.x - projected_com.x + CHIP_SHELL_GAP_PX + half_width,
+            **lift,
+        )));
     }
 }
 
@@ -357,7 +485,12 @@ fn drive_destination_anchor(
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::system::RunSystemOnce;
+    use std::f32::consts::FRAC_PI_2;
+
+    use bevy::{
+        camera::{ComputedCameraValues, RenderTargetInfo},
+        ecs::system::RunSystemOnce,
+    };
     use nova_ship::sections::controller_section::prelude::FlightVerb;
 
     use super::*;
@@ -590,5 +723,177 @@ mod tests {
             !world.entity(speed).get::<HudEmphasis>().unwrap().held(),
             "disengaging settles it back"
         );
+    }
+
+    // -- chip placement against a fabricated camera --
+
+    /// Viewport width of the test camera (px).
+    const RIG_WIDTH: f32 = 800.0;
+
+    /// Viewport height of the test camera (px).
+    const RIG_HEIGHT: f32 = 600.0;
+
+    /// How far down -Z the test ship is parked (world units).
+    const RIG_RANGE: f32 = 100.0;
+
+    /// A camera whose computed values are filled in by hand, since no render
+    /// backend runs in tests: 90 degree vertical FOV, 800x600, at the origin
+    /// looking down -Z.
+    fn spawn_test_camera(world: &mut World) {
+        world.spawn((
+            Transform::IDENTITY,
+            Camera {
+                computed: ComputedCameraValues {
+                    clip_from_view: Mat4::perspective_infinite_reverse_rh(
+                        FRAC_PI_2,
+                        RIG_WIDTH / RIG_HEIGHT,
+                        0.1,
+                    ),
+                    target_info: Some(RenderTargetInfo {
+                        physical_size: UVec2::new(RIG_WIDTH as u32, RIG_HEIGHT as u32),
+                        scale_factor: 1.0,
+                    }),
+                    ..default()
+                },
+                ..default()
+            },
+            ScreenIndicatorCamera,
+        ));
+    }
+
+    /// The on-screen radius (px) of a world radius `radius` at `RIG_RANGE` down
+    /// the camera's axis, derived from the rig's own optics rather than from the
+    /// projection the system under test uses.
+    ///
+    /// A 90 degree VERTICAL fov puts the half-height of the view at one range,
+    /// so the half-width is `aspect` ranges; a world offset of `radius` is that
+    /// fraction of the half-width, in half-viewport pixels.
+    fn projected_px(radius: f32) -> f32 {
+        let half_width_world = RIG_RANGE * (RIG_WIDTH / RIG_HEIGHT);
+        radius / half_width_world * (RIG_WIDTH / 2.0)
+    }
+
+    /// A ship at `RIG_RANGE` in front of the camera with `center_of_mass` in its
+    /// own frame, a shell envelope of `envelope` world units, and its chips
+    /// switched on as their drivers would leave them.
+    fn spawn_chip_rig(world: &mut World, center_of_mass: Vec3, envelope: f32) -> (Entity, Entity) {
+        spawn_test_camera(world);
+        let ship = world
+            .spawn((
+                Transform::from_xyz(0.0, 0.0, -RIG_RANGE),
+                ComputedCenterOfMass(center_of_mass),
+            ))
+            .id();
+        world
+            .resource_mut::<HudShellEnvelopes>()
+            .insert(ship, envelope);
+
+        let (speed, mode) = spawn_status_hud(world, ship);
+        for chip in [speed, mode] {
+            **world
+                .entity_mut(chip)
+                .get_mut::<ScreenIndicatorAnchor>()
+                .unwrap() = Some(ScreenIndicatorAnchorKind::Entity(ship));
+        }
+        (speed, mode)
+    }
+
+    fn offset_of(world: &World, entity: Entity) -> Vec2 {
+        **world.entity(entity).get::<ScreenIndicatorOffset>().unwrap()
+    }
+
+    /// The chips clear the OUTER shell by the authored pixel gap, on their own
+    /// authored rows - whatever the hull under it measures. The 20 u hull and
+    /// the 200 u hull are the bug: a fixed offset put the second one's chip
+    /// inside the ship.
+    #[test]
+    fn the_chips_park_twelve_pixels_outside_the_projected_gravity_shell() {
+        for envelope in [20.0, 200.0] {
+            let mut world = World::new();
+            world.init_resource::<HudShellEnvelopes>();
+            let (speed, mode) = spawn_chip_rig(&mut world, Vec3::ZERO, envelope);
+
+            world.run_system_once(anchor_flight_chips).unwrap();
+
+            // The shell the chip stands outside of is the gravity one: 5 m of
+            // hull clearance plus the 6 m between the shells. No UI layout runs
+            // in a bare world, so the chips measure zero wide and the offset is
+            // the bare gap; the half-width term is what the live range grades.
+            let outer = envelope + Meters(11.0).to_engine();
+            let expected = projected_px(outer) + 12.0;
+            assert!(
+                (offset_of(&world, speed).x - expected).abs() < 0.5,
+                "{envelope} u hull: speed chip at {} px, expected {expected}",
+                offset_of(&world, speed).x
+            );
+            assert!(
+                (offset_of(&world, mode).x - expected).abs() < 0.5,
+                "{envelope} u hull: mode chip at {} px, expected {expected}",
+                offset_of(&world, mode).x
+            );
+            // The rows are untouched: this moves the chips out, not up.
+            assert_eq!(offset_of(&world, speed).y, -90.0);
+            assert_eq!(offset_of(&world, mode).y, -114.0);
+        }
+    }
+
+    /// The chips hang off the same point the shells are centred on - the live
+    /// centre of mass, not the ship's root origin, which on an asymmetric build
+    /// is metres away from the middle of the hull.
+    #[test]
+    fn the_chips_hang_off_the_live_centre_of_mass() {
+        let mut world = World::new();
+        world.init_resource::<HudShellEnvelopes>();
+        let center_of_mass = Vec3::new(4.0, -2.0, 7.0);
+        let (speed, _) = spawn_chip_rig(&mut world, center_of_mass, 20.0);
+
+        world.run_system_once(anchor_flight_chips).unwrap();
+
+        assert_eq!(
+            anchor_of(&world, speed),
+            Some(ScreenIndicatorAnchorKind::Point(
+                center_of_mass + Vec3::new(0.0, 0.0, -RIG_RANGE)
+            )),
+        );
+    }
+
+    /// Placement moves the chips that are ON. A chip its driver has cleared -
+    /// the mode chip in manual flight, either chip on a dead ship - stays
+    /// cleared, so the widget still hides it.
+    #[test]
+    fn a_chip_its_driver_turned_off_is_left_alone() {
+        let mut world = World::new();
+        world.init_resource::<HudShellEnvelopes>();
+        let (speed, mode) = spawn_chip_rig(&mut world, Vec3::ZERO, 20.0);
+        **world
+            .entity_mut(mode)
+            .get_mut::<ScreenIndicatorAnchor>()
+            .unwrap() = None;
+        let parked = offset_of(&world, mode);
+
+        world.run_system_once(anchor_flight_chips).unwrap();
+
+        assert_eq!(anchor_of(&world, mode), None);
+        assert_eq!(offset_of(&world, mode), parked);
+        assert!(
+            offset_of(&world, speed).x > parked.x,
+            "the chip that is on was still placed"
+        );
+    }
+
+    /// Before a hull has published an envelope there is no edge to stand
+    /// outside of, so the chip keeps the offset it has instead of snapping onto
+    /// the hull at a guessed radius.
+    #[test]
+    fn an_unmeasured_hull_leaves_its_chips_where_they_are() {
+        let mut world = World::new();
+        world.init_resource::<HudShellEnvelopes>();
+        let (speed, _) = spawn_chip_rig(&mut world, Vec3::ZERO, 20.0);
+        world.resource_mut::<HudShellEnvelopes>().clear();
+        let parked = offset_of(&world, speed);
+
+        world.run_system_once(anchor_flight_chips).unwrap();
+
+        assert_eq!(offset_of(&world, speed), parked);
     }
 }

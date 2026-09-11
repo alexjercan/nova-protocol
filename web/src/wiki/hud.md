@@ -56,9 +56,28 @@ Two surfaces carry no kind at all, and so the toggle does not reach them: a cuts
 The flight instruments sit around the ship, not in a status bar:
 
 - **Velocity sphere** - an orbiting cone and shaded sphere driven by your linear velocity; white and blue in manual flight, cyan when the autopilot is flying, violet while you hold RCS fine adjust (the violet wins over the cyan). A yellow variant shows the local gravity pull, hidden in flat space.
-- **Speed and mode chips** - a speed readout (`m/s`, meters per second; see the [glossary](../glossary/)) always beside the sphere, and a mode chip reading `AP GOTO - BURN` (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged.
+- **Shell size** - both spheres are drawn around your LIVE hull: the white one stands 5 m outside the furthest point your sections reach from your centre of mass, and the yellow one 6 m outside that. Fly a cutter and they hug it; fly the 360 m industrial carrier and they grow to enclose it. Lose the sections that were reaching furthest and they settle back in over about a fifth of a second, so a hull coming apart is never left standing through its own instruments.
+- **Speed and mode chips** - a speed readout (`m/s`, meters per second; see the [glossary](../glossary/)) beside the sphere, and a mode chip reading `AP GOTO - BURN` (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged. Both park just outside the outer shell, so they move out with the hull instead of landing on it.
 - **ORBIT ring and radius spoke** - while you hold an orbit, a world-space ring marks the orbit plane and a thin spoke runs from the well to your ship with the current radius.
 - **Keybind dock** - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT and RCS. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored **verb cues** are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-hud-shell.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-hud-shell.png</span
+        >
+        <span class="figure__placeholder-note"
+            >Both shells around the industrial carrier: the
+            blue velocity sphere enclosing the whole 360 m
+            hull, the yellow gravity sphere outside it, and
+            the speed chip parked off the outer edge.</span
+        >
+    </div>
+</figure>
 
 ## Locks and reticles
 

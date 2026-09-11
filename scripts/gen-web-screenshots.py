@@ -132,6 +132,10 @@ FIGURES = [
     ("feature-combat.png",              "screenshot_combat_lock"),
     ("tutorial-combat-lock.png",        "screenshot_combat_lock"),
     ("wiki-hud.png",                    "screenshot_combat_hud"),
+    # The focused shell figure under Flight readouts: the velocity and gravity
+    # spheres enclosing the fleet's biggest hull, which a fixed-radius shell
+    # could not do.
+    ("wiki-hud-shell.png",              "screenshot_hud_shell"),
     ("wiki-combat.png",                 "screenshot_combat_wide"),
     ("news-090-combat-readability.png", "screenshot_combat_wide"),
     # The ordnance pair the combat wiki page carries under Torpedoes and
