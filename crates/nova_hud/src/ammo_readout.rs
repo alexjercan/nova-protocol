@@ -91,6 +91,29 @@ const DEBUG_TOGGLE_KEY: KeyCode = KeyCode::F11;
 /// alphas are `LIT_ALPHA`/`DIM_ALPHA` on the driver.
 const DIM_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.16);
 
+/// How the gauge stands off its mount so it reads as attached to, not painted
+/// over, the barrel. Up and to the right of the weapon's projected edge; the
+/// floor is the diagonal the old fixed offset placed it at, so a small mount
+/// at normal range keeps the composition it has always had.
+const GAUGE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+    direction: Vec2::new(1.0, -1.0),
+    gap_px: 4.0,
+    min_px: RING_PX * 0.6 * std::f32::consts::SQRT_2,
+};
+
+/// Visual gap (px) two gauges of the same kind keep before they read as one.
+/// Measured between the gauge BOXES, so a wide torpedo bar and a ring cluster
+/// on what each of them actually covers.
+const CLUSTER_GAP_PX: f32 = 4.0;
+
+/// Extra separation (px) a clustered gauge must win back before it stands on
+/// its own again. Hysteresis: a bank sitting exactly at the gap would
+/// otherwise split and re-fold every frame the ship rolls.
+const CLUSTER_RELEASE_PX: f32 = 12.0;
+
+/// Font size (px) of the `xN` mount-count badge on a clustered gauge.
+const BADGE_FONT_PX: f32 = 9.0;
+
 /// A thin dark outline around every pip so the amber gauge holds contrast on
 /// light or same-hue backgrounds (grey hull, orange nebula) - the way a
 /// dark-edged cursor stays visible on any desktop. Applied to lit and dim pips
@@ -102,7 +125,8 @@ const PIP_OUTLINE_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.85);
 /// the numeric debug overlay names arrive with the `debug` feature.
 pub mod prelude {
     pub use super::{
-        ammo_readout_hud, AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,
+        ammo_readout_hud, AmmoReadoutCluster, AmmoReadoutClusterBadge, AmmoReadoutClustered,
+        AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,
         AmmoReadoutPipFill, AmmoReadoutPlugin, AmmoReadoutSection, RING_SEGMENTS,
     };
     #[cfg(feature = "debug")]
@@ -153,6 +177,26 @@ pub struct AmmoReadoutPip(pub usize);
 /// rounds rather than a moment worth waiting for.
 #[derive(Component, Debug, Clone, Copy, Reflect)]
 pub struct AmmoReadoutPipFill;
+
+/// How many mounts a gauge currently stands for, on the one gauge of an
+/// overlapping group that stays drawn. Absent means the gauge speaks for its
+/// own mount alone.
+///
+/// The group's gauge is its EMPTIEST member, so a cluster answers the question
+/// a glance at a weapon bank is asking - is anything in there running dry -
+/// rather than averaging the answer away.
+#[derive(Component, Debug, Clone, Copy, Deref, DerefMut, PartialEq, Eq, Reflect)]
+pub struct AmmoReadoutCluster(pub usize);
+
+/// Marker on a gauge folded into a neighbour's cluster: it keeps projecting
+/// (that is how it gets back out again) but it does not draw.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+pub struct AmmoReadoutClustered;
+
+/// The `xN` mount-count badge child of a gauge, shown only while the gauge
+/// speaks for more than its own mount.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+pub struct AmmoReadoutClusterBadge;
 
 /// The debug `rounds/capacity` text child of a readout. Debug-only: only
 /// compiled under the `debug` feature.
@@ -234,16 +278,36 @@ fn ring_pip_pos(index: usize) -> (f32, f32) {
     (left, top)
 }
 
-/// The shared screen-projected node for a readout, anchored to `section`.
+/// The shared screen-projected node for a readout, anchored to `section` and
+/// stood off the mount's own projected extent by [`GAUGE_CLEARANCE`].
 fn readout_indicator(section: Entity, size: Vec2) -> impl Bundle {
-    screen_indicator(ScreenIndicatorConfig {
-        anchor: Some(ScreenIndicatorAnchorKind::Entity(section)),
-        size: ScreenIndicatorSize::Fixed(size),
-        // Sit just up-right of the weapon so the gauge reads as attached to,
-        // not painted over, the barrel.
-        offset: Vec2::new(RING_PX * 0.6, -RING_PX * 0.6),
-        offscreen: ScreenIndicatorOffscreen::Hide,
-    })
+    (
+        screen_indicator(ScreenIndicatorConfig {
+            anchor: Some(ScreenIndicatorAnchorKind::Entity(section)),
+            size: ScreenIndicatorSize::Fixed(size),
+            offset: Vec2::ZERO,
+            offscreen: ScreenIndicatorOffscreen::Hide,
+        }),
+        GAUGE_CLEARANCE,
+    )
+}
+
+/// The mount-count badge child of a readout, blank and hidden until
+/// `cluster_ammo_readouts` folds neighbours into this gauge.
+fn cluster_badge() -> impl Bundle {
+    (
+        Name::new("AmmoReadoutClusterBadge"),
+        AmmoReadoutClusterBadge,
+        Text::new(""),
+        TextFont::from_font_size(BADGE_FONT_PX),
+        TextColor(nova_ui::theme::AMBER_NOVA),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(100.0),
+            ..default()
+        },
+        Visibility::Hidden,
+    )
 }
 
 /// The debug number child (hidden until [`AmmoReadoutDebug`] is on). Debug-only.
@@ -295,6 +359,7 @@ fn spawn_turret_readout(commands: &mut Commands, layer: Entity, turret: Entity) 
                         Outline::new(Val::Px(PIP_OUTLINE_PX), Val::ZERO, PIP_OUTLINE_COLOR),
                     ));
                 }
+                readout.spawn(cluster_badge());
                 #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
@@ -363,6 +428,7 @@ fn spawn_bar_readout(
                         )],
                     ));
                 }
+                readout.spawn(cluster_badge());
                 #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
@@ -443,6 +509,205 @@ fn sync_ammo_readouts(
                 ammo.capacity,
                 AmmoReadoutKind::Railgun,
             );
+        }
+    }
+}
+
+/// One gauge as the clustering pass sees it: where it landed this frame, how
+/// empty it is, and whether it was already folded into a neighbour.
+struct Gauge {
+    entity: Entity,
+    kind: AmmoReadoutKind,
+    box_px: Rect,
+    fraction: f32,
+    clustered: bool,
+}
+
+/// What the clustering pass decided about one gauge.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Clustering {
+    /// Drawn, standing for this many mounts (at least its own).
+    Stands(usize),
+    /// Folded into a neighbour: projected but not drawn.
+    Folded,
+}
+
+/// The gauge's on-screen box, as the indicator projection just wrote it. A
+/// gauge that has not been placed yet (or hugs its content) has no box and
+/// takes no part in clustering.
+fn gauge_box(node: &Node) -> Option<Rect> {
+    let (Val::Px(left), Val::Px(top), Val::Px(width), Val::Px(height)) =
+        (node.left, node.top, node.width, node.height)
+    else {
+        return None;
+    };
+    Some(Rect::new(left, top, left + width, top + height))
+}
+
+/// Whether two gauge boxes are close enough to read as one mark, each grown by
+/// half the gap they are required to keep.
+fn crowds(a: Rect, b: Rect, gap_px: f32) -> bool {
+    let a = a.inflate(gap_px * 0.5);
+    let b = b.inflate(gap_px * 0.5);
+    a.min.x <= b.max.x && b.min.x <= a.max.x && a.min.y <= b.max.y && b.min.y <= a.max.y
+}
+
+/// Fold gauges of the same kind that crowd each other in screen space into one
+/// gauge carrying an [`AmmoReadoutCluster`] count.
+///
+/// A weapon bank mounts its turrets a metre apart, so at any range worth
+/// shooting at their rings land on the same handful of pixels: eight gauges
+/// stack into an unreadable smear that says less than one of them would. The
+/// surviving gauge is the EMPTIEST of the group, which is the member the
+/// player needs to see, and a `xN` badge says how many mounts stand behind it.
+///
+/// Runs downstream of the projection because that is where the screen
+/// positions exist, and it only ever HIDES: the projection re-asserts a folded
+/// gauge's visibility every frame, so a bank that spreads out again separates
+/// on its own.
+fn cluster_ammo_readouts(
+    mut commands: Commands,
+    mut q_readouts: Query<
+        (
+            Entity,
+            &AmmoReadoutSection,
+            &AmmoReadoutKind,
+            &Node,
+            &mut Visibility,
+            Has<AmmoReadoutClustered>,
+            Option<&AmmoReadoutCluster>,
+        ),
+        With<AmmoReadoutMarker>,
+    >,
+    q_ammo: Query<&SectionAmmo>,
+    q_children: Query<&Children>,
+    mut q_badges: Query<
+        (&mut Text, &mut Visibility),
+        (With<AmmoReadoutClusterBadge>, Without<AmmoReadoutMarker>),
+    >,
+) {
+    let mut gauges: Vec<Gauge> = Vec::new();
+    for (entity, section, kind, node, visibility, clustered, _) in &q_readouts {
+        // Hidden here is the projection's own verdict (off screen, or the HUD
+        // tier is down); a gauge nobody can see crowds nobody.
+        if *visibility == Visibility::Hidden {
+            continue;
+        }
+        let Some(box_px) = gauge_box(node) else {
+            continue;
+        };
+        let fraction = q_ammo.get(**section).map_or(1.0, |ammo| {
+            if ammo.capacity == 0 {
+                0.0
+            } else {
+                ammo.rounds as f32 / ammo.capacity as f32
+            }
+        });
+        gauges.push(Gauge {
+            entity,
+            kind: *kind,
+            box_px,
+            fraction,
+            clustered,
+        });
+    }
+
+    // Emptiest first, so the gauge a group keeps is the one with the least
+    // left in it. Entity breaks the tie, so a bank of full magazines keeps the
+    // same gauge frame to frame instead of shuffling.
+    gauges.sort_unstable_by(|a, b| {
+        a.fraction
+            .total_cmp(&b.fraction)
+            .then_with(|| a.entity.cmp(&b.entity))
+    });
+
+    let mut standing: Vec<usize> = Vec::new();
+    let mut decided: Vec<(Entity, Clustering)> = Vec::with_capacity(gauges.len());
+    let mut counts: Vec<usize> = Vec::new();
+    for (index, gauge) in gauges.iter().enumerate() {
+        let joined = standing.iter().position(|&leader| {
+            let leader = &gauges[leader];
+            // A gauge that is already folded has to win back real distance
+            // before it stands on its own again.
+            let gap = if gauge.clustered || leader.clustered {
+                CLUSTER_GAP_PX + CLUSTER_RELEASE_PX
+            } else {
+                CLUSTER_GAP_PX
+            };
+            leader.kind == gauge.kind && crowds(leader.box_px, gauge.box_px, gap)
+        });
+        match joined {
+            Some(leader) => {
+                counts[leader] += 1;
+                decided.push((gauge.entity, Clustering::Folded));
+            }
+            None => {
+                standing.push(index);
+                counts.push(1);
+                decided.push((gauge.entity, Clustering::Stands(0)));
+            }
+        }
+    }
+    for (slot, &leader) in standing.iter().enumerate() {
+        let entity = gauges[leader].entity;
+        for decision in &mut decided {
+            if decision.0 == entity {
+                decision.1 = Clustering::Stands(counts[slot]);
+            }
+        }
+    }
+
+    for (entity, _, _, _, mut visibility, clustered, cluster) in &mut q_readouts {
+        // A gauge the pass skipped stands alone: it is off screen, and it must
+        // not come back wearing a stale badge.
+        let decision = decided
+            .iter()
+            .find(|(decided, _)| *decided == entity)
+            .map_or(Clustering::Stands(1), |(_, decision)| *decision);
+        let count = match decision {
+            Clustering::Folded => {
+                visibility.set_if_neq(Visibility::Hidden);
+                if !clustered {
+                    commands.entity(entity).insert(AmmoReadoutClustered);
+                }
+                1
+            }
+            Clustering::Stands(count) => {
+                if clustered {
+                    commands.entity(entity).remove::<AmmoReadoutClustered>();
+                }
+                count
+            }
+        };
+        let want = (count > 1).then_some(AmmoReadoutCluster(count));
+        if cluster.copied() != want {
+            match want {
+                Some(cluster) => commands.entity(entity).insert(cluster),
+                None => commands.entity(entity).remove::<AmmoReadoutCluster>(),
+            };
+        }
+        for child in q_children
+            .get(entity)
+            .map(Children::iter)
+            .into_iter()
+            .flatten()
+        {
+            let Ok((mut text, mut badge_visibility)) = q_badges.get_mut(child) else {
+                continue;
+            };
+            let wanted = if count > 1 {
+                format!("x{count}")
+            } else {
+                String::new()
+            };
+            if text.0 != wanted {
+                text.0 = wanted;
+            }
+            badge_visibility.set_if_neq(if count > 1 {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            });
         }
     }
 }
@@ -669,8 +934,9 @@ fn toggle_ammo_readout_debug(mut debug: ResMut<AmmoReadoutDebug>, keys: Res<Butt
 /// Draws the diegetic per-weapon ammo gauges (turret ring, torpedo bar) on
 /// each player weapon section that carries a finite [`SectionAmmo`], with a
 /// incoming-batch pulse and a debug-only numeric readout.
-/// Registers the readout marker/kind/pip types, runs `sync_ammo_readouts` then
-/// `drive_ammo_readouts` (chained) in PostUpdate before `ScreenIndicatorSystems`;
+/// Registers the readout marker/kind/pip/cluster types, runs
+/// `sync_ammo_readouts` then `drive_ammo_readouts` (chained) in PostUpdate
+/// before `ScreenIndicatorSystems` and `cluster_ammo_readouts` after it;
 /// under the `debug` feature also inits `AmmoReadoutDebug` and adds the F11
 /// toggle plus the numeric driver.
 #[derive(Default)]
@@ -686,6 +952,9 @@ impl Plugin for AmmoReadoutPlugin {
         app.register_type::<AmmoReadoutKind>();
         app.register_type::<AmmoReadoutPip>();
         app.register_type::<AmmoReadoutPipFill>();
+        app.register_type::<AmmoReadoutCluster>();
+        app.register_type::<AmmoReadoutClustered>();
+        app.register_type::<AmmoReadoutClusterBadge>();
 
         // Reconcile then light the chunks before the indicator projection
         // places the nodes, mirroring TurretLeadPlugin's slot.
@@ -694,6 +963,15 @@ impl Plugin for AmmoReadoutPlugin {
             (sync_ammo_readouts, drive_ammo_readouts)
                 .chain()
                 .before(ScreenIndicatorSystems),
+        );
+        // Clustering needs the screen positions, so it runs downstream of the
+        // projection, in the same slot the tier/gate enforcement uses. Both
+        // only ever hide, so their order against each other does not matter.
+        app.add_systems(
+            PostUpdate,
+            cluster_ammo_readouts
+                .after(ScreenIndicatorSystems)
+                .before(bevy::ui::UiSystems::Layout),
         );
         // The contextual gate rides the normal HUD drivers: written in Update
         // from this frame's situations, enforced in PostUpdate by
@@ -768,6 +1046,194 @@ mod tests {
             .collect();
         sections.sort();
         sections
+    }
+
+    /// A placed gauge, as the projection would have left it: `AmmoReadoutMarker`
+    /// with a laid-out box and a badge child.
+    fn spawn_gauge(
+        world: &mut World,
+        kind: AmmoReadoutKind,
+        left: f32,
+        size: Vec2,
+        ammo: SectionAmmo,
+    ) -> Entity {
+        let section = world.spawn(ammo).id();
+        world
+            .spawn((
+                AmmoReadoutMarker,
+                AmmoReadoutSection(section),
+                kind,
+                Node {
+                    left: Val::Px(left),
+                    top: Val::Px(100.0),
+                    width: Val::Px(size.x),
+                    height: Val::Px(size.y),
+                    ..default()
+                },
+                Visibility::Visible,
+                children![cluster_badge()],
+            ))
+            .id()
+    }
+
+    fn cluster_of(world: &World, gauge: Entity) -> Option<usize> {
+        world.get::<AmmoReadoutCluster>(gauge).map(|count| **count)
+    }
+
+    fn badge_text(world: &mut World, gauge: Entity) -> String {
+        let children: Vec<Entity> = world
+            .get::<Children>(gauge)
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        children
+            .into_iter()
+            .find_map(|child| {
+                world
+                    .get::<AmmoReadoutClusterBadge>(child)
+                    .is_some()
+                    .then(|| world.get::<Text>(child).expect("badge text").0.clone())
+            })
+            .expect("a badge child")
+    }
+
+    // -- clustering --
+
+    #[test]
+    fn crowded_gauges_of_one_kind_fold_into_the_emptiest() {
+        let mut world = World::new();
+        let full = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            100.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo::new(200),
+        );
+        let nearly_dry = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            108.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo {
+                rounds: 10,
+                ..SectionAmmo::new(200)
+            },
+        );
+
+        world.run_system_once(cluster_ammo_readouts).unwrap();
+
+        assert_eq!(
+            cluster_of(&world, nearly_dry),
+            Some(2),
+            "the emptiest draws"
+        );
+        assert_eq!(
+            world.get::<Visibility>(nearly_dry),
+            Some(&Visibility::Visible)
+        );
+        assert_eq!(cluster_of(&world, full), None);
+        assert_eq!(world.get::<Visibility>(full), Some(&Visibility::Hidden));
+        assert!(world.get::<AmmoReadoutClustered>(full).is_some());
+        assert_eq!(badge_text(&mut world, nearly_dry), "x2");
+        assert_eq!(badge_text(&mut world, full), "");
+    }
+
+    #[test]
+    fn gauges_with_room_between_them_each_keep_their_own() {
+        let mut world = World::new();
+        let near = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            100.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo::new(200),
+        );
+        let far = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            400.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo::new(200),
+        );
+
+        world.run_system_once(cluster_ammo_readouts).unwrap();
+
+        assert_eq!(cluster_of(&world, near), None);
+        assert_eq!(cluster_of(&world, far), None);
+        assert_eq!(world.get::<Visibility>(near), Some(&Visibility::Visible));
+        assert_eq!(world.get::<Visibility>(far), Some(&Visibility::Visible));
+    }
+
+    #[test]
+    fn a_bar_never_folds_into_a_ring() {
+        let mut world = World::new();
+        let ring = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            100.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo::new(200),
+        );
+        let bar = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Torpedo,
+            104.0,
+            Vec2::new(BAR_PIP_W, BAR_PIP_H),
+            SectionAmmo::new(4),
+        );
+
+        world.run_system_once(cluster_ammo_readouts).unwrap();
+
+        assert_eq!(cluster_of(&world, ring), None);
+        assert_eq!(cluster_of(&world, bar), None);
+        assert_eq!(world.get::<Visibility>(bar), Some(&Visibility::Visible));
+    }
+
+    #[test]
+    fn a_folded_gauge_holds_until_it_wins_back_real_room() {
+        let mut world = World::new();
+        let leader = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            100.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo {
+                rounds: 10,
+                ..SectionAmmo::new(200)
+            },
+        );
+        let follower = spawn_gauge(
+            &mut world,
+            AmmoReadoutKind::Turret,
+            108.0,
+            Vec2::splat(RING_PX),
+            SectionAmmo::new(200),
+        );
+        world.run_system_once(cluster_ammo_readouts).unwrap();
+        assert_eq!(cluster_of(&world, leader), Some(2));
+
+        // Just past the join gap, still inside the release margin: the pair
+        // holds instead of flickering apart.
+        let drift = RING_PX + CLUSTER_GAP_PX + CLUSTER_RELEASE_PX * 0.5;
+        world.get_mut::<Node>(follower).unwrap().left = Val::Px(100.0 + drift);
+        world
+            .get_mut::<Visibility>(follower)
+            .unwrap()
+            .clone_from(&Visibility::Visible);
+        world.run_system_once(cluster_ammo_readouts).unwrap();
+        assert_eq!(cluster_of(&world, leader), Some(2), "hysteresis holds");
+
+        // Clear of the release margin: it stands on its own again.
+        let clear = RING_PX + CLUSTER_GAP_PX + CLUSTER_RELEASE_PX + 2.0;
+        world.get_mut::<Node>(follower).unwrap().left = Val::Px(100.0 + clear);
+        world
+            .get_mut::<Visibility>(follower)
+            .unwrap()
+            .clone_from(&Visibility::Visible);
+        world.run_system_once(cluster_ammo_readouts).unwrap();
+        assert_eq!(cluster_of(&world, leader), None);
+        assert_eq!(cluster_of(&world, follower), None);
+        assert!(world.get::<AmmoReadoutClustered>(follower).is_none());
+        assert_eq!(badge_text(&mut world, leader), "");
     }
 
     // -- pure helper --
