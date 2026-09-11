@@ -14,8 +14,9 @@
 //!   sized to fly through.
 
 use bevy::{light::NotShadowCaster, prelude::*};
+use nova_events::units::prelude::*;
 use nova_gameplay::markers::prelude::*;
-use nova_ship::flight::prelude::*;
+use nova_ship::{flight::prelude::*, prelude::HullEnvelopeRadius};
 
 use super::NAV_CYAN;
 
@@ -27,10 +28,20 @@ pub mod prelude {
 /// Ribbon segment tube radius, world units.
 const RIBBON_RADIUS: f32 = 0.06;
 
-/// Flip gate ring radius, world units - sized to fly through.
-const GATE_RADIUS: f32 = 4.0;
+/// How far outside the hull's own physical envelope the flip gate's mouth
+/// stands.
+///
+/// The gate is a promise the ship can fly through it, and a flip SWEEPS the
+/// hull: the ship turns end for end about its centre of mass, so the volume it
+/// needs is the containment sphere, not its cross-section. The ring was a fixed
+/// 40 m, which the shipped salvage skiff does not fit through and the carrier
+/// swallows whole. The same visual clearance the rest of the presentation layer
+/// keeps outside a hull.
+const GATE_CLEARANCE: Meters = Meters(5.0);
 
-/// Flip gate tube thickness, world units.
+/// Flip gate tube thickness, world units. An INDICATOR size, not a hull size:
+/// the ring reads as a drawn line at every hull scale, so it is authored here
+/// and the mesh is rebuilt rather than scaled when the mouth changes.
 const GATE_MINOR_RADIUS: f32 = 0.12;
 
 /// One segment of the trajectory ribbon. Public for tests and future
@@ -59,8 +70,10 @@ pub struct FlipGateMarker {
 pub(crate) struct HoloAssets {
     /// Unit cylinder (radius RIBBON_RADIUS, height 1) for ribbon segments.
     segment_mesh: Option<Handle<Mesh>>,
-    /// The flip gate's torus (constant radius).
-    gate_mesh: Option<Handle<Mesh>>,
+    /// The flip gate's torus, with the mouth radius it was built at. Rebuilt
+    /// rather than scaled: a scaled torus thickens its tube with its mouth, and
+    /// the tube is an indicator width.
+    gate_mesh: Option<(f32, Handle<Mesh>)>,
     material: Option<Handle<StandardMaterial>>,
 }
 
@@ -71,15 +84,22 @@ impl HoloAssets {
             .clone()
     }
 
-    fn gate_mesh(&mut self, meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
-        self.gate_mesh
-            .get_or_insert_with(|| {
-                meshes.add(Torus::new(
-                    GATE_RADIUS - GATE_MINOR_RADIUS,
-                    GATE_RADIUS + GATE_MINOR_RADIUS,
-                ))
-            })
-            .clone()
+    /// The gate torus with a `major` mouth radius, rebuilt when the hull it is
+    /// sized for changes. One hull flies a leg at a time, so one cached mesh is
+    /// the whole working set; a hull shedding sections rebuilds it as rarely as
+    /// its envelope actually moves.
+    fn gate_mesh(&mut self, meshes: &mut Assets<Mesh>, major: f32) -> Handle<Mesh> {
+        if let Some((built, handle)) = &self.gate_mesh {
+            if *built == major {
+                return handle.clone();
+            }
+        }
+        let handle = meshes.add(Torus::new(
+            major - GATE_MINOR_RADIUS,
+            major + GATE_MINOR_RADIUS,
+        ));
+        self.gate_mesh = Some((major, handle.clone()));
+        handle
     }
 
     pub(crate) fn material(
@@ -219,22 +239,31 @@ fn sync_flip_gate(
     // Same render-clock ship read as the ribbon (direction only, but the
     // uniform pose family keeps the instruments coherent).
     q_ship: Query<
-        (Entity, &Transform, &ManeuverTelemetry),
+        (
+            Entity,
+            &Transform,
+            &ManeuverTelemetry,
+            Option<&HullEnvelopeRadius>,
+        ),
         (With<PlayerSpaceshipMarker>, Without<FlipGateMarker>),
     >,
-    mut q_gate: Query<(Entity, &FlipGateMarker, &mut Transform)>,
+    mut q_gate: Query<(Entity, &FlipGateMarker, &mut Transform, &mut Mesh3d)>,
 ) {
     let flip = q_ship
         .iter()
         .next()
-        .and_then(|(ship, transform, telemetry)| {
+        .and_then(|(ship, transform, telemetry, envelope)| {
             let flip = telemetry.flip_point?;
             let along = (telemetry.goal - transform.translation).try_normalize()?;
-            Some((ship, flip, along))
+            // A hull that has not been measured yet gets no gate. The ring is a
+            // fly-through promise, and one drawn at a guessed mouth is a
+            // promise about a hull nothing has looked at.
+            let envelope = envelope?;
+            Some((ship, flip, along, **envelope + GATE_CLEARANCE.to_engine()))
         });
 
-    let Some((ship, flip, along)) = flip else {
-        for (entity, _, _) in &q_gate {
+    let Some((ship, flip, along, major)) = flip else {
+        for (entity, _, _, _) in &q_gate {
             commands.entity(entity).despawn();
         }
         return;
@@ -243,8 +272,9 @@ fn sync_flip_gate(
     // The torus lies in the XZ plane (normal Y); face it down the path so
     // the ship flies through it.
     let rotation = Quat::from_rotation_arc(Vec3::Y, along);
+    let mesh = assets.gate_mesh(&mut meshes, major);
     let mut found = false;
-    for (entity, gate, mut transform) in &mut q_gate {
+    for (entity, gate, mut transform, mut gate_mesh) in &mut q_gate {
         if gate.ship != ship {
             commands.entity(entity).despawn();
             continue;
@@ -254,13 +284,18 @@ fn sync_flip_gate(
             transform.translation = flip;
             transform.rotation = rotation;
         }
+        // A hull that lost the section holding its envelope re-sizes its gate
+        // mid-leg; without this the live ring keeps the old mouth forever.
+        if gate_mesh.0 != mesh {
+            gate_mesh.0 = mesh.clone();
+        }
     }
     if !found {
         commands.spawn((
             Name::new("FlipGateHolo"),
             crate::HudTier::Instrument,
             FlipGateMarker { ship },
-            Mesh3d(assets.gate_mesh(&mut meshes)),
+            Mesh3d(mesh),
             NotShadowCaster,
             MeshMaterial3d(assets.material(&mut materials)),
             Transform::from_translation(flip).with_rotation(rotation),
@@ -306,12 +341,19 @@ mod tests {
         }
     }
 
+    /// The shipped salvage skiff's measured containment radius, world units -
+    /// the envelope its live sections publish.
+    const SKIFF_ENVELOPE: f32 = 4.89;
+
     fn spawn_ship(world: &mut World, telemetry_value: ManeuverTelemetry) -> Entity {
         world
             .spawn((
                 PlayerSpaceshipMarker,
                 SpaceshipRootMarker,
                 Transform::default(),
+                // Published every fixed tick in production; the gate is sized
+                // from it, so the fixture carries it too.
+                HullEnvelopeRadius(SKIFF_ENVELOPE),
                 telemetry_value,
             ))
             .id()
@@ -411,6 +453,82 @@ mod tests {
         assert!(
             far_end.distance(goal) > 49.0,
             "the ribbon must stop a standoff short of the target center"
+        );
+    }
+
+    /// The gate mouth is the hull's own containment sphere plus the visual
+    /// clearance, because a flip sweeps the whole hull about its centre of
+    /// mass. A fixed 40 m ring is one the shipped skiff does not fit through
+    /// and one the carrier swallows; the tube stays an indicator width at
+    /// either size, so the ring is rebuilt rather than scaled.
+    #[test]
+    fn the_flip_gate_mouth_follows_the_hull() {
+        const CARRIER_ENVELOPE: f32 = 19.53;
+
+        let mouth_for = |envelope: Option<f32>| -> Option<f32> {
+            let mut world = holo_world();
+            let goal = Vec3::new(0.0, 0.0, -300.0);
+            let ship = spawn_ship(
+                &mut world,
+                telemetry(goal, Some(Vec3::new(0.0, 0.0, -240.0))),
+            );
+            match envelope {
+                Some(envelope) => {
+                    world.entity_mut(ship).insert(HullEnvelopeRadius(envelope));
+                }
+                None => {
+                    world.entity_mut(ship).remove::<HullEnvelopeRadius>();
+                }
+            }
+            world.run_system_once(sync_flip_gate).unwrap();
+            if world.query::<&FlipGateMarker>().iter(&world).count() == 0 {
+                return None;
+            }
+            Some(world.resource::<HoloAssets>().gate_mesh.as_ref().unwrap().0)
+        };
+
+        let clearance = GATE_CLEARANCE.to_engine();
+        assert_eq!(
+            mouth_for(Some(SKIFF_ENVELOPE)),
+            Some(SKIFF_ENVELOPE + clearance)
+        );
+        assert_eq!(
+            mouth_for(Some(CARRIER_ENVELOPE)),
+            Some(CARRIER_ENVELOPE + clearance)
+        );
+        // An unmeasured hull gets no ring at all rather than one drawn at a
+        // guessed mouth.
+        assert_eq!(mouth_for(None), None);
+    }
+
+    /// A hull that sheds the section holding its envelope re-sizes its gate
+    /// mid-leg: the LIVE ring's mesh is swapped, not just the cache.
+    #[test]
+    fn the_live_gate_resizes_when_the_hull_does() {
+        let mut world = holo_world();
+        let goal = Vec3::new(0.0, 0.0, -300.0);
+        let ship = spawn_ship(
+            &mut world,
+            telemetry(goal, Some(Vec3::new(0.0, 0.0, -240.0))),
+        );
+        world.entity_mut(ship).insert(HullEnvelopeRadius(19.53));
+        world.run_system_once(sync_flip_gate).unwrap();
+        let (gate, big) = world
+            .query_filtered::<(Entity, &Mesh3d), With<FlipGateMarker>>()
+            .single(&world)
+            .map(|(entity, mesh)| (entity, mesh.0.clone()))
+            .expect("one gate");
+
+        world
+            .entity_mut(ship)
+            .insert(HullEnvelopeRadius(SKIFF_ENVELOPE));
+        world.run_system_once(sync_flip_gate).unwrap();
+
+        let small = world.entity(gate).get::<Mesh3d>().expect("the gate lives");
+        assert_ne!(small.0, big, "the live ring kept its old mouth");
+        assert_eq!(
+            world.resource::<HoloAssets>().gate_mesh.as_ref().unwrap().0,
+            SKIFF_ENVELOPE + GATE_CLEARANCE.to_engine()
         );
     }
 

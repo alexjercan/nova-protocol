@@ -24,9 +24,19 @@ use nova_ship::prelude::*;
 
 use crate::prelude::*;
 
-/// On-screen diameter (px) of the ring, sized to sit as a tight halo around
-/// the pending target's reticle.
+/// Floor on the ring's on-screen diameter (px): the halo a reticle at its own
+/// floor gets, and the size a dwell on a target carrying no reticle yet draws
+/// at. The number IS the old fixed size, so a distant contact's ring is
+/// unchanged.
 const RING_PX: f32 = 39.2;
+
+/// The ring's diameter as a fraction of the live reticle it haloes.
+///
+/// The ring was a fixed 39.2 px - exactly 0.98 of the travel crosshair's 40 px
+/// floor - which is a tight halo only while the crosshair sits AT that floor.
+/// The crosshairs track apparent size, so on a close carrier the reticle is
+/// hundreds of pixels across and the fixed ring is a dot lost inside it.
+const RING_RETICLE_SCALE: f32 = 0.98;
 
 /// Inner radius of the annulus in normalized node units (outer edge = 1.0):
 /// a thin band near the rim.
@@ -111,6 +121,8 @@ pub fn lock_dwell_ring_hud(material: Handle<LockDwellRingMaterial>) -> impl Bund
             LockDwellRingMarker,
             screen_indicator(ScreenIndicatorConfig {
                 anchor: None,
+                // Re-sized every frame from the live reticle on the dwell
+                // target; this is the floor it starts and falls back to.
                 size: ScreenIndicatorSize::Fixed(Vec2::splat(RING_PX)),
                 offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,
@@ -139,16 +151,47 @@ impl Plugin for LockDwellRingHudPlugin {
     }
 }
 
-/// Point the ring at the pending dwell target and fill it to the dwell
-/// fraction while a dwell is CHARGING; clear the anchor (the widget hides the
-/// node) otherwise. Runs every frame off the player [`RadarState`], which only
-/// exists while the radar gesture is held - so with no gesture the ring is
-/// hidden for free.
+/// The widest live reticle already drawn on `target`, in logical pixels.
+///
+/// The dwell ring haloes whatever the player can see on the pending contact -
+/// the travel crosshair, the combat reticle, or nothing at all during a fresh
+/// sweep. `ComputedNode::size` is PHYSICAL, so it is divided back to the
+/// logical pixels the indicator writes as `Val::Px`.
+fn reticle_px_on(target: Entity, reticles: &[(&ScreenIndicatorAnchor, &ComputedNode)]) -> f32 {
+    reticles
+        .iter()
+        .filter(|(anchor, _)| ***anchor == Some(ScreenIndicatorAnchorKind::Entity(target)))
+        .map(|(_, computed)| {
+            let size = computed.size() * computed.inverse_scale_factor();
+            size.x.max(size.y)
+        })
+        .fold(0.0f32, f32::max)
+}
+
+/// Point the ring at the pending dwell target, size it to the reticle already
+/// on that target, and fill it to the dwell fraction while a dwell is
+/// CHARGING; clear the anchor (the widget hides the node) otherwise. Runs
+/// every frame off the player [`RadarState`], which only exists while the radar
+/// gesture is held - so with no gesture the ring is hidden for free.
 fn drive_lock_dwell_ring(
     q_player: Query<&RadarState, With<PlayerSpaceshipMarker>>,
+    // `Without` the ring itself: the reticles are read while the ring's own
+    // anchor is written, and the two queries must be provably disjoint.
+    q_travel: Query<
+        (&ScreenIndicatorAnchor, &ComputedNode),
+        (With<TravelCrosshairMarker>, Without<LockDwellRingMarker>),
+    >,
+    q_combat: Query<
+        (&ScreenIndicatorAnchor, &ComputedNode),
+        (
+            With<TorpedoTargetReticleMarker>,
+            Without<LockDwellRingMarker>,
+        ),
+    >,
     mut q_ring: Query<
         (
             &mut ScreenIndicatorAnchor,
+            &mut ScreenIndicatorSize,
             &MaterialNode<LockDwellRingMaterial>,
         ),
         With<LockDwellRingMarker>,
@@ -165,13 +208,18 @@ fn drive_lock_dwell_ring(
                 .map(|target| (target, radar.dwell_fill()))
         });
 
-    for (mut anchor, material) in &mut q_ring {
+    let reticles: Vec<(&ScreenIndicatorAnchor, &ComputedNode)> =
+        q_travel.iter().chain(q_combat.iter()).collect();
+
+    for (mut anchor, mut size, material) in &mut q_ring {
         match dwell {
             Some((target, fill)) => {
                 let want = Some(ScreenIndicatorAnchorKind::Entity(target));
                 if anchor.0 != want {
                     anchor.0 = want;
                 }
+                let diameter = (reticle_px_on(target, &reticles) * RING_RETICLE_SCALE).max(RING_PX);
+                size.set_if_neq(ScreenIndicatorSize::Fixed(Vec2::splat(diameter)));
                 if let Some(mut material) = materials.get_mut(&material.0) {
                     material.data.progress = fill;
                 }
@@ -209,6 +257,7 @@ mod tests {
             .spawn((
                 LockDwellRingMarker,
                 ScreenIndicatorAnchor(None),
+                ScreenIndicatorSize::Fixed(Vec2::splat(RING_PX)),
                 MaterialNode(handle.clone()),
             ))
             .id();
@@ -344,5 +393,51 @@ mod tests {
             Some(ScreenIndicatorAnchorKind::Entity(second)),
             "the ring moved to the new pending candidate"
         );
+    }
+    /// The ring haloes whatever reticle is on the dwell target, so it stays a
+    /// tight band at any target size. A fixed 39 px ring is a dot lost inside
+    /// the 300 px crosshair a close carrier wears.
+    #[test]
+    fn the_dwell_ring_haloes_the_live_reticle() {
+        let ring_diameter = |reticle_px: Option<f32>| -> f32 {
+            let (mut app, player, ring, _) = ring_app();
+            let target = app.world_mut().spawn_empty().id();
+            if let Some(px) = reticle_px {
+                app.world_mut().spawn((
+                    TravelCrosshairMarker,
+                    ScreenIndicatorAnchor(Some(ScreenIndicatorAnchorKind::Entity(target))),
+                    ComputedNode {
+                        size: Vec2::splat(px),
+                        ..ComputedNode::DEFAULT
+                    },
+                ));
+            }
+            set_radar(
+                &mut app,
+                player,
+                RadarState {
+                    dwell_target: Some(target),
+                    dwell_secs: 0.5,
+                    dwell_needed: 1.0,
+                    ..default()
+                },
+            );
+            app.world_mut()
+                .run_system_once(drive_lock_dwell_ring)
+                .unwrap();
+            match *app.world().get::<ScreenIndicatorSize>(ring).unwrap() {
+                ScreenIndicatorSize::Fixed(size) => size.x,
+                other => panic!("the ring is sized in pixels, got {other:?}"),
+            }
+        };
+
+        // A close carrier's crosshair: the ring tracks it instead of sitting
+        // inside it as a dot.
+        assert!((ring_diameter(Some(300.0)) - 300.0 * RING_RETICLE_SCALE).abs() < 1e-3);
+        // A reticle at its own floor keeps the ring at the size it has always
+        // drawn at...
+        assert_eq!(ring_diameter(Some(40.0)), RING_PX);
+        // ...and a fresh sweep with no reticle yet floors there too.
+        assert_eq!(ring_diameter(None), RING_PX);
     }
 }

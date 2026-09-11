@@ -64,9 +64,15 @@ const RADAR_BOX_PX: f32 = 48.0;
 const RADAR_TRAVEL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
 const RADAR_COMBAT_COLOR: Color = combat::at(combat::LOCK, 0.8);
 
-/// Unlatch ghost: lifetime (s), how far it grows (fraction of its start
-/// size) and the start sizes per slot (matching the crosshair each ghost
-/// stands in for, so the pop starts exactly where the crosshair was).
+/// Unlatch ghost: lifetime (s) and how far it grows (fraction of its start
+/// size).
+///
+/// The start size is STAMPED from the crosshair the ghost stands in for at the
+/// moment it lets go, not authored: the crosshairs track apparent size, so a
+/// fixed start pops a 40 px stamp off a reticle that was 300 px across. The
+/// per-slot constants below are the floors the crosshairs themselves carry -
+/// what a ghost starts at when the crosshair never laid out (the target left
+/// the screen in the same frame it was cleared).
 const GHOST_SECONDS: f32 = 0.7;
 const GHOST_GROWTH: f32 = 0.8;
 const GHOST_TRAVEL_PX: f32 = TRAVEL_CROSSHAIR_MIN_PX;
@@ -101,8 +107,11 @@ struct RadarCandidateLabelMarker;
 pub struct LockUnlatchGhostMarker {
     /// Seconds since the ghost spawned.
     pub age: f32,
-    /// Which slot popped (drives color and start size).
+    /// Which slot popped (drives color).
     pub combat: bool,
+    /// On-screen size (px) the crosshair held at unlatch; the pop grows from
+    /// exactly there, so the stamp starts where the player last saw the ring.
+    pub start_px: f32,
 }
 
 /// The centered radar-denied flash node; `remaining` counts down its life
@@ -317,30 +326,48 @@ fn spawn_unlatch_ghosts(
     mut commands: Commands,
     mut toasts: MessageReader<LockClearedToast>,
     q_layer: Query<(Entity, &LockGhostSprite), With<LockCrosshairsHudMarker>>,
+    q_travel: Query<&ComputedNode, With<TravelCrosshairMarker>>,
+    q_combat: Query<&ComputedNode, With<TorpedoTargetReticleMarker>>,
 ) {
     let Some((layer, sprite)) = q_layer.iter().next() else {
         // No player HUD: drain quietly.
         toasts.read().for_each(|_| {});
         return;
     };
+    // The crosshair sizes this frame still hold the ring the player was
+    // looking at: the widget re-sizes a node from its anchor, and the anchor
+    // only goes away on the frame the clear is processed.
+    let stamp = |computed: Option<&ComputedNode>, floor: f32| {
+        computed
+            .map(|computed| {
+                let size = computed.size() * computed.inverse_scale_factor();
+                size.x.max(size.y)
+            })
+            .filter(|px| *px > 0.0)
+            .unwrap_or(floor)
+    };
     for toast in toasts.read() {
         let Some(target) = toast.target else {
             continue;
         };
-        let (color, size) = if toast.combat {
-            (RADAR_COMBAT_COLOR, GHOST_COMBAT_PX)
+        let (color, start_px) = if toast.combat {
+            (
+                RADAR_COMBAT_COLOR,
+                stamp(q_combat.iter().next(), GHOST_COMBAT_PX),
+            )
         } else {
-            (TRAVEL_COLOR, GHOST_TRAVEL_PX)
+            (TRAVEL_COLOR, stamp(q_travel.iter().next(), GHOST_TRAVEL_PX))
         };
         commands.entity(layer).with_child((
             Name::new("LockUnlatchGhost"),
             LockUnlatchGhostMarker {
                 age: 0.0,
                 combat: toast.combat,
+                start_px,
             },
             screen_indicator(ScreenIndicatorConfig {
                 anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
-                size: ScreenIndicatorSize::Fixed(Vec2::splat(size)),
+                size: ScreenIndicatorSize::Fixed(Vec2::splat(start_px)),
                 offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
@@ -370,12 +397,7 @@ fn fade_unlatch_ghosts(
             commands.entity(ghost).despawn();
             continue;
         }
-        let start = if marker.combat {
-            GHOST_COMBAT_PX
-        } else {
-            GHOST_TRAVEL_PX
-        };
-        *size = ScreenIndicatorSize::Fixed(Vec2::splat(start * (1.0 + GHOST_GROWTH * t)));
+        *size = ScreenIndicatorSize::Fixed(Vec2::splat(marker.start_px * (1.0 + GHOST_GROWTH * t)));
         let base = if marker.combat {
             RADAR_COMBAT_COLOR
         } else {
@@ -563,6 +585,44 @@ mod tests {
         world.entity_mut(player).remove::<RadarState>();
         world.run_system_once(drive_radar_candidate).unwrap();
         assert_eq!(box_anchor(&world, boxed), None);
+    }
+
+    /// The pop starts where the ring the player was looking at actually was.
+    /// The crosshairs track apparent size, so a fixed 32 px stamp off a 300 px
+    /// reticle on a close carrier reads as a different object appearing, not
+    /// as the lock letting go.
+    #[test]
+    fn an_unlatch_ghost_stamps_the_live_crosshair_size() {
+        let start_px = |reticle_px: Option<f32>| -> f32 {
+            let mut world = World::new();
+            world.init_resource::<Messages<LockClearedToast>>();
+            world.insert_resource(Time::<()>::default());
+            let target = world.spawn_empty().id();
+            world.spawn((LockCrosshairsHudMarker, LockGhostSprite(Handle::default())));
+            if let Some(px) = reticle_px {
+                world.spawn((
+                    TorpedoTargetReticleMarker,
+                    ComputedNode {
+                        size: Vec2::splat(px),
+                        ..ComputedNode::DEFAULT
+                    },
+                ));
+            }
+            world
+                .resource_mut::<Messages<LockClearedToast>>()
+                .write(LockClearedToast {
+                    combat: true,
+                    target: Some(target),
+                });
+            world.run_system_once(spawn_unlatch_ghosts).unwrap();
+            let mut q = world.query::<&LockUnlatchGhostMarker>();
+            q.iter(&world).next().expect("a ghost spawned").start_px
+        };
+
+        assert_eq!(start_px(Some(300.0)), 300.0);
+        // A crosshair that never laid out (the target left the screen on the
+        // same frame) keeps the slot's own floor.
+        assert_eq!(start_px(None), GHOST_COMBAT_PX);
     }
 
     #[test]
