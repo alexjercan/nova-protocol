@@ -151,6 +151,14 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_hull_scaling",
+        &[
+            "the reference hulls span the size the sweep assumes",
+            "both hulls publish a live attitude envelope",
+            "the hull inputs are recorded",
+        ],
+    ),
+    (
         "system_thrust_and_plume",
         &[
             "burn accelerates",
@@ -375,6 +383,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         "system_ui_scale",
         &[
             "a world-anchored label keeps its logical place",
+            "the bar under-widgets measure ends where it did",
             "the stage's names stand apart",
             "the top bar keeps its controls apart",
         ],
@@ -412,6 +421,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the flight chips clear the outer shell",
             "severing the hull shrinks its shells",
             "the shells stay nested through the shrink",
+            "every camera mode clears the live hull",
+            "the world-anchored chips clear their target",
         ],
     ),
     (
@@ -429,6 +440,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the destination marker tracks the goto",
             "the velocity sphere tracks the burn",
             "the pinned component marker is highlighted",
+            "the stacked layouts measure the widget above them",
             "every indicator hides when its anchor dies",
         ],
     ),
@@ -588,7 +600,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 248;
+const SYSTEMS_INVARIANTS: usize = 255;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
