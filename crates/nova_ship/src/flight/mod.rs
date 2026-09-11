@@ -41,6 +41,7 @@ mod authority;
 mod autopilot;
 mod guidance;
 mod manual;
+mod navigation;
 mod order;
 mod state;
 mod thrusters;
@@ -54,6 +55,7 @@ pub(crate) use self::guidance::hull_turn_rate;
 pub use self::{
     authority::prelude::FlightAuthority,
     guidance::orbit_radius_band,
+    navigation::prelude::{plan_leg, DetourPolicy, LegPlan},
     order::{
         cancel_ship_order, interrupt_ship_order, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective,
@@ -79,15 +81,17 @@ pub(crate) use self::{
 };
 
 /// The flight intent, settings, authority and speed caps, the autopilot and orbit plan, RCS
-/// state, maneuver telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
+/// state, leg navigation, maneuver telemetry, and `NovaFlightPlugin` with
+/// `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        cancel_ship_order, interrupt_ship_order, orbit_radius_band, resolved_arrival_standoff,
-        resume_ship_order, retire_ship_order_execution, AIOrderInterrupted, Autopilot,
-        AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightAuthority,
-        FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin,
-        NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap,
-        ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
+        cancel_ship_order, interrupt_ship_order, orbit_radius_band, plan_leg,
+        resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
+        AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
+        FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, FlightSpeedCap,
+        LegPlan, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
+        ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
         ShipOrderReports, SuspendedArrivalStandoff,
     };

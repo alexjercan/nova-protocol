@@ -188,7 +188,7 @@ gameplay feedback ledger (`20260909-213118`).
       EVERY thruster: the carrier lights retros and laterals with the mains
       and torques off its command. Route through `cluster_thrusters` and
       `balance_throttles` as the autopilot does.
-- [ ] `ai/passive.rs:47,78,269` `AI_AVOID_MARGIN` 20 u past `BodyRadius`
+- [x] `ai/passive.rs:47,78,269` `AI_AVOID_MARGIN` 20 u past `BodyRadius`
       judged against the centre line: the carrier's flank scrapes the rock
       with 17 m of daylight. Add the mover's `HullRadius`, as `:232` does.
 - [x] `ai/railgun.rs:36,43,68` `AI_RAILGUN_ALIGNMENT_COS` 0.99, an 8.1 deg

@@ -32,6 +32,9 @@ does NOT get an entry - and it is the only place they are written down.
   whole hull clear of the line you were holding, so a carrier weaves like a
   carrier instead of rocking in place. A hull with no drive left fights on
   rather than pretending to evade.
+- A patrolling ship rounds a rock with its whole hull: the 200 m of daylight is
+  measured from its skin, not its centre, so a carrier no longer scrapes past
+  with 23 m. Authorable per ship with `avoid_margin`.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the

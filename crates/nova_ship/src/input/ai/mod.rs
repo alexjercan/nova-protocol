@@ -53,7 +53,7 @@ pub use self::{
     guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
     maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
     mission::AIOrderInterruption,
-    passive::{AIAvoidanceDetour, AIWaypointSlack},
+    passive::{AIAvoidMargin, AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
     threat::{AIEvade, AIThreat},
     torpedo::{AITorpedoBay, AI_TORPEDO_MAX_RANGE},
@@ -100,9 +100,9 @@ pub(super) fn sense_and_pick(world: &mut World) {
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{
-        AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
-        AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
-        AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
+        AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade,
+        AIFireCadence, AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption,
+        AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
         AIStandoffClearance, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
         SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
     };
@@ -165,6 +165,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIAvoidanceDetour>();
         app.register_type::<AIEngageRange>();
         app.register_type::<AIPointDefenseRange>();
+        app.register_type::<AIAvoidMargin>();
         app.register_type::<AIWaypointSlack>();
         app.register_type::<AIStandoffClearance>();
         app.register_type::<AIOrderInterruption>();

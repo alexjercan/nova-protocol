@@ -198,6 +198,22 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub waypoint_slack: Option<Meters>,
+    /// Avoidance margin override: the daylight this ship's patrol wants
+    /// between its own hull and a sized body's, instead of the engine's
+    /// 200 m default.
+    ///
+    /// A FACE distance, like `standoff_clearance`: the ship's own live hull
+    /// radius is counted on top, so the same authored number means the same
+    /// visible gap whether the patrol is a skiff or a carrier. Author it
+    /// small on a hull that should thread a belt it knows; author it wide to
+    /// keep a capital's flank well off the rocks. None = the default.
+    /// Only the patrol routine avoids; a ship in combat flies its fight.
+    /// See `AIAvoidMargin`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub avoid_margin: Option<Meters>,
     /// Whether this armed ship flies itself but never fights: it patrols,
     /// orbits, avoids and station-keeps exactly as any AI ship does, and never
     /// acquires a target or pulls a trigger. See `AINonCombatant`.
@@ -725,6 +741,15 @@ fn insert_spaceship_sections(
                         .insert(AIWaypointSlack(slack.to_engine()));
                 }
             }
+            // NOT the guard shape above: zero is meaningful here. A patrol
+            // that wants no daylight past its own skin is a miner who knows
+            // the belt, and the hull's own radius still keeps the rock off
+            // the plating.
+            if let Some(margin) = config.avoid_margin {
+                commands
+                    .entity(entity)
+                    .insert(AIAvoidMargin(margin.to_engine().max(0.0)));
+            }
             // NOT the guard shape above: zero is a meaningful margin here (the
             // hull's face on the mark), and it means the same thing on a spawn
             // as it does on a `MoveShipTo`. None inherits, Some(x) is used.
@@ -808,6 +833,7 @@ mod tests {
                 standoff_clearance: None,
                 pd_range: None,
                 waypoint_slack: None,
+                avoid_margin: None,
                 non_combatant: false,
                 order_interruption: None,
                 arrival_standoff: None,
@@ -826,6 +852,7 @@ mod tests {
                 pd_range: Some(Meters(1_500.0)),
                 standoff_clearance: Some(Meters(400.0)),
                 waypoint_slack: Some(Meters(50.0)),
+                avoid_margin: Some(Meters(600.0)),
                 arrival_standoff: Some(Meters(100.0)),
                 order_interruption: Some(AIOrderInterruption::OnDamage),
                 ..default()
@@ -851,6 +878,11 @@ mod tests {
         assert_eq!(
             world.entity(watcher).get::<AIWaypointSlack>().map(|s| s.0),
             Some(5.0)
+        );
+        assert_eq!(
+            world.entity(watcher).get::<AIAvoidMargin>().map(|m| m.0),
+            Some(60.0),
+            "600 m of daylight past this hull's own skin is 60 world units"
         );
         assert_eq!(
             world
@@ -879,6 +911,7 @@ mod tests {
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
+        assert!(world.entity(orbiter).get::<AIAvoidMargin>().is_none());
         assert!(world.entity(orbiter).get::<AIStandoffClearance>().is_none());
         assert!(
             world
@@ -953,6 +986,35 @@ mod tests {
                 .map(|c| c.0),
             Some(0.0),
             "a boarder keeps the component and asks for contact"
+        );
+    }
+
+    /// Zero daylight is an authored answer, not a missing one: a miner who
+    /// knows its belt asks to pass on its own skin, and the hull's live
+    /// radius still keeps the rock off the plating.
+    #[test]
+    fn a_zero_avoid_margin_is_skin_clearance_not_an_unauthored_one() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
+        world.add_observer(insert_spaceship_sections);
+        let miner = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig {
+                        avoid_margin: Some(Meters::ZERO),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        assert_eq!(
+            world.entity(miner).get::<AIAvoidMargin>().map(|m| m.0),
+            Some(0.0),
+            "the miner keeps the component and asks for its own skin"
         );
     }
 

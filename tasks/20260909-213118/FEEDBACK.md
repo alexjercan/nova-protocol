@@ -413,3 +413,37 @@ both fights read the envelope again:
 That escort row also replaces the 72 m/s recorded for the orbit item a commit
 earlier: that sample landed four seconds into an evade cycle. 92 m/s is the
 picket's orbit speed, and it is the figure the drive limit predicts.
+
+### A patrol rounds a rock with its whole hull, 2026-09-12
+
+`AI_AVOID_MARGIN` was 200 m past a body's `BodyRadius`, judged against the
+mover's CENTRE line. A hull's own arm was therefore spent out of the margin,
+and the bigger the ship the less of it was left. Measured on the patrol physics
+harness against a 400 m rock sitting 605 m off the leg - just outside the old
+block threshold, so neither hull turned:
+
+| | block_skiff (4.0 u) | block_carrier (18.3 u) |
+| --- | --- | --- |
+| daylight before | 166 m | 23 m |
+| daylight after | 611 m | 628 m |
+| detour taken | no -> yes | no -> yes |
+
+23 m is a carrier flank inside its own docking tolerance, on a route the author
+never measured because the game promised to fly around it.
+
+Clearance is now `BodyRadius + HullRadius + margin`, the same face-to-face sum
+`resolved_arrival_standoff` already used one line away. The same authored number
+is now the same visible gap on every hull: at the default 200 m the skiff turns
+for a rock inside 640 m of its leg and the carrier inside 783 m.
+
+With a rock dead on the leg, where both hulls already detoured, the rounding
+widened rather than appeared: 366 m to 463 m of daylight on the carrier, 523 m
+to 542 m on the skiff. The corner itself is unchanged geometry - it is pushed
+past the clear-check band plus the corner's own arrival window - so the extra
+daylight is the margin the flank used to pay.
+
+The planner moved to `flight/navigation.rs` with an explicit `DetourPolicy`
+(clearance, hysteresis, arrive radius) and NO defaults of its own: what is safe
+for a skiff threading a belt is not what is safe for a carrier, so the caller
+states it. AI patrol is the only caller today. `AIControllerConfig::avoid_margin`
+authors it per ship, 0 m meaning "pass on my own skin".
