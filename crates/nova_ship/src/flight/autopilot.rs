@@ -227,7 +227,9 @@ pub(super) fn autopilot_system(
         // chasing small errors forever. The band is also the RCS settle's
         // full deflection, so it is chosen before the settle.
         let crumb_band = match autopilot.action {
-            AutopilotAction::Orbit { .. } => settings.attitude_deadband,
+            AutopilotAction::Orbit { .. } | AutopilotAction::MatchVelocity { .. } => {
+                settings.attitude_deadband
+            }
             _ => settings.settle_deadband.max(settings.attitude_deadband),
         };
 
@@ -494,6 +496,11 @@ pub(super) fn autopilot_system(
         // applies while station-keeping - the desired is a fast orbital
         // velocity, not a rest goal.
         let mut is_orbit = false;
+        // Set by the MatchVelocity arm: the nose the caller asked to hold
+        // while the velocity is held, and the flag that says this action's
+        // desired velocity is a STANDING one rather than a goal to arrive at.
+        let mut hold_facing: Option<Vec3> = None;
+        let mut is_velocity_hold = false;
         // The strongest pull the ship feels right now - the same shaped
         // `well_accel` the physics applies, not a raw `mu/r^2`, so the SOI fade
         // and the surface clamp are already in it. Both RCS branches are gated
@@ -659,6 +666,15 @@ pub(super) fn autopilot_system(
                 telemetry = Some(numbers);
                 desired
             }
+            AutopilotAction::MatchVelocity { velocity, facing } => {
+                // Nothing to plan and nothing to arrive at: the goal IS the
+                // desired velocity, and the whole of the leg is the error
+                // below. No telemetry either - the instruments read a leg
+                // with a destination, and this has none.
+                is_velocity_hold = true;
+                hold_facing = facing.map(Vec3::from);
+                velocity
+            }
             AutopilotAction::Orbit { well, plan } => {
                 let Ok((well_position, well_data)) = q_wells.get(well) else {
                     debug!("autopilot_system: ORBIT well {well:?} is gone, disengaging");
@@ -762,14 +778,20 @@ pub(super) fn autopilot_system(
             && rcs_has_gravity_authority
             && desired.length() <= settings.stop_speed_epsilon
             && velocity.length() < rcs_cap;
-        let use_rcs_orbit =
-            rcs_capable && is_orbit && rcs_has_gravity_authority && error_speed < rcs_cap;
-        let use_rcs = use_rcs_settle || use_rcs_orbit;
+        // The error-relative trim: the desired velocity is one the ship HOLDS,
+        // so what must be sub-cap is the residual, not the absolute speed.
+        // Shared by ORBIT's ring trim and a held velocity, which are the same
+        // problem - a standing goal the RCS corrects around.
+        let use_rcs_trim = rcs_capable
+            && (is_orbit || is_velocity_hold)
+            && rcs_has_gravity_authority
+            && error_speed < rcs_cap;
+        let use_rcs = use_rcs_settle || use_rcs_trim;
         // The reference the cap is measured against: the orbital velocity while
         // trimming an orbit, zero otherwise (absolute cap). Written EVERY tick
         // so a stale orbital reference never lingers into a settle or the
         // player.
-        let rcs_reference_v = if use_rcs_orbit { desired } else { Vec3::ZERO };
+        let rcs_reference_v = if use_rcs_trim { desired } else { Vec3::ZERO };
         // The residual that counts as full deflection - the band the branch
         // must hold to, never the manual cap. A proportional law brakes with
         // a time constant of `scale / rcs_accel`, and coasts that long again
@@ -783,7 +805,7 @@ pub(super) fn autopilot_system(
         // offset proportional to its scale - referenced to the manual cap
         // that offset was wider than the hold band itself, so the trim never
         // reported Hold. The band the orbit must hold to is its scale.
-        let rcs_scale = if use_rcs_orbit {
+        let rcs_scale = if use_rcs_trim && is_orbit {
             settings.orbit_hold_enter
         } else {
             crumb_band
@@ -804,7 +826,7 @@ pub(super) fn autopilot_system(
         }
         if let Some(mut reference) = rcs_reference {
             reference.0 = rcs_reference_v;
-        } else if use_rcs_orbit {
+        } else if use_rcs_trim {
             commands.entity(ship).insert(RcsReference(rcs_reference_v));
         }
 
@@ -934,8 +956,10 @@ pub(super) fn autopilot_system(
         // or within the deadband with no engine on the residual. ORBIT never
         // completes: an orbit is not a destination, the computer
         // station-keeps until breakout, Z, or a capability loss.
-        let done = !matches!(autopilot.action, AutopilotAction::Orbit { .. })
-            && desired == Vec3::ZERO
+        let done = !matches!(
+            autopilot.action,
+            AutopilotAction::Orbit { .. } | AutopilotAction::MatchVelocity { .. }
+        ) && desired == Vec3::ZERO
             && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
         // Release only once every actuator has wound down. A still-hot,
         // spooling-down drive would push the ship off again. An RCS settle
@@ -1037,6 +1061,32 @@ pub(super) fn autopilot_system(
         // (done, engines still winding down) command zero to every engine.
         let mut throttles: Vec<f32> = vec![0.0; allocation.len()];
         let mut burning = false;
+        // The facing the caller asked for, held whenever the burn is NOT
+        // asking for the hull: an RCS trim pushes through the COM in any
+        // direction, a crumb is not worth turning for, and an error too small
+        // to have a direction is not a burn at all. The moment the error
+        // outgrows all three the rotation below takes the hull for the burn,
+        // and this gets it back when the burn is done.
+        //
+        // OUTSIDE the burn block on purpose: a ship exactly on its commanded
+        // velocity has no error to steer by, and that is precisely when the
+        // nose should be sitting where it was asked to sit.
+        let holding_facing = hold_facing.filter(|_| fine || use_rcs || error_dir.is_none());
+        if let Some(facing) = holding_facing {
+            // Never the full rate: the facing is a request the hull settles
+            // onto, not a flip the arrival plan budgeted a lead for. The floor
+            // keeps a hull that is already on its velocity from creeping onto
+            // the facing at a rate that reads as drift.
+            let max_step = turn_rate * dt * slew_urgency(error_speed, crumb_band).max(0.25);
+            for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
+                if parent == ship {
+                    let command = **input;
+                    let command_dir = command.mul_vec3(Vec3::NEG_Z);
+                    let goal = Quat::from_rotation_arc(command_dir, facing) * command;
+                    **input = slew_rotation(command, goal, max_step);
+                }
+            }
+        }
         if let (Some(error_dir), false) = (error_dir, done) {
             // RCS pushes through the center of mass in any direction, so it
             // never needs an attitude change. Keep the current helm bearing
@@ -1047,7 +1097,7 @@ pub(super) fn autopilot_system(
             // and plan agree on which engine flies the arrival; every other
             // rotation aims at this tick's error.
             let (aim_dir, burn_ahead) = brake.unwrap_or((error_dir, error_speed));
-            if !fine && !use_rcs {
+            if holding_facing.is_none() && !fine && !use_rcs {
                 if let Some(chosen) = choose_group(
                     &groups,
                     aim_dir,
@@ -1181,6 +1231,12 @@ pub(super) fn autopilot_system(
                 } else {
                     AutopilotPhase::Align
                 }
+            }
+            // A held velocity inside the band IS the maneuver working, the
+            // same way a trimmed orbit is. Reporting Align there would say the
+            // computer is still getting ready for something it is already doing.
+            AutopilotAction::MatchVelocity { .. } if error_speed <= crumb_band => {
+                AutopilotPhase::Hold
             }
             _ if burning => AutopilotPhase::Burn,
             _ => AutopilotPhase::Align,

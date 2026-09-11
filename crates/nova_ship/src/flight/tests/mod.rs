@@ -14,6 +14,7 @@ mod arrival;
 mod control;
 mod goto;
 mod manual;
+mod match_velocity;
 mod orbit;
 mod rcs;
 mod scripted;

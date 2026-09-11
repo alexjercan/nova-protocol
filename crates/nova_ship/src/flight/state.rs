@@ -200,6 +200,29 @@ pub enum AutopilotAction {
         /// The sticky insertion plan; `None` until the first engaged tick.
         plan: Option<OrbitPlan>,
     },
+    /// Hold a world-space velocity, optionally pointing the nose somewhere
+    /// while doing it. The continuous primitive every tactical controller
+    /// steers with: it says WHAT MOTION, and the flight layer decides which
+    /// engines deliver it and what the hull has to do to help.
+    ///
+    /// Never self-completes. It is a state, not an errand - it holds until
+    /// something writes a different action or removes the [`Autopilot`], which
+    /// is what lets a controller rewrite the velocity every tick without ever
+    /// restarting a maneuver.
+    ///
+    /// The facing is a REQUEST, not a constraint. A velocity error the RCS can
+    /// trim leaves the hull pointed where it was asked to point; a larger one
+    /// turns a drive cluster onto the error, because the ship cannot get the
+    /// motion without it, and the nose comes back when it is done. A caller
+    /// that wants the nose held through everything should ask for a velocity
+    /// its RCS can reach.
+    MatchVelocity {
+        /// The world-space velocity to hold, world units per second.
+        velocity: Vec3,
+        /// Where the nose should point while the velocity is held; `None`
+        /// leaves the attitude to whatever the burn needs.
+        facing: Option<Dir3>,
+    },
 }
 
 /// The ORBIT verb's sticky plan, computed once when the maneuver engages.

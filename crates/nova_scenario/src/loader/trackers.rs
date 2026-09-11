@@ -294,7 +294,12 @@ pub(super) fn track_player_autopilot_completions(
                     });
                 }
             }
-            AutopilotAction::GotoPos { .. } | AutopilotAction::Orbit { .. } => {}
+            // Neither reports a scenario completion: a waypoint leg is the AI
+            // patrol's own business, an orbit never completes, and a held
+            // velocity is a state rather than an errand.
+            AutopilotAction::GotoPos { .. }
+            | AutopilotAction::Orbit { .. }
+            | AutopilotAction::MatchVelocity { .. } => {}
         }
         commands.entity(ship).remove::<PlayerAutopilotCompleted>();
     }

@@ -373,6 +373,7 @@ fn mode_chip_label(autopilot: &Autopilot) -> String {
         AutopilotAction::Stop => "STOP",
         AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. } => "GOTO",
         AutopilotAction::Orbit { .. } => "ORBIT",
+        AutopilotAction::MatchVelocity { .. } => "MATCH",
     };
     let phase = match autopilot.phase {
         AutopilotPhase::Align => "ALIGN",
@@ -479,7 +480,9 @@ fn drive_destination_anchor(
             }
             // The orbited well is the maneuver's destination.
             AutopilotAction::Orbit { well, .. } => Some(ScreenIndicatorAnchorKind::Entity(well)),
-            AutopilotAction::Stop => None,
+            // Neither has a destination to anchor on: one is a brake, the
+            // other a velocity to hold.
+            AutopilotAction::Stop | AutopilotAction::MatchVelocity { .. } => None,
         });
     }
 }
