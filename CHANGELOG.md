@@ -25,6 +25,9 @@ does NOT get an entry - and it is the only place they are written down.
 - An enemy closes and circles at the speed its own live drive and nose can
   hold, not at two fixed caps, so it brakes once instead of pumping the
   throttle all fight.
+- An enemy flies its whole fight in YOUR frame: it matches your velocity and
+  circles on top of it, so a ship that runs is followed instead of left
+  holding a ring you have already left.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the

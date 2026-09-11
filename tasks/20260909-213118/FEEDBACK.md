@@ -328,3 +328,25 @@ sample. And both fights are still converging at 60 s - the face gap is
 drifting in by 1 to 2 m/s and the speed up toward the centripetal limit as the
 radial term hands its share to the orbit term. The settle is asymptotic by
 construction, not a step.
+
+### The fight is flown in the target's frame, 2026-09-12
+
+The envelope and the jink both handed the flight computer an ABSOLUTE
+velocity, so every speed the AI reasoned about was a speed over the void
+rather than a speed over the ship it was fighting. Against a stationary
+target that is the same number. Against a moving one it is the target's whole
+velocity out: an AI asked to circle at 90 m/s around a ship running at 100
+loses the ring at up to 190 m/s of closure while it holds exactly the
+velocity it meant to hold, and the radial term spends the fight chasing an
+error the orbit term keeps re-making.
+
+`update_combat_flight` now reads the target's `LinearVelocity` and adds it
+back after the envelope, so `ai_desired_velocity` and `ai_evade_direction`
+both return a RELATIVE velocity and the computer is handed the sum. A target
+with no rigid body is a fixed installation and reads as zero.
+
+`system_ai_combat` is unchanged by this, to the metre and to the m/s on both
+fights, because both of its targets hold station - which is exactly why the
+range could not have caught the bug. The proof is
+`the_whole_envelope_is_flown_in_the_targets_frame`: a target given 13 m/s of
+its own must be matched AND circled, and the held velocity has to be the sum.

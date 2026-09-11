@@ -117,6 +117,10 @@ pub(super) const AI_EVADE_SPEED: f32 = 20.0;
 /// whole fight alternating thrust and brake against a speed it was never
 /// going to hold.
 ///
+/// RELATIVE to the target: the caller adds the target's own motion back on
+/// before handing the velocity to the computer. A ring around a ship running
+/// at 100 m/s is held by matching that 100 m/s and circling on top of it.
+///
 /// A VELOCITY rather than a heading, because the flight computer flies it.
 /// The old heading had to carry a brake regime of its own - point opposite
 /// the velocity once the speed budget was overshot - because a heading cannot
@@ -306,6 +310,8 @@ pub(super) fn update_combat_flight(
         ),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    // The target's own motion, so the whole envelope is flown in its frame.
+    q_target_velocity: Query<&LinearVelocity>,
     // Both ends of the standoff, read off whichever hull is at each end.
     q_arm: Query<&HullRadius>,
     // What the computer needs to fly anything: an engine to burn and a live
@@ -351,6 +357,10 @@ pub(super) fn update_combat_flight(
         // the build spot of the first sections and floats in empty space once
         // they are destroyed.
         let to_target = target_anchor - live_structure_anchor(transform, com);
+        // A target with no rigid body of its own is a fixed installation.
+        let target_velocity = q_target_velocity
+            .get(enemy)
+            .map_or(Vec3::ZERO, |velocity| **velocity);
         // Evade swaps the standoff envelope for the jink weave. The nose is
         // asked for the target either way, so the guns keep bearing through
         // the weave instead of following the hull off its leg.
@@ -369,8 +379,13 @@ pub(super) fn update_combat_flight(
                 &settings,
             )
         };
+        // Everything above is a velocity RELATIVE to the target, which is
+        // the only frame a fight means anything in: a ring held around a ship
+        // running at 100 m/s is held by matching that 100 m/s and circling on
+        // top of it. Absolute, the same numbers would leave the AI trailing a
+        // moving target by its whole speed.
         let action = AutopilotAction::MatchVelocity {
-            velocity,
+            velocity: target_velocity + velocity,
             facing: Dir3::new(to_target).ok(),
         };
         match autopilot {
@@ -499,6 +514,33 @@ mod combat_flight_tests {
             velocity.normalize().dot(Vec3::NEG_Z) < -0.9,
             "two carrier-sized hulls on the bare clearance are INSIDE the envelope and must \
              extend away from each other, got {velocity:?}"
+        );
+    }
+
+    #[test]
+    fn the_whole_envelope_is_flown_in_the_targets_frame() {
+        // A fight is a geometry between two ships, so every speed in it is
+        // relative. Parked on the standoff with the target running: the ship
+        // has to carry the target's whole velocity plus the circle, or it
+        // holds a ring the target has already left.
+        let (mut world, ship, target) =
+            combat_world(AIBehaviorState::Engage, AI_STANDOFF_CLEARANCE);
+        let running = Vec3::new(7.0, -3.0, 11.0);
+        world.entity_mut(target).insert(LinearVelocity(running));
+        world.run_system_once(update_combat_flight).unwrap();
+
+        let Some(AutopilotAction::MatchVelocity { velocity, .. }) = engaged(&world, ship) else {
+            panic!("engaging must hand the computer a velocity to hold");
+        };
+        let envelope = ai_desired_velocity(
+            Vec3::new(0.0, 0.0, -AI_STANDOFF_CLEARANCE),
+            AI_STANDOFF_CLEARANCE,
+            FLYABLE,
+            &FlightSettings::default(),
+        );
+        assert!(
+            (velocity - (running + envelope)).length() < 1e-3,
+            "the held velocity is the target's plus the envelope's, got {velocity:?}"
         );
     }
 
