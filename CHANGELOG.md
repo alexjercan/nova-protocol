@@ -41,6 +41,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A pierce round is bounded by its power alone; the six-layer ceiling is gone,
   so cheap plating no longer stops a rake it did not pay for. A layer costing
   no power ends the round.
+- A torpedo also has to clear the hull that fired it plus its own blast before
+  it arms: about 324 m off a boat, 494 m off a carrier. Inside that it is inert,
+  so a torpedo is a standoff weapon.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

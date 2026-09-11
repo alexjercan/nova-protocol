@@ -20,7 +20,10 @@
 //!   has flown - the only way to see the terminal weave, a corkscrew being
 //!   invisible in any single frame.
 //! - Lifecycle logging: `range: torpedo fired`, `range: torpedo ... armed`, and
-//!   `range: torpedo detonated` trace one shot from launch to blast.
+//!   `range: torpedo detonated` trace one shot from launch to blast. The fired
+//!   line also reports the SAFETY DISTANCE the shot launched under - the hull
+//!   it left plus its own blast - which is what sets the shortest shot the
+//!   ordnance can take, and why the near gate stands where it does.
 //! - `guidance: lead angle N.N deg` - how far ahead of the line of sight the
 //!   torpedo is steering, which is what separates a lead solution from a stern
 //!   chase - plus `guidance: closest approach N.N` and `guidance: torpedo speed
@@ -122,6 +125,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<RangeOutcome>();
+        app.init_resource::<ArmingSafety>();
         app.init_resource::<HeldInput>();
         app.init_resource::<RangeGizmos>();
         app.init_resource::<TransientsAtSwitch>();
@@ -164,6 +168,7 @@ fn main() -> bevy::app::AppExit {
                 outcome.armed |= q_armed.iter().any(|arming| arming.is_armed());
             },
         );
+        app.add_systems(Update, watch_arming_safety.after(SpaceshipSectionSystems));
         // Probe wiring (task 20260719-210443; each plugin is inert without
         // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
@@ -186,6 +191,74 @@ struct RangeOutcome {
     detonated: bool,
     gate_damaged: bool,
     contact_duds: usize,
+}
+
+/// What the launch safety measured this round: the arm of the hull the salvo
+/// left, the clearance snapshotted into those torpedoes, and the TIGHTEST
+/// separation any of them actually had from that hull on the tick it armed.
+///
+/// The authored fuze is 50 m from the muzzle and every hull here is wider than
+/// that, so without the structural rule a bay amidships arms with its own ship
+/// still alongside.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct ArmingSafety {
+    hull_radius: f32,
+    clearance: f32,
+    tightest_arming_separation: f32,
+    armings: usize,
+}
+
+#[cfg(feature = "debug")]
+impl Default for ArmingSafety {
+    fn default() -> Self {
+        Self {
+            hull_radius: 0.0,
+            clearance: 0.0,
+            tightest_arming_separation: f32::INFINITY,
+            armings: 0,
+        }
+    }
+}
+
+/// Sample how far each torpedo was from its launcher on the tick it armed.
+///
+/// Only the TRANSITION is sampled. Arming latches, so a later frame with the
+/// hull manoeuvring back onto its own torpedo says nothing about the rule,
+/// which is a claim about the instant the warhead went live.
+#[cfg(feature = "debug")]
+fn watch_arming_safety(
+    q_torpedo: Query<
+        (Entity, &Transform, &ProjectileOwner, &TorpedoArming),
+        With<TorpedoProjectileMarker>,
+    >,
+    q_launcher: Query<(
+        &Transform,
+        Option<&ComputedCenterOfMass>,
+        Option<&HullRadius>,
+    )>,
+    mut armed_before: Local<bevy::ecs::entity::EntityHashMap<bool>>,
+    mut safety: ResMut<ArmingSafety>,
+) {
+    for (torpedo, transform, owner, arming) in &q_torpedo {
+        let was_armed = armed_before
+            .insert(torpedo, arming.is_armed())
+            .unwrap_or(false);
+        if was_armed || !arming.is_armed() {
+            continue;
+        }
+        let Ok((launcher_transform, center, hull_radius)) = q_launcher.get(**owner) else {
+            continue;
+        };
+        let anchor = live_structure_anchor(launcher_transform, center);
+        safety.hull_radius = hull_radius.map_or(0.0, |radius| **radius);
+        safety.clearance = arming.launcher_clearance();
+        safety.tightest_arming_separation = safety
+            .tightest_arming_separation
+            .min(anchor.distance(transform.translation));
+        safety.armings += 1;
+    }
+    armed_before.retain(|torpedo, _| q_torpedo.contains(*torpedo));
 }
 
 /// Every transient alive at the instant the range switch was ordered - torpedoes
@@ -368,13 +441,20 @@ fn player_ship_object(sections: &GameSections) -> ScenarioObjectConfig {
 fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     // Gates ahead of the ship (forward is -Z). A torpedo blast visibly carves
     // them, so the range gets arm -> home -> hit feedback without a kill gate.
+    //
+    // NOTHING sits inside the warhead's own safety distance. A Serpent carries
+    // a 300 m blast and will not arm until it is that far clear of the hull
+    // that fired it, which is about 324 m off this ship - so the old 300 m
+    // near gate became a gate this ordnance cannot engage, and every torpedo
+    // homing on the nearest gate went to it and died as a dud. The NEAR gate
+    // is now the shortest shot a Serpent can actually take.
     let objects = vec![
         player_ship_object(sections),
         gate(
             game_assets,
             "gate_near",
             "Near Gate",
-            Meters3::new(0.0, 0.0, -300.0),
+            Meters3::new(0.0, 0.0, -450.0),
             Meters(20.0),
             60.0,
         ),
@@ -784,8 +864,19 @@ fn draw_guidance_gizmos(
     }
 }
 
-fn log_torpedo_fired(add: On<Add, TorpedoProjectileMarker>) {
-    info!("range: torpedo fired ({:?})", add.entity);
+fn log_torpedo_fired(add: On<Add, TorpedoProjectileMarker>, q_arming: Query<&TorpedoArming>) {
+    // The clearance rides on the line because it is what decides whether a
+    // short shot is a shot at all: a warhead may not arm inside the hull it
+    // left plus its own blast, so a gate nearer than this figure is a gate
+    // this ordnance cannot engage.
+    let clearance = q_arming
+        .get(add.entity)
+        .map(|arming| Meters::from_engine(arming.launcher_clearance()).get())
+        .unwrap_or(0.0);
+    info!(
+        "range: torpedo fired ({:?}), arms no nearer than {clearance:.0} m to its launcher",
+        add.entity
+    );
 }
 
 /// Log the moment a torpedo arms (once), so the arming delay is visible in logs.
@@ -1367,6 +1458,11 @@ fn fire_round(script: Script, round: &'static str) -> Script {
         .step("assert the launch chain")
         .on_enter(move |world: &mut World| assert_launch_chain(world, round))
         .add()
+        .step("assert the warhead cleared its own hull")
+        .on_enter(move |world: &mut World| {
+            assert_the_warhead_clears_the_hull_that_fired_it(world, round);
+        })
+        .add()
 }
 
 /// Load the crossing range, and clear the per-round state the fresh scene has to
@@ -1383,6 +1479,7 @@ fn load_crossing_range(world: &mut World) {
         crossing_range(game_assets, sections)
     };
     *world.resource_mut::<RangeOutcome>() = RangeOutcome::default();
+    *world.resource_mut::<ArmingSafety>() = ArmingSafety::default();
     world.resource_mut::<BestApproach>().0 = f32::INFINITY;
     *world.resource_mut::<BestLeadDeg>() = BestLeadDeg::default();
     // RELEASE the trigger, do not merely stop re-pressing it. `ButtonInput`
@@ -1657,6 +1754,57 @@ fn assert_launch_chain(world: &mut World, round: &str) {
             crossing,
         );
     }
+}
+
+/// Invariant 9: a warhead arms clear of the hull that fired it.
+///
+/// The authored fuze is the CREATOR's number and says nothing about the ship
+/// carrying the bay. On this hull it is satisfied while the torpedo is still
+/// running down its own launcher, so the range grades the arming instant
+/// against the launching hull's own arm plus the warhead's blast instead.
+#[cfg(feature = "debug")]
+fn assert_the_warhead_clears_the_hull_that_fired_it(world: &mut World, round: &str) {
+    let safety = world.resource::<ArmingSafety>();
+    assert!(
+        safety.armings > 0,
+        "range ({round}): no torpedo armed, so the launch safety was never measured"
+    );
+    assert!(
+        safety.clearance > safety.hull_radius,
+        "range ({round}): the clearance {:.1} m does not even clear the launching \
+         hull's own arm of {:.1} m - the snapshot lost the blast radius",
+        Meters::from_engine(safety.clearance).get(),
+        Meters::from_engine(safety.hull_radius).get(),
+    );
+    assert!(
+        safety.tightest_arming_separation >= safety.clearance,
+        "range ({round}): a torpedo armed {:.1} m from the hull that fired it, \
+         inside the {:.1} m it was launched under - the carrier is standing in \
+         its own blast",
+        Meters::from_engine(safety.tightest_arming_separation).get(),
+        Meters::from_engine(safety.clearance).get(),
+    );
+    let hull_radius = Meters::from_engine(safety.hull_radius).get();
+    let clearance = Meters::from_engine(safety.clearance).get();
+    let tightest = Meters::from_engine(safety.tightest_arming_separation).get();
+    info!(
+        "range: {round} - {} arming(s), hull arm {hull_radius:.1} m, clearance \
+         {clearance:.1} m, tightest arming separation {tightest:.1} m",
+        safety.armings
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: a warhead arms clear of the hull that fired it",
+        serde_json::json!({
+            "t": elapsed,
+            "round": round,
+            "hull_radius_m": hull_radius,
+            "clearance_m": clearance,
+            "tightest_arming_separation_m": tightest,
+            "armings": safety.armings,
+        }),
+    );
 }
 
 /// Invariant 5: the guidance LED the crossing target rather than chasing it.

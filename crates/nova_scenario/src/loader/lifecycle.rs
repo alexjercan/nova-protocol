@@ -1078,7 +1078,7 @@ mod tests {
             TorpedoProjectileMarker,
             Transform::from_translation(DETONATION),
             TorpedoTargetPosition(DETONATION),
-            TorpedoArming::new(0.0, 0.0, DETONATION),
+            TorpedoArming::new(0.0, 0.0, DETONATION, 0.0),
             TorpedoBlast {
                 radius: 30.0,
                 damage: 500.0,

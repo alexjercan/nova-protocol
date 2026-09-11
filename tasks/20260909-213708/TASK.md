@@ -164,7 +164,7 @@ gameplay feedback ledger (`20260909-213118`).
 - [x] `nova_gameplay/src/damage.rs:223` `MAX_PIERCE_LAYERS` 6, "past any
       shipped craft's depth": the carrier is 12 u wide and 35 u long, so
       the backstop is the binding limit. Bound by the power budget alone.
-- [ ] `nova_ship/src/sections/torpedo_section/mod.rs:261-262`
+- [x] `nova_ship/src/sections/torpedo_section/mod.rs:261-262`
       `arm_distance` 50 m from the MUZZLE, or-ed with `arm_time` 0.5 s: an
       amidships bay arms with 180 m of its own hull alongside and the
       carrier eats its own warhead. Measure the safety distance against

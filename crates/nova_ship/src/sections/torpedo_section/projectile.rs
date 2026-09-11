@@ -57,14 +57,28 @@ pub(super) fn update_target_position(
 }
 
 /// Tick each torpedo's arming state so it can detonate only after it has cleared
-/// the muzzle (see [`TorpedoArming`]).
+/// both the muzzle and the launching hull (see [`TorpedoArming`]).
+///
+/// The launcher is read LIVE off [`ProjectileOwner`] rather than stored in the
+/// arming state, because the hull it has to clear keeps moving after launch -
+/// a carrier turning into its own salvo closes the separation its torpedo
+/// already opened. A launcher that is gone leaves nothing to protect and
+/// resolves to `None`.
 pub(super) fn update_torpedo_arming(
     time: Res<Time>,
-    mut q_torpedo: Query<(&Transform, &mut TorpedoArming), With<TorpedoProjectileMarker>>,
+    mut q_torpedo: Query<
+        (&Transform, &ProjectileOwner, &mut TorpedoArming),
+        With<TorpedoProjectileMarker>,
+    >,
+    q_launcher: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
     let dt = time.delta_secs();
-    for (torpedo_transform, mut arming) in &mut q_torpedo {
-        arming.tick(dt, torpedo_transform.translation);
+    for (torpedo_transform, owner, mut arming) in &mut q_torpedo {
+        let launcher = q_launcher
+            .get(**owner)
+            .ok()
+            .map(|(transform, com)| live_structure_anchor(transform, com));
+        arming.tick(dt, torpedo_transform.translation, launcher);
     }
 }
 
@@ -656,7 +670,7 @@ mod tests {
                 TorpedoProjectileMarker,
                 Transform::from_translation(Vec3::ZERO),
                 TorpedoTargetPosition(Vec3::ZERO), // on target: distance 0 < blast radius * 0.5
-                TorpedoArming::new(0.5, 5.0, Vec3::ZERO), // not armed
+                TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0), // not armed
                 TorpedoBlast {
                     radius: 30.0,
                     damage: 100.0,
@@ -754,8 +768,8 @@ mod tests {
         app.add_systems(Update, torpedo_detonate_system);
 
         let part_of = app.world_mut().spawn_empty().id();
-        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
-        arming.tick(1.0, Vec3::ZERO);
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None);
 
         let torpedo = app
             .world_mut()
@@ -793,8 +807,8 @@ mod tests {
         app.add_systems(Update, torpedo_detonate_system);
 
         let part_of = app.world_mut().spawn_empty().id();
-        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
-        arming.tick(1.0, Vec3::ZERO); // arm via time
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None); // arm via time
 
         let torpedo = app
             .world_mut()
@@ -836,8 +850,8 @@ mod tests {
 
         let owner = app.world_mut().spawn_empty().id();
         let part_of = app.world_mut().spawn_empty().id();
-        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
-        arming.tick(1.0, Vec3::ZERO); // arm via time
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None); // arm via time
 
         app.world_mut().spawn((
             TorpedoProjectileMarker,
@@ -885,8 +899,8 @@ mod tests {
         app.add_systems(Update, torpedo_detonate_system);
 
         let part_of = app.world_mut().spawn_empty().id();
-        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
-        arming.tick(1.0, Vec3::ZERO);
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None);
 
         app.world_mut().spawn((
             TorpedoProjectileMarker,
@@ -947,8 +961,8 @@ mod tests {
         );
 
         let part_of = app.world_mut().spawn_empty().id();
-        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
-        arming.tick(1.0, Vec3::ZERO);
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None);
         let torpedo = app
             .world_mut()
             .spawn((

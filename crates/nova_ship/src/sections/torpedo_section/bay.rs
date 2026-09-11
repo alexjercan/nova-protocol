@@ -173,6 +173,7 @@ pub(super) fn shoot_spawn_projectile(
             &AngularVelocity,
             &ComputedCenterOfMass,
             Option<&Allegiance>,
+            Option<&HullRadius>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -211,7 +212,7 @@ pub(super) fn shoot_spawn_projectile(
             continue;
         }
 
-        let Ok((position, rotation, lin_vel, ang_vel, center, allegiance)) =
+        let Ok((position, rotation, lin_vel, ang_vel, center, allegiance, hull_radius)) =
             q_spaceship.get(*spaceship)
         else {
             error!(
@@ -389,6 +390,12 @@ pub(super) fn shoot_spawn_projectile(
                     config.arm_time,
                     config.arm_distance.to_engine(),
                     projectile_transform.translation,
+                    // SNAPSHOT, taken once here: the hull as it stands at
+                    // launch plus the warhead's own blast. A ship shedding
+                    // sections mid-flight shrinks its live `HullRadius`, and
+                    // reading that live would let a hull losing its bow pull
+                    // its own salvo's safety distance in behind it.
+                    hull_radius.map_or(0.0, |radius| **radius) + config.blast_radius.to_engine(),
                 ),
                 // Every launch is a COLD launch. The torpedo leaves on the
                 // ejection charge alone and `ignite_cold_torpedoes` lights it;
@@ -1231,8 +1238,8 @@ mod tests {
         app.init_resource::<Time>();
         app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         app.add_systems(Update, torpedo_detonate_system);
-        let mut arming = TorpedoArming::new(0.0, 0.0, Vec3::ZERO);
-        arming.tick(1.0, Vec3::ZERO);
+        let mut arming = TorpedoArming::new(0.0, 0.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None);
         let torpedo = app
             .world_mut()
             .spawn((

@@ -55,6 +55,7 @@ arm or torque; a lifecycle item should read as unchanged.
 | derived signatures | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | angular hit radii | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | pierce power alone | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
+| launcher-safe arming | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 
 Lock range enters the table with the signature item: before it, every ship root
 was lockable out to the observer's whole cap, so the column was the cap and not
@@ -76,3 +77,30 @@ every AI lance used one fixed 0.92 deg cone.
 
 A commanded point keeps the fixed 0.92 deg: a mark the player invented off the
 camera ray has no size to measure.
+
+### Launch safety, 2026-09-11
+
+The arming item changes no hull input either. What it moves is how far a
+torpedo has to be from the ship that fired it before the warhead goes live.
+The authored fuze is 50 m from the muzzle, which is a number about the
+ORDNANCE; the new condition is `launch HullRadius + blast radius`, which is a
+number about the HULL, and both must hold.
+
+| launching hull | arm | blast radius | arms no nearer than, before | after |
+| --- | --- | --- | --- | --- |
+| torpedo range boat | 24.4 m | 300 m | 50 m | 324 m |
+| block_skiff | 47.8 m | 300 m | 50 m | 348 m |
+| block_carrier | 194.2 m | 300 m | 50 m | 494 m |
+
+The boat row is read live off `system_torpedo_launch` (`range: torpedo fired
+... arms no nearer than 324 m`, and the gate round measured a tightest arming
+separation of 325.4 m against a 324.4 m clearance). The two block rows apply
+the same formula to the arms measured by `system_hull_scaling` above.
+
+One range moved with it. `system_torpedo_launch` staged its near gate at
+300 m, which is inside the safety distance, and every torpedo homes on the
+nearest gate - so the whole gate round went to a target the ordnance cannot
+engage and died there as duds. The near gate now stands at 450 m, which is the
+shortest shot a Serpent can actually take. That is the balance consequence of
+the item, stated where it is visible: a torpedo bay has a minimum range, and
+it is roughly its own blast radius.

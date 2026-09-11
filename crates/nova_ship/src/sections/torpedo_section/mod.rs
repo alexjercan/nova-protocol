@@ -806,25 +806,42 @@ pub struct TorpedoIgnited {
 }
 
 /// Arming state of a torpedo projectile. A torpedo cannot detonate until it is
-/// armed; it arms once it has either lived for `min_time` seconds or traveled
-/// `min_distance` from its `origin` (the muzzle). This stops a torpedo fired at
-/// a nearby target from self-detonating on spawn. Once armed it stays armed.
+/// armed. Once armed it stays armed.
+///
+/// TWO conditions, and BOTH have to hold.
+///
+/// The authored one is the creator's: the torpedo has either lived for
+/// `min_time` seconds or travelled `min_distance` from its `origin` (the
+/// muzzle). It says how long the warhead takes to become dangerous, and a
+/// creator tunes it per ordnance.
+///
+/// The structural one is the launching HULL's, and no authored number can opt
+/// out of it: the torpedo has to be `launcher_clearance` from the launcher's
+/// centre of mass while that hull is still alive. The authored default is 50 m
+/// from the muzzle, which is inside a 194 m carrier - a bay amidships armed
+/// with most of its own ship alongside, and the carrier ate its own warhead.
+/// The clearance is SNAPSHOTTED at launch from the hull's arm plus the
+/// warhead's own blast radius, so a ship losing sections mid-flight cannot
+/// shrink the safety distance its own ordnance was launched under.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoArming {
     min_time: f32,
     min_distance: f32,
     origin: Vec3,
+    launcher_clearance: f32,
     elapsed: f32,
     armed: bool,
 }
 
 impl TorpedoArming {
-    /// Create arming state for a torpedo spawned at `origin`.
-    pub fn new(min_time: f32, min_distance: f32, origin: Vec3) -> Self {
+    /// Create arming state for a torpedo spawned at `origin`, which may not
+    /// arm inside `launcher_clearance` of its launcher's live centre of mass.
+    pub fn new(min_time: f32, min_distance: f32, origin: Vec3, launcher_clearance: f32) -> Self {
         Self {
             min_time,
             min_distance,
             origin,
+            launcher_clearance,
             elapsed: 0.0,
             armed: false,
         }
@@ -835,18 +852,28 @@ impl TorpedoArming {
         self.armed
     }
 
+    /// How far this torpedo must stay from its launcher's centre of mass to
+    /// arm, world units. Snapshotted at launch.
+    pub fn launcher_clearance(&self) -> f32 {
+        self.launcher_clearance
+    }
+
     /// Advance the arming state by `dt` seconds given the torpedo's current
-    /// position, latching `armed` once the time or distance threshold is met.
+    /// position and its launcher's live centre of mass (`None` once the
+    /// launcher is gone), latching `armed` once both conditions hold.
     /// Returns the (possibly updated) armed state.
-    fn tick(&mut self, dt: f32, position: Vec3) -> bool {
+    fn tick(&mut self, dt: f32, position: Vec3, launcher: Option<Vec3>) -> bool {
         if self.armed {
             return true;
         }
         self.elapsed += dt;
         let traveled = position.distance(self.origin);
-        if self.elapsed >= self.min_time || traveled >= self.min_distance {
-            self.armed = true;
-        }
+        let authored = self.elapsed >= self.min_time || traveled >= self.min_distance;
+        // A dead launcher is nothing left to protect, so the structural
+        // condition is met by its absence rather than held open forever.
+        let clear =
+            launcher.is_none_or(|launcher| position.distance(launcher) >= self.launcher_clearance);
+        self.armed = authored && clear;
         self.armed
     }
 }
@@ -1005,7 +1032,7 @@ mod tests {
     fn torpedo_is_unarmed_on_spawn() {
         // A freshly spawned torpedo (no time elapsed, no distance travelled) must
         // not be armed, so it cannot detonate on the muzzle.
-        let arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        let arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
         assert!(!arming.is_armed());
     }
 
@@ -1013,9 +1040,9 @@ mod tests {
     fn torpedo_arms_after_min_time_even_without_moving() {
         // Point-blank shot: the target sits on the muzzle so the torpedo never
         // travels far, but the time threshold must still arm it eventually.
-        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
-        assert!(!arming.tick(0.4, Vec3::ZERO)); // below min_time, still at origin
-        assert!(arming.tick(0.2, Vec3::ZERO)); // 0.6s total >= min_time
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        assert!(!arming.tick(0.4, Vec3::ZERO, None)); // below min_time, still at origin
+        assert!(arming.tick(0.2, Vec3::ZERO, None)); // 0.6s total >= min_time
         assert!(arming.is_armed());
     }
 
@@ -1023,18 +1050,60 @@ mod tests {
     fn torpedo_arms_after_min_distance_before_min_time() {
         // A fast torpedo clears the muzzle before the time threshold; distance
         // arms it first.
-        let mut arming = TorpedoArming::new(10.0, 5.0, Vec3::ZERO);
-        assert!(!arming.tick(0.1, Vec3::new(4.0, 0.0, 0.0))); // under both
-        assert!(arming.tick(0.1, Vec3::new(6.0, 0.0, 0.0))); // travelled >= 5.0
+        let mut arming = TorpedoArming::new(10.0, 5.0, Vec3::ZERO, 0.0);
+        assert!(!arming.tick(0.1, Vec3::new(4.0, 0.0, 0.0), None)); // under both
+        assert!(arming.tick(0.1, Vec3::new(6.0, 0.0, 0.0), None)); // travelled >= 5.0
         assert!(arming.is_armed());
     }
 
     #[test]
     fn torpedo_stays_armed_once_armed() {
         // Arming latches: coming back inside the arm distance does not disarm it.
-        let mut arming = TorpedoArming::new(10.0, 5.0, Vec3::ZERO);
-        assert!(arming.tick(0.0, Vec3::new(6.0, 0.0, 0.0))); // armed via distance
-        assert!(arming.tick(0.0, Vec3::ZERO)); // back at origin, still armed
+        let mut arming = TorpedoArming::new(10.0, 5.0, Vec3::ZERO, 0.0);
+        assert!(arming.tick(0.0, Vec3::new(6.0, 0.0, 0.0), None)); // armed via distance
+        assert!(arming.tick(0.0, Vec3::ZERO, None)); // back at origin, still armed
+        assert!(arming.is_armed());
+    }
+
+    #[test]
+    fn a_ship_length_of_its_own_hull_alongside_holds_the_warhead_unarmed() {
+        // A carrier bay amidships: the authored 50 m is long satisfied, and the
+        // torpedo is still running down 194 m of its own ship. It must stay
+        // cold until it is past the hull plus its own blast.
+        let carrier_clearance = 19.42 + 5.0;
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, carrier_clearance);
+
+        // Authored condition met twice over - 1 s lived, 10 wu travelled - but
+        // the hull it left is still alongside.
+        assert!(!arming.tick(1.0, Vec3::new(10.0, 0.0, 0.0), Some(Vec3::ZERO)));
+        assert!(!arming.is_armed());
+
+        // Past the arm of the hull, but not yet past its own blast radius: a
+        // warhead armed here still splashes the ship that fired it.
+        assert!(!arming.tick(0.1, Vec3::new(20.0, 0.0, 0.0), Some(Vec3::ZERO)));
+
+        assert!(arming.tick(0.1, Vec3::new(25.0, 0.0, 0.0), Some(Vec3::ZERO)));
+        assert!(arming.is_armed());
+    }
+
+    #[test]
+    fn clearing_the_hull_does_not_arm_a_torpedo_the_creator_says_is_still_cold() {
+        // Both conditions, not either. A skiff's arm is small enough that a
+        // torpedo is outside it on the first tick, which must not shortcut the
+        // authored fuze delay the ordnance was written with.
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 2.0);
+        assert!(!arming.tick(0.1, Vec3::new(3.0, 0.0, 0.0), Some(Vec3::ZERO)));
+        assert!(!arming.is_armed());
+    }
+
+    #[test]
+    fn a_launcher_that_died_leaves_nothing_for_its_salvo_to_clear() {
+        // The hull the safety distance protects is gone. Holding its torpedoes
+        // cold forever would make killing a carrier disarm the salvo already in
+        // flight, so its absence satisfies the clearance.
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 19.42);
+        assert!(!arming.tick(0.4, Vec3::new(1.0, 0.0, 0.0), Some(Vec3::ZERO)));
+        assert!(arming.tick(0.2, Vec3::new(1.0, 0.0, 0.0), None));
         assert!(arming.is_armed());
     }
 }
