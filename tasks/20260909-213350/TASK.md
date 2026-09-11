@@ -1,6 +1,6 @@
 # HUD, camera and map sizes derive from the hull and the target
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 84
 - TAGS: v0.14.0, bug, hud, camera, review
 
