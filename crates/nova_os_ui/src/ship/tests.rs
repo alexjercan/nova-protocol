@@ -965,9 +965,8 @@ fn blip_is_status_dot_with_labelled_marker() {
         "a critical section's dot reads amber"
     );
 
-    // Some descendant label carries the kind glyph + code, and no ammo pips
-    // survive anywhere on the blip.
-    let label = format!("{} {}", kind_glyph(SectionClass::Turret), "PDC-1");
+    // The dot carries the class glyph and the pill carries the code, and no
+    // ammo pips survive anywhere on the blip.
     let texts: Vec<String> = app
         .world_mut()
         .query::<&Text>()
@@ -975,8 +974,12 @@ fn blip_is_status_dot_with_labelled_marker() {
         .map(|text| text.0.clone())
         .collect();
     assert!(
-        texts.contains(&label),
-        "the blip label reads '{label}', got {texts:?}",
+        texts.contains(&kind_glyph(SectionClass::Turret).to_string()),
+        "the dot carries the turret glyph, got {texts:?}",
+    );
+    assert!(
+        texts.contains(&"PDC-1".to_string()),
+        "the pill carries the section code, got {texts:?}",
     );
     assert!(
         !texts.iter().any(|t| t.contains('●') || t.contains('○')),
@@ -1315,14 +1318,26 @@ fn ship_section_label_and_dot_are_one_unbroken_target() {
     }
     settle(&mut rig.app);
 
+    // The code pill exists only for the SELECTION, so select the section the
+    // way a click would and let the production system reveal it.
+    rig.app.world_mut().resource_mut::<ShipRuntime>().selected = Some(section);
+    rig.app
+        .world_mut()
+        .run_system_once(label_the_selected_section)
+        .expect("labelling the selection");
+    settle(&mut rig.app);
+
     let label = {
-        let children = rig
-            .app
-            .world()
+        let world = rig.app.world();
+        let children = world
             .get::<Children>(dot_entity)
             .expect("the blip has a label child");
-        assert_eq!(children.len(), 1, "the dot's only child is its label pill");
-        children[0]
+        let labels: Vec<Entity> = children
+            .iter()
+            .filter(|child| world.get::<ShipBlipLabel>(*child).is_some())
+            .collect();
+        assert_eq!(labels.len(), 1, "the dot carries ONE code pill");
+        labels[0]
     };
     let dot = rig_rect(&rig, dot_entity);
     let pill = rig_rect(&rig, label);
@@ -1360,5 +1375,85 @@ fn ship_section_label_and_dot_are_one_unbroken_target() {
     assert!(
         probed >= 12,
         "the sweep only probed {probed} points - it is not crossing the seam"
+    );
+}
+
+/// The carrier's inspector used to draw 2081 code pills at once. Every
+/// section keeps its clickable dot and its class glyph; only the selection
+/// spells out its code.
+#[test]
+fn only_the_selected_section_spells_out_its_code() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Font>();
+    app.init_resource::<ShipRuntime>();
+
+    let viewport = app.world_mut().spawn_empty().id();
+    let mut blips = Vec::new();
+    for (index, kind) in [
+        SectionClass::Hull,
+        SectionClass::Thruster,
+        SectionClass::Turret,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut view = view_fixture(kind, None, None);
+        view.entity = app.world_mut().spawn_empty().id();
+        view.code = format!("{}-{index}", code_prefix(kind));
+        let spawned = view.clone();
+        let blip = app
+            .world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                spawn_ship_blip(&mut commands, viewport, &spawned, Handle::default())
+            })
+            .unwrap();
+        blips.push((view.entity, blip, kind));
+    }
+
+    let labelled = |app: &mut App| -> usize {
+        let world = app.world_mut();
+        world
+            .query_filtered::<&Visibility, With<ShipBlipLabel>>()
+            .iter(world)
+            .filter(|visibility| **visibility != Visibility::Hidden)
+            .count()
+    };
+
+    // Nothing selected: every pill is down, every glyph is still up.
+    app.world_mut()
+        .run_system_once(label_the_selected_section)
+        .unwrap();
+    assert_eq!(
+        labelled(&mut app),
+        0,
+        "an unselected schematic shows no codes"
+    );
+    let glyphs = app
+        .world_mut()
+        .query_filtered::<(), With<ShipBlipGlyph>>()
+        .iter(app.world())
+        .count();
+    assert_eq!(glyphs, blips.len(), "every section keeps its class glyph");
+
+    // Selecting one raises exactly its pill.
+    let (section, blip, _) = blips[1];
+    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(section);
+    app.world_mut()
+        .run_system_once(label_the_selected_section)
+        .unwrap();
+    assert_eq!(labelled(&mut app), 1, "only the selection is spelled out");
+    let children: Vec<Entity> = app
+        .world()
+        .get::<Children>(blip)
+        .expect("the blip has children")
+        .iter()
+        .collect();
+    assert!(
+        children.iter().any(|child| {
+            app.world().get::<ShipBlipLabel>(*child).is_some()
+                && app.world().get::<Visibility>(*child) != Some(&Visibility::Hidden)
+        }),
+        "the raised pill belongs to the selected section"
     );
 }

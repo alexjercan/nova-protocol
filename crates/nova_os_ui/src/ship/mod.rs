@@ -140,6 +140,7 @@ impl Plugin for NovaOsShipPlugin {
                 drive_ship_camera,
                 update_ship_blocks,
                 project_ship_blips,
+                label_the_selected_section,
                 update_ship_panel,
             )
                 .chain()
