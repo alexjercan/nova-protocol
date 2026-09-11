@@ -87,10 +87,19 @@ pub struct ChaseCamera {
 }
 
 impl Default for ChaseCamera {
+    /// The UNFRAMED rig: glued to the anchor, looking the way the anchor
+    /// faces, no smoothing. Deliberately not a chase composition - the one it
+    /// used to carry was a copy of the player camera's Normal rig, and a copy
+    /// sized for a small craft is a copy that parks inside a big hull for the
+    /// frame a respawn wears it.
+    ///
+    /// A driver owns every field. The player camera's is stamped from the live
+    /// hull envelope the moment its controller is inserted, so this is what an
+    /// undriven rig looks like, not a framing anything ships with.
     fn default() -> Self {
         Self {
-            offset: Vec3::new(0.0, 5.0, -20.0),
-            focus_offset: Vec3::new(0.0, 0.0, 20.0),
+            offset: Vec3::ZERO,
+            focus_offset: Vec3::new(0.0, 0.0, 1.0),
             smoothing: 0.0,
         }
     }
@@ -158,27 +167,24 @@ impl Plugin for ChaseCameraPlugin {
 }
 
 /// Initializes the associated input and state for any newly-added `ChaseCamera`.
-fn initialize_chase_camera(
-    insert: On<Insert, ChaseCamera>,
-    mut commands: Commands,
-    q_state: Query<Has<ChaseCameraState>, With<ChaseCamera>>,
-) {
+///
+/// INITIALIZE, never reset: a driver re-stamping the rig on a live camera (the
+/// player controller does exactly that when it is re-inserted) must not blank
+/// the anchor it is already following, which would snap the camera to the world
+/// origin for a frame. `insert_if_new` resolves against the world at flush
+/// time, so a driver that seeds the anchor in the same flush keeps it whatever
+/// order the observers ran in. A genuine re-add still initializes, because
+/// [`destroy_chase_camera`] removes both on removal.
+fn initialize_chase_camera(insert: On<Insert, ChaseCamera>, mut commands: Commands) {
     let entity = insert.entity;
     trace!("initialize_chase_camera: entity {:?}", entity);
 
-    let Ok(has_state) = q_state.get(entity) else {
-        error!(
-            "initialize_chase_camera: entity {:?} not found in q_state",
-            entity
-        );
-        return;
-    };
-
-    commands.entity(entity).insert(ChaseCameraInput::default());
-
-    if !has_state {
-        commands.entity(entity).insert(ChaseCameraState::default());
-    }
+    // `try_*`: the insert may be part of a bundle on an entity a later command
+    // in the same flush despawns.
+    commands
+        .entity(entity)
+        .try_insert_if_new(ChaseCameraInput::default())
+        .try_insert_if_new(ChaseCameraState::default());
 }
 
 /// Removes related internal components when the chase camera is removed.

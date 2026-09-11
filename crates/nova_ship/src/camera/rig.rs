@@ -7,7 +7,11 @@ use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
-use super::{chase::ChaseCamera, handback::CameraHandbackBlend};
+use super::{
+    chase::ChaseCamera, framing::spaceship_camera_rig, handback::CameraHandbackBlend,
+    mode::SpaceshipCameraControlMode,
+};
+use crate::prelude::HullEnvelopeRadius;
 
 /// Marker component to identify the camera controller for the player's
 /// spaceship.
@@ -76,10 +80,20 @@ pub struct SpaceshipCameraTurretInputMarker;
 #[derive(Component, Debug, Clone)]
 pub struct SpaceshipRotationInputActiveMarker;
 
+/// Stamps the controller's rig from the LIVE player hull, not from a default.
+///
+/// A respawn inserts this controller, and the frame it is inserted is a frame
+/// the camera renders: a rig sized for a small craft opens that frame from
+/// inside a big hull. The player ship may not have published its envelope yet
+/// (nothing has weighed a hull that is still assembling), and an unmeasured
+/// hull takes the authored composition - the same rig the per-frame system
+/// corrects on its first pass.
 pub(super) fn insert_camera_controller(
     add: On<Add, SpaceshipCameraController>,
     mut commands: Commands,
     q_camera: Query<Entity, With<SpaceshipCameraController>>,
+    mode: Res<SpaceshipCameraControlMode>,
+    q_player: Query<&HullEnvelopeRadius, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     let entity = add.entity;
     trace!("insert_camera_controller: entity {:?}", entity);
@@ -92,9 +106,11 @@ pub(super) fn insert_camera_controller(
         return;
     };
 
+    let envelope = q_player.iter().next().map_or(0.0, |envelope| **envelope);
+
     commands
         .entity(camera)
-        .insert(ChaseCamera::default())
+        .insert(spaceship_camera_rig(&mode, envelope))
         // A fresh controller starts blend-free: a stale handback blend
         // surviving a death/respawn path that skipped the teardown would
         // play a wrong 0.45s swing on the first frame of the new life.

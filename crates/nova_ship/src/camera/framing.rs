@@ -8,8 +8,9 @@
 //! unit (10 m) and every speed is a world unit per second (10 m/s). Nothing
 //! here is authored.
 
-use avian3d::prelude::{ComputedCenterOfMass, LinearVelocity};
+use avian3d::prelude::{ComputedCenterOfMass, ComputedMass, LinearVelocity};
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
@@ -109,11 +110,33 @@ fn chase_lag_lead_seconds(smoothing: f32, dt: f32) -> f32 {
     dt * remaining / (1.0 - remaining)
 }
 
-/// How far the camera is pushed back (anchor-frame -Z, away from the hull) at
-/// full main-drive burn, world units. Driven by the spooled thruster input,
-/// so the push ramps with the engines - lighting up leans the camera back,
-/// spool-down eases it home even after the key is released.
-const BURN_PUSH_DISTANCE: f32 = 3.0;
+/// How far outside a hull's own physical envelope
+/// ([`HullEnvelopeRadius`]) the camera stands.
+///
+/// The envelope is the collider reach; the visible skin, its greebles and its
+/// running lights live in the gap, and a camera parked on that surface frames
+/// plating instead of a ship. A FIXED metric gap, the same one the HUD shells
+/// keep: a clearance that scaled with hull size would put the carrier's camera
+/// a kilometre out for the same picture.
+const CAMERA_HULL_CLEARANCE: Meters = Meters(5.0);
+
+/// The forward main-drive acceleration at which the burn push reaches the
+/// whole [`BURN_PUSH_RIG_FRACTION`] of the rig.
+///
+/// Calibrated on the shipped salvage skiff: its two basic drives move 21
+/// sections at about this, so the calibration hull keeps the ~30 m push the old
+/// fixed 3 u rig gave it, and the carrier - a quarter of that acceleration -
+/// leans a quarter as far. Harder-accelerating hulls do NOT lean further:
+/// past this the rig stops reading as a burn and starts reading as a dolly-out.
+const BURN_PUSH_REFERENCE_ACCELERATION: MetersPerSecondSquared = MetersPerSecondSquared(60.0);
+
+/// The fraction of the live rig distance a reference-acceleration full burn
+/// pushes the camera back (anchor-frame -Z, away from the hull).
+///
+/// A fraction and not a distance, because the rig distance is already what
+/// tracks hull size: the old fixed 30 m was a lurch behind a 49 m skiff and
+/// nothing behind a 195 m carrier.
+const BURN_PUSH_RIG_FRACTION: f32 = 0.15;
 
 /// Survey dolly while parked in orbit: the camera distance grows to this
 /// multiple of the planned ring radius, so the orbited body, the ring and the
@@ -121,13 +144,21 @@ const BURN_PUSH_DISTANCE: f32 = 3.0;
 /// Playtest knob.
 const SURVEY_RING_FACTOR: f32 = 1.4;
 
-/// Cap on the survey dolly distance, world units, so a giant well cannot
-/// push the camera out to where the scene is specks. Playtest knob.
+/// Cap on how far BEYOND the hull's cleared rig the survey dolly may go, world
+/// units, so a giant well cannot push the camera out to where the scene is
+/// specks. Measured from the hull's own envelope plus
+/// [`CAMERA_HULL_CLEARANCE`], not from the anchor: a flat cap that ignored hull
+/// size would dolly a carrier barely clear of its own stern. Playtest knob.
 const SURVEY_MAX_DISTANCE: f32 = 250.0;
 
-/// Each control mode's camera rig: `(offset, focus_offset)`. One source of
-/// truth for the mode-switch system and the per-frame burn push, so the push
-/// composes onto the mode's base instead of fighting it.
+/// Each control mode's AUTHORED camera composition: `(offset, focus_offset)`,
+/// world units, framed on a small craft. Normal is the standard chase view,
+/// Turret is closer and elevated with its focus pushed ahead so the hull leaves
+/// the combat area clear, FreeLook is the wider view.
+///
+/// These are compositions, not distances: a hull too big to fit inside one
+/// grows it uniformly ([`hull_clearance_scale`]) rather than reframing it, so
+/// every ship is shot the same way at whatever size it needs.
 fn mode_camera_rig(mode: &SpaceshipCameraControlMode) -> (Vec3, Vec3) {
     match mode {
         SpaceshipCameraControlMode::Normal => {
@@ -140,13 +171,67 @@ fn mode_camera_rig(mode: &SpaceshipCameraControlMode) -> (Vec3, Vec3) {
     }
 }
 
+/// How much the authored composition has to grow for the camera to stand
+/// [`CAMERA_HULL_CLEARANCE`] outside a hull whose envelope is `envelope` world
+/// units.
+///
+/// Never below 1.0: the mode rigs ARE the framing, so a hull that already fits
+/// inside one is shot exactly as it is shipped today, and only a hull that
+/// would swallow the camera moves it. Uniform, so the composition - the lift,
+/// the lead ahead, the angle - survives the growth.
+fn hull_clearance_scale(base_offset: Vec3, envelope: f32) -> f32 {
+    let base = base_offset.length();
+    if base <= f32::EPSILON {
+        return 1.0;
+    }
+    ((envelope + CAMERA_HULL_CLEARANCE.to_engine()) / base).max(1.0)
+}
+
+/// The hull-cleared rig for `mode` on a hull of `envelope` world units: the
+/// authored composition grown to clear the hull, with the gameplay smoothing.
+///
+/// [`update_camera_rig`] composes the survey dolly, the burn push and the
+/// velocity lead onto this every frame; the controller observer stamps it
+/// unchanged, so a camera inserted into a big hull opens OUTSIDE it instead of
+/// wearing a cutter-sized rig for its first frame.
+pub(super) fn spaceship_camera_rig(
+    mode: &SpaceshipCameraControlMode,
+    envelope: f32,
+) -> ChaseCamera {
+    let (offset, focus_offset) = mode_camera_rig(mode);
+    let scale = hull_clearance_scale(offset, envelope);
+    ChaseCamera {
+        offset: offset * scale,
+        focus_offset: focus_offset * scale,
+        smoothing: CAMERA_SMOOTHING,
+    }
+}
+
+/// The burn push for this frame, world units along the rig's own axis: a
+/// fraction of the LIVE rig distance, scaled by how hard the main drive is
+/// authored to push this hull and gated by the spooled throttle.
+///
+/// Thrusters only. A push that answered to net acceleration would lean the
+/// camera back on every close pass of a gravity well, which is a fall, not a
+/// burn.
+fn burn_push_distance(rig_distance: f32, acceleration: f32, heat: f32) -> f32 {
+    let reference = BURN_PUSH_REFERENCE_ACCELERATION.to_engine();
+    if reference <= f32::EPSILON {
+        return 0.0;
+    }
+    let drive = (acceleration / reference).clamp(0.0, 1.0);
+    rig_distance * BURN_PUSH_RIG_FRACTION * drive * heat.clamp(0.0, 1.0)
+}
+
 /// The survey dolly scale for the current autopilot state: while parked
 /// in a PLANNED orbit the mode offset stretches so the camera distance
 /// reaches `plan.radius * SURVEY_RING_FACTOR` (capped, never closer than
-/// the mode's own rig) - the ring radius IS the area to visualize, so
-/// the dolly adapts to the orbit scale. 1.0 (no dolly) everywhere else,
-/// including the plan-less first orbit tick. Pure for unit testing.
-fn survey_scale(action: Option<&AutopilotAction>, base_len: f32) -> f32 {
+/// the mode's own hull-cleared rig) - the ring radius IS the area to
+/// visualize, so the dolly adapts to the orbit scale. 1.0 (no dolly)
+/// everywhere else, including the plan-less first orbit tick. Both bounds
+/// carry the hull: `base_len` is already the cleared rig, and the cap is
+/// measured out from the same cleared distance. Pure for unit testing.
+fn survey_scale(action: Option<&AutopilotAction>, base_len: f32, envelope: f32) -> f32 {
     let Some(AutopilotAction::Orbit {
         plan: Some(plan), ..
     }) = action
@@ -160,63 +245,97 @@ fn survey_scale(action: Option<&AutopilotAction>, base_len: f32) -> f32 {
     // bounds are playtest knobs - a knob turn (or a future rig longer than
     // the cap) must degrade to "no dolly", not a per-frame panic.
     (plan.radius * SURVEY_RING_FACTOR)
-        .min(SURVEY_MAX_DISTANCE)
+        .min(envelope + CAMERA_HULL_CLEARANCE.to_engine() + SURVEY_MAX_DISTANCE)
         .max(base_len)
         / base_len
 }
 
-/// Applies the whole camera rig, every frame: `offset = mode rig * survey
-/// dolly + spooled main-drive heat * BURN_PUSH_DISTANCE`, the mode's focus
-/// offset, and the gameplay smoothing. Per-frame ownership (not on mode
-/// change) is load-bearing: player death removes `ChaseCamera` and respawn
-/// re-inserts a default (smoothing 0.0), so anything applied only on
-/// `mode.is_changed()` is silently lost after the first life. Heat is the
-/// hottest live forward-mounted thruster - the flight layer's main-drive
-/// definition - so autopilot burns push too, and spool-down eases the
-/// camera home. In FreeLook/Turret the offset lives in the mouse-rig
-/// frame, so the push is a dolly-out rather than a hull-frame lean;
-/// acceptable juice either way. The survey dolly (engaged ORBIT) applies
-/// in Normal and FreeLook but NOT Turret - a fight while orbiting should
-/// not be fought from survey range - and rides the same per-frame
-/// smoothing as everything else, so engage and breakout ease exactly like
-/// a mode switch instead of snapping.
+/// Applies the whole camera rig, every frame: `offset = mode rig * hull
+/// clearance * survey dolly + burn push`, the mode's focus offset, and the
+/// gameplay smoothing. Per-frame ownership (not on mode change) is
+/// load-bearing: player death removes `ChaseCamera` and respawn re-inserts one,
+/// so anything applied only on `mode.is_changed()` is silently lost after the
+/// first life. The hull clearance grows the composition until the camera stands
+/// outside the live [`HullEnvelopeRadius`] - without it the Turret rig parks
+/// 10 u back inside a hull that reaches 19.5 u. Heat is the hottest live
+/// forward-mounted thruster - the flight layer's main-drive definition - so
+/// autopilot burns push too, and spool-down eases the camera home. In
+/// FreeLook/Turret the offset lives in the mouse-rig frame, so the push is a
+/// dolly-out rather than a hull-frame lean; acceptable juice either way. The
+/// survey dolly (engaged ORBIT) applies in Normal and FreeLook but NOT Turret -
+/// a fight while orbiting should not be fought from survey range - and rides
+/// the same per-frame smoothing as everything else, so engage and breakout ease
+/// exactly like a mode switch instead of snapping.
 pub(super) fn update_camera_rig(
     time: Res<Time>,
+    // The tick a `ThrusterSectionMagnitude` impulse is authored against; the
+    // only way to read an authored magnitude as an acceleration.
+    fixed_time: Res<Time<Fixed>>,
     mode: Res<SpaceshipCameraControlMode>,
     camera: Single<(&mut ChaseCamera, &ChaseCameraInput), With<SpaceshipCameraController>>,
     spaceship: Single<
-        (Entity, Option<&LinearVelocity>),
+        (
+            Entity,
+            Option<&LinearVelocity>,
+            Option<&HullEnvelopeRadius>,
+            Option<&ComputedMass>,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_autopilot: Query<&Autopilot>,
     q_thruster: Query<
-        (&ThrusterSectionInput, &Transform, &ChildOf),
+        (
+            &ThrusterSectionInput,
+            &ThrusterSectionMagnitude,
+            &Transform,
+            &ChildOf,
+        ),
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
 ) {
-    let (ship, ship_velocity) = spaceship.into_inner();
+    let (ship, ship_velocity, envelope, mass) = spaceship.into_inner();
     let (mut camera, camera_input) = camera.into_inner();
 
     let mut heat = 0.0f32;
-    for (input, transform, &ChildOf(parent)) in &q_thruster {
+    let mut authority = 0.0f32;
+    for (input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
         if parent != ship {
             continue;
         }
         let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
         if is_forward_aligned(local_dir, Vec3::NEG_Z) {
             heat = heat.max(**input);
+            authority += **magnitude * local_dir.dot(Vec3::NEG_Z);
         }
     }
 
+    // A `ThrusterSectionMagnitude` is an impulse per FIXED tick, so the forward
+    // set over the hull mass over the tick length is the acceleration this
+    // drive is authored to deliver. A hull with no mass yet (a marker-only root
+    // before physics has weighed it) reads as the reference drive rather than
+    // as an infinite one.
+    let tick = fixed_time.timestep().as_secs_f32();
+    let mass = mass.map_or(1.0f32, |mass| mass.value()).max(f32::EPSILON);
+    let acceleration = if tick > 0.0 {
+        authority / mass / tick
+    } else {
+        0.0
+    };
+
     // Max heat, not a sum: the push reads "engines are lit", and one small
     // engine at full burn is lit; authority-weighted push is a playtest knob.
+    let envelope = envelope.map_or(0.0, |envelope| **envelope);
     let (base_offset, focus_offset) = mode_camera_rig(&mode);
+    let hull_scale = hull_clearance_scale(base_offset, envelope);
+    let base_offset = base_offset * hull_scale;
+    let focus_offset = focus_offset * hull_scale;
     let scale = if matches!(*mode, SpaceshipCameraControlMode::Turret) {
         1.0
     } else {
         survey_scale(
             q_autopilot.get(ship).ok().map(|a| &a.action),
             base_offset.length(),
+            envelope,
         )
     };
     // Velocity lead: cancel the chase lerp's steady-state lag (see
@@ -231,9 +350,13 @@ pub(super) fn update_camera_rig(
     let local_lead = camera_input.anchor_rot.inverse() * world_lead;
     let offset_lead = Vec3::new(local_lead.x, local_lead.y, -local_lead.z);
 
-    camera.offset = base_offset * scale
-        + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE * heat.clamp(0.0, 1.0))
-        + offset_lead;
+    let rig = base_offset * scale;
+    camera.offset =
+        rig + Vec3::new(
+            0.0,
+            0.0,
+            -burn_push_distance(rig.length(), acceleration, heat),
+        ) + offset_lead;
     camera.focus_offset = focus_offset;
     camera.smoothing = CAMERA_SMOOTHING;
 }
@@ -308,6 +431,7 @@ mod tests {
                 ChildOf(ship),
                 ThrusterSectionMarker,
                 ThrusterSectionInput(0.0),
+                ThrusterSectionMagnitude(1.0),
                 Transform::default(),
             ))
             .id();
@@ -323,14 +447,18 @@ mod tests {
         assert_eq!(chase.focus_offset, focus);
         assert_eq!(chase.smoothing, CAMERA_SMOOTHING);
 
-        // Full spool: pushed straight back by the full distance.
+        // Full spool on a drive well above the reference acceleration: pushed
+        // straight back by the whole rig fraction.
         app.world_mut()
             .get_mut::<ThrusterSectionInput>(thruster)
             .unwrap()
             .0 = 1.0;
         app.update();
         let pushed = app.world().get::<ChaseCamera>(camera).unwrap().offset;
-        assert_eq!(pushed, base + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE));
+        assert_eq!(
+            pushed,
+            base + Vec3::new(0.0, 0.0, -base.length() * BURN_PUSH_RIG_FRACTION)
+        );
 
         // Engines cold again: the camera comes home, not to a drifted base.
         app.world_mut()
@@ -339,6 +467,82 @@ mod tests {
             .0 = 0.0;
         app.update();
         assert_eq!(app.world().get::<ChaseCamera>(camera).unwrap().offset, base);
+    }
+
+    /// Every mode's composition survives a hull it already fits, and grows -
+    /// uniformly, direction intact - around one it does not. The shipped
+    /// Turret rig sits 11.2 u back; the carrier's collider envelope reaches
+    /// 19.5 u, so without this the combat camera is inside the ship.
+    #[test]
+    fn every_mode_rig_clears_the_live_hull_envelope() {
+        const CARRIER_ENVELOPE: f32 = 19.53;
+        const SKIFF_ENVELOPE: f32 = 4.89;
+
+        for mode in [
+            SpaceshipCameraControlMode::Normal,
+            SpaceshipCameraControlMode::FreeLook,
+            SpaceshipCameraControlMode::Turret,
+        ] {
+            let (authored, authored_focus) = mode_camera_rig(&mode);
+
+            // A hull that fits keeps the shipped framing exactly.
+            let skiff = spaceship_camera_rig(&mode, SKIFF_ENVELOPE);
+            assert_eq!(skiff.offset, authored, "{mode:?} reframed a small hull");
+            assert_eq!(skiff.focus_offset, authored_focus);
+            assert_eq!(skiff.smoothing, CAMERA_SMOOTHING);
+
+            // A hull that does not fit grows the rig past its envelope plus
+            // the visual clearance, without turning the camera.
+            let carrier = spaceship_camera_rig(&mode, CARRIER_ENVELOPE);
+            assert!(
+                carrier.offset.length()
+                    >= CARRIER_ENVELOPE + CAMERA_HULL_CLEARANCE.to_engine() - 1e-4,
+                "{mode:?} parks the camera inside the carrier: {}",
+                carrier.offset.length()
+            );
+            assert!(
+                carrier.offset.normalize().dot(authored.normalize()) > 0.9999,
+                "{mode:?} reframed instead of growing"
+            );
+            // The focus rides the same scale, so the lead ahead of the hull
+            // stays in proportion to the distance behind it.
+            let scale = carrier.offset.length() / authored.length();
+            assert!(
+                (carrier.focus_offset - authored_focus * scale).length() < 1e-3,
+                "{mode:?} grew the offset but not the focus"
+            );
+        }
+    }
+
+    /// The push is a fraction of the LIVE rig and of how hard the drive
+    /// actually pushes: the calibration skiff keeps its ~30 m lean, a hull that
+    /// accelerates a quarter as hard leans a quarter as far, and no drive leans
+    /// further than the reference.
+    #[test]
+    fn burn_push_follows_the_rig_and_the_drive() {
+        let reference = BURN_PUSH_REFERENCE_ACCELERATION.to_engine();
+        let skiff_rig = mode_camera_rig(&SpaceshipCameraControlMode::Normal)
+            .0
+            .length();
+
+        let skiff = burn_push_distance(skiff_rig, reference, 1.0);
+        assert!(
+            (Meters::from_engine(skiff).0 - 30.0).abs() < 2.0,
+            "the calibration hull must keep its ~30 m push, got {} m",
+            Meters::from_engine(skiff).0
+        );
+
+        // A quarter of the acceleration on the same rig is a quarter of the
+        // push - the carrier's gentle lean.
+        let gentle = burn_push_distance(skiff_rig, reference * 0.25, 1.0);
+        assert!((gentle - skiff * 0.25).abs() < 1e-4);
+
+        // A longer rig leans further for the same drive.
+        assert!(burn_push_distance(skiff_rig * 2.0, reference, 1.0) > skiff);
+
+        // Throttle gates it, and nothing beyond the reference leans further.
+        assert_eq!(burn_push_distance(skiff_rig, reference, 0.0), 0.0);
+        assert_eq!(burn_push_distance(skiff_rig, reference * 10.0, 1.0), skiff);
     }
 
     #[test]
@@ -353,18 +557,29 @@ mod tests {
         let base = 20.0f32;
 
         // The dolly reaches ring * factor...
-        let scale = survey_scale(Some(&orbit(100.0)), base);
+        let scale = survey_scale(Some(&orbit(100.0)), base, 0.0);
         assert!((scale * base - 100.0 * SURVEY_RING_FACTOR).abs() < 1e-3);
         // ...capped for giant wells...
-        let capped = survey_scale(Some(&orbit(1000.0)), base);
-        assert!((capped * base - SURVEY_MAX_DISTANCE).abs() < 1e-3);
+        let capped = survey_scale(Some(&orbit(1000.0)), base, 0.0);
+        assert!(
+            (capped * base - (CAMERA_HULL_CLEARANCE.to_engine() + SURVEY_MAX_DISTANCE)).abs()
+                < 1e-3
+        );
+        // ...with the cap measured out from the HULL, so a carrier surveys
+        // from as far beyond its own stern as a cutter does.
+        let carrier = survey_scale(Some(&orbit(1000.0)), base, 19.53);
+        assert!(
+            (carrier * base - (19.53 + CAMERA_HULL_CLEARANCE.to_engine() + SURVEY_MAX_DISTANCE))
+                .abs()
+                < 1e-3
+        );
         // ...and never dollies IN on a tiny ring.
-        assert_eq!(survey_scale(Some(&orbit(5.0)), base), 1.0);
+        assert_eq!(survey_scale(Some(&orbit(5.0)), base, 0.0), 1.0);
 
         // No dolly without a planned orbit: manual flight, other verbs,
         // the plan-less first orbit tick.
-        assert_eq!(survey_scale(None, base), 1.0);
-        assert_eq!(survey_scale(Some(&AutopilotAction::Stop), base), 1.0);
+        assert_eq!(survey_scale(None, base, 0.0), 1.0);
+        assert_eq!(survey_scale(Some(&AutopilotAction::Stop), base, 0.0), 1.0);
         assert_eq!(
             survey_scale(
                 Some(&AutopilotAction::Orbit {
@@ -372,6 +587,7 @@ mod tests {
                     plan: None,
                 }),
                 base,
+                0.0,
             ),
             1.0
         );
