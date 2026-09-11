@@ -251,10 +251,15 @@ pub(super) fn update_point_defense_aim(
         &mut TurretSectionTargetInput,
         &mut TurretSectionTargetVelocity,
         &mut TurretSectionTargetEntity,
+        &mut TurretSectionTargetRadius,
     )>,
-    q_torpedo: Query<(&Transform, Option<&LinearVelocity>)>,
+    q_torpedo: Query<(
+        &Transform,
+        Option<&LinearVelocity>,
+        Option<&TargetHitRadius>,
+    )>,
 ) {
-    for (mount, assignment, mut target, mut velocity, mut tracked) in &mut q_turret {
+    for (mount, assignment, mut target, mut velocity, mut tracked, mut radius) in &mut q_turret {
         if !flight_computer_works(Some(mount), Some(assignment)) {
             continue;
         }
@@ -264,7 +269,7 @@ pub(super) fn update_point_defense_aim(
         let Some(torpedo) = **assignment else {
             continue;
         };
-        let Ok((transform, torpedo_velocity)) = q_torpedo.get(torpedo) else {
+        let Ok((transform, torpedo_velocity, hit_radius)) = q_torpedo.get(torpedo) else {
             continue;
         };
         **target = Some(transform.translation);
@@ -272,6 +277,9 @@ pub(super) fn update_point_defense_aim(
         // Names the body the velocity belongs to, so the mount's track starts
         // over when the assignment moves to a different torpedo.
         **tracked = Some(torpedo);
+        // A torpedo is metres across, so the fire gate is a cone that fits one
+        // rather than the fixed precision angle a bare point gets.
+        **radius = hit_radius.map(|radius| **radius);
     }
 }
 
@@ -282,8 +290,8 @@ pub(super) fn update_point_defense_aim(
 /// defence arm: bursts are a discipline for shooting at ships, and inbound
 /// ordnance is the one case where a wasted round beats a held trigger. The two
 /// gates it DOES apply are [`mount_may_shoot`](super::mount_may_shoot) - the
-/// same range gate and the same 0.92 deg bearing cone the AI trigger uses, not
-/// a second looser number.
+/// same range gate and the same bearing cone the AI trigger uses, taken off
+/// the torpedo's own size, not a second looser number.
 pub(super) fn update_point_defense_trigger(
     mut q_turret: Query<(
         &mut PointDefenseMount,
@@ -294,7 +302,11 @@ pub(super) fn update_point_defense_trigger(
         &mut TurretSectionInput,
     )>,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
-    q_torpedo: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_torpedo: Query<(
+        &Transform,
+        Option<&ComputedCenterOfMass>,
+        Option<&TargetHitRadius>,
+    )>,
 ) {
     for (mut mount, assignment, muzzle, aim_point, figures, mut input) in &mut q_turret {
         // Not ours: release only what WE are holding down. Stomping the input
@@ -307,19 +319,25 @@ pub(super) fn update_point_defense_trigger(
             continue;
         }
 
-        let anchor = (**assignment)
+        let target = (**assignment)
             .and_then(|torpedo| q_torpedo.get(torpedo).ok())
-            .map(|(transform, com)| live_structure_anchor(transform, com));
+            .map(|(transform, com, hit_radius)| {
+                (
+                    live_structure_anchor(transform, com),
+                    hit_radius.map(|radius| **radius),
+                )
+            });
         let muzzle_transform = q_muzzle.get(**muzzle).ok();
-        let shoot = match (anchor, muzzle_transform) {
+        let shoot = match (target, muzzle_transform) {
             // Align against the LEADED aim point the turret actually steers to,
             // falling back to the raw anchor before the lead resolves - a mount
             // correctly leading a crosser never bears on the anchor itself.
-            (Some(anchor), Some(muzzle_transform)) => mount_may_shoot(
+            (Some((anchor, hit_radius)), Some(muzzle_transform)) => mount_may_shoot(
                 muzzle_transform,
                 figures,
                 anchor,
                 aim_point.unwrap_or(anchor),
+                hit_radius,
             ),
             _ => false,
         };

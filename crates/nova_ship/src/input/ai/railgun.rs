@@ -12,7 +12,10 @@
 //! the difference between the two weapons: a torpedo turns after launch, so a
 //! rough bearing is enough, while a slug goes exactly where the hull pointed
 //! when the charge finished. A loose gate here would mean a raider spending
-//! its one shell down an empty line every reload.
+//! its one shell down an empty line every reload. So the gate is the target's
+//! own angular size - [`on_target_cone`] - and not a fixed angle: a carrier is
+//! a wide thing to miss and a skiff is a narrow one, and one number cannot be
+//! right for both.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -26,14 +29,6 @@ use crate::prelude::*;
 /// a target: the reload is the gun's floor, this is the pilot's. Playtest
 /// knob.
 const AI_RAILGUN_COOLDOWN_SECS: f32 = 14.0;
-
-/// Bore-alignment gate (cos) on the COMMIT. About 8 degrees.
-///
-/// Tight, and it has to be: the shot lands one charge time later along
-/// whatever line the hull holds then, so this is the AI betting that its
-/// current heading survives the charge. Anything looser is a wasted shell.
-/// Playtest knob.
-const AI_RAILGUN_ALIGNMENT_COS: f32 = 0.99;
 
 /// Fraction of the slug's own reach the AI will commit inside.
 ///
@@ -67,12 +62,17 @@ impl Default for AIRailgun {
 /// The geometric half of the commit: the target inside
 /// [`AI_RAILGUN_REACH_FACTOR`] of the slug's reach, with the BORE - not the
 /// hull's nose, not the anchor bearing - on it. Pure, for unit testing.
-fn ai_railgun_envelope(to_target: Vec3, bore: Vec3, reach: f32) -> bool {
+///
+/// `hit_radius` is how wide the target actually is, so the bore gate is the
+/// angle that still lands on THAT hull at THAT range, shared with the turrets
+/// through [`on_target_cone`]. The commit is still crude in the way the module
+/// says: the bore is on the target NOW, and the shell leaves a charge later.
+fn ai_railgun_envelope(to_target: Vec3, bore: Vec3, reach: f32, hit_radius: f32) -> bool {
     let distance = to_target.length();
     if distance <= f32::EPSILON || distance > reach * AI_RAILGUN_REACH_FACTOR {
         return false;
     }
-    bore.dot(to_target / distance) > AI_RAILGUN_ALIGNMENT_COS
+    bore.angle_between(to_target) <= on_target_cone(Some(hit_radius), distance)
 }
 
 /// Pull each AI ship's railgun triggers: write [`RailgunSectionInput`] on its
@@ -126,6 +126,7 @@ pub(super) fn update_railgun_section_input(
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_target_hit_radius: Query<&TargetHitRadius>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
     spatial: SpatialQuery,
     q_sensor: Query<(), With<Sensor>>,
@@ -151,6 +152,7 @@ pub(super) fn update_railgun_section_input(
             spaceship,
             &q_spaceship,
             &q_target,
+            &q_target_hit_radius,
             &q_ship_root,
             &spatial,
             &q_sensor,
@@ -190,6 +192,7 @@ fn commit_is_open(
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: &Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_target_hit_radius: &Query<&TargetHitRadius>,
     q_ship_root: &Query<(), With<SpaceshipRootMarker>>,
     spatial: &SpatialQuery,
     q_sensor: &Query<(), With<Sensor>>,
@@ -226,7 +229,17 @@ fn commit_is_open(
     // builder's problem and not something the AI corrects for.
     let bore = section_pose.rotation() * Vec3::NEG_Z;
     let own_anchor = live_structure_anchor(transform, com);
-    if !ai_railgun_envelope(target_anchor - own_anchor, bore, figures.reach) {
+    // A hull whose size this ship has not measured is not a shot: the commit
+    // is "the slug lands on that", and that sentence needs a width.
+    let Ok(hit_radius) = q_target_hit_radius.get(target_ship) else {
+        return false;
+    };
+    if !ai_railgun_envelope(
+        target_anchor - own_anchor,
+        bore,
+        figures.reach,
+        **hit_radius,
+    ) {
         return false;
     }
     !ai_line_of_fire_blocked(
@@ -263,25 +276,48 @@ mod tests {
     fn the_commit_envelope_wants_the_bore_on_the_target_and_the_target_in_reach() {
         let reach = 1_000.0;
         let ahead = Vec3::NEG_Z * 400.0;
+        let carrier = 19.4;
 
         assert!(
-            ai_railgun_envelope(ahead, Vec3::NEG_Z, reach),
+            ai_railgun_envelope(ahead, Vec3::NEG_Z, reach, carrier),
             "bore on the target, well inside reach"
         );
         assert!(
-            !ai_railgun_envelope(Vec3::NEG_Z * 900.0, Vec3::NEG_Z, reach),
+            !ai_railgun_envelope(Vec3::NEG_Z * 900.0, Vec3::NEG_Z, reach, carrier),
             "past the commit fraction of the slug's reach"
         );
-        // ~11 degrees off: further than the gate allows, and at 400u that is
-        // ~78u of miss - most of a hull's length past the target.
+        // ~11 degrees off: at 400u that is ~78u of miss, past the far side of
+        // anything that flies.
         let off_axis = Quat::from_rotation_y(0.2) * Vec3::NEG_Z;
         assert!(
-            !ai_railgun_envelope(ahead, off_axis, reach),
+            !ai_railgun_envelope(ahead, off_axis, reach, carrier),
             "the bore is off the target's line"
         );
         assert!(
-            !ai_railgun_envelope(Vec3::ZERO, Vec3::NEG_Z, reach),
+            !ai_railgun_envelope(Vec3::ZERO, Vec3::NEG_Z, reach, carrier),
             "a degenerate bearing is not a shot"
+        );
+    }
+
+    /// The whole point of deriving the gate: the same bearing error that still
+    /// lands on a carrier flies past a skiff, so the two hulls must answer
+    /// differently.
+    #[test]
+    fn a_skiff_is_a_narrower_thing_to_commit_on_than_a_carrier() {
+        let reach = 1_000.0;
+        let distance = 400.0;
+        // 2 degrees off the bore: 14u of miss at this range. A carrier is 19.4u
+        // of arm and eats it; a 4.8u skiff is long gone.
+        let bore = Quat::from_rotation_y(0.035) * Vec3::NEG_Z;
+        let to_target = Vec3::NEG_Z * distance;
+
+        assert!(
+            ai_railgun_envelope(to_target, bore, reach, 19.4),
+            "a carrier is still under the bore"
+        );
+        assert!(
+            !ai_railgun_envelope(to_target, bore, reach, 4.8),
+            "a skiff is not"
         );
     }
 }

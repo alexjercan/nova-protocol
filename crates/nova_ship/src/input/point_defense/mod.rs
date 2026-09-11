@@ -63,7 +63,7 @@ pub struct SpaceshipPointDefenseSystems;
 ///
 /// TWO gates, and both are shared with the AI's own point-defence trigger
 /// rather than restated: the RANGE gate (past the distance its bullets can
-/// actually live, a shot is noise) and the 0.92 deg BEARING gate
+/// actually live, a shot is noise) and the BEARING gate
 /// ([`muzzle_on_target`], which is also the whole reachability rule - a mount
 /// that cannot depress far enough never converges, so it never fires).
 ///
@@ -71,6 +71,9 @@ pub struct SpaceshipPointDefenseSystems;
 /// barrel actually steers to. The range is judged on the anchor and the bearing
 /// on the lead, because a mount correctly leading a crossing target never bears
 /// on the anchor itself and would otherwise hold fire forever.
+///
+/// `hit_radius` is how wide the target is, so the bearing cone fits the thing
+/// being shot at; `None` is a point with no known size.
 ///
 /// The reach arrives already in world units, off [`TurretEngineFigures`]: this
 /// is a comparison against a distance read off a `GlobalTransform`, and it runs
@@ -80,11 +83,12 @@ pub(crate) fn mount_may_shoot(
     figures: &TurretEngineFigures,
     anchor: Vec3,
     aim: Vec3,
+    hit_radius: Option<f32>,
 ) -> bool {
     let muzzle_position = muzzle.translation();
     let effective_range = figures.reach * AI_FIRE_RANGE_FACTOR;
     anchor.distance(muzzle_position) <= effective_range
-        && muzzle_on_target(muzzle.forward().into(), muzzle_position, aim)
+        && muzzle_on_target(muzzle.forward().into(), muzzle_position, aim, hit_radius)
 }
 
 /// Runs point defence for both controllers: the shared per-turret assignment,

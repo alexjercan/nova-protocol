@@ -492,29 +492,45 @@ fn drive_moving_gate(
 
 /// Point the turret at the sweeping gate (falls back to any gate), so the range
 /// exercises tracking without a mouse. Runs after the crosshair aim so it wins.
-/// Also feeds the gate's velocity so the turret leads the mover.
+/// Also feeds the gate's velocity so the turret leads the mover, and the gate's
+/// own [`TargetHitRadius`] so the fire gate is graded on how big that rock
+/// actually is - the player's lock feed carries the same three things.
 fn range_aim(
     mut q_turret: Query<
         (
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
+            &mut TurretSectionTargetRadius,
         ),
         With<TurretSectionMarker>,
     >,
-    q_moving: Query<(&GlobalTransform, &LinearVelocity), With<RangeMovingTarget>>,
-    q_gates: Query<&GlobalTransform, With<RangeGateMarker>>,
+    q_moving: Query<
+        (&GlobalTransform, &LinearVelocity, Option<&TargetHitRadius>),
+        With<RangeMovingTarget>,
+    >,
+    q_gates: Query<(&GlobalTransform, Option<&TargetHitRadius>), With<RangeGateMarker>>,
 ) {
-    let (target, velocity) = if let Some((transform, linear_velocity)) = q_moving.iter().next() {
-        (Some(transform.translation()), linear_velocity.0)
-    } else if let Some(transform) = q_gates.iter().next() {
-        (Some(transform.translation()), Vec3::ZERO)
-    } else {
-        (None, Vec3::ZERO)
-    };
+    let (target, velocity, radius) =
+        if let Some((transform, linear_velocity, radius)) = q_moving.iter().next() {
+            (
+                Some(transform.translation()),
+                linear_velocity.0,
+                radius.map(|radius| **radius),
+            )
+        } else if let Some((transform, radius)) = q_gates.iter().next() {
+            (
+                Some(transform.translation()),
+                Vec3::ZERO,
+                radius.map(|radius| **radius),
+            )
+        } else {
+            (None, Vec3::ZERO, None)
+        };
 
-    for (mut turret_target, mut turret_velocity) in &mut q_turret {
+    for (mut turret_target, mut turret_velocity, mut turret_radius) in &mut q_turret {
         **turret_target = target;
         **turret_velocity = velocity;
+        **turret_radius = radius;
     }
 }
 
@@ -763,8 +779,8 @@ fn turret_script() -> Script {
     fire_round(script, RELOADED_ROUND)
 }
 
-/// One full pass of invariants 1-3, appended to `script`. Called twice - once
-/// on the booted range and once on the reloaded one - which is what makes
+/// One full pass of invariants 1-3 and 5, appended to `script`. Called twice -
+/// once on the booted range and once on the reloaded one - which is what makes
 /// invariant 4 a claim about the whole set rather than a spot check.
 #[cfg(feature = "debug")]
 fn fire_round(script: Script, round: &'static str) -> Script {
@@ -797,6 +813,9 @@ fn fire_round(script: Script, round: &'static str) -> Script {
         .add()
         .step("assert the barrel tracks the mover")
         .on_enter(move |world: &mut World| assert_aim_tracks_mover(world, round))
+        .add()
+        .step("assert the gate is the target's own size")
+        .on_enter(move |world: &mut World| assert_the_gate_is_the_targets_own_size(world, round))
         .add()
 }
 
@@ -967,6 +986,115 @@ fn assert_fired_and_connected(world: &mut World, round: &str) {
         world,
         "outcome: range target hit",
         serde_json::json!({ "t": elapsed, "round": round }),
+    );
+}
+
+/// How wide the gate the turret is shooting at is, how far away it is, the cone
+/// the fire path grades the barrel on at that size and range, and how far off
+/// the barrel actually points. All degrees and world units.
+#[cfg(feature = "debug")]
+struct GateReading {
+    hit_radius: f32,
+    distance: f32,
+    cone_deg: f32,
+    error_deg: f32,
+}
+
+/// Read the live fire gate off the turret, or `None` if the target's size never
+/// reached the mount - which is itself the failure invariant 5 names.
+#[cfg(feature = "debug")]
+fn gate_reading(world: &World) -> Option<GateReading> {
+    let (aim, hit_radius) = {
+        let mut query = world.try_query_filtered::<(
+            &TurretSectionAimPoint,
+            &TurretSectionTargetRadius,
+        ), With<TurretSectionMarker>>()?;
+        let (aim, radius) = query.iter(world).next()?;
+        ((**aim)?, (**radius)?)
+    };
+    let muzzle = {
+        let mut query = world
+            .try_query_filtered::<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>()?;
+        *query.iter(world).next()?
+    };
+    let distance = muzzle.translation().distance(aim);
+    Some(GateReading {
+        hit_radius,
+        distance,
+        cone_deg: on_target_cone(Some(hit_radius), distance).to_degrees(),
+        error_deg: muzzle_aim_error(muzzle.forward().into(), muzzle.translation(), aim)
+            .to_degrees(),
+    })
+}
+
+/// The moving gate's own body radius - what a rock publishes as its hit size.
+#[cfg(feature = "debug")]
+fn moving_gate_body_radius(world: &World) -> Option<f32> {
+    let mut query = world.try_query_filtered::<&BodyRadius, With<RangeMovingTarget>>()?;
+    query.iter(world).next().map(|radius| **radius)
+}
+
+/// How much wider than the commanded-point fallback the derived gate must read
+/// before the range will call it derived at all.
+///
+/// A DELIVERY guard, not a balance number: the claim is that a turret shooting
+/// at a BODY is graded on that body, and the rock's own size at the sweep's
+/// range is the rock's business. Pinning the degrees instead would make every
+/// asteroid retune a range edit.
+#[cfg(feature = "debug")]
+const GATE_CONE_RATIO_FLOOR: f32 = 1.5;
+
+/// Invariant 5: the turret is graded on how big its target IS.
+///
+/// The rock's own hit size reaches the mount through the production feed, and
+/// the cone the fire path grades the barrel on is that size at that range -
+/// not the one fixed angle a mount gets when it follows a crosshair into empty
+/// space. Both halves have to hold: a hit radius that never arrives leaves
+/// every gun on the fallback, and a fallback that matches the derived cone
+/// would prove nothing about either.
+#[cfg(feature = "debug")]
+fn assert_the_gate_is_the_targets_own_size(world: &mut World, round: &str) {
+    let reading = gate_reading(world).expect(
+        "range: the turret must carry its target's hit radius - without it the \
+         fire gate is the commanded-point fallback and this range proves nothing",
+    );
+    let body_radius =
+        moving_gate_body_radius(world).expect("range: the sweeping gate must exist at assert time");
+    assert!(
+        (reading.hit_radius - body_radius).abs() < 1e-3,
+        "range ({round}): the turret is grading a {:.2} u target, but the rock \
+         it is shooting at is {body_radius:.2} u - a rock's hit size is its own \
+         body radius",
+        reading.hit_radius
+    );
+    let fallback_deg = POINT_AIM_ON_TARGET_RAD.to_degrees();
+    assert!(
+        reading.cone_deg >= fallback_deg * GATE_CONE_RATIO_FLOOR,
+        "range ({round}): a {:.2} u rock at {:.1} u opens a {:.3} deg gate, \
+         under {GATE_CONE_RATIO_FLOOR}x the {fallback_deg:.3} deg commanded-point \
+         fallback - the gate is not reading the target",
+        reading.hit_radius,
+        reading.distance,
+        reading.cone_deg
+    );
+    info!(
+        "range: {round} - the fire gate is {:.3} deg on a {:.2} u rock at \
+         {:.1} u (fallback {fallback_deg:.3} deg, barrel {:.3} deg off)",
+        reading.cone_deg, reading.hit_radius, reading.distance, reading.error_deg
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: the fire gate is the size of what is shot at",
+        serde_json::json!({
+            "t": elapsed,
+            "round": round,
+            "hit_radius": reading.hit_radius,
+            "distance": reading.distance,
+            "cone_deg": reading.cone_deg,
+            "fallback_deg": fallback_deg,
+            "aim_error_deg": reading.error_deg,
+        }),
     );
 }
 

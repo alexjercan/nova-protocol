@@ -137,15 +137,15 @@ use nova_scenario::{
     world::NovaEventWorld,
 };
 use nova_ship::prelude::{
-    derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
-    skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock, GameStyles,
-    PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
+    derive_skin, muzzle_aim_error, on_target_cone, read_plates, read_structure, section_cell,
+    skin_report, skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock,
+    GameStyles, PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
     RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
     SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle,
     SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
     TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
     TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionTargetInput,
-    WeaponsHot, WithheldVerbs, TURRET_ON_TARGET_RAD,
+    TurretSectionTargetRadius, WeaponsHot, WithheldVerbs,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -1188,16 +1188,26 @@ fn modifications(world: &World, entity: Entity) -> Vec<serde_json::Value> {
 ///
 /// The trigger says what the pilot (or the AI) WANTS; this says whether the
 /// barrel can deliver it, and the section fire path spends a round only when
-/// this is inside [`TURRET_ON_TARGET_RAD`]. Without it a dump cannot tell a
-/// mount that is shooting from one that is holding fire mid-slew - the muzzle's
-/// bearing appears nowhere else in a snapshot.
-fn muzzle_aim_error_deg(world: &World, entity: Entity) -> Option<f32> {
+/// this is inside the gate returned alongside it. Without the pair a dump
+/// cannot tell a mount that is shooting from one that is holding fire mid-slew
+/// - the muzzle's bearing appears nowhere else in a snapshot.
+///
+/// The gate is the target's own angular size ([`on_target_cone`]), so it moves
+/// with what the mount is shooting at: quoting the error against one fixed
+/// number would read "on target" for a bearing that flies past a torpedo.
+fn muzzle_aim_error_deg(world: &World, entity: Entity) -> Option<(f32, f32)> {
     let aim = world
         .get::<TurretSectionAimPoint>(entity)
         .and_then(|a| a.0)?;
     let muzzle = world.get::<TurretSectionMuzzleEntity>(entity)?.0;
     let pose = world.get::<GlobalTransform>(muzzle)?;
-    Some(muzzle_aim_error(pose.forward().into(), pose.translation(), aim).to_degrees())
+    let hit_radius = world
+        .get::<TurretSectionTargetRadius>(entity)
+        .and_then(|radius| radius.0);
+    Some((
+        muzzle_aim_error(pose.forward().into(), pose.translation(), aim).to_degrees(),
+        on_target_cone(hit_radius, pose.translation().distance(aim)).to_degrees(),
+    ))
 }
 
 /// A weapon section's live state, or `null` for a section that is not one.
@@ -1242,8 +1252,9 @@ fn weapon(
             RailgunCharge::Ready => serde_json::Value::Null,
             RailgunCharge::Charging { elapsed } => serde_json::json!(num(*elapsed)),
         }),
-        "aim_error_deg": aim_error.map(num),
-        "on_target": aim_error.map(|error| error <= TURRET_ON_TARGET_RAD.to_degrees()),
+        "aim_error_deg": aim_error.map(|(error, _)| num(error)),
+        "on_target_gate_deg": aim_error.map(|(_, gate)| num(gate)),
+        "on_target": aim_error.map(|(error, gate)| error <= gate),
         "ammo": world.get::<SectionAmmo>(entity).map(|ammo| serde_json::json!({
             "rounds": ammo.rounds,
             "capacity": ammo.capacity,

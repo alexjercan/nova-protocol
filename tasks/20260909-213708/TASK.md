@@ -150,7 +150,7 @@ gameplay feedback ledger (`20260909-213118`).
 
 ## Targeting and weapons
 
-- [ ] `nova_ship/src/sections/turret_section/aim.rs:29,34,57`
+- [x] `nova_ship/src/sections/turret_section/aim.rs:29,34,57`
       `HULL_HIT_RADIUS` 1.6 u over `CLOSE_ENGAGEMENT_RANGE` 100 u makes the
       one fire gate `TURRET_ON_TARGET_RAD` 0.016 rad for every gun: a PDC
       holds fire until inside 0.92 deg of a 366 m target it would hit from
@@ -191,7 +191,7 @@ gameplay feedback ledger (`20260909-213118`).
 - [ ] `ai/passive.rs:47,78,269` `AI_AVOID_MARGIN` 20 u past `BodyRadius`
       judged against the centre line: the carrier's flank scrapes the rock
       with 17 m of daylight. Add the mover's `HullRadius`, as `:232` does.
-- [ ] `ai/railgun.rs:36,43,68` `AI_RAILGUN_ALIGNMENT_COS` 0.99, an 8.1 deg
+- [x] `ai/railgun.rs:36,43,68` `AI_RAILGUN_ALIGNMENT_COS` 0.99, an 8.1 deg
       cone, commits out to 1080 u where that is 1.5 km of miss. Gate on
       `atan(target radius / distance)`; the test comment at `:276` already
       says so.

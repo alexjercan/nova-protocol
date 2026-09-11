@@ -782,14 +782,17 @@ struct Peaks {
     steps: usize,
     trigger_mount_steps: usize,
     open_steps: usize,
-    /// Summed [`muzzle_aim_error`] (degrees) over every engaged mount-step, and
-    /// the sample count.
+    /// Summed [`muzzle_aim_error`] (degrees) over every engaged mount-step, the
+    /// summed bearing gate over the same steps, and the sample count.
     ///
-    /// The ROOT reading. A mount fires only inside [`TURRET_ON_TARGET_RAD`]
-    /// (0.92 deg), so the mean tracking residual beside that number says
-    /// whether the battery is gated by geometry or by cadence - and whether the
-    /// residual moves with the frame rate, which is the defect itself.
+    /// The ROOT reading. A mount fires only inside the torpedo's own angular
+    /// size ([`on_target_cone`]), so the mean tracking residual beside the mean
+    /// gate says whether the battery is gated by geometry or by cadence - and
+    /// whether the residual moves with the frame rate, which is the defect
+    /// itself. The gate is summed rather than quoted because it shrinks as the
+    /// salvo closes.
     aim_error_sum: f64,
+    aim_gate_sum: f64,
     aim_samples: usize,
 }
 
@@ -857,6 +860,7 @@ fn track_trigger_duty(
             &TurretDefenseTarget,
             &TurretSectionAimPoint,
             &TurretSectionMuzzleEntity,
+            &TurretSectionTargetRadius,
         ),
         With<PointDefenseMount>,
     >,
@@ -864,7 +868,7 @@ fn track_trigger_duty(
     mut peaks: ResMut<Peaks>,
 ) {
     peaks.steps += 1;
-    for (input, assignment, aim_point, muzzle) in &q_mounts {
+    for (input, assignment, aim_point, muzzle, hit_radius) in &q_mounts {
         if **input {
             peaks.trigger_mount_steps += 1;
         }
@@ -876,6 +880,9 @@ fn track_trigger_duty(
         };
         peaks.aim_error_sum += f64::from(
             muzzle_aim_error(muzzle.forward().into(), muzzle.translation(), aim).to_degrees(),
+        );
+        peaks.aim_gate_sum += f64::from(
+            on_target_cone(**hit_radius, muzzle.translation().distance(aim)).to_degrees(),
         );
         peaks.aim_samples += 1;
     }
@@ -1085,6 +1092,7 @@ fn assert_the_battery_connected(world: &mut World) {
     let duty = trigger_mount_steps as f32 / (steps * mounts()) as f32;
     let frames_per_step = frames as f32 / steps as f32;
     let aim_error_deg = peaks.aim_error_sum / peaks.aim_samples.max(1) as f64;
+    let aim_gate_deg = peaks.aim_gate_sum / peaks.aim_samples.max(1) as f64;
     nova_probe::probe_marker(
         world,
         "outcome: the battery shot torpedoes down",
@@ -1100,6 +1108,7 @@ fn assert_the_battery_connected(world: &mut World) {
             "trigger_duty": duty,
             "frames_per_step": frames_per_step,
             "aim_error_deg": aim_error_deg,
+            "aim_gate_deg": aim_gate_deg,
         }),
     );
     info!(
@@ -1109,9 +1118,8 @@ fn assert_the_battery_connected(world: &mut World) {
     );
     info!(
         "stress_point_defense: {frames_per_step:.2} frames/step, {rounds_per_step:.2} \
-         rounds/step, trigger duty {duty:.3}, mean aim error {aim_error_deg:.3} deg (gate \
-         {:.3} deg)",
-        TURRET_ON_TARGET_RAD.to_degrees()
+         rounds/step, trigger duty {duty:.3}, mean aim error {aim_error_deg:.3} deg (mean gate \
+         {aim_gate_deg:.3} deg)"
     );
 }
 

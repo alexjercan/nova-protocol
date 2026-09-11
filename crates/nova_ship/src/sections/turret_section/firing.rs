@@ -28,16 +28,16 @@ const MAX_SHOTS_PER_TICK: u32 = 8;
 /// Half-angle of the cone a round leaves the muzzle in: 0.1 degrees.
 ///
 /// A LOOK number, and it cannot be read as a balance lever in either
-/// direction. The fire gate already lets a barrel shoot from anywhere inside
-/// [`TURRET_ON_TARGET_RAD`] - 0.92 deg, 2.4 u of lateral miss at the 150 u
-/// point-defense envelope - so 0.26 u of extra scatter at that range makes
-/// each round marginally WORSE than the aim it was fired on, never better.
-/// Spread cannot raise a hit rate; it is here so a stream reads as a gun
-/// throwing rounds instead of one laser-straight line of them.
+/// direction. The fire gate ([`on_target_cone`]) never grades a barrel tighter
+/// than this, precisely because a barrel cannot aim better than it scatters,
+/// so the extra spread makes each round at worst as good as the aim it was
+/// fired on and never better. Spread cannot raise a hit rate; it is here so a
+/// stream reads as a gun throwing rounds instead of one laser-straight line of
+/// them.
 ///
 /// A FEEL number: tuned by eye, wide enough to see the stream fray at gunfight
-/// range and far too narrow to argue with the gate above it.
-const MUZZLE_SPREAD_RAD: f32 = 0.1 * std::f32::consts::PI / 180.0;
+/// range and far too narrow to argue with the gate it floors.
+pub(super) const MUZZLE_SPREAD_RAD: f32 = 0.1 * std::f32::consts::PI / 180.0;
 
 /// A tilt of up to [`MUZZLE_SPREAD_RAD`] about a random axis square to the
 /// barrel, drawn off the SEEDED stream so a replayed run scatters identically.
@@ -74,6 +74,7 @@ pub(super) fn shoot_spawn_projectile(
             Option<&LoadedBullet>,
             &TurretSectionInput,
             Option<&TurretSectionAimPoint>,
+            Option<&TurretSectionTargetRadius>,
             Option<&mut SectionAmmo>,
             Option<&mut SectionReload>,
             Option<&TurretStow>,
@@ -99,6 +100,7 @@ pub(super) fn shoot_spawn_projectile(
         loaded,
         input,
         aim_point,
+        target_radius,
         mut ammo,
         mut reload,
         stow,
@@ -226,7 +228,12 @@ pub(super) fn shoot_spawn_projectile(
             // freely - the same fail-open as an unmanaged ship above, so bare
             // rigs and example turrets are untouched.
             if let Some(aim) = aim_point.and_then(|aim| **aim) {
-                if !muzzle_on_target(muzzle_direction, muzzle_position, aim) {
+                // Graded on how big the thing at the aim point IS, at the
+                // range it is at: a carrier fills the sky at knife range and a
+                // torpedo across a gunfight is a needle. A commanded point
+                // with no body behind it falls back to the fixed gate.
+                let hit_radius = target_radius.and_then(|radius| **radius);
+                if !muzzle_on_target(muzzle_direction, muzzle_position, aim, hit_radius) {
                     continue;
                 }
             }

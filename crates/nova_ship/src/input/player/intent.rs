@@ -98,6 +98,7 @@ pub(super) fn update_turret_target_input(
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
             &mut TurretSectionTargetEntity,
+            &mut TurretSectionTargetRadius,
             &ChildOf,
             Option<&PointDefenseMount>,
             Option<&TurretDefenseTarget>,
@@ -118,8 +119,9 @@ pub(super) fn update_turret_target_input(
         &Transform,
         Option<&ComputedCenterOfMass>,
         Option<&LinearVelocity>,
+        Option<&TargetHitRadius>,
     )>,
-    q_section_position: Query<&GlobalTransform, With<SectionMarker>>,
+    q_section_position: Query<(&GlobalTransform, Option<&SectionCollider>), With<SectionMarker>>,
 ) {
     let point_rotation = point_rotation.into_inner();
     let (transform, com, spaceship, lock, component) = spaceship.into_inner();
@@ -143,27 +145,39 @@ pub(super) fn update_turret_target_input(
     // the lock ROOT, not the section: the velocity is the root's, so a fine
     // lock moving between sections of one ship is the same track, not a switch.
     let lock_tier = lock.and_then(|target| {
-        q_lock_target
-            .get(target)
-            .ok()
-            .map(|(target_transform, target_com, target_velocity)| {
+        q_lock_target.get(target).ok().map(
+            |(target_transform, target_com, target_velocity, hit_radius)| {
                 (
                     live_structure_anchor(target_transform, target_com),
                     target_velocity
                         .map(|velocity| **velocity)
                         .unwrap_or(Vec3::ZERO),
                     Some(target),
+                    hit_radius.map(|radius| **radius),
                 )
-            })
+            },
+        )
     });
+    // A FINE lock is a smaller thing to hit than the ship carrying it, and the
+    // gate has to say so: the section's own collider, not the hull's arm.
     let component_tier = component_section.and_then(|section| {
-        let section_position = q_section_position.get(section).ok()?;
-        let (_, lock_velocity, lock_entity) = lock_tier?;
-        Some((section_position.translation(), lock_velocity, lock_entity))
+        let (section_position, collider) = q_section_position.get(section).ok()?;
+        let (_, lock_velocity, lock_entity, _) = lock_tier?;
+        let radius = collider.copied().unwrap_or_default().furthest_distance(
+            Vec3::ZERO,
+            Quat::IDENTITY,
+            Vec3::ZERO,
+        );
+        Some((
+            section_position.translation(),
+            lock_velocity,
+            lock_entity,
+            Some(radius),
+        ))
     });
     let ray_tier = {
         let forward = **point_rotation * Vec3::NEG_Z;
-        (position + forward * 100.0, Vec3::ZERO, None)
+        (position + forward * 100.0, Vec3::ZERO, None, None)
     };
     // LOCK-WINS routing (flipping the manual-wins knob): a
     // combat lock holds the turrets even while RAISED - moving the cursor
@@ -171,12 +185,12 @@ pub(super) fn update_turret_target_input(
     // explicit road back to manual. With NO lock, the ray tier IS the raised
     // manual aim, so no stance special-case remains - the pure three-tier
     // feed.
-    let (target_point, target_velocity, target_entity) =
+    let (target_point, target_velocity, target_entity, target_radius) =
         component_tier.or(lock_tier).unwrap_or(ray_tier);
 
-    for (mut turret, mut velocity, mut tracked, _, mount, assignment) in q_turret
+    for (mut turret, mut velocity, mut tracked, mut radius, _, mount, assignment) in q_turret
         .iter_mut()
-        .filter(|(_, _, _, ChildOf(t_parent), _, _)| *t_parent == spaceship)
+        .filter(|(_, _, _, _, ChildOf(t_parent), _, _)| *t_parent == spaceship)
     {
         if flight_computer_works(mount, assignment) {
             continue;
@@ -184,6 +198,7 @@ pub(super) fn update_turret_target_input(
         **turret = Some(target_point);
         **velocity = target_velocity;
         **tracked = target_entity;
+        **radius = target_radius;
     }
 }
 

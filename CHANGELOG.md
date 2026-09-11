@@ -33,6 +33,11 @@ does NOT get an entry - and it is the only place they are written down.
   drops the lock already held on it. A fresh lock uses what it returns now.
 - An AI ship takes an authored `sensor_range`; `Some(0 m)`, or a hull with no
   live flight computer, sees nothing at all.
+- A gun fires inside its target's own angular size, not one 0.92 deg cone: 11
+  deg on a carrier at 1 km, 2.7 on a skiff, 0.7 on a torpedo. A crosshair with
+  nothing under it keeps the fixed cone.
+- An AI railgun commits only on a bore that would land the slug, so it no longer
+  spends its one shell 1.5 km wide of a hull it swept past.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

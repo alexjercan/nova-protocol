@@ -10,7 +10,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use super::*;
+use super::{firing::MUZZLE_SPREAD_RAD, *};
 use crate::physics::prelude::rigid_body_point_velocity;
 
 /// System set for the PostUpdate aim chain (intercept solve + rotator
@@ -19,42 +19,61 @@ use crate::physics::prelude::rigid_body_point_velocity;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TurretSectionAimSystems;
 
-/// What a round has to land inside to count as hitting a ship at all, in world
-/// units: 16 m, roughly the half-beam of a small warship's CORE hull.
+/// How big the place a crosshair marks is, in world units: 16 m.
 ///
-/// Between the block gunship's 15 m spine half-width and the 25 m its sponsons
-/// reach at midships, so a round threading the gaps in a spread hull is not
-/// scored as a hit while one down the middle is. It is a firing-discipline
-/// figure, not a collider: it only decides how long a turret holds fire.
-pub const HULL_HIT_RADIUS: f32 = 1.6;
+/// A commanded POINT has no size of its own - the player swung the camera and
+/// the mounts follow the ray - so it is graded as a mark of about the beam of
+/// a small warship. Purely a firing-discipline figure: it sets how long a
+/// manually aimed turret holds fire, and it is the half-beam the turret's
+/// TRACK constant is graded against.
+pub const POINT_AIM_RADIUS: f32 = 1.6;
 
 /// The CLOSE edge of a gunfight, in world units: 100 u is 1 km, and gunfights
-/// are fought at 1-2 km, so this is the range at which the cone below is
-/// widest.
+/// are fought at 1-2 km, so this is the range the commanded-point gate below
+/// is graded at.
 pub const CLOSE_ENGAGEMENT_RANGE: f32 = 100.0;
 
-/// How far off its aim point a muzzle may point and still count as ON it:
-/// 0.016 rad, 0.92 degrees.
+/// How far off a barrel may point at a commanded POINT and still count as ON
+/// it: 0.016 rad, 0.92 degrees.
 ///
-/// DERIVED, not chosen. A round leaving the muzzle `e` off the aim point misses
-/// that point laterally by `range * sin(e)`, so the widest error that still puts
-/// the round on the thing being aimed at is `asin(hit_radius / range)`. At this
-/// size an angle and its sine agree to within 1e-6 rad, so the RATIO is the
-/// angle and the constant needs no transcendental to state;
-/// [`the_on_target_cone_is_what_still_lands_on_a_hull`] pins that it is.
+/// The fallback gate, for the one case with no body to measure: a mount
+/// following the player's crosshair into empty space. It is the same
+/// arithmetic [`on_target_cone`] does, evaluated once on a mark of
+/// [`POINT_AIM_RADIUS`] at [`CLOSE_ENGAGEMENT_RANGE`] - the LOOSEST angle that
+/// still means "this round lands on the place you pointed at". At this size an
+/// angle and its tangent agree to within 2e-6 rad, so the RATIO is the angle
+/// and the constant needs no transcendental to state.
 ///
-/// The CLOSE edge of the band is deliberate, and it is where the slack comes
-/// from: it is the LOOSEST angle that still means "this round lands on the
-/// thing". Graded at the far edge instead - the PDC's 180 u fire gate - the same
-/// arithmetic reads 0.51 deg, and a round fired at the full 0.92 deg from there
-/// still passes only 2.9 u wide, inside a 3.2 u beam.
+/// A mount aimed at a BODY is not graded on this. It is graded on how big that
+/// body is at the range it is at, which is the whole point of
+/// [`on_target_cone`]: one gate for every gun was 0.92 deg of slack against a
+/// torpedo it should have been threading and 0.92 deg of held fire against a
+/// carrier it could not miss.
+pub const POINT_AIM_ON_TARGET_RAD: f32 = POINT_AIM_RADIUS / CLOSE_ENGAGEMENT_RANGE;
+
+/// The widest a barrel may be off its aim point and still put the round on
+/// what it was aimed at: `atan(hit_radius / distance)`.
 ///
-/// The floor under it is what a barrel actually holds. A converged turret
-/// tracking a crossing target settles well inside this cone (measured on the
-/// turret range, task 20260816-144947), so a mount that is genuinely ON its
-/// target fires, and one that is slewing - or that cannot depress far enough to
-/// bear at all - does not.
-pub const TURRET_ON_TARGET_RAD: f32 = HULL_HIT_RADIUS / CLOSE_ENGAGEMENT_RANGE;
+/// A round leaving the muzzle `e` off the aim point misses that point
+/// laterally by `distance * tan(e)`, so the widest error that still lands
+/// inside a target of `hit_radius` is exactly this. It OPENS as the target
+/// grows and TIGHTENS as the range does, which is what a gunner does: a
+/// carrier at knife range fills the sky and a torpedo across a gunfight is a
+/// needle.
+///
+/// Two bounds. `None` - no body, a commanded point - is
+/// [`POINT_AIM_ON_TARGET_RAD`]. And no gate is ever tighter than
+/// [`MUZZLE_SPREAD_RAD`], because a barrel cannot aim better than it scatters:
+/// grading inside its own spread would hold fire on shots it was never going
+/// to place any better.
+pub fn on_target_cone(hit_radius: Option<f32>, distance: f32) -> f32 {
+    let Some(hit_radius) = hit_radius else {
+        return POINT_AIM_ON_TARGET_RAD;
+    };
+    (hit_radius.max(0.0) / distance.max(f32::EPSILON))
+        .atan()
+        .max(MUZZLE_SPREAD_RAD)
+}
 
 /// The angle (radians) between where a muzzle POINTS and where it should point
 /// to put a round on `aim`. Zero for a degenerate line (the aim point sitting on
@@ -70,16 +89,17 @@ pub fn muzzle_aim_error(forward: Vec3, muzzle: Vec3, aim: Vec3) -> f32 {
 }
 
 /// Whether a muzzle at `muzzle` pointing along `forward` is on `aim` within
-/// [`TURRET_ON_TARGET_RAD`] - the single "may this barrel shoot" predicate, used
-/// by the section fire path and by the AI trigger.
+/// the cone [`on_target_cone`] grades a target of `hit_radius` at that range -
+/// the single "may this barrel shoot" predicate, used by the section fire path
+/// and by the AI trigger.
 ///
 /// This is the whole reachability rule as well as the alignment one: a mount
 /// whose hinges cannot swing onto its target never converges, so it is never
 /// within the cone, so it never fires. [`TurretSectionArc`] stays the ACQUIRE-
 /// time question (never assign a mount a target it cannot reach); this is the
 /// fire-time one, and it needs no second reachability test to answer.
-pub fn muzzle_on_target(forward: Vec3, muzzle: Vec3, aim: Vec3) -> bool {
-    muzzle_aim_error(forward, muzzle, aim) <= TURRET_ON_TARGET_RAD
+pub fn muzzle_on_target(forward: Vec3, muzzle: Vec3, aim: Vec3, hit_radius: Option<f32>) -> bool {
+    muzzle_aim_error(forward, muzzle, aim) <= on_target_cone(hit_radius, muzzle.distance(aim))
 }
 
 /// The point a turret should aim at to hit a moving target: the intercept point,
@@ -163,7 +183,7 @@ pub(crate) fn lead_intercept_point(
 /// The floor under it is the fixed step. At 64 Hz this is five ticks, so one
 /// tick's spike enters the track at 18% of its size and is gone within three
 /// more; shorter, and the barrel is handed back the per-tick jitter that stops
-/// it ever settling inside the 0.92 deg fire gate.
+/// it ever settling inside the fire gate.
 const TARGET_TRACK_TAU: f32 = 0.08;
 
 /// One mount's filtered track of what it is shooting at: the mean course the
@@ -398,8 +418,8 @@ fn signed_angle_about(from: Vec3, to: Vec3, axis: Vec3) -> f32 {
 ///   responsive; the decay only shapes the settle.
 /// - FRAMERATE INVARIANCE. A flat per-frame gain decays the error per FRAME,
 ///   so residual tracking lag scaled with frame time (~0.43 deg at 60 fps vs
-///   ~1.8 deg at 14 fps on a crossing target) and sat above the
-///   [`TURRET_ON_TARGET_RAD`] fire gate exactly when the machine struggled
+///   ~1.8 deg at 14 fps on a crossing target) and sat above the then-fixed
+///   0.92 deg fire gate exactly when the machine struggled
 ///   (task 20260816-184718). The exponential form decays the same error
 ///   fraction per unit TIME at any frame rate.
 ///
@@ -615,18 +635,22 @@ mod tests {
         *,
     };
 
-    /// The on-target cone is arithmetic, not a taste call, so the arithmetic is
-    /// pinned: the constant IS `asin(hull half-beam / close engagement range)`,
-    /// and the miss it permits at the far edge of the band still lands on a
-    /// hull. Re-derive both numbers in the SAME commit as any change to hull
-    /// dimensions or engagement ranges.
+    /// The cone is arithmetic, not a taste call, so the arithmetic is pinned:
+    /// a round fired at the FULL tolerance lands exactly on the edge of what
+    /// was aimed at, at any range and any size. Re-derive the commanded-point
+    /// fallback in the SAME commit as any change to engagement ranges.
     #[test]
-    fn the_on_target_cone_is_what_still_lands_on_a_hull() {
-        let derived = (HULL_HIT_RADIUS / CLOSE_ENGAGEMENT_RANGE).asin();
+    fn the_on_target_cone_is_what_still_lands_on_what_was_aimed_at() {
+        let derived = (POINT_AIM_RADIUS / CLOSE_ENGAGEMENT_RANGE).atan();
         assert!(
-            (TURRET_ON_TARGET_RAD - derived).abs() < 1e-6,
-            "the cone must be asin({HULL_HIT_RADIUS} / {CLOSE_ENGAGEMENT_RANGE}) \
-             = {derived} rad, got {TURRET_ON_TARGET_RAD}"
+            (POINT_AIM_ON_TARGET_RAD - derived).abs() < 2e-6,
+            "the fallback must be atan({POINT_AIM_RADIUS} / {CLOSE_ENGAGEMENT_RANGE}) \
+             = {derived} rad, got {POINT_AIM_ON_TARGET_RAD}"
+        );
+        assert_eq!(
+            on_target_cone(None, 1.0),
+            POINT_AIM_ON_TARGET_RAD,
+            "a commanded point has no size, so range cannot move its gate"
         );
 
         // The far edge of a gunfight: the PDC's own fire gate, muzzle_speed *
@@ -638,13 +662,25 @@ mod tests {
             .over(config.projectile_lifetime)
             .to_engine()
             * 0.9;
-        let miss = far * TURRET_ON_TARGET_RAD.sin();
-        assert!(
-            miss < HULL_HIT_RADIUS * 2.0,
-            "a round fired at the full tolerance from the far edge ({far} u) \
-             misses by {miss} u, which must still be inside a hull's \
-             {} u beam",
-            HULL_HIT_RADIUS * 2.0
+        // The carrier's own arm and a Serpent's own envelope, the two ends of
+        // what a gun is ever pointed at.
+        for (hit_radius, distance) in [
+            (19.4, far),
+            (19.4, CLOSE_ENGAGEMENT_RANGE),
+            (1.2, CLOSE_ENGAGEMENT_RANGE),
+        ] {
+            let miss = distance * on_target_cone(Some(hit_radius), distance).tan();
+            assert!(
+                (miss - hit_radius).abs() < 1e-3,
+                "a {hit_radius} u target at {distance} u must permit exactly \
+                 {hit_radius} u of miss, permits {miss} u"
+            );
+        }
+
+        assert_eq!(
+            on_target_cone(Some(0.0), far),
+            MUZZLE_SPREAD_RAD,
+            "a barrel is never graded inside its own scatter"
         );
     }
 
@@ -655,15 +691,29 @@ mod tests {
         // the cone, whatever else the fire path thinks.
         let muzzle = Vec3::ZERO;
         let aim = Vec3::new(0.0, 0.0, -100.0);
-        assert!(muzzle_on_target(Vec3::NEG_Z, muzzle, aim), "dead on");
+        assert!(muzzle_on_target(Vec3::NEG_Z, muzzle, aim, None), "dead on");
         assert!(
-            !muzzle_on_target(Vec3::X, muzzle, aim),
+            !muzzle_on_target(Vec3::X, muzzle, aim, None),
             "a mount pinned across the hull is 90 deg off"
         );
-        // And the boundary: half a degree in is on, two degrees out is off.
+        // The commanded-point boundary: half a degree in is on, two out is off.
         let off = |degrees: f32| Quat::from_rotation_y(degrees.to_radians()) * Vec3::NEG_Z;
-        assert!(muzzle_on_target(off(0.5), muzzle, aim), "settled tracking");
-        assert!(!muzzle_on_target(off(2.0), muzzle, aim), "mid-slew");
+        assert!(
+            muzzle_on_target(off(0.5), muzzle, aim, None),
+            "settled tracking"
+        );
+        assert!(!muzzle_on_target(off(2.0), muzzle, aim, None), "mid-slew");
+        // A BODY moves that boundary BOTH ways, which is the whole reason the
+        // gate is derived: 2 deg still lands on a carrier at 1 km, and 1 deg
+        // already flies past a Serpent at the same range.
+        assert!(
+            muzzle_on_target(off(2.0), muzzle, aim, Some(19.4)),
+            "a carrier at 1 km is 11 deg wide"
+        );
+        assert!(
+            !muzzle_on_target(off(1.0), muzzle, aim, Some(1.2)),
+            "a torpedo at 1 km is 0.7 deg wide"
+        );
     }
 
     #[test]
@@ -737,10 +787,11 @@ mod tests {
         // A one-pole filter following a ramp settles exactly `tau` behind it.
         let shortfall = lateral * TARGET_TRACK_TAU * flight;
         assert!(
-            shortfall <= HULL_HIT_RADIUS,
+            shortfall <= POINT_AIM_RADIUS,
             "a track constant of {TARGET_TRACK_TAU} s leads a Serpent \
              ({lateral} u/s^2 of weave) {shortfall} u short over a {flight} s \
-             flight, outside the {HULL_HIT_RADIUS} u it has to land inside"
+             flight, outside the {POINT_AIM_RADIUS} u half-beam it has to land \
+             inside"
         );
     }
 

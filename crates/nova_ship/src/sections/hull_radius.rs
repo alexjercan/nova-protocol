@@ -1,11 +1,14 @@
 //! How big a hull is: two derived numbers, published together on the ship root
-//! from one pass over its live sections.
+//! from one pass over its live sections, and the HIT SIZE every weapon gate
+//! grades itself against.
 //!
 //! [`HullRadius`] is the STRUCTURAL arm the attitude ceiling and the flight
 //! layer's arrival rule read. [`HullEnvelopeRadius`] is the CONTAINMENT radius
 //! the HUD's shells stand outside of. They answer different questions and are
 //! published side by side so they can never disagree about which sections are
-//! live.
+//! live. [`TargetHitRadius`] is the third: how big this body is to SHOOT at,
+//! resolved once per body from whichever of the above its class measures by,
+//! so a fire gate asks one component instead of branching per target kind.
 //!
 //! Engine units: both are measured off the sections' avian colliders, so both
 //! are world units (10 m), like every other radius the flight layer compares
@@ -13,13 +16,13 @@
 
 use avian3d::prelude::ComputedCenterOfMass;
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
-use nova_gameplay::prelude::{SectionInactiveMarker, SectionMarker};
+use nova_gameplay::prelude::{SectionInactiveMarker, SectionMarker, TorpedoProjectileMarker};
 
-use crate::prelude::{structural_arm, SectionCollider};
+use crate::prelude::{structural_arm, BodyRadius, SectionCollider};
 
-/// The `HullRadius` and `HullEnvelopeRadius` components.
+/// The `HullRadius`, `HullEnvelopeRadius` and `TargetHitRadius` components.
 pub mod prelude {
-    pub use super::{HullEnvelopeRadius, HullRadius};
+    pub use super::{HullEnvelopeRadius, HullRadius, TargetHitRadius};
 }
 
 /// A hull's own outer reach, world units: the distance from its live centre of
@@ -56,6 +59,65 @@ pub struct HullRadius(pub f32);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct HullEnvelopeRadius(pub f32);
+
+/// How big a body is to SHOOT at, world units: the radius a round has to land
+/// inside to count as hitting the thing it was aimed at.
+///
+/// Deliberately NOT [`LockSignature`](crate::prelude::LockSignature), which is
+/// how loudly a body answers a scanner. A planet is the loudest thing in the
+/// sky and a torpedo is nearly silent, and neither figure says anything about
+/// how hard either is to hit.
+///
+/// One component, resolved from whichever size the body's class measures by
+/// ([`publish_target_hit_radii`]): a ship by its structural arm, a committed
+/// torpedo by its containment envelope, a rock or a world by its
+/// [`BodyRadius`]. A weapon gate then asks one question of any target instead
+/// of carrying a branch per kind. A FINE lock on one section is smaller still
+/// and is measured on that section's own collider, at the gate.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct TargetHitRadius(pub f32);
+
+/// Publish every body's [`TargetHitRadius`] from the size its class measures
+/// by, beside the arm and the envelope it is taken from.
+///
+/// A torpedo takes the ENVELOPE rather than the arm: it is one short section
+/// pointed at you, and the arm of a body that is barely longer than it is wide
+/// is a miss rather than a hit. Everything else with a hull takes the arm,
+/// which is the face a round arrives at.
+pub(crate) fn publish_target_hit_radii(
+    mut commands: Commands,
+    mut q_body: Query<
+        (
+            Entity,
+            Option<&HullRadius>,
+            Option<&HullEnvelopeRadius>,
+            Option<&BodyRadius>,
+            Has<TorpedoProjectileMarker>,
+            Option<&mut TargetHitRadius>,
+        ),
+        Or<(With<HullRadius>, With<BodyRadius>)>,
+    >,
+) {
+    for (body, arm, envelope, body_radius, torpedo, hit) in &mut q_body {
+        let resolved = if torpedo {
+            envelope.map(|envelope| **envelope)
+        } else {
+            None
+        }
+        .or(arm.map(|arm| **arm))
+        .or(body_radius.map(|radius| **radius))
+        .unwrap_or(0.0);
+        match hit {
+            Some(mut hit) => {
+                hit.set_if_neq(TargetHitRadius(resolved));
+            }
+            None => {
+                commands.entity(body).try_insert(TargetHitRadius(resolved));
+            }
+        }
+    }
+}
 
 /// Publish every hull's [`HullRadius`] and [`HullEnvelopeRadius`] from its live
 /// sections.

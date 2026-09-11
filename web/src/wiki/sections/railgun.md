@@ -204,9 +204,11 @@ The section's ammo gauge is the countdown, and the bore sight stays up dimmed th
 
 ## Facing one
 
-<!-- Behavior verified against crates/nova_ship/src/input/ai/railgun.rs: commit gate ~8 degrees of bore alignment (AI_RAILGUN_ALIGNMENT_COS 0.99, :36), inside 60% of the slug's reach (AI_RAILGUN_REACH_FACTOR, :43), plus a 14 s per-gun pilot cadence over the gun's own reload (AI_RAILGUN_COOLDOWN_SECS, :28). The module's own header records it as deliberately crude: the AI does not fly the shot. -->
+<!-- Behavior verified against crates/nova_ship/src/input/ai/railgun.rs: commit gate is the target's own angular size (ai_railgun_envelope calls on_target_cone = atan(hit radius / distance), :68), inside 60% of the slug's reach (AI_RAILGUN_REACH_FACTOR, :36), plus a 14 s per-gun pilot cadence over the gun's own reload (AI_RAILGUN_COOLDOWN_SECS, :28). The hit radius is HullRadius, 194.2 m carrier and 47.8 m skiff (system_hull_scaling), so a 1 km commit is 11.0 deg on the one and 2.7 deg on the other. The module's own header records it as deliberately crude: the AI does not fly the shot. -->
 
-An enemy railgun does not stalk you. A raider carrying one commits when its orbit happens to sweep the bore across something it is already fighting, inside about eight degrees and well within the slug's reach, and it spaces its shots further apart than the gun itself needs. So it lands the occasional slug and never sets one up.
+An enemy railgun does not stalk you. A raider carrying one commits when its orbit happens to sweep the bore across something it is already fighting, well within the slug's reach, and it spaces its shots further apart than the gun itself needs. So it lands the occasional slug and never sets one up.
+
+What it will NOT do is spend the shell on a line that cannot land. The commit wants the bore inside the target's **own width** at the range it is at - eleven degrees on a carrier a kilometer out, under three on a skiff at the same range, and tighter still as the gap opens. Fly a small hull and a raider's lance mostly stays quiet; fly something big and slow and it will take the shot from further off than feels fair.
 
 Your warning is the same one you give: the charge. A ship whose nose swings dead onto you and then holds still is a ship that has committed, and the second and a half before the shot is the only part of it you can do anything about.
 

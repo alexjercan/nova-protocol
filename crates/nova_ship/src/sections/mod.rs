@@ -225,6 +225,7 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<ammo::SectionReload>();
         app.register_type::<hull_radius::prelude::HullRadius>();
         app.register_type::<hull_radius::prelude::HullEnvelopeRadius>();
+        app.register_type::<hull_radius::prelude::TargetHitRadius>();
         // The hull's own size, derived once per tick for every reader: the
         // attitude stack (SyncStack) turns it into the structural turn
         // ceiling, the flight layer - pinned after SyncStack - adds it to
@@ -243,6 +244,12 @@ impl Plugin for SpaceshipSectionPlugin {
         app.add_systems(
             FixedUpdate,
             signature::publish_ship_signatures.after(hull_radius::publish_hull_radii),
+        );
+        // How big this body is to shoot at, off the arm and the envelope the
+        // pass above just wrote.
+        app.add_systems(
+            FixedUpdate,
+            hull_radius::publish_target_hit_radii.after(hull_radius::publish_hull_radii),
         );
         app.add_plugins(integrity::ShipIntegrityPlugin);
         // The authored-animation rig and driver. Unconditional, not

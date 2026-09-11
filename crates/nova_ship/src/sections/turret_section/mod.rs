@@ -19,8 +19,9 @@ mod test_support;
 #[cfg(test)]
 pub(crate) use aim::lead_intercept_point;
 pub use aim::{
-    muzzle_aim_error, muzzle_on_target, update_turret_aim_point, TurretSectionAimSystems,
-    TurretSectionTargetTrack, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+    muzzle_aim_error, muzzle_on_target, on_target_cone, update_turret_aim_point,
+    TurretSectionAimSystems, TurretSectionTargetTrack, CLOSE_ENGAGEMENT_RANGE,
+    POINT_AIM_ON_TARGET_RAD, POINT_AIM_RADIUS,
 };
 use aim::{
     sync_turret_joint_rotation, update_turret_target_joints_system, update_turret_target_track,
@@ -49,14 +50,14 @@ use crate::prelude::*;
 /// inputs, the loaded bullet and `TurretSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        muzzle_aim_error, muzzle_on_target, preview_turret_section, turret_section, LoadedBullet,
-        MuzzleConfig, TurretEngineFigures, TurretJoint, TurretSectionAimPoint,
+        muzzle_aim_error, muzzle_on_target, on_target_cone, preview_turret_section, turret_section,
+        LoadedBullet, MuzzleConfig, TurretEngineFigures, TurretJoint, TurretSectionAimPoint,
         TurretSectionAimSystems, TurretSectionArc, TurretSectionBarrelMuzzleMarker,
         TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput,
         TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionSystems,
-        TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetTrack,
-        TurretSectionTargetVelocity, TurretStow, TurretStowDoorsMoved, TurretStowPhase,
-        CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+        TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetRadius,
+        TurretSectionTargetTrack, TurretSectionTargetVelocity, TurretStow, TurretStowDoorsMoved,
+        TurretStowPhase, CLOSE_ENGAGEMENT_RANGE, POINT_AIM_ON_TARGET_RAD, POINT_AIM_RADIUS,
     };
 }
 
@@ -149,7 +150,11 @@ pub struct TurretSectionTargetInput(pub Option<Vec3>);
 /// always SOME target's velocity over SOME history, and an aim feed that writes
 /// one without the other leaves the track keyed to the wrong body.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
-#[require(TurretSectionTargetEntity, TurretSectionTargetTrack)]
+#[require(
+    TurretSectionTargetEntity,
+    TurretSectionTargetRadius,
+    TurretSectionTargetTrack
+)]
 pub struct TurretSectionTargetVelocity(pub Vec3);
 
 /// The entity whose motion [`TurretSectionTargetVelocity`] describes, or `None`
@@ -162,6 +167,18 @@ pub struct TurretSectionTargetVelocity(pub Vec3);
 /// lead the new one along the dead one's course.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct TurretSectionTargetEntity(pub Option<Entity>);
+
+/// How big the thing at the aim point is, world units, or `None` for a
+/// commanded POINT with no body behind it.
+///
+/// Written by every aim feed beside the position, and read by the fire gate:
+/// [`on_target_cone`] turns it into the angle this barrel may be off and still
+/// land its round. The feed is what knows, because the feed is what chose the
+/// tier - a whole ship publishes [`TargetHitRadius`], a FINE lock on one
+/// section is measured on that section's own collider, and the player's
+/// crosshair is not a body at all.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+pub struct TurretSectionTargetRadius(pub Option<f32>);
 
 /// The world-space point the turret is actually aiming its barrel at: the lead
 /// intercept of `TurretSectionTargetInput` given `TurretSectionTargetVelocity`,
@@ -382,8 +399,8 @@ impl Plugin for TurretSectionPlugin {
         // quantized shots to render frames and the muzzle pose was the eased
         // render pose.
         //
-        // The aim half joined it because the fire gate is a 0.92 deg cone
-        // (`TURRET_ON_TARGET_RAD`) and a barrel whose pose advanced once per
+        // The aim half joined it because the fire gate is a cone barely a
+        // degree wide on ordnance and a barrel whose pose advanced once per
         // FRAME crossed that cone a number of times per SIMULATED second that
         // followed the frame rate - measured on `stress_point_defense` as 0.10
         // of the trigger held at 20 fps against 0.62 at 106 fps, same scene,

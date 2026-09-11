@@ -1586,7 +1586,7 @@ mod point_defense_cost_tests {
                 fire_timer -= interval;
                 // The mount sits at the origin, so the barrel's aim point is
                 // `aim` itself - the same predicate the section fire path runs.
-                if !in_envelope || !muzzle_on_target(barrel, Vec3::ZERO, aim) {
+                if !in_envelope || !muzzle_on_target(barrel, Vec3::ZERO, aim, Some(HIT_RADIUS)) {
                     continue;
                 }
                 // Sub-tick lead, as `shoot_spawn_projectile` gives the stream:

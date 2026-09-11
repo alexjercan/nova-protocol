@@ -521,9 +521,8 @@ fn report_the_cold_shot(world: &mut World) {
         .iter()
         .find(|mount| mount.authority == MountAuthority::FlightComputer && mount.firing)
         .expect("borrowed_battery: the step advanced on a firing mount");
-    let error = mount_aim_error_deg(world, firing.turret)
+    let (error, gate, hit_radius, distance) = mount_aim_error_deg(world, firing.turret)
         .expect("borrowed_battery: a firing mount has a muzzle to measure");
-    let gate = TURRET_ON_TARGET_RAD.to_degrees();
     assert!(
         error <= gate,
         "borrowed_battery: the computer fired {error:.3} deg off, outside the {gate:.3} deg \
@@ -536,7 +535,12 @@ fn report_the_cold_shot(world: &mut World) {
     );
 
     let t = world.resource::<Time>().elapsed_secs();
-    info!("borrowed_battery: cold hull firing - aim error {error:.3} deg, gate {gate:.3} deg");
+    info!(
+        "borrowed_battery: cold hull firing - aim error {error:.3} deg, gate {gate:.3} deg \
+         on a {:.1} m torpedo at {:.0} m",
+        Meters::from_engine(hit_radius).get(),
+        Meters::from_engine(distance).get()
+    );
     nova_probe::probe_marker(
         world,
         "beat: cold mount fired inside the gate",
@@ -544,6 +548,8 @@ fn report_the_cold_shot(world: &mut World) {
             "t": t,
             "aim_error_deg": error,
             "bearing_gate_deg": gate,
+            "hit_radius_m": Meters::from_engine(hit_radius).get(),
+            "range_m": Meters::from_engine(distance).get(),
             "weapons_hot": false,
         }),
     );
@@ -693,13 +699,27 @@ fn hull_is_hot(world: &World) -> bool {
         .unwrap_or(false)
 }
 
-/// How far off its aim point `turret`'s muzzle points, in degrees.
+/// How far off its aim point `turret`'s muzzle points, and the bearing gate
+/// that bearing has to beat, both in degrees.
+///
+/// The gate travels with the mount because it is the TARGET's angular size: a
+/// torpedo at 800 m is a narrower thing to bear on than the same torpedo at
+/// 200 m, and one fixed number would call both on target.
 #[cfg(feature = "debug")]
-fn mount_aim_error_deg(world: &World, turret: Entity) -> Option<f32> {
+fn mount_aim_error_deg(world: &World, turret: Entity) -> Option<(f32, f32, f32, f32)> {
     let muzzle = **world.get::<TurretSectionMuzzleEntity>(turret)?;
     let pose = world.get::<GlobalTransform>(muzzle)?;
     let aim = (**world.get::<TurretSectionAimPoint>(turret)?)?;
-    Some(muzzle_aim_error(pose.forward().into(), pose.translation(), aim).to_degrees())
+    let hit_radius = world
+        .get::<TurretSectionTargetRadius>(turret)
+        .and_then(|radius| **radius);
+    let distance = pose.translation().distance(aim);
+    Some((
+        muzzle_aim_error(pose.forward().into(), pose.translation(), aim).to_degrees(),
+        on_target_cone(hit_radius, distance).to_degrees(),
+        hit_radius.unwrap_or_default(),
+        distance,
+    ))
 }
 
 /// Reload the range for a looped capture cycle.

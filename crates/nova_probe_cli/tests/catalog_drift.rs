@@ -209,6 +209,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "range target hit",
             "turret tracks the mover",
             "turret invariants hold after reload",
+            "the fire gate is the size of what is shot at",
         ],
     ),
     (
@@ -604,7 +605,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 259;
+const SYSTEMS_INVARIANTS: usize = 260;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

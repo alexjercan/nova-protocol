@@ -107,6 +107,7 @@ pub(super) fn update_turret_target_input(
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
             &mut TurretSectionTargetEntity,
+            &mut TurretSectionTargetRadius,
             Option<&TurretDefenseTarget>,
             &ChildOf,
         ),
@@ -118,6 +119,7 @@ pub(super) fn update_turret_target_input(
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
     q_target_velocity: Query<&LinearVelocity>,
+    q_target_radius: Query<&TargetHitRadius>,
 ) {
     // Iterated turret-first, not ship-first: every turret now resolves its own
     // gun target, so there is nothing left to hoist out of the inner loop.
@@ -125,6 +127,7 @@ pub(super) fn update_turret_target_input(
         mut turret_input,
         mut turret_velocity,
         mut turret_tracked,
+        mut turret_radius,
         turret_defense,
         ChildOf(ship),
     ) in &mut q_turret
@@ -150,6 +153,12 @@ pub(super) fn update_turret_target_input(
         // restarts when the guns swing to a different target rather than
         // leading the new one along the old one's course.
         **turret_tracked = aim.and(gun_target);
+        // How wide the thing being shot at actually is, so the fire gate opens
+        // on a cone that fits it rather than on one fixed angle.
+        **turret_radius = aim
+            .and(gun_target)
+            .and_then(|entity| q_target_radius.get(entity).ok())
+            .map(|radius| **radius);
     }
 }
 
@@ -278,6 +287,7 @@ pub(super) fn on_projectile_input(
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_target_hit_radius: Query<&TargetHitRadius>,
     spatial: SpatialQuery,
     q_sensor: Query<(), With<Sensor>>,
     q_collider_of: Query<&ColliderOf>,
@@ -329,7 +339,10 @@ pub(super) fn on_projectile_input(
         // of `TurretSectionInput`.
         let muzzle_position = muzzle_transform.translation();
         let aim = aim_point.unwrap_or(target_anchor);
-        if !mount_may_shoot(muzzle_transform, figures, target_anchor, aim) {
+        let hit_radius = gun_target
+            .and_then(|entity| q_target_hit_radius.get(entity).ok())
+            .map(|radius| **radius);
+        if !mount_may_shoot(muzzle_transform, figures, target_anchor, aim, hit_radius) {
             **input = false;
             continue;
         }
