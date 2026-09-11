@@ -19,6 +19,9 @@ does NOT get an entry - and it is the only place they are written down.
 - An enemy flies its fight on the flight computer: it holds a velocity and
   keeps its nose on you while it circles, and lights only the engines that
   burn for it instead of every thruster at once.
+- An enemy circles at 1 km of clear space between the two HULLS, not the two
+  centres, so a carrier is fought at the distance a skiff is. An authored
+  `standoff_clearance` overrides it; 0 m is contact.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the

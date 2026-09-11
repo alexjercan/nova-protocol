@@ -157,6 +157,25 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub sensor_range: Option<Meters>,
+    /// Combat standoff override: the clearance this ship wants between its
+    /// own hull and its target's while it fights, instead of the engine's
+    /// 1 km default.
+    ///
+    /// A FACE distance. The preferred centre distance is this plus both
+    /// ships' live hull radii, so the same authored number means the same
+    /// thing whether the fight is two skiffs or two carriers - author what a
+    /// player should SEE between the two skins.
+    ///
+    /// Unlike `engage_range`, zero is meaningful and is honoured:
+    /// `Some(0.0)` is a ship that closes until the hulls meet, which is what
+    /// a boarder or a rammer wants. None = the default. Not the distance the
+    /// guns open at, which is the weapon's own reach, and not
+    /// `arrival_standoff`, which is navigation. See `AIStandoffClearance`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub standoff_clearance: Option<Meters>,
     /// Point-defense range override: the guns hold fire until an inbound
     /// hostile torpedo is inside this range instead of the engine's 1.5 km
     /// default. Author it short to stage intercepts close-in; past the
@@ -674,6 +693,15 @@ fn insert_spaceship_sections(
                         .insert(AIEngageRange(range.to_engine()));
                 }
             }
+            // NOT the guard shape above: zero is meaningful here. A ship
+            // that wants no clearance at all is a boarder or a rammer, and
+            // it is the one authored value this field exists to make
+            // sayable.
+            if let Some(clearance) = config.standoff_clearance {
+                commands
+                    .entity(entity)
+                    .insert(AIStandoffClearance(clearance.to_engine().max(0.0)));
+            }
             if let Some(range) = config.pd_range {
                 if range > Meters::ZERO {
                     commands
@@ -777,6 +805,7 @@ mod tests {
                 engage_delay: None,
                 engage_range: None,
                 sensor_range: None,
+                standoff_clearance: None,
                 pd_range: None,
                 waypoint_slack: None,
                 non_combatant: false,
@@ -795,6 +824,7 @@ mod tests {
                 engage_range: Some(Meters(16_000.0)),
                 sensor_range: Some(Meters(40_000.0)),
                 pd_range: Some(Meters(1_500.0)),
+                standoff_clearance: Some(Meters(400.0)),
                 waypoint_slack: Some(Meters(50.0)),
                 arrival_standoff: Some(Meters(100.0)),
                 order_interruption: Some(AIOrderInterruption::OnDamage),
@@ -825,6 +855,14 @@ mod tests {
         assert_eq!(
             world
                 .entity(watcher)
+                .get::<AIStandoffClearance>()
+                .map(|c| c.0),
+            Some(40.0),
+            "400 m of clearance between the two faces is 40 world units"
+        );
+        assert_eq!(
+            world
+                .entity(watcher)
                 .get::<FlightArrivalStandoff>()
                 .map(|s| **s),
             Some(10.0)
@@ -841,6 +879,7 @@ mod tests {
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
+        assert!(world.entity(orbiter).get::<AIStandoffClearance>().is_none());
         assert!(
             world
                 .entity(orbiter)
@@ -881,6 +920,39 @@ mod tests {
             world.entity(blind).get::<SensorRange>().map(|r| r.0),
             Some(0.0),
             "a blind ship keeps the component and reaches nothing"
+        );
+    }
+
+    /// Zero clearance is a ship that closes until the hulls meet - a
+    /// boarder, a rammer - and it is the one value the field exists to make
+    /// sayable, so the spawn path must not drop it the way it drops an empty
+    /// engage range.
+    #[test]
+    fn a_zero_standoff_clearance_is_contact_not_an_unauthored_one() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
+        world.add_observer(insert_spaceship_sections);
+        let boarder = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig {
+                        standoff_clearance: Some(Meters::ZERO),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        assert_eq!(
+            world
+                .entity(boarder)
+                .get::<AIStandoffClearance>()
+                .map(|c| c.0),
+            Some(0.0),
+            "a boarder keeps the component and asks for contact"
         );
     }
 

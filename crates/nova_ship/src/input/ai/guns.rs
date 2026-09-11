@@ -37,11 +37,13 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 ///
 /// Change a lifetime and these must be re-derived in the SAME commit:
 ///
-/// - `AI_STANDOFF_RANGE` + `AI_STANDOFF_BAND` (`maneuver.rs`) - where a fight
-///   actually settles. `standoff + band` (125 u) must sit well inside the
-///   WEAKEST shipped gun's gate, or AI ships orbit outside their own reach
-///   and never fire. There is no error when that happens; the guns simply
-///   stay quiet.
+/// - `AI_STANDOFF_CLEARANCE` + `AI_STANDOFF_BAND` (`maneuver.rs`) - where a
+///   fight actually settles. Those 125 u are a FACE clearance, and the round
+///   crosses the centre distance, which adds both ships' live `HullRadius`:
+///   the shipped warship and carrier put 31 u of arm on top. The sum must sit
+///   well inside the WEAKEST shipped gun's gate, or AI ships orbit outside
+///   their own reach and never fire. There is no error when that happens; the
+///   guns simply stay quiet.
 /// - `AI_POINT_DEFENSE_RANGE` (`acquisition.rs`) - at or under the gate, or
 ///   the opening rounds of every intercept are wasted.
 /// - `AI_ENGAGE_RANGE` (`behavior.rs`) - above the gate; the difference is

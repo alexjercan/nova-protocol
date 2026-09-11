@@ -28,28 +28,54 @@ const AI_CHASE_SPEED_GAIN: f32 = 0.2;
 /// fast, so it stays a moving target instead of a parked one.
 const AI_ORBIT_SPEED: f32 = 8.0;
 const AI_MAX_CHASE_SPEED: f32 = 20.0;
-/// Preferred engagement range (u): where a fight SETTLES, so this - not the
-/// fire gate - is the distance a player sees combat happen at. 100 u = 1.0 km.
+/// Preferred engagement clearance (u): the space a fight SETTLES with between
+/// the two hulls' FACES, so this - not the fire gate - is the distance a
+/// player sees combat happen at. 100 u = 1.0 km.
 ///
-/// Bounded from above by the fire gate: `AI_STANDOFF_RANGE +
-/// AI_STANDOFF_BAND` (125 u) must sit inside the WEAKEST shipped gun's
-/// `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR` - 180 u for
-/// every shipped PDC, which authors 1 000 m/s over 2.0 s - or a ship orbits
-/// outside its own reach and never fires - silently. Moves with every lifetime
-/// change: see AI_FIRE_RANGE_FACTOR in `guns.rs` for the whole chain.
-const AI_STANDOFF_RANGE: f32 = 100.0;
-/// Half-width (u) of the band around the preferred range where the orbit
-/// term dominates the radial term. Kept at ~a quarter of the standoff: the
-/// RATIO is the fight's shape (a band as wide as the standoff is a charge,
+/// A FACE distance, and the preferred centre distance adds both ships' live
+/// [`HullRadius`] to it. Anchor to anchor the same number meant something
+/// different in every fight: two skiffs settled 904 m apart face to face and
+/// the warship and the carrier 703 m, on one constant, and a pair of hulls
+/// with 50 u arms would have parked inside each other.
+///
+/// Overridable per ship with [`AIStandoffClearance`]. Zero is meaningful and
+/// authorable: it asks for contact.
+const AI_STANDOFF_CLEARANCE: f32 = 100.0;
+/// Half-width (u) of the band around the preferred clearance where the orbit
+/// term dominates the radial term. Kept at ~a quarter of the clearance: the
+/// RATIO is the fight's shape (a band as wide as the clearance is a charge,
 /// not an orbit), and the sum is what the fire gate has to cover.
 const AI_STANDOFF_BAND: f32 = 25.0;
-/// The far edge (u) of the orbit band a fight settles into, and therefore the
-/// distance EVERY gun an AI ship carries must be able to reach. Authoring a
-/// turret whose `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR`
-/// falls short of this gives a ship that flies its fight correctly and never
-/// pulls the trigger, with nothing logged. Exported so the content audit can
-/// grade authored prototypes against it.
-pub const AI_STANDOFF_OUTER_EDGE: f32 = AI_STANDOFF_RANGE + AI_STANDOFF_BAND;
+/// The far edge (u) of the orbit band a fight settles into, as a FACE
+/// distance, and therefore the distance EVERY gun an AI ship carries must be
+/// able to reach BEFORE the two hulls are counted. Authoring a turret whose
+/// `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR` falls short of
+/// this gives a ship that flies its fight correctly and never pulls the
+/// trigger, with nothing logged. Exported so the content audit can grade
+/// authored prototypes against it.
+///
+/// Necessary, not sufficient: the round crosses the centre distance, which
+/// adds both live arms on top. The shipped fleet's largest pair is the
+/// warship against the carrier at 118 m and 194 m, so 1 250 m of band becomes
+/// 1 562 m of travel against a 1 800 m gate - `system_ai_combat` measures it.
+/// A mod whose hulls are arms of several hundred metres has to author reach
+/// for them.
+pub const AI_STANDOFF_OUTER_EDGE: f32 = AI_STANDOFF_CLEARANCE + AI_STANDOFF_BAND;
+
+/// Per-ship override of [`AI_STANDOFF_CLEARANCE`]: the clearance this ship
+/// wants between its own face and its target's while it fights.
+///
+/// A FACE distance, like the default it replaces: the preferred centre
+/// distance is this plus both hulls' live [`HullRadius`], so the same authored
+/// number reads the same way whatever the two ships are. Author it short on a
+/// knife-fighter and zero on a boarder or a rammer - zero asks for contact,
+/// which is why this is not guarded against zero the way `engage_range` is.
+///
+/// Authored in meters via `AIControllerConfig::standoff_clearance`; this
+/// component holds the world units the envelope compares against.
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIStandoffClearance(pub f32);
 /// The speed (u/s) an evading ship flies its jink legs at. A jink leg is a
 /// DISPLACEMENT - it has to carry the hull out from under the guns inside one
 /// leg - so it is budgeted the whole chase cap instead of the envelope's
@@ -57,10 +83,15 @@ pub const AI_STANDOFF_OUTER_EDGE: f32 = AI_STANDOFF_RANGE + AI_STANDOFF_BAND;
 pub(super) const AI_EVADE_SPEED: f32 = AI_MAX_CHASE_SPEED;
 
 /// The velocity an engaged AI ship wants to be flying: the standoff envelope
-/// around its target. Far outside the band it approaches; inside the band it
-/// orbits (tangential to the line of sight, stable handedness); too close it
-/// extends away - pure pursuit is what parked the old AI at zero range in a
-/// turret duel, or rammed.
+/// around its target, whose preferred CENTRE distance `standoff` is. Far
+/// outside the band it approaches; inside the band it orbits (tangential to
+/// the line of sight, stable handedness); too close it extends away - pure
+/// pursuit is what parked the old AI at zero range in a turret duel, or
+/// rammed.
+///
+/// `standoff` is a centre distance because that is what `to_target` measures:
+/// the caller sums both hulls' live arms and the authored face clearance, so
+/// this function never sees a hull.
 ///
 /// A VELOCITY rather than a heading, because the flight computer flies it.
 /// The old heading had to carry a brake regime of its own - point opposite
@@ -70,7 +101,7 @@ pub(super) const AI_EVADE_SPEED: f32 = AI_MAX_CHASE_SPEED;
 ///
 /// Falls back to the line of sight if the envelope direction degenerates.
 /// Pure for unit testing.
-fn ai_desired_velocity(to_target: Vec3) -> Vec3 {
+fn ai_desired_velocity(to_target: Vec3, standoff: f32) -> Vec3 {
     let distance = to_target.length();
     if distance <= f32::EPSILON {
         return Vec3::ZERO;
@@ -78,7 +109,7 @@ fn ai_desired_velocity(to_target: Vec3) -> Vec3 {
     let los = to_target / distance;
 
     // Positive = too far (approach), negative = too close (extend).
-    let range_error = distance - AI_STANDOFF_RANGE;
+    let range_error = distance - standoff;
     // Orbit tangent with a stable handedness; the X fallback covers a
     // dead-polar line of sight. Global handedness (every ship circles the
     // same way) is fine for one archetype - see task Notes.
@@ -97,6 +128,18 @@ fn ai_desired_velocity(to_target: Vec3) -> Vec3 {
     // below the orbit floor - a parked ship is a free shot.
     let speed = (range_error.abs() * AI_CHASE_SPEED_GAIN).clamp(AI_ORBIT_SPEED, AI_MAX_CHASE_SPEED);
     direction * speed
+}
+
+/// The centre distance a fight between these two hulls should settle at: the
+/// authored face clearance with both live structural arms put back on.
+///
+/// Both arms, not one: a standoff is the space a player sees BETWEEN two
+/// ships, and each hull spends its own arm out of the centre distance first.
+/// A hull with no published arm - a target that is not a ship, a root avian
+/// has not weighed yet - contributes nothing and the fight degrades to the
+/// old anchor-to-anchor reading rather than to a panic.
+fn ai_standoff_centre_distance(mover_arm: f32, target_arm: f32, clearance: f32) -> f32 {
+    mover_arm + target_arm + clearance
 }
 
 /// The direction an evading ship flies on jink pattern leg `leg`: a box
@@ -161,6 +204,7 @@ pub(super) fn update_combat_flight(
             &AIBehaviorState,
             &AITarget,
             &AIEvade,
+            Option<&AIStandoffClearance>,
             Option<&mut Autopilot>,
         ),
         // Silent while a scenario order holds the helm: the order's own drive
@@ -173,6 +217,8 @@ pub(super) fn update_combat_flight(
         ),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    // Both ends of the standoff, read off whichever hull is at each end.
+    q_arm: Query<&HullRadius>,
     // What the computer needs to fly anything: an engine to burn and a live
     // controller to steer with. Checked HERE rather than left to the
     // autopilot's own disengage, because this driver would re-engage the very
@@ -188,22 +234,23 @@ pub(super) fn update_combat_flight(
         ),
     >,
 ) {
-    for (ship, transform, com, state, target, evade, autopilot) in &mut q_spaceship {
+    for (ship, transform, com, state, target, evade, clearance, autopilot) in &mut q_spaceship {
         let held = autopilot.as_deref().is_some_and(|autopilot| {
             matches!(autopilot.action, AutopilotAction::MatchVelocity { .. })
         });
         // A non-engaging state, or no target left to chase, hands the helm
         // back EXPLICITLY: a held velocity never completes itself, and the
         // passive pilot only engages its own maneuver on a free helm.
-        let Some(target_anchor) = state
+        let engagement = state
             .engages()
-            .then(|| ai_target_anchor(**target, &q_target))
+            .then_some(**target)
             .flatten()
             .filter(|_| {
                 q_engine.iter().any(|&ChildOf(parent)| parent == ship)
                     && q_computer.iter().any(|&ChildOf(parent)| parent == ship)
             })
-        else {
+            .and_then(|enemy| Some((enemy, ai_target_anchor(Some(enemy), &q_target)?)));
+        let Some((enemy, target_anchor)) = engagement else {
             if held {
                 commands.entity(ship).remove::<Autopilot>();
             }
@@ -219,7 +266,15 @@ pub(super) fn update_combat_flight(
         let velocity = if *state == AIBehaviorState::Evade {
             ai_evade_direction(to_target, evade.leg) * AI_EVADE_SPEED
         } else {
-            ai_desired_velocity(to_target)
+            let arm = |hull: Entity| q_arm.get(hull).map_or(0.0, |radius| **radius);
+            ai_desired_velocity(
+                to_target,
+                ai_standoff_centre_distance(
+                    arm(ship),
+                    arm(enemy),
+                    clearance.map_or(AI_STANDOFF_CLEARANCE, |clearance| clearance.0.max(0.0)),
+                ),
+            )
         };
         let action = AutopilotAction::MatchVelocity {
             velocity,
@@ -311,17 +366,59 @@ mod combat_flight_tests {
         };
         assert_eq!(
             velocity,
-            ai_desired_velocity(Vec3::new(0.0, 0.0, -1000.0)),
+            ai_desired_velocity(Vec3::new(0.0, 0.0, -1000.0), AI_STANDOFF_CLEARANCE),
             "the held velocity is the envelope's"
         );
     }
 
     #[test]
+    fn the_envelope_makes_room_for_both_hulls() {
+        // The item: a fight settles with the authored clearance between the
+        // two SKINS, so the centre distance the envelope aims for grows with
+        // the structure standing in the way. Parked both ships exactly on
+        // the bare clearance, which is inside the envelope for a pair of
+        // points and outside it for a pair of hulls - so the same geometry
+        // reverses the radial term.
+        let (mut world, ship, target) =
+            combat_world(AIBehaviorState::Engage, AI_STANDOFF_CLEARANCE);
+        world.entity_mut(ship).insert(HullRadius(19.42));
+        world.entity_mut(target).insert(HullRadius(19.42));
+        world.run_system_once(update_combat_flight).unwrap();
+
+        let Some(AutopilotAction::MatchVelocity { velocity, .. }) = engaged(&world, ship) else {
+            panic!("engaging must hand the computer a velocity to hold");
+        };
+        assert!(
+            velocity.normalize().dot(Vec3::NEG_Z) < -0.9,
+            "two carrier-sized hulls on the bare clearance are INSIDE the envelope and must \
+             extend away from each other, got {velocity:?}"
+        );
+    }
+
+    #[test]
+    fn an_authored_clearance_moves_where_the_fight_settles() {
+        // The override, and the case the guard shape is for: zero clearance
+        // asks for contact, so a pair parked a kilometre apart is far
+        // outside the envelope and closes.
+        let (mut world, ship, _) = combat_world(AIBehaviorState::Engage, AI_STANDOFF_CLEARANCE);
+        world.entity_mut(ship).insert(AIStandoffClearance(0.0));
+        world.run_system_once(update_combat_flight).unwrap();
+
+        let Some(AutopilotAction::MatchVelocity { velocity, .. }) = engaged(&world, ship) else {
+            panic!("engaging must hand the computer a velocity to hold");
+        };
+        assert!(
+            velocity.normalize().dot(Vec3::NEG_Z) > 0.9,
+            "a zero clearance closes to contact, got {velocity:?}"
+        );
+    }
+
+    #[test]
     fn the_nose_is_asked_to_stay_on_the_target() {
-        // Dead ON the standoff range, where the envelope velocity is
-        // tangential: the ship flies sideways and still wants its guns on
-        // the target, which is the whole reason the facing is separate.
-        let (mut world, ship, _) = combat_world(AIBehaviorState::Engage, AI_STANDOFF_RANGE);
+        // Dead ON the standoff, where the envelope velocity is tangential:
+        // the ship flies sideways and still wants its guns on the target,
+        // which is the whole reason the facing is separate.
+        let (mut world, ship, _) = combat_world(AIBehaviorState::Engage, AI_STANDOFF_CLEARANCE);
         world.run_system_once(update_combat_flight).unwrap();
 
         let Some(AutopilotAction::MatchVelocity { velocity, facing }) = engaged(&world, ship)
@@ -746,12 +843,14 @@ mod physics_tests {
         }
 
         // The last simulated second must stay inside a generous band around
-        // the standoff range - the old pure pursuit closes to ~zero.
+        // the standoff - the old pure pursuit closes to ~zero. Neither body
+        // in this rig publishes a `HullRadius`, so the centre distance the
+        // envelope settles at is the bare clearance.
         let mut worst_error = 0.0f32;
         for _ in 0..60 {
             app.update();
             let position = app.world().get::<Transform>(ship).unwrap().translation;
-            let error = (position.distance(player_position) - AI_STANDOFF_RANGE).abs();
+            let error = (position.distance(player_position) - AI_STANDOFF_CLEARANCE).abs();
             worst_error = worst_error.max(error);
         }
         assert!(
@@ -761,7 +860,7 @@ mod physics_tests {
         // Relative to the envelope, not a literal: the standoff is retuned
         // whenever turret reach is, and a hardcoded floor silently becomes
         // either unfalsifiable or impossible.
-        let floor = AI_STANDOFF_RANGE - AI_STANDOFF_BAND * 2.0;
+        let floor = AI_STANDOFF_CLEARANCE - AI_STANDOFF_BAND * 2.0;
         assert!(
             min_distance > floor,
             "the ship must never dive far inside the envelope \
@@ -824,10 +923,15 @@ mod jink_tests {
 mod standoff_tests {
     use super::*;
 
+    /// The centre distance a fight between two armless test points settles
+    /// at: the bare clearance, which is what every case below that is not
+    /// about hulls wants to read.
+    const BARE: f32 = AI_STANDOFF_CLEARANCE;
+
     #[test]
     fn far_outside_the_band_the_ship_approaches() {
         let to_target = Vec3::new(0.0, 0.0, -1000.0);
-        let desired = ai_desired_velocity(to_target);
+        let desired = ai_desired_velocity(to_target, BARE);
         assert!(
             desired.normalize().dot(to_target.normalize()) > 0.999,
             "far away: fly straight at the target, got {desired:?}"
@@ -843,8 +947,8 @@ mod standoff_tests {
     fn inside_the_band_the_ship_orbits() {
         // Dead on the preferred range: the radial term vanishes and the
         // desired velocity is tangential to the line of sight.
-        let to_target = Vec3::new(0.0, 0.0, -AI_STANDOFF_RANGE);
-        let desired = ai_desired_velocity(to_target);
+        let to_target = Vec3::new(0.0, 0.0, -BARE);
+        let desired = ai_desired_velocity(to_target, BARE);
         assert!(
             desired.normalize().dot(to_target.normalize()).abs() < 0.05,
             "in band: orbit, not chase (los dot {})",
@@ -860,7 +964,7 @@ mod standoff_tests {
     #[test]
     fn too_close_the_ship_extends_away() {
         let to_target = Vec3::new(0.0, 0.0, -50.0);
-        let desired = ai_desired_velocity(to_target);
+        let desired = ai_desired_velocity(to_target, BARE);
         assert!(
             desired.normalize().dot(to_target.normalize()) < -0.9,
             "well inside the envelope: extend AWAY from the target, got {desired:?}"
@@ -873,8 +977,8 @@ mod standoff_tests {
         // the way in from the cap is commanded slower, and the envelope hands
         // the computer the brake rather than carrying a brake regime of its
         // own.
-        let far = ai_desired_velocity(Vec3::new(0.0, 0.0, -1000.0)).length();
-        let near = ai_desired_velocity(Vec3::new(0.0, 0.0, -AI_STANDOFF_RANGE - 50.0)).length();
+        let far = ai_desired_velocity(Vec3::new(0.0, 0.0, -1000.0), BARE).length();
+        let near = ai_desired_velocity(Vec3::new(0.0, 0.0, -BARE - 50.0), BARE).length();
         assert!(
             near < far,
             "closing on the band must lower the budget, {near} u/s against {far} u/s"
@@ -886,11 +990,69 @@ mod standoff_tests {
     fn a_polar_line_of_sight_still_orbits() {
         // Line of sight straight up Y: the Y-cross tangent degenerates and
         // the X fallback must keep the orbit term finite.
-        let to_target = Vec3::new(0.0, AI_STANDOFF_RANGE, 0.0);
-        let desired = ai_desired_velocity(to_target);
+        let to_target = Vec3::new(0.0, BARE, 0.0);
+        let desired = ai_desired_velocity(to_target, BARE);
         assert!(
             desired.is_finite() && desired.length() > 0.9,
             "polar approach must not degenerate, got {desired:?}"
+        );
+    }
+
+    #[test]
+    fn a_bigger_pair_of_hulls_settles_further_apart() {
+        // The clearance is what a player sees between two skins, so the
+        // centre distance has to grow by exactly the structure that stands
+        // in the way. Both hulls count: the space is between them.
+        let skiff = 4.78;
+        let carrier = 19.42;
+        assert_eq!(
+            ai_standoff_centre_distance(skiff, skiff, AI_STANDOFF_CLEARANCE),
+            AI_STANDOFF_CLEARANCE + 2.0 * skiff
+        );
+        assert_eq!(
+            ai_standoff_centre_distance(carrier, carrier, AI_STANDOFF_CLEARANCE)
+                - ai_standoff_centre_distance(skiff, skiff, AI_STANDOFF_CLEARANCE),
+            2.0 * (carrier - skiff),
+            "two carriers stand off further than two skiffs by exactly the hull between them"
+        );
+    }
+
+    #[test]
+    fn the_face_clearance_is_what_two_hulls_actually_leave_between_them() {
+        // The point of the item, stated as the reading a player takes: pick
+        // any two hulls, fly the envelope, and the gap between the skins is
+        // the authored number.
+        for (mover, target) in [(4.78, 4.78), (4.78, 19.42), (11.8, 19.42), (50.0, 50.0)] {
+            let centre = ai_standoff_centre_distance(mover, target, AI_STANDOFF_CLEARANCE);
+            assert_eq!(
+                centre - mover - target,
+                AI_STANDOFF_CLEARANCE,
+                "arms {mover} u and {target} u settled with a face gap that is not the clearance"
+            );
+        }
+    }
+
+    #[test]
+    fn a_target_with_no_published_arm_costs_the_fight_nothing() {
+        // A root avian has not weighed yet, or a target that is not a ship,
+        // publishes no arm. That reads as a point, which is the old
+        // anchor-to-anchor behavior, not as a panic or a zero standoff.
+        assert_eq!(
+            ai_standoff_centre_distance(0.0, 0.0, AI_STANDOFF_CLEARANCE),
+            AI_STANDOFF_CLEARANCE
+        );
+    }
+
+    #[test]
+    fn an_authored_zero_clearance_asks_for_contact() {
+        // Zero is a real answer here - a boarder, a rammer - so the envelope
+        // must settle where the two faces meet rather than refuse it.
+        let mover = 4.78;
+        let target = 19.42;
+        assert_eq!(
+            ai_standoff_centre_distance(mover, target, 0.0),
+            mover + target,
+            "a zero clearance is face on face, not centre on centre"
         );
     }
 }

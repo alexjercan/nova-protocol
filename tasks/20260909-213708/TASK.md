@@ -175,7 +175,7 @@ gameplay feedback ledger (`20260909-213118`).
 
 ## AI
 
-- [ ] `nova_ship/src/input/ai/maneuver.rs:39,44` `AI_STANDOFF_RANGE` 100 u
+- [x] `nova_ship/src/input/ai/maneuver.rs:39,44` `AI_STANDOFF_RANGE` 100 u
       and its band, anchor to anchor: carrier vs carrier settles at 63 u
       face to face, a modded hull over 50 u is inside the other ship. Sum
       both `HullRadius` plus an authored standoff; add the override to

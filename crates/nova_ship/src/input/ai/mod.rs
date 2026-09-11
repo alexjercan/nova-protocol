@@ -51,7 +51,7 @@ pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
     guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
-    maneuver::AI_STANDOFF_OUTER_EDGE,
+    maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
     mission::AIOrderInterruption,
     passive::{AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
@@ -99,9 +99,9 @@ pub mod prelude {
     pub use super::{
         AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
         AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
-        AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker, AITarget,
-        AIThreat, AITorpedoBay, AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
-        AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
+        AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
+        AIStandoffClearance, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
+        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
     };
 }
 
@@ -163,6 +163,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIEngageRange>();
         app.register_type::<AIPointDefenseRange>();
         app.register_type::<AIWaypointSlack>();
+        app.register_type::<AIStandoffClearance>();
         app.register_type::<AIOrderInterruption>();
 
         // Threat sensing is an observer, not a system: HealthApplyDamage is

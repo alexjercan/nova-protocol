@@ -235,3 +235,40 @@ REQUEST, so the hull settles onto it at its own turn rate while the orbit keeps
 moving the line of sight, and a capital hull lags it by tens of degrees. The
 range records that figure and asserts only the request, because a snapshot of
 the lag is a sample of an oscillation.
+
+### The standoff became a face clearance, 2026-09-12
+
+`AI_STANDOFF_RANGE` was an anchor-to-anchor distance, so it decided a
+different fight for every pair of hulls: the same 1,000 m left 913 m of space
+between a picket and a skiff and 703 m between a warship and a carrier, and a
+modded pair with arms over 500 m each would have parked inside one another
+with the constant satisfied. It is now `AI_STANDOFF_CLEARANCE`, a clearance
+between the two hulls' FACES, and the preferred centre distance adds the
+mover's and the target's live `HullRadius` on top. `AIControllerConfig` takes
+an authored `standoff_clearance` beside `engage_range`; `Some(0 m)` is
+meaningful and asks for contact.
+
+`system_ai_combat`, sixty seconds after both movers commit:
+
+| figure | picket vs skiff | warship vs carrier |
+| --- | --- | --- |
+| mover arm / target arm | 50 m / 48 m | 118 m / 194 m |
+| centre gap, before | 1,011 m | 1,015 m |
+| centre gap, after | 1,125 m | 1,320 m |
+| face gap, before | 913 m | 703 m |
+| face gap, after | 1,027 m | 1,008 m |
+| speed | 79 m/s | 80 m/s |
+| closing | +7 m/s | -8 m/s |
+
+The face gap is what the two fights now agree on, to within 19 m of each other
+and 27 m of the authored 1,000 m, and the centre gap is what moved apart by
+the 195 m of extra arm the capital pair carries. A player watching a carrier
+fight sees the same gap they see when a skiff fights.
+
+The cost is paid in gun reach. `AI_STANDOFF_OUTER_EDGE` stays a face distance
+so the content audit can keep grading authored prototypes against it, but it
+is now necessary rather than sufficient: the round crosses the centre
+distance. On the shipped fleet's largest pair that turns 1,250 m of band into
+1,562 m of travel against the weakest gun's 1,800 m gate. A mod whose hulls
+carry arms of several hundred metres has to author reach for them, and both
+`guns.rs` and the constant say so.
