@@ -22,6 +22,8 @@ does NOT get an entry - and it is the only place they are written down.
   destination from the press, so only a tap-clear ends the trip.
 - Player and AI see through one sensor pass: the same range, sight and relation
   rules, collected once per ship per frame.
+- A combat lock no longer times out after thirty idle seconds, and the reticle
+  wind-down goes with it: only the world or your own tap takes a lock.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

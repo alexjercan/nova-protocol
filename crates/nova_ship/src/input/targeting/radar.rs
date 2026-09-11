@@ -51,13 +51,12 @@ pub(super) fn update_radar_search(
             &mut RadarState,
             &mut TravelLock,
             &mut CombatLock,
-            &mut CombatDecay,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
     let hold_fired = q_hold.iter().any(|&state| state == TriggerState::Fired);
-    for (raised, contacts, mut radar, mut travel, mut combat, mut decay) in &mut spaceship {
+    for (raised, contacts, mut radar, mut travel, mut combat) in &mut spaceship {
         let Some(aim_rotation) = look_ray.rotation() else {
             continue;
         };
@@ -85,12 +84,6 @@ pub(super) fn update_radar_search(
                 RadarSlot::Travel
             }
         });
-        // An engaged combat sweep IS combat activity: hold the decay at zero
-        // even across equality-skip frames (F12 - a long sweep must not
-        // cross the decay boundary mid-gesture).
-        if slot == RadarSlot::Combat && decay.0 != 0.0 {
-            decay.0 = 0.0;
-        }
         let Some(candidate) = radar.candidate else {
             // Sweeping onto empty space cancels the in-progress acquisition
             // dwell; the committed lock keeps-last (nothing new commits).

@@ -639,29 +639,6 @@ mod tests {
         assert_eq!(travel_of(&app, ship), Some(target), "and does not clear");
     }
 
-    #[test]
-    fn an_engaged_combat_sweep_holds_the_decay_at_zero() {
-        // F12: an engaged combat sweep IS combat activity - a long sweep
-        // must not cross the 30 s decay boundary mid-gesture.
-        let (mut app, ship) = gesture_app();
-        spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
-        app.world_mut().entity_mut(ship).insert(WeaponsRaised(true));
-
-        press_ctrl(&mut app);
-        for _ in 0..6 {
-            app.update();
-        }
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(CombatDecay(COMBAT_DECAY_SECS - 0.01));
-        app.update();
-        assert_eq!(
-            app.world().get::<CombatDecay>(ship).unwrap().0,
-            0.0,
-            "the engaged combat sweep resets the decay every frame"
-        );
-    }
-
     /// THE TAP/HOLD BOUNDARY, measured. Candidate mechanism 5 was "a CTRL
     /// hold the player meant as a hold lands under `RADAR_TAP_SECS` and
     /// clears the lock instead". The rig steps at 50 ms, so this sweeps 1..=8

@@ -100,8 +100,8 @@ pub struct TravelLock(pub Option<Entity>);
 
 /// The combat lock slot on the player ship root: guns, torpedo commit, focus
 /// dwell, component fine-lock and the target inset read it; while it is Some
-/// the weapons safety stays off. Red crosshair. Sticky, plus the
-/// `COMBAT_DECAY_SECS` idle decay.
+/// the weapons safety stays off. Red crosshair. Sticky: only the player's tap
+/// or a named drop branch takes it away.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Component)]
 pub struct CombatLock(pub Option<Entity>);
@@ -191,14 +191,6 @@ impl RadarState {
 #[reflect(Component)]
 pub struct WeaponsHot(pub bool);
 
-/// Idle bookkeeping for the combat-lock decay: seconds since
-/// the last combat activity while a combat lock exists. Reset by the raised
-/// stance and by a held weapon trigger; at `COMBAT_DECAY_SECS` the combat
-/// lock clears and the safety follows.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Default, Reflect)]
-#[reflect(Component)]
-pub struct CombatDecay(pub f32);
-
 /// The always-on ranked hostile combat set (top `TARGET_CANDIDATE_COUNT`
 /// toward the look ray): the edge-indicator threat arrows read it (decision
 /// D9 - the on-screen candidate list HUD is retired, the tracker is not).
@@ -211,12 +203,11 @@ pub struct ThreatContacts {
 
 /// The targeting state bundle a player ship root carries (inserted by the
 /// plugin's observer on [`PlayerSpaceshipMarker`](nova_gameplay::prelude::PlayerSpaceshipMarker); AI parity gives AI ships
-/// the lock/decay components in).
+/// the lock components).
 pub fn targeting_state() -> impl Bundle {
     (
         TravelLock::default(),
         CombatLock::default(),
-        CombatDecay::default(),
         LockFocus::default(),
         ComponentLock::default(),
         ThreatContacts::default(),
@@ -290,21 +281,17 @@ pub enum CombatLockDrop {
     /// A hostile target turned non-hostile - a scripted surrender must not
     /// keep the guns hot.
     AllegianceFlip,
-    /// The idle decay (D4): `COMBAT_DECAY_SECS` without combat activity.
-    IdleDecay,
     /// A body that stops radar came between the ship and the target - the
     /// lock is a radio link, and the link was broken. See [`RadarOccluder`].
     Occluded,
 }
 
 /// The combat lock was dropped by the upkeep, with the branch that dropped
-/// it named ([`CombatLockDrop`]) and the idle clock as it stood.
-#[derive(Message, Debug, Clone, Copy, PartialEq)]
+/// it named ([`CombatLockDrop`]).
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CombatLockDropped {
     /// The target the lock held.
     pub target: Entity,
     /// Which upkeep branch let go.
     pub reason: CombatLockDrop,
-    /// Seconds on the [`CombatDecay`] clock at the drop.
-    pub idle_secs: f32,
 }

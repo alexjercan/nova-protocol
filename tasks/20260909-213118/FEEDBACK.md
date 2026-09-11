@@ -12,6 +12,7 @@ because a balance item is measured before it is tuned.
 | 2026-09-05 | review `20260905-231735` group I | gamepad, any hull | L2 raises weapons AND fires the torpedo tubes | bug | folded into task `20260714-001140` |
 | 2026-09-08 | review `20260908-004345` | `web/src/wiki/flight-autopilot.md` | the page calls 55.2 m "its own 55.2 m hull" for a hull 85 m long | clarity | wiki fix in the docs lane |
 | 2026-09-11 | sweep `20260909-213708` | targeting, block_skiff and block_carrier | cover broke the weapons lock but left the nav designation standing, and the player and the AI answered "can I see it" with two separate passes | balance | one `SensorContacts` pass per observing ship; both slots now drop on cover; hull inputs unchanged (see below); `system_lock_line_of_sight` holds it |
+| 2026-09-11 | sweep `20260909-213708` | targeting, block_skiff and block_carrier | a combat lock let go on its own after thirty idle seconds, so a long quiet approach arrived unlocked and the safety went back on | balance | the idle decay and the reticle wind-down are removed; only the world or the player's tap takes a lock; hull inputs unchanged (see below); `system_lock_line_of_sight` holds it |
 
 ## Measured figures
 
@@ -38,15 +39,13 @@ Read from `system_hull_scaling` at `93849e0` (the sweep's baseline).
 | structural ceiling | 1.6430 rad/s2 | 0.4042 rad/s2 |
 | which binds | structure | **torque**, 5.9x inside it |
 
-### After the targeting consolidation, 2026-09-11
+### After each behavior item, 2026-09-11
 
-Re-read from `system_hull_scaling` at the shared-sensing commit. Every figure
-is unchanged: consolidating the sensor pass moves no mass, no arm and no
-torque, which is what a lifecycle change should read as.
+Re-read from `system_hull_scaling` after every behavior commit, skiff first and
+carrier second in each cell. A figure that moves says the item touched mass,
+arm or torque; a lifecycle item should read as unchanged.
 
-| figure | block_skiff | block_carrier |
-| --- | --- | --- |
-| structural arm (`HullRadius`) | 47.8 m | 194.2 m |
-| torque ceiling | 13.2772 rad/s2 | 0.0684 rad/s2 |
-| structural ceiling | 1.6430 rad/s2 | 0.4042 rad/s2 |
-| which binds | structure | torque |
+| after | structural arm | torque ceiling, rad/s2 | structural ceiling, rad/s2 | which binds |
+| --- | --- | --- | --- | --- |
+| one sensor pass (`68c3ebe`) | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque |
+| no idle lock decay | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque |

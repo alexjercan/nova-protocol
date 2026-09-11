@@ -453,6 +453,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a cleared line gives the lock back",
             "cover drops the travel designation too",
             "an engaged trip flies through the drop",
+            "an idle lock does not time out",
         ],
     ),
     (
@@ -602,7 +603,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 257;
+const SYSTEMS_INVARIANTS: usize = 258;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

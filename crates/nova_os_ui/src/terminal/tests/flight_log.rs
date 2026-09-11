@@ -310,23 +310,19 @@ fn a_dropped_combat_lock_says_why_in_the_flight_log() {
     assert!(flight_log_entry_texts(&app).is_empty(), "nothing yet");
 
     let target = app.world_mut().spawn_empty().id();
-    for (reason, idle_secs) in [
-        (CombatLockDrop::TargetGone, 0.0),
-        (CombatLockDrop::OutOfRange, 1.0),
-        (CombatLockDrop::AllegianceFlip, 2.0),
-        (CombatLockDrop::IdleDecay, 30.0),
-        (CombatLockDrop::Occluded, 0.0),
+    for reason in [
+        CombatLockDrop::TargetGone,
+        CombatLockDrop::OutOfRange,
+        CombatLockDrop::AllegianceFlip,
+        CombatLockDrop::Occluded,
     ] {
-        app.world_mut().write_message(CombatLockDropped {
-            target,
-            reason,
-            idle_secs,
-        });
+        app.world_mut()
+            .write_message(CombatLockDropped { target, reason });
     }
     app.update();
 
     let lines = flight_log_entry_texts(&app);
-    assert_eq!(lines.len(), 5, "one line per drop: {lines:?}");
+    assert_eq!(lines.len(), 4, "one line per drop: {lines:?}");
     assert!(
         lines.iter().all(|line| line.starts_with("SYS ! ")),
         "the ship reports these, nobody says them: {lines:?}"
@@ -334,17 +330,12 @@ fn a_dropped_combat_lock_says_why_in_the_flight_log() {
     assert!(lines[0].contains("target is gone"), "{}", lines[0]);
     assert!(lines[1].contains("out of lock range"), "{}", lines[1]);
     assert!(lines[2].contains("no longer hostile"), "{}", lines[2]);
-    assert!(
-        lines[3].contains("30 s without combat"),
-        "the decay names the clock that ran out: {}",
-        lines[3]
-    );
-    assert!(lines[4].contains("behind cover"), "{}", lines[4]);
+    assert!(lines[3].contains("behind cover"), "{}", lines[3]);
 
     app.update();
     assert_eq!(
         flight_log_entry_texts(&app).len(),
-        5,
+        4,
         "a drained message does not log again"
     );
 }

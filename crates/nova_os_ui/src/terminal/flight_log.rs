@@ -14,7 +14,7 @@ use nova_gameplay::{
 };
 use nova_hud::prelude::*;
 use nova_os::prelude::*;
-use nova_ship::prelude::{CombatLockDrop, CombatLockDropped, COMBAT_DECAY_SECS};
+use nova_ship::prelude::{CombatLockDrop, CombatLockDropped};
 
 use super::{components::*, content::*};
 
@@ -125,10 +125,6 @@ fn combat_lock_drop_line(drop: &CombatLockDropped) -> String {
         CombatLockDrop::AllegianceFlip => {
             "Combat lock released: target is no longer hostile.".to_string()
         }
-        CombatLockDrop::IdleDecay => format!(
-            "Combat lock released: {COMBAT_DECAY_SECS:.0} s without combat (idle {:.0} s).",
-            drop.idle_secs
-        ),
         CombatLockDrop::Occluded => "Combat lock lost: target behind cover.".to_string(),
     }
 }

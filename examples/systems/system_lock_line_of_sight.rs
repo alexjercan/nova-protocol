@@ -10,7 +10,7 @@
 //! parked dead ahead at 1.5 km, and one rock that starts well off the line and
 //! is flown onto it and off it again.
 //!
-//! SIX named invariants:
+//! SEVEN named invariants:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -20,8 +20,9 @@
 //! | 4 | `outcome: a cleared line gives the lock back` | cover, not a ban |
 //! | 5 | `outcome: cover drops the travel designation too` | both slots go |
 //! | 6 | `outcome: an engaged trip flies through the drop` | GOTO owns it |
+//! | 7 | `outcome: an idle lock does not time out` | only the world drops it |
 //!
-//! Invariant 1 is the control: without it the five that follow are satisfied
+//! Invariant 1 is the control: without it the six that follow are satisfied
 //! by a range that could never lock anything.
 //!
 //! Invariants 5 and 6 are the pair that makes the rule liveable. The slots do
@@ -30,6 +31,12 @@
 //! designation: the autopilot owns its target from the moment it engages, so
 //! the ship keeps flying the leg it was given. Only the player's own tap-clear
 //! ends a trip.
+//!
+//! Invariant 7 is the other half of the rule: the world takes a lock, and
+//! nothing else does. A combat lock used to let go on its own after thirty
+//! idle seconds, so a long quiet approach arrived unlocked. The range now
+//! holds one through a span half again as long, with the stance lowered and
+//! every trigger up, and the lock and the weapons safety are both still there.
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
@@ -49,6 +56,7 @@
 //! NOVA_AUTOPILOT=1 cargo run --example system_lock_line_of_sight --features debug
 //! # look for: `line of sight: the clear line locked the target`,
 //! #           `line of sight: the lock let go, reason Occluded`,
+//! #           `line of sight: the idle lock is still held`,
 //! #           `line of sight: the designation let go and the trip flew on`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -112,6 +120,19 @@ const TRIP_SECS: f32 = 3.0;
 /// floor against a ship that merely drifts.
 #[cfg(feature = "debug")]
 const TRIP_CLOSED_AT_LEAST: Meters = Meters(50.0);
+
+/// How long the idle beat holds a lock without touching anything, in
+/// simulated seconds. The rule this disproves let go at thirty, so the wait
+/// is half again as long: a lock that is still here is not a slow clock.
+#[cfg(feature = "debug")]
+const IDLE_SECS: f32 = 45.0;
+
+/// How much faster than real time the idle beat runs. The beat proves that
+/// NOTHING happens over a long span, and nothing is cheap to simulate, so the
+/// clock is wound on and the wait costs frames instead of a minute of wall
+/// time. Only the beat is wound; the assertion winds it back.
+#[cfg(feature = "debug")]
+const IDLE_TIME_SCALE: f32 = 20.0;
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]
@@ -786,6 +807,62 @@ fn assert_the_trip_flew_on(world: &mut World) {
     info!("line of sight: the designation let go and the trip flew on");
 }
 
+/// Start the idle wait: wind the clock on and wipe the tape, so the assertion
+/// reads only what the quiet span did.
+#[cfg(feature = "debug")]
+fn start_the_idle_wait(world: &mut World) {
+    world
+        .resource_mut::<Time<Virtual>>()
+        .set_relative_speed(IDLE_TIME_SCALE);
+    world.resource_mut::<DropsSeen>().0.clear();
+    info!("line of sight: holding the lock idle for {IDLE_SECS} simulated seconds");
+}
+
+/// Invariant 7: a held lock does not time out. The stance is lowered and no
+/// trigger is down - the exact "idle" the old thirty-second rule counted - and
+/// after a span half again as long the lock is still held, no drop was
+/// reported, and the weapons safety is still hot off the lock alone.
+#[cfg(feature = "debug")]
+fn assert_the_idle_lock_held(world: &mut World) {
+    world
+        .resource_mut::<Time<Virtual>>()
+        .set_relative_speed(1.0);
+    let target = target_root(world);
+    let player = player_root(world);
+    let lock = world
+        .entity(player)
+        .get::<CombatLock>()
+        .expect("line of sight: the player ship has no combat lock")
+        .0;
+    assert_eq!(
+        lock,
+        Some(target),
+        "line of sight: the lock let go over an idle span, so a quiet \
+         approach still arrives unlocked"
+    );
+    let dropped = world.resource::<DropsSeen>().0.clone();
+    assert!(
+        dropped.is_empty(),
+        "line of sight: the idle span reported a drop: {dropped:?}"
+    );
+    let hot = world
+        .entity(player)
+        .get::<WeaponsHot>()
+        .expect("line of sight: the player ship has no weapons safety")
+        .0;
+    assert!(
+        hot,
+        "line of sight: the safety re-engaged over an idle span, so the lock \
+         is held but cannot be shot at"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: an idle lock does not time out",
+        serde_json::json!({ "idle_s": IDLE_SECS }),
+    );
+    info!("line of sight: the idle lock is still held");
+}
+
 #[cfg(feature = "debug")]
 fn sight_script() -> Script {
     let script = Script::new()
@@ -837,6 +914,15 @@ fn sight_script() -> Script {
         .add()
         .step("assert the cleared line locks again")
         .on_enter(assert_the_cleared_line_locks_again)
+        .until(elapsed(0.2))
+        .add()
+        .step("hold the lock through a long idle span")
+        .on_enter(start_the_idle_wait)
+        .until(elapsed(IDLE_SECS))
+        .deadline(120.0)
+        .add()
+        .step("assert the idle lock held")
+        .on_enter(assert_the_idle_lock_held)
         .until(elapsed(0.2))
         .add()
         .step("take a travel designation on the clear line")

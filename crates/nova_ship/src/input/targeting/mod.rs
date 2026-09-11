@@ -18,10 +18,9 @@
 //!   while raised, only ever the combat lock.
 //! - NOTHING locks passively: the old aim-assist cone auto-pick and the
 //!   close-range signature auto-acquire are gone. Locks clear naturally on
-//!   death/despawn, out-of-range, a hostile target turning non-hostile, and
-//!   the combat lock decays after `COMBAT_DECAY_SECS` without combat
-//!   activity - where combat activity is the raised stance OR a held weapon
-//!   trigger. Every one of those drops names itself: a `debug!` line plus a
+//!   death/despawn, out-of-range and a hostile target turning non-hostile.
+//!   A lock never times out: hold one through a long approach and it is still
+//!   there. Every one of those drops names itself: a `debug!` line plus a
 //!   [`CombatLockDropped`] message carrying the [`CombatLockDrop`] branch, so
 //!   "why did my lock let go?" is answerable from a run rather than guessed.
 //!
@@ -74,14 +73,13 @@ pub(crate) use self::{
 };
 pub use self::{
     component_lock::{ComponentLock, ComponentLockMode},
-    contacts::{LockFocus, COMBAT_DECAY_SECS},
+    contacts::LockFocus,
     gesture::RADAR_TAP_SECS,
     sensing::{SensorContact, SensorContacts, SensorRange, AI_SENSOR_RANGE, PLAYER_SENSOR_RANGE},
     state::{
-        targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped,
-        LockClearedToast, LockSignature, RadarDenied, RadarLockAcquired, RadarOccluder,
-        RadarRetargeted, RadarSlot, RadarState, TargetingSettings, ThreatContacts, TravelLock,
-        WeaponsHot,
+        targeting_state, CombatLock, CombatLockDrop, CombatLockDropped, LockClearedToast,
+        LockSignature, RadarDenied, RadarLockAcquired, RadarOccluder, RadarRetargeted, RadarSlot,
+        RadarState, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
     },
 };
 
@@ -89,12 +87,12 @@ pub use self::{
 /// `SpaceshipTargetingPlugin` with `SpaceshipTargetingSystems`.
 pub mod prelude {
     pub use super::{
-        targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped, ComponentLock,
+        targeting_state, CombatLock, CombatLockDrop, CombatLockDropped, ComponentLock,
         ComponentLockMode, LockClearedToast, LockFocus, LockSignature, RadarDenied,
         RadarLockAcquired, RadarOccluder, RadarRetargeted, RadarSlot, RadarState, SensorContact,
         SensorContactSystems, SensorContacts, SensorRange, SpaceshipTargetingPlugin,
         SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
-        AI_SENSOR_RANGE, COMBAT_DECAY_SECS, PLAYER_SENSOR_RANGE, RADAR_TAP_SECS,
+        AI_SENSOR_RANGE, PLAYER_SENSOR_RANGE, RADAR_TAP_SECS,
     };
 }
 
@@ -127,7 +125,6 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.register_type::<CombatLock>();
         app.register_type::<RadarState>();
         app.register_type::<RadarSlot>();
-        app.register_type::<CombatDecay>();
         app.register_type::<ThreatContacts>();
         app.register_type::<WeaponsHot>();
         app.register_type::<LockFocus>();
