@@ -34,6 +34,7 @@ pub mod wasd_controller;
 
 pub use self::{
     authority::{CameraAuthorityPlugin, CameraAuthoritySystems},
+    framing::CAMERA_HULL_CLEARANCE,
     handback::CameraHandbackBlend,
     mode::{SpaceshipCameraControlMode, WeaponsRaised},
     rig::{
@@ -66,6 +67,7 @@ pub mod prelude {
         SpaceshipCameraControllerPlugin, SpaceshipCameraFreeLookInputMarker,
         SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
         SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker, WeaponsRaised,
+        CAMERA_HULL_CLEARANCE,
     };
 }
 

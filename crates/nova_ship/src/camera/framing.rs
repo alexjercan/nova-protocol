@@ -118,7 +118,7 @@ fn chase_lag_lead_seconds(smoothing: f32, dt: f32) -> f32 {
 /// plating instead of a ship. A FIXED metric gap, the same one the HUD shells
 /// keep: a clearance that scaled with hull size would put the carrier's camera
 /// a kilometre out for the same picture.
-const CAMERA_HULL_CLEARANCE: Meters = Meters(5.0);
+pub const CAMERA_HULL_CLEARANCE: Meters = Meters(5.0);
 
 /// The forward main-drive acceleration at which the burn push reaches the
 /// whole [`BURN_PUSH_RIG_FRACTION`] of the rig.

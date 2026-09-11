@@ -22,6 +22,16 @@
 //! | 2 | `outcome: the flight chips clear the outer shell` | both chips' near edge is 12 px past the projected gravity shell, with their authored rows unchanged |
 //! | 3 | `outcome: severing the hull shrinks its shells` | the envelope and both radii follow the hull down |
 //! | 4 | `outcome: the shells stay nested through the shrink` | mid-convergence the gravity shell is still outside the velocity shell, and the velocity shell still outside the hull |
+//! | 5 | `outcome: every camera mode clears the live hull` | in Normal, FreeLook and Turret the camera stands outside the envelope plus its authored clearance |
+//! | 6 | `outcome: the world-anchored chips clear their target` | the allegiance triangle, the objective chip and the beacon chip each sit outside the silhouette they label, past the fixed offset each used to float at |
+//!
+//! Invariants 5 and 6 are task `20260909-213350`, the rest of the same sweep:
+//! a camera rig and a chip offset are promises about how big the thing
+//! underneath looks. The scene carries a consort cutter and a 50 m nav beacon
+//! parked 250 m ahead and off the burn axis, close enough that their
+//! silhouettes are a hundred pixels across - which is the picture a fixed
+//! pixel offset was never a promise about, and far enough to one side that the
+//! GOTO leg flies past rather than through them.
 //!
 //! Controls: none needed; the run drives itself.
 //!
@@ -61,6 +71,30 @@ const SKIFF: &str = "block_skiff";
 /// shell was buried inside.
 const CARRIER: &str = "block_carrier";
 
+/// The consort hull the world-anchored chips are measured against: a mid-size
+/// ship, so its silhouette is wide enough at the range it is parked at that a
+/// chip floating at a fixed pixel offset would land on its plating.
+const CONSORT: &str = "block_cutter";
+
+/// The consort's scenario id.
+const CONSORT_ID: &str = "hud_shell_consort";
+
+/// The nav beacon's scenario id.
+const BEACON_ID: &str = "hud_shell_beacon";
+
+/// Where the consort is parked: ahead of the player and off to one side, so it
+/// frames in both rounds (both hulls are shot from about 200 m back) and the
+/// GOTO leg flies past it instead of into it.
+const CONSORT_AT: Meters3 = Meters3::new(120.0, -40.0, -250.0);
+
+/// Where the beacon is parked: the consort's placement, mirrored, so the two
+/// chips never share a column.
+const BEACON_AT: Meters3 = Meters3::new(-120.0, -40.0, -250.0);
+
+/// The beacon's orb radius - the 50 m nav mark from the sweep, whose chip used
+/// to sit on the orb.
+const BEACON_RADIUS: Meters = Meters(50.0);
+
 /// How far a derived radius may sit from the contract it is checked against.
 /// The shells are eased every frame, so a reading taken one frame after the
 /// envelope moved is legitimately a hair off; 10 cm is far under the 5 m gap
@@ -86,6 +120,31 @@ const CHIP_TOLERANCE_PX: f32 = 8.0;
 /// The authored gap between the projected outer shell and a chip's near edge.
 #[cfg(feature = "debug")]
 const CHIP_GAP_PX: f32 = 12.0;
+
+/// The fixed pixel offsets the three world-anchored chips used to float at,
+/// and the defect invariant 6 is about. Each is now a FLOOR, so a target as
+/// close as the consort has to push its chip well past it; a chip still
+/// sitting at its old offset fails.
+#[cfg(feature = "debug")]
+const ALLEGIANCE_WAS_PX: f32 = 40.0;
+#[cfg(feature = "debug")]
+const OBJECTIVE_WAS_PX: f32 = 36.0;
+#[cfg(feature = "debug")]
+const BEACON_WAS_PX: f32 = 28.0;
+
+/// How close to its rig the eased camera has to be before a beat calls the
+/// composition arrived. The chase lerp keeps a fraction of the error every
+/// frame, so a converged camera is never exactly on its rig; half a metre is
+/// far under the 5 m clearance the invariant is about.
+#[cfg(feature = "debug")]
+const CAMERA_SETTLED: Meters = Meters(0.5);
+
+/// How far inside its cleared rig the live camera may sit before invariant 5
+/// calls it buried. One metre: a converged camera is within
+/// [`CAMERA_SETTLED`], and the hull's own envelope moves by less than that
+/// while the ship is parked.
+#[cfg(feature = "debug")]
+const CAMERA_TOLERANCE: Meters = Meters(1.0);
 
 /// The speed chip's authored row, px above the centre of mass (screen y grows
 /// downward).
@@ -175,8 +234,13 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
     commands.trigger(LoadScenario(shell_range(&game_assets, &ships, CARRIER)));
 }
 
-/// The range scenario: one player hull, parked in flat space, under the photo
-/// rig so the appended screenshot beat has something lit to shoot.
+/// The range scenario: one player hull parked in flat space with a consort and
+/// a nav beacon ahead of it, under the photo rig so the appended screenshot
+/// beat has something lit to shoot.
+///
+/// The consort and the beacon are what invariant 6 measures: a ship silhouette
+/// and an authored body radius, the two things a world-anchored chip has to
+/// clear, both close enough to be hundreds of pixels across.
 fn shell_range(game_assets: &GameAssets, ships: &GameShips, hull: &str) -> ScenarioConfig {
     let ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -196,6 +260,44 @@ fn shell_range(game_assets: &GameAssets, ships: &GameShips, hull: &str) -> Scena
         }),
     });
 
+    let consort = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: CONSORT_ID.to_string(),
+            name: "Consort".to_string(),
+            position: CONSORT_AT,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            // Uncontrolled: the consort is a silhouette to label, not a
+            // participant. It keeps the neutral allegiance marker every
+            // non-player ship wears.
+            controller: SpaceshipController::None,
+            allegiance: None,
+            hull: ShipSource::Inline(kit::catalog_ship(ships, CONSORT)),
+            ..default()
+        }),
+    });
+    let beacon = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: BEACON_ID.to_string(),
+            name: "Waypoint".to_string(),
+            position: BEACON_AT,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+            label: "VEY 7".to_string(),
+            radius: BEACON_RADIUS,
+            color: Color::srgb(0.2, 0.9, 1.0),
+            area_radius: None,
+            lock_signature: None,
+        }),
+    });
+    // On the consort, not the beacon: a beacon that carries an objective
+    // marker yields its own chip, and the range needs both chips up.
+    let objective = EventActionConfig::ObjectiveMarkerAttach(
+        ObjectiveMarkerAttachActionConfig::new(CONSORT_ID, "SURVEY"),
+    );
+
     ScenarioConfig {
         description: "One player hull for the HUD shell range.".to_string(),
         events: vec![ScenarioEventConfig {
@@ -204,7 +306,7 @@ fn shell_range(game_assets: &GameAssets, ships: &GameShips, hull: &str) -> Scena
             once: false,
             filters: vec![],
             actions: [
-                vec![ship],
+                vec![ship, consort, beacon, objective],
                 ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
@@ -258,6 +360,54 @@ fn shell_round(script: Script, hull: &'static str) -> Script {
         .step("settle the shells")
         .until(shells_converged())
         .deadline(SHELL_STEP_DEADLINE_SECS)
+        .add()
+        // The camera modes, walked on a PARKED hull: at rest the rig carries
+        // no velocity lead, no burn push and no survey dolly, so the camera
+        // stands exactly where the mode's cleared composition puts it and the
+        // reading is about the hull and nothing else. Each beat waits for the
+        // mode to be live AND the ease to arrive, so the assertion never reads
+        // the rig it is leaving.
+        .step("hold free look")
+        .on_enter(press_action("free_look"))
+        .until(camera_settled(SpaceshipCameraControlMode::FreeLook))
+        .deadline(SHELL_STEP_DEADLINE_SECS)
+        .add()
+        .step("assert the free-look camera clears the hull")
+        .on_enter(move |world: &mut World| {
+            assert_camera_clears(world, hull, &SpaceshipCameraControlMode::FreeLook);
+        })
+        .until(elapsed(0.2))
+        .add()
+        .step("raise the weapons for the turret camera")
+        .on_enter(|world: &mut World| {
+            release_action("free_look")(world);
+            press_action("combat_stance")(world);
+        })
+        .until(camera_settled(SpaceshipCameraControlMode::Turret))
+        .deadline(SHELL_STEP_DEADLINE_SECS)
+        .add()
+        .step("assert the turret camera clears the hull")
+        .on_enter(move |world: &mut World| {
+            assert_camera_clears(world, hull, &SpaceshipCameraControlMode::Turret);
+        })
+        .until(elapsed(0.2))
+        .add()
+        .step("lower the weapons")
+        .on_enter(release_action("combat_stance"))
+        .until(camera_settled(SpaceshipCameraControlMode::Normal))
+        .deadline(SHELL_STEP_DEADLINE_SECS)
+        .add()
+        .step("assert the normal camera clears the hull")
+        .on_enter(move |world: &mut World| {
+            assert_camera_clears(world, hull, &SpaceshipCameraControlMode::Normal);
+        })
+        .until(elapsed(0.2))
+        .add()
+        // Still parked: the chips are read off a standing scene, so the only
+        // thing that decides where they sit is how big their anchor looks.
+        .step("assert the world-anchored chips clear their target")
+        .on_enter(move |world: &mut World| assert_world_chips_clear(world, hull))
+        .until(elapsed(0.2))
         .add()
         // One extra beat for the chips: their placement reads the chip's own
         // laid-out width, so the first frame after a resize is a frame behind.
@@ -577,6 +727,290 @@ fn chip_placement<M: Component>(world: &mut World, what: &str) -> (Vec2, f32) {
         .next()
         .map(|(offset, node)| (**offset, node.size().x * node.inverse_scale_factor() / 2.0))
         .unwrap_or_else(|| panic!("shell range: no {what} chip"))
+}
+
+/// The live chase camera's world position and the length of the rig it eases
+/// toward. Both: the rig is the promise the framing makes, the position is the
+/// picture the player gets.
+#[cfg(feature = "debug")]
+fn camera_stand(world: &mut World) -> (Vec3, f32) {
+    world
+        .query_filtered::<(&GlobalTransform, &ChaseCamera), With<SpaceshipCameraController>>()
+        .iter(world)
+        .next()
+        .map(|(pose, chase)| (pose.translation(), chase.offset.length()))
+        .expect("shell range: no chase camera")
+}
+
+/// The requested camera mode is live AND the eased camera has arrived at the
+/// rig that mode asks for.
+///
+/// Both halves matter: the mode is derived from the HELD input a frame after
+/// the press, and a camera still easing out of the previous composition is
+/// legitimately somewhere else. Waiting on distance alone would let the
+/// assertion read the mode it is leaving.
+#[cfg(feature = "debug")]
+fn camera_settled(
+    mode: SpaceshipCameraControlMode,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        if world.get_resource::<SpaceshipCameraControlMode>() != Some(&mode) {
+            return false;
+        }
+        let Some((position, rig)) = world
+            .iter_entities()
+            .filter(|entity| entity.contains::<SpaceshipCameraController>())
+            .find_map(|entity| {
+                Some((
+                    entity.get::<GlobalTransform>()?.translation(),
+                    entity.get::<ChaseCamera>()?.offset.length(),
+                ))
+            })
+        else {
+            return false;
+        };
+        let Some(anchor) = world
+            .iter_entities()
+            .filter(|entity| entity.contains::<PlayerSpaceshipMarker>())
+            .find_map(|entity| {
+                Some(live_structure_anchor(
+                    entity.get::<Transform>()?,
+                    entity.get::<avian3d::prelude::ComputedCenterOfMass>(),
+                ))
+            })
+        else {
+            return false;
+        };
+        (position.distance(anchor) - rig).abs() <= CAMERA_SETTLED.to_engine()
+    })
+}
+
+/// Invariant 5: in `mode` the camera stands outside the live hull envelope plus
+/// its authored clearance.
+///
+/// Asserted on the live pose AND on the rig behind it: the pose is the picture,
+/// and the rig is what a camera inserted into a hull this size opens at, which
+/// is the frame the defect was visible in.
+#[cfg(feature = "debug")]
+fn assert_camera_clears(world: &mut World, hull: &str, mode: &SpaceshipCameraControlMode) {
+    assert_eq!(
+        world.resource::<SpaceshipCameraControlMode>(),
+        mode,
+        "shell range ({hull}): the camera left {mode:?} before the assertion"
+    );
+    let ship = player_root(world);
+    let envelope = envelope_of(world, ship);
+    let anchor = live_com(world, ship);
+    let (position, rig) = camera_stand(world);
+    let required = envelope + CAMERA_HULL_CLEARANCE.to_engine();
+    let stand = position.distance(anchor);
+
+    for (what, measured) in [("camera", stand), ("rig", rig)] {
+        assert!(
+            measured >= required - CAMERA_TOLERANCE.to_engine(),
+            "shell range ({hull}, {mode:?}): the {what} stands {:?} from the hull anchor, \
+             inside the {:?} envelope plus its {CAMERA_HULL_CLEARANCE:?} clearance",
+            Meters::from_engine(measured),
+            Meters::from_engine(envelope),
+        );
+    }
+
+    nova_probe::probe_marker(
+        world,
+        "outcome: every camera mode clears the live hull",
+        serde_json::json!({
+            "hull": hull,
+            "mode": format!("{mode:?}"),
+            "envelope_m": Meters::from_engine(envelope).get(),
+            "camera_m": Meters::from_engine(stand).get(),
+            "rig_m": Meters::from_engine(rig).get(),
+        }),
+    );
+    info!(
+        "shell range ({hull}, {mode:?}): camera {:.1} m out, envelope {:.1} m",
+        Meters::from_engine(stand).get(),
+        Meters::from_engine(envelope).get(),
+    );
+}
+
+/// The `Val::Px` a placed indicator wrote, logical px.
+#[cfg(feature = "debug")]
+fn placed_px(val: Val, what: &str) -> f32 {
+    match val {
+        Val::Px(px) => px,
+        other => panic!("shell range: the {what} chip was placed at {other:?}, not in pixels"),
+    }
+}
+
+/// One world-anchored chip: the entity it labels, its laid-out box (logical px)
+/// and whether the widget put it up.
+///
+/// Found by the LAYER it hangs under rather than by a marker of its own: the
+/// indicator node is the layer's child in all three chip families, and only the
+/// allegiance triangle has no component naming it.
+#[cfg(feature = "debug")]
+fn chip_under<M: Component>(world: &mut World, what: &str) -> (Entity, Rect, Visibility) {
+    let layers: Vec<Entity> = world
+        .query_filtered::<Entity, With<M>>()
+        .iter(world)
+        .collect();
+    world
+        .query_filtered::<(
+            &ScreenIndicatorAnchor,
+            &Node,
+            &bevy::ui::ComputedNode,
+            &Visibility,
+            &ChildOf,
+        ), With<ScreenIndicatorClearance>>()
+        .iter(world)
+        .find(|(.., &ChildOf(parent))| layers.contains(&parent))
+        .map(|(anchor, node, computed, visibility, _)| {
+            let Some(ScreenIndicatorAnchorKind::Entity(anchor)) = **anchor else {
+                panic!("shell range: the {what} chip is not anchored to an entity")
+            };
+            let corner = Vec2::new(placed_px(node.left, what), placed_px(node.top, what));
+            let size = computed.size() * computed.inverse_scale_factor();
+            (
+                anchor,
+                Rect::from_corners(corner, corner + size),
+                *visibility,
+            )
+        })
+        .unwrap_or_else(|| panic!("shell range: no {what} chip"))
+}
+
+/// The topmost pixel of what the player SEES of `anchor`: the projected corners
+/// of its subtree's non-sensor collider AABBs, or - for a body whose only
+/// collider is a trigger volume, which is what a nav beacon is - the top of its
+/// authored `BodyRadius`. Screen y grows downward, so this is the LOWEST
+/// projected y.
+///
+/// The silhouette and not the bounding sphere the widget pushes off: an
+/// independent measurement of the same claim, and the one a player can see.
+#[cfg(feature = "debug")]
+fn silhouette_top_px(
+    world: &mut World,
+    anchor: Entity,
+    camera_up: Vec3,
+    project: &dyn Fn(Vec3) -> Vec2,
+) -> f32 {
+    let mut corners: Vec<Vec3> = Vec::new();
+    let mut stack = vec![anchor];
+    while let Some(entity) = stack.pop() {
+        if world.get::<avian3d::prelude::Sensor>(entity).is_none() {
+            if let Some(aabb) = world.get::<avian3d::prelude::ColliderAabb>(entity) {
+                let (min, max) = (aabb.min, aabb.max);
+                for corner in 0..8u8 {
+                    corners.push(Vec3::new(
+                        if corner & 1 == 0 { min.x } else { max.x },
+                        if corner & 2 == 0 { min.y } else { max.y },
+                        if corner & 4 == 0 { min.z } else { max.z },
+                    ));
+                }
+            }
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter());
+        }
+    }
+    if corners.is_empty() {
+        let centre = world
+            .get::<GlobalTransform>(anchor)
+            .expect("shell range: the chip anchor has no pose")
+            .translation();
+        let radius = **world
+            .get::<BodyRadius>(anchor)
+            .expect("shell range: the chip anchor has neither a collider nor a body radius");
+        corners.push(centre + camera_up * radius);
+    }
+    corners
+        .into_iter()
+        .map(|corner| project(corner).y)
+        .fold(f32::INFINITY, f32::min)
+}
+
+/// One chip's clearance: how far its near edge sits above the silhouette it
+/// labels, and how far the whole widget was pushed off the anchor's projected
+/// centre. Both in logical px, both asserted by the caller.
+#[cfg(feature = "debug")]
+fn chip_clearance<M: Component>(
+    world: &mut World,
+    hull: &str,
+    what: &str,
+    was_px: f32,
+) -> (f32, f32) {
+    let (camera_pose, camera) = world
+        .query_filtered::<(&GlobalTransform, &Camera), With<ScreenIndicatorCamera>>()
+        .iter(world)
+        .next()
+        .map(|(pose, camera)| (*pose, camera.clone()))
+        .expect("shell range: no ScreenIndicatorCamera");
+    let project = |point: Vec3| {
+        camera
+            .world_to_viewport(&camera_pose, point)
+            .unwrap_or_else(|_| panic!("shell range: the {what} anchor is off the viewport"))
+    };
+
+    let (anchor, chip, visibility) = chip_under::<M>(world, what);
+    assert_eq!(
+        visibility,
+        Visibility::Visible,
+        "shell range ({hull}): the {what} chip is not up"
+    );
+    let top = silhouette_top_px(world, anchor, camera_pose.up().as_vec3(), &project);
+    let centre = project(
+        world
+            .get::<GlobalTransform>(anchor)
+            .expect("shell range: the chip anchor has no pose")
+            .translation(),
+    );
+
+    let gap = top - chip.max.y;
+    let push = centre.y - chip.center().y;
+    assert!(
+        gap >= 0.0,
+        "shell range ({hull}): the {what} chip's near edge is {:.1} px INSIDE the silhouette \
+         it labels",
+        -gap
+    );
+    assert!(
+        push > was_px,
+        "shell range ({hull}): the {what} chip was pushed {push:.1} px off a target this \
+         close, no further than the fixed {was_px:.0} px it used to float at"
+    );
+    (gap, push)
+}
+
+/// Invariant 6: every world-anchored chip sits outside the silhouette it
+/// labels, and further out than the fixed offset it used to wear.
+///
+/// Three chips, three kinds of anchor: a neutral ship (the allegiance
+/// triangle), the same ship carrying an objective (the amber chip), and a body
+/// whose only collider is its trigger sphere (the beacon chip, which falls back
+/// to its authored radius).
+#[cfg(feature = "debug")]
+fn assert_world_chips_clear(world: &mut World, hull: &str) {
+    let allegiance =
+        chip_clearance::<AllegianceMarkerHudMarker>(world, hull, "allegiance", ALLEGIANCE_WAS_PX);
+    let objective =
+        chip_clearance::<ObjectiveMarkerChipHudMarker>(world, hull, "objective", OBJECTIVE_WAS_PX);
+    let beacon = chip_clearance::<BeaconChipHudMarker>(world, hull, "beacon", BEACON_WAS_PX);
+
+    nova_probe::probe_marker(
+        world,
+        "outcome: the world-anchored chips clear their target",
+        serde_json::json!({
+            "hull": hull,
+            "allegiance_push_px": allegiance.1,
+            "objective_push_px": objective.1,
+            "beacon_push_px": beacon.1,
+        }),
+    );
+    info!(
+        "shell range ({hull}): chips pushed {:.0} / {:.0} / {:.0} px, clearing their \
+         silhouettes by {:.0} / {:.0} / {:.0} px",
+        allegiance.1, objective.1, beacon.1, allegiance.0, objective.0, beacon.0,
+    );
 }
 
 /// Cut the live sections that DECIDE the envelope - the furthest from the
