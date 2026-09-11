@@ -24,6 +24,130 @@ Each item is a balance change as well as a fix: measure on both hulls
 before and after, one commit per item, and record the numbers on the
 gameplay feedback ledger (`20260909-213118`).
 
+## Implementation decisions
+
+### Targeting and signatures
+
+- Keep separate `TravelLock` and `CombatLock` slots, but collect contacts once
+  per observing ship per frame and resolve acquisition, hold range, relation
+  and visibility through one shared policy used by the player and AI.
+- Remove the combat lock's 30 s idle decay and its HUD wind-down. A committed
+  lock drops only on explicit clear, target loss, range loss, allegiance change
+  or occlusion. It never re-locks automatically. A radar sweep held through
+  occlusion may acquire again after a fresh dwell.
+- Occlusion drops BOTH lock slots. An already engaged GOTO keeps flying: the
+  accepted `AutopilotAction::Goto` owns its target independently of the travel
+  designation. Explicitly clearing the travel lock still cancels GOTO.
+- Compute acquisition range as `min(observer sensor cap, target signature *
+  sensitivity)` and held range from the acquisition-time range floor plus the
+  existing hysteresis. Damage may shrink fresh acquisition range but cannot
+  silently drop a visible committed lock acquired at the stronger signature.
+- Keep sensitivity 30 and hold hysteresis 1.15. The player sensor cap is 200 km.
+  AI uses the same policy with a 20 km default cap and an authorable
+  `AIControllerConfig::sensor_range`; `Some(0 m)` and no live controller mean
+  blind.
+- Publish every target's computed `LockSignature`: asteroid `100 m + 0.5 *
+  BodyRadius`; planet `10 * BodyRadius`; beacon authored as today; torpedo
+  `500 m + authored max speed`; unsigned debris keeps its point-blank fallback.
+- A ship's installed signature in meters is `280 + 5.5 * HullRadius + 100 *
+  ln(1 + drive units) + 100 * ln(1 + controller units) + 100 * ln(1 + live
+  weapon count)`. Drive and controller units normalize surviving installed
+  authority against their standard prototypes. This targets about 20 km for
+  the skiff, 58 km for the carrier, and about 9 km for a bare one-cell hull.
+  Throttle and weapon activity do not change it. Reserve a separate transient
+  emission term for a future visible stealth mechanic.
+- Radar signature is not hit size. Publish a separate target hit radius. Whole
+  ship aim uses live `HullRadius`, asteroids use `BodyRadius`, torpedoes use
+  their collider envelope, and a component fine-lock uses that section's own
+  collider radius. Turret and railgun gates use `atan(hit radius / distance)`;
+  point aim with no entity retains a small fixed precision gate.
+
+### Weapons and AI movement
+
+- Pierce rounds carry no layer counter. Remaining power alone bounds their
+  travel, as the v0.13.0 release contract already states. A malformed free
+  layer must still make positive progress or stop the round.
+- Torpedo thrust tapers over the final 15 percent of authored maximum along-nose
+  speed.
+- Torpedo arming requires BOTH the existing authored condition (`arm_time OR
+  arm_distance`) and launcher safety. Snapshot launch `HullRadius`; until the
+  launcher dies, require current projectile-to-launcher-COM separation of at
+  least `launch HullRadius + blast radius`.
+- AI torpedo launch range keeps its three-blast-radius tactical margin as a
+  FACE gap: minimum center distance is launcher `HullRadius` plus target
+  `HullRadius` plus `3 * blast_radius`.
+- AI standoff is an authored face-to-face clearance. Default 1,000 m with a
+  250 m face-distance band; `Some(0 m)` permits contact. Preferred center
+  distance adds mover and target live `HullRadius` values.
+- AI chooses goals and desired motion but never writes controller or thruster
+  section inputs. Patrol uses GOTO, idle STOP and gravity orbit ORBIT as today.
+  Move the passive sphere-detour planner into generic flight navigation, with
+  explicit policy; only AI patrol opts in during this task. Clearance is body
+  radius plus mover hull radius plus authored margin.
+- Add a generic continuous `MatchVelocity` autopilot action carrying world-space
+  desired velocity and optional facing direction. It holds facing while RCS can
+  correct velocity, rotates a selected main-drive cluster for larger errors,
+  then returns to facing. It holds until replaced or removed and does not
+  self-complete. Engage and Evade drive this action through the same cluster,
+  balance and spool path as player autopilot.
+- Remove fixed AI orbit/chase speed caps. Tactical combat asks the shared player
+  stopping solver for radial speed to the standoff band from live braking and
+  turn authority. Orbit speed is the reserved lower of the centripetal and
+  attitude-turn limits. All decisions use velocity relative to the target.
+- Evade runs three COMPLETED legs. A leg advances on achieved velocity/facing,
+  with a liveness deadline derived as turn angle over live turn rate plus
+  delta-v over live acceleration plus a short burst hold. No authority exits
+  Evade rather than sticking there. Each leg targets lateral clearance of
+  `HullRadius + 10 m`, with speed and duration derived from that displacement.
+
+### Controller and destruction
+
+- Retune the standard controller from live measurements so the intact
+  ten-controller carrier has about 10 percent torque headroom over its
+  structural ceiling. Small hulls remain structure-bound; losing enough carrier
+  controllers makes it torque-bound, so both regimes occur on shipped content.
+- Collision damage has a universal 5 m/s safe contact speed. Above it, use
+  Avian's solved contact-pair impulse rather than repeating whole-body effective
+  mass per collider. Scale impulse by excess impact speed. Derive dissipated
+  energy from that impulse, excess speed and restitution; subtract per-section
+  absorption derived from maximum health before the energy damage term. Direct
+  impulse still deals damage.
+- A severed fragment's raw separation speed is `max(10 m/s, fragment extent /
+  2 s)`. Subtract the mass-weighted mean kick so fragments clear their combined
+  extents in about two seconds without adding net momentum.
+- For detached pieces, compute required clearance as burial depth in the dying
+  body plus piece collider radius plus 10 m. Scale both the 20-50 m/s kick and
+  0.5 s chunk grace by `sqrt(required clearance / 10 m)`, so minimum kick times
+  grace equals required clearance.
+- Scale hulk-pyre spatial properties linearly from live `HullRadius` against the
+  55.2 m gunship reference and lumens quadratically. Keep timing and root-pyre
+  particle count fixed; use one per-instance Hanabi scale property.
+- Queue section-pyre requests until the frame's destruction batch is known.
+  Budget `clamp(ceil(6 * sqrt(condemned / 53)), 6, 48)`, always keep root pyres,
+  and deterministically spread selected section pyres across the wreck instead
+  of accepting the first events.
+- Group body-bound impact and destruction audio/juice throttles by physical
+  structure root, not a hull-sized grid. Resolve a severed fragment, asteroid
+  or torpedo to its own body. Use spatial cells only when no root exists. Audio
+  and juice share the resolver; same-frame destruction emits from the COM or
+  the queued-position centroid.
+
+## Execution plan
+
+1. Create the feedback ledger and land the required combat/destruction range
+   skeletons from `20260909-213623`, so every change has a before measurement.
+2. Consolidate target contacts and lock lifecycle, then land idle-decay removal,
+   signatures/sensor caps and angular hit radii as separate behavior commits.
+3. Land Pierce, arming, taper and AI torpedo envelope changes one at a time.
+4. Add and prove generic `MatchVelocity`, migrate combat actuation, then land
+   standoff, physical speed, evade and generic opt-in avoidance changes.
+5. Retune controller torque from the live skiff/carrier crossover table.
+6. Land collision, sever, detached-piece, pyre and cue-grouping changes one at
+   a time. Record both hulls before and after every item.
+7. Regenerate and lint content for authored AI fields; update player, creator
+   and developer documentation with each behavior or format commit; finish with
+   the affected unit tests and each changed systems range green three times.
+
 ## Targeting and weapons
 
 - [ ] `nova_ship/src/sections/turret_section/aim.rs:29,34,57`
