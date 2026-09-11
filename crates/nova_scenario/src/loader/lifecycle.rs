@@ -1073,12 +1073,19 @@ mod tests {
         // FIXED clock - it is a spatial test against a body physics moves, so it
         // has to tick with physics - and one `app.update()` need not carry the
         // manual clock as far as a fixed step.
-        let firing_ship = app.world_mut().spawn_empty().id();
+        // The launcher is a real body the arming pass can measure against:
+        // the fuze holds a warhead cold until it is clear of the ship that
+        // fired it, and this one is authored with no clearance to demand.
+        let firing_ship = app
+            .world_mut()
+            .spawn(Transform::from_translation(Vec3::ZERO))
+            .id();
         app.world_mut().spawn((
             TorpedoProjectileMarker,
             Transform::from_translation(DETONATION),
             TorpedoTargetPosition(DETONATION),
             TorpedoArming::new(0.0, 0.0, DETONATION, 0.0),
+            ProjectileOwner(firing_ship),
             TorpedoBlast {
                 radius: 30.0,
                 damage: 500.0,
