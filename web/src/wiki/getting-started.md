@@ -50,7 +50,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
 ### Part 1 - The pattern
 
 1. **Burn to mark ALPHA.** Hold <kbd>W</kbd> to burn and steer with the mouse. ALPHA sits dead ahead; flying into its ring completes the beat.
-2. **Kill the drift.** Press <kbd>X</kbd> once and let STOP bring the trainer to rest. Hands off: the next lesson waits for the maneuver to finish, and a manual input takes the ship back before it is done.
+2. **Kill the drift.** Press <kbd>X</kbd> once and let STOP brake the trainer down. Hands off: the next lesson waits for the maneuver to finish, and a manual input takes the ship back before it is done.
 3. **Slide across to BRAVO.** Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and RCS tops out at 100 m/s in any direction.
 
 ### Part 2 - The flight computer

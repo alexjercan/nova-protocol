@@ -435,6 +435,11 @@ impl Collapse<'_> {
     /// and propagation lays the rest of the block out, so a mark left on the
     /// corner alone would let erosion take a segment beside it and pull the
     /// corner off with it.
+    ///
+    /// Same join predicate as `drop_part`, walked with a queue rather than by
+    /// recursion. Either shape is safe: a joint only ever links two cells of
+    /// ONE part, so each walk is bounded by the largest authored part and not
+    /// by the grid.
     fn widen_to_whole_parts(&self, chosen: &[usize], marked: &mut [bool]) {
         let mut pending: VecDeque<usize> = (0..self.grid.cells())
             .filter(|cell| marked[*cell])
@@ -467,12 +472,16 @@ impl Collapse<'_> {
     ///
     /// The SEEDED cells are spared, along with the whole keel column, because
     /// support is read off what the roll left AROUND a part and the roll is
-    /// free to leave nothing. Vacuum is priced up in the last row so the
-    /// drives have somewhere to stand, so a bare transom is the common case:
-    /// the drive deck then carries two neighbours - the keel and the drive -
-    /// where a six-socket plate is asked for [`SPIKE_SUPPORT`]. Taking the
-    /// deck off stranded the drive for [`Self::keel_component`] to drop, and
-    /// the hull came out with no thrust at all.
+    /// free to leave nothing. The drive deck is the case that forced it. For
+    /// the shipped one-cell drive the deck sits one row FORWARD of the
+    /// transom, so `vacuum.stern` - which prices up the last row only - never
+    /// touches a cell the deck's support count reads; what thins its four
+    /// rolled neighbours is `vacuum.taper` on their off-keel distance, and all
+    /// four coming up vacuum at once is about one seed in forty. When they do,
+    /// the deck carries only its two SEEDED neighbours - the keel and the
+    /// drive - where a six-socket plate is asked for [`SPIKE_SUPPORT`]. Taking
+    /// the deck off stranded the drive for [`Self::keel_component`] to drop,
+    /// and the hull came out with no thrust at all.
     ///
     /// Erosion only removes, and a removal can only lower a neighbour's count,
     /// so it settles. It can strand a limb, which is why
@@ -692,10 +701,13 @@ impl Collapse<'_> {
     /// where it stands, pack the dents, and prune again because erosion can
     /// strand whatever a stud was holding on.
     ///
-    /// The SEEDED spine is spared by erosion. It is laid by hand precisely
-    /// because the collapse cannot be trusted to find it, and a pass that
-    /// reads support off whatever the roll left AROUND it was free to take it
-    /// away again - which is how a hull came out with no drive on it.
+    /// The SEEDED spine is spared by [`Self::erode_studs`], and by that pass
+    /// alone. It is laid by hand precisely because the collapse cannot be
+    /// trusted to find it, and a pass that reads support off whatever the roll
+    /// left AROUND it was free to take it away again - which is how a hull came
+    /// out with no drive on it. [`Self::keel_component`] and
+    /// [`Self::erode_blocked_exits`] carry no such exemption; both shipped
+    /// seeded lanes exit the grid, so neither reaches one today.
     ///
     /// Clearing the lanes BEFORE the dents are packed is what keeps the hull
     /// solid: the cell a blocked bay is taken out of is a dent like any other,

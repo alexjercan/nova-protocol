@@ -482,8 +482,9 @@ pub struct PendingSkyboxSwap {
 /// group - the sky silently disappears. So the applier sets the view itself
 /// before installing the config. The write happens only when the view is
 /// actually missing: writing through the `AssetMut` guard queues
-/// `AssetEvent::Modified` (a full re-upload of the hundreds-of-MB cubemap
-/// texture), so the no-change path must provably not write.
+/// `AssetEvent::Modified` (a full re-upload of the whole cubemap texture -
+/// 24 MB at the shipped 1024 px faces, 384 MB if a mod ships 4096), so the
+/// no-change path must provably not write.
 pub fn apply_pending_skybox_swaps(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -712,7 +713,8 @@ mod tests {
     /// The applier must not WRITE to an image whose Cube view is already set
     /// (the preloaded `GameAssets` cubemap after `prepare_cubemap_view`): a
     /// write through the `AssetMut` guard queues `AssetEvent::Modified`, which
-    /// re-uploads the hundreds-of-MB cubemap texture for nothing.
+    /// re-uploads the whole cubemap texture - 24 MB at the shipped face size -
+    /// for nothing.
     #[test]
     fn skybox_swap_does_not_remodify_an_already_cubed_image() {
         let mut app = skybox_applier_app();

@@ -235,8 +235,12 @@ fn drive_destination_readout(
     }
 }
 
-/// `FLIP <n>s` on the path point where braking starts; hidden once the
-/// ship is braking (the autopilot stops predicting a flip).
+/// `FLIP <n>s` on the path point where braking starts; hidden whenever the leg
+/// publishes no flip point - which is braking, but also a closing speed below
+/// the coast-estimate floor, a well pull that leaves no stopping plan, and a
+/// GOTO inside its standoff. The marker needs the POINT, so it reads
+/// `flip_point` rather than `ManeuverTelemetry::braking`; the two are not the
+/// same fact.
 fn drive_flip_marker(
     q_hud: Query<&ManeuverInstrumentsShipEntity, With<ManeuverInstrumentsHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<FlipMarkerUIMarker>>,

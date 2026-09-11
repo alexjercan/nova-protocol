@@ -223,8 +223,13 @@ standing proud.
   scatter's `PlateFacing::Up` rules somewhere meaningful to fire.
 - **Risk, and it was real:** a seeded tower is a stud, and `erode_studs` exists
   to take those off. `run` now marks every cell the seed passes write, widens the
-  mark over a part's joints, and erosion skips it - so a tower seeded the way the
-  stern is inherits the exemption rather than needing its own.
+  mark over a part's joints, and `erode_studs` skips it - so a tower seeded the
+  way the stern is inherits THAT exemption rather than needing its own. It
+  inherits nothing else: `keel_component` and `erode_blocked_exits` drop parts
+  through the same `drop_part` and never read the mark. The stern deck survives
+  the keel component only because it sits beside the keel, and both seeded lanes
+  exit the grid; a tower at `y = HEIGHT - 1` reaches the keel through cells the
+  roll placed, so it needs its own answer there.
 
 ### 5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED
 

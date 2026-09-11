@@ -68,10 +68,13 @@ const SHED_KICK: Range<f32> = 3.0..7.0;
 ///
 /// The cap is per FIXED-STEP tick, and that is what bounds the backlog in
 /// TIME. Health empties on the fixed step, so draining there too means 24
-/// drains a tick whatever the renderer is managing: at the default 64 Hz a
-/// hull stripped to the last of those 263 fixtures clears in about a sixth of
-/// a second, and a slow renderer no longer slows the drain the way a per-frame
-/// cap did.
+/// fixtures a TICK rather than 24 a frame. What a hull actually gets is the
+/// lesser of 24 a tick and [`SHED_FRAME_CAP`] a frame: at the default 64 Hz
+/// the frame ceiling is slack above 32 fps, where a hull stripped to the last
+/// of those 263 fixtures clears in about a sixth of a second, and below that
+/// it binds - 0.55 s at 10 fps, 1.37 s at the 4 fps `max_delta` floor. So the
+/// tick is what the cap is EXPRESSED in; a renderer slow enough to reach the
+/// frame ceiling still slows the drain.
 ///
 /// It does NOT bound the archetype moves one frame pays, which is why
 /// [`ShedBudget`] sits on top of it. Bevy banks up to `Time<Virtual>`'s
@@ -96,8 +99,11 @@ const SHED_TICK_CAP: usize = 24;
 /// one frame can be asked to do. Reset in `First`, spent by
 /// [`shed_dead_fixtures`], and a resource rather than a `Local` because the
 /// reset and the drain are different systems - the shape
-/// `integrity::spew::ShardBudget` and `integrity::pyre::PyreBudget` already
-/// use.
+/// `integrity::spew::ShardBudget` already uses.
+/// `integrity::pyre::PyreBudget` solves the same problem the other way up,
+/// counting spent deaths UP against a cap: its observer admits an integrity
+/// root past that cap and still counts it, so a countdown there would
+/// underflow.
 #[derive(Resource, Debug)]
 pub(crate) struct ShedBudget {
     left: usize,
@@ -118,6 +124,12 @@ impl Default for ShedBudget {
 /// is deferred on exactly the terms the per-tick cap defers it: shedding is
 /// what removes `ChildOf`, so a fixture held back still matches the query next
 /// frame.
+///
+/// It counts PLATES, not commands. [`shed_dead_fixtures`] also walks every
+/// descendant of each plate and queues a `try_remove::<Collider>()` per node,
+/// most of them no-ops, so a dressed plate is worth several of the archetype
+/// moves this ceiling exists to bound. The ceiling bounds the plates; the
+/// dressing rides along.
 const SHED_FRAME_CAP: usize = SHED_TICK_CAP * 2;
 
 /// Hand the frame its shed allowance back.
@@ -231,9 +243,15 @@ pub struct ShedFixtureMarker(pub Entity);
 /// for what that costs.
 ///
 /// The PHASE has to be `FixedPostUpdate`, not `FixedUpdate`. `HealthZeroMarker`
-/// is raised by the `on_damage` observer, and every production trigger of it
-/// runs after the physics step - `advance_rounds` (`NovaRoundSystems`) and
-/// `resolve_nova_blast_hits` (`NovaDamageSystems`), both in `FixedPostUpdate`.
+/// is raised by the `on_damage` observer, and all THREE production triggers of
+/// it land no later than the physics step: `advance_rounds`
+/// (`NovaRoundSystems`) and `resolve_nova_blast_hits` (`NovaDamageSystems`)
+/// run in `FixedPostUpdate` after `PhysicsSystems::Last`, and ram damage
+/// (`nova_gameplay::integrity::core::on_impact_collision_deal_damage`)
+/// observes avian's `CollisionStart`, raised inside
+/// `PhysicsStepSystems::Finalize` and so earlier still. `ShipSkinPlugin`
+/// orders this after the two named SETS; the ram case needs no ordering of its
+/// own, being inside the step both sets already follow.
 /// From `FixedUpdate` a plate killed in tick N was first seen in tick N+1 and
 /// stayed visibly bolted on one extra step; ordering after both sets puts the
 /// shed in the same step as the round that earned it, which is what the old

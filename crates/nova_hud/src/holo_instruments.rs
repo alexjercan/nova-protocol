@@ -201,9 +201,16 @@ fn sync_trajectory_ribbon(
     }
 }
 
-/// Own the flip gate: a fly-through ring at the predicted flip point,
-/// facing along the path; gone once braking (no flip prediction) or when
-/// the leg ends.
+/// Own the flip gate: a fly-through ring at the predicted flip point, facing
+/// along the path; gone whenever the leg publishes no flip point, and when the
+/// leg ends.
+///
+/// Keyed on `ManeuverTelemetry::flip_point` and not on
+/// `ManeuverTelemetry::braking`, because the ring IS the flip point and there
+/// is nothing to place without one. The two are not the same fact: a leg also
+/// publishes no flip point below the coast-estimate floor, under a well pull
+/// that leaves no stopping plan, and inside a GOTO standoff. The ring is gone
+/// in all four, and only one of them is a brake.
 fn sync_flip_gate(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,

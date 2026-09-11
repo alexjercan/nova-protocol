@@ -1,9 +1,8 @@
 # Nightly review
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: review
-
 
 ## Scope
 
@@ -1406,3 +1405,161 @@ pass. No `--play` was run.
 
 Nothing in the working tree was changed. This task file is the only thing
 written.
+
+## Documentation pass, 2026-09-11
+
+Requested scope: documentation only - prose docs, wiki and create pages,
+credits and readmes, changelog wording, and source comments and docstrings
+where they are documentation. Runtime behavior, tests, assets, CI and the
+release workflow are out of scope by the request, and the owner is explicitly
+not interested in those findings. Every finding written above is dispositioned
+here: corrected, declined, or verified and left alone. Nothing is left
+unanswered.
+
+Work happened in the Sprout worktree `nightly-docs-update`, off `b3c6f579c`.
+This task file was untracked in the main checkout and was copied in with its
+evidence. Every Rust change in the commit is a comment line - checked with
+`git diff -U0 -- '*.rs'`, which reports no non-comment insertion or deletion -
+so no runtime behavior moved.
+
+### Corrected
+
+| Finding | What changed |
+| --- | --- |
+| G1 MAJOR `credits/CREDITS.md:28` | `assets/gltf/*.glb` -> `assets/base/gltf/*.glb`. |
+| G1 MINOR `art/README.md:13` | The same path. Both were the only survivors of `grep -rn "assets/gltf/"`. |
+| G1 MINOR `credits/CREDITS.md:47` | The Bevy icon entry now names `build/icon_1024x1024.png` and its derivatives (`build/macos/AppIcon.iconset/*.png`, the `.icns`, `build/windows/icon.ico`), says `build.rs` embeds the `.ico` and `index.html` copies it into the web build, and separates `web/src/favicon.svg` as the project's own. Every path checked on disk; `build.rs:7` compiles `build/windows/icon.rc` and `index.html:9` copies the `.ico`. |
+| G1 MAJOR `web/src/create/scenarios.md:54-58` | The figure now names both halves: 24 MB of video memory AND 24 MB of main memory at 1024 px, 384 MB of each at 4096 px, one budget on the web build. |
+| G1 MINOR `web/src/create/scenarios.md:54` | The link now leads somewhere that documents the sidecar: `web/src/create/base-content.md` states `array_layout: Some(RowCount(rows: 6))`, `asset_usage: ("MAIN_WORLD \| RENDER_WORLD")`, which file a modder copies, and what a missing sidecar costs. |
+| G1 MINOR `web/src/news/0.13.0.md:1129` | "max-pooled rather than averaged down" -> cut into faces first, then max-pooled at the reduction factor BEFORE the box average, divided by sixteen. |
+| G1 MINOR `web/src/news/0.13.0.md:1131` | 8.4 MB -> 8.3 MB (10,110,943 - 1,783,381 = 8,327,562 B). |
+| G1 MINOR `crates/nova_assets/src/merge.rs:226` (the doc copy) | `web/src/news/0.13.0.md:1146` now says "Mods > Explore online", the name `crates/nova_menu/src/menu_ui.rs:300` gives the tab. The runtime string itself is declined below. |
+| Swept while fixing the above, not a review finding | Three more documentation copies of the wrong tab name: `web/src/news/0.8.0.md:104`, `CHANGELOG.md` `[0.7.0]` (The Ledger's entry) and `webmods/the-ledger/README.md:8`. The button has read "Explore online" since `fd4c86af9` (2026-07-15), before v0.8.0, so all three were wrong when written. Corrected. |
+| G1 MINOR `crates/nova_scenario/src/actions/view.rs:485`, `:715` | "hundreds-of-MB cubemap texture" -> 24 MB at the shipped 1024 px faces, 384 MB if a mod ships 4096. |
+| G1 MINOR `crates/nova_assets/src/collections.rs:390-396`, `:594-595`; `tests/cubemap_meta.rs:5`; `crates/nova_core/tests/cubemap_meta_app_config.rs:13-16` | The failure mode is stated correctly: a reinterpret rescues the BINDING and not the upload, and a non-Cube view fails `sanity_check_skybox_image_and_warn` on EVERY GPU. The "upload race" and "silently disappears on a 16384-limit GPU" framings are gone. |
+| G1 MINOR `crates/nova_assets/src/merge.rs:143-144` | The comment that restated the next line is trimmed to its reason. |
+| G2 MAJOR `docs/sections.md:517-541` (all four lanes) | The chapter now describes the shipped schedule: `Update`, the three run conditions, why the camera is a requirement (the hanabi `BufferTable` panic), and that `PostStartup` is exactly the shape that panics. `:1074` points at this passage and is now correct by fixing it. |
+| G2 MAJOR `crates/nova_ship/src/sections/fixture.rs:69-74` | The drain is the lesser of 24 a tick and `SHED_FRAME_CAP` a frame; the sixth of a second is qualified as the frame-rate-permitting case, with 0.55 s at 10 fps and 1.37 s at the 4 fps `max_delta` floor, and "24 fixtures a tick, one drain" replaces the ambiguous "24 a tick". |
+| G2 MAJOR `crates/nova_gameplay/src/integrity/pyre.rs:239-240`, `:254-255` | The three `HULK_PYRE` spans are 90 m, 220 m and 370 m, derived here from `assets/base/ships/base.content.ron` and `assets/base/sections/base.content.ron` with `aabb_half_extents = size * 0.5` and the unit-cube default, and a new sentence says the spans are outer FACE to outer face and include the multi-cell drive overhang. |
+| G2 MINOR `fixture.rs:234-237` | Names the third production trigger, ram damage through `on_impact_collision_deal_damage`, and why `CollisionEventSystems` inside `PhysicsStepSystems::Finalize` needs no ordering of its own. |
+| G2 MINOR `fixture.rs:98-100` | `ShedBudget`'s doc no longer claims `PyreBudget` shares its shape, and says why `PyreBudget` counts up instead. |
+| G2 MINOR `fixture.rs:304-315` | Took the documentation half of the review's either/or: `SHED_FRAME_CAP` now says it counts PLATES and that each plate costs a descendant walk. |
+| G2 MINOR `pyre.rs:559-561` | The "an earlier cut warmed in `PostStartup`" history is now stated as a constraint, per `AGENTS.md`. |
+| G2 MINOR `pyre.rs:106`, `:647` | The two ragged doc wraps. |
+| G2 MINOR `CHANGELOG.md:63-65` | "and again when the tier changes" described a run `pyres_are_cold` makes impossible. The entry now says the warm-up runs as soon as the tier has settled and a camera is up, including a tier raised mid-run off a particle-less preset - which is the FIRST run. |
+| G2 MINOR `web/src/news/0.13.0.md:957` | "one crater is untouched" -> a wide crater costs seven, eighteen fit, the nineteenth gets a short carve out of what is left, and the twentieth on goes unchipped. Matches `spew.rs:567` (`look.count(radius).min(budget.left)`) and the widget's `Math.ceil` rule. |
+| G2 MINOR `crates/nova_scenario/src/objects/spaceship.rs:155` | The third copy of the "~20 m floor" claim now matches `passive.rs:29-31` and `web/src/create/objects.md:309`. |
+| G2 MINOR `CHANGELOG.md` `[0.13.1]` | `33dcf22c3` has its entry, beside its two siblings in Fixes. |
+| G8 MINOR the four out-of-order released blocks | `[0.11.0]`, `[0.10.0]`, `[0.7.0]` and `[0.2.0]` now follow the order `CHANGELOG.md:6-8` declares. Reordered by script, whole `###` chunks moved intact, and the line multiset of the file verified identical before and after. |
+| G3 MAJOR `crates/nova_ship/src/flight/state.rs:272-274` | `flip_point` enumerates all FOUR `None` states and sends the reader to `braking`. |
+| G3 MAJOR `state.rs:381-384` (the lane disagreement) | The contract now turns on ALIGNMENT, not on the axis: an already-pointed residual brakes to `stop_speed_epsilon` exactly, a residual the drive is not pointing at - a damage-shifted drift OR a head-on crumb inside the band - is released at up to the band, and an RCS-granted hull still settles. The test half is declined below. |
+| G3 MAJOR `examples/screenshots/shared/ring.rs:544-546`, `:552`, `:562` | The docstrings no longer assert the withdrawn equivalence. The predicates are code and are declined below. |
+| G3 MAJOR `crates/nova_wfc/src/collapse.rs:468-475`, `:695-698`, `tests.rs:471-477` | The causal chain is corrected in all three copies: `vacuum.stern` prices row `length - 1` only, the deck sits at z 9, and what leaves its four rolled neighbours bare is `vacuum.taper` on `off_keel`. The conclusion (2 against `SPIKE_SUPPORT` = 3) was right and is kept. |
+| G3 MAJOR the STOP verb, player- and creator-facing | `web/src/wiki/flight-autopilot.md:38` states the band; `web/src/wiki/glossary.md:15` and `:18` drop "burns to rest"; `web/src/wiki/keybinds.md:52` and `web/src/wiki/getting-started.md:53` drop the absolute claim; `web/src/create/actions.md` (the `StopShip` row and its contract) and `web/src/create/events.md` (`OnStopComplete`, both the table row and the section) say completion is a deadband and point a beat that needs the hull still at a `Speed` query. Figures in meters: 2 m/s aligned, up to 7.5 m/s not. |
+| G3 MINOR `CHANGELOG.md:52-54` and `web/src/news/0.13.0.md:1094` | "the last m/s" -> 7.5 m/s, the band `settle_deadband` = 0.75 u/s gives. |
+| G3 MINOR `crates/nova_hud/src/maneuver_instruments.rs:238-239`, `holo_instruments.rs:204-206` | Both production docstrings key on `flip_point` and list its four states instead of asserting the equivalence. |
+| G3 MINOR `crates/nova_ship/src/flight/guidance.rs:90-91` | The `FlipEstimate` justification says what the measured table says: one of the four consumers separates `Braking` from `Unknown`, and it is `ManeuverTelemetry::braking`. |
+| G3 MINOR `crates/nova_ship/src/flight/tests/stop.rs:329` | "attitude deadband" -> settle deadband, the band that applies to a STOP. |
+| G3 MINOR `crates/nova_ship/src/flight/tests/goto.rs:680` | The body comment is a docstring, like every sibling test. |
+| G3 MINOR `crates/nova_ship/src/flight/autopilot.rs:890` | The ragged rewrap; the paragraph is re-flowed to the file's width. |
+| G3 MINOR `collapse.rs:697-701` | "The SEEDED spine is spared by erosion" is narrowed to `erode_studs`, the only pass that consults `seeded`. |
+| G3 MINOR `collapse.rs:438` | `widen_to_whole_parts` now says why its traversal differs from `drop_part`'s and that neither is at stack risk. The unification itself is code and is declined below. |
+| G3 MINOR `crates/nova_ship/src/input/ai/passive.rs:37` | `AI_IDLE_DRIFT_SPEED` names `settle_deadband` (0.75 u/s) and the 1.33x margin, not `stop_speed_epsilon`. |
+| G3 MINOR `docs/ship-layout-sense.md:224-227` | The exemption is `erode_studs` alone. The note now says `keel_component` and `erode_blocked_exits` never read the mark, and that a roof tower needs its own answer. |
+| G3 MINOR `docs/keeping-docs-in-sync.md:74` | The row keys `nova_ship/flight` (and `nova_ship/camera`, and the maneuver instruments in `nova_hud`), and routes to `glossary.md`, `hud.md`, `/create/actions/` and `/create/events/` - the pages this night found stale. |
+| G3 MINOR `web/src/create/grammars.md:148`, `:163-165` | `:148` no longer sends a creator to `stern` for a missing seeded drive, and `:163-165` states the guarantee `f3a78a434` bought, including that a whole multi-cell part is covered. See the unsupported half below. |
+
+### Declined - not documentation, and out of scope by the request
+
+Runtime behavior:
+
+| Finding | Why |
+| --- | --- |
+| G1 MAJOR `crates/nova_assets/src/merge.rs:216-228` - the error accuses a healthy mod on a "not loaded yet" state | The fix is a gate on `bundle.content`. That is behavior. The strongest finding of the night and it stays open. |
+| G1 MINOR `merge.rs:226` - the error names "Mods > Explore" | A player-facing runtime string, and coupled to the branch above. The same wording in `web/src/news/0.13.0.md:1146` is documentation and was fixed. |
+| G1 MINOR `merge.rs:221` - the `"<unknown>"` fallback cannot occur | Code. |
+| G1 MINOR `merge.rs:169-172` - the terse bundle branch is unreachable | Code. |
+| G2 MINOR `pyre.rs:508`, `:627` - the predicate written twice | Code. |
+| G2 MINOR `pyre.rs:796-799` - three `run_if`s do not short-circuit | Code, and unmeasured. |
+| G2 MINOR `pyre.rs:801` - `.after` inserts an `ApplyDeferred` every frame | Code, and unmeasured. |
+| G2 MINOR `pyre.rs:686` - `light_the_pyre` carries no view gate | Code. The lane could not ground a shipped path that reaches it. |
+| G3 MAJOR `examples/screenshots/shared/ring.rs` - the predicates themselves | `player_braking()` and `player_retro_burning()` are harness code. Their docstrings were corrected; the predicates are untouched. |
+| G3 MINOR `autopilot.rs:409` - the inside-standoff arm publishes `braking: false` while braking to rest | Code. Inert today, because that arm also sets `brake_accel: 0.0`. |
+| G3 MINOR `guidance.rs:150-160` - `arrival_eta` keeps a dead arm alive | Code. |
+| G3 MINOR `collapse.rs:181`, `:216`, `:274`, `:292` - the `seeded` mark is paired to `assign` by hand | Code. |
+| G3 MINOR `collapse.rs:438` - unify the two traversals | Code. The doc note was added instead. |
+| G6 MINOR `crates/nova_channel/src/apply.rs:282-291` - a `stop` can lift a source the wire never pushed | Code. |
+
+Tests and test rigs:
+
+| Finding | Why |
+| --- | --- |
+| G1 MAJOR `crates/nova_assets/tests/cubemap_meta.rs:62-72` and `crates/nova_core/tests/cubemap_meta_app_config.rs:71-79` - nothing pins the face size | The fix is `assert_eq!(image.width(), 1024)` in two test files. The review calls this the single most valuable thing in the night's report, and it is a test change: declined here, unfixed, and it should be the first thing picked up when tests are back in scope. |
+| G2 MINOR `fixture.rs:340-342`, `:530-532`, `shell_skin.rs:1152-1156`, `:1217-1219` - the shed wiring is hand-copied into four apps | Three of the four sites are test rigs and the fix is to build the rig from the plugin. Code and tests. |
+| G2 MINOR `passive.rs:872` - `patrol_world()` spawns no `ComputedCenterOfMass` | Test fixture. |
+| G2 MINOR `web/tests/widgets.test.ts:665-690` - `ZONE_PARTS` is passed as literals | Test. |
+| G3 MAJOR `state.rs:381-384` - "pin the head-on band case with a test" | The doc half is fixed; the test is declined. No test in the range covers that case in either direction. |
+| G3 MINOR `holo_instruments.rs:293` - the fixture hard-codes `braking: flip.is_none()` | Test fixture. |
+| G3 MINOR `crates/nova_wfc/src/tests.rs:485`, `:499` - the name promises a transom the body never builds, 64 seeds is thin, `widen_to_whole_parts` is unpinned | Tests. |
+| G3 MINOR `stop.rs:340-342`, `goto.rs:681-682` - settings figures hand-typed | Tests. |
+
+Tooling, CI and the release workflow:
+
+| Finding | Why |
+| --- | --- |
+| G4 `registered_examples()` returns `None` on a manifest with no `[[example]]`, and `check_producers` then skips silently | Tooling code. |
+| G6 `scripts/deploy-pages.py:55` and `scripts/probe-summary.py:62` - `read_text()` without `encoding='utf-8'` | Code. Neither is failing today. |
+| G5 `tasks/20260908-161328/clean-line-study/generate.py:18` imports the deleted `speech()` | Code in a task artifact, knowingly accepted by `e6bd754bf`. |
+| Baseline: v0.13.1 was tagged, built and published from a tree whose own CI run had failed twice, because nothing in release-flow re-runs the CI gate | Release workflow. |
+| End-of-night: v0.13.2 was published non-draft while `build-macOS (aarch64)` was still running, so there was a window with no macOS artifact | Release workflow. |
+
+Measurement, not documentation:
+
+| Finding | Why |
+| --- | --- |
+| G1 correctness lane's open item - whether a max-pooled star reads chunky at 1024/face needs a rendered frame | No render was possible on the review host and none was taken here. Stays explicitly open. |
+| G1 "not raised" - the 11.4 texels/deg magnification arithmetic | The review recorded it and did not raise it. Nothing to correct. |
+
+### Verified against the tree and left alone
+
+- **`web/src/create/grammars.md:148` - half the finding is unsupported.** The
+  review says "If the drives are missing, raise `stern`" is advice that "made
+  the symptom MORE likely". It did not. `collapse.rs:50-52` prices `vacuum.stern`
+  on row `length - 1` (z 10 for `length: 11`), the eroded cell is the drive deck
+  at `length - deep - 1` = z 9, and none of the deck's four rolled neighbours -
+  (2,2,9), (1,1,9), (1,3,9), (1,2,8) - is in row 10. Raising `stern` cannot
+  change the deck's support count. The sentence was still reworded, for the
+  other reason: after `f3a78a434` the seeded pair stands whatever `stern` is set
+  to, so the advice pointed at the wrong knob for the symptom a creator would
+  bring to it.
+- **`web/src/wiki/getting-started.md:53` was not wrong for the beat it
+  describes.** The trainer reaches ALPHA under a 150 m/s cap, far above the
+  band, and an aligned brake still reaches `stop_speed_epsilon` = 2 m/s
+  (`autopilot.rs:938-940`, with `fine` gating only the rotation block at
+  `:1051`). The line was softened anyway, because the player can also press X
+  at a slow drift, which is the case the band now accepts.
+- **`autopilot.rs:878-892` - "the added material is changelog" does not hold.**
+  Re-read in full: the paragraph states constraints (why the band does not judge
+  the TICK's error, why the brake-owed floor exists, what a single drive does
+  when aimed at the lateral crumb) and names no earlier cut. Nothing was
+  deleted. The ragged wrap the same finding names was fixed.
+- **`docs/sections.md` was rewritten twice for the deleted design.** The
+  refinement above is right, and it is why the chapter was rewritten here rather
+  than patched: both `6882fc2c4`'s and `6e6411d99`'s passes described the
+  `PostStartup` cut.
+
+### Checks run
+
+| Check | Result |
+| --- | --- |
+| `nix develop --command cargo fmt --check` | clean |
+| `nix develop --command mdbook build` | green; `book/sections.html`, `book/ship-layout-sense.html` and `book/keeping-docs-in-sync.html` read in the rendered output, including the reflowed routing-map row |
+| `npm run ci` in `web/` (format, lint, fourteen suites, released-only build) | green; `dist/wiki/glossary`, `dist/wiki/flight-autopilot`, `dist/create/actions`, `dist/create/events`, `dist/create/base-content`, `dist/create/scenarios` and `dist/news/0.13.0` inspected, and the three new link targets resolve (`#rcs-fine-docking-thrusters`, `../expressions/#queries-and-watched-variables`, `../scenarios/`) |
+| `git diff -U0 -- '*.rs'` | every changed Rust line is a comment line |
+
+`CHANGELOG.md` is not rendered by the site - `web/markdown.js:419` links it on
+GitHub and the `/changelog/<version>/` pages are redirects to `/news/<version>/`
+- so the reorder has no rendered surface to inspect.
+
+Cargo tests were not re-run: no test and no runtime line changed, and the
+review's own table already records them green on this tree.

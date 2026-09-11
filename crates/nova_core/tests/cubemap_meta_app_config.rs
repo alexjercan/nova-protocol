@@ -12,10 +12,11 @@
 //! A cubemap whose meta is ignored loads as a single-layer stacked image.
 //! The SkyboxPlugin fallback reinterpret hides that in the normal path, but
 //! a scenario teardown during the PNG decode leaves the raw stacked image to be
-//! uploaded as-is - a plain 2D texture no skybox can bind, and for a mod
-//! shipping 4096 px faces also over the 16384 texture limit of
-//! llvmpipe/WebGL2-class GPUs, a fatal wgpu validation error. `cubemap_alt.png`
-//! is pinned alongside `cubemap.png` because it was once missing from the old
+//! uploaded as-is - one tall 2D texture, which nothing can bind as a skybox
+//! until something reinterprets it, and which for a mod shipping 4096 px faces
+//! is over the 16384 texture limit of llvmpipe/WebGL2-class GPUs: a fatal wgpu
+//! validation error on the upload itself. `cubemap_alt.png` is pinned
+//! alongside `cubemap.png` because it was once missing from the old
 //! `meta_check` Paths set and hit exactly that.
 //!
 //! `mods/example/textures/nebula.png` is the example mod's OWN skybox, pinned

@@ -49,7 +49,7 @@ A dash means the action has no binding on that device.
             </td>
         </tr>
         <tr>
-            <td>STOP - face retrograde and burn to rest</td>
+            <td>STOP - face retrograde and burn the speed off</td>
             <td><kbd>X</kbd></td>
             <td>
                 <span

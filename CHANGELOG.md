@@ -49,7 +49,7 @@ does NOT get an entry - and it is the only place they are written down.
 - The frame that recovers from a long stall no longer sheds sixteen ticks' worth
   of plating at once: the shed cap bounds the FRAME again, and the plates it
   holds back come off on the next one.
-- A STOP no longer pirouettes the hull for the last m/s it is allowed to
+- A STOP no longer pirouettes the hull for the last 7.5 m/s it is allowed to
   accept: a brake owed less than the settle band is the crumb the deadband
   documents, and the ship is handed back.
 - A GOTO at a rock or a well parks off the origin its size was measured from,
@@ -61,8 +61,11 @@ does NOT get an entry - and it is the only place they are written down.
 - A spent hull plate comes off in the same step as the round that killed it
   again, instead of staying visibly bolted on for one more.
 - The death-fireball warm-up runs as soon as the graphics tier has settled and
-  a camera is up, and again when the tier changes, so menu-backdrop deaths and a
-  tier raised mid-run no longer hitch.
+  a camera is up, including a tier raised mid-run off a particle-less preset, so
+  menu-backdrop deaths no longer hitch.
+- The v0.13.0 news post's chip-budget scope spends the frame's allowance in
+  chips the way a carve does, so it no longer calls one crater too many
+  unchipped.
 - The v0.13.0 news post's hull-zone scope counts placements on the starboard
   half the collapse actually runs on, and offers the one zone a part may carry.
 - The news-post widget tests read the game's constants and sound-cue filenames
@@ -975,6 +978,60 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [0.11.0] - 2026-08-23
 
+### Gameplay & Flight
+
+- **(breaking)** Make an asteroid's remaining material its only durability.
+- Let sustained fire grow one crater without remeshing sub-cell hits.
+- Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
+  both, so a shot rock is physically the shape it looks. Craters persist and a
+  rock's published radius only ever shrinks.
+- **(breaking)** Rocks use a ROCK generator, not the planet one: signed, per-seed
+  stretched displacement makes a rock an irregular chunk instead of a sphere with
+  growths. Same size, new silhouette.
+- Rocks are textured by POSITION, not by mesh UVs. No more per-triangle quilting,
+  and a carved rock wears exactly the surface an uncarved one does.
+- Fixed: a rock whose seed landed near `u32::MAX` overflowed the noise generator.
+  Seeds come from hashing a scenario id, so an unlucky name could hit it.
+- Every rock is meshed from its own carve field, so a hit changes the crater and
+  nothing else; the field is dropped after meshing and rebuilt on the first hit.
+- Carve a rock apart and the piece FLIES OFF: anything a crater cuts free
+  becomes a rigid body of its own, carrying the drift and spin it had.
+- A carve throws DUST, however big the bite: only geometry a cut really severed
+  becomes a body. Debris drifts clear before it collides, so nothing kicks its
+  own wreckage.
+- **(breaking)** No body ever bursts into generic grey cubes. A wreck wears what
+  it was already wearing, and a range asserts the burst never happens.
+- A damaged section fractures where it is failing and glows through the cracks,
+  instead of the whole body turning red.
+- Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
+  instead of hanging where it died.
+- **(breaking)** How hard a ship turns is physics now: the lower of its
+  computers' torque over its inertia and an 8 G hull limit over its length.
+  Small craft turn 2-3x sharper; capitals are barges.
+- **(breaking)** Controller `max_torque` is rescaled to 1501. Computers stack
+  LINEARLY up to the hull's structural limit, so a small ship is already at
+  that limit and gains nothing from more.
+- A damaged hull turns sharper: losing sections shortens the arm the structural
+  limit is measured over.
+- Losing one computer on a stacked hull degrades handling to the smaller stack
+  instead of casting the ship adrift; autopilot and neutralization key on "no
+  computer LEFT".
+- The build screen shows the hull's turn ceiling and which limit sets it while
+  sections are being placed.
+- Wreck fragments despawn after 30 seconds instead of persisting until scenario
+  teardown.
+- AI patrol legs steer around sized bodies: a leg blocked by an asteroid's
+  geometric radius detours past it instead of flying the GOTO straight
+  through the rock.
+- AI ships gain an authorable `engage_range` (default 800): the
+  hostile-detection distance a passive ship leaves its routine for.
+- AI ships gain an authorable `pd_range` (default 400): the distance point
+  defense starts engaging inbound torpedoes.
+- AI ships gain authorable `waypoint_slack` (default 25) and `arrival_standoff`
+  (default 50): how close a patrol presses to its waypoints.
+- New `SetAmmo` section modification: a hard magazine (rounds overridden,
+  auto-reload stripped) for ships whose ammunition is the scene's clock.
+
 ### Combat & Weapons
 
 - **(breaking)** Torpedoes fuze 3 u from the locked body's nearest skin, not half
@@ -1057,60 +1114,6 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** Unlimited player ammunition is a DEBUG-ONLY cheat:
   `infinite_ammo` is honored only under the `debug` feature, so every scenario
   plays real magazines.
-
-### Gameplay & Flight
-
-- **(breaking)** Make an asteroid's remaining material its only durability.
-- Let sustained fire grow one crater without remeshing sub-cell hits.
-- Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
-  both, so a shot rock is physically the shape it looks. Craters persist and a
-  rock's published radius only ever shrinks.
-- **(breaking)** Rocks use a ROCK generator, not the planet one: signed, per-seed
-  stretched displacement makes a rock an irregular chunk instead of a sphere with
-  growths. Same size, new silhouette.
-- Rocks are textured by POSITION, not by mesh UVs. No more per-triangle quilting,
-  and a carved rock wears exactly the surface an uncarved one does.
-- Fixed: a rock whose seed landed near `u32::MAX` overflowed the noise generator.
-  Seeds come from hashing a scenario id, so an unlucky name could hit it.
-- Every rock is meshed from its own carve field, so a hit changes the crater and
-  nothing else; the field is dropped after meshing and rebuilt on the first hit.
-- Carve a rock apart and the piece FLIES OFF: anything a crater cuts free
-  becomes a rigid body of its own, carrying the drift and spin it had.
-- A carve throws DUST, however big the bite: only geometry a cut really severed
-  becomes a body. Debris drifts clear before it collides, so nothing kicks its
-  own wreckage.
-- **(breaking)** No body ever bursts into generic grey cubes. A wreck wears what
-  it was already wearing, and a range asserts the burst never happens.
-- A damaged section fractures where it is failing and glows through the cracks,
-  instead of the whole body turning red.
-- Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
-  instead of hanging where it died.
-- **(breaking)** How hard a ship turns is physics now: the lower of its
-  computers' torque over its inertia and an 8 G hull limit over its length.
-  Small craft turn 2-3x sharper; capitals are barges.
-- **(breaking)** Controller `max_torque` is rescaled to 1501. Computers stack
-  LINEARLY up to the hull's structural limit, so a small ship is already at
-  that limit and gains nothing from more.
-- A damaged hull turns sharper: losing sections shortens the arm the structural
-  limit is measured over.
-- Losing one computer on a stacked hull degrades handling to the smaller stack
-  instead of casting the ship adrift; autopilot and neutralization key on "no
-  computer LEFT".
-- The build screen shows the hull's turn ceiling and which limit sets it while
-  sections are being placed.
-- Wreck fragments despawn after 30 seconds instead of persisting until scenario
-  teardown.
-- AI patrol legs steer around sized bodies: a leg blocked by an asteroid's
-  geometric radius detours past it instead of flying the GOTO straight
-  through the rock.
-- AI ships gain an authorable `engage_range` (default 800): the
-  hostile-detection distance a passive ship leaves its routine for.
-- AI ships gain an authorable `pd_range` (default 400): the distance point
-  defense starts engaging inbound torpedoes.
-- AI ships gain authorable `waypoint_slack` (default 25) and `arrival_standoff`
-  (default 50): how close a patrol presses to its waypoints.
-- New `SetAmmo` section modification: a hard magazine (rounds overridden,
-  auto-reload stripped) for ships whose ammunition is the scene's clock.
 
 ### Ships & Sections
 
@@ -1549,15 +1552,6 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [0.10.0] - 2026-08-13
 
-### Ships & Sections
-
-- **(breaking)** Ship integrity uses explicit section link-point mates;
-  collider contact and centre spacing no longer make structural edges. `G`
-  toggles a MATES overlay.
-- **(breaking)** Racer, CargoA and CargoB use semantic parts (`fuselage`,
-  `engine_port`, `turret_starboard`); coordinate-named cube prototypes are
-  removed.
-
 ### Gameplay & Flight
 
 - **(breaking)** Gravity wells are authored by MASS:
@@ -1573,6 +1567,15 @@ does NOT get an entry - and it is the only place they are written down.
   Destruction shows a ribbon.
 - AI burst cadence ticks on the fixed clock, so AI damage output no longer
   varies with framerate.
+
+### Ships & Sections
+
+- **(breaking)** Ship integrity uses explicit section link-point mates;
+  collider contact and centre spacing no longer make structural edges. `G`
+  toggles a MATES overlay.
+- **(breaking)** Racer, CargoA and CargoB use semantic parts (`fuselage`,
+  `engine_port`, `turret_starboard`); coordinate-named cube prototypes are
+  removed.
 
 ### Scenarios & Objectives
 
@@ -1899,15 +1902,6 @@ does NOT get an entry - and it is the only place they are written down.
 - The Asteroid Field sandbox joined the outcome frame (Victory on arrival, Defeat + Retry on death).
 - The ship-less Demo Scenario was removed; the example mod's arena is the worked hand-authored RON example now.
 
-### Fixes
-
-- The Rust Tally's side mounts now roll to seat against the spine and face outboard (firing arcs fixed, port/starboard ids un-swapped).
-- The Ledger Auditor's torpedo bay comes out of the hull (flush on the bow); a new overlap lint catches the whole class at build time.
-- Skybox `.meta` sidecars are honored for every asset (base and mod, shipped or downloaded), fixing the WebGL2 oversized-upload crash.
-- Retry no longer blanks the objectives panel (the objectives HUD resets on teardown).
-- A ship that loses its last section off the damage path no longer lingers as a 0-HP ghost (structural death backstop).
-- Scenario `OnUpdate` handlers now freeze while the game is paused.
-
 ### Modding & Mod Portal
 
 - Turret mounts are an arbitrary joint tree **(breaking)**: `root` + recursive
@@ -1923,7 +1917,7 @@ does NOT get an entry - and it is the only place they are written down.
 - New `StoryMessage` action: speaker-attributed dialog in a HUD comms panel.
 - Broken mod content fails loud: reference errors give a FAILED TO START report; the backdrop rotation skips them.
 - `content -- lint` lints every scenario for reference bugs (CI-enforced); `--target <mod>` scopes to one mod.
-- **The Ledger**, the first campaign mod on the portal: a four-chapter salvage arc with a two-ending finale. Install from Mods > Explore.
+- **The Ledger**, the first campaign mod on the portal: a four-chapter salvage arc with a two-ending finale. Install from Mods > Explore online.
 - Every world sound is content-owned: weapon/controller/thruster/crate sound fields and per-target `impact_sound`/`destroy_sound` are authorable refs; base sounds ship under `assets/base/sounds/`.
 
 ### Interface & HUD
@@ -1937,6 +1931,15 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Low/Medium presets skip heavy visuals for weak machines: Low is spawn-less (no particle bursts), Medium keeps particles.
 - Low also renders the world at ~70% internal resolution and upscales (HUD stays crisp); Medium/High untouched.
+
+### Fixes
+
+- The Rust Tally's side mounts now roll to seat against the spine and face outboard (firing arcs fixed, port/starboard ids un-swapped).
+- The Ledger Auditor's torpedo bay comes out of the hull (flush on the bow); a new overlap lint catches the whole class at build time.
+- Skybox `.meta` sidecars are honored for every asset (base and mod, shipped or downloaded), fixing the WebGL2 oversized-upload crash.
+- Retry no longer blanks the objectives panel (the objectives HUD resets on teardown).
+- A ship that loses its last section off the damage path no longer lingers as a 0-HP ghost (structural death backstop).
+- Scenario `OnUpdate` handlers now freeze while the game is paused.
 
 ### Internals & Tooling
 
@@ -2179,13 +2182,13 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [0.2.0] - 2025-11-08
 
-### Modding & Mod Portal
-
-- Game events and a queue system; scenario and modding capabilities.
-
 ### Scenarios & Objectives
 
 - Asteroids with procedural mesh and dynamic destruction.
+
+### Modding & Mod Portal
+
+- Game events and a queue system; scenario and modding capabilities.
 
 ## [0.1.0] - 2025-10-21
 

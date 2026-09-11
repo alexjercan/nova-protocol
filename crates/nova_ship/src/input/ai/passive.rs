@@ -35,9 +35,13 @@ const AI_WAYPOINT_SLACK: f32 = 25.0;
 #[reflect(Component)]
 pub struct AIWaypointSlack(pub f32);
 /// Drift speed (u/s) above which a station-keeping ship burns to rest.
-/// Holding position "loosely" means arresting drift, not chasing crumbs:
-/// kept well above the autopilot's stop_speed_epsilon so a completed STOP
-/// actually satisfies it and the helm rests between corrections.
+/// Holding position "loosely" means arresting drift, not chasing crumbs: kept
+/// above the speed a completed STOP can hand back, so the helm rests between
+/// corrections instead of re-engaging for ever. That bound is
+/// `FlightSettings::settle_deadband` (0.75 u/s), not `stop_speed_epsilon`: a
+/// STOP releases a residual it would have to turn the hull for. The margin is
+/// therefore 1.33x, so raising `settle_deadband` past this constant is what
+/// would break the guarantee.
 const AI_IDLE_DRIFT_SPEED: f32 = 1.0;
 /// Lateral clearance (world units, 200 m) beyond a body's geometric
 /// [`BodyRadius`] under which a patrol leg counts as blocked. The autopilot itself has no

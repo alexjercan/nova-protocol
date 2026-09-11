@@ -52,11 +52,13 @@ folder and bundle shape.
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
 A skybox is six square faces stacked vertically in one PNG, with a `.png.meta`
-sidecar that reinterprets the stack (see
+sidecar that cuts the stack into six layers (see
 [Base content](../base-content/)). Size the faces for the memory they cost, not
-for the detail the source can give: every face is uploaded uncompressed, so
-1024 px faces cost 24 MB of video memory and 4096 px faces cost 384 MB. The base
-skies ship at 1024.
+for the detail the source can give: every face is uploaded uncompressed, and the
+sidecar keeps the decoded pixels in main memory as well, so 1024 px faces cost
+24 MB of video memory AND 24 MB of main memory, and 4096 px faces cost 384 MB of
+each. On the web build both halves come out of the same budget. The base skies
+ship at 1024.
 
 A menu backdrop POSES ITS OWN CAMERA: author a
 [`SetCamera`](../actions/#setcamera) in its `OnStart` (the reference shot is

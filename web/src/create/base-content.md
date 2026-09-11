@@ -263,8 +263,21 @@ base bundle resources, and are NOT dep-referenceable.)
   range's voice. Reusable by any mod - a portrait is just an image ref, and a
   mod that wants a face of its own ships it under its own tree
 
-Skybox `.png.meta` sidecars (the cube reinterpret) ride along with their
-image automatically and are never listed or referenced directly.
+Skybox `.png.meta` sidecars ride along with their image automatically and are
+never listed or referenced directly, but a sky needs one: it is what makes the
+stack a cube. Both cubemaps above carry the same two settings, and
+`assets/mods/example/textures/nebula.png.meta` is the copy a mod of your own
+starts from. `array_layout: Some(RowCount(rows: 6))` cuts the stacked PNG into
+six array layers at load time, before the renderer uploads it.
+`asset_usage: ("MAIN_WORLD | RENDER_WORLD")` keeps the decoded pixels in main
+memory after the upload as well, which is why a sky costs its size twice - once
+on the card and once in main memory - and why
+[Scenarios](../scenarios/) asks you to size the faces for both.
+
+Ship a sky with no sidecar and the stack uploads as one tall 2D texture. A
+later reinterpret still rescues the binding, but not the upload, and 4096 px
+faces are 24576 px stacked: over the 16384 texture limit of smaller GPUs, where
+the upload itself is fatal.
 
 ## The overlay rule
 

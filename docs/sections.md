@@ -514,31 +514,38 @@ what `explode` does not. `pyre.rs` observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`.
 
-Almost nothing about those graphs is built at the death. `warm_the_pyres`
-runs in `PostStartup` after the settings pass that derives the graphics budget
-- late enough that the tier a player picked is settled, early enough to be
-before the first frame of any state - and it does the whole job: the four
-graphs, the shared soft-dot mask, and one hidden instance of each graph. The
-instance is the part that matters, because `bevy_hanabi` generates a shader
+Almost nothing about those graphs is built at the death. `warm_the_pyres` runs
+in `Update`, on the first frame that has all three of a cold store, a tier that
+draws particles at all, and an active camera - and it does the whole job: the
+four graphs, the shared soft-dot mask, and one hidden instance of each graph.
+The instance is the part that matters, because `bevy_hanabi` generates a shader
 from a spawned INSTANCE and never from an asset, so a warm-up that only filled
 the asset store left the WGSL to be generated on the collapse frame. Those four
 are silent, invisible, and despawned the next frame. A tier with particles off
 builds none of it and lights nothing.
 
-Startup and not a state transition, because deaths are not confined to
+`Update` and not a state transition, because deaths are not confined to
 `Playing`: the main menu's backdrop is a scenario whose whole loop is a torpedo
-erasing a ship. There is a second pass on `Update`, run only when the graphics
-budget changes while the graphs are still cold, for the other path a state
-transition misses - a tier RAISED from the pause overlay, which never
-re-enters anything.
+erasing a ship, and that backdrop raises its camera frames before its first
+death. The tier is settled well before the gate opens - the settings pass
+applies in `PostStartup` and again on change, both inside `SettingsSystems`,
+which the warm-up orders itself after - and the cold store is what lets a tier
+RAISED from the pause overlay reach the warm-up, which no `OnEnter` carries.
+
+The camera is a requirement and not a preference. hanabi gives every live
+instance a row in one `BufferTable` of draw arguments and reconciles that table
+only on a frame that has a view, so four rows taken and given back with no view
+in between leave it allocating a 60-byte buffer and writing 80 bytes into it: a
+panic in the render schedule at boot. Warming in `PostStartup` is exactly that
+shape, because that is before any scenario has spawned a camera.
 
 The ALMOST is one pipeline. A hidden instance is compiled and gets its two
 compute pipelines, but `bevy_hanabi` specializes the RENDER pipeline only for
 entities a camera can see, so the first death of a run still creates one - on
 the render thread, because `nova_core` asks for
 `synchronous_pipeline_compilation` on every backend. Warming that would take a
-visible instance in a live view, and the warm-up runs before any scenario has a
-camera.
+VISIBLE instance, which a warm-up is not: these are hidden exactly so that
+nothing draws them.
 
 What a death still mints is instances, so this half DOES need a budget:
 `PYRE_FRAME_CAP` bounds how many fireballs one frame lights, and a root's own is

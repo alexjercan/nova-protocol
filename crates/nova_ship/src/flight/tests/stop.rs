@@ -327,8 +327,9 @@ fn a_dead_retro_falls_back_to_the_flip() {
     );
 }
 
-/// The twitch fix: a residual drift below the attitude deadband, with the
-/// nose nowhere near the retro direction, is a crumb - the autopilot must
+/// The twitch fix: a residual drift below the SETTLE deadband - the band a leg
+/// that ends at rest uses, and the one the 0.5 u/s fixture sits under - with
+/// the nose nowhere near the retro direction, is a crumb: the autopilot must
 /// accept it and let go instead of pirouetting the hull to chase it.
 #[test]
 fn stop_accepts_a_crumb_without_pirouetting() {

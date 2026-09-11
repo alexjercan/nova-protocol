@@ -5,7 +5,7 @@ The alt storyline campaign, published on the mod portal (task
 over its head, told across five chained chapters (six scenario files -
 chapter two plays in two acts, each its own retry point; chapter five is a
 reward finale reached only by fighting the chapter-four ending). Install it
-from the in-game portal (Mods > Explore), enable it, then expand the "The
+from the in-game portal (Mods > Explore online), enable it, then expand the "The
 Ledger" campaign header in the Scenarios picker and start "Dead Weight". The
 later chapters are hidden from the flat picker (reached by playing), but the
 campaign header lists them all - so you can replay any chapter, the finale

@@ -470,12 +470,13 @@ fn a_drive_bigger_than_one_cell_reaches_the_transom_of_every_hull() {
 /// around the drive.
 ///
 /// The drive is bolted to the keel through a deck, and `erode_studs` reads
-/// support off the cells AROUND a part. Vacuum is priced up in the last row so
-/// the drives have somewhere to stand, which makes a bare transom the common
-/// case rather than the corner: the deck then carries two neighbours - the
-/// keel and the drive - where a six-socket plate is asked for three. Taking
-/// the deck off stranded the drive, the component pass dropped it, and the
-/// generator handed back a ship that cannot move.
+/// support off the cells AROUND a part. The deck sits one row forward of the
+/// transom, so the last row's own vacuum bonus never reaches it; its four
+/// rolled neighbours are thinned by the off-keel taper instead, and about one
+/// seed in forty comes up with all four bare. The deck then carries only its
+/// two seeded neighbours - the keel and the drive - where a six-socket plate
+/// is asked for three. Taking the deck off stranded the drive, the component
+/// pass dropped it, and the generator handed back a ship that cannot move.
 ///
 /// The SEEDED drive is the one under test, read by the cell it was seeded in.
 /// A thruster the collapse drew somewhere else on the transom does not answer

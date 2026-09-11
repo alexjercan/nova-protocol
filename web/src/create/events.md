@@ -29,7 +29,7 @@ The whole vocabulary at a glance:
 | [`OnEnter`](#onenter) | `id`, `other_id`, `other_type_name` | a body enters a trigger area |
 | [`OnExit`](#onexit) | `id`, `other_id`, `other_type_name` | a body leaves a trigger area |
 | [`OnGotoComplete`](#player-maneuver-completion) | `id`, `other_id`, `other_type_name` | the player's GOTO reaches its target and stops |
-| [`OnStopComplete`](#player-maneuver-completion) | `id`, `type_name` | the player's STOP comes to rest |
+| [`OnStopComplete`](#player-maneuver-completion) | `id`, `type_name` | the player's STOP ends |
 | [`OnOrbitStart`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | an ORBIT maneuver starts |
 | [`OnOrbitStable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | ORBIT enters stable station-keeping |
 | [`OnOrbitLap`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | one net revolution of the ring completes |
@@ -546,7 +546,11 @@ so this is the safe event on which to remove a temporary navigation beacon:
 ),
 ```
 
-`OnStopComplete` carries the stopped player ship as `id` / `type_name`:
+`OnStopComplete` carries the braked player ship as `id` / `type_name`. It
+reports the maneuver ending, which is a deadband and not a dead stop - a drift
+the drive is not pointing at is released at up to 7.5 m/s - so a beat that needs
+the hull genuinely still should gate on a
+[`Speed` query](../expressions/#queries-and-watched-variables) as well:
 
 ```ron
 (

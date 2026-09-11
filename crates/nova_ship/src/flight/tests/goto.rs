@@ -676,14 +676,14 @@ fn goto_at_a_well_hands_the_ship_back_when_orbit_is_withheld() {
     );
 }
 
+/// The gap between `stop_speed_epsilon` (0.2 u/s) and the flip estimate's own
+/// floor (0.5 u/s). A leg engaged while closing in that band publishes no flip
+/// point because the estimate is meaningless there, not because the brake has
+/// begun. Reading the absence as a brake pointed the hull retrograde; the
+/// drive then fell outside the prograde authority cone, went cold, and the
+/// ship stayed in the band that caused it - forever.
 #[test]
 fn a_goto_engaged_below_the_estimate_floor_burns_toward_the_goal() {
-    // The gap between `stop_speed_epsilon` (0.2 u/s) and the flip estimate's
-    // own floor (0.5 u/s). A leg engaged while closing in that band publishes
-    // no flip point because the estimate is meaningless there, not because
-    // the brake has begun. Reading the absence as a brake pointed the hull
-    // retrograde; the drive then fell outside the prograde authority cone,
-    // went cold, and the ship stayed in the band that caused it - forever.
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
     let goal = Vec3::new(0.0, 0.0, -400.0);

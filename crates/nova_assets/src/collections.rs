@@ -388,12 +388,14 @@ pub struct GameAssets {
 /// The stacked `textures/cubemap.png` is reinterpreted into a 6 layer array
 /// at load time by its `.meta` loader settings (`array_layout: RowCount`).
 /// Doing it at load time matters: the renderer eagerly uploads every loaded
-/// image, and the stacked form uploads as a plain 2D texture no skybox can
-/// bind - and a tall enough stack (a mod may ship 4096 px faces) is also over
-/// the 16384 texture limit of smaller GPUs (e.g. CI's llvmpipe), where the
-/// upload becomes a fatal validation error. Whether the old on-insert
-/// reinterpret in `SkyboxPlugin` beat that upload depended on which frame the
-/// asset finished loading, so the failure was flaky.
+/// image, and the stacked form uploads as one tall 2D texture. A later
+/// reinterpret still rescues the BINDING - that is the fallback below - but
+/// not the upload, and a tall enough stack (a mod may ship 4096 px faces,
+/// 24576 px stacked) is over the 16384 texture limit of smaller GPUs (e.g.
+/// CI's llvmpipe), where that upload is itself a fatal validation error.
+/// Whether the old on-insert reinterpret in `SkyboxPlugin` beat the upload
+/// depended on which frame the asset finished loading, so the failure was
+/// flaky.
 ///
 /// The loader settings cannot express a texture view, so the cube view is
 /// set here, in the Processing state - after the collection is loaded and
@@ -592,7 +594,9 @@ mod tests {
     /// pins that coverage: an arrayed cubemap gets its Cube view, a
     /// single-layer one is left for the fallback. If someone drops or breaks
     /// `prepare_cubemap_view`, this fails before the editor sky silently
-    /// disappears on a 16384-limit GPU.
+    /// disappears - bevy's `sanity_check_skybox_image_and_warn` withholds the
+    /// skybox bind group for a non-Cube view on EVERY GPU, not only where the
+    /// stack is over the texture limit.
     #[test]
     fn prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap() {
         use bevy::{

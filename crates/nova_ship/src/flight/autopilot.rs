@@ -875,35 +875,34 @@ pub(super) fn autopilot_system(
         // error finishes it, and a residual only a rotation could remove is
         // accepted. This is what stops the ship twitching after perfection.
         //
-        // A brake that still OWES more than a crumb is never a crumb itself.
-        // A leg that ends at rest and is past its flip point is committed to
-        // the brake, and the tick's error there starts at zero (the ship is
-        // on the curve) and grows only as fast as the curve falls - a band's
-        // worth of it is half a second at speed, and half a second of coast at
-        // 82 m/s is 40 m of park point. So the plan says when the brake is due
-        // (past the flip point, still closing, a stopping plan in hand) and
-        // the band does not judge the TICK's error there. It does judge what
-        // the brake owes: below the band that leftover is the residual
-        // `settle_deadband` accepts, and a STOP publishes a brake for the
-        // whole of its life, so without the floor the last band of every stop
-        // is chased to `stop_speed_epsilon` with the attitude swings the
-        // deadband exists to prevent - worst where the RCS verb is withheld
-        // and the settle falls back to the main drive. The
-        // brake leg holds one attitude: the group the plan chose, against
-        // the velocity the leg owes - the whole of it, lateral included, the
-        // way STOP brakes. Not the tick's error: at the flip point that is a
-        // crumb pointing anywhere, and down the burn it is the lateral crumb
-        // the drive itself leaves while the hull settles - aimed at that, a
-        // single drive swings off the brake to chase it, leaves the retro
-        // error to grow, swings back, and saws down the whole burn at 0.4
-        // rad/s. Not the closing line either: a burn along the line leaves
-        // the lateral crumb alone, and the line turns under a ship passing
-        // its mark, so the crumb grows into a sideways entry. The drive
-        // fires only when the error is in its cone (below), so a ship under
-        // the curve coasts instead of flipping prograde, and the doorstep
-        // settle kills what is left, torque-free. The flip (the brake group
-        // not yet facing the burn) turns at the full rate the plan budgeted
-        // the lead with.
+        // A brake that still OWES more than a crumb is never a crumb itself. A
+        // leg that ends at rest and is past its flip point is committed to the
+        // brake, and the tick's error there starts at zero (the ship is on the
+        // curve) and grows only as fast as the curve falls - a band's worth of
+        // it is half a second at speed, and half a second of coast at 82 m/s
+        // is 40 m of park point. So the plan says when the brake is due (past
+        // the flip point, still closing, a stopping plan in hand) and the band
+        // does not judge the TICK's error there. It does judge what the brake
+        // owes: below the band that leftover is the residual `settle_deadband`
+        // accepts, and a STOP publishes a brake for the whole of its life, so
+        // without the floor the last band of every stop is chased to
+        // `stop_speed_epsilon` with the attitude swings the deadband exists to
+        // prevent - worst where the RCS verb is withheld and the settle falls
+        // back to the main drive. The brake leg holds one attitude: the group
+        // the plan chose, against the velocity the leg owes - the whole of it,
+        // lateral included, the way STOP brakes. Not the tick's error: at the
+        // flip point that is a crumb pointing anywhere, and down the burn it
+        // is the lateral crumb the drive itself leaves while the hull
+        // settles - aimed at that, a single drive swings off the brake to
+        // chase it, leaves the retro error to grow, swings back, and saws down
+        // the whole burn at 0.4 rad/s. Not the closing line either: a burn
+        // along the line leaves the lateral crumb alone, and the line turns
+        // under a ship passing its mark, so the crumb grows into a sideways
+        // entry. The drive fires only when the error is in its cone (below),
+        // so a ship under the curve coasts instead of flipping prograde, and
+        // the doorstep settle kills what is left, torque-free. The flip (the
+        // brake group not yet facing the burn) turns at the full rate the plan
+        // budgeted the lead with.
         let brake = telemetry.and_then(|numbers| {
             // PAST the flip point, not merely "no flip point published". The
             // leg publishes none for three reasons and only this one is a

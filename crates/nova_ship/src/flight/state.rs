@@ -269,11 +269,15 @@ pub struct ManeuverTelemetry {
     /// authority (the degraded no-stopping-plan state; `flip_point` and `eta`
     /// are `None` there). No HUD instrument reads this yet.
     pub brake_accel: f32,
-    /// Where on the path the flip-and-burn starts, world coordinates;
-    /// `None` once braking has begun (or the estimate is meaningless at
-    /// near-zero closing speed). Under heavy lateral drift the estimate
-    /// runs optimistic: the flip math uses the along-track speed while
-    /// the controller spends authority killing the lateral first.
+    /// Where on the path the flip-and-burn starts, world coordinates; `None`
+    /// in FOUR states, and only one of them is a brake: past the flip point
+    /// (which is what [`Self::braking`] reports); a closing speed under
+    /// `guidance::FLIP_ESTIMATE_FLOOR`, where the coast estimate is noise; a
+    /// well pull that leaves no stopping plan; and every tick a GOTO spends
+    /// inside its standoff. Read [`Self::braking`] to know whether the leg is
+    /// braking - never the absence of this. Under heavy lateral drift the
+    /// estimate runs optimistic: the flip math uses the along-track speed
+    /// while the controller spends authority killing the lateral first.
     pub flip_point: Option<Vec3>,
     /// Coast time until the flip point, seconds.
     pub seconds_to_flip: Option<f32>,
@@ -378,12 +382,18 @@ pub struct FlightSettings {
     /// arrival. NOTE: this band must stay above the doorstep residual. ORBIT
     /// deliberately keeps the tight band (station-keeping's whole job is
     /// chasing small errors), which also preserves orbit_hold_enter's
-    /// documented 2x relationship. Rest precision: an AXIAL residual (the
-    /// shipped single-centered-drive ship) keeps the drive's aligned authority,
-    /// so STOP still brakes to [`FlightSettings::stop_speed_epsilon`] exactly;
-    /// a residual OFF the drive axis (a damage-shifted hull's recruit drift) is
-    /// released at up to this band rather than hunted with attitude flips -
-    /// that bounded creep is the contract, and the price of not wobbling.
+    /// documented 2x relationship. Rest precision turns on ALIGNMENT, not on
+    /// the axis. A residual the drive is ALREADY pointing at keeps its aligned
+    /// authority, so STOP still brakes that one to
+    /// [`FlightSettings::stop_speed_epsilon`] exactly. A residual the drive is
+    /// NOT pointing at is released at up to this band rather than hunted with
+    /// attitude flips, and on the shipped single-centered-drive ship that
+    /// covers two cases: a residual off the drive axis (a damage-shifted
+    /// hull's recruit drift), and a HEAD-ON residual inside the band, where
+    /// the brake owes less than a crumb and the leg is handed back without the
+    /// hull ever turning. That bounded creep - up to this band - is the
+    /// contract, and the price of not wobbling. An RCS-granted hull settles
+    /// far inside it, because RCS needs no attitude change at all.
     pub settle_deadband: f32,
     /// Once the engines are lit, keep burning until alignment falls this far
     /// below [`FlightSettings::align_cos`], so the plume does not flicker

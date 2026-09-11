@@ -103,9 +103,9 @@ struct PyreBudget(u32);
 ///
 /// Warmed by [`warm_the_pyres`] rather than built by [`FromWorld`], so an app
 /// with no asset stores and one running at a graphics tier with particles off
-/// still build nothing. The slots stay
-/// optional because that is what lets those two apps hold the resource without
-/// paying for it, and because the warm-up is a system and not a constructor.
+/// still build nothing. The slots stay optional because that is what lets
+/// those two apps hold the resource without paying for it, and because the
+/// warm-up is a system and not a constructor.
 #[derive(Resource, Default, Debug)]
 struct PyreEffects {
     section: Option<PyrePair>,
@@ -236,8 +236,8 @@ const SECTION_PYRE: PyreScale = PyreScale {
     linger: 0.9,
 };
 
-/// The whole hull letting go. Sized against a shipped gunship - 85 m stem to
-/// stern, 8.5 units - so the core covers the wreck without swallowing the
+/// The whole hull letting go. Sized against a shipped gunship - 90 m stem to
+/// stern, 9 units - so the core covers the wreck without swallowing the
 /// frame: a death the camera cannot see THROUGH is a death nobody can read,
 /// and the sections thrown out of it are half of what makes it one.
 ///
@@ -251,12 +251,17 @@ const SECTION_PYRE: PyreScale = PyreScale {
 /// was cut against. On that hull and the smaller ones the fragments reach past
 /// the silhouette, which is the read wanted: a debris field that stopped at
 /// the hull's own outline says the ship has merely broken rather than been
-/// destroyed. On the two capital hulls they do not - `block_warship` is 21.5
-/// units stem to stern, 215 m, and `block_carrier` 36 units, 360 m - so a
+/// destroyed. On the two capital hulls they do not - `block_warship` is 22
+/// units stem to stern, 220 m, and `block_carrier` 37 units, 370 m - so a
 /// carrier death lights the middle of a wreck whose ends the fragments never
 /// get near. That is a THIRD scale this module does not have, not a constant
 /// to retune: see [`PyreSize`], which is the enum a capital scale would be
 /// added to.
+///
+/// Those three spans are outer FACE to outer face, so each includes the
+/// overhang a multi-cell drive has past its own centre cell - half a unit on
+/// the gunship and the warship, a whole one on the carrier. A centre-to-centre
+/// span reads each of them short.
 const HULK_PYRE: PyreScale = PyreScale {
     core: PyreCore {
         size: 1.30,
@@ -556,9 +561,9 @@ fn drawable<'w>(
 /// table holding four pending row writes against a row count that has fallen
 /// back to three, and the first frame that does have a view then allocates a
 /// 60-byte buffer and writes 80 bytes into it: `slice offset 0 size 80 is out
-/// of range for buffer of size 60`, a panic in the render schedule at boot. An
-/// earlier cut warmed in `PostStartup`, which is before any scenario has
-/// spawned a camera, and did exactly that.
+/// of range for buffer of size 60`, a panic in the render schedule at boot.
+/// `PostStartup` is before any scenario has spawned a camera, so warming there
+/// is exactly that shape - which is why this waits for a view instead.
 ///
 /// A hidden instance warms the WGSL and the two COMPUTE pipelines, and not the
 /// render one. `compile_effects` generates the source for hidden instances on
@@ -644,9 +649,9 @@ fn a_view_exists(cameras: Query<&Camera>) -> bool {
 /// compiles in `PostUpdate` and the render world extracts after the whole main
 /// schedule, so a warm instance has to survive the frame it was spawned in to
 /// be compiled and to reach the render world at all - which is what mints its
-/// WGSL and specializes its two compute pipelines. [`Ref::is_added`] is what draws that
-/// line - on the frame they were spawned these are still new, on the next they
-/// are not.
+/// WGSL and specializes its two compute pipelines. [`Ref::is_added`] is what
+/// draws that line - on the frame they were spawned these are still new, on
+/// the next they are not.
 ///
 /// That line only falls where it says after [`warm_the_pyres`], which spawns in
 /// the same schedule: the ordering is what puts a sync point between the two,

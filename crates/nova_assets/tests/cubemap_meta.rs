@@ -2,13 +2,14 @@
 //! asserts its `.meta` loader settings reinterpret the stacked image into a
 //! 6 layer array at load time.
 //!
-//! This guards the skybox upload race: the renderer eagerly uploads every
-//! loaded image, and the raw stacked form is a single 2D texture no skybox can
-//! bind - and a tall enough stack (a mod may ship 4096 px faces, 24576 px
-//! stacked) also exceeds the 16384 texture limit of smaller GPUs, turning into
-//! a fatal render validation error. Reinterpreting in the loader means the
-//! stacked 2D form never exists. If someone deletes or breaks
-//! `cubemap.png.meta`, this test fails.
+//! This guards the eager upload: the renderer uploads every loaded image, and
+//! the raw stacked form goes up as one tall 2D texture. A later reinterpret
+//! rescues the BINDING - `SkyboxPlugin` and `apply_pending_skybox_swaps` both
+//! do it - but not the upload, and a tall enough stack (a mod may ship 4096 px
+//! faces, 24576 px stacked) exceeds the 16384 texture limit of smaller GPUs,
+//! turning that upload into a fatal render validation error. Reinterpreting in
+//! the loader means the stacked 2D form never exists. If someone deletes or
+//! breaks `cubemap.png.meta`, this test fails.
 //!
 //! It proves the meta FILE, not the app: this rig uses `AssetPlugin`'s default
 //! `meta_check` (Always). The shipped app also reads metas with

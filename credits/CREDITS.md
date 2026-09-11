@@ -25,8 +25,8 @@ assets" below:
   libraries and no third-party recordings
   are involved, so they carry the project's own license; see the README in each
   directory for what each file is and where its variation lives.
-- **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
-  sources in `art/blender/`.
+- **3D models** (`assets/base/gltf/*.glb`) - exported from the project's own
+  Blender sources in `art/blender/`.
 - **Hull cladding** - no files. A ship's skin is derived from the structure it
   wraps, and every plate's mesh is built at run time from its eight boundary
   samples; see `crates/nova_ship/src/sections/shell_shape.rs`.
@@ -44,7 +44,13 @@ assets" below:
 
 ## Third-party assets
 
-- **Bevy icon** - [MIT License](licenses/Bevy_MIT_License.md).
+- **Bevy icon** (`build/icon_1024x1024.png`, the application icon, and its
+  per-platform derivatives: `build/macos/AppIcon.iconset/*.png`,
+  `build/macos/src/Game.app/Contents/Resources/AppIcon.icns` and
+  `build/windows/icon.ico`, which `build.rs` embeds in the executable and
+  `index.html` copies into the web build) - [MIT
+  License](licenses/Bevy_MIT_License.md). The site's own favicon
+  (`web/src/favicon.svg`) is authored for the project and is not this icon.
 - **Skybox cubemaps** (`assets/base/textures/cubemap.png`,
   `assets/base/textures/cubemap_alt.png`) - generated with
   [space-3d](https://tools.wwwtyro.net/space-3d/) by Rye Terrell (wwwtyro)

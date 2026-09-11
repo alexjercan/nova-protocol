@@ -140,8 +140,8 @@ pub fn register_bundles(
     // skipped above), so this id->handle map never drops a bundle.
     let by_id: HashMap<&str, &Handle<BundleAsset>> =
         ordered.iter().map(|(id, h)| (*id, *h)).collect();
-    // Paired with the mod id, so a bundle or content file that fails to load
-    // can name the mod it belongs to.
+    // So a bundle or content file that fails to load can name the mod it
+    // belongs to.
     let bundle_handles: Vec<(&str, &Handle<BundleAsset>)> = topo
         .order
         .iter()

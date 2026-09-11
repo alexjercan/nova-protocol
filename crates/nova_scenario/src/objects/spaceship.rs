@@ -152,8 +152,9 @@ pub struct AIControllerConfig {
     /// Patrol waypoint-arrival slack override on top of the autopilot's
     /// arrival standoff; the engine default is 250 m. Small = the ship
     /// presses in close to each waypoint before turning (a nav drill hugging
-    /// its beacons). Below ~20 m risks stalling outside the advance gate -
-    /// author small, not zero. None = the default. See
+    /// its beacons). The gate is measured from the same centre of mass the
+    /// leg parks, so the slack has only the arrival's own terminal drift left
+    /// to cover - author small, not zero. None = the default. See
     /// `AIWaypointSlack`.
     #[cfg_attr(
         feature = "serde",

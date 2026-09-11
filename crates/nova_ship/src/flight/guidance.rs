@@ -87,11 +87,15 @@ pub(super) const FLIP_ESTIMATE_FLOOR: f32 = 0.5;
 
 /// Where a GOTO leg is against its flip-and-burn point.
 ///
-/// Three states, and they are three because the caller acts differently on
-/// each. The absence of a flip point used to carry all three at once, and a
-/// leg that could not be estimated read as a leg already braking - which
-/// pointed the drive retrograde and then held it there, because a cold drive
-/// never leaves the band that produced the estimate.
+/// Three states, because `Braking` and `Unknown` are different FACTS even
+/// where a caller has the same nothing to publish for both. Only
+/// `ManeuverTelemetry::braking` separates them today - `flip_point`,
+/// `seconds_to_flip` and [`arrival_eta`] all blank on either - and that one
+/// consumer is the whole reason the third state exists. The absence of a flip
+/// point used to carry all three at once, and a leg that could not be
+/// estimated read as a leg already braking - which pointed the drive
+/// retrograde and then held it there, because a cold drive never leaves the
+/// band that produced the estimate.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum FlipEstimate {
     /// The flip is still ahead: its distance from the goal center, and the

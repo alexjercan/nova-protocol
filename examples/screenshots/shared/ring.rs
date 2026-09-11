@@ -542,9 +542,14 @@ pub fn player_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pr
     })
 }
 
-/// Advance the frame the flip starts: the telemetry drops its flip point once
-/// the brake is planned, which is the same instant the computer turns the ship
-/// around.
+/// Advance the frame the flip starts - approximately. The predicate keys on a
+/// missing flip point plus a live closing speed, and a missing flip point is
+/// not the same fact as a brake: a leg also publishes none below the
+/// coast-estimate floor, under a well pull with no stopping plan, and inside a
+/// GOTO standoff (`ManeuverTelemetry::braking` is the honest flag). The speed
+/// gate is what makes this read as a brake on the long deep-space legs the
+/// shipped scripts fly; a leg engaged already fast and already close would
+/// satisfy it before the hull has turned.
 #[cfg(feature = "debug")]
 pub fn player_braking() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
@@ -554,8 +559,11 @@ pub fn player_braking() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pr
     })
 }
 
-/// Advance once the flip has finished and the retro burn is lit: braking, and
-/// past the align phase the swing spends its time in.
+/// Advance once the flip has finished and the retro burn is lit: no flip point
+/// published, and past the align phase the swing spends its time in. The phase
+/// gate is what carries this one - there is no speed gate, so the missing flip
+/// point alone would also match the three non-braking states
+/// `player_braking` lists.
 #[cfg(feature = "debug")]
 pub fn player_retro_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {

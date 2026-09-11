@@ -31,7 +31,7 @@ never panics a scenario). All 46 at a glance:
 | [`SetAllegiance`](#setallegiance) | [ship state](#ship-state) | overwrite a ship's side at runtime |
 | [`MoveShipTo`](#moveshipto) | [ship state](#ship-state) | fly an ordered ship to a mark and report when it arrives |
 | [`ForceAlign`](#forcealign) | [ship state](#ship-state) | turn an ordered ship's nose onto a point and hold it there |
-| [`StopShip`](#stopship) | [ship state](#ship-state) | bring an ordered ship to rest with the real STOP burn |
+| [`StopShip`](#stopship) | [ship state](#ship-state) | brake an ordered ship with the real STOP burn |
 | [`PatrolShip`](#patrolship) | [ship state](#ship-state) | fly one loop of an authored waypoint route, back to where it started |
 | [`OrbitShip`](#orbitship) | [ship state](#ship-state) | put a ship in a stable ring around a gravity well and hold it |
 | [`ClearShipOrder`](#clearshiporder) | [ship state](#ship-state) | cancel whatever helm order a ship is under |
@@ -927,7 +927,7 @@ impossible tolerance is refused outright rather than left never completing.
 
 ### StopShip
 
-Bring an ordered ship to rest with the real STOP maneuver - the same
+Brake an ordered ship with the real STOP maneuver - the same
 flip-retrograde-and-burn the player's X key runs, so it costs fuel and time,
 visibly.
 
@@ -943,9 +943,14 @@ StopShip((order: "hold_here", ship: "warship")),
 | `order` | string | required | the key this order's completion is reported under |
 | `ship` | string | required | scoped `None`- or AI-controller ship root |
 
-Completes when the ship is at rest, with `kind: Stop`. A ship that already is
-at rest completes almost immediately, which is the cheap way to make a beat
-wait for "it definitely is not drifting any more".
+Completes when the maneuver ends, with `kind: Stop`. "Ended" is a deadband and
+not a dead stop: a residual the drive is already pointing at is braked out to
+2 m/s, and one it is not - a sideways drift, or a head-on crumb - is released at
+up to 7.5 m/s rather than chased with attitude flips. A hull granted RCS settles
+the remainder on its jets. So a ship already inside that band completes almost
+immediately, and a beat that needs the hull genuinely still should gate on a
+[`Speed` query](../expressions/#queries-and-watched-variables) rather than on
+this order alone.
 
 </details>
 

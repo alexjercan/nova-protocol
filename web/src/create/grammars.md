@@ -145,8 +145,8 @@ to what - this is the shape dial, and it is pure taste.
 | `bow_taper` | number | How much likelier vacuum gets at the bow than at the stern. This is the whole silhouette: a nose and a broad tail rather than a brick. |
 
 If your hulls come out as slabs, `bow_taper` is the first number to raise. If the
-drives are missing, raise `stern`. If the result looks like scaffolding, lower
-`base`.
+ROLLED drives are sparse, raise `stern` - the seeded pair stands whatever this is
+set to. If the result looks like scaffolding, lower `base`.
 
 ## The keel
 
@@ -160,9 +160,12 @@ keel: (
 ),
 ```
 
-The keel is placed before the generator starts, and it buys one guarantee: a
+The keel is placed before the generator starts, and it buys two guarantees. A
 seeded spine is a single connected structure to grow on, so a hull never comes
-out as a cloud of islands.
+out as a cloud of islands. And the pass that erodes unsupported studs skips
+seeded cells, so the stern deck and the drive bolted to it cannot be taken off
+again by whatever the roll left bare around them - a whole multi-cell part is
+covered, not only the cell that was seeded.
 
 | field | type | default | meaning |
 |---|---|---|---|
