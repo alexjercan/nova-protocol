@@ -31,6 +31,7 @@ fn map_range_renders_in_meters_and_kilometers() {
         range: 50.0,
         bearing_deg: 0.0,
         mark_deg: 0.0,
+        radius: None,
     };
     assert!(
         near.readout().contains("range 500 m,"),
@@ -711,7 +712,7 @@ fn control_withholds_map_keys_because_it_is_the_exit_chord() {
         .query_filtered::<&mut MapOrbit, With<MapCameraMarker>>()
         .single_mut(app.world_mut())
         .unwrap()
-        .radius = MAP_RADIUS_DEFAULT * 0.5;
+        .radius = MAP_RADIUS_DEFAULT_MIN * 0.5;
     let moved = radius(&mut app);
 
     // Ctrl+T: the chord belongs to the router, so T must not reach the app.
@@ -740,7 +741,7 @@ fn control_withholds_map_keys_because_it_is_the_exit_chord() {
     app.world_mut().run_system_once(map_input).unwrap();
     assert_eq!(
         radius(&mut app),
-        MAP_RADIUS_DEFAULT,
+        MAP_RADIUS_DEFAULT_MIN,
         "T on its own re-frames the map"
     );
 }
@@ -784,6 +785,7 @@ fn rig_contact(entity: Entity, code: &str) -> MapContact {
         range: 100.0,
         bearing_deg: 0.0,
         mark_deg: 0.0,
+        radius: None,
     }
 }
 
@@ -891,19 +893,22 @@ fn rig_rect(rig: &NovaOsPointerRig, entity: Entity) -> Rect {
     Rect::from_center_size(xf.translation, node.size())
 }
 
-/// The blip's label node - its only child.
+/// The blip's label node - the child that is not the drawn dot.
 fn rig_label_of(rig: &NovaOsPointerRig, blip: Entity) -> Entity {
-    let children = rig
-        .app
-        .world()
+    let world = rig.app.world();
+    let children = world
         .get::<Children>(blip)
         .expect("the blip has a label child");
+    let labels: Vec<Entity> = children
+        .iter()
+        .filter(|child| world.get::<MapBlipDot>(*child).is_none())
+        .collect();
     assert_eq!(
-        children.len(),
+        labels.len(),
         1,
-        "the blip's hit target is its dot plus ONE label child"
+        "the blip's target carries its dot plus ONE label child"
     );
-    children[0]
+    labels[0]
 }
 
 /// DoD 3: the label is as clickable as the dot, which means the two targets
@@ -1104,4 +1109,126 @@ fn overlapping_map_contacts_select_the_topmost() {
         "two contacts stacked on the same pixel resolve to the topmost, not to \
          whichever the hit test happened to visit first",
     );
+}
+
+/// A scenario spread over 20 km has to be reachable. The old fixed 520 unit
+/// ceiling put a contact that far out permanently past the wheel, on a map
+/// whose whole job is showing where things are.
+#[test]
+fn the_map_frames_and_reaches_the_live_contact_spread() {
+    // Twenty kilometres, in world units.
+    let spread = Meters(20_000.0).to_engine();
+
+    let framing = map_radius_default(spread);
+    assert!(
+        framing > spread,
+        "the default framing stands back from the spread, got {framing} for {spread}"
+    );
+    assert!(
+        map_radius_max(spread) > framing,
+        "the wheel still has room past the opening frame"
+    );
+
+    // A tight scene keeps the composition the map has always opened at.
+    assert_eq!(map_radius_default(0.0), MAP_RADIUS_DEFAULT_MIN);
+    assert_eq!(map_radius_default(10.0), MAP_RADIUS_DEFAULT_MIN);
+}
+
+/// The floor rings are a scale reading, so they land on round metric steps at
+/// whatever scale the map is currently framed at.
+#[test]
+fn the_floor_rings_land_on_round_metric_steps() {
+    let rings = map_ring_radii(MAP_RADIUS_DEFAULT_MIN);
+    assert_eq!(
+        rings.map(|ring| Meters::from_engine(ring).0),
+        [500.0, 1_000.0, 1_500.0],
+        "the default framing reads in half-kilometres"
+    );
+
+    // Ten times the framing moves the ladder up a decade, not off it.
+    let wide = map_ring_radii(MAP_RADIUS_DEFAULT_MIN * 10.0);
+    assert_eq!(
+        wide.map(|ring| Meters::from_engine(ring).0),
+        [5_000.0, 10_000.0, 15_000.0]
+    );
+
+    // Evenly spaced, always: the rings are a ruler.
+    for rings in [rings, wide] {
+        assert!((rings[1] - rings[0] - (rings[2] - rings[1])).abs() < 1e-3);
+    }
+}
+
+/// A planetoid, the carrier and a torpedo used to plot as the same 12 px
+/// square. The dot now says how big the body IS; the target stays clickable
+/// whatever the dot does.
+#[test]
+fn a_map_body_plots_at_its_own_size_inside_a_clickable_target() {
+    // A planetoid filling a good part of the view.
+    let (dot, target) = blip_sizes(Some(180.0));
+    assert_eq!(dot, 180.0, "a big body is drawn big");
+    assert_eq!(target, 180.0, "and the whole of it is clickable");
+
+    // A torpedo eight kilometres out.
+    let (dot, target) = blip_sizes(Some(0.2));
+    assert!(dot >= MAP_DOT_MIN_PX, "a speck still reads as a mark");
+    assert_eq!(target, MAP_BLIP_PX, "and is still as clickable as ever");
+    assert!(dot < target, "the mark sits inside its own target");
+
+    // A nav point has no body at all and keeps the minimum of both.
+    let (dot, target) = blip_sizes(None);
+    assert_eq!((dot, target), (MAP_DOT_MIN_PX, MAP_BLIP_PX));
+}
+
+/// The focus hub marks the focused BODY, so it is the size of that body: a
+/// fixed 16 m sphere buried a skiff and vanished inside a planetoid.
+#[test]
+fn the_focus_hub_is_the_size_of_what_it_marks() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, StatesPlugin));
+    app.insert_state(PauseStates::NovaOs);
+    app.init_resource::<MapRuntime>();
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 0.0)),
+        Name::new("NOVA"),
+    ));
+    let carrier = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            GlobalTransform::from(Transform::from_xyz(300.0, 0.0, 0.0)),
+            Name::new("CARRIER"),
+            HullEnvelopeRadius(19.53),
+        ))
+        .id();
+    app.world_mut().spawn((
+        MapCameraMarker,
+        MapOrbit {
+            theta: MAP_THETA_DEFAULT,
+            phi: MAP_PHI_DEFAULT,
+            radius: MAP_RADIUS_DEFAULT_MIN,
+            center: Vec3::ZERO,
+        },
+    ));
+    app.world_mut()
+        .spawn((MapFocusAnchor, Transform::default()));
+    let hub = app
+        .world_mut()
+        .spawn((MapFocusHub, Transform::default()))
+        .id();
+
+    // Nothing focused: the hub is the floor, a mark on the map floor.
+    app.world_mut().run_system_once(map_focus_follow).unwrap();
+    let empty = app.world().get::<Transform>(hub).unwrap().scale.x;
+    assert!((empty - MAP_HUB_MIN.to_engine()).abs() < 1e-4);
+
+    // Focused on the carrier: the hub IS the carrier's envelope.
+    app.world_mut().resource_mut::<MapRuntime>().selected = Some(carrier);
+    app.world_mut().run_system_once(map_focus_follow).unwrap();
+    let framed = app.world().get::<Transform>(hub).unwrap().scale.x;
+    assert!((framed - 19.53).abs() < 1e-4, "hub scale {framed}");
+    assert!(framed > empty);
 }

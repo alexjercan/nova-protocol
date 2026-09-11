@@ -195,6 +195,15 @@ pub(crate) struct MapSceneRoot;
 #[derive(Component)]
 pub(crate) struct MapFocusAnchor;
 
+/// The drawn BODY inside a blip's interaction target: sized to the contact's
+/// own projected radius, so a planetoid is a disc and a torpedo is a speck.
+#[derive(Component)]
+pub(crate) struct MapBlipDot;
+
+/// The hub sphere marking the orbit centre; scaled to the focused contact.
+#[derive(Component)]
+pub(crate) struct MapFocusHub;
+
 /// A projected contact blip (a clickable UI marker over the viewport image).
 #[derive(Component)]
 pub(crate) struct MapBlip {

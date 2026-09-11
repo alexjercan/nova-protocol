@@ -14,6 +14,7 @@ use nova_events::{
 use nova_gameplay::prelude::*;
 use nova_hud::allegiance_markers::allegiance_color;
 use nova_os::prelude::*;
+use nova_ship::prelude::{BodyRadius, HullEnvelopeRadius};
 
 use crate::terminal::{NOVA_OS_AMBER, NOVA_OS_PHOSPHOR};
 
@@ -121,6 +122,12 @@ pub(crate) struct MapContact {
     pub(crate) bearing_deg: f32,
     /// Elevation ("mark") above/below the player's horizontal plane.
     pub(crate) mark_deg: f32,
+    /// The contact's own bounding radius in world units, when it HAS a body:
+    /// a ship's live [`HullEnvelopeRadius`], anything else's authored
+    /// [`BodyRadius`]. `None` is a nav point rather than a thing - an
+    /// objective marker has a position and no size - and plots at the map's
+    /// minimum dot.
+    pub(crate) radius: Option<f32>,
 }
 
 impl MapContact {
@@ -208,9 +215,25 @@ pub struct MapContacts<'w, 's> {
     /// The stable authored id of any contact that has one, used as the
     /// deterministic sort key when minting codes.
     pub(crate) ids: Query<'w, 's, &'static EntityId>,
+    /// A ship's live containment radius, published every fixed tick.
+    pub(crate) envelopes: Query<'w, 's, &'static HullEnvelopeRadius>,
+    /// An authored body's bounding radius - asteroids, planetoids, beacons.
+    pub(crate) bodies: Query<'w, 's, &'static BodyRadius>,
 }
 
 impl MapContacts<'_, '_> {
+    /// How big `entity` actually is, in world units: a ship's live hull
+    /// envelope, else its authored body radius, else nothing - which is the
+    /// honest answer for a nav marker.
+    pub(crate) fn radius_of(&self, entity: Entity) -> Option<f32> {
+        self.envelopes
+            .get(entity)
+            .map(|envelope| **envelope)
+            .ok()
+            .or_else(|| self.bodies.get(entity).map(|body| **body).ok())
+            .filter(|radius| *radius > 0.0)
+    }
+
     /// The player ship's entity, world position and orientation, if one exists.
     pub(crate) fn player_frame(&self) -> Option<(Entity, Vec3, Quat)> {
         self.player.iter().next().map(|(entity, gt, _)| {
@@ -331,6 +354,7 @@ impl MapContacts<'_, '_> {
                 range: 0.0,
                 bearing_deg: 0.0,
                 mark_deg: 0.0,
+                radius: self.radius_of(player_entity),
             });
         }
         for (entity, gt, name, allegiance) in &self.ships {
@@ -349,6 +373,7 @@ impl MapContacts<'_, '_> {
                 range,
                 bearing_deg: brg,
                 mark_deg: mark,
+                radius: self.radius_of(entity),
             });
         }
         for (entity, gt, marker) in &self.objectives {
@@ -364,6 +389,7 @@ impl MapContacts<'_, '_> {
                 range,
                 bearing_deg: brg,
                 mark_deg: mark,
+                radius: self.radius_of(entity),
             });
         }
         for (entity, gt, type_name) in &self.terrain {
@@ -382,6 +408,7 @@ impl MapContacts<'_, '_> {
                 range,
                 bearing_deg: brg,
                 mark_deg: mark,
+                radius: self.radius_of(entity),
             });
         }
         contacts

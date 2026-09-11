@@ -34,6 +34,7 @@ pub(crate) fn manage_map_scene(
     images: Option<ResMut<Assets<Image>>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
+    contacts: MapContacts,
     q_player: Query<&GlobalTransform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     let active = map_is_active(&pause, &terminal);
@@ -76,12 +77,17 @@ pub(crate) fn manage_map_scene(
     let image = images.add(new_map_image(UVec2::splat(64)));
     runtime.image = Some(image.clone());
 
-    let ring_mesh: Vec<Handle<Mesh>> = MAP_RING_RADII
+    // Framed on what is actually out there: a scenario spread over 20 km opens
+    // showing all of it, a two-ship skirmish opens where it always did.
+    let framing = map_radius_default(map_spread(&contacts, focus));
+    let ring_mesh: Vec<Handle<Mesh>> = map_ring_radii(framing)
         .iter()
         .map(|r| meshes.add(Torus::new(r - 0.35, r + 0.35)))
         .collect();
     let ring_mat = materials.add(unlit(NOVA_OS_PHOSPHOR_DIM.with_alpha(0.5)));
-    let hub_mesh = meshes.add(Sphere::new(1.6));
+    // A UNIT sphere: `map_focus_follow` scales it to whatever is focused, and
+    // a sphere is the one shape uniform scaling cannot distort.
+    let hub_mesh = meshes.add(Sphere::new(1.0));
     let hub_mat = materials.add(unlit(NOVA_OS_PHOSPHOR));
 
     let scene_root = commands
@@ -111,14 +117,14 @@ pub(crate) fn manage_map_scene(
                 scale_factor: 1.0,
             }),
             Transform::from_translation(
-                focus + orbit_eye(MAP_RADIUS_DEFAULT, MAP_THETA_DEFAULT, MAP_PHI_DEFAULT),
+                focus + orbit_eye(framing, MAP_THETA_DEFAULT, MAP_PHI_DEFAULT),
             )
             .looking_at(focus, Vec3::Y),
             RenderLayers::layer(MAP_LAYER),
             MapOrbit {
                 theta: MAP_THETA_DEFAULT,
                 phi: MAP_PHI_DEFAULT,
-                radius: MAP_RADIUS_DEFAULT,
+                radius: framing,
                 // Seed the focus on the player ship; the pan actions move it.
                 center: focus,
             },
@@ -149,9 +155,10 @@ pub(crate) fn manage_map_scene(
         ));
     }
     commands.spawn((
+        MapFocusHub,
         Mesh3d(hub_mesh),
         MeshMaterial3d(hub_mat),
-        Transform::default(),
+        Transform::from_scale(Vec3::splat(MAP_HUB_MIN.to_engine())),
         RenderLayers::layer(MAP_LAYER),
         ChildOf(anchor),
     ));
@@ -232,7 +239,8 @@ pub(crate) fn map_focus_follow(
     mut runtime: ResMut<MapRuntime>,
     contacts: MapContacts,
     mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
-    mut q_anchor: Query<&mut Transform, With<MapFocusAnchor>>,
+    mut q_anchor: Query<&mut Transform, (With<MapFocusAnchor>, Without<MapFocusHub>)>,
+    mut q_hub: Query<&mut Transform, With<MapFocusHub>>,
 ) {
     if !runtime.active {
         return;
@@ -255,6 +263,17 @@ pub(crate) fn map_focus_follow(
     }
     if let Ok(mut anchor) = q_anchor.single_mut() {
         anchor.translation = orbit.center;
+    }
+    // The hub says how big the thing you are looking at IS, not how big a hub
+    // is: a fixed 16 m sphere buried the skiff it marked and vanished inside
+    // the planetoid it marked.
+    if let Ok(mut hub) = q_hub.single_mut() {
+        let radius = runtime
+            .focused_on
+            .and_then(|focused| contacts.radius_of(focused))
+            .unwrap_or(0.0)
+            .max(MAP_HUB_MIN.to_engine());
+        hub.scale = Vec3::splat(radius);
     }
 }
 
@@ -313,10 +332,11 @@ pub(crate) fn map_input(
             orbit.theta -= motion_delta.x * 0.0024;
             orbit.phi = (orbit.phi + motion_delta.y * 0.0024).clamp(0.12, 1.45);
         }
-        // Wheel zooms the focus distance.
+        // Wheel zooms the focus distance, out to what the live scene needs:
+        // a fixed ceiling left a contact 20 km out permanently off the map.
         if wheel_delta != 0.0 {
-            orbit.radius =
-                (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(MAP_RADIUS_MIN, MAP_RADIUS_MAX);
+            let reach = map_radius_max(map_spread(&contacts, orbit.center));
+            orbit.radius = (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(MAP_RADIUS_MIN, reach);
         }
         // The pan actions move the focus RELATIVE TO THE MAP VIEW (the camera's
         // heading on the ground plane), not the ship: forward goes into the
@@ -343,10 +363,10 @@ pub(crate) fn map_input(
         }
         // Re-frame on the selected object (or the player if nothing is picked).
         if input.just_pressed("novaos_reframe") {
-            orbit.radius = MAP_RADIUS_DEFAULT;
+            orbit.center = focus_point(&contacts, runtime.selected);
+            orbit.radius = map_radius_default(map_spread(&contacts, orbit.center));
             orbit.theta = MAP_THETA_DEFAULT;
             orbit.phi = MAP_PHI_DEFAULT;
-            orbit.center = focus_point(&contacts, runtime.selected);
             runtime.focused_on = runtime.selected;
         }
     }
@@ -397,12 +417,11 @@ pub(crate) fn project_map_blips(
     time: Res<Time>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<MapViewportMarker>>,
-    mut q_blip: Query<(
-        &mut Node,
-        &mut Visibility,
-        &mut BackgroundColor,
-        &mut BorderColor,
-    )>,
+    mut q_blip: Query<
+        (&mut Node, &mut Visibility, &mut Outline, Option<&Children>),
+        Without<MapBlipDot>,
+    >,
+    mut q_dot: Query<(&mut Node, &mut BackgroundColor), With<MapBlipDot>>,
 ) {
     if !runtime.active {
         return;
@@ -448,21 +467,38 @@ pub(crate) fn project_map_blips(
             runtime.blips.insert(contact.entity, id);
             id
         };
-        if let Ok((mut node, mut vis, mut bg, mut border)) = q_blip.get_mut(blip) {
+        // How big the contact actually LOOKS from the map camera. A nav marker
+        // has no body and keeps the minimum dot.
+        let (dot_px, target_px) = blip_sizes(
+            contact
+                .radius
+                .and_then(|radius| projected_radius_px(camera, cam_gt, contact.world_pos, radius))
+                .map(|radius| radius * 2.0 * to_logical),
+        );
+
+        if let Ok((mut node, mut vis, mut outline, children)) = q_blip.get_mut(blip) {
+            node.width = Val::Px(target_px);
+            node.height = Val::Px(target_px);
             match projected {
                 Some(p) => {
-                    node.left = Val::Px(p.x - MAP_BLIP_PX * 0.5);
-                    node.top = Val::Px(p.y - MAP_BLIP_PX * 0.5);
+                    node.left = Val::Px(p.x - target_px * 0.5);
+                    node.top = Val::Px(p.y - target_px * 0.5);
                     *vis = Visibility::Inherited;
                 }
                 None => *vis = Visibility::Hidden,
             }
-            bg.0 = base;
-            *border = if selected {
-                BorderColor::all(NOVA_OS_AMBER)
+            outline.color = if selected {
+                NOVA_OS_AMBER
             } else {
-                BorderColor::all(base.with_alpha(0.0))
+                base.with_alpha(MAP_BLIP_OUTLINE_ALPHA)
             };
+            for child in children.map(Children::iter).into_iter().flatten() {
+                if let Ok((mut dot, mut fill)) = q_dot.get_mut(child) {
+                    dot.width = Val::Px(dot_px);
+                    dot.height = Val::Px(dot_px);
+                    fill.0 = base;
+                }
+            }
         }
     }
 
@@ -480,15 +516,50 @@ pub(crate) fn project_map_blips(
     }
 }
 
-/// Blip square side in pixels (border box), and its border width.
+/// Smallest a contact's interaction target may be, in pixels (border box).
+///
+/// The DOT is drawn at the contact's own projected radius - a planetoid is a
+/// disc, a torpedo is a speck - but a speck you cannot click is not a map
+/// contact, so the target it sits in never shrinks below this and carries an
+/// outline saying where it is. The two used to be one 12 px square, which
+/// plotted the carrier, a planetoid and a torpedo identically.
 pub(crate) const MAP_BLIP_PX: f32 = 12.0;
 pub(crate) const MAP_BLIP_BORDER_PX: f32 = 2.0;
 
-/// Where the label pill starts, measured from the dot's PADDING edge - which is
-/// where an absolutely-positioned child's `left` is measured from, i.e. already
-/// inside the dot's border. Offsetting by the border width lands the pill exactly
-/// on the dot's outer right edge, so the two are one unbroken hit target.
-pub(crate) const MAP_LABEL_LEFT_PX: f32 = MAP_BLIP_PX - MAP_BLIP_BORDER_PX;
+/// Alpha of an unselected contact's target outline. Present, but quiet enough
+/// that the reading is the dot inside it.
+pub(crate) const MAP_BLIP_OUTLINE_ALPHA: f32 = 0.35;
+
+/// Smallest the drawn dot may be. A contact whose body projects to less than
+/// this still reads as a mark rather than vanishing inside its own target.
+pub(crate) const MAP_DOT_MIN_PX: f32 = 4.0;
+
+/// The drawn dot and its interaction target (logical px) for a contact whose
+/// body projects to `projected_dot_px` across.
+///
+/// The two are separate answers on purpose: the dot says how big the thing IS,
+/// the target says what you can click. A torpedo 8 km out projects to a
+/// fraction of a pixel, and a map you cannot click is not a map.
+pub(crate) fn blip_sizes(projected_dot_px: Option<f32>) -> (f32, f32) {
+    let dot = projected_dot_px
+        .unwrap_or(MAP_DOT_MIN_PX)
+        .max(MAP_DOT_MIN_PX);
+    (dot, dot.max(MAP_BLIP_PX))
+}
+
+/// The on-screen radius (physical px) of a world-space sphere of `radius`
+/// around `at`, from this camera. `None` when either end fails to project.
+fn projected_radius_px(
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+    at: Vec3,
+    radius: f32,
+) -> Option<f32> {
+    let edge = at + camera_transform.right() * radius;
+    let centre = camera.world_to_viewport(camera_transform, at).ok()?;
+    let edge = camera.world_to_viewport(camera_transform, edge).ok()?;
+    Some(centre.distance(edge))
+}
 
 pub(crate) fn spawn_blip(
     commands: &mut Commands,
@@ -497,6 +568,9 @@ pub(crate) fn spawn_blip(
     font: Handle<Font>,
 ) -> Entity {
     let color = contact.kind.color();
+    // The outer node is the INTERACTION TARGET, never smaller than
+    // `MAP_BLIP_PX` and outlined so the player can see what is clickable; the
+    // dot child is the BODY, drawn at whatever the contact projects to.
     let id = commands
         .spawn((
             MapBlip {
@@ -507,19 +581,43 @@ pub(crate) fn spawn_blip(
                 position_type: PositionType::Absolute,
                 width: Val::Px(MAP_BLIP_PX),
                 height: Val::Px(MAP_BLIP_PX),
-                border: UiRect::all(Val::Px(MAP_BLIP_BORDER_PX)),
-                // Round the blip into a dot rather than a square.
+                // Round the target into a ring rather than a square.
                 border_radius: BorderRadius::MAX,
                 ..default()
             },
-            BorderColor::all(color.with_alpha(0.0)),
-            BackgroundColor(color),
+            // An OUTLINE, not a border: it is drawn outside the box, so the
+            // label child's `left: 100%` still lands on the target's own edge
+            // and the two stay one unbroken hit target at every size.
+            Outline::new(
+                Val::Px(MAP_BLIP_BORDER_PX),
+                Val::ZERO,
+                color.with_alpha(MAP_BLIP_OUTLINE_ALPHA),
+            ),
+            BackgroundColor(Color::NONE),
         ))
         // Selection goes through the Button `Activate` event (fires for the
         // forwarded NOVA OS pointer), not `Interaction` polling, which does not
         // update through the CRT-composited RTT.
         .observe(on_map_blip_click)
         .id();
+    commands.spawn((
+        MapBlipDot,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(50.0),
+            top: Val::Percent(50.0),
+            width: Val::Px(MAP_DOT_MIN_PX),
+            height: Val::Px(MAP_DOT_MIN_PX),
+            border_radius: BorderRadius::MAX,
+            ..default()
+        },
+        // Centred on the target whatever size it ends up, which a pair of
+        // pixel margins could not do for a size that changes every frame.
+        UiTransform::from_translation(Val2::percent(-50.0, -50.0)),
+        BackgroundColor(color),
+        Pickable::IGNORE,
+        ChildOf(id),
+    ));
     // The label rides beside the blip as a child node, in a dark backing pill -
     // the same shape the ship app's section labels use, and for the same two
     // reasons: it reads clearly against the phosphor
@@ -527,16 +625,17 @@ pub(crate) fn spawn_blip(
     // run. `Pointer<Click>` bubbles, so a click anywhere on the pill activates
     // the blip `Button` it is a child of.
     //
-    // It starts at exactly the dot's right edge (see [`MAP_LABEL_LEFT_PX`]), so
-    // dot and label are one unbroken target: the old `left: 16` left a 6 px dead
-    // band between them that selected nothing. The 1 px vertical padding under
-    // `top: -4` keeps the glyph baseline exactly where `top: -3` put it; the
-    // glyphs shift 2 px left (18 -> 16 px from the dot's left edge), which is the
-    // whole visual change.
+    // It starts at exactly the target's right edge - `100%` of the padding box
+    // an absolutely-positioned child is measured against, which is already
+    // inside the border - so dot and label are one unbroken target whatever
+    // size the target currently is: the old `left: 16` left a 6 px dead band
+    // between them that selected nothing, and a hand-computed pixel offset
+    // could not follow a target that resizes. The 1 px vertical padding under
+    // `top: -4` keeps the glyph baseline where `top: -3` put it.
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(MAP_LABEL_LEFT_PX),
+            left: Val::Percent(100.0),
             top: Val::Px(-4.0),
             padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
             border_radius: BorderRadius::all(Val::Px(3.0)),
