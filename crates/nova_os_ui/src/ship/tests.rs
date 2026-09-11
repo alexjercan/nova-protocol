@@ -965,8 +965,8 @@ fn blip_is_status_dot_with_labelled_marker() {
         "a critical section's dot reads amber"
     );
 
-    // The dot carries the class glyph and the pill carries the code, and no
-    // ammo pips survive anywhere on the blip.
+    // The pill carries the class glyph and the section code, and no ammo pips
+    // survive anywhere on the blip.
     let texts: Vec<String> = app
         .world_mut()
         .query::<&Text>()
@@ -974,12 +974,8 @@ fn blip_is_status_dot_with_labelled_marker() {
         .map(|text| text.0.clone())
         .collect();
     assert!(
-        texts.contains(&kind_glyph(SectionClass::Turret).to_string()),
-        "the dot carries the turret glyph, got {texts:?}",
-    );
-    assert!(
-        texts.contains(&"PDC-1".to_string()),
-        "the pill carries the section code, got {texts:?}",
+        texts.contains(&format!("{} PDC-1", kind_glyph(SectionClass::Turret))),
+        "the pill carries the turret glyph and the section code, got {texts:?}",
     );
     assert!(
         !texts.iter().any(|t| t.contains('●') || t.contains('○')),
@@ -1420,7 +1416,8 @@ fn only_the_selected_section_spells_out_its_code() {
             .count()
     };
 
-    // Nothing selected: every pill is down, every glyph is still up.
+    // Nothing selected: every pill is down, and every section still has the
+    // dot that selects it.
     app.world_mut()
         .run_system_once(label_the_selected_section)
         .unwrap();
@@ -1429,12 +1426,12 @@ fn only_the_selected_section_spells_out_its_code() {
         0,
         "an unselected schematic shows no codes"
     );
-    let glyphs = app
+    let dots = app
         .world_mut()
-        .query_filtered::<(), With<ShipBlipGlyph>>()
+        .query_filtered::<(), With<ShipBlip>>()
         .iter(app.world())
         .count();
-    assert_eq!(glyphs, blips.len(), "every section keeps its class glyph");
+    assert_eq!(dots, blips.len(), "every section keeps its clickable dot");
 
     // Selecting one raises exactly its pill.
     let (section, blip, _) = blips[1];

@@ -81,11 +81,6 @@ pub(crate) struct ShipBlip {
     pub(crate) section: Entity,
 }
 
-/// The class glyph drawn ON a blip's dot. It rides the dot rather than a side
-/// pill so the schematic still reads by kind with every code label off.
-#[derive(Component)]
-pub(crate) struct ShipBlipGlyph;
-
 /// A blip's code pill. Shown only for the selected section: a carrier has two
 /// thousand of these, and two thousand pills is a wall, not a label layer.
 #[derive(Component)]
@@ -663,10 +658,6 @@ pub(crate) fn project_ship_blips(
 pub(crate) const SHIP_BLIP_PX: f32 = 12.0;
 pub(crate) const SHIP_BLIP_BORDER_PX: f32 = 2.0;
 
-/// Font size (px) of the class glyph inside a blip dot: the largest that fits
-/// between the dot's borders.
-const SHIP_GLYPH_FONT_PX: f32 = SHIP_BLIP_PX - 2.0 * SHIP_BLIP_BORDER_PX;
-
 /// Where the label pill starts, measured from the dot's PADDING edge - which is
 /// where an absolutely-positioned child's `left` is measured from, i.e. already
 /// inside the dot's border. Offsetting by the border width lands the pill exactly
@@ -685,9 +676,7 @@ pub(crate) fn spawn_ship_blip(
 ) -> Entity {
     let color = view.status_color();
     // The clickable dot: fill coloured by status (recoloured each frame in
-    // `project_ship_blips`); its amber border marks the selection. The class
-    // glyph rides ON it, so a schematic with every code label off still says
-    // which blocks are thrusters and which are plating.
+    // `project_ship_blips`); its amber border marks the selection.
     let dot = commands
         .spawn((
             Button,
@@ -697,8 +686,6 @@ pub(crate) fn spawn_ship_blip(
                 height: Val::Px(SHIP_BLIP_PX),
                 border: UiRect::all(Val::Px(SHIP_BLIP_BORDER_PX)),
                 border_radius: BorderRadius::MAX,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
                 ..default()
             },
             BorderColor::all(NOVA_OS_AMBER.with_alpha(0.0)),
@@ -708,20 +695,12 @@ pub(crate) fn spawn_ship_blip(
         // not `Interaction` polling (`rtt-ui-select-via-activate-not-interaction`).
         .observe(on_ship_blip_click)
         .id();
-    commands.spawn((
-        ShipBlipGlyph,
-        Text::new(kind_glyph(view.kind)),
-        nova_os_text_font(SHIP_GLYPH_FONT_PX, font.clone()),
-        // Dark on the status fill, which is the only way a glyph inside a
-        // coloured dot reads at this size.
-        TextColor(NOVA_OS_SCREEN),
-        Pickable::IGNORE,
-        ChildOf(dot),
-    ));
 
-    // Label: the section code, in a dark backing pill so it reads clearly
-    // against the phosphor scene instead of tiny green-on-green. Hidden until
-    // this section is the selection (`label_the_selected_section`). Detail
+    // Label: the per-kind glyph + section code, in a dark backing pill so it
+    // reads clearly against the phosphor scene instead of tiny green-on-green.
+    // Hidden until this section is the selection
+    // (`label_the_selected_section`); the glyph stays in the pill because an
+    // 8 px one inside the dot does not survive the CRT pass. Detail
     // (HP/ammo/status) lives in the inspector panel now, not on the blip.
     commands
         .spawn((
@@ -740,7 +719,7 @@ pub(crate) fn spawn_ship_blip(
         ))
         .with_children(|pill| {
             pill.spawn((
-                Text::new(view.code.clone()),
+                Text::new(format!("{} {}", kind_glyph(view.kind), view.code)),
                 nova_os_text_font(11.0, font),
                 TextColor(NOVA_OS_TEXT),
             ));
@@ -757,8 +736,8 @@ pub(crate) fn spawn_ship_blip(
 ///
 /// The carrier has 2081 sections. A pill on each one is not a label layer, it
 /// is a wall of overlapping text with the schematic somewhere behind it. Every
-/// section keeps its clickable dot and its class glyph; the code appears where
-/// the inspector is already pointing.
+/// section keeps its clickable dot; the glyph and code appear where the
+/// inspector is already pointing.
 pub(crate) fn label_the_selected_section(
     runtime: Res<ShipRuntime>,
     q_blip: Query<(&ShipBlip, &Children)>,
