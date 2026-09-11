@@ -80,14 +80,6 @@ const MARK_ALPHA: f32 = 0.85;
 /// enough to still aim down through a twelve-second reload.
 const EMPTY_ALPHA_SCALE: f32 = 0.3;
 
-/// Ceiling on how many layers the trace will walk in one frame.
-///
-/// The weapon has no layer cap by design - power is its only bound - but the
-/// SIGHT runs every frame on the main schedule, and a bore laid down the long
-/// axis of a station would cast until the power ran out. Deep enough that no
-/// ship reaches it, cheap enough that nothing has to think about it.
-const MAX_TRACE_LAYERS: usize = 24;
-
 /// One lance's sight line. The lance it belongs to, so a destroyed gun takes
 /// its sight with it.
 #[derive(Component, Debug, Clone, Copy, Reflect)]
@@ -264,7 +256,12 @@ fn trace_bore(
     let mut origin = muzzle;
     let mut travelled = 0.0f32;
 
-    while travelled < reach && crossed.len() < MAX_TRACE_LAYERS {
+    // Bounded by the round's own rule and nothing else: the slug's power buys
+    // the walk, so the sight stops exactly where the shell would. The loop
+    // still terminates without a layer cap - every pass either spends power,
+    // meets a wall the power rule cannot price, or advances `travelled` by at
+    // least `PIERCE_SKIN`, and a crossed collider never comes back.
+    while travelled < reach {
         let body_of = |collider: Entity| q_collider_of.get(collider).map(|of| of.body);
         let hit = spatial.cast_ray_predicate(
             origin,
@@ -688,6 +685,38 @@ mod tests {
             marks(&mut app),
             2,
             "a 300-point bite kills the 200 and the 100 and leaves the 500 standing"
+        );
+    }
+
+    /// The carrier's spine is 33 cells of cheap plating, and a lance laid
+    /// down it crosses every one. A layer cap in the SIGHT (and not in the
+    /// round) made the instrument stop short of what the shot would do, which
+    /// is the one thing it exists not to do.
+    #[test]
+    fn the_sight_rakes_as_deep_as_the_power_budget_buys() {
+        let mut app = sight_app();
+        let plates = 33;
+        let plate_hp = 100.0;
+        let config = RailgunSectionConfig {
+            slug_damage: 300.0,
+            // Enough to cross every plate with budget to spare, so the depth
+            // read is the power rule's answer and not a truncation.
+            slug_power: power_cost(plate_hp) * (plates as f32 + 1.0),
+            slug_speed: MetersPerSecond(15_000.0),
+            slug_lifetime: 1.0,
+            ..default()
+        };
+
+        spawn_lance_ship(&mut app, config, true);
+        for plate in 0..plates {
+            spawn_plate(&mut app, -10.0 - 5.0 * plate as f32, plate_hp);
+        }
+        settle(&mut app);
+
+        assert_eq!(
+            marks(&mut app),
+            plates,
+            "a 300-point bite kills every 100-point plate the power budget reaches"
         );
     }
 
