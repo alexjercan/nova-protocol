@@ -36,7 +36,7 @@ mod torpedo;
 use acquisition::{mirror_ai_combat_state, update_ai_target, update_point_defense_target};
 use behavior::update_behavior_state;
 use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
-use maneuver::{on_thruster_input, update_controller_target_rotation_torque};
+use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
@@ -206,9 +206,14 @@ impl Plugin for SpaceshipAIInputPlugin {
                 // writers gate on, so deciding it first means a ship that
                 // breaks off this frame flies this frame.
                 interrupt_ai_ship_orders,
+                // Before the passive pilot, and both write the same helm.
+                // They never write it in the same frame - the behavior states
+                // they answer to are disjoint - but the passive pilot READS
+                // the maneuver, and this order means a ship breaking off
+                // reads a helm combat has already released rather than the
+                // velocity it was holding.
+                update_combat_flight,
                 update_passive_flight,
-                update_controller_target_rotation_torque,
-                on_thruster_input,
                 update_turret_target_input,
                 on_projectile_input,
                 // Commit-on-launch runs before the trigger write: the frame

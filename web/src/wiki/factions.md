@@ -26,6 +26,7 @@ Relation is the switch behind most of combat:
 - **Projectile allegiance** - a round copies its shooter's side at launch and keeps it even if the shooter dies, so your torpedo stays yours and never hits your own hull.
 - **Targeting** - what you can lock and what the AI will attack keys off relation and radar [signature](../targeting-radar/).
 - **AI hostility** - enemy ships engage hostiles, remember who shot them, and raise their weapons only when they have a hostile target.
+- **AI flight** - an enemy flies its fight on the same flight computer you do. It asks the computer to HOLD a velocity - closing while it is outside its standoff, circling once it is inside - and to keep its nose on you while the computer holds it. So an enemy at its standoff is crossing your bow with its guns still bearing, and it lights only the engines that burn for that; it swings the hull off you only for a correction big enough to need the main drive, and comes back when the burn is done. A hull with its engines shot off, or with its flight computer dead, stops maneuvering at all.
 
 ## Reading it on the HUD
 

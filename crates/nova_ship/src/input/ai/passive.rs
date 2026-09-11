@@ -10,9 +10,8 @@ use nova_gameplay::prelude::*;
 #[cfg(test)]
 use super::acquisition::update_ai_target;
 #[cfg(test)]
-use super::behavior::update_behavior_state;
+use super::{behavior::update_behavior_state, maneuver::update_combat_flight};
 #[cfg(test)]
-use super::maneuver::on_thruster_input;
 #[cfg(test)]
 use crate::input::targeting::update_sensor_contacts;
 use crate::prelude::*;
@@ -412,11 +411,10 @@ pub(super) fn update_passive_flight(
                         .insert(Autopilot::engage(AutopilotAction::Stop));
                 }
             }
-            // Combat: the AI actuator systems own the ship.
+            // Combat: `update_combat_flight` owns the helm, and takes it from
+            // whatever passive leg was still flying. Clearing the maneuver here
+            // would only churn the component it is about to write.
             _ => {
-                if has_autopilot {
-                    commands.entity(ship).remove::<Autopilot>();
-                }
                 if detour.is_some() {
                     commands.entity(ship).remove::<AIAvoidanceDetour>();
                 }
@@ -879,7 +877,30 @@ mod patrol_idle_tests {
     fn run_pipeline(world: &mut World) {
         crate::input::ai::sense_and_pick(world);
         world.run_system_once(update_behavior_state).unwrap();
+        world.run_system_once(update_combat_flight).unwrap();
         world.run_system_once(update_passive_flight).unwrap();
+    }
+
+    /// An engine and a flight computer: what the combat driver checks for
+    /// before it hands a hull a maneuver, so a ship that has to fight in a
+    /// test has to carry them.
+    pub(super) fn make_flyable(world: &mut World, ship: Entity) {
+        world.spawn((
+            ChildOf(ship),
+            ThrusterSectionMarker,
+            ThrusterSectionInput(0.0),
+        ));
+        world.spawn((
+            ChildOf(ship),
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_angular_acceleration: 10.0,
+                sustained_angular_speed: f32::INFINITY,
+            },
+        ));
     }
 
     fn patrol_world() -> (World, Entity) {
@@ -895,6 +916,7 @@ mod patrol_idle_tests {
                 LinearVelocity(Vec3::ZERO),
             ))
             .id();
+        make_flyable(&mut world, ship);
         (world, ship)
     }
 
@@ -1109,8 +1131,8 @@ mod patrol_idle_tests {
         run_pipeline(&mut world);
         assert!(world.entity(ship).get::<Autopilot>().is_some());
 
-        // A hostile pops inside detection range: Engage, and the passive
-        // maneuver is dropped so the combat actuators own the ship.
+        // A hostile pops inside detection range: Engage, and the combat
+        // driver takes the helm off the patrol leg.
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
@@ -1124,8 +1146,11 @@ mod patrol_idle_tests {
             AIBehaviorState::Engage
         );
         assert!(
-            world.entity(ship).get::<Autopilot>().is_none(),
-            "engaging drops the passive-state autopilot"
+            matches!(
+                world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+                Some(AutopilotAction::MatchVelocity { .. })
+            ),
+            "engaging replaces the patrol leg with a held velocity"
         );
     }
 
@@ -1158,47 +1183,6 @@ mod patrol_idle_tests {
             "but too far to abort the patrol for"
         );
     }
-
-    #[test]
-    fn an_engaged_autopilot_owns_the_engines() {
-        // While the flight computer flies a passive maneuver the AI thrust
-        // system must not touch the throttles - not even to zero them.
-        let (mut world, ship) = patrol_world();
-        world
-            .entity_mut(ship)
-            .insert(Autopilot::engage(AutopilotAction::Stop));
-        let thruster = world
-            .spawn((
-                ThrusterSectionMarker,
-                ThrusterSectionInput(0.7),
-                GlobalTransform::IDENTITY,
-                ChildOf(ship),
-            ))
-            .id();
-
-        world.run_system_once(on_thruster_input).unwrap();
-        assert_eq!(
-            **world
-                .entity(thruster)
-                .get::<ThrusterSectionInput>()
-                .unwrap(),
-            0.7,
-            "an engaged autopilot owns the throttles"
-        );
-
-        // Without a maneuver the passive state cuts the burn, as before.
-        world.entity_mut(ship).remove::<Autopilot>();
-        world.entity_mut(ship).insert(AIBehaviorState::Patrol);
-        world.run_system_once(on_thruster_input).unwrap();
-        assert_eq!(
-            **world
-                .entity(thruster)
-                .get::<ThrusterSectionInput>()
-                .unwrap(),
-            0.0,
-            "no autopilot: the passive state zeroes the throttles"
-        );
-    }
 }
 
 #[cfg(test)]
@@ -1213,6 +1197,7 @@ mod orbit_directive_tests {
     fn run_pipeline(world: &mut World) {
         crate::input::ai::sense_and_pick(world);
         world.run_system_once(update_behavior_state).unwrap();
+        world.run_system_once(update_combat_flight).unwrap();
         world.run_system_once(update_passive_flight).unwrap();
     }
 
@@ -1233,6 +1218,7 @@ mod orbit_directive_tests {
                 LinearVelocity(Vec3::ZERO),
             ))
             .id();
+        super::patrol_idle_tests::make_flyable(&mut world, ship);
         (world, ship)
     }
 
@@ -1401,8 +1387,8 @@ mod orbit_directive_tests {
         run_pipeline(&mut world);
         assert!(world.entity(ship).get::<Autopilot>().is_some());
 
-        // A hostile inside detection range: Engage, and the passive
-        // maneuver is dropped so the combat actuators own the ship.
+        // A hostile inside detection range: Engage, and the combat driver
+        // takes the helm off the ring.
         let hostile = world
             .spawn((
                 SpaceshipRootMarker,
@@ -1417,11 +1403,16 @@ mod orbit_directive_tests {
             AIBehaviorState::Engage
         );
         assert!(
-            world.entity(ship).get::<Autopilot>().is_none(),
-            "engaging drops the passive-state autopilot"
+            matches!(
+                world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+                Some(AutopilotAction::MatchVelocity { .. })
+            ),
+            "engaging replaces the ring with a held velocity"
         );
 
-        // The hostile gone, the ship returns to its ring.
+        // The hostile gone, the ship returns to its ring in the SAME frame:
+        // the combat driver releases the helm before the passive pilot reads
+        // it, which is what that ordering is for.
         world.despawn(hostile);
         run_pipeline(&mut world);
         assert_eq!(

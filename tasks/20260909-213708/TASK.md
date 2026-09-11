@@ -184,7 +184,7 @@ gameplay feedback ledger (`20260909-213118`).
       20 u/s regardless of drive-to-mass: the carrier alternates thrust and
       brake all fight. Derive from live thruster authority over mass, the
       figures `flight/thrusters.rs` computes.
-- [ ] `maneuver.rs:306,318` the combat thrust path writes one scalar to
+- [x] `maneuver.rs:306,318` the combat thrust path writes one scalar to
       EVERY thruster: the carrier lights retros and laterals with the mains
       and torques off its command. Route through `cluster_thrusters` and
       `balance_throttles` as the autopilot does.

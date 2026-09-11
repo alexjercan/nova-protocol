@@ -15,6 +15,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+- An enemy flies its fight on the flight computer: it holds a velocity and
+  keeps its nose on you while it circles, and lights only the engines that
+  burn for it instead of every thruster at once.
+
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the
   line drops the travel designation too, and neither slot re-locks on its own.

@@ -15,6 +15,7 @@ because a balance item is measured before it is tuned.
 | 2026-09-11 | sweep `20260909-213708` | targeting, block_skiff and block_carrier | a combat lock let go on its own after thirty idle seconds, so a long quiet approach arrived unlocked and the safety went back on | balance | the idle decay and the reticle wind-down are removed; only the world or the player's tap takes a lock; hull inputs unchanged (see below); `system_lock_line_of_sight` holds it |
 | 2026-09-11 | sweep `20260909-213708` | targeting, block_skiff and block_carrier | every ship root locked out to the player's whole 200 km sensor cap, so the skiff was designatable from exactly as far as the carrier and a beaten hull stayed as loud as a whole one | balance | every class derives a `LockSignature`; ships from live hull and machinery, rocks and worlds from their surface, torpedoes from their speed. Skiff 722 m / 21.7 km and carrier 1985 m / 59.5 km, from 200 km each before. `system_hull_scaling` holds it |
 | 2026-09-11 | sweep `20260909-213708` | gunnery, block_skiff and block_carrier | every gun and every AI lance was graded on one fixed cone, so a mount held fire on a carrier it could not miss and spent rounds on a torpedo it could not hit | balance | a `TargetHitRadius` is published per body and the gates are `atan(hit radius / distance)`. Permitted miss at 1 km goes from 16 m for everything to 194 m on the carrier, 48 m on the skiff and 12 m on a Serpent; `system_turret_gunnery` holds it |
+| 2026-09-11 | sweep `20260909-213708` | AI flight, block_skiff and block_carrier | an engaging ship wrote one throttle scalar to EVERY live thruster and steered with a rotation command of its own, so a hull with retros and laterals burned them against its own mains and turned its nose off the target to fly | balance | combat asks the flight computer for a held velocity and a facing (the generic `MatchVelocity` action); the computer clusters, balances and spools as it does for the player. Hull inputs unchanged (see below); the unit and physics pair in `ai/maneuver.rs` holds it |
 | 2026-09-11 | sweep `20260909-213708` | weapons, any hull | a six-layer ceiling sat under the pierce power budget, so a gun round stopped six sections in whatever the plating cost, while the lance alone was bounded by power | balance | the ceiling is removed and power alone bounds every pierce round; a layer costing zero power stops it. Twenty 1 hp panels used to take 6 rounds' worth of travel and now take 20 of 300 power; `system_railgun_lance` holds the budget rule |
 
 ## Measured figures
@@ -58,6 +59,7 @@ arm or torque; a lifecycle item should read as unchanged.
 | launcher-safe arming | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | fractional thrust taper | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | face-gap launch floor | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
+| combat on the computer | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 
 Lock range enters the table with the signature item: before it, every ship root
 was lockable out to the observer's whole cap, so the column was the cap and not
@@ -151,3 +153,42 @@ figures.
 No systems range stages an AI ship with a torpedo bay - every torpedo boat on
 the ranges is `SpaceshipController::None` and scripted - so the proof is the
 unit pair in `ai/torpedo.rs`, as for the AI railgun commit.
+
+### Combat actuation, 2026-09-11
+
+The actuation item changes no hull input either. What it moves is WHICH
+engines burn and where the nose points while they do. The old combat writer
+put one scalar on every live thruster and wrote its own rotation command, so
+the burn was an all-or-nothing broadcast gated on a single 18 deg alignment
+cone, and the hull's attitude WAS its flight direction.
+
+| what | before | after |
+| --- | --- | --- |
+| engines lit by a burn | every live thruster | the cluster the burn needs |
+| opposed engines lit together | yes - retro and laterals with the mains | no |
+| off-centre engine torque | whatever the broadcast left | nulled by the wrench allocation |
+| throttle shape | 1.0 or 0.0, on an alignment gate | spooled, demand-capped by cluster authority |
+| nose while flying the envelope | along the flight direction | on the target |
+| brake regime | a separate "point opposite the velocity" heading | the velocity error itself |
+
+No systems range stages an AI ship that fights - every AI hull on the ranges
+is authored with a 10 m engage range and stays parked - so the proof is the
+physics pair in `ai/maneuver.rs`, which runs the real `NovaFlightPlugin`.
+`the_burn_lights_one_cluster_not_every_engine` flies a four-engine hull
+(mains, retro, two laterals) straight in at a target for 45 s and measures
+the mains at 0.90 of full throttle with the other three engines at exactly
+0.0; the broadcast writer put all four at 1.0.
+
+One consequence is worth naming. The computer hands a sub-cap velocity error
+to the RCS, so a ship tracking its standoff ring trims on the torque-free COM
+push and keeps its nose on the target for most of a fight; the main drive
+lights for the entries, the big corrections and the run-in. That is the
+approved shape ("it holds facing while RCS can correct velocity"), and it is
+what makes an enemy at its standoff read as crossing your bow with its guns
+up rather than swinging its nose around to fly.
+
+A ship the computer cannot fly - no live engine, or no live flight computer -
+is never handed the maneuver at all. The autopilot would refuse it and
+disengage, and the driver would engage it again the next frame: on
+`bug_neutralized_quiet` that churned 386 engage/disengage pairs in a nine
+second run before the gate went in, and zero after.

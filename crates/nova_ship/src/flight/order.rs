@@ -599,8 +599,12 @@ fn engage_leg(
         ShipOrderDirective::Align { look_at, tolerance } => {
             // An alignment engages no autopilot, so nothing else will cut a
             // burn the ship was already running - an AI hull that was
-            // chasing when the order landed would keep its throttle open
-            // under a helm that only turns. Cut it here, once.
+            // chasing when the order landed would keep flying the velocity it
+            // was holding under a helm that only turns. Take the maneuver and
+            // cut the throttles here, once. The removal cools the engines the
+            // computer was driving; the loop covers a hull burning without
+            // one.
+            commands.entity(ship).remove::<Autopilot>();
             for (mut input, &ChildOf(parent)) in q_thruster_input.iter_mut() {
                 if parent == ship {
                     **input = 0.0;

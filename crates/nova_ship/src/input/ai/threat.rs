@@ -12,7 +12,7 @@ use super::acquisition::update_ai_target;
 #[cfg(test)]
 use super::behavior::update_behavior_state;
 #[cfg(test)]
-use super::maneuver::{ai_evade_direction, on_thruster_input};
+use super::maneuver::{ai_evade_direction, update_combat_flight, AI_EVADE_SPEED};
 #[cfg(test)]
 use crate::input::targeting::update_sensor_contacts;
 use crate::prelude::*;
@@ -33,11 +33,11 @@ pub(super) const AI_THREAT_AIM_RANGE: f32 = 200.0;
 /// detection is the follow-up if evasion feels blind.
 pub(super) const AI_THREAT_AIM_COS: f32 = 0.95;
 /// How long (s) one evade cycle lasts before decaying back to Engage.
-/// Three jink legs at [`AI_JINK_INTERVAL_SECS`]. Playtest note: Evade has
-/// no speed budget (the jink bypasses the standoff envelope's brake
-/// regime), so back-to-back cycles can build speed that Engage re-entry
-/// then brakes off; if evasion reads as careening, cap the cycle count or
-/// shorten this.
+/// Three jink legs at [`AI_JINK_INTERVAL_SECS`]. Each leg is a HELD velocity
+/// at [`AI_EVADE_SPEED`], so a cycle cannot build speed the way the old
+/// open-throttle jink could; what it costs instead is the turn onto each new
+/// leg. If evasion reads as a wallow, that budget - not this cycle - is what
+/// to look at.
 const AI_EVADE_SECS: f32 = 3.6;
 /// Refractory period (s) after an evade cycle before a threat can trigger
 /// the next one. Without it a hostile that keeps its nose on the ship would
@@ -48,10 +48,6 @@ const AI_EVADE_COOLDOWN_SECS: f32 = 1.5;
 /// leg's heading (acceleration-authority slew) and burn, short enough to read as
 /// jinking. Playtest knob, paired with AI_EVADE_SECS.
 const AI_JINK_INTERVAL_SECS: f32 = 1.2;
-/// Thrust gate (dot) while evading: looser than [`AI_THRUST_ALIGNMENT`] so
-/// lateral bursts fire while the hull is still swinging onto the jink leg -
-/// waiting for a tight alignment would spend most of each leg coasting.
-pub(super) const AI_EVADE_THRUST_ALIGNMENT: f32 = 0.75;
 /// Distance discount for the ship that recently damaged me: whoever is
 /// shooting me steals the pick from comparably distant hostiles.
 pub(super) const AI_THREAT_ATTACKER_DISCOUNT: f32 = 0.5;
@@ -516,10 +512,11 @@ mod evade_tests {
     }
 
     #[test]
-    fn an_evading_ship_burns_along_the_jink_not_the_pursuit_vector() {
+    fn an_evading_ship_flies_the_jink_not_the_pursuit_vector() {
         // Target dead ahead at -Z, far outside the standoff band: Engage
-        // would burn straight at it. Evade must not - the jink leg points
-        // well off the line of sight.
+        // would fly straight at it. Evade must not - the jink leg points
+        // well off the line of sight, and the hull's own attitude has
+        // nothing to do with it now that the computer flies the leg.
         let mut world = crate::input::ai::ai_test_world();
         let target = world
             .spawn((
@@ -539,42 +536,41 @@ mod evade_tests {
                 LinearVelocity(Vec3::ZERO),
             ))
             .id();
-        let thruster = world
-            .spawn((
-                ThrusterSectionMarker,
-                ThrusterSectionInput(0.0),
-                GlobalTransform::IDENTITY,
-                ChildOf(ship),
-            ))
-            .id();
+        // An engine and a flight computer: the driver hands a maneuver only
+        // to a hull that can fly one.
+        world.spawn((
+            ChildOf(ship),
+            ThrusterSectionMarker,
+            ThrusterSectionInput(0.0),
+        ));
+        world.spawn((
+            ChildOf(ship),
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_angular_acceleration: 10.0,
+                sustained_angular_speed: f32::INFINITY,
+            },
+        ));
 
-        // Facing the target (the pursuit vector): an engaging ship would
-        // burn, an evading one must hold - the jink points elsewhere.
-        world.run_system_once(on_thruster_input).unwrap();
-        assert_eq!(
-            **world
-                .entity(thruster)
-                .get::<ThrusterSectionInput>()
-                .unwrap(),
-            0.0,
-            "facing the target, the jink gate must not open"
-        );
+        world.run_system_once(update_combat_flight).unwrap();
 
-        // Swing the hull onto the jink leg: the lateral burst fires.
+        let Some(AutopilotAction::MatchVelocity { velocity, .. }) =
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action)
+        else {
+            panic!("an evading ship must hand the computer a velocity to hold");
+        };
         let jink = ai_evade_direction(Vec3::new(0.0, 0.0, -1000.0), 0);
-        world
-            .entity_mut(ship)
-            .get_mut::<Transform>()
-            .unwrap()
-            .look_to(jink, Vec3::Y);
-        world.run_system_once(on_thruster_input).unwrap();
         assert_eq!(
-            **world
-                .entity(thruster)
-                .get::<ThrusterSectionInput>()
-                .unwrap(),
-            1.0,
-            "aligned with the jink leg, the burst fires"
+            velocity,
+            jink * AI_EVADE_SPEED,
+            "the leg is flown, not the pursuit vector"
+        );
+        assert!(
+            velocity.normalize().dot(Vec3::NEG_Z) < 0.5,
+            "and it points well off the line of sight, got {velocity:?}"
         );
     }
 }

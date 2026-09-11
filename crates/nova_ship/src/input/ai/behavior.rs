@@ -9,7 +9,7 @@ use nova_events::prelude::*;
 #[cfg(test)]
 use super::guns::{on_projectile_input, update_turret_target_input};
 #[cfg(test)]
-use super::maneuver::on_thruster_input;
+use super::maneuver::update_combat_flight;
 use super::threat::{AI_THREAT_AIM_COS, AI_THREAT_AIM_RANGE};
 use crate::prelude::*;
 
@@ -1143,9 +1143,10 @@ mod behavior_state_tests {
     }
 
     #[test]
-    fn idle_cuts_thrust_fire_and_aim() {
-        // Flip a fully lit ship to Idle with its target still present: every
-        // actuator must be explicitly zeroed, not left at its last value.
+    fn idle_releases_the_helm_and_cuts_fire_and_aim() {
+        // Flip a fully engaged ship to Idle with its target still present:
+        // the helm goes back and every weapon actuator is explicitly
+        // cleared, not left at its last value.
         let mut world = crate::input::ai::ai_test_world();
         // Empty collider trees for the fire gate's SpatialQuery: no
         // colliders means no occluders, which is this rig's intent.
@@ -1168,14 +1169,12 @@ mod behavior_state_tests {
                 LinearVelocity(Vec3::ZERO),
             ))
             .id();
-        let thruster = world
-            .spawn((
-                ThrusterSectionMarker,
-                ThrusterSectionInput(1.0),
-                GlobalTransform::IDENTITY,
-                ChildOf(ship),
-            ))
-            .id();
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
+                velocity: Vec3::X * 10.0,
+                facing: None,
+            }));
         let turret = world
             .spawn((
                 TurretSectionMarker,
@@ -1189,17 +1188,13 @@ mod behavior_state_tests {
             ))
             .id();
 
-        world.run_system_once(on_thruster_input).unwrap();
+        world.run_system_once(update_combat_flight).unwrap();
         world.run_system_once(update_turret_target_input).unwrap();
         world.run_system_once(on_projectile_input).unwrap();
 
-        assert_eq!(
-            **world
-                .entity(thruster)
-                .get::<ThrusterSectionInput>()
-                .unwrap(),
-            0.0,
-            "Idle cuts the burn"
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "Idle hands the helm back"
         );
         assert_eq!(
             **world
