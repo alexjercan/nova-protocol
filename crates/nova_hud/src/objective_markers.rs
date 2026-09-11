@@ -24,8 +24,17 @@ pub mod prelude {
     };
 }
 
-/// The chip floats above its target so the label never sits on the mesh.
-const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -36.0);
+/// How the chip stands off its target so the label never sits on the mesh.
+///
+/// A marked target is whatever the scenario points at - a crate, a carrier, a
+/// planetoid - so the push is measured from the target's own projected
+/// silhouette. The floor is the 36 px the chip has always floated at, which is
+/// the composition on a small or distant mark.
+const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+    direction: Vec2::NEG_Y,
+    gap_px: 14.0,
+    min_px: 36.0,
+};
 
 /// Inset (px) from the viewport edges while clamped; the shared HUD frame.
 const EDGE_MARGIN_PX: f32 = 30.0;
@@ -100,13 +109,14 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
                     // Hugs its text: the objective NAME varies in length and a
                     // fixed slab would clip it now that the chip is bordered.
                     size: ScreenIndicatorSize::Content,
-                    offset: CHIP_OFFSET,
+                    offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::ClampToEdge {
                         margin_px: EDGE_MARGIN_PX,
                     },
                 },
                 chip_node(),
             ),
+            CHIP_CLEARANCE,
             // The objective chip is the amber "do this now" member of the chip
             // family (demo 2 `.obj`).
             chip_paint(ChipTone::Amber),

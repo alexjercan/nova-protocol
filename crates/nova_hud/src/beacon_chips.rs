@@ -22,8 +22,17 @@ pub mod prelude {
     };
 }
 
-/// The chip floats above the beacon so the label never sits on the mesh.
-const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -28.0);
+/// How the chip stands off the beacon so the label never sits on the orb.
+///
+/// A beacon publishes no visible collider - its only one is the trigger sphere
+/// - so the clearance falls back to its authored `BodyRadius`, and a 50 m
+/// marker gets the chip pushed clear of the orb instead of printed across it.
+/// The floor is the 28 px the chip has always floated at.
+const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+    direction: Vec2::NEG_Y,
+    gap_px: 12.0,
+    min_px: 28.0,
+};
 
 /// Inset (px) from the viewport edges while clamped. Matches the edge
 /// indicators' frame so clamped beacon chips join the same visual ring.
@@ -79,13 +88,14 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
                     // border a fixed footprint would either clip a long beacon
                     // name or hang an empty slab off a short one.
                     size: ScreenIndicatorSize::Content,
-                    offset: CHIP_OFFSET,
+                    offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::ClampToEdge {
                         margin_px: EDGE_MARGIN_PX,
                     },
                 },
                 chip_node(),
             ),
+            CHIP_CLEARANCE,
             chip_paint(ChipTone::Phosphor),
             // The chip is a pure CONTAINER: the label is an in-flow leaf child
             // it grows around, the chevron an absolute one it ignores. Putting

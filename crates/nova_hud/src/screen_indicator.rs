@@ -19,7 +19,7 @@
 
 use avian3d::prelude::*;
 use bevy::{prelude::*, ui::UiSystems};
-use nova_ship::prelude::CameraAuthoritySystems;
+use nova_ship::prelude::{BodyRadius, CameraAuthoritySystems};
 
 /// The screen-indicator spawners, its anchor, offset, size and offscreen components, and
 /// `ScreenIndicatorPlugin` with `ScreenIndicatorSystems`.
@@ -27,8 +27,9 @@ pub mod prelude {
     pub use super::{
         screen_indicator, screen_indicator_layer, screen_indicator_node, ScreenIndicatorAnchor,
         ScreenIndicatorAnchorKind, ScreenIndicatorArrowMarker, ScreenIndicatorCamera,
-        ScreenIndicatorConfig, ScreenIndicatorMarker, ScreenIndicatorOffscreen,
-        ScreenIndicatorOffset, ScreenIndicatorPlugin, ScreenIndicatorSize, ScreenIndicatorSystems,
+        ScreenIndicatorClearance, ScreenIndicatorConfig, ScreenIndicatorMarker,
+        ScreenIndicatorOffscreen, ScreenIndicatorOffset, ScreenIndicatorPlugin,
+        ScreenIndicatorSize, ScreenIndicatorSystems,
     };
 }
 
@@ -99,6 +100,38 @@ pub enum ScreenIndicatorSize {
 /// behind the camera (a clamped indicator hugs the edge regardless).
 #[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Reflect)]
 pub struct ScreenIndicatorOffset(pub Vec2);
+
+/// Stand the indicator clear of its anchor's own on-screen extent, instead of
+/// at a fixed pixel offset from its centre.
+///
+/// A fixed offset is a promise about how big the thing underneath looks: the
+/// 40 px that floats a marker above a cutter puts it amidships on a carrier and
+/// on the mesh of a planetoid. This pushes the widget to the anchor's projected
+/// EDGE plus a visual gap plus the widget's own reach along the push, so the
+/// composition follows whatever the anchor currently looks like.
+///
+/// The extent is what the player SEES of the anchor: the union of its
+/// subtree's non-sensor collider AABBs, or its [`BodyRadius`] when it has no
+/// visible collider at all - a nav beacon's only collider is its trigger
+/// sphere, and clearing THAT would park the chip kilometres off the orb.
+///
+/// Composes with [`ScreenIndicatorOffset`], which is still added on top: the
+/// clearance owns the push away from the anchor, the offset owns any fixed
+/// nudge the widget wants on top of it.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
+pub struct ScreenIndicatorClearance {
+    /// Screen-space direction to push along (y down); normalized on use. A
+    /// zero direction disables the clearance.
+    pub direction: Vec2,
+    /// Gap (px) between the anchor's projected edge and the widget's near
+    /// edge - the visual breathing room, calibrated so a small target at
+    /// normal range keeps the composition the fixed offset gave it.
+    pub gap_px: f32,
+    /// Floor (px) on the total push. A distant or unmeasured anchor projects
+    /// to almost nothing, and a widget sitting on its dot reads as a lock
+    /// marker rather than as a label; this is the composition it keeps.
+    pub min_px: f32,
+}
 
 /// What happens when the anchor projects outside the viewport (or is behind
 /// the camera).
@@ -385,6 +418,75 @@ pub(crate) fn target_world_aabb(
     acc
 }
 
+/// The on-screen RADIUS (px) of a world-space bounding radius about
+/// `anchor_pos`: project a point one radius toward the camera's right and read
+/// the pixel distance from the anchor's own projected point. Only the anchor
+/// centre has to project, which keeps this robust when a close target's far
+/// corners fall behind the camera. `None` when the offset point does not
+/// project.
+fn projected_radius_px(
+    world_radius: f32,
+    anchor_pos: Vec3,
+    center: Vec2,
+    camera_transform: &GlobalTransform,
+    camera: &Camera,
+) -> Option<f32> {
+    let edge_world = anchor_pos + camera_transform.right() * world_radius;
+    let edge = camera
+        .world_to_viewport(camera_transform, edge_world)
+        .ok()?;
+    Some(center.distance(edge))
+}
+
+/// The world-space bounding radius of what the player SEES of `entity`: half
+/// the diagonal of its subtree's non-sensor collider AABB union, and failing
+/// that its authored [`BodyRadius`].
+///
+/// The fallback is what makes a nav beacon work: its only collider is the
+/// trigger sphere the union deliberately skips, and its published body radius
+/// is the orb the chip has to clear. `None` when neither is available - an
+/// anchor that has not spawned its colliders yet keeps whatever floor the
+/// consumer authored.
+fn anchor_world_radius(
+    entity: Entity,
+    q_children: &Query<&Children>,
+    q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
+    q_body_radius: &Query<&BodyRadius>,
+) -> Option<f32> {
+    target_world_aabb(entity, q_children, q_aabb)
+        .map(|aabb| aabb.size().length() * 0.5)
+        .or_else(|| q_body_radius.get(entity).ok().map(|radius| **radius))
+}
+
+/// The push (px) that stands a `size` widget clear of its anchor: out to the
+/// anchor's projected edge, plus the authored visual gap, plus the widget's own
+/// reach along the push direction - never less than the authored floor.
+///
+/// The widget's reach is the support of its box along the direction, so a wide
+/// chip pushed up clears by its half-height and the same chip pushed sideways
+/// clears by its half-width.
+fn clearance_offset(
+    clearance: &ScreenIndicatorClearance,
+    size: Vec2,
+    world_radius: Option<f32>,
+    anchor_pos: Vec3,
+    projected: Option<Vec2>,
+    camera_transform: &GlobalTransform,
+    camera: &Camera,
+) -> Vec2 {
+    let Some(direction) = clearance.direction.try_normalize() else {
+        return Vec2::ZERO;
+    };
+    let edge = match (world_radius, projected) {
+        (Some(radius), Some(center)) => {
+            projected_radius_px(radius, anchor_pos, center, camera_transform, camera).unwrap_or(0.0)
+        }
+        _ => 0.0,
+    };
+    let reach = (direction.x.abs() * size.x + direction.y.abs() * size.y) * 0.5;
+    direction * (edge + clearance.gap_px + reach).max(clearance.min_px)
+}
+
 /// Indicator size (px) for the frame. `ApparentSize` measures the anchor
 /// entity's on-screen extent: take the world bounding-sphere radius from the
 /// subtree's collider AABBs, project a point one radius to the camera's
@@ -414,11 +516,9 @@ fn indicator_size(
     // to on-screen pixels (see the doc above for why only the center must
     // project).
     let radius_to_px = |world_radius: f32, center: Vec2, min_px: f32| -> Option<Vec2> {
-        let edge_world = anchor_pos + camera_transform.right() * world_radius;
-        let edge = camera
-            .world_to_viewport(camera_transform, edge_world)
-            .ok()?;
-        Some(Vec2::splat((2.0 * center.distance(edge)).max(min_px)))
+        let radius =
+            projected_radius_px(world_radius, anchor_pos, center, camera_transform, camera)?;
+        Some(Vec2::splat((2.0 * radius).max(min_px)))
     };
 
     match size_mode {
@@ -461,6 +561,7 @@ fn update_screen_indicators(
             &ScreenIndicatorAnchor,
             &ScreenIndicatorSize,
             &ScreenIndicatorOffset,
+            Option<&ScreenIndicatorClearance>,
             &ScreenIndicatorOffscreen,
             &ComputedNode,
             &mut Node,
@@ -477,6 +578,7 @@ fn update_screen_indicators(
     transform_helper: TransformHelper,
     q_children: Query<&Children>,
     q_aabb: Query<&ColliderAabb, Without<Sensor>>,
+    q_body_radius: Query<&BodyRadius>,
     q_nested: Query<(), With<ScreenIndicatorMarker>>,
     mut q_arrow: Query<
         (&mut UiTransform, &mut Visibility),
@@ -500,8 +602,17 @@ fn update_screen_indicators(
         );
     }
 
-    for (entity, anchor, size_mode, offset, offscreen, computed, mut node, mut visibility) in
-        &mut q_indicator
+    for (
+        entity,
+        anchor,
+        size_mode,
+        offset,
+        clearance,
+        offscreen,
+        computed,
+        mut node,
+        mut visibility,
+    ) in &mut q_indicator
     {
         let Some((camera_entity, camera)) = camera else {
             visibility.set_if_neq(Visibility::Hidden);
@@ -546,17 +657,9 @@ fn update_screen_indicators(
             .inverse()
             .transform_point3(anchor_pos);
 
-        let placement = place(
-            viewport,
-            projected.map(|pos| pos + **offset),
-            view_pos,
-            *offscreen,
-        );
-        let Placement::Visible { center, arrow } = placement else {
-            visibility.set_if_neq(Visibility::Hidden);
-            continue;
-        };
-
+        // Sized BEFORE placement: a clearance offset stands the widget's own
+        // near edge off the anchor, so the push cannot be known until the box
+        // is.
         let size = indicator_size(
             computed,
             *size_mode,
@@ -568,6 +671,31 @@ fn update_screen_indicators(
             &q_children,
             &q_aabb,
         );
+        let offset = **offset
+            + clearance.map_or(Vec2::ZERO, |clearance| {
+                clearance_offset(
+                    clearance,
+                    size,
+                    anchor_entity.and_then(|entity| {
+                        anchor_world_radius(entity, &q_children, &q_aabb, &q_body_radius)
+                    }),
+                    anchor_pos,
+                    projected,
+                    camera_transform,
+                    camera,
+                )
+            });
+
+        let placement = place(
+            viewport,
+            projected.map(|pos| pos + offset),
+            view_pos,
+            *offscreen,
+        );
+        let Placement::Visible { center, arrow } = placement else {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        };
 
         // `Content` leaves the box to UI layout - writing width/height would
         // freeze the chip at last frame's size and it could never grow back.
@@ -1252,6 +1380,115 @@ mod tests {
         assert!(
             (width - expected).abs() < 1.0,
             "width {width}, expected {expected}"
+        );
+    }
+
+    /// A clearance pushes the widget past the anchor's own projected edge, so
+    /// a chip authored against a small contact does not end up amidships on a
+    /// big one. The floor is what keeps the small-contact composition.
+    #[test]
+    fn clearance_stands_a_widget_off_the_anchors_projected_edge() {
+        const SIZE: Vec2 = Vec2::new(20.0, 10.0);
+        const CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+            direction: Vec2::NEG_Y,
+            gap_px: 12.0,
+            min_px: 40.0,
+        };
+
+        let push_for = |half_extent: f32| -> f32 {
+            let mut world = World::new();
+            spawn_camera(&mut world);
+            let target = world
+                .spawn((
+                    Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+                    ColliderAabb::from_min_max(
+                        Vec3::new(-half_extent, -half_extent, -10.0 - half_extent),
+                        Vec3::new(half_extent, half_extent, -10.0 + half_extent),
+                    ),
+                ))
+                .id();
+            let indicator = world
+                .spawn((
+                    screen_indicator(ScreenIndicatorConfig {
+                        anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
+                        size: ScreenIndicatorSize::Fixed(SIZE),
+                        ..default()
+                    }),
+                    CLEARANCE,
+                ))
+                .id();
+
+            world.run_system_once(update_screen_indicators).unwrap();
+
+            // The viewport centre is where the anchor itself projects, so the
+            // push is how far the widget's centre sits above it.
+            let (_, top, _, height) = node_rect(&world, indicator);
+            300.0 - (top + height / 2.0)
+        };
+
+        // A small contact keeps the authored composition exactly.
+        assert!(
+            (push_for(0.05) - CLEARANCE.min_px).abs() < 0.5,
+            "a small contact must keep the authored 40 px, got {}",
+            push_for(0.05)
+        );
+
+        // A big one is cleared: past its projected edge, plus the gap, plus the
+        // widget's own half-height.
+        let radius = (3.0_f32).sqrt() * 2.0;
+        let edge = 400.0 * radius / (10.0 * (800.0 / 600.0));
+        let expected = edge + CLEARANCE.gap_px + SIZE.y / 2.0;
+        let big = push_for(2.0);
+        assert!(
+            (big - expected).abs() < 1.0,
+            "a big contact must be cleared: push {big}, expected {expected}"
+        );
+        assert!(big > CLEARANCE.min_px * 2.0, "the push must actually grow");
+    }
+
+    /// A nav beacon's only collider is its trigger sphere, which the apparent
+    /// extent deliberately skips. The clearance falls back to the authored
+    /// `BodyRadius`, so the chip clears the ORB - a 50 m marker used to wear
+    /// its own label.
+    #[test]
+    fn clearance_falls_back_to_the_authored_body_radius() {
+        const CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+            direction: Vec2::NEG_Y,
+            gap_px: 12.0,
+            min_px: 28.0,
+        };
+
+        let mut world = World::new();
+        spawn_camera(&mut world);
+        let beacon = world
+            .spawn((
+                Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+                // Sensor-only: the trigger volume is not apparent size.
+                Sensor,
+                ColliderAabb::from_min_max(Vec3::new(-8.0, -8.0, -18.0), Vec3::new(8.0, 8.0, -2.0)),
+                BodyRadius(5.0),
+            ))
+            .id();
+        let indicator = world
+            .spawn((
+                screen_indicator(ScreenIndicatorConfig {
+                    anchor: Some(ScreenIndicatorAnchorKind::Entity(beacon)),
+                    size: ScreenIndicatorSize::Fixed(Vec2::new(40.0, 16.0)),
+                    ..default()
+                }),
+                CLEARANCE,
+            ))
+            .id();
+
+        world.run_system_once(update_screen_indicators).unwrap();
+
+        let (_, top, _, height) = node_rect(&world, indicator);
+        let push = 300.0 - (top + height / 2.0);
+        let edge = 400.0 * 5.0 / (10.0 * (800.0 / 600.0));
+        let expected = edge + CLEARANCE.gap_px + 8.0;
+        assert!(
+            (push - expected).abs() < 1.0,
+            "push {push}, expected {expected} (the orb, not the trigger volume)"
         );
     }
 

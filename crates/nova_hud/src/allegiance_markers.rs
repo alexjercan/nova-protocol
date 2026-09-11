@@ -78,11 +78,19 @@ const WRECK_STROKE_THICKNESS_PX: f32 = 2.0;
 const WRECK_STROKE_LENGTH_PX: f32 = 11.4;
 const WRECK_STROKE_ANGLE_DEG: f32 = 52.1;
 
-/// Upward pixel offset from the ship's projected centre, so the triangle
-/// floats above the hull and points down at it. Fixed (not apparent-size
-/// scaled) per the task's "cheap, fixed-size node" constraint; tune here if
-/// playtest wants it higher off the hull.
-const MARKER_OFFSET: Vec2 = Vec2::new(0.0, -40.0);
+/// How the triangle stands off the hull it points at: straight up, a small
+/// visual gap beyond the ship's projected silhouette, never closer to the
+/// projected centre than the 40 px it has always floated at.
+///
+/// The floor keeps the composition on a distant contact, which is the picture
+/// the fixed 40 px was authored for; the gap is what keeps it OFF a carrier,
+/// whose silhouette at boarding range is hundreds of pixels across and used to
+/// swallow the marker amidships.
+const MARKER_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+    direction: Vec2::NEG_Y,
+    gap_px: 12.0,
+    min_px: 40.0,
+};
 
 /// The allegiance tint for a ship's marker. `None` (a ship carrying no
 /// [`Allegiance`] at all) reads as neutral, same as an explicit
@@ -209,9 +217,10 @@ fn allegiance_marker_hud(ship: Entity, color: Color) -> impl Bundle {
             screen_indicator(ScreenIndicatorConfig {
                 anchor: Some(ScreenIndicatorAnchorKind::Entity(ship)),
                 size: ScreenIndicatorSize::Fixed(MARKER_SIZE),
-                offset: MARKER_OFFSET,
+                offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
+            MARKER_CLEARANCE,
             children![
                 (
                     Name::new("AllegianceMarkerTriangle"),

@@ -58,8 +58,17 @@ const CUE_GLYPH_PX: f32 = 20.0;
 /// Chip text size (px) - the dock is a glance surface, the word is a reminder.
 const CHIP_TEXT_PX: f32 = 11.0;
 
-/// The cue sits below its object so it reads as a caption, not a lock.
-const CUE_OFFSET: Vec2 = Vec2::new(0.0, 48.0);
+/// How the cue stands off its object: below it, clear of its projected
+/// silhouette, so it reads as a caption and not as a lock marker.
+///
+/// The floor is the 48 px the cue has always sat at - the composition on a
+/// small contact. Without the clearance the same 48 px lands inside a big
+/// silhouette, where a verb cue reads as something painted ON the target.
+const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+    direction: Vec2::Y,
+    gap_px: 16.0,
+    min_px: 48.0,
+};
 
 /// How far off the bottom of the screen the dock row sits.
 ///
@@ -338,7 +347,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                 ScreenIndicatorConfig {
                     anchor: None,
                     size: ScreenIndicatorSize::Content,
-                    offset: CUE_OFFSET,
+                    offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::Hide,
                 },
                 Node {
@@ -350,6 +359,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                     ..default()
                 },
             ),
+            CUE_CLEARANCE,
             BackgroundColor(chip::CHIP_FILL),
             BorderColor::all(nova_ui::theme::PHOSPHOR.with_alpha(0.4)),
             children![
