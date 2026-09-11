@@ -19,6 +19,30 @@ does NOT get an entry - and it is the only place they are written down.
 - The velocity and gravity spheres enclose the hull at any size: both are drawn
   5 m and 11 m outside the live hull about its centre of mass, and the speed and
   mode chips park off the outer one.
+- The chase, combat and free-look cameras clear the live hull: the carrier no
+  longer opens its turret view inside its own shoulders, and the survey dolly
+  and burn push scale with the rig.
+- World-anchored labels stand off the target's projected edge rather than a
+  fixed pixel offset, so allegiance triangles, objective and beacon chips and
+  verb cues clear a carrier or a planetoid.
+- The flip gate encloses the hull it belongs to, and the dwell ring, unlatch
+  ghost and component markers take their size from the reticle or the section
+  they mark.
+- Crowded ammo gauges cluster in screen space, showing the mount count and the
+  lowest feed, and separate again when there is room.
+- The objective stack and the target inset measure the readout strip and the
+  status bar above them, so a scenario with three readouts no longer stacks
+  chips on the run clock.
+- The bore sight traces as deep as the shot's power buys, and the cinematic
+  prompt hugs its binding label instead of clipping a long one in a fixed
+  pill.
+- NOVA OS plots map bodies at their physical size with a minimum pick target,
+  ranges its rings from the live contact spread, and labels only the section
+  the inspector is pointing at.
+
+### Internals & Tooling
+- Debug section gizmos are measured: a barrel line runs the mount's authored
+  reach, and round and drive stubs one interval of their own flight or burn.
 
 ### Fixes
 - Screen markers land where they belong under a scripted camera: photo mode,
