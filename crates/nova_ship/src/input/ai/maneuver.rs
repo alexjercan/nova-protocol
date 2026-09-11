@@ -81,14 +81,88 @@ pub const AI_STANDOFF_OUTER_EDGE: f32 = AI_STANDOFF_CLEARANCE + AI_STANDOFF_BAND
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIStandoffClearance(pub f32);
-/// The speed (u/s) an evading ship flies its jink legs at.
+/// Lateral clearance (u) one jink leg buys ON TOP of the evading hull's own
+/// arm. 1 u = 10 m, about a section's width: a round aimed where the ship was
+/// passes outside the skin rather than down the flank.
 ///
-/// Still a constant, and the last one in this module: a jink leg is a
-/// DISPLACEMENT - it has to carry the hull out from under the guns inside one
-/// leg - so its speed follows from the clearance the leg has to make and the
-/// authority the hull has to make it with. Deriving that is the evade item's
-/// own work; until then this holds the figure the chase cap used to set.
-pub(super) const AI_EVADE_SPEED: f32 = 20.0;
+/// The leg's DISPLACEMENT, which is the whole point of a leg - so the speed
+/// and the time follow from it and from the hull, and neither is authored.
+const AI_EVADE_CLEARANCE: f32 = 1.0;
+/// Burst (s) added to a jink leg's liveness deadline: the moment the hull is
+/// allowed to hold the velocity it just achieved before being moved on.
+///
+/// Slack on a BACKSTOP, not the leg's schedule. A leg ends on what it
+/// achieved; this only decides how long a hull that cannot achieve it sits on
+/// one leg.
+const AI_EVADE_LEG_SLACK_SECS: f32 = 0.3;
+
+/// One jink leg's plan for one hull: how fast to fly it, and the longest it
+/// may take before liveness moves the ship on to the next one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct EvadeLeg {
+    /// Speed (u/s) relative to the target the leg is held at.
+    pub(super) speed: f32,
+    /// Displacement (u) along the leg that ENDS it: the hull's own arm plus
+    /// [`AI_EVADE_CLEARANCE`].
+    pub(super) clearance: f32,
+    /// Liveness deadline (s) for the leg.
+    pub(super) deadline: f32,
+}
+
+/// Plan one jink leg for a hull carrying `arm` of live [`HullRadius`] with
+/// `authority` left to fly it.
+///
+/// A leg is a DISPLACEMENT, not a duration: it has to carry the ship
+/// `arm + AI_EVADE_CLEARANCE` off the line a gun is already holding. The
+/// speed is what the drive has built at the instant the ship has moved that
+/// far, `sqrt(2 a d)`, so the leg is over the moment the velocity is achieved
+/// and nothing is held for show. A picket buys its clearance in under a
+/// second. A capital pays for its own arm as well and takes seconds, which is
+/// what a capital jinking should look like - the old fixed 1.2 s leg let it
+/// turn 17 of the 90 degrees and never thrust at all.
+///
+/// The deadline is LIVENESS. It is the time the leg takes if everything runs
+/// at the hull's published limits: a half turn at `turn_rate`, the
+/// `sqrt(2) * speed` of velocity change between two perpendicular legs at
+/// `linear_acceleration`, and the slack burst. A HALF turn, the same worst
+/// case the arrival flip is planned against, because a hull whose only real
+/// authority is its main drive has to point that drive along the change and
+/// may be facing anywhere when the leg starts. A hull that cannot make even
+/// that is not evading, and is moved on rather than left sitting on one leg
+/// for the fight.
+///
+/// A hull with no drive or no attitude left gets a leg that is over at once.
+/// The state machine takes it out of Evade instead of leaving it there.
+pub(super) fn ai_evade_leg(arm: f32, authority: FlightAuthority) -> EvadeLeg {
+    let clearance = arm.max(0.0) + AI_EVADE_CLEARANCE;
+    if authority.linear_acceleration <= 0.0 || authority.turn_rate <= 0.0 {
+        return EvadeLeg {
+            speed: 0.0,
+            clearance,
+            deadline: AI_EVADE_LEG_SLACK_SECS,
+        };
+    }
+    let speed = (2.0 * authority.linear_acceleration * clearance).sqrt();
+    EvadeLeg {
+        speed,
+        clearance,
+        deadline: core::f32::consts::PI / authority.turn_rate
+            + core::f32::consts::SQRT_2 * speed / authority.linear_acceleration
+            + AI_EVADE_LEG_SLACK_SECS,
+    }
+}
+
+/// Whether a jink leg has been FLOWN: the hull has actually carried itself
+/// [`EvadeLeg::clearance`] along the leg, relative to the target.
+///
+/// This, not a stopwatch, is what advances the cycle - a leg's whole job is
+/// the displacement, and the speed it is flown at is only the means. `moved`
+/// is how far the ship has come since the leg started, measured in the
+/// target's frame, and `direction` is the leg's unit heading. A leg with
+/// nothing to fly it is over on sight.
+pub(super) fn ai_evade_leg_flown(moved: Vec3, direction: Vec3, leg: EvadeLeg) -> bool {
+    leg.speed <= 0.0 || moved.dot(direction) >= leg.clearance
+}
 
 /// The velocity an engaged AI ship wants to be flying: the standoff envelope
 /// around its target, whose preferred CENTRE distance `standoff` is. Outside
@@ -364,10 +438,11 @@ pub(super) fn update_combat_flight(
         // Evade swaps the standoff envelope for the jink weave. The nose is
         // asked for the target either way, so the guns keep bearing through
         // the weave instead of following the hull off its leg.
+        let arm = |hull: Entity| q_arm.get(hull).map_or(0.0, |radius| **radius);
+        let authority = authority.copied().unwrap_or_default();
         let velocity = if *state == AIBehaviorState::Evade {
-            ai_evade_direction(to_target, evade.leg) * AI_EVADE_SPEED
+            ai_evade_direction(to_target, evade.leg) * ai_evade_leg(arm(ship), authority).speed
         } else {
-            let arm = |hull: Entity| q_arm.get(hull).map_or(0.0, |radius| **radius);
             ai_desired_velocity(
                 to_target,
                 ai_standoff_centre_distance(
@@ -375,7 +450,7 @@ pub(super) fn update_combat_flight(
                     arm(enemy),
                     clearance.map_or(AI_STANDOFF_CLEARANCE, |clearance| clearance.0.max(0.0)),
                 ),
-                authority.copied().unwrap_or_default(),
+                authority,
                 &settings,
             )
         };
@@ -596,8 +671,9 @@ mod combat_flight_tests {
         };
         assert_eq!(
             velocity,
-            ai_evade_direction(Vec3::new(0.0, 0.0, -1000.0), 0) * AI_EVADE_SPEED,
-            "the held velocity is the jink leg's, at the evade budget"
+            ai_evade_direction(Vec3::new(0.0, 0.0, -1000.0), 0) * ai_evade_leg(0.0, FLYABLE).speed,
+            "the held velocity is the jink leg's, at the speed the leg's own \
+             displacement asks this hull for"
         );
         assert!(
             Vec3::from(facing.expect("a live target is a direction to face")).dot(Vec3::NEG_Z)
@@ -725,6 +801,7 @@ mod physics_tests {
     use super::*;
     use crate::{
         flight::NovaFlightSystems,
+        input::ai::threat::AI_EVADE_LEGS,
         sections::{
             controller_section::ControllerSectionPlugin, thruster_section::thruster_impulse_system,
         },
@@ -828,6 +905,96 @@ mod physics_tests {
             ColliderDensity(1.0),
         ));
         ship
+    }
+
+    /// A hostile hull `at`, with its nose held ON the AI: the real threat
+    /// signal, so an evade cycle is entered the way a fight enters one.
+    fn spawn_aiming_player(app: &mut App, at: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
+                HullRadius(5.0),
+                Transform::from_translation(at).looking_at(Vec3::ZERO, Vec3::Y),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn an_evading_hull_flies_its_legs_instead_of_waiting_them_out() {
+        // The item: a jink leg ends on the displacement it ACHIEVED, and the
+        // derived deadline is only there for a hull that cannot achieve it.
+        // A hull that CAN must therefore finish the cycle well inside the
+        // deadlines - which is what the old fixed 1.2 s leg never let a heavy
+        // hull do, since it moved on whether or not the ship had gone
+        // anywhere.
+        let mut app = combat_physics_app();
+        spawn_aiming_player(&mut app, Vec3::new(150.0, 0.0, 0.0));
+        let ship = spawn_ai_ship(&mut app, 10.0);
+        settle(&mut app);
+
+        let state_of = |app: &App| *app.world().get::<AIBehaviorState>(ship).unwrap();
+        let mut entered = 0;
+        while state_of(&app) != AIBehaviorState::Evade {
+            app.update();
+            entered += 1;
+            assert!(
+                entered < 600,
+                "a hostile's nose on the hull must start a cycle"
+            );
+        }
+
+        let authority = *app.world().get::<FlightAuthority>(ship).unwrap();
+        let plan = ai_evade_leg(0.0, authority);
+        let started = app.world().get::<Transform>(ship).unwrap().translation;
+        let mut ticks = 0;
+        let mut achieved = 0;
+        while app.world().get::<AIEvade>(ship).unwrap().legs_left > 0 {
+            // What the state machine judges the leg on, sampled before the
+            // tick that judges it: the AI chain runs ahead of the flight and
+            // impulse passes, so this is the geometry it reads.
+            let evade = app.world().get::<AIEvade>(ship).unwrap().clone();
+            let here = app.world().get::<Transform>(ship).unwrap().translation;
+            let to_target = Vec3::new(150.0, 0.0, 0.0) - here;
+            app.update();
+            ticks += 1;
+            if app.world().get::<AIEvade>(ship).unwrap().leg != evade.leg {
+                // The target holds station at +X, so its anchor is fixed and
+                // the ship's offset from it is the frame the leg is measured
+                // in.
+                achieved += usize::from(ai_evade_leg_flown(
+                    -to_target - evade.leg_origin,
+                    ai_evade_direction(to_target, evade.leg),
+                    plan,
+                ));
+            }
+            assert!(
+                ticks < 3_600,
+                "the cycle must end; it has {} legs left",
+                app.world().get::<AIEvade>(ship).unwrap().legs_left
+            );
+        }
+
+        assert_eq!(
+            achieved,
+            AI_EVADE_LEGS as usize,
+            "every leg must end on the velocity it ASKED for - a leg that ran its deadline \
+             out instead is a hull that went nowhere, which is the wallow this replaced \
+             (the cycle took {:.2} s of a {:.2} s liveness budget)",
+            ticks as f32 / 60.0,
+            plan.deadline * AI_EVADE_LEGS as f32,
+        );
+        let moved = app
+            .world()
+            .get::<Transform>(ship)
+            .unwrap()
+            .translation
+            .distance(started);
+        assert!(
+            moved > AI_EVADE_CLEARANCE,
+            "and the weave must have actually carried the hull somewhere, moved {moved:.2} u"
+        );
     }
 
     #[test]
@@ -1049,6 +1216,84 @@ mod jink_tests {
     use super::*;
 
     const LOS_TARGET: Vec3 = Vec3::new(0.0, 0.0, -400.0);
+
+    /// A picket: drive and attitude to spare.
+    const ESCORT: FlightAuthority = FlightAuthority {
+        linear_acceleration: 20.0,
+        turn_rate: 0.5,
+        tracking_lag: 0.5,
+    };
+
+    /// A capital: a tenth of the drive and a fifth of the turn rate.
+    const BARGE: FlightAuthority = FlightAuthority {
+        linear_acceleration: 2.0,
+        turn_rate: 0.1,
+        tracking_lag: 1.0,
+    };
+
+    #[test]
+    fn a_jink_leg_buys_the_hull_its_own_width_of_clearance() {
+        // The item: the leg is a displacement, so its speed is whatever
+        // carries THIS hull off the line, and a hull with more arm to move
+        // has to move faster and for longer to do it.
+        let picket = ai_evade_leg(0.0, ESCORT);
+        let capital = ai_evade_leg(19.42, ESCORT);
+        assert!(
+            capital.speed > picket.speed && capital.deadline > picket.deadline,
+            "a carrier's arm is what its jink has to clear, got {capital:?} against {picket:?}"
+        );
+        // v = sqrt(2 a d) is the speed the drive has built at the instant the
+        // ship has crossed d, so the leg ends with no hold at all.
+        let clearance = 19.42 + AI_EVADE_CLEARANCE;
+        assert!(
+            (capital.speed - (2.0 * ESCORT.linear_acceleration * clearance).sqrt()).abs() < 1e-3,
+            "the leg is flown at the speed its own displacement builds, got {capital:?}"
+        );
+    }
+
+    #[test]
+    fn a_weaker_hull_gets_a_slower_leg_and_longer_to_fly_it() {
+        // Same displacement, a tenth of the drive and a fifth of the turn:
+        // the barge's leg is slower AND its liveness deadline is longer,
+        // because the old fixed 1.2 s leg is what let it wallow.
+        let escort = ai_evade_leg(5.0, ESCORT);
+        let barge = ai_evade_leg(5.0, BARGE);
+        assert!(
+            barge.speed < escort.speed,
+            "a weak drive cannot fly a fast leg, got {barge:?} against {escort:?}"
+        );
+        assert!(
+            barge.deadline > escort.deadline,
+            "and it is given the seconds its own turn and burn take, got {barge:?}"
+        );
+        // Nothing left: the leg is over on sight rather than held for ever.
+        let dead = ai_evade_leg(5.0, FlightAuthority::default());
+        assert_eq!(dead.speed, 0.0, "a hull with no drive flies no leg");
+        assert!(
+            ai_evade_leg_flown(Vec3::ZERO, Vec3::X, dead),
+            "and the leg it cannot fly does not hold the cycle open"
+        );
+    }
+
+    #[test]
+    fn a_leg_is_flown_when_the_hull_has_actually_moved() {
+        // Displacement, not a stopwatch and not a speed: a leg is over when
+        // the hull is clear of the line it was on, whatever it took.
+        let leg = ai_evade_leg(5.0, ESCORT);
+        let direction = Vec3::X;
+        assert!(
+            ai_evade_leg_flown(direction * leg.clearance, direction, leg),
+            "the clearance carried is what ends the leg"
+        );
+        assert!(
+            !ai_evade_leg_flown(direction * leg.clearance * 0.5, direction, leg),
+            "half of it leaves the hull still under the guns"
+        );
+        assert!(
+            !ai_evade_leg_flown(Vec3::Y * leg.clearance * 10.0, direction, leg),
+            "and a long way in another direction is not this leg's clearance"
+        );
+    }
 
     #[test]
     fn every_leg_stays_off_the_pursuit_vector() {

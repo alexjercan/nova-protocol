@@ -10,7 +10,10 @@ use nova_events::prelude::*;
 use super::guns::{on_projectile_input, update_turret_target_input};
 #[cfg(test)]
 use super::maneuver::update_combat_flight;
-use super::threat::{AI_THREAT_AIM_COS, AI_THREAT_AIM_RANGE};
+use super::{
+    maneuver::{ai_evade_direction, ai_evade_leg, ai_evade_leg_flown},
+    threat::{AI_EVADE_LEGS, AI_THREAT_AIM_COS, AI_THREAT_AIM_RANGE},
+};
 use crate::prelude::*;
 
 /// What an AI ship is currently doing - the state skeleton of the AI combat
@@ -192,8 +195,9 @@ pub struct AIEngageRange(pub f32);
 /// One merely acquired further out does not abort the routine (detection
 /// range) - unless it is shooting: a recent hostile hit interrupts the
 /// routine at any acquired distance. Under threat, `Engage` breaks into
-/// `Evade` (gated by the refractory cooldown), which decays back to `Engage`
-/// when its cycle expires. Pure for unit testing.
+/// `Evade` (gated by the refractory cooldown and by having the authority to
+/// jink at all), which decays back to `Engage` when its legs are flown or its
+/// authority is gone. Pure for unit testing.
 fn next_behavior_state(
     current: AIBehaviorState,
     hostile_distance: Option<f32>,
@@ -237,10 +241,17 @@ fn next_behavior_state(
             AIBehaviorState::Engage
         }
         state if state.is_passive() => passive,
-        AIBehaviorState::Engage if threat.threatened() && threat.evade_ready => {
+        AIBehaviorState::Engage
+            if threat.threatened() && threat.evade_ready && threat.can_evade =>
+        {
             AIBehaviorState::Evade
         }
-        AIBehaviorState::Evade if threat.evade_expired => AIBehaviorState::Engage,
+        // Out of legs, or out of the authority to fly one. A hull with its
+        // drives shot off cannot jink, and leaving it in Evade would park it
+        // on a leg it can never complete instead of fighting on.
+        AIBehaviorState::Evade if threat.evade_expired || !threat.can_evade => {
+            AIBehaviorState::Engage
+        }
         // The remaining combat states hold; their exit triggers are their
         // tasks' scope.
         state => state,
@@ -259,8 +270,11 @@ struct ThreatSignals {
     aimed_at: bool,
     /// The evade cooldown has elapsed ([`AIEvade`]).
     evade_ready: bool,
-    /// The running evade cycle has expired ([`AIEvade`]).
+    /// The running evade cycle has flown all of its legs ([`AIEvade`]).
     evade_expired: bool,
+    /// The hull has drive and attitude left to fly a jink leg with
+    /// ([`FlightAuthority`]).
+    can_evade: bool,
 }
 
 impl ThreatSignals {
@@ -274,9 +288,10 @@ impl ThreatSignals {
 /// threat model ([`AIThreat`] + the aiming-at-me signal). Runs after
 /// acquisition and before the behavior systems in the same frame so a
 /// transition takes effect immediately (no one-frame stale-state window).
-/// Also owns the threat/evade clocks: the damage memory and evade cooldown
-/// tick every frame, the evade cycle and jink cadence only while evading,
-/// and the Evade edges arm them (cycle + jink on entry, cooldown on exit).
+/// Also owns the threat and evade state: the damage memory and evade
+/// cooldown tick every frame, the jink legs advance only while evading, and
+/// the Evade edges arm them (a fresh stock of legs on entry, the refractory
+/// cooldown on exit).
 pub(super) fn update_behavior_state(
     time: Res<Time>,
     mut q_spaceship: Query<
@@ -287,6 +302,10 @@ pub(super) fn update_behavior_state(
             &AITarget,
             &mut AIThreat,
             &mut AIEvade,
+            // What the hull can still do, and how much of it is in the way:
+            // both ends of a jink leg's plan.
+            Option<&FlightAuthority>,
+            Option<&HullRadius>,
             Has<AIOrbitDirective>,
             Has<AIPatrolRoute>,
             Option<&AILeash>,
@@ -304,6 +323,8 @@ pub(super) fn update_behavior_state(
         target,
         mut threat,
         mut evade,
+        authority,
+        arm,
         has_orbit,
         has_route,
         leash,
@@ -326,12 +347,6 @@ pub(super) fn update_behavior_state(
             None => false,
         };
         evade.cooldown.tick(time.delta_secs());
-        if *state == AIBehaviorState::Evade {
-            evade.duration.tick(time.delta_secs());
-            if evade.jink.tick(time.delta()).just_finished() {
-                evade.leg = evade.leg.wrapping_add(1);
-            }
-        }
 
         // The detection distance runs anchor to anchor - the same
         // live-structure vector the behavior systems fly and shoot along.
@@ -340,6 +355,35 @@ pub(super) fn update_behavior_state(
         let hostile_distance = target_info.map(|(t_transform, t_com)| {
             live_structure_anchor(t_transform, t_com).distance(own_anchor)
         });
+
+        // One leg's plan for THIS hull, wanted twice below: to judge the leg
+        // being flown, and to arm the first leg of a cycle that starts this
+        // frame.
+        let authority = authority.copied().unwrap_or_default();
+        let leg = ai_evade_leg(arm.map_or(0.0, |radius| **radius), authority);
+        // Where the ship stands relative to its target, which is the frame
+        // a jink leg's displacement is measured in.
+        let offset = target_info
+            .map(|(t_transform, t_com)| own_anchor - live_structure_anchor(t_transform, t_com));
+        if *state == AIBehaviorState::Evade {
+            evade.leg_deadline.tick(time.delta_secs());
+            // A leg ends on the clearance it ACHIEVED. The deadline is the
+            // backstop for the hull that cannot make it, so a capital is
+            // never parked on one leg for the whole fight.
+            let flown = offset.is_some_and(|offset| {
+                ai_evade_leg_flown(
+                    offset - evade.leg_origin,
+                    ai_evade_direction(-offset, evade.leg),
+                    leg,
+                )
+            });
+            if flown || evade.leg_deadline.ready() {
+                evade.legs_left = evade.legs_left.saturating_sub(1);
+                evade.leg = evade.leg.wrapping_add(1);
+                evade.leg_deadline.trigger_for(leg.deadline);
+                evade.leg_origin = offset.unwrap_or(evade.leg_origin);
+            }
+        }
         // Aiming-at-me: the hostile's hull forward held on my anchor inside
         // aim range. The hull axis is a cheap proxy for its guns (see
         // AI_THREAT_AIM_COS). Anchor to anchor, like every other AI vector.
@@ -358,7 +402,8 @@ pub(super) fn update_behavior_state(
             recently_damaged: threat.recently_damaged(),
             aimed_at,
             evade_ready: evade.cooldown.ready(),
-            evade_expired: evade.duration.ready(),
+            evade_expired: evade.legs_left == 0,
+            can_evade: authority.linear_acceleration > 0.0 && authority.turn_rate > 0.0,
         };
 
         let beyond_leash = leash
@@ -375,15 +420,23 @@ pub(super) fn update_behavior_state(
         );
         // Change-detection hygiene: only write on a real transition.
         if *state != next {
-            // The Evade edges arm the clocks: a fresh cycle + jink cadence
-            // on entry, the refractory cooldown on ANY exit (expiry, target
-            // loss, a future retreat).
+            // The Evade edges arm the cycle: a fresh stock of legs and the
+            // first leg's deadline on entry, the refractory cooldown on ANY
+            // exit (legs flown, authority lost, target loss, a future
+            // retreat).
             if next == AIBehaviorState::Evade {
-                evade.duration.trigger();
-                evade.jink.reset();
+                evade.legs_left = AI_EVADE_LEGS;
+                evade.leg_deadline.trigger_for(leg.deadline);
+                evade.leg_origin = offset.unwrap_or(Vec3::ZERO);
             }
             if *state == AIBehaviorState::Evade {
-                evade.cooldown.trigger();
+                // One leg's worth of fighting between weaves. The window has
+                // to scale with the cycle or a hull whose legs take seconds
+                // spends the whole fight weaving and its standoff orbit is
+                // never seen; the constant is the floor under a hull whose
+                // legs are quick.
+                let floor = evade.cooldown.duration();
+                evade.cooldown.trigger_for(leg.deadline.max(floor));
             }
             *state = next;
         }
@@ -403,6 +456,7 @@ mod behavior_state_tests {
     fn calm() -> ThreatSignals {
         ThreatSignals {
             evade_ready: true,
+            can_evade: true,
             ..default()
         }
     }
@@ -871,8 +925,8 @@ mod behavior_state_tests {
         use AIBehaviorState::*;
 
         let near = Some(AI_ENGAGE_RANGE * 0.5);
-        // Mid-cycle, even with the threat gone: the jink is timed, not
-        // signal-chasing.
+        // Mid-cycle, even with the threat gone: the cycle runs until its
+        // legs are flown, not until the signal clears.
         assert_eq!(
             next_behavior_state(
                 Evade,
@@ -903,6 +957,48 @@ mod behavior_state_tests {
                 false,
                 false,
                 expired_under_fire
+            ),
+            Engage
+        );
+    }
+
+    #[test]
+    fn a_hull_with_no_authority_left_never_jinks_and_never_sticks() {
+        use AIBehaviorState::*;
+
+        // A jink leg is a displacement the hull has to fly. With no drive or
+        // no attitude left there is no leg, so the threat is fought through
+        // instead of entered on - and a hull that loses its authority while
+        // evading comes out rather than sitting on a leg it cannot complete.
+        let near = Some(AI_ENGAGE_RANGE * 0.5);
+        let crippled = ThreatSignals {
+            recently_damaged: true,
+            can_evade: false,
+            ..calm()
+        };
+        assert_eq!(
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                crippled
+            ),
+            Engage
+        );
+        assert_eq!(
+            next_behavior_state(
+                Evade,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                crippled
             ),
             Engage
         );

@@ -28,6 +28,10 @@ does NOT get an entry - and it is the only place they are written down.
 - An enemy flies its whole fight in YOUR frame: it matches your velocity and
   circles on top of it, so a ship that runs is followed instead of left
   holding a ring you have already left.
+- An enemy's jink is three real legs: each runs until the ship has carried its
+  whole hull clear of the line you were holding, so a carrier weaves like a
+  carrier instead of rocking in place. A hull with no drive left fights on
+  rather than pretending to evade.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the

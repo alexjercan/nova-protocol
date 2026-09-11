@@ -12,7 +12,7 @@ use super::acquisition::update_ai_target;
 #[cfg(test)]
 use super::behavior::update_behavior_state;
 #[cfg(test)]
-use super::maneuver::{ai_evade_direction, update_combat_flight, AI_EVADE_SPEED};
+use super::maneuver::{ai_evade_direction, ai_evade_leg, update_combat_flight};
 #[cfg(test)]
 use crate::input::targeting::update_sensor_contacts;
 use crate::prelude::*;
@@ -32,22 +32,23 @@ pub(super) const AI_THREAT_AIM_RANGE: f32 = 200.0;
 /// the hull axis - accepted per the spike; true incoming-projectile
 /// detection is the follow-up if evasion feels blind.
 pub(super) const AI_THREAT_AIM_COS: f32 = 0.95;
-/// How long (s) one evade cycle lasts before decaying back to Engage.
-/// Three jink legs at [`AI_JINK_INTERVAL_SECS`]. Each leg is a HELD velocity
-/// at [`AI_EVADE_SPEED`], so a cycle cannot build speed the way the old
-/// open-throttle jink could; what it costs instead is the turn onto each new
-/// leg. If evasion reads as a wallow, that budget - not this cycle - is what
-/// to look at.
-const AI_EVADE_SECS: f32 = 3.6;
-/// Refractory period (s) after an evade cycle before a threat can trigger
-/// the next one. Without it a hostile that keeps its nose on the ship would
-/// re-trigger Evade every frame and the standoff orbit would never be seen;
-/// with it a fight reads as jink bursts with engage windows between them.
+/// Jink legs in one evade cycle.
+///
+/// A COUNT, not a duration: each leg is over when the hull has actually
+/// carried itself off the line (`ai_evade_leg` in `maneuver.rs`), so the
+/// cycle lasts as long as the hull takes. Three legs is a weave - out, across
+/// and back - and an odd count leaves the ship off the line it started on.
+pub(super) const AI_EVADE_LEGS: u32 = 3;
+/// FLOOR (s) on the refractory period after an evade cycle, before a threat
+/// can trigger the next one.
+///
+/// Without a refractory period a hostile that keeps its nose on the ship
+/// would re-trigger Evade every frame and the standoff orbit would never be
+/// seen; with one a fight reads as jink bursts with engage windows between
+/// them. The window itself is one jink leg's own deadline
+/// (`update_behavior_state`), so it scales with the hull the way the cycle
+/// does - this is only the floor under a hull whose legs are quick.
 const AI_EVADE_COOLDOWN_SECS: f32 = 1.5;
-/// Length (s) of one jink leg: long enough for the hull to swing onto the
-/// leg's heading (acceleration-authority slew) and burn, short enough to read as
-/// jinking. Playtest knob, paired with AI_EVADE_SECS.
-const AI_JINK_INTERVAL_SECS: f32 = 1.2;
 /// Distance discount for the ship that recently damaged me: whoever is
 /// shooting me steals the pick from comparably distant hostiles.
 pub(super) const AI_THREAT_ATTACKER_DISCOUNT: f32 = 0.5;
@@ -97,22 +98,29 @@ impl AIThreat {
     }
 }
 
-/// The evade cycle's clocks: how long the current cycle has left, the
-/// refractory period before the next one, and the jink-leg cadence within a
-/// cycle. Managed by `update_behavior_state`; the rotation and thrust systems
-/// read `Self::leg` to fly the current jink. Required by
-/// [`AISpaceshipMarker`].
+/// The evade cycle's state: how many jink legs are left to fly, the leg being
+/// flown and its liveness deadline, and the refractory period before the next
+/// cycle. Managed by `update_behavior_state`; `update_combat_flight` reads
+/// `Self::leg` to fly the current jink. Required by [`AISpaceshipMarker`].
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIEvade {
-    /// Time left in the current evade cycle. Triggered on entering Evade;
-    /// ticks only while evading; expiry decays the state back to Engage.
-    pub(crate) duration: Cooldown,
+    /// Legs left to fly in the current cycle. Set to [`AI_EVADE_LEGS`] on
+    /// entering Evade and counted down as each leg is flown; zero is what
+    /// decays the state back to Engage.
+    pub(crate) legs_left: u32,
+    /// Liveness deadline for the leg being flown, armed per leg from the
+    /// hull's own authority (`ai_evade_leg`). A leg normally ends on the
+    /// clearance it ACHIEVED; this is what moves on a hull that cannot.
+    pub(crate) leg_deadline: Cooldown,
+    /// Where the ship stood when the current leg began, as an offset from the
+    /// target: the leg is over once it has moved its clearance from here, and
+    /// an offset (not a world position) is what makes that true of a target
+    /// that is running as well.
+    pub(crate) leg_origin: Vec3,
     /// Refractory period after an evade cycle. Triggered on leaving Evade;
     /// starts ready so a fresh ship's first threat evades immediately.
     pub(crate) cooldown: Cooldown,
-    /// Cadence of the jink pattern: each completion turns onto the next leg.
-    pub(crate) jink: Timer,
     /// The jink pattern leg currently being flown (see
     /// [`ai_evade_direction`]). Advances monotonically, wrapping.
     pub(crate) leg: u32,
@@ -121,12 +129,13 @@ pub struct AIEvade {
 impl Default for AIEvade {
     fn default() -> Self {
         Self {
-            duration: Cooldown::started(AI_EVADE_SECS),
+            // No cycle running: entering Evade is what stocks the legs.
+            legs_left: 0,
+            // Armed per leg, so the length it is constructed with is never used.
+            leg_deadline: Cooldown::new(0.0),
+            leg_origin: Vec3::ZERO,
             // A fresh Cooldown is ready, so the first threat evades immediately.
             cooldown: Cooldown::new(AI_EVADE_COOLDOWN_SECS),
-            // Repeating, and therefore NOT a Cooldown: the jink cadence rolls
-            // over on its own to turn onto the next leg.
-            jink: Timer::from_seconds(AI_JINK_INTERVAL_SECS, TimerMode::Repeating),
             leg: 0,
         }
     }
@@ -364,6 +373,15 @@ mod evade_tests {
 
     use super::*;
 
+    /// What the rigs' hulls can do. Spawned explicitly, because the evade
+    /// cycle is planned from it: a hull the authority pass has never weighed
+    /// has nothing to jink with and is not allowed to try.
+    const RIG: FlightAuthority = FlightAuthority {
+        linear_acceleration: 20.0,
+        turn_rate: 0.5,
+        tracking_lag: 0.5,
+    };
+
     fn evade_app() -> (App, Entity, Entity) {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -400,7 +418,12 @@ mod evade_tests {
             .id();
         let ship = app
             .world_mut()
-            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .spawn((
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                RIG,
+            ))
             .id();
         (app, ship, player)
     }
@@ -442,16 +465,19 @@ mod evade_tests {
         }
         assert_eq!(state_of(&app, ship), AIBehaviorState::Evade);
 
-        // ...and past AI_EVADE_SECS the cycle decays back to Engage (the damage
-        // memory is shorter than the cycle, and the player is not aiming, so
-        // nothing re-triggers).
-        for _ in 0..((AI_EVADE_SECS * 60.0) as usize + 30) {
+        // ...and once every leg is over the cycle decays back to Engage. This
+        // rig has no physics, so the hull never achieves a leg and every one
+        // of them runs to its liveness deadline - which is the case the
+        // deadline exists for. The damage memory is shorter than the cycle
+        // and the player is not aiming, so nothing re-triggers.
+        let cycle = ai_evade_leg(0.0, RIG).deadline * AI_EVADE_LEGS as f32;
+        for _ in 0..((cycle * 60.0) as usize + 30) {
             app.update();
         }
         assert_eq!(
             state_of(&app, ship),
             AIBehaviorState::Engage,
-            "the jink is timed: it decays back to Engage"
+            "a cycle whose legs are all out of time decays back to Engage"
         );
     }
 
@@ -463,7 +489,12 @@ mod evade_tests {
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
         let ship = world
-            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .spawn((
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                RIG,
+            ))
             .id();
         world.spawn((
             SpaceshipRootMarker,
@@ -486,13 +517,70 @@ mod evade_tests {
     }
 
     #[test]
+    fn a_hull_with_nothing_left_to_jink_with_fights_on_instead() {
+        // The item's other half: a jink leg is a displacement, so a hull with
+        // no drive cannot fly one. It used to enter Evade anyway and sit
+        // there for the whole cycle wallowing; now it stays in Engage, and a
+        // ship that loses its drives mid-cycle is taken back out.
+        let (mut app, ship, player) = evade_app();
+        app.world_mut().entity_mut(ship).remove::<FlightAuthority>();
+        app.update();
+        app.update();
+        assert_eq!(state_of(&app, ship), AIBehaviorState::Engage);
+
+        let bullet = app
+            .world_mut()
+            .spawn((ProjectileOwner(player), Allegiance::Player))
+            .id();
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: ship,
+            source: Some(bullet),
+            amount: 10.0,
+        });
+        app.update();
+        assert_eq!(
+            state_of(&app, ship),
+            AIBehaviorState::Engage,
+            "a hull with no drive has no leg to fly, so being shot cannot put it in Evade"
+        );
+
+        // Give it its drive back and the same threat evades at once.
+        app.world_mut().entity_mut(ship).insert(RIG);
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: ship,
+            source: Some(bullet),
+            amount: 10.0,
+        });
+        app.update();
+        assert_eq!(
+            state_of(&app, ship),
+            AIBehaviorState::Evade,
+            "and the gate is the authority, not the threat"
+        );
+
+        // Losing it again mid-cycle ends the cycle rather than parking there.
+        app.world_mut().entity_mut(ship).remove::<FlightAuthority>();
+        app.update();
+        assert_eq!(
+            state_of(&app, ship),
+            AIBehaviorState::Engage,
+            "a hull that loses its drive mid-jink comes out of Evade"
+        );
+    }
+
+    #[test]
     fn beyond_aim_range_a_pointed_nose_is_not_a_threat() {
         // Same geometry outside AI_THREAT_AIM_RANGE (still inside engage
         // range): the nose cannot hurt me yet, so the ship keeps engaging.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
         let ship = world
-            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .spawn((
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                RIG,
+            ))
             .id();
         world.spawn((
             SpaceshipRootMarker,
@@ -534,6 +622,7 @@ mod evade_tests {
                 AITarget(Some(target)),
                 Transform::default(),
                 LinearVelocity(Vec3::ZERO),
+                RIG,
             ))
             .id();
         // An engine and a flight computer: the driver hands a maneuver only
@@ -565,7 +654,7 @@ mod evade_tests {
         let jink = ai_evade_direction(Vec3::new(0.0, 0.0, -1000.0), 0);
         assert_eq!(
             velocity,
-            jink * AI_EVADE_SPEED,
+            jink * ai_evade_leg(0.0, RIG).speed,
             "the leg is flown, not the pursuit vector"
         );
         assert!(

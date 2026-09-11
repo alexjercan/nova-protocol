@@ -350,3 +350,66 @@ fights, because both of its targets hold station - which is exactly why the
 range could not have caught the bug. The proof is
 `the_whole_envelope_is_flown_in_the_targets_frame`: a target given 13 m/s of
 its own must be matched AND circled, and the held velocity has to be the sum.
+
+### A jink leg became a displacement, 2026-09-12
+
+The evade cycle was three stopwatch legs: 1.2 s each, 3.6 s of cycle, flown at
+a flat 20 u/s. On a capital that is a wallow. The hull turned 17 of the 90
+degrees onto the leg before the timer moved it to the next one, and never
+thrust at all, so the whole cycle was a hull rocking in place while a stopwatch
+counted legs it had not flown.
+
+A leg is now a DISPLACEMENT, and the clock is a backstop rather than the plan:
+
+| | before | picket, live | warship, live |
+| --- | --- | --- | --- |
+| leg ends on | 1.2 s elapsed | 60 m carried | 128 m carried |
+| leg speed | 200 m/s | 69 m/s | 85 m/s |
+| liveness deadline | none | 5.9 s | 9.4 s |
+| engage window after | 1.5 s | 5.9 s | 9.4 s |
+
+The clearance is the hull's own `HullRadius` plus 10 m, so the leg carries the
+whole ship off the line a gun is holding rather than its centre. The speed is
+`sqrt(2 a d)` - what the drive has built at the instant the ship has crossed
+`d` - so the leg ends the moment the displacement is made and nothing is held
+for show. The deadline is what the leg takes at the hull's published limits: a
+half turn at its turn rate, `sqrt(2) * speed` of velocity change at its
+acceleration, and a 0.3 s burst. `AI_EVADE_SECS` and `AI_JINK_INTERVAL_SECS`
+are gone; `AI_EVADE_LEGS` (3) is a count.
+
+Two more things had to move with it.
+
+A hull with no drive or no attitude left cannot fly a leg at all, so it is no
+longer allowed into Evade, and one that loses its drive mid-cycle comes back
+out. It used to enter and sit there for the whole cycle.
+
+The refractory window is now one leg's own deadline, floored at the shipped
+1.5 s. It had to scale: on the live picket the cycle grew from 3.6 s to about
+9 s, and against a fixed 1.5 s window that is a ship weaving 86 percent of a
+fight with its standoff orbit never seen - measured, not guessed, on a traced
+range run before the window was derived.
+
+`an_evading_hull_flies_its_legs_instead_of_waiting_them_out` is the proof on real
+physics: a rig hull with 21.3 u/s2 and 2.52 rad/s flies all three legs on
+achieved displacement in 2.80 s of a 5.94 s liveness budget. The pure tests
+cover the plan itself, the authority gate covers the crippled hull.
+
+`system_ai_combat` also had to stop being a duel. Its targets were parked with
+`Quat::IDENTITY`, which points a nose down the plane the mover circles in, and
+a hostile's nose on the mover inside `AI_THREAT_AIM_RANGE` is a threat whether
+or not anyone is at its helm. With legs that now run for seconds, the picket
+spent the run weaving across a fixed nose rather than flying the envelope the
+range measures. The targets are parked nose-up, out of the orbit plane, and
+both fights read the envelope again:
+
+| figure | picket vs skiff | warship vs carrier |
+| --- | --- | --- |
+| face gap | 1,028 m | 1,034 m |
+| speed | 92 m/s | 83 m/s |
+| closing | +0 m/s | +0 m/s |
+| nose off the target | 2.6 deg | 2.8 deg |
+| throttle | 0.000 | 0.000 |
+
+That escort row also replaces the 72 m/s recorded for the orbit item a commit
+earlier: that sample landed four seconds into an evade cycle. 92 m/s is the
+picket's orbit speed, and it is the figure the drive limit predicts.

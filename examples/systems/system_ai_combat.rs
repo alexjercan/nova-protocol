@@ -208,7 +208,12 @@ fn combat_range(
     ships: &GameShips,
     sections: &GameSections,
 ) -> ScenarioConfig {
-    let ship = |id: &str, name: &str, catalog: &str, at: Meters3, spec: SpaceshipConfig| {
+    let ship = |id: &str,
+                name: &str,
+                catalog: &str,
+                at: Meters3,
+                rotation: Quat,
+                spec: SpaceshipConfig| {
         let hull = kit::catalog_ship(ships, catalog);
         let modifications = dry_magazines(&hull, sections);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -216,7 +221,7 @@ fn combat_range(
                 id: id.to_string(),
                 name: name.to_string(),
                 position: at,
-                rotation: Quat::IDENTITY,
+                rotation,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                 hull: ShipSource::Inline(hull),
@@ -241,6 +246,12 @@ fn combat_range(
         allegiance: Some(Allegiance::Player),
         ..default()
     };
+    // ...and parked NOSE-UP, out of the plane the mover circles in. A hostile
+    // holding its nose on the mover inside `AI_THREAT_AIM_RANGE` is a threat
+    // whether or not anyone is at its helm, and an orbiting ship crosses a
+    // fixed nose once a lap - which breaks the standoff envelope this range
+    // measures into the evade weave, which is measured on its own rigs.
+    let nose_up = Quat::from_rotation_x(core::f32::consts::FRAC_PI_2);
 
     let escort = Meters3::new(-FIGHT_SEPARATION.get() / 2.0, 0.0, 0.0);
     let capital = Meters3::new(FIGHT_SEPARATION.get() / 2.0, 0.0, 0.0);
@@ -258,16 +269,24 @@ fn combat_range(
             filters: vec![],
             actions: [
                 vec![
-                    ship(SKIFF_ID, "Skiff", SKIFF, escort, target.clone()),
+                    ship(SKIFF_ID, "Skiff", SKIFF, escort, nose_up, target.clone()),
                     ship(
                         PICKET_ID,
                         "Picket",
                         PICKET,
                         escort + approach,
+                        Quat::IDENTITY,
                         mover.clone(),
                     ),
-                    ship(CARRIER_ID, "Carrier", CARRIER, capital, target),
-                    ship(WARSHIP_ID, "Warship", WARSHIP, capital + approach, mover),
+                    ship(CARRIER_ID, "Carrier", CARRIER, capital, nose_up, target),
+                    ship(
+                        WARSHIP_ID,
+                        "Warship",
+                        WARSHIP,
+                        capital + approach,
+                        Quat::IDENTITY,
+                        mover,
+                    ),
                 ],
                 ThreePointRig::around("ai combat", Meters3::ZERO, 40.0).actions(),
             ]
@@ -361,13 +380,17 @@ fn every_hull_weighed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 /// Both movers have chosen their target and left their passive routine for it.
 #[cfg(feature = "debug")]
 fn both_movers_engaged() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
-    Arc::new(|world: &World| {
-        FIGHTS.iter().all(|fight| {
-            staged_hull(world, fight.mover_id).is_some_and(|root| {
-                world
-                    .get::<AIBehaviorState>(root)
-                    .is_some_and(|state| *state == AIBehaviorState::Engage)
-            })
+    Arc::new(both_engaged)
+}
+
+/// Whether both movers are engaging right now.
+#[cfg(feature = "debug")]
+fn both_engaged(world: &World) -> bool {
+    FIGHTS.iter().all(|fight| {
+        staged_hull(world, fight.mover_id).is_some_and(|root| {
+            world
+                .get::<AIBehaviorState>(root)
+                .is_some_and(|state| *state == AIBehaviorState::Engage)
         })
     })
 }

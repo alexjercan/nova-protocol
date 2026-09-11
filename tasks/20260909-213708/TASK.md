@@ -199,7 +199,7 @@ gameplay feedback ledger (`20260909-213118`).
       to anchor while the fuze fires at the target's skin: the margin is
       halved between two carriers, and the floor sits inside a 60 u hull.
       Add both `HullRadius`.
-- [ ] `ai/threat.rs:39,48` `AI_JINK_INTERVAL_SECS` 1.2 s per evade leg
+- [x] `ai/threat.rs:39,48` `AI_JINK_INTERVAL_SECS` 1.2 s per evade leg
       with a 41 deg thrust gate: the carrier turns 17 of the 90 deg before
       the next leg and never thrusts, so Evade on a capital is a wallow.
       Budget the leg from the hull's `AttitudeEnvelope` rate.
