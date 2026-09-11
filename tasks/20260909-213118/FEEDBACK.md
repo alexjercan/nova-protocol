@@ -57,6 +57,7 @@ arm or torque; a lifecycle item should read as unchanged.
 | pierce power alone | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | launcher-safe arming | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 | fractional thrust taper | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
+| face-gap launch floor | 47.8 m / 194.2 m | 13.2772 / 0.0684 | 1.6430 / 0.4042 | structure / torque | 21.7 km / 59.5 km |
 
 Lock range enters the table with the signature item: before it, every ship root
 was lockable out to the observer's whole cap, so the column was the cap and not
@@ -128,3 +129,25 @@ crossing round, stable across three runs. The loiterer row is the case the
 change is FOR, and no shipped type is slow enough to stand in for it, so that
 one is proved by unit test
 (`a_slow_warhead_gets_the_same_share_of_its_envelope_as_a_fast_one`).
+
+### AI torpedo launch floor, 2026-09-11
+
+The AI held its ordnance until the target was three blast radii away - 900 m
+for the shipped warhead - measured ANCHOR to ANCHOR. That margin is supposed
+to be clear space between two ships, and anchor to anchor it is not: each hull
+spends its own arm out of it first.
+
+| pair | own arm | target arm | launches no nearer than, before | after |
+| --- | --- | --- | --- | --- |
+| skiff vs skiff | 47.8 m | 47.8 m | 900 m | 996 m |
+| skiff vs carrier | 47.8 m | 194.2 m | 900 m | 1,142 m |
+| carrier vs carrier | 194.2 m | 194.2 m | 900 m | 1,288 m |
+
+Read the other way: at the old 900 m floor two carriers had 512 m of clear
+space between their faces, not 900, and the margin the number was written for
+was more than 40 percent gone. Arms are the live `system_hull_scaling`
+figures.
+
+No systems range stages an AI ship with a torpedo bay - every torpedo boat on
+the ranges is `SpaceshipController::None` and scripted - so the proof is the
+unit pair in `ai/torpedo.rs`, as for the AI railgun commit.

@@ -24,11 +24,16 @@ const AI_TORPEDO_COOLDOWN_SECS: f32 = 10.0;
 /// Public because the balance audit's threat envelope IS this number: a copy
 /// there would drift from the range the AI actually launches at.
 pub const AI_TORPEDO_MAX_RANGE: Meters = Meters(10_000.0);
-/// Inner edge of the envelope, as a multiple of the bay's configured blast
-/// radius: a point-blank launch detonates inside the shooter's own blast
-/// (blast damage deliberately affects the). The factor keeps the detonation
-/// point - the target - clear of the shooter, with margin for the closure
-/// that happens while the torpedo flies. Playtest knob.
+/// Tactical margin at the inner edge of the envelope, as a multiple of the
+/// bay's configured blast radius: a point-blank launch detonates inside the
+/// shooter's own blast, which damages everything it reaches. The factor keeps
+/// the detonation point - the target - clear of the shooter, with margin for
+/// the closure that happens while the torpedo flies. Playtest knob.
+///
+/// A MARGIN between two hulls, not the whole floor. It is added to both ships'
+/// live arms, so the gap it buys is FACE to face; on its own it is measured
+/// between two origins, and a carrier 194 m to its own bow keeps most of the
+/// margin inside itself.
 const AI_TORPEDO_MIN_RANGE_BLAST_FACTOR: f32 = 3.0;
 /// Rough hull-alignment gate (cos) on a launch. Deliberately loose - PN
 /// guidance does the turning - it exists so launches read as aimed attack
@@ -60,17 +65,27 @@ impl Default for AITorpedoBay {
 }
 
 /// The geometric half of the launch decision: the target inside the range
-/// band [blast_radius * [`AI_TORPEDO_MIN_RANGE_BLAST_FACTOR`],
-/// [`AI_TORPEDO_MAX_RANGE`]] with the hull roughly on the bearing
-/// ([`AI_TORPEDO_ALIGNMENT_COS`]). The per-ship gates (behavior state,
-/// ship-kind target, bay cooldown) live in the calling system. Pure for
-/// unit testing.
-fn ai_torpedo_envelope(to_target: Vec3, forward: Vec3, blast_radius: f32) -> bool {
+/// band with the hull roughly on the bearing ([`AI_TORPEDO_ALIGNMENT_COS`]).
+/// The per-ship gates (behavior state, ship-kind target, bay cooldown) live in
+/// the calling system. Pure for unit testing.
+///
+/// The inner edge is a FACE gap. `to_target` runs anchor to anchor, so the
+/// floor sums what each hull spends on itself - `own_arm` and `target_arm`,
+/// both live [`HullRadius`] values - and the tactical margin
+/// (`blast_radius * `[`AI_TORPEDO_MIN_RANGE_BLAST_FACTOR`]) sits between them.
+/// Taking the margin alone made the floor mean something different for every
+/// hull: a carrier reaches 194 m out of its own anchor, so 900 m of margin
+/// bought it 700 m of clear space at one end and less than that at the other.
+fn ai_torpedo_envelope(
+    to_target: Vec3,
+    forward: Vec3,
+    blast_radius: f32,
+    own_arm: f32,
+    target_arm: f32,
+) -> bool {
     let distance = to_target.length();
-    if distance <= f32::EPSILON
-        || distance < blast_radius * AI_TORPEDO_MIN_RANGE_BLAST_FACTOR
-        || distance > AI_TORPEDO_MAX_RANGE.to_engine()
-    {
+    let floor = own_arm + target_arm + blast_radius * AI_TORPEDO_MIN_RANGE_BLAST_FACTOR;
+    if distance <= f32::EPSILON || distance < floor || distance > AI_TORPEDO_MAX_RANGE.to_engine() {
         return false;
     }
     forward.dot(to_target / distance) > AI_TORPEDO_ALIGNMENT_COS
@@ -113,6 +128,7 @@ pub(super) fn update_torpedo_section_input(
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_hull_radius: Query<&HullRadius>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
     spatial: SpatialQuery,
     q_sensor: Query<(), With<Sensor>>,
@@ -134,6 +150,13 @@ pub(super) fn update_torpedo_section_input(
         let target_ship = (**target).filter(|&target| q_ship_root.contains(target));
         let target_anchor =
             target_ship.and_then(|target| ai_target_anchor(Some(target), &q_target));
+        // Live arms, read this frame: a hull that has lost its bow asks for
+        // less room than it did whole, and so does the thing it is shooting
+        // at. A root with no published arm is a point.
+        let own_arm = q_hull_radius.get(entity).map_or(0.0, |arm| **arm);
+        let target_arm = target_ship
+            .and_then(|target| q_hull_radius.get(target).ok())
+            .map_or(0.0, |arm| **arm);
         // Line-of-fire gate, memoized so the ship casts AT MOST one ray per
         // frame (every bay launches down the same anchor-to-anchor bearing)
         // and none at all while the cheap per-bay gates hold the trigger
@@ -171,6 +194,8 @@ pub(super) fn update_torpedo_section_input(
                         anchor - own_anchor,
                         *transform.forward(),
                         figures.blast_radius,
+                        own_arm,
+                        target_arm,
                     )
                 })
                 && line_clear(own_anchor);
@@ -243,38 +268,74 @@ mod torpedo_tests {
 
     #[test]
     fn the_envelope_is_a_range_band_with_rough_alignment() {
-        // Engine units: the shipped 300 m warhead is 30 u, so the
-        // blast-derived floor is 30 * 3 = 90 u (900 m).
+        // Engine units: the shipped 300 m warhead is 30 u, so two point hulls
+        // keep the bare tactical margin of 30 * 3 = 90 u (900 m).
         let blast_radius = 30.0;
         let forward = Vec3::NEG_Z;
+        let point = 0.0;
 
         assert!(
-            ai_torpedo_envelope(Vec3::NEG_Z * 300.0, forward, blast_radius),
+            ai_torpedo_envelope(Vec3::NEG_Z * 300.0, forward, blast_radius, point, point),
             "in band, dead ahead: launch"
         );
         assert!(
-            ai_torpedo_envelope(Vec3::new(100.0, 0.0, -300.0), forward, blast_radius),
+            ai_torpedo_envelope(
+                Vec3::new(100.0, 0.0, -300.0),
+                forward,
+                blast_radius,
+                point,
+                point
+            ),
             "in band, ~18 degrees off: rough alignment accepts it"
         );
         assert!(
-            !ai_torpedo_envelope(Vec3::NEG_Z * 80.0, forward, blast_radius),
+            !ai_torpedo_envelope(Vec3::NEG_Z * 80.0, forward, blast_radius, point, point),
             "below the blast-derived minimum: a launch here self-hits"
         );
         assert!(
             !ai_torpedo_envelope(
                 Vec3::NEG_Z * (AI_TORPEDO_MAX_RANGE.to_engine() + 1.0),
                 forward,
-                blast_radius
+                blast_radius,
+                point,
+                point
             ),
             "beyond the outer edge"
         );
         assert!(
-            !ai_torpedo_envelope(Vec3::X * 300.0, forward, blast_radius),
+            !ai_torpedo_envelope(Vec3::X * 300.0, forward, blast_radius, point, point),
             "perpendicular bearing: misaligned"
         );
         assert!(
-            !ai_torpedo_envelope(Vec3::ZERO, forward, 0.0),
+            !ai_torpedo_envelope(Vec3::ZERO, forward, 0.0, point, point),
             "degenerate zero bearing"
+        );
+    }
+
+    #[test]
+    fn a_carrier_holds_its_ordnance_where_a_skiff_would_have_launched() {
+        // The same 900 m of tactical margin, and the same anchor-to-anchor
+        // range: what differs is how much of that range each pair of hulls
+        // spends on itself. Both arms are the live figures measured on the
+        // reference hulls (block_skiff 47.8 m, block_carrier 194.2 m).
+        let blast_radius = 30.0;
+        let forward = Vec3::NEG_Z;
+        let skiff = 4.78;
+        let carrier = 19.42;
+        let range = Vec3::NEG_Z * 100.0;
+
+        assert!(
+            ai_torpedo_envelope(range, forward, blast_radius, skiff, skiff),
+            "1,000 m apart, two skiffs: 904 m of clear space between the faces"
+        );
+        assert!(
+            !ai_torpedo_envelope(range, forward, blast_radius, carrier, carrier),
+            "the same 1,000 m between two carriers leaves 612 m of clear space, \
+             not the 900 m the margin asks for"
+        );
+        assert!(
+            ai_torpedo_envelope(Vec3::NEG_Z * 129.0, forward, blast_radius, carrier, carrier),
+            "1,290 m puts 902 m between the two carriers' faces"
         );
     }
 

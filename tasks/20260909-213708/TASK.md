@@ -195,7 +195,7 @@ gameplay feedback ledger (`20260909-213118`).
       cone, commits out to 1080 u where that is 1.5 km of miss. Gate on
       `atan(target radius / distance)`; the test comment at `:276` already
       says so.
-- [ ] `ai/torpedo.rs:32,68` the launch floor is `3.0 * blast_radius` anchor
+- [x] `ai/torpedo.rs:32,68` the launch floor is `3.0 * blast_radius` anchor
       to anchor while the fuze fires at the target's skin: the margin is
       halved between two carriers, and the floor sits inside a 60 u hull.
       Add both `HullRadius`.

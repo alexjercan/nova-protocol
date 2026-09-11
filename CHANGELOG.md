@@ -46,6 +46,9 @@ does NOT get an entry - and it is the only place they are written down.
   so a torpedo is a standoff weapon.
 - Torpedo thrust eases off over the last 15 percent of the type's own cruise,
   not a flat 50 m/s, so a slow warhead is no longer stranded inside its taper.
+- An AI hull keeps its 900 m torpedo margin between the two HULLS, not the two
+  origins, so a carrier holds ordnance out to 1,290 m where a skiff launches at
+  1,000.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn
