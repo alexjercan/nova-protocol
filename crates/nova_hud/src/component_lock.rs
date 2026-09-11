@@ -28,12 +28,19 @@ const MARKER_SELECTED_PX: f32 = 16.0;
 /// Fraction of a section's on-screen extent an unselected marker covers. A
 /// carrier thruster block is five plates wide and a hull plate is one; a
 /// marker that ignored that painted both the same dot.
-const MARKER_EXTENT_SCALE: f32 = 0.5;
+///
+/// The extent tracked is the section's bounding SPHERE, which is 1.73 times
+/// as wide as the box inside it, so this is about a third of the section's
+/// own width. It has to stay well under half: a marker that covers its
+/// section meets the marker on the section next to it, and a row of them
+/// paints the solid slab the per-section sizing exists to break up.
+const MARKER_EXTENT_SCALE: f32 = 0.2;
 
 /// The same fraction for the fine-locked section. Held at
 /// `MARKER_SELECTED_PX / MARKER_PX` of its siblings, so the selection reads
-/// as the bigger marker whether the pair is tracking or floored.
-const MARKER_SELECTED_EXTENT_SCALE: f32 = 0.8;
+/// as the bigger marker whether the pair is tracking or floored. One marker
+/// is allowed to fill more of its section - it is the one the player picked.
+const MARKER_SELECTED_EXTENT_SCALE: f32 = 0.32;
 
 /// How many section markers the overlay paints at once. Every hand-flyable
 /// hull fits under it whole (the gunship, the largest, has 53 sections); the
@@ -405,6 +412,24 @@ mod tests {
         };
         assert_eq!(selected_min, MARKER_SELECTED_PX);
         assert!((selected_scale / scale - selected_min / min_px).abs() < 1e-5);
+    }
+
+    /// The defect per-section sizing can create instead of cure: the tracked
+    /// extent is the bounding SPHERE, 1.73 times the box inside it, so a
+    /// marker scaled to half of it covers its whole section and meets its
+    /// neighbours. A hull's worth of those is one slab with no sections in it.
+    #[test]
+    fn an_unselected_marker_leaves_its_neighbours_room() {
+        let ScreenIndicatorSize::ApparentSize { scale, .. } = marker_size(false) else {
+            panic!("markers track their section");
+        };
+
+        assert!(
+            scale * 3.0f32.sqrt() < 0.5,
+            "an unselected marker covers {:.2} of its section's width and tiles with the \
+             section beside it",
+            scale * 3.0f32.sqrt()
+        );
     }
 
     #[test]
