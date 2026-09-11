@@ -161,7 +161,7 @@ gameplay feedback ledger (`20260909-213118`).
       `LockSignature * signature_range_per_unit`: a skiff is designatable
       from 200 km like a carrier. Publish a ship `LockSignature` from
       `HullRadius`.
-- [ ] `nova_gameplay/src/damage.rs:223` `MAX_PIERCE_LAYERS` 6, "past any
+- [x] `nova_gameplay/src/damage.rs:223` `MAX_PIERCE_LAYERS` 6, "past any
       shipped craft's depth": the carrier is 12 u wide and 35 u long, so
       the backstop is the binding limit. Bound by the power budget alone.
 - [ ] `nova_ship/src/sections/torpedo_section/mod.rs:261-262`

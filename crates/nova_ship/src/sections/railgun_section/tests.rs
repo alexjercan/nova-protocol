@@ -157,11 +157,10 @@ fn a_fired_slug_carries_its_authored_power_and_no_layer_cap() {
     assert_eq!(fired.len(), 1, "one shell");
     assert_eq!(fired[0].kind, DamageType::Pierce);
     assert_eq!(fired[0].amount, 90.0);
-    assert_eq!(fired[0].power, 4_000.0);
     assert_eq!(
-        fired[0].layers,
-        u32::MAX,
-        "a lance stops when it runs out of thickness to spend, never on a layer count"
+        fired[0].power, 4_000.0,
+        "a lance stops when it runs out of thickness to spend, and this is how \
+         much of it the catalog bought"
     );
 }
 

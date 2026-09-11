@@ -1352,7 +1352,6 @@ mod tests {
                 // cost 720 at the reference multiplier.
                 power: 4_000.0,
                 // The owner's call: power is the only bound.
-                layers: u32::MAX,
                 kind: DamageType::Pierce,
             },
         ));
@@ -1445,7 +1444,6 @@ mod tests {
                 // Priced to outlast the stack whatever the speed curve reads,
                 // so what stops the round is the geometry running out.
                 power: 1.0e6,
-                layers: u32::MAX,
                 kind: DamageType::Pierce,
             },
         ));
@@ -1748,7 +1746,9 @@ mod tests {
 
     /// The invariant the rake deliberately breaks: a Pierce round's TOTAL damage
     /// exceeds what it was fired with, because it pays for travel out of power
-    /// and its damage never depletes. [`MAX_PIERCE_LAYERS`] is what ends it.
+    /// and its damage never depletes. The POWER BUDGET is what ends it, and
+    /// cheap plating does not end it at all - eight 30 hp plates cost 240 of a
+    /// fresh round's 300, so the round comes out the far side still going.
     #[test]
     fn a_pierce_round_deals_more_in_total_than_it_was_fired_with() {
         let mut app = round_app();
@@ -1781,17 +1781,14 @@ mod tests {
             .iter()
             .map(|&plate| plate_hp - plate_health(&app, plate))
             .sum();
-        assert_eq!(
-            raked, MAX_PIERCE_LAYERS as usize,
-            "the layer cap is what ends a rake through cheap plates"
-        );
+        assert_eq!(raked, count, "240 of 300 power buys all eight cheap plates");
         assert!(
             dealt > amount,
             "a rake's total must EXCEED the amount it was fired with, got {dealt}"
         );
         assert!(
-            (dealt - amount * MAX_PIERCE_LAYERS as f32).abs() < 0.05,
-            "six layers x the authored 20, undiminished by depth, got {dealt}"
+            (dealt - amount * count as f32).abs() < 0.05,
+            "eight layers x the authored 20, undiminished by depth, got {dealt}"
         );
     }
 
@@ -2128,7 +2125,6 @@ mod tests {
                 power,
                 // The owner's call, and the shipped lance's: power is the only
                 // bound.
-                layers: u32::MAX,
                 kind: DamageType::Pierce,
             },
         ));

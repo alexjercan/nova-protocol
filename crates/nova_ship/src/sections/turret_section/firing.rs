@@ -1057,9 +1057,8 @@ mod tests {
         );
         assert_eq!(dmg.amount, 5.0, "and the slot's authored damage");
         assert_eq!(
-            (dmg.power, dmg.layers),
-            (PIERCE_BASE_POWER, MAX_PIERCE_LAYERS),
-            "a fresh round leaves the muzzle with full pierce power and layers"
+            dmg.power, PIERCE_BASE_POWER,
+            "a fresh round leaves the muzzle with full pierce power"
         );
     }
 

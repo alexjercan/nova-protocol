@@ -193,13 +193,12 @@ pub(super) fn charge_and_fire_railgun(
             Transform::from_translation(muzzle_position)
                 .with_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, bore_direction)),
             RoundVelocity(slug_velocity),
-            // POWER IS THE ONLY BOUND. `layers: u32::MAX` is the owner's call
-            // made structural: a lance stops when it runs out of thickness to
-            // spend, never because it met a layer count.
+            // POWER IS THE ONLY BOUND, for every Pierce round and this one
+            // most of all: a lance stops when it runs out of thickness to
+            // spend, and `slug_power` is how much of it the catalog bought.
             ProjectileDamage {
                 amount: config.slug_damage,
                 power: config.slug_power,
-                layers: u32::MAX,
                 kind: DamageType::Pierce,
             },
             TempEntity(config.slug_lifetime),

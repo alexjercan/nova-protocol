@@ -72,10 +72,10 @@ A **Pierce** round does not pay for travel out of its damage at all. It carries 
 
 Two things follow from pricing power on the rating rather than on what is left. Light plating is nearly free to rake through while a heavy hull block eats most of a round's power in one go - the spaced-armour intuition, intact. And softening a section with other fire does **not** open a cheaper hole through it, so there is no trick of chipping first and raking after.
 
-Every gun rake also has a hard ceiling on how many sections one round may cross - six - so a round fired down the length of a lightly built ship cannot chain forever. The railgun's slug is the one exception: it has no layer cap at all, and power alone decides where it stops.
+Nothing sits under that budget. There is no ceiling on how many sections one round may cross, so a penetrator fired down the length of a lightly built ship really does chain through all of it - which is the weapon, and the reason thin plating is not free protection against this type. The only thing that stops a rake is running out of power, and the one case that also stops it is a section a mod authored with no health rating at all: a layer that costs nothing to cross ends the round rather than letting it run on forever.
 
 <div class="widget" data-widget="round-travel">
-<p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 1,000 m/s destroys the first section and hits the second for 40; at 2,000 m/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 1,000 m/s (five sections deep), only 20 at 3,000 m/s - but never more than six sections.</p>
+<p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 1,000 m/s destroys the first section and hits the second for 40; at 2,000 m/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 1,000 m/s, so it takes all five and stops in the sixth; at 3,000 m/s a crossing costs only 20 and the same dart takes fifteen.</p>
 </div>
 
 Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see [Shooting rock](../../../combat-weapons/#shooting-rock)); an invulnerable planetoid does not even do that. Torpedoes do not travel through anything either - they detonate.

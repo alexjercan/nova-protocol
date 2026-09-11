@@ -621,7 +621,9 @@ Section-wide fields (once, alongside `root`):
     exceeds one round's worth. It pays for travel out of a separate power
     budget: crossing a section costs that section's `health` RATING (not its
     remaining health), and closing speed divides that cost (clamped
-    0.5x..3.0x). A rake is bounded by its power and by a hard six-layer cap.
+    0.5x..3.0x). POWER IS THE ONLY BOUND - there is no layer cap - so a
+    section authored with a `health` of zero costs nothing to cross and stops
+    the round instead of letting it chain without limit.
   - `Explosive` on a bullet is spent on its first hit. A torpedo blast uses the
     Explosive pressure rule described below.
 
@@ -863,7 +865,7 @@ kind: Railgun((
   simply missed.
 - `slug_speed`, `slug_lifetime` - muzzle speed in meters per second, and how
   long the slug lives. Their product is the reach: the shipped railgun is
-  15,000 m/s for 1.2 s, so 18 km. With no layer cap on penetration, the
+  15,000 m/s for 1.2 s, so 18 km. No Pierce round has a layer cap, so the
   lifetime is also what stops a miss travelling forever.
 - `slug_damage` - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
   is not scaled by closing speed and it does not decay with depth, so the tenth

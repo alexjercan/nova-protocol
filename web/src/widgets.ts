@@ -251,8 +251,8 @@ const SERPENT_WEAVE_ANGLE = 0.44; // mod.rs:414 (rad, the balance knob)
 const SERPENT_WEAVE_RATE = 1.4; // mod.rs:415 (rad/s)
 
 // The spinal lance (standard.rs, `railgun_lance_section`). Its slug is a
-// Pierce round with NO layer cap (railgun_section/firing.rs:206 sets
-// `layers: u32::MAX`), so `slug_power` alone bounds what one shot takes, and
+// Pierce round, and no Pierce round has a layer cap (damage.rs
+// `pierce_remainder`), so `slug_power` alone bounds what one shot takes, and
 // at 15 000 m/s the pierce curve sits at its 3.0 ceiling whatever the ships are
 // doing. The shot's cycle is the charge plus the one-shell reload.
 const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:920

@@ -44,7 +44,7 @@ pub mod prelude {
         kinetic_damage_multiplier, nova_blast, pierce_power_multiplier, pierce_remainder,
         representative_kinetic_damage, spend_piercing_damage, DamageType, NovaBlast,
         NovaDamagePlugin, NovaDamageSystems, ProjectileDamage, SectionClass, SurfaceImpact,
-        MAX_PIERCE_LAYERS, NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER, REFERENCE_CLOSING_SPEED,
+        NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER, REFERENCE_CLOSING_SPEED,
     };
 }
 
@@ -95,22 +95,17 @@ pub struct ProjectileDamage {
     /// PIERCE ONLY: thickness the round can still get through, priced in the
     /// MAX health of each layer it crosses. Unused by the other types.
     pub power: f32,
-    /// PIERCE ONLY: how many more layers the round may cross, whatever its
-    /// power. The backstop against one round chaining down the long axis of a
-    /// ship made of cheap plates.
-    pub layers: u32,
     /// Which travel rule and which speed curve this projectile uses.
     pub kind: DamageType,
 }
 
 impl ProjectileDamage {
-    /// A freshly fired round: full [`PIERCE_BASE_POWER`] and
-    /// [`MAX_PIERCE_LAYERS`], which only a Pierce round reads.
+    /// A freshly fired round: full [`PIERCE_BASE_POWER`], which only a Pierce
+    /// round reads.
     pub fn new(amount: f32, kind: DamageType) -> Self {
         Self {
             amount,
             power: PIERCE_BASE_POWER,
-            layers: MAX_PIERCE_LAYERS,
             kind,
         }
     }
@@ -199,8 +194,8 @@ const KINETIC_DAMAGE_CEILING: f32 = 2.0;
 const PIERCE_POWER_FLOOR: f32 = 0.5;
 
 /// Ceiling on the Pierce power curve: treble power, which is the difference
-/// between raking a corvette's flank and raking it end to end. Above that,
-/// [`MAX_PIERCE_LAYERS`] is the binding limit anyway.
+/// between raking a corvette's flank and raking it end to end. Above that a
+/// rake is crossing more ship than anything shipped is deep.
 const PIERCE_POWER_CEILING: f32 = 3.0;
 
 /// Thickness a Pierce round spawns able to cross, in hit points of section MAX
@@ -213,14 +208,6 @@ const PIERCE_POWER_CEILING: f32 = 3.0;
 /// pricing exists for. The first playtest knob to turn if pierce feels weak or
 /// oppressive.
 pub const PIERCE_BASE_POWER: f32 = 300.0;
-
-/// Hard cap on how many layers one Pierce round may cross, whatever its power.
-///
-/// Power alone does not bound a rake: thin plating is cheap by design, so a hull
-/// faced with 5 hp panels would let one round chain through dozens of them.
-/// Six is past any shipped craft's depth along a single line of fire, so it
-/// binds only in the degenerate case it exists for.
-pub const MAX_PIERCE_LAYERS: u32 = 6;
 
 /// Closing speed of a round against what it is about to hit: the component of
 /// their relative velocity along the round's own line of flight, in
@@ -426,7 +413,9 @@ pub fn hit_bite(damage: ProjectileDamage, closing_speed: f32) -> f32 {
 ///   (the spaced-armour intuition), and softening a section with other fire
 ///   cannot make it cheaper to rake through. It crosses whether or not the layer
 ///   died, so its TOTAL damage legitimately exceeds what it was fired with.
-///   [`MAX_PIERCE_LAYERS`] is the backstop under the power budget.
+///   POWER IS THE ONLY BOUND: a rake ends where its budget does, and a hull
+///   faced with cheap plating really does let one round chain through a lot of
+///   them. That is the weapon, priced by the thickness a creator authored.
 ///
 /// A target with no [`Health`] - an asteroid, a planetoid, a collider whose pool
 /// lives on an ancestor - has no thickness this rule can price and nothing it
@@ -452,13 +441,13 @@ pub fn pierce_remainder(
             })
         }
         DamageType::Pierce => {
-            let layers = damage.layers.saturating_sub(1);
-            let power = damage.power - health.max / pierce_power_multiplier(closing_speed);
-            (layers > 0 && power > 0.0).then_some(ProjectileDamage {
-                power,
-                layers,
-                ..damage
-            })
+            // A crossing has to COST something. A layer authored with no max
+            // health prices one at zero, and a round that pays nothing can
+            // cross an unbounded number of them inside one flush - so a free
+            // layer stops the rake instead of letting it chain forever.
+            let cost = health.max / pierce_power_multiplier(closing_speed);
+            let power = damage.power - cost;
+            (cost > 0.0 && power > 0.0).then_some(ProjectileDamage { power, ..damage })
         }
         // A blast does not travel; a round somehow carrying one is spent where
         // it lands.
@@ -1011,10 +1000,11 @@ mod tests {
     fn a_penetrators_total_deliberately_exceeds_what_it_was_fired_with() {
         // The opposite of the slug invariant, and the point of the rake: a
         // Pierce round pays for travel out of POWER, so its damage does not
-        // deplete. Four 50 hp layers take 2 each from a round authored at 2.
+        // deplete. 300 power buys exactly six 50 hp layers, and every one of
+        // them takes the authored 2.
         let pierce = ProjectileDamage::new(2.0, DamageType::Pierce);
         let (absorbed, hits) = spend_down_plates(pierce, REFERENCE, &[50.0; 8]);
-        assert_eq!(hits, 6, "MAX_PIERCE_LAYERS caps the rake at six layers");
+        assert_eq!(hits, 6, "300 power is exactly six 50 hp layers");
         assert!(
             absorbed > pierce.amount,
             "a rake's total must exceed its authored per-hit, got {absorbed}"
@@ -1026,10 +1016,9 @@ mod tests {
     }
 
     #[test]
-    fn pierce_power_stops_a_rake_through_thick_armour_long_before_the_layer_cap() {
-        // The power budget, not the backstop, is what normally ends a rake: at
-        // 200 hp a reinforced hull block costs two thirds of a fresh round's
-        // power, so it gets through one and dies in the second.
+    fn pierce_power_is_what_stops_a_rake_through_thick_armour() {
+        // At 200 hp a reinforced hull block costs two thirds of a fresh
+        // round's power, so it gets through one and dies in the second.
         let pierce = ProjectileDamage::new(2.0, DamageType::Pierce);
         let (_, hits) = spend_down_plates(pierce, REFERENCE, &[200.0; 6]);
         assert_eq!(
@@ -1039,13 +1028,26 @@ mod tests {
     }
 
     #[test]
-    fn the_layer_cap_bounds_a_rake_through_near_free_plating() {
-        // Power alone cannot bound a rake, because thin plating is cheap on purpose.
-        // Twenty 1 hp panels cost 20 of 300 power; the cap is what stops
-        // the round.
+    fn near_free_plating_really_does_let_a_rake_chain() {
+        // No layer counter sits under the budget any more: a hull faced with
+        // 1 hp panels costs 20 of 300 power over twenty of them and the round
+        // is still going. That IS the weapon - the price is the thickness a
+        // creator authored, and cheap plating is cheap to cross.
         let pierce = ProjectileDamage::new(2.0, DamageType::Pierce);
         let (_, hits) = spend_down_plates(pierce, REFERENCE, &[1.0; 20]);
-        assert_eq!(hits, MAX_PIERCE_LAYERS as usize);
+        assert_eq!(hits, 20, "twenty 1 hp panels cost 20 of 300 power");
+    }
+
+    #[test]
+    fn a_layer_that_costs_nothing_stops_the_rake_instead_of_being_free() {
+        // The degenerate authoring case: a section with no max health prices a
+        // crossing at zero, so a budget rule alone would never end the round.
+        // The round stops there rather than chaining without limit.
+        let pierce = ProjectileDamage::new(2.0, DamageType::Pierce);
+        assert!(
+            pierce_remainder(pierce, Some(&Health::new(0.0)), REFERENCE).is_none(),
+            "a free layer must stop the rake"
+        );
     }
 
     #[test]

@@ -38,6 +38,9 @@ does NOT get an entry - and it is the only place they are written down.
   nothing under it keeps the fixed cone.
 - An AI railgun commits only on a bore that would land the slug, so it no longer
   spends its one shell 1.5 km wide of a hull it swept past.
+- A pierce round is bounded by its power alone; the six-layer ceiling is gone,
+  so cheap plating no longer stops a rake it did not pay for. A layer costing
+  no power ends the round.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

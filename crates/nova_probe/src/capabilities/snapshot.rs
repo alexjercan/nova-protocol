@@ -1407,7 +1407,6 @@ fn ordnance_record(world: &World, entity: Entity) -> (String, serde_json::Value)
             "kind": format!("{:?}", damage.kind),
             "amount": num(damage.amount),
             "power": num(damage.power),
-            "layers": damage.layers,
         })
     } else {
         serde_json::Value::Null
@@ -1536,7 +1535,6 @@ mod tests {
             ProjectileDamage {
                 amount: 4.0,
                 power: 1.0,
-                layers: 3,
                 kind: DamageType::Kinetic,
             },
             TempEntity(3.0),

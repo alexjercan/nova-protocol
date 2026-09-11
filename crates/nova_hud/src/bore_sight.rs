@@ -245,7 +245,6 @@ fn trace_bore(
         amount: config.slug_damage,
         power: config.slug_power,
         // The authored round's own rule: power is the only bound.
-        layers: u32::MAX,
         kind: DamageType::Pierce,
     };
     let closing = figures.slug_speed;

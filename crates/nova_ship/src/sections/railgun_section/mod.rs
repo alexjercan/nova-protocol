@@ -15,8 +15,8 @@
 //! aiming time the pilot has already paid for.
 //!
 //! The slug is a Pierce round bounded by POWER ALONE
-//! ([`RailgunSectionConfig::slug_power`], `layers: u32::MAX`): one shell crosses
-//! the target's whole section stack rather than stopping at the first hull.
+//! ([`RailgunSectionConfig::slug_power`]): one shell crosses the target's whole
+//! section stack rather than stopping at the first hull.
 //! It rides `nova_gameplay::rounds` like any gun round, so it curves in wells,
 //! is charged once per layer, and needs no second damage pipeline.
 //!

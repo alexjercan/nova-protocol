@@ -1023,7 +1023,6 @@ fn fire_stands(world: &mut World, spec: SlugSpec, owner: Entity) {
             ProjectileDamage {
                 amount: spec.damage,
                 power: spec.power,
-                layers: u32::MAX,
                 kind: DamageType::Pierce,
             },
             TempEntity(spec.lifetime),
