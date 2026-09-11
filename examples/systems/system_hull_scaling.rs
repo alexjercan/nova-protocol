@@ -14,9 +14,10 @@
 //! | - | - | - |
 //! | 1 | `outcome: the reference hulls span the size the sweep assumes` | the carrier's structural arm and live section count are each an order of magnitude over the skiff's, so a constant that works on one is not evidence about the other |
 //! | 2 | `outcome: both hulls publish a live attitude envelope` | each hull publishes both ceilings off its own live geometry, which is the input every derived figure in the sweep reads |
-//! | 3 | `outcome: the hull inputs are recorded` | RECORD: arm, envelope, cells, mass, inertia, summed computer torque, both ceilings and the live section census, per hull |
+//! | 3 | `outcome: a bigger hull is seen from further away` | each hull publishes a radar signature derived from its own structure, and the carrier is lockable from several times the distance the skiff is |
+//! | 4 | `outcome: the hull inputs are recorded` | RECORD: arm, envelope, cells, mass, inertia, summed computer torque, both ceilings, the live section census and the lock range, per hull |
 //!
-//! Claim 3 asserts NOTHING. It is the table the ledger quotes, read against the
+//! Claim 4 asserts NOTHING. It is the table the ledger quotes, read against the
 //! figures in `tasks/20260909-213118/FEEDBACK.md` and never against a
 //! threshold.
 //!
@@ -98,6 +99,16 @@ const ARM_RATIO_FLOOR: f32 = 4.0;
 /// against the skiff's 21.
 #[cfg(feature = "debug")]
 const CELL_RATIO_FLOOR: f32 = 20.0;
+
+/// How much further the carrier must be lockable from than the skiff.
+///
+/// A ship's radar signature is derived from its live structure and the
+/// machinery on it, so the fleet's two extremes must not answer a scanner with
+/// the same figure: the skiff is a contact a picket finds late and the carrier
+/// one it finds from across the volume. The shipped hulls sit near 3x. Flatten
+/// the model back toward one range for every ship and this fails and says so.
+#[cfg(feature = "debug")]
+const LOCK_RANGE_RATIO_FLOOR: f32 = 2.0;
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]
@@ -249,6 +260,11 @@ struct HullInputs {
     torque_ceiling: f32,
     /// `LOAD_LIMIT / arm`, rad/s2.
     structural_ceiling: f32,
+    /// What the hull returns to a scanner, derived from its live structure.
+    signature: Meters,
+    /// How far that signature is lockable from, under the shipped sensitivity
+    /// and before any observer's own cap.
+    lock_range: Meters,
 }
 
 #[cfg(feature = "debug")]
@@ -294,6 +310,11 @@ fn read_hull(world: &mut World, id: &str) -> HullInputs {
                 .0
                 .max_element()
         });
+
+    let signature = world.get::<LockSignature>(root).map_or(0.0, |sig| **sig);
+    let sensitivity = world
+        .get_resource::<TargetingSettings>()
+        .map_or(0.0, |settings| settings.signature_range_per_unit);
 
     let cells = world
         .query_filtered::<&ChildOf, (With<SectionMarker>, Without<SectionInactiveMarker>)>()
@@ -350,6 +371,8 @@ fn read_hull(world: &mut World, id: &str) -> HullInputs {
         weapons: turrets + bays + railguns,
         torque_ceiling: envelope_model.torque_ceiling,
         structural_ceiling: envelope_model.structural_ceiling,
+        signature: Meters::from_engine(signature),
+        lock_range: Meters::from_engine(signature * sensitivity),
     }
 }
 
@@ -358,7 +381,8 @@ fn log_hull(label: &str, hull: HullInputs) {
     info!(
         "hull scaling: {label}: cells={} arm={:.1} m envelope={:.1} m mass={:.0} kg \
          inertia={:.3e} torque={:.0} controllers={} thrusters={} weapons={} \
-         torque_ceiling={:.4} rad/s2 structural_ceiling={:.4} rad/s2 binds={} headroom={:+.1}%",
+         torque_ceiling={:.4} rad/s2 structural_ceiling={:.4} rad/s2 binds={} headroom={:+.1}% \
+         signature={:.0} m lock_range={:.1} km",
         hull.cells,
         hull.arm.get(),
         hull.envelope.get(),
@@ -372,6 +396,8 @@ fn log_hull(label: &str, hull: HullInputs) {
         hull.structural_ceiling,
         hull.binds(),
         hull.headroom() * 100.0,
+        hull.signature.get(),
+        hull.lock_range.get() / 1_000.0,
     );
 }
 
@@ -391,6 +417,8 @@ fn hull_payload(hull: HullInputs) -> serde_json::Value {
         "structural_ceiling": hull.structural_ceiling,
         "binds": hull.binds(),
         "headroom": hull.headroom(),
+        "signature_m": hull.signature.get(),
+        "lock_range_m": hull.lock_range.get(),
     })
 }
 
@@ -445,6 +473,29 @@ fn measure_both_hulls(world: &mut World) {
         serde_json::json!({
             "skiff_binds": skiff.binds(),
             "carrier_binds": carrier.binds(),
+        }),
+    );
+
+    let lock_ratio = carrier.lock_range.get() / skiff.lock_range.get().max(f32::EPSILON);
+    assert!(
+        skiff.signature > Meters::ZERO
+            && carrier.signature > Meters::ZERO
+            && lock_ratio >= LOCK_RANGE_RATIO_FLOOR,
+        "hull scaling: a ship's radar return is supposed to come from its own structure, but \
+         the carrier is lockable from only {lock_ratio:.1}x the skiff's range \
+         ({:.1} km against {:.1} km, signatures {:.0} m against {:.0} m)",
+        carrier.lock_range.get() / 1_000.0,
+        skiff.lock_range.get() / 1_000.0,
+        carrier.signature.get(),
+        skiff.signature.get(),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a bigger hull is seen from further away",
+        serde_json::json!({
+            "lock_range_ratio": lock_ratio,
+            "skiff_lock_range_m": skiff.lock_range.get(),
+            "carrier_lock_range_m": carrier.lock_range.get(),
         }),
     );
 

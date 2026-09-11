@@ -383,6 +383,7 @@ mod evade_tests {
         app.add_systems(
             Update,
             (
+                crate::sections::signature::publish_ship_signatures,
                 update_sensor_contacts,
                 update_ai_target,
                 update_behavior_state,

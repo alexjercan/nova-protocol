@@ -79,4 +79,13 @@ A **trip you have already engaged** is the exception, because it is not a lock. 
 
 ## Lock ranges
 
-How far you can lock depends on the target. Ships and gravity wells lock out to roughly **200 km**; a committed torpedo can be locked (to shoot it down) out to about **25 km**; smaller bodies carry a radar _signature_ that scales their range, and unsigned debris is point-blank only. An existing lock holds a little past its acquisition gate (hysteresis) so it does not chatter at the edge.
+How far you can lock depends on what the target IS. Every body answers the sweep with a radar _signature_ derived from its own size and machinery, and the range you can take it at is thirty times that signature - under your own scanner's ceiling of **200 km**. There are no classes: nothing is "a ship, therefore lockable across the map".
+
+- **Ships** answer with their live hull and everything running on it: the structure itself, the drives, the flight computers and the weapons that are still alive. A bare one-cell hull is a contact at about **9 km**, a light skiff at about **22 km**, and the largest carrier in the game at about **60 km**. Shoot a ship apart and it gets quieter - which is also how you tell, from the reticle alone, that you are winning.
+- **Asteroids** answer with 100 m plus half their true radius: a field pebble is a close-range contact, a belt body a landmark.
+- **Planets** are the loudest thing out there - ten times their own surface radius, so a world is lockable from anywhere your scanner reaches.
+- **Torpedoes** answer with 500 m plus their top speed, so the fast types the fleet shoots are visible (and shootable) from about **25 km**. A torpedo that has not yet chosen a target is not a contact at all.
+- **Nav beacons** answer with whatever the scenario authored them at.
+- **Wreckage and bare gravity anchors** return nothing of their own and are lockable point-blank only.
+
+An existing lock holds a little past its acquisition gate (hysteresis) so it does not chatter at the edge, and it remembers the range it was TAKEN at: a cruiser you locked while it was whole does not slip out of the reticle because you have since shot half of it away. Taking a fresh lock on the same wreck, though, means closing to what it returns now.

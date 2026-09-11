@@ -149,11 +149,15 @@ mod tests {
             .id()
     }
 
-    /// One production frame of lock upkeep: the single sensor pass publishes
-    /// what each ship can see, then the slots are validated against it.
+    /// One production frame of lock upkeep: each hull publishes what it looks
+    /// like, the single sensor pass publishes what each ship can see, then the
+    /// slots are validated against it.
     /// Running the upkeep alone leaves every contact set empty, which reads as
     /// "nothing in sight" and drops every lock for the wrong reason.
     fn upkeep(app: &mut App) {
+        app.world_mut()
+            .run_system_once(crate::sections::signature::publish_ship_signatures)
+            .unwrap();
         app.world_mut()
             .run_system_once(crate::input::targeting::update_sensor_contacts)
             .unwrap();

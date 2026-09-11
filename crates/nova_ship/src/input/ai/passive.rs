@@ -1137,11 +1137,13 @@ mod patrol_idle_tests {
         let (mut world, ship) = patrol_world();
         run_pipeline(&mut world);
 
-        // Acquired (inside the 2000 m scan) but outside detection range.
+        // Acquired (inside the picket's own 2000u reach, and a 10u arm
+        // returns 83u which gates at 2490u) but outside detection range.
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
             RigidBody::Dynamic,
+            HullRadius(10.0),
             Transform::from_translation(Vec3::new(1500.0, 0.0, 0.0)),
         ));
         run_pipeline(&mut world);
@@ -1524,6 +1526,7 @@ mod patrol_physics_tests {
         app.add_systems(
             FixedUpdate,
             (
+                crate::sections::signature::publish_ship_signatures,
                 update_sensor_contacts,
                 update_ai_target,
                 update_behavior_state,

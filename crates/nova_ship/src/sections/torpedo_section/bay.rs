@@ -10,6 +10,25 @@
 
 use super::*;
 
+/// What a torpedo returns to a scanner before its drive is counted, in meters.
+///
+/// The hull of a warhead is tiny, but nothing else about it is quiet: the
+/// drive is lit, the seeker is transmitting, and the whole point of the
+/// contact is that it can be shot down. This floor is what a coasting torpedo
+/// answers with.
+const TORPEDO_SIGNATURE_BASE: Meters = Meters(500.0);
+
+/// A torpedo's radar signature from its authored top speed, world units out.
+///
+/// One meter of signature per meter per second of authored speed: a fast type
+/// burns harder and is seen earlier, which is the trade a designer makes when
+/// they author the speed up. The shipped 320 m/s type answers at about 25 km
+/// under the default sensitivity, which is where the flat class range used to
+/// put every torpedo whatever it was.
+fn torpedo_lock_signature(max_speed: MetersPerSecond) -> f32 {
+    (TORPEDO_SIGNATURE_BASE + Meters(max_speed.get().max(0.0))).to_engine()
+}
+
 /// Mark the whole torpedo as killed when any of its body sections dies.
 ///
 /// The torpedo root is collider-less: bullets kill its CHILD sections
@@ -339,6 +358,14 @@ pub(super) fn shoot_spawn_projectile(
             // locked (see `update_target_position`). Until then the torpedo has no
             // target and flies straight ahead rather than steering at the origin.
             (
+                // What the warhead returns to a scanner: a small object, but
+                // one with a drive lit and a seeker running, so it answers far
+                // louder than its size and a faster type answers louder still.
+                // Point defense depends on it - a torpedo nobody can lock is a
+                // torpedo nobody can shoot down. Nested with the guidance it
+                // is computed from, and to keep the outer bundle inside
+                // bevy's tuple size limit.
+                LockSignature(torpedo_lock_signature(config.torpedo_type.max_speed)),
                 TorpedoGuidance {
                     nav_constant: config.nav_constant,
                     max_speed: config.torpedo_type.max_speed.to_engine(),
@@ -620,6 +647,28 @@ mod tests {
             .resource_mut::<Time>()
             .advance_by(std::time::Duration::from_millis(dt_ms));
         app.update();
+    }
+
+    /// A warhead is a contact worth shooting down, and a fast one is heard
+    /// before a slow one: the drive is the loud half of the return.
+    #[test]
+    fn a_faster_torpedo_answers_a_scanner_from_further_away() {
+        let slow = torpedo_lock_signature(MetersPerSecond(60.0));
+        let fast = torpedo_lock_signature(MetersPerSecond(320.0));
+        assert!(
+            fast > slow,
+            "a fast type burns harder: {fast} against {slow}"
+        );
+        assert_eq!(
+            slow,
+            Meters(560.0).to_engine(),
+            "the floor plus the authored speed, one meter per meter per second"
+        );
+        assert_eq!(
+            torpedo_lock_signature(MetersPerSecond(-10.0)),
+            TORPEDO_SIGNATURE_BASE.to_engine(),
+            "a malformed speed never digs below the coasting floor"
+        );
     }
 
     /// The section's `MuzzleDoor` progress: 0 closed, 1 fully open.

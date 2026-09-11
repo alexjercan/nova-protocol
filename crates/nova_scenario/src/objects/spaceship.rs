@@ -139,6 +139,24 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub engage_range: Option<Meters>,
+    /// Sensor-reach override: how far this ship's scanner can hear anything at
+    /// all, whatever the target returns. None = the engine's 20 km default.
+    ///
+    /// The OBSERVER's half of the lock model, and a hard ceiling over it: a
+    /// target is seen inside `min(this, its own signature * sensitivity)`, so
+    /// authoring this wide does not make a quiet target loud, and authoring it
+    /// short blinds the ship to loud ones. `Some(0.0)` is a ship that sees
+    /// nothing - a decoy, a drifting hulk, a derelict that must never react -
+    /// and so is a hull whose last flight computer is dead, whatever is
+    /// authored here: the scanner is the computer's.
+    ///
+    /// Not `engage_range`, which is how far a ship will LEAVE ITS ROUTINE for
+    /// something it can already see. This one decides whether it can see it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub sensor_range: Option<Meters>,
     /// Point-defense range override: the guns hold fire until an inbound
     /// hostile torpedo is inside this range instead of the engine's 1.5 km
     /// default. Author it short to stage intercepts close-in; past the
@@ -663,6 +681,15 @@ fn insert_spaceship_sections(
                         .insert(AIPointDefenseRange(range.to_engine()));
                 }
             }
+            // NOT the guard shape above: zero is meaningful here. A blind ship
+            // is a thing an author asks for on purpose (a decoy, a derelict),
+            // and the default reach arrives as the marker's own requirement,
+            // so an authored value simply replaces it.
+            if let Some(range) = config.sensor_range {
+                commands
+                    .entity(entity)
+                    .insert(SensorRange(range.to_engine().max(0.0)));
+            }
             if let Some(slack) = config.waypoint_slack {
                 if slack > Meters::ZERO {
                     commands
@@ -749,6 +776,7 @@ mod tests {
                 leash: None,
                 engage_delay: None,
                 engage_range: None,
+                sensor_range: None,
                 pd_range: None,
                 waypoint_slack: None,
                 non_combatant: false,
@@ -765,6 +793,7 @@ mod tests {
             &mut world,
             AIControllerConfig {
                 engage_range: Some(Meters(16_000.0)),
+                sensor_range: Some(Meters(40_000.0)),
                 pd_range: Some(Meters(1_500.0)),
                 waypoint_slack: Some(Meters(50.0)),
                 arrival_standoff: Some(Meters(100.0)),
@@ -776,6 +805,11 @@ mod tests {
             world.entity(watcher).get::<AIEngageRange>().map(|r| r.0),
             Some(1600.0),
             "16 km of detection is 1,600 world units"
+        );
+        assert_eq!(
+            world.entity(watcher).get::<SensorRange>().map(|r| r.0),
+            Some(4000.0),
+            "40 km of reach is 4,000 world units"
         );
         assert_eq!(
             world
@@ -799,6 +833,11 @@ mod tests {
             world.entity(watcher).get::<AIOrderInterruption>(),
             Some(&AIOrderInterruption::OnDamage)
         );
+        assert_eq!(
+            world.entity(orbiter).get::<SensorRange>().map(|r| r.0),
+            Some(AI_SENSOR_RANGE),
+            "an unauthored reach is the engine's 20 km default, off the AI marker"
+        );
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
@@ -812,6 +851,36 @@ mod tests {
         assert!(
             world.entity(orbiter).get::<AIOrderInterruption>().is_none(),
             "an unauthored policy is Never, which carries no component"
+        );
+    }
+
+    /// Zero reach is a ship that sees nothing - a decoy, a derelict that must
+    /// never react - and an author asks for it on purpose. It is NOT the
+    /// absence of an override, so it cannot be dropped the way an empty
+    /// engage range is.
+    #[test]
+    fn a_zero_sensor_range_is_a_blind_ship_not_an_unauthored_one() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
+        world.add_observer(insert_spaceship_sections);
+        let blind = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig {
+                        sensor_range: Some(Meters::ZERO),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        assert_eq!(
+            world.entity(blind).get::<SensorRange>().map(|r| r.0),
+            Some(0.0),
+            "a blind ship keeps the component and reaches nothing"
         );
     }
 

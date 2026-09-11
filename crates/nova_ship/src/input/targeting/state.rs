@@ -7,13 +7,17 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 /// How strongly the lock scanner "sees" a body, a radius-like magnitude in
-/// world units (request: think of the lock as a scanner wave - small objects
-/// return no signature at range). A candidate without this component and
-/// without an intrinsic class (well body, ship, committed torpedo) is only
-/// lockable point-blank ([`TargetingSettings::unsigned_lock_range`]); with
-/// it, lock range scales as `signature * signature_range_per_unit`. The
-/// scenario layer authors it on asteroids from their radius.
-#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+/// world units: think of the lock as a scanner wave, and of this as how much
+/// of it comes back. Lock range is `signature * signature_range_per_unit`,
+/// capped by the observer's own [`SensorRange`].
+///
+/// EVERY class computes one, from what it is: a ship from its live hull and
+/// the machinery on it (`sections/signature.rs`), a rock and a planet from
+/// their body radius, a committed torpedo from its authored speed, a nav
+/// beacon from what the scenario authored. Only unsigned wreckage has no
+/// return of its own, and it is lockable point-blank
+/// ([`TargetingSettings::unsigned_lock_range`]).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct LockSignature(pub f32);
 
@@ -32,25 +36,19 @@ pub struct RadarOccluder;
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct TargetingSettings {
-    /// Lock range per unit of [`LockSignature`]. A pure ratio, so it reads the
-    /// same in either scale: at 30, a 20 m field rock is lockable within
-    /// 600 m - close enough to matter, far enough not to steal mid-fight
-    /// locks.
+    /// Lock range per unit of [`LockSignature`] - the scanner's sensitivity. A
+    /// pure ratio, so it reads the same in either scale: at 30, a signature of
+    /// 100 m is lockable within 3 km.
     pub signature_range_per_unit: f32,
-    /// Lock range for bodies with no signature and no intrinsic class -
-    /// battle debris, loose fragments. World units, point-blank by design
-    /// (retuned 150 m -> 50 m with the deliberate radar).
+    /// Lock range for a body that returns nothing of its own - battle debris,
+    /// a loose fragment, a bare gravity anchor. World units, point-blank by
+    /// design (retuned 150 m -> 50 m with the deliberate radar).
     pub unsigned_lock_range: f32,
     /// The incumbent lock stays lockable this factor beyond its gate, so
     /// a body at its boundary cannot strobe the lock (and reset the focus
     /// dwell) as the ship drifts. Fresh acquisition still uses the plain
     /// gate.
     pub range_hysteresis: f32,
-    /// Lock range for committed torpedoes, world units. Small object, hot
-    /// drive: far more visible than its size but not across the map. 2500 u is
-    /// 25 km, which covers the AI's whole launch envelope
-    /// (`AI_TORPEDO_MAX_RANGE`, 1000 u / 10 km) with margin; a playtest knob.
-    pub torpedo_lock_range: f32,
     /// Acquisition dwell: a candidate must stay steady under the ray for this
     /// many seconds AT POINT-BLANK before it hard-commits to its slot; the
     /// radial ring HUD fills over it and sweeping off before it completes
@@ -80,7 +78,6 @@ impl Default for TargetingSettings {
             signature_range_per_unit: 30.0,
             unsigned_lock_range: 5.0,
             range_hysteresis: 1.15,
-            torpedo_lock_range: 2500.0,
             lock_dwell_base: 0.6,
             lock_dwell_range_factor: 1.5,
             lock_dwell_reference_range: 2000.0,

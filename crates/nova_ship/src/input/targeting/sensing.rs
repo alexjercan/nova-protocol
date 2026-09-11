@@ -99,6 +99,13 @@ pub struct SensorContacts {
     /// different one.
     pub origin: Vec3,
     entries: Vec<SensorContact>,
+    /// The range each body this ship is HOLDING returned when the hold
+    /// started, world units. A signature shrinks as a hull is shot apart, and
+    /// a lock taken on a whole ship must not be let go of because the ship the
+    /// player is shooting is now smaller than it was: the held gate is the
+    /// larger of the fresh range and this floor. One short list per observer,
+    /// pruned every frame to what it is still holding.
+    floors: Vec<(Entity, f32)>,
 }
 
 impl SensorContacts {
@@ -127,6 +134,7 @@ impl FromIterator<SensorContact> for SensorContacts {
         Self {
             origin: Vec3::ZERO,
             entries: iter.into_iter().collect(),
+            floors: Vec::new(),
         }
     }
 }
@@ -167,33 +175,20 @@ type ObserverQuery<'w, 's> = Query<
         Option<&'static CombatLock>,
         Option<&'static RadarState>,
     ),
-    With<SpaceshipRootMarker>,
+    (With<SpaceshipRootMarker>, Without<SensorsDark>),
 >;
 
-/// How far `observer` can see a body of this class, world units.
+/// How far `observer` can see this body, world units.
 ///
-/// The observer's cap and the target's own return, whichever gives up first.
-/// The classes are the ones a scanner can tell apart without being told:
-/// a gravity source and a ship return at any range the sensor reaches, a
-/// committed torpedo is a small object with a hot drive, an authored
-/// signature scales with itself, and unsigned wreckage is point-blank.
-fn class_range(
-    settings: &TargetingSettings,
-    cap: f32,
-    well: bool,
-    is_ship: bool,
-    is_torpedo: bool,
-    signature: Option<f32>,
-) -> f32 {
-    let returned = if well || is_ship {
-        cap
-    } else if is_torpedo {
-        settings.torpedo_lock_range
-    } else {
-        signature.map_or(settings.unsigned_lock_range, |signature| {
-            (settings.signature_range_per_unit * signature).max(settings.unsigned_lock_range)
-        })
-    };
+/// The observer's cap and the target's own RETURN, whichever gives up first.
+/// There are no classes left in this rule: a ship, a rock, a planet, a beacon
+/// and a committed torpedo each publish a [`LockSignature`] computed from what
+/// they are, and this turns that signature into a distance. Only unsigned
+/// wreckage has no return of its own, and it stays point-blank.
+fn class_range(settings: &TargetingSettings, cap: f32, signature: Option<f32>) -> f32 {
+    let returned = signature.map_or(settings.unsigned_lock_range, |signature| {
+        (settings.signature_range_per_unit * signature).max(settings.unsigned_lock_range)
+    });
     cap.min(returned)
 }
 
@@ -207,9 +202,13 @@ fn class_range(
 ///   the invisible-statics rule holds.
 /// - A freshly launched torpedo that has not committed its target yet is
 ///   skipped: it spawns right on the aim ray.
-/// - Range is [`class_range`], widened for the observer's own incumbents by
-///   [`TargetingSettings::range_hysteresis`] so a body at the boundary cannot
-///   strobe a lock as the ship drifts.
+/// - Range is [`class_range`]. For a body the observer is already HOLDING it
+///   is the larger of that and the range the body returned when the hold
+///   began, widened by [`TargetingSettings::range_hysteresis`]: a body at the
+///   boundary cannot strobe a lock as the ship drifts, and a target that has
+///   been shot smaller than it was cannot silently fall out of a lock taken
+///   while it was whole. Fresh acquisition always uses the plain gate, so
+///   damage does shorten the range a NEW lock can be taken at.
 /// - Line of sight is asked LAST, after the cheap component and range
 ///   rejects, so a frame pays for one ray per body the ship could otherwise
 ///   see rather than one per body in the world.
@@ -243,6 +242,10 @@ pub(crate) fn update_sensor_contacts(
 
         let mut entries = std::mem::take(&mut contacts.entries);
         entries.clear();
+        // Only what the ship still holds keeps a floor: a released lock
+        // re-acquires at whatever the target returns now.
+        let mut floors = std::mem::take(&mut contacts.floors);
+        floors.retain(|(entity, _)| incumbents.contains(&Some(*entity)));
         entries.extend(q_candidates.iter().filter_map(
             |(
                 entity,
@@ -270,17 +273,19 @@ pub(crate) fn update_sensor_contacts(
                 if is_torpedo && committed.is_none() {
                     return None;
                 }
-                let mut max_range = class_range(
-                    &settings,
-                    **range,
-                    well.is_some(),
-                    is_ship,
-                    is_torpedo,
-                    signature.map(|signature| **signature),
-                );
-                if incumbents.contains(&Some(entity)) {
-                    max_range *= settings.range_hysteresis.max(1.0);
-                }
+                let fresh = class_range(&settings, **range, signature.map(|signature| **signature));
+                let max_range = if incumbents.contains(&Some(entity)) {
+                    let floor = match floors.iter_mut().find(|(held, _)| *held == entity) {
+                        Some((_, floor)) => *floor,
+                        None => {
+                            floors.push((entity, fresh));
+                            fresh
+                        }
+                    };
+                    fresh.max(floor) * settings.range_hysteresis.max(1.0)
+                } else {
+                    fresh
+                };
                 let anchor = live_structure_anchor(c_transform, c_com);
                 if anchor.distance_squared(origin) > max_range * max_range {
                     return None;
@@ -297,6 +302,7 @@ pub(crate) fn update_sensor_contacts(
             },
         ));
         contacts.entries = entries;
+        contacts.floors = floors;
         contacts.origin = origin;
     }
 }
@@ -312,50 +318,52 @@ mod tests {
     }
 
     #[test]
-    fn a_ship_returns_at_the_observers_own_cap() {
+    fn a_loud_target_is_still_capped_by_the_observers_own_reach() {
         let settings = settings();
         assert_eq!(
-            class_range(&settings, 2_000.0, false, true, false, None),
+            class_range(&settings, 2_000.0, Some(1_000.0)),
             2_000.0,
-            "a picket sees a ship as far as its own sensor reaches and no further"
-        );
-        assert_eq!(
-            class_range(&settings, 20_000.0, false, true, false, None),
-            20_000.0,
-            "and the player's designator reach is the player's own cap"
+            "a picket sees a planet as far as its own sensor reaches and no further"
         );
     }
 
     #[test]
-    fn a_short_ranged_class_is_not_widened_by_a_long_sensor() {
+    fn a_body_with_no_return_of_its_own_stays_point_blank() {
         let settings = settings();
         assert_eq!(
-            class_range(&settings, 20_000.0, false, false, true, None),
-            settings.torpedo_lock_range,
-            "a torpedo is a small object with a hot drive whatever is looking at it"
-        );
-        assert_eq!(
-            class_range(&settings, 20_000.0, false, false, false, None),
+            class_range(&settings, 20_000.0, None),
             settings.unsigned_lock_range,
-            "and unsigned wreckage stays point-blank"
+            "unsigned wreckage is lockable point-blank whatever is looking at it"
         );
     }
 
     #[test]
-    fn a_short_sensor_caps_every_class() {
+    fn a_short_sensor_caps_every_return() {
         let settings = settings();
         let cap = 10.0;
-        for (well, ship, torpedo, signature) in [
-            (true, false, false, None),
-            (false, true, false, None),
-            (false, false, true, None),
-            (false, false, false, Some(1_000.0)),
-        ] {
+        for signature in [None, Some(1.0), Some(1_000.0)] {
             assert!(
-                class_range(&settings, cap, well, ship, torpedo, signature) <= cap,
+                class_range(&settings, cap, signature) <= cap,
                 "nothing returns past the observer's own reach"
             );
         }
+    }
+
+    /// The whole range model in one line: sensitivity times the target's own
+    /// return, under the observer's cap.
+    #[test]
+    fn a_bigger_signature_is_seen_from_further_away() {
+        let settings = settings();
+        let near = class_range(&settings, 20_000.0, Some(72.0));
+        let far = class_range(&settings, 20_000.0, Some(195.0));
+        assert!(
+            far > near,
+            "a carrier has to be visible from further than a skiff: {far} against {near}"
+        );
+        assert!(
+            (near - settings.signature_range_per_unit * 72.0).abs() < 1e-3,
+            "and the range is the sensitivity times the signature, got {near}"
+        );
     }
 
     /// The whole point of the pass: one collection, one set of rules, and a
@@ -364,12 +372,17 @@ mod tests {
     fn the_pass_publishes_what_one_ship_can_reach() {
         let mut world = crate::input::ai::ai_test_world();
         world.insert_resource(settings());
+        // Both hostiles are LOUD: a 20u structural arm returns 138u, which
+        // gates at 4140u, well past the picket's own 2000u reach. So the only
+        // thing that can separate these two is the OBSERVER's cap.
+        let loud = HullRadius(20.0);
         let near = world
             .spawn((
                 Transform::from_xyz(0.0, 0.0, -100.0),
                 RigidBody::Dynamic,
                 SpaceshipRootMarker,
                 Allegiance::Enemy,
+                loud,
             ))
             .id();
         let far = world
@@ -378,6 +391,7 @@ mod tests {
                 RigidBody::Dynamic,
                 SpaceshipRootMarker,
                 Allegiance::Enemy,
+                loud,
             ))
             .id();
         let observer = world
@@ -391,6 +405,9 @@ mod tests {
             ))
             .id();
 
+        world
+            .run_system_once(crate::sections::signature::publish_ship_signatures)
+            .expect("the signature pass runs");
         world
             .run_system_once(update_sensor_contacts)
             .expect("the sensing pass runs");

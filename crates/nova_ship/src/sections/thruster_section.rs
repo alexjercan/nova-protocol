@@ -30,7 +30,12 @@ pub mod prelude {
     };
 }
 
-const THRUSTER_SECTION_DEFAULT_MAGNITUDE: f32 = 1.0;
+/// The thrust one standard drive carries, in the per-tick magnitude
+/// convention [`ThrusterSectionMagnitude`] documents.
+///
+/// The unit the rest of the crate measures installed drive authority in: a
+/// capital drive is worth the many basic ones it replaces, not one section.
+pub(crate) const THRUSTER_SECTION_DEFAULT_MAGNITUDE: f32 = 1.0;
 
 /// Configuration for a thruster section of a spaceship.
 #[derive(Clone, Debug, Reflect)]

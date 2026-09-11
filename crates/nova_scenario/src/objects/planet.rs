@@ -67,6 +67,14 @@ pub struct PlanetInvulnerable(pub bool);
 #[derive(Component, Clone, Debug, Deref)]
 pub struct PlanetRenderBody(pub PlanetVisual);
 
+/// Signature per meter of a planet's body radius.
+///
+/// Ten: a world is not a big rock, it is the horizon, and the model says so
+/// rather than leaving a planet to share the rock curve and go quiet at
+/// range. What is actually lockable at the distance this buys is then the
+/// observer's own [`SensorRange`](nova_ship::prelude::SensorRange) cap.
+const PLANET_SIGNATURE_PER_RADIUS: f32 = 10.0;
+
 /// Build one authored planet on `entity`.
 ///
 /// Takes an [`EntityCommands`] rather than returning a bundle, for the same
@@ -102,9 +110,15 @@ pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig)
         // here is authorable yet: an ice or metal world is a palette question
         // first, and this follows whatever that decides.
         SurfaceMaterial::new(MATERIAL_ROCK.to_string()),
-        // The lock scanner sees a body in proportion to its size, same rule as
-        // a rock. A planet's radius is its real size, so this needs no factor.
-        LockSignature(config.lock_signature.map_or(radius, Meters::to_engine)),
+        // A world is the loudest thing a scanner ever hears: it is the one
+        // body whose own size dwarfs the wave, so it returns a large multiple
+        // of it and is a landmark from anywhere the sensor reaches. Measured
+        // on the RELIEVED body radius, which is where a hull would touch it.
+        LockSignature(
+            config
+                .lock_signature
+                .map_or(PLANET_SIGNATURE_PER_RADIUS * body_radius, Meters::to_engine),
+        ),
         InsetZoomable,
         RigidBody::Dynamic,
         TransformInterpolation,
@@ -258,6 +272,30 @@ mod tests {
         assert!(
             **body > app.world().get::<PlanetRadius>(entity).expect("a radius").0,
             "the outer surface must stand above the mean radius"
+        );
+    }
+
+    /// A world is a landmark: its return comes off the same relieved surface
+    /// a hull would touch, and an author who names one gets that instead.
+    #[test]
+    fn a_world_returns_a_multiple_of_its_own_surface() {
+        let config = PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7);
+        let expected = PLANET_SIGNATURE_PER_RADIUS * config.body_radius().to_engine();
+        let (app, entity) = planet(config.clone());
+        assert_eq!(
+            app.world().get::<LockSignature>(entity).map(|s| **s),
+            Some(expected)
+        );
+
+        let authored = PlanetConfig {
+            lock_signature: Some(Meters(42.0)),
+            ..config
+        };
+        let (app, entity) = planet(authored);
+        assert_eq!(
+            app.world().get::<LockSignature>(entity).map(|s| **s),
+            Some(Meters(42.0).to_engine()),
+            "an authored signature wins over the derived one"
         );
     }
 

@@ -76,13 +76,18 @@ pub(super) fn ai_test_world() -> World {
 }
 
 /// One production frame of acquisition in a test world that has no schedule:
-/// the single sensor pass publishes what every ship can see, then the picker
-/// reads it. Running the picker alone leaves every contact set empty, which
-/// is a silent pass rather than a failure, so tests go through here.
+/// every hull publishes what it looks like, the single sensor pass publishes
+/// what every ship can see, then the picker reads it. Running the picker alone
+/// leaves every contact set empty, and running the sensor pass alone leaves
+/// every ship as quiet as bare wreckage - both are silent passes rather than
+/// failures, so tests go through here.
 #[cfg(test)]
 pub(super) fn sense_and_pick(world: &mut World) {
     use bevy::ecs::system::RunSystemOnce;
 
+    world
+        .run_system_once(crate::sections::signature::publish_ship_signatures)
+        .unwrap();
     world
         .run_system_once(crate::input::targeting::update_sensor_contacts)
         .unwrap();

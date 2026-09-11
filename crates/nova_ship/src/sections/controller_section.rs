@@ -309,7 +309,7 @@ pub struct ControllerSectionTuning {
 /// was read off. Nothing that ships can settle it, and nothing that ships can
 /// see it either - all four reference hulls are structure-bound with 12x to
 /// 115x of headroom.
-const DEFAULT_MAX_TORQUE: f32 = 1501.0;
+pub(crate) const DEFAULT_MAX_TORQUE: f32 = 1501.0;
 
 /// The hidden response profile. At the shipped 0.5 second lag this derives the
 /// former frequency 4 / damping 4 gains exactly.

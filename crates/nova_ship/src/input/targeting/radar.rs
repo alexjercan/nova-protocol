@@ -427,9 +427,13 @@ mod tests {
         world.get::<RadarState>(player).unwrap().candidate
     }
 
-    /// The sensing pass FIRST: the picker reads what the ship can see, and
-    /// nothing else in the frame decides that any more.
+    /// The signature and sensing passes FIRST: a hull publishes what it looks
+    /// like, the sensor pass turns that into what this ship can see, and
+    /// nothing else in the frame decides either any more.
     fn search(world: &mut World) {
+        world
+            .run_system_once(crate::sections::signature::publish_ship_signatures)
+            .unwrap();
         world
             .run_system_once(super::super::sensing::update_sensor_contacts)
             .unwrap();
@@ -581,40 +585,83 @@ mod tests {
         );
     }
 
+    /// There is no "full-range class" left: how far a hull is pickable from
+    /// comes from the hull. A big ship returns more of the scanner wave than
+    /// a small one and is picked from further out.
     #[test]
-    fn ships_and_well_bodies_keep_their_long_range_lock() {
-        for components in 0..2 {
-            let (mut world, player) = radar_world();
-            let far = Transform::from_translation(Vec3::new(0.0, 0.0, -5000.0));
-            let target = match components {
-                0 => world
-                    .spawn((
-                        RigidBody::Static,
-                        GravityWell::from_mass(1200.0, 20.0, &GravitySettings::default()),
-                        far,
-                    ))
-                    .id(),
-                _ => world
-                    .spawn((SpaceshipRootMarker, RigidBody::Dynamic, far))
-                    .id(),
-            };
+    fn a_bigger_hull_is_picked_from_further_away() {
+        let far = Transform::from_translation(Vec3::new(0.0, 0.0, -5000.0));
 
-            search(&mut world);
-            assert_eq!(
-                candidate(&mut world, player),
-                Some(target),
-                "full-range class {components} must be pickable at range"
-            );
-        }
+        // A 40u structural arm returns 248u, which gates at 7440u. (The arm
+        // is staged directly: `publish_hull_radii` derives it from live
+        // sections, and this rig is about the picker.)
+        let (mut world, player) = radar_world();
+        let carrier = world
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Dynamic,
+                HullRadius(40.0),
+                far,
+            ))
+            .id();
+        search(&mut world);
+        assert_eq!(
+            candidate(&mut world, player),
+            Some(carrier),
+            "a hull that size is pickable right across a combat volume"
+        );
+
+        // A bare root returns the base signature alone, 28u, which gates at
+        // 840u: the same gap is far too wide.
+        let (mut world, player) = radar_world();
+        world.spawn((SpaceshipRootMarker, RigidBody::Dynamic, far));
+        search(&mut world);
+        assert_eq!(
+            candidate(&mut world, player),
+            None,
+            "and a skiff-sized return does not cross it"
+        );
+    }
+
+    /// An invisible gravity anchor - a well with no collider, no mesh and no
+    /// authored signature - is collected, because a well body is a thing a
+    /// pilot navigates by, but it returns nothing of its own and so is
+    /// point-blank. A planet or a rock publishes a signature from its radius
+    /// and is not this case.
+    #[test]
+    fn an_unsigned_well_body_is_point_blank() {
+        let (mut world, player) = radar_world();
+        let anchor = world
+            .spawn((
+                RigidBody::Static,
+                GravityWell::from_mass(1200.0, 20.0, &GravitySettings::default()),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
+            ))
+            .id();
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(anchor));
+
+        world
+            .entity_mut(anchor)
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -5000.0)));
+        world.get_mut::<RadarState>(player).unwrap().candidate = None;
+        search(&mut world);
+        assert_eq!(
+            candidate(&mut world, player),
+            None,
+            "nothing about an anchor comes back from across the map"
+        );
     }
 
     #[test]
     fn committed_torpedoes_lock_at_combat_range_not_across_the_map() {
         let (mut world, player) = radar_world();
+        // The shipped 320 m/s type: 820 m of return, which gates at 2460u.
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
                 TorpedoTargetChosen,
+                LockSignature(82.0),
                 RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -2000.0)),
             ))

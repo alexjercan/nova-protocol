@@ -24,6 +24,15 @@ does NOT get an entry - and it is the only place they are written down.
   rules, collected once per ship per frame.
 - A combat lock no longer times out after thirty idle seconds, and the reticle
   wind-down goes with it: only the world or your own tap takes a lock.
+- Lock range comes off the target's own return, not its class: a ship from its
+  live hull and machinery (9 km bare, 22 km skiff, 60 km carrier), a rock or
+  world from its size, a torpedo from its speed.
+- Unsigned bodies are point-blank, which now includes a bare gravity anchor; an
+  asteroid and a planet default their signature from their true surface.
+- A lock remembers the range it was taken at, so shooting a ship quieter never
+  drops the lock already held on it. A fresh lock uses what it returns now.
+- An AI ship takes an authored `sensor_range`; `Some(0 m)`, or a hull with no
+  live flight computer, sees nothing at all.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

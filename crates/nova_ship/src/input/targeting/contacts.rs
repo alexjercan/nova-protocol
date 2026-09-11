@@ -323,11 +323,16 @@ mod tests {
                 Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
             .id();
+        // A 40u structural arm returns 248u, which gates at 7440u: this rig
+        // walks a target out to 6400u, and the arm is what keeps that inside
+        // the gate. (`publish_hull_radii` derives the arm from live sections;
+        // here it is staged, because this rig is about the lock upkeep.)
         let combat_target = world
             .spawn((
                 SpaceshipRootMarker,
                 AISpaceshipMarker,
                 RigidBody::Dynamic,
+                HullRadius(40.0),
                 Transform::from_translation(Vec3::new(0.0, 0.0, -400.0)),
             ))
             .id();
@@ -344,26 +349,33 @@ mod tests {
         // call, which would see EVERYTHING as changed, exactly the
         // false-positive this rig must not have. Settle the spawn-frame
         // Changed ticks before locking, as a live app would.
+        let signature_id =
+            world.register_system(crate::sections::signature::publish_ship_signatures);
         let sensing_id = world.register_system(super::super::sensing::update_sensor_contacts);
         let upkeep_id = world.register_system(update_contacts_and_locks);
-        world.insert_resource(UpkeepSystem(sensing_id, upkeep_id));
-        world.run_system(sensing_id).unwrap();
-        world.run_system(upkeep_id).unwrap();
+        world.insert_resource(UpkeepSystem(signature_id, sensing_id, upkeep_id));
+        upkeep(&mut world);
         world.get_mut::<TravelLock>(player).unwrap().0 = Some(travel_target);
         world.get_mut::<CombatLock>(player).unwrap().0 = Some(combat_target);
         (world, player, travel_target, combat_target)
     }
 
     #[derive(Resource)]
-    struct UpkeepSystem(bevy::ecs::system::SystemId, bevy::ecs::system::SystemId);
+    struct UpkeepSystem(
+        bevy::ecs::system::SystemId,
+        bevy::ecs::system::SystemId,
+        bevy::ecs::system::SystemId,
+    );
 
-    /// One frame of the chain, in production order: the sensor pass decides
-    /// what the ship can see, then the upkeep decides what it keeps.
+    /// One frame of the chain, in production order: each hull publishes what
+    /// it returns to a scanner, the sensor pass decides what the ship can see
+    /// from that, then the upkeep decides what it keeps.
     fn upkeep(world: &mut World) {
-        let (sensing, upkeep) = {
+        let (signature, sensing, upkeep) = {
             let systems = world.resource::<UpkeepSystem>();
-            (systems.0, systems.1)
+            (systems.0, systems.1, systems.2)
         };
+        world.run_system(signature).unwrap();
         world.run_system(sensing).unwrap();
         world.run_system(upkeep).unwrap();
     }
@@ -540,7 +552,7 @@ mod tests {
         );
 
         // The travel target leaves its signature range: cleared; the combat
-        // ship (full-range class) survives.
+        // ship, whose bigger hull returns far more, survives.
         world
             .entity_mut(travel_target)
             .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -900.0)));
@@ -603,6 +615,8 @@ mod tests {
                 TorpedoProjectileMarker,
                 TorpedoTargetChosen,
                 Allegiance::Enemy,
+                // The shipped 320 m/s type: 820 m of return.
+                LockSignature(82.0),
                 RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
             ))

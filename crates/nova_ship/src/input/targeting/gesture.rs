@@ -252,6 +252,7 @@ mod tests {
         app.add_systems(
             Update,
             (
+                crate::sections::signature::publish_ship_signatures,
                 crate::input::targeting::update_sensor_contacts,
                 update_radar_search,
             )

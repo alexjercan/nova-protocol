@@ -24,6 +24,7 @@ pub mod section_animation;
 pub mod shell_shape;
 pub mod shell_skin;
 pub mod ship_grammar;
+pub mod signature;
 pub mod skin_decor;
 pub mod skin_reading;
 pub mod skin_report;
@@ -42,10 +43,10 @@ pub mod prelude {
         hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
         link_points::prelude::*, live_structure_anchor, placeholder_art::prelude::*,
         railgun_section::prelude::*, section_animation::prelude::*, shell_shape::prelude::*,
-        shell_skin::prelude::*, ship_grammar::prelude::*, skin_decor::prelude::*,
-        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
-        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
-        SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        shell_skin::prelude::*, ship_grammar::prelude::*, signature::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -234,6 +235,14 @@ impl Plugin for SpaceshipSectionPlugin {
             FixedUpdate,
             hull_radius::publish_hull_radii
                 .before(controller_section::prelude::ControllerSectionSystems::SyncStack),
+        );
+        app.register_type::<signature::prelude::SensorsDark>();
+        // What the hull looks like to somebody else's scanner, from the same
+        // live sections and this tick's arm. Ordered after the arm pass for
+        // that reason, and ahead of Update, where the sensor pass reads it.
+        app.add_systems(
+            FixedUpdate,
+            signature::publish_ship_signatures.after(hull_radius::publish_hull_radii),
         );
         app.add_plugins(integrity::ShipIntegrityPlugin);
         // The authored-animation rig and driver. Unconditional, not

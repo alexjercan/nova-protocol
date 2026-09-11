@@ -643,6 +643,8 @@ mod target_selection_tests {
                 RigidBody::Dynamic,
                 TorpedoTargetChosen,
                 Allegiance::Player,
+                // The shipped 320 m/s type: 820 m of return.
+                LockSignature(82.0),
                 Transform::from_translation(Vec3::new(50.0, 0.0, 0.0)),
             ))
             .id();

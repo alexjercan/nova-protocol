@@ -147,6 +147,28 @@ pub fn asteroid_seed_from_id(id: &str) -> u32 {
     hash
 }
 
+/// What every rock returns to a scanner before its size is counted, in meters.
+///
+/// A pebble is not invisible - it is a solid body in a vacuum and a scanner is
+/// not a camera - so the model has a floor, and the floor is what makes a
+/// 10 m fragment a close-range contact instead of nothing at all.
+const ROCK_SIGNATURE_BASE: Meters = Meters(100.0);
+
+/// Signature per meter of true geometric radius. Half: stone reflects poorly
+/// next to a hull full of running machinery, so a rock has to be twice a
+/// ship's size to answer as loudly.
+const ROCK_SIGNATURE_PER_RADIUS: f32 = 0.5;
+
+/// A rock's radar signature from its true geometric size, world units in and
+/// world units out.
+///
+/// Engine units both ways: the caller has the derived `BodyRadius` off the
+/// meshed collider, and [`LockSignature`] is compared against an avian
+/// position every frame.
+fn rock_lock_signature(body_radius: f32) -> f32 {
+    ROCK_SIGNATURE_BASE.to_engine() + ROCK_SIGNATURE_PER_RADIUS * body_radius.max(0.0)
+}
+
 /// Build the whole asteroid onto `entity`: the root (marker, radius, sounds,
 /// lock signature, body) AND its collider/carve node, from one
 /// [`AsteroidConfig`] and a resolved silhouette `seed`.
@@ -226,11 +248,16 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
         AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
         AsteroidSeed(seed),
-        // The lock scanner sees a rock in proportion to its size: field
-        // rocks only lock up close, big bodies from afar (well sources
-        // are range-free in the targeting gate anyway). An authored
-        // override wins (the shakedown derelict).
-        LockSignature(config.lock_signature.map_or(radius, Meters::to_engine)),
+        // What the rock returns to a scanner: a floor every rock clears
+        // plus half its true geometric size, so a field pebble is a
+        // close-range contact and a belt body is a landmark. Half, not all:
+        // stone is a poor reflector next to a hull full of running
+        // machinery. An authored override wins (the shakedown derelict).
+        LockSignature(
+            config
+                .lock_signature
+                .map_or(rock_lock_signature(radius * unit_extent), Meters::to_engine),
+        ),
         // Asteroids are worth scoping in the target inset (a physical combat
         // body, unlike a nav beacon), so flag them zoomable.
         InsetZoomable,
@@ -1157,14 +1184,19 @@ mod tests {
             "field rocks below the radius threshold stay flat space"
         );
 
-        // The lock scanner sees every rock in proportion to its size.
-        assert_eq!(
-            app.world().get::<LockSignature>(big).map(|s| **s),
-            Some(20.0)
-        );
-        assert_eq!(
-            app.world().get::<LockSignature>(small).map(|s| **s),
-            Some(2.0)
+        // The lock scanner sees every rock in proportion to its TRUE
+        // geometric size, the same derived surface the well is sized on -
+        // never the designation radius the author typed.
+        for rock in [big, small] {
+            assert_eq!(
+                app.world().get::<LockSignature>(rock).map(|s| **s),
+                Some(rock_lock_signature(body_radius(&app, rock))),
+            );
+        }
+        assert!(
+            app.world().get::<LockSignature>(big).map(|s| **s)
+                > app.world().get::<LockSignature>(small).map(|s| **s),
+            "a belt body is a landmark and a field pebble is a close-range contact"
         );
 
         // Well sources go on rails so nothing can shove an SOI around;

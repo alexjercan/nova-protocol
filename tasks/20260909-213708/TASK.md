@@ -156,7 +156,7 @@ gameplay feedback ledger (`20260909-213118`).
       holds fire until inside 0.92 deg of a 366 m target it would hit from
       11 deg off, and passes rounds with 2.4 u of miss against a torpedo.
       Gate on `atan(target radius / distance)`.
-- [ ] `nova_ship/src/input/targeting/contacts.rs:18` `TARGETING_MAX_RANGE`
+- [x] `nova_ship/src/input/targeting/contacts.rs:18` `TARGETING_MAX_RANGE`
       20,000 u for any ship root, while every body's lock range is
       `LockSignature * signature_range_per_unit`: a skiff is designatable
       from 200 km like a carrier. Publish a ship `LockSignature` from
@@ -203,7 +203,7 @@ gameplay feedback ledger (`20260909-213118`).
       with a 41 deg thrust gate: the carrier turns 17 of the 90 deg before
       the next leg and never thrusts, so Evade on a capital is a wallow.
       Budget the leg from the hull's `AttitudeEnvelope` rate.
-- [ ] `ai/acquisition.rs:91` `AI_TARGET_MAX_RANGE` 2000 u with no authored
+- [x] `ai/acquisition.rs:91` `AI_TARGET_MAX_RANGE` 2000 u with no authored
       surface: a picket cannot see 40 km, a blinded hulk cannot see 500 m.
       Author it on the controller like `AIEngageRange`.
 

@@ -352,6 +352,7 @@ mod rotation_tests {
         app.add_systems(
             Update,
             (
+                crate::sections::signature::publish_ship_signatures,
                 update_sensor_contacts,
                 update_ai_target,
                 update_controller_target_rotation_torque,
@@ -505,6 +506,7 @@ mod physics_tests {
         app.add_systems(
             FixedUpdate,
             (
+                crate::sections::signature::publish_ship_signatures,
                 update_sensor_contacts,
                 update_ai_target,
                 update_point_defense_target,
@@ -522,11 +524,14 @@ mod physics_tests {
         app.finish();
 
         // Player abeam at +X, far outside the standoff band (approach
-        // regime): a 90-degree swing from the AI's initial -Z onto +X.
+        // regime): a 90-degree swing from the AI's initial -Z onto +X. The
+        // 5u structural arm returns 56u, which gates at 1665u, so the picket
+        // can see it out there.
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
             RigidBody::Dynamic,
+            HullRadius(5.0),
             Transform::from_translation(Vec3::new(1000.0, 0.0, 0.0)),
         ));
         let ship = app
@@ -746,6 +751,7 @@ mod standoff_physics_tests {
         app.add_systems(
             FixedUpdate,
             (
+                crate::sections::signature::publish_ship_signatures,
                 update_sensor_contacts,
                 update_ai_target,
                 update_behavior_state,
