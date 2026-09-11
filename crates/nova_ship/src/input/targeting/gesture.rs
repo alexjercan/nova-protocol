@@ -251,7 +251,12 @@ mod tests {
         // the production plugin wires it.
         app.add_systems(
             Update,
-            update_radar_search.in_set(crate::input::SpaceshipInputSystems),
+            (
+                crate::input::targeting::update_sensor_contacts,
+                update_radar_search,
+            )
+                .chain()
+                .in_set(crate::input::SpaceshipInputSystems),
         );
         crate::configure_pause_gating(&mut app);
         app.add_systems(
@@ -307,7 +312,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(position),
+                Transform::from_translation(position),
             ))
             .id()
     }

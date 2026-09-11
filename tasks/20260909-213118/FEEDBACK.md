@@ -11,6 +11,7 @@ because a balance item is measured before it is tuned.
 | 2026-09-09 | owner | HUD, block_carrier | the velocity and gravity spheres are authored at 50 m and 56 m and sit buried inside a 360 m hull | bug | task `20260909-212917`, fixed; `system_hud_shell` holds it |
 | 2026-09-05 | review `20260905-231735` group I | gamepad, any hull | L2 raises weapons AND fires the torpedo tubes | bug | folded into task `20260714-001140` |
 | 2026-09-08 | review `20260908-004345` | `web/src/wiki/flight-autopilot.md` | the page calls 55.2 m "its own 55.2 m hull" for a hull 85 m long | clarity | wiki fix in the docs lane |
+| 2026-09-11 | sweep `20260909-213708` | targeting, block_skiff and block_carrier | cover broke the weapons lock but left the nav designation standing, and the player and the AI answered "can I see it" with two separate passes | balance | one `SensorContacts` pass per observing ship; both slots now drop on cover; hull inputs unchanged (see below); `system_lock_line_of_sight` holds it |
 
 ## Measured figures
 
@@ -36,3 +37,16 @@ Read from `system_hull_scaling` at `93849e0` (the sweep's baseline).
 | torque ceiling | 13.2772 rad/s2 | 0.0684 rad/s2 |
 | structural ceiling | 1.6430 rad/s2 | 0.4042 rad/s2 |
 | which binds | structure | **torque**, 5.9x inside it |
+
+### After the targeting consolidation, 2026-09-11
+
+Re-read from `system_hull_scaling` at the shared-sensing commit. Every figure
+is unchanged: consolidating the sensor pass moves no mass, no arm and no
+torque, which is what a lifecycle change should read as.
+
+| figure | block_skiff | block_carrier |
+| --- | --- | --- |
+| structural arm (`HullRadius`) | 47.8 m | 194.2 m |
+| torque ceiling | 13.2772 rad/s2 | 0.0684 rad/s2 |
+| structural ceiling | 1.6430 rad/s2 | 0.4042 rad/s2 |
+| which binds | structure | torque |

@@ -7,8 +7,6 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 
 #[cfg(test)]
-use super::acquisition::update_ai_target;
-#[cfg(test)]
 use super::guns::{on_projectile_input, update_turret_target_input};
 #[cfg(test)]
 use super::maneuver::on_thruster_input;
@@ -161,9 +159,9 @@ pub struct AILeash {
 
 /// Hostile-detection range (u): a passive ship (Idle/Patrol/Orbit) leaves
 /// its routine and engages only when the acquired target is inside this range.
-/// Acquisition itself scans out to [`AI_TARGET_MAX_RANGE`], so a patrolling
-/// ship knows what is out there without aborting the patrol for it; combat
-/// states keep holding on any acquired target, as before.
+/// Acquisition itself scans out to the ship's own [`SensorRange`], so a
+/// patrolling ship knows what is out there without aborting the patrol for it;
+/// combat states keep holding on any acquired target, as before.
 ///
 /// This is the APPROACH-LENGTH knob, not a reach knob: the gap between it and
 /// the fire gate is how long a committed ship flies before it can shoot -
@@ -179,9 +177,8 @@ const AI_ENGAGE_RANGE: f32 = 400.0;
 /// (a torpedo battery parked outside everyone else's detection) authors it
 /// wide and wakes for targets the targets themselves cannot be pulled
 /// toward; a cowardly hauler could author it short and ignore a brawl the
-/// default range would drag it into. Acquisition range
-/// ([`AI_TARGET_MAX_RANGE`]) still caps what can be seen at all. Authored
-/// via `AIControllerConfig::engage_range`.
+/// default range would drag it into. The ship's [`SensorRange`] still caps
+/// what can be seen at all. Authored via `AIControllerConfig::engage_range`.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIEngageRange(pub f32);
@@ -1067,9 +1064,11 @@ mod behavior_state_tests {
         // range means no target means Idle; a hostile appearing re-engages.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_behavior_state).unwrap();
         assert_eq!(
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
@@ -1080,9 +1079,10 @@ mod behavior_state_tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
         ));
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_behavior_state).unwrap();
         assert_eq!(
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
@@ -1103,13 +1103,19 @@ mod behavior_state_tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
         ));
 
         let hauler = world
-            .spawn((AISpaceshipMarker, AINonCombatant, Transform::default()))
+            .spawn((
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                AINonCombatant,
+                Transform::default(),
+            ))
             .id();
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_behavior_state).unwrap();
         assert_eq!(
             *world.entity(hauler).get::<AITarget>().unwrap(),
@@ -1126,8 +1132,10 @@ mod behavior_state_tests {
         );
 
         // Control: an ARMED ship (no tag) acquires the same hostile.
-        let fighter = world.spawn((AISpaceshipMarker, Transform::default())).id();
-        world.run_system_once(update_ai_target).unwrap();
+        let fighter = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
+        crate::input::ai::sense_and_pick(&mut world);
         assert!(
             world.entity(fighter).get::<AITarget>().unwrap().is_some(),
             "an ordinary AI ship acquires the hostile the non-combatant ignored"
@@ -1146,12 +1154,14 @@ mod behavior_state_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
             ))
             .id();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Idle,
                 AITarget(Some(player)),
                 Transform::default(),
@@ -1230,12 +1240,14 @@ mod engage_grace_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
                 LinearVelocity(Vec3::ZERO),
             ))
             .id();
         let mut ship = app.world_mut().spawn((
             AISpaceshipMarker,
+            RigidBody::Dynamic,
             // The DEFAULT state (Engage) - the production spawn shape: the
             // grace's first job is demoting it onto the routine.
             AIBehaviorState::default(),
@@ -1334,6 +1346,7 @@ mod engage_grace_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Patrol,
                 AIEngageGrace::new(30.0),
                 AITarget(None),

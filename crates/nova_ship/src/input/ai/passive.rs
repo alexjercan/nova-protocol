@@ -13,6 +13,8 @@ use super::acquisition::update_ai_target;
 use super::behavior::update_behavior_state;
 #[cfg(test)]
 use super::maneuver::on_thruster_input;
+#[cfg(test)]
+use crate::input::targeting::update_sensor_contacts;
 use crate::prelude::*;
 
 /// Arrival slack (world units, 250 m) on top of the autopilot's arrival
@@ -503,6 +505,7 @@ mod avoidance_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Patrol,
                 AIPatrolRoute::new(vec![W1, W2]),
                 Transform::default(),
@@ -548,6 +551,7 @@ mod avoidance_tests {
             let ship = world
                 .spawn((
                     AISpaceshipMarker,
+                    RigidBody::Dynamic,
                     AIBehaviorState::Patrol,
                     AIPatrolRoute::new(vec![first, Vec3::new(0.0, 0.0, 200.0)]),
                     Transform::default(),
@@ -589,6 +593,7 @@ mod avoidance_tests {
             let ship = world
                 .spawn((
                     AISpaceshipMarker,
+                    RigidBody::Dynamic,
                     AIBehaviorState::Patrol,
                     AIPatrolRoute::new(vec![first, Vec3::new(0.0, 0.0, 200.0)]),
                     Transform::default(),
@@ -628,6 +633,7 @@ mod avoidance_tests {
             let ship = world
                 .spawn((
                     AISpaceshipMarker,
+                    RigidBody::Dynamic,
                     AIBehaviorState::Patrol,
                     AIPatrolRoute::new(vec![first, Vec3::new(0.0, 0.0, 200.0)]),
                     Transform::default(),
@@ -673,6 +679,7 @@ mod avoidance_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Patrol,
                 AIPatrolRoute::new(vec![W1, W2]),
                 Transform::default(),
@@ -757,6 +764,7 @@ mod avoidance_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Patrol,
                 AIPatrolRoute::new(vec![W1, W2]),
                 Transform::default(),
@@ -793,6 +801,7 @@ mod avoidance_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Patrol,
                 AIPatrolRoute::new(vec![W1, W2]),
                 Transform::default(),
@@ -868,7 +877,7 @@ mod patrol_idle_tests {
 
     /// Run the acquisition -> transition -> passive-flight pipeline once.
     fn run_pipeline(world: &mut World) {
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(world);
         world.run_system_once(update_behavior_state).unwrap();
         world.run_system_once(update_passive_flight).unwrap();
     }
@@ -880,6 +889,7 @@ mod patrol_idle_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIPatrolRoute::new(vec![W1, W2]),
                 Transform::default(),
                 LinearVelocity(Vec3::ZERO),
@@ -1040,6 +1050,7 @@ mod patrol_idle_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIPatrolRoute::new(vec![W1]),
                 Transform::from_translation(W1 + Vec3::new(0.0, 0.0, 60.0)),
                 LinearVelocity(Vec3::ZERO),
@@ -1063,6 +1074,7 @@ mod patrol_idle_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::default(),
                 LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
             ))
@@ -1102,6 +1114,7 @@ mod patrol_idle_tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
         ));
         run_pipeline(&mut world);
@@ -1128,6 +1141,7 @@ mod patrol_idle_tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(1500.0, 0.0, 0.0)),
         ));
         run_pipeline(&mut world);
@@ -1195,7 +1209,7 @@ mod orbit_directive_tests {
 
     /// Run the acquisition -> transition -> passive-flight pipeline once.
     fn run_pipeline(world: &mut World) {
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(world);
         world.run_system_once(update_behavior_state).unwrap();
         world.run_system_once(update_passive_flight).unwrap();
     }
@@ -1209,6 +1223,7 @@ mod orbit_directive_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIOrbitDirective {
                     well: EntityId::new(WELL_ID),
                 },
@@ -1390,6 +1405,7 @@ mod orbit_directive_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
             ))
             .id();
@@ -1503,9 +1519,12 @@ mod patrol_physics_tests {
             )
                 .chain(),
         );
+        // The sensor pass reads the shipped lock settings.
+        app.init_resource::<TargetingSettings>();
         app.add_systems(
             FixedUpdate,
             (
+                update_sensor_contacts,
                 update_ai_target,
                 update_behavior_state,
                 update_passive_flight,

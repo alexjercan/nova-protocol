@@ -10,7 +10,7 @@
 //! parked dead ahead at 1.5 km, and one rock that starts well off the line and
 //! is flown onto it and off it again.
 //!
-//! FOUR named invariants:
+//! SIX named invariants:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -18,9 +18,18 @@
 //! | 2 | `outcome: cover breaks a held lock` | and names the branch |
 //! | 3 | `outcome: cover keeps a lock from being taken` | the picker agrees |
 //! | 4 | `outcome: a cleared line gives the lock back` | cover, not a ban |
+//! | 5 | `outcome: cover drops the travel designation too` | both slots go |
+//! | 6 | `outcome: an engaged trip flies through the drop` | GOTO owns it |
 //!
-//! Invariant 1 is the control: without it the three that follow are satisfied
+//! Invariant 1 is the control: without it the five that follow are satisfied
 //! by a range that could never lock anything.
+//!
+//! Invariants 5 and 6 are the pair that makes the rule liveable. The slots do
+//! not disagree about sight - a nav designation is the same radio link a
+//! weapons lock is, so cover takes both - but an ENGAGED trip is not a
+//! designation: the autopilot owns its target from the moment it engages, so
+//! the ship keeps flying the leg it was given. Only the player's own tap-clear
+//! ends a trip.
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
@@ -40,6 +49,7 @@
 //! NOVA_AUTOPILOT=1 cargo run --example system_lock_line_of_sight --features debug
 //! # look for: `line of sight: the clear line locked the target`,
 //! #           `line of sight: the lock let go, reason Occluded`,
+//! #           `line of sight: the designation let go and the trip flew on`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -84,6 +94,24 @@ const TARGET_AT: Meters3 = Meters3::new(0.0, 0.0, -1_500.0);
 /// The drop is one upkeep pass, so this is slack, not a budget.
 #[cfg(feature = "debug")]
 const DROP_SECS: f32 = 10.0;
+
+/// Where the cover sits while the trip is flying: on the same line, but far
+/// enough down it that the ship cannot reach the rock inside the beat. The
+/// assertion is about a designation letting go, not about a crash.
+#[cfg(feature = "debug")]
+const COVER_ON_THE_TRIP: Meters3 = Meters3::new(0.0, 0.0, -1_200.0);
+
+/// How long the trip is left to fly after its designation goes, before the
+/// run asks whether it made way. Long enough for a burn to show against the
+/// start distance, short enough that the rock stays far ahead.
+#[cfg(feature = "debug")]
+const TRIP_SECS: f32 = 3.0;
+
+/// How much closer the trip has to get, in meters, for the run to call it
+/// flying. A burn under thrust covers this many times over; the number is a
+/// floor against a ship that merely drifts.
+#[cfg(feature = "debug")]
+const TRIP_CLOSED_AT_LEAST: Meters = Meters(50.0);
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]
@@ -207,6 +235,12 @@ fn sight_loop_script(script: Script) -> Script {
         .deadline(120.0)
         .add()
 }
+
+/// How far the ship was from its destination when the cover took the
+/// designation away. Invariant 6 measures the leg against it.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct TripStart(f32);
 
 /// Every lock this run let go of, in order, with the branch that let go.
 ///
@@ -607,6 +641,151 @@ fn assert_the_cleared_line_locks_again(world: &mut World) {
     close_the_radar(world);
 }
 
+/// The player's travel designation and its engaged maneuver, right now.
+#[cfg(feature = "debug")]
+fn designation_and_trip(world: &mut World) -> (Option<Entity>, Option<AutopilotAction>) {
+    let player = player_root(world);
+    let designation = world
+        .entity(player)
+        .get::<TravelLock>()
+        .expect("line of sight: the player ship has no travel lock")
+        .0;
+    let trip = world
+        .entity(player)
+        .get::<Autopilot>()
+        .map(|autopilot| autopilot.action);
+    (designation, trip)
+}
+
+/// Centre-to-centre distance from the player to the ship it is flying at.
+#[cfg(feature = "debug")]
+fn distance_to_target(world: &mut World) -> f32 {
+    let player = player_root(world);
+    let target = target_root(world);
+    let at = |entity: Entity| {
+        world
+            .entity(entity)
+            .get::<Transform>()
+            .expect("line of sight: a ship root with no transform")
+            .translation
+    };
+    at(player).distance(at(target))
+}
+
+/// Hold the radar with the stance LOWERED: the same gesture, latching the
+/// travel slot instead of the combat one.
+#[cfg(feature = "debug")]
+fn open_the_radar_lowered(world: &mut World) {
+    press_action("radar_hold")(world);
+}
+
+/// Give the computer the designation it just took. The key goes DOWN here and
+/// comes up a beat later: `[G]` engages on the action's Start, and a press
+/// that is gone again before the next update never starts anything.
+#[cfg(feature = "debug")]
+fn engage_the_trip(world: &mut World) {
+    release_action("radar_hold")(world);
+    press_action("autopilot_goto")(world);
+}
+
+/// The guard for invariants 5 and 6: the ship really is holding a designation
+/// and really is flying at it. Without this the two below pass on a range that
+/// never designated anything.
+#[cfg(feature = "debug")]
+fn assert_the_trip_is_flying(world: &mut World) {
+    let target = target_root(world);
+    let (designation, trip) = designation_and_trip(world);
+    assert_eq!(
+        designation,
+        Some(target),
+        "line of sight: the lowered radar hold did not take a travel \
+         designation, so the drop below would prove nothing"
+    );
+    assert_eq!(
+        trip,
+        Some(AutopilotAction::Goto { target }),
+        "line of sight: GOTO did not engage on the designation"
+    );
+    let started = distance_to_target(world);
+    world.insert_resource(TripStart(started));
+    info!("line of sight: the trip is flying at the designated ship");
+}
+
+/// Fly the rock back onto the line, further down it: the trip is under way,
+/// and the run wants the designation covered without putting a rock in the
+/// ship's path.
+#[cfg(feature = "debug")]
+fn move_the_cover_onto_the_trip(world: &mut World) {
+    let rock = cover_root(world);
+    world
+        .entity_mut(rock)
+        .get_mut::<Transform>()
+        .expect("line of sight: the cover rock has no transform")
+        .translation = COVER_ON_THE_TRIP.to_engine();
+    info!("line of sight: cover moved onto the trip's line");
+}
+
+/// The player is holding no travel designation.
+#[cfg(feature = "debug")]
+fn the_designation_let_go() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&TravelLock, With<PlayerSpaceshipMarker>>()
+            .and_then(|mut query| query.iter(world).next().map(|lock| lock.0.is_none()))
+            .unwrap_or(false)
+    })
+}
+
+/// Invariant 5: the slots do not disagree about sight. The same rock on the
+/// same line takes the nav designation as well as the weapons lock.
+#[cfg(feature = "debug")]
+fn assert_the_cover_drops_the_designation(world: &mut World) {
+    let (designation, _) = designation_and_trip(world);
+    assert_eq!(
+        designation, None,
+        "line of sight: cover broke the weapons lock but left the nav \
+         designation standing, so the two slots read sight differently"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: cover drops the travel designation too",
+        serde_json::json!({}),
+    );
+    info!("line of sight: the designation let go under cover");
+}
+
+/// Invariant 6: an engaged trip is not a designation. The computer owns its
+/// target from the moment it engages, so losing the mark cannot strand the
+/// ship - it keeps flying the leg, and only the player's tap-clear ends it.
+#[cfg(feature = "debug")]
+fn assert_the_trip_flew_on(world: &mut World) {
+    let target = target_root(world);
+    let (designation, trip) = designation_and_trip(world);
+    assert_eq!(
+        designation, None,
+        "line of sight: the designation came back on its own"
+    );
+    assert_eq!(
+        trip,
+        Some(AutopilotAction::Goto { target }),
+        "line of sight: the trip disengaged when its designation went, so \
+         cover drifting over a nav mark strands the ship"
+    );
+    let started = world.resource::<TripStart>().0;
+    let closed = Meters::from_engine(started - distance_to_target(world));
+    assert!(
+        closed >= TRIP_CLOSED_AT_LEAST,
+        "line of sight: the trip held its target but made no way: {closed:?} \
+         closed, {TRIP_CLOSED_AT_LEAST:?} wanted"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: an engaged trip flies through the drop",
+        serde_json::json!({ "closed_m": closed.0 }),
+    );
+    info!("line of sight: the designation let go and the trip flew on");
+}
+
 #[cfg(feature = "debug")]
 fn sight_script() -> Script {
     let script = Script::new()
@@ -656,9 +835,38 @@ fn sight_script() -> Script {
         .on_enter(open_the_radar)
         .until(elapsed(1.0))
         .add()
-        // The script's last beat: the run ends on the assertion rather than
-        // idling out a runway.
         .step("assert the cleared line locks again")
         .on_enter(assert_the_cleared_line_locks_again)
+        .until(elapsed(0.2))
+        .add()
+        .step("take a travel designation on the clear line")
+        .on_enter(open_the_radar_lowered)
+        .until(elapsed(1.0))
+        .add()
+        .step("engage the trip")
+        .on_enter(engage_the_trip)
+        .until(elapsed(0.3))
+        .add()
+        .step("let the goto key up")
+        .on_enter(release_action("autopilot_goto"))
+        .until(elapsed(0.5))
+        .add()
+        .step("assert the trip is flying")
+        .on_enter(assert_the_trip_is_flying)
+        .until(elapsed(0.2))
+        .add()
+        .step("fly the cover onto the trip's line")
+        .on_enter(move_the_cover_onto_the_trip)
+        .until(the_designation_let_go())
+        .deadline(DROP_SECS)
+        .add()
+        .step("assert the cover drops the designation")
+        .on_enter(assert_the_cover_drops_the_designation)
+        .until(elapsed(TRIP_SECS))
+        .add()
+        // The script's last beat: the run ends on the assertion rather than
+        // idling out a runway.
+        .step("assert the trip flew on")
+        .on_enter(assert_the_trip_flew_on)
         .add()
 }

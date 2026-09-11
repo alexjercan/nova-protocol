@@ -13,6 +13,8 @@ use super::acquisition::update_ai_target;
 use super::behavior::update_behavior_state;
 #[cfg(test)]
 use super::maneuver::{ai_evade_direction, on_thruster_input};
+#[cfg(test)]
+use crate::input::targeting::update_sensor_contacts;
 use crate::prelude::*;
 
 /// How long (s) a hostile hit stays "recent" for the threat model: within
@@ -215,7 +217,9 @@ mod threat_tests {
     fn threat_world() -> (World, Entity) {
         let mut world = crate::input::ai::ai_test_world();
         world.add_observer(on_damage_track_threat);
-        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         (world, ship)
     }
 
@@ -263,6 +267,7 @@ mod threat_tests {
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 ProjectileOwner(player),
                 Allegiance::Player,
             ))
@@ -373,7 +378,17 @@ mod evade_tests {
         // Acquisition reads the collider tree for line of sight; this rig
         // spawns no colliders, so an empty one is the right answer.
         app.init_resource::<avian3d::collider_tree::ColliderTrees>();
-        app.add_systems(Update, (update_ai_target, update_behavior_state).chain());
+        // The sensor pass reads the shipped lock settings.
+        app.init_resource::<TargetingSettings>();
+        app.add_systems(
+            Update,
+            (
+                update_sensor_contacts,
+                update_ai_target,
+                update_behavior_state,
+            )
+                .chain(),
+        );
 
         // Inside engage range, NOT aiming at the ship (default forward -Z,
         // the ship is at -X of the player): only the damage signal fires.
@@ -382,12 +397,13 @@ mod evade_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
             ))
             .id();
         let ship = app
             .world_mut()
-            .spawn((AISpaceshipMarker, Transform::default()))
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
             .id();
         (app, ship, player)
     }
@@ -449,17 +465,20 @@ mod evade_tests {
         // zero-delta Time - entry does not need elapsed time.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             // Well inside the aim range, expressed against the constant: the
             // range moves whenever turret reach does.
             Transform::from_translation(Vec3::new(AI_THREAT_AIM_RANGE * 0.5, 0.0, 0.0))
                 .looking_at(Vec3::ZERO, Vec3::Y),
         ));
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_behavior_state).unwrap();
 
         assert_eq!(
@@ -475,15 +494,18 @@ mod evade_tests {
         // range): the nose cannot hurt me yet, so the ship keeps engaging.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(AI_THREAT_AIM_RANGE + 100.0, 0.0, 0.0))
                 .looking_at(Vec3::ZERO, Vec3::Y),
         ));
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_behavior_state).unwrap();
 
         assert_eq!(
@@ -502,12 +524,14 @@ mod evade_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -1000.0)),
             ))
             .id();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AIBehaviorState::Evade,
                 AITarget(Some(target)),
                 Transform::default(),

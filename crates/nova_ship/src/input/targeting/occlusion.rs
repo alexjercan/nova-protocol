@@ -149,6 +149,19 @@ mod tests {
             .id()
     }
 
+    /// One production frame of lock upkeep: the single sensor pass publishes
+    /// what each ship can see, then the slots are validated against it.
+    /// Running the upkeep alone leaves every contact set empty, which reads as
+    /// "nothing in sight" and drops every lock for the wrong reason.
+    fn upkeep(app: &mut App) {
+        app.world_mut()
+            .run_system_once(crate::input::targeting::update_sensor_contacts)
+            .unwrap();
+        app.world_mut()
+            .run_system_once(update_contacts_and_locks)
+            .unwrap();
+    }
+
     /// Whether the scanner at the origin can see `body` at `at`, asked of a
     /// real collider tree.
     ///
@@ -269,13 +282,9 @@ mod tests {
         app.finish();
         settle(&mut app);
 
-        app.world_mut()
-            .run_system_once(update_contacts_and_locks)
-            .unwrap();
+        upkeep(&mut app);
         app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(contact);
-        app.world_mut()
-            .run_system_once(update_contacts_and_locks)
-            .unwrap();
+        upkeep(&mut app);
         assert_eq!(
             app.world().get::<CombatLock>(player).unwrap().0,
             Some(contact),
@@ -291,9 +300,7 @@ mod tests {
             .unwrap()
             .translation = Vec3::new(0.0, 0.0, -200.0);
         settle(&mut app);
-        app.world_mut()
-            .run_system_once(update_contacts_and_locks)
-            .unwrap();
+        upkeep(&mut app);
 
         assert_eq!(
             app.world().get::<CombatLock>(player).unwrap().0,
@@ -313,12 +320,13 @@ mod tests {
         );
     }
 
-    /// The two slots part company here, on purpose. A combat lock is a live
-    /// radio link and cover breaks it; a travel designation is a place the
-    /// player has already been shown, and cover cannot take that back. Before
-    /// this split a rock drifting over a nav mark made `[G]` a silent no-op.
+    /// Both slots go together, on purpose. A lock is a radio LINK, and the
+    /// nav designation is the same link: `[G]` flies to a mark the scanner is
+    /// still holding. Cover breaks the link, so cover drops both. An already
+    /// engaged GOTO is a different thing - the autopilot owns its target and
+    /// keeps flying - which `system_lock_line_of_sight` proves in flight.
     #[test]
-    fn cover_drops_a_combat_lock_but_keeps_a_travel_designation() {
+    fn cover_drops_both_lock_slots() {
         let mut app = unfinished_integrity_physics_app();
         app.init_resource::<TargetingSettings>();
         app.init_resource::<Messages<CombatLockDropped>>();
@@ -338,26 +346,20 @@ mod tests {
         settle(&mut app);
 
         // Both slots take the same body over a clear sky.
-        app.world_mut()
-            .run_system_once(update_contacts_and_locks)
-            .unwrap();
+        upkeep(&mut app);
         app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(mark);
         app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(mark);
-        app.world_mut()
-            .run_system_once(update_contacts_and_locks)
-            .unwrap();
+        upkeep(&mut app);
         assert_eq!(app.world().get::<TravelLock>(player).unwrap().0, Some(mark));
         assert_eq!(app.world().get::<CombatLock>(player).unwrap().0, Some(mark));
 
-        // Same rock, same line, one pass: the slots answer differently.
+        // Same rock, same line, one pass: both slots let go.
         app.world_mut()
             .get_mut::<Transform>(rock)
             .unwrap()
             .translation = Vec3::new(0.0, 0.0, -200.0);
         settle(&mut app);
-        app.world_mut()
-            .run_system_once(update_contacts_and_locks)
-            .unwrap();
+        upkeep(&mut app);
 
         assert_eq!(
             app.world().get::<CombatLock>(player).unwrap().0,
@@ -366,8 +368,8 @@ mod tests {
         );
         assert_eq!(
             app.world().get::<TravelLock>(player).unwrap().0,
-            Some(mark),
-            "the nav designation survives the same rock on the same line"
+            None,
+            "the nav designation is the same link, so it goes with it"
         );
     }
 

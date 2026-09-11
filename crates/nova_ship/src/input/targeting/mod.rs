@@ -28,14 +28,19 @@
 //! - A lock is a radio LINK, so it needs LINE OF SIGHT. A body that stops
 //!   radar ([`RadarOccluder`] - an asteroid, a planetoid) standing between the
 //!   scanner and a candidate takes that candidate out of the picker's set, and
-//!   breaks a held lock on its own `Occluded` branch. One ray, asked once at
-//!   collection time, so the pick, the held lock and the threat set cannot
-//!   disagree about what the ship can see.
+//!   breaks BOTH held slots on the `Occluded` branch. Neither re-locks on its
+//!   own when the line clears: a radar sweep held through cover may acquire
+//!   again after a fresh dwell. An already engaged GOTO is not a designation
+//!   and keeps flying - [`AutopilotAction::Goto`](crate::flight::prelude::AutopilotAction)
+//!   owns its target - so only the player's own tap-clear ends a trip.
 //!
-//! The scanner-wave RANGE model (LockSignature) survives as the radar
-//! picker's gate, and [`ThreatContacts`] keeps the ranked hostile set alive
-//! for the edge-indicator arrows. All state lives on the PLAYER ship root as
-//! components (respawn hygiene; the AI mirrors the same components).
+//! [`SensorContacts`] is where "what can this ship see" is decided, ONCE per
+//! observing ship per frame, under one range/visibility/relation policy that
+//! the player's locks, the radar picker and an AI picket all read. The
+//! scanner-wave RANGE model (LockSignature) is the target's half of it and
+//! [`SensorRange`] the observer's; [`ThreatContacts`] keeps the ranked hostile
+//! set alive for the edge-indicator arrows. All state lives on the ship root
+//! as components (respawn hygiene).
 //!
 //! ENGINE UNITS throughout: a lock gate is compared against a Bevy
 //! `GlobalTransform` every frame, so every range and signature here is world
@@ -51,6 +56,7 @@ mod gesture;
 pub(crate) mod occlusion;
 pub mod radar;
 pub mod safety;
+mod sensing;
 mod state;
 
 use component_lock::{on_component_cycle_prev, update_component_lock};
@@ -58,6 +64,7 @@ use contacts::{tick_lock_focus, update_contacts_and_locks};
 use gesture::{on_lock_clear_tap, on_radar_cancel, on_radar_commit, on_radar_start};
 use radar::update_radar_search;
 use safety::{enforce_safety_trigger_interrupt, update_weapons_safety};
+pub(crate) use sensing::update_sensor_contacts;
 
 #[cfg(test)]
 pub(crate) use self::safety::update_weapons_safety_for_tests;
@@ -69,6 +76,7 @@ pub use self::{
     component_lock::{ComponentLock, ComponentLockMode},
     contacts::{LockFocus, COMBAT_DECAY_SECS},
     gesture::RADAR_TAP_SECS,
+    sensing::{SensorContact, SensorContacts, SensorRange, AI_SENSOR_RANGE, PLAYER_SENSOR_RANGE},
     state::{
         targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped,
         LockClearedToast, LockSignature, RadarDenied, RadarLockAcquired, RadarOccluder,
@@ -83,9 +91,10 @@ pub mod prelude {
     pub use super::{
         targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped, ComponentLock,
         ComponentLockMode, LockClearedToast, LockFocus, LockSignature, RadarDenied,
-        RadarLockAcquired, RadarOccluder, RadarRetargeted, RadarSlot, RadarState,
-        SpaceshipTargetingPlugin, SpaceshipTargetingSystems, TargetingSettings, ThreatContacts,
-        TravelLock, WeaponsHot, COMBAT_DECAY_SECS, RADAR_TAP_SECS,
+        RadarLockAcquired, RadarOccluder, RadarRetargeted, RadarSlot, RadarState, SensorContact,
+        SensorContactSystems, SensorContacts, SensorRange, SpaceshipTargetingPlugin,
+        SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
+        AI_SENSOR_RANGE, COMBAT_DECAY_SECS, PLAYER_SENSOR_RANGE, RADAR_TAP_SECS,
     };
 }
 
@@ -93,6 +102,13 @@ pub mod prelude {
 /// feed) can order after it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpaceshipTargetingSystems;
+
+/// System set for the ONE sensor pass, so both consumers of it - the player's
+/// lock upkeep here and the AI's acquisition in
+/// [`SpaceshipAIInputPlugin`](crate::input::ai::SpaceshipAIInputPlugin) - can
+/// state that they read what it published rather than racing it.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SensorContactSystems;
 
 /// Plugin owning the lock components, the radar gesture and the per-frame
 /// contact/validity upkeep.
@@ -105,6 +121,7 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.init_resource::<TargetingSettings>();
         app.register_type::<TargetingSettings>();
         app.register_type::<LockSignature>();
+        app.register_type::<SensorRange>();
         app.register_type::<RadarOccluder>();
         app.register_type::<TravelLock>();
         app.register_type::<CombatLock>();
@@ -128,6 +145,12 @@ impl Plugin for SpaceshipTargetingPlugin {
 
         app.add_systems(
             Update,
+            update_sensor_contacts
+                .in_set(SensorContactSystems)
+                .in_set(super::SpaceshipInputSystems),
+        );
+        app.add_systems(
+            Update,
             (
                 update_contacts_and_locks,
                 update_radar_search,
@@ -138,7 +161,8 @@ impl Plugin for SpaceshipTargetingPlugin {
             )
                 .chain()
                 .in_set(SpaceshipTargetingSystems)
-                .in_set(super::SpaceshipInputSystems),
+                .in_set(super::SpaceshipInputSystems)
+                .after(SensorContactSystems),
         );
         app.add_observer(on_radar_start);
         app.add_observer(on_radar_commit);

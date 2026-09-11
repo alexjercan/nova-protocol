@@ -15,6 +15,8 @@ use super::acquisition::{update_ai_target, update_point_defense_target};
 #[cfg(test)]
 use super::behavior::update_behavior_state;
 use super::threat::AI_EVADE_THRUST_ALIGNMENT;
+#[cfg(test)]
+use crate::input::targeting::update_sensor_contacts;
 use crate::prelude::*;
 
 // AI "brain" tuning constants. The AI flies a standoff envelope around its
@@ -345,9 +347,16 @@ mod rotation_tests {
         app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         // The real acquisition system feeds the rotation system, so the
         // harness drives the same pipeline the plugin chains.
+        // The sensor pass reads the shipped lock settings.
+        app.init_resource::<TargetingSettings>();
         app.add_systems(
             Update,
-            (update_ai_target, update_controller_target_rotation_torque).chain(),
+            (
+                update_sensor_contacts,
+                update_ai_target,
+                update_controller_target_rotation_torque,
+            )
+                .chain(),
         );
 
         // Dead astern, well OUTSIDE the standoff band so the approach
@@ -355,6 +364,7 @@ mod rotation_tests {
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(0.0, 0.0, 800.0)),
         ));
         // High authority keeps this command-slew test short.
@@ -362,6 +372,7 @@ mod rotation_tests {
             .world_mut()
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::default(),
                 LinearVelocity(Vec3::ZERO),
                 ComputedAngularInertia::new(Vec3::splat(2.3)),
@@ -489,9 +500,12 @@ mod physics_tests {
             )
                 .chain(),
         );
+        // The sensor pass reads the shipped lock settings.
+        app.init_resource::<TargetingSettings>();
         app.add_systems(
             FixedUpdate,
             (
+                update_sensor_contacts,
                 update_ai_target,
                 update_point_defense_target,
                 update_behavior_state,
@@ -512,6 +526,7 @@ mod physics_tests {
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(1000.0, 0.0, 0.0)),
         ));
         let ship = app
@@ -726,9 +741,12 @@ mod standoff_physics_tests {
             )
                 .chain(),
         );
+        // The sensor pass reads the shipped lock settings.
+        app.init_resource::<TargetingSettings>();
         app.add_systems(
             FixedUpdate,
             (
+                update_sensor_contacts,
                 update_ai_target,
                 update_behavior_state,
                 update_controller_target_rotation_torque,
@@ -750,6 +768,7 @@ mod standoff_physics_tests {
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(player_position),
         ));
         let ship = app

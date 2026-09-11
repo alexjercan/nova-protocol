@@ -221,6 +221,10 @@ pub fn targeting_state() -> impl Bundle {
         ComponentLock::default(),
         ThreatContacts::default(),
         WeaponsHot::default(),
+        // The sensing half: what this ship can see, and how far. An AI ship
+        // gets the same two on its own marker - one policy, one pass.
+        SensorRange(PLAYER_SENSOR_RANGE),
+        SensorContacts::default(),
     )
 }
 

@@ -15,6 +15,14 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Combat & Weapons
+- Cover takes both lock slots, not just the weapons one: a rock crossing the
+  line drops the travel designation too, and neither slot re-locks on its own.
+- An engaged GOTO survives losing its designation: the computer owns the
+  destination from the press, so only a tap-clear ends the trip.
+- Player and AI see through one sensor pass: the same range, sight and relation
+  rules, collected once per ship per frame.
+
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn
   5 m and 11 m outside the live hull about its centre of mass, and the speed and

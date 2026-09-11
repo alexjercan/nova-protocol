@@ -14,7 +14,7 @@ use super::guns::{on_projectile_input, update_turret_target_input, AI_BURST_FIRE
 use super::threat::AI_THREAT_ATTACKER_DISCOUNT;
 #[cfg(test)]
 use crate::input::point_defense::update_turret_point_defense;
-use crate::{input::targeting::occlusion::RadarScan, prelude::*};
+use crate::prelude::*;
 
 /// The entity this AI ship currently fights - what every AI behavior system
 /// aims, chases and shoots at. Written by `update_ai_target` from the
@@ -84,11 +84,6 @@ enum AITargetKind {
     Torpedo,
 }
 
-/// Acquisition range (world units, 20 km) of AI target selection. Shorter than
-/// the player's TARGETING_MAX_RANGE (200 km): the player's lock doubles as a
-/// long-range designator for GOTO legs and torpedo launches, while AI
-/// sensors only need to find things worth fighting.
-const AI_TARGET_MAX_RANGE: f32 = 2000.0;
 /// Switch hysteresis: the current target's distance is discounted by this
 /// factor, so a rival has to be meaningfully closer (not a frame-noise
 /// sliver) to steal the pick.
@@ -100,27 +95,23 @@ const AI_TARGET_HYSTERESIS_DISCOUNT: f32 = 0.8;
 /// pick does not flip-flop between two comparably distant hostiles, and the
 /// ship that recently damaged me discounted by
 /// [`AI_THREAT_ATTACKER_DISCOUNT`] so whoever is shooting me steals the
-/// pick from comparably distant bystanders (the discounts stack). Out of
-/// [`AI_TARGET_MAX_RANGE`] (or with no candidates) the pick is `None`.
+/// pick from comparably distant bystanders (the discounts stack). With no
+/// candidates the pick is `None`.
 ///
-/// `in_sight` decides whether the ship can actually SEE a candidate, and is
-/// asked LAST, after the range gate: for the live system it is a ray cast,
-/// and the gate has already thrown most of the world away by then.
-/// Pure for unit testing.
+/// RANGE and LINE OF SIGHT are not asked here: the ship's own sensor pass
+/// ([`SensorContacts`]) already answered both, with the same policy the
+/// player's locks are held under, and a candidate that reaches this is one
+/// this ship can see. Pure for unit testing.
 fn pick_ai_target(
     own_anchor: Vec3,
     current: Option<Entity>,
     attacker: Option<Entity>,
     candidates: impl Iterator<Item = (Entity, Vec3, AITargetKind)>,
-    in_sight: impl Fn(Entity, Vec3) -> bool,
 ) -> Option<Entity> {
     candidates
         .filter_map(|(entity, position, kind)| {
             let mut distance = own_anchor.distance(position);
-            if distance > AI_TARGET_MAX_RANGE || distance <= f32::EPSILON {
-                return None;
-            }
-            if !in_sight(entity, position) {
+            if distance <= f32::EPSILON {
                 return None;
             }
             if current == Some(entity) {
@@ -137,52 +128,33 @@ fn pick_ai_target(
         .map(|(entity, _, _)| entity)
 }
 
-/// Acquire each AI ship's [`AITarget`] over the relation model: every
-/// hostile ship root or committed hostile torpedo inside acquisition range
-/// AND in line of sight is a candidate; [`pick_ai_target`] scores them. Runs
-/// first in the AI chain - acquisition drives engagement, so a ship in `Idle`
-/// still scans.
+/// Acquire each AI ship's [`AITarget`] over the relation model: every hostile
+/// ship or committed hostile torpedo its own sensor pass can see is a
+/// candidate; [`pick_ai_target`] scores them. Runs first in the AI chain -
+/// acquisition drives engagement, so a ship in `Idle` still scans.
 ///
-/// Line of sight is the player's rule applied to the machine: a hostile
-/// behind an asteroid or a planetoid ([`RadarOccluder`]) is not a candidate,
-/// so cover works in both directions. It is flat - every AI ship, no authored
-/// switch - and it has TEETH: a ship that loses its pick behind a rock falls
-/// back through the behaviour FSM to its passive routine, and re-acquires
-/// when the rock clears. Point defense is deliberately untouched: an inbound
-/// torpedo is a thing to survive, not a thing to see, and a ship that stops
-/// defending itself because a rock crossed the line eats the torpedo.
-#[expect(
-    clippy::type_complexity,
-    reason = "one query term per target-selection input"
-)]
+/// Range, relation and line of sight all come off [`SensorContacts`], which
+/// the shared pass published for this ship this frame. That is the player's
+/// rule applied to the machine, out of ONE collection: a hostile behind an
+/// asteroid or a planetoid ([`RadarOccluder`]) is not a candidate, so cover
+/// works in both directions, and it has TEETH - a ship that loses its pick
+/// behind a rock falls back through the behaviour FSM to its passive routine,
+/// and re-acquires when the rock clears. Point defense is deliberately
+/// untouched: an inbound torpedo is a thing to survive, not a thing to see,
+/// and a ship that stops defending itself because a rock crossed the line
+/// eats the torpedo.
 pub(super) fn update_ai_target(
-    q_candidates: Query<(
-        Entity,
-        &Transform,
-        Option<&ComputedCenterOfMass>,
-        Option<&Allegiance>,
-        Has<SpaceshipRootMarker>,
-        Option<&TorpedoProjectileMarker>,
-        Option<&TorpedoTargetChosen>,
-        Has<NeutralizedMarker>,
-    )>,
     mut q_spaceship: Query<
         (
-            Entity,
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            &Allegiance,
+            &SensorContacts,
             &AIThreat,
             &mut AITarget,
             Has<AINonCombatant>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    scan: RadarScan,
 ) {
-    for (ship, transform, com, own_allegiance, threat, mut target, non_combatant) in
-        &mut q_spaceship
-    {
+    for (contacts, threat, mut target, non_combatant) in &mut q_spaceship {
         // A non-combatant never fights: keep its target clear so the behavior
         // FSM holds the passive routine. Cleared defensively in case the ship
         // was armed when it last acquired one (a future critical-damage path
@@ -193,48 +165,25 @@ pub(super) fn update_ai_target(
             }
             continue;
         }
-        let own_anchor = live_structure_anchor(transform, com);
-        let candidates = q_candidates.iter().filter_map(
-            |(
-                entity,
-                c_transform,
-                c_com,
-                allegiance,
-                is_ship,
-                is_torpedo,
-                committed,
-                neutralized,
-            )| {
-                if entity == ship || neutralized {
-                    return None;
-                }
-                // Hostility comes from the relation model: the player's ship
-                // and projectiles are hostile to an Enemy-aligned AI, other
-                // AI ships and neutral bodies (asteroids) are not.
-                if relation(Some(own_allegiance), allegiance) != Relation::Hostile {
-                    return None;
-                }
-                let kind = if is_ship {
-                    AITargetKind::Ship
-                } else if is_torpedo.is_some() {
-                    // Only committed torpedoes are targets, matching the
-                    // player targeting rule: a just-launched torpedo has not
-                    // decided what it is yet.
-                    committed?;
-                    AITargetKind::Torpedo
-                } else {
-                    return None;
-                };
-                Some((entity, live_structure_anchor(c_transform, c_com), kind))
-            },
-        );
+        let candidates = contacts.iter().filter_map(|contact| {
+            if contact.neutralized || !contact.in_sight || !contact.is_hostile() {
+                return None;
+            }
+            let kind = if contact.is_ship {
+                AITargetKind::Ship
+            } else if contact.is_torpedo {
+                AITargetKind::Torpedo
+            } else {
+                return None;
+            };
+            Some((contact.entity, contact.anchor, kind))
+        });
 
         let next = pick_ai_target(
-            own_anchor,
+            contacts.origin,
             **target,
             threat.recent_attacker(),
             candidates,
-            |candidate, at| !scan.is_occluded(ship, own_anchor, at, candidate),
         );
         // Change-detection hygiene: only write on a real change. A dead or
         // out-of-range target clears here (the pick simply no longer finds
@@ -391,6 +340,7 @@ mod tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AITarget(None),
                 AIPointDefenseTarget(None),
             ))
@@ -442,10 +392,13 @@ mod tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
             ComputedCenterOfMass(Vec3::new(0.0, 0.0, 3.0)),
         ));
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let turret = world
             .spawn((
                 TurretSectionMarker,
@@ -455,7 +408,7 @@ mod tests {
             ))
             .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_turret_target_input).unwrap();
 
         assert_eq!(
@@ -474,9 +427,12 @@ mod tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(1.0, 2.0, 3.0)),
         ));
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let turret = world
             .spawn((
                 TurretSectionMarker,
@@ -486,7 +442,7 @@ mod tests {
             ))
             .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_turret_target_input).unwrap();
 
         assert_eq!(
@@ -501,19 +457,10 @@ mod tests {
 
 #[cfg(test)]
 mod target_selection_tests {
-    use bevy::ecs::system::RunSystemOnce;
-
     use super::*;
 
     fn entity(raw: u32) -> Entity {
         Entity::from_raw_u32(raw).unwrap()
-    }
-
-    /// An open sky: what the scorer sees when nothing is in the way. The
-    /// scorer is pure, so line of sight arrives as this predicate; the live
-    /// rule is a ray, and it is proven against a real collider tree below.
-    fn clear_sky(_candidate: Entity, _at: Vec3) -> bool {
-        true
     }
 
     #[test]
@@ -529,7 +476,6 @@ mod target_selection_tests {
                 (near, Vec3::new(0.0, 0.0, -100.0), AITargetKind::Ship),
             ]
             .into_iter(),
-            clear_sky,
         );
         assert_eq!(picked, Some(near));
     }
@@ -549,7 +495,6 @@ mod target_selection_tests {
                 (ship, Vec3::new(0.0, 0.0, -1500.0), AITargetKind::Ship),
             ]
             .into_iter(),
-            clear_sky,
         );
         assert_eq!(picked, Some(ship));
     }
@@ -569,7 +514,6 @@ mod target_selection_tests {
                 (rival, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
             ]
             .into_iter(),
-            clear_sky,
         );
         assert_eq!(held, Some(current), "a sliver does not steal the pick");
 
@@ -583,51 +527,26 @@ mod target_selection_tests {
                 (rival, Vec3::new(0.0, 0.0, -500.0), AITargetKind::Ship),
             ]
             .into_iter(),
-            clear_sky,
         );
         assert_eq!(stolen, Some(rival), "a real gap does steal the pick");
     }
 
     #[test]
-    fn out_of_range_or_empty_picks_nothing() {
+    fn a_degenerate_or_empty_candidate_set_picks_nothing() {
         assert_eq!(
             pick_ai_target(
                 Vec3::ZERO,
                 None,
                 None,
-                [(entity(1), Vec3::new(0.0, 0.0, -2500.0), AITargetKind::Ship)].into_iter(),
-                clear_sky,
+                [(entity(1), Vec3::ZERO, AITargetKind::Ship)].into_iter(),
             ),
             None,
-            "beyond acquisition range"
+            "a candidate standing on the observer is not a bearing"
         );
         assert_eq!(
-            pick_ai_target(Vec3::ZERO, None, None, std::iter::empty(), clear_sky),
+            pick_ai_target(Vec3::ZERO, None, None, std::iter::empty()),
             None,
             "no candidates"
-        );
-    }
-
-    #[test]
-    fn a_candidate_out_of_sight_is_not_picked_and_the_next_one_is() {
-        let hidden = entity(1);
-        let seen = entity(2);
-        let picked = pick_ai_target(
-            Vec3::ZERO,
-            None,
-            None,
-            [
-                (hidden, Vec3::new(0.0, 0.0, -100.0), AITargetKind::Ship),
-                (seen, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
-            ]
-            .into_iter(),
-            |candidate, _at| candidate != hidden,
-        );
-        assert_eq!(
-            picked,
-            Some(seen),
-            "the nearest candidate is out of sight, so the pick falls to the \
-             one the ship can actually see"
         );
     }
 
@@ -646,7 +565,6 @@ mod target_selection_tests {
                 (bystander, Vec3::new(0.0, 0.0, -700.0), AITargetKind::Ship),
             ]
             .into_iter(),
-            clear_sky,
         );
         assert_eq!(picked, Some(attacker), "the shooter draws the aggro");
 
@@ -661,7 +579,6 @@ mod target_selection_tests {
                 (bystander, Vec3::new(0.0, 0.0, -300.0), AITargetKind::Ship),
             ]
             .into_iter(),
-            clear_sky,
         );
         assert_eq!(picked, Some(bystander), "a far closer threat still wins");
     }
@@ -669,16 +586,20 @@ mod target_selection_tests {
     #[test]
     fn acquisition_prefers_the_hostile_ship_and_ignores_non_hostiles() {
         let mut world = crate::input::ai::ai_test_world();
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         // A fellow AI ship (Own), a neutral asteroid-like body (no
         // allegiance), and an uncommitted hostile torpedo: all ignored.
         world.spawn((
             AISpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(20.0, 0.0, 0.0)),
         ));
         world.spawn(Transform::from_translation(Vec3::new(30.0, 0.0, 0.0)));
         world.spawn((
             TorpedoProjectileMarker,
+            RigidBody::Dynamic,
             Allegiance::Player,
             Transform::from_translation(Vec3::new(40.0, 0.0, 0.0)),
         ));
@@ -686,6 +607,7 @@ mod target_selection_tests {
         // ship still wins the tier.
         world.spawn((
             TorpedoProjectileMarker,
+            RigidBody::Dynamic,
             TorpedoTargetChosen,
             Allegiance::Player,
             Transform::from_translation(Vec3::new(50.0, 0.0, 0.0)),
@@ -694,11 +616,12 @@ mod target_selection_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(500.0, 0.0, 0.0)),
             ))
             .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
 
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
@@ -711,17 +634,20 @@ mod target_selection_tests {
     #[test]
     fn a_committed_hostile_torpedo_is_acquired_when_no_ship_remains() {
         let mut world = crate::input::ai::ai_test_world();
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 TorpedoTargetChosen,
                 Allegiance::Player,
                 Transform::from_translation(Vec3::new(50.0, 0.0, 0.0)),
             ))
             .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
 
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
@@ -732,23 +658,26 @@ mod target_selection_tests {
     #[test]
     fn a_neutralized_target_clears_on_the_next_pick() {
         let mut world = crate::input::ai::ai_test_world();
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let player = world
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
             ))
             .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
             Some(player)
         );
 
         world.entity_mut(player).insert(NeutralizedMarker);
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
             None,
@@ -759,23 +688,26 @@ mod target_selection_tests {
     #[test]
     fn a_dead_target_clears_on_the_next_pick() {
         let mut world = crate::input::ai::ai_test_world();
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let player = world
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
             ))
             .id();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
             Some(player)
         );
 
         world.despawn(player);
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
             None,
@@ -800,7 +732,7 @@ mod ally_relation_tests {
     use super::*;
 
     fn run_pipeline(world: &mut World) {
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(world);
         world.run_system_once(update_behavior_state).unwrap();
     }
 
@@ -808,13 +740,16 @@ mod ally_relation_tests {
     fn enemy_and_ally_ai_ships_acquire_each_other() {
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let enemy = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let enemy = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         // The ally: exactly what the scenario's allegiance override leaves
         // behind - the explicit component wins over the marker's required
         // Enemy default.
         let ally = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 Allegiance::Player,
                 Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
             ))
@@ -852,10 +787,13 @@ mod ally_relation_tests {
         // same distance, so this None cannot pass vacuously.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let enemy = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let enemy = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let bystander = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 Allegiance::Neutral,
                 Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
             ))
@@ -885,10 +823,13 @@ mod ally_relation_tests {
         // based test stays green.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let raider = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let raider = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let hauler = world
             .spawn((
                 SpaceshipRootMarker,
+                RigidBody::Dynamic,
                 Allegiance::Player,
                 Transform::from_translation(Vec3::new(120.0, 0.0, 0.0)),
             ))
@@ -911,10 +852,13 @@ mod ally_relation_tests {
         // draws fire.
         let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
-        let raider = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let raider = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let hauler = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 Allegiance::Player,
                 Transform::from_translation(Vec3::new(150.0, 0.0, 0.0)),
             ))
@@ -922,6 +866,7 @@ mod ally_relation_tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            RigidBody::Dynamic,
             Transform::from_translation(Vec3::new(400.0, 0.0, 0.0)),
         ));
 
@@ -1042,14 +987,18 @@ mod point_defense_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
                 LinearVelocity(Vec3::ZERO),
             ))
             .id();
-        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let ai_ship = world
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
+            .id();
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 TorpedoTargetChosen,
                 TorpedoTargetEntity(ai_ship),
                 Allegiance::Player,
@@ -1076,7 +1025,7 @@ mod point_defense_tests {
     fn the_guns_defend_while_the_hull_keeps_chasing_the_ship() {
         let (mut world, ai_ship, player, torpedo, turret) = defended_world();
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_point_defense_target).unwrap();
         world.run_system_once(update_turret_target_input).unwrap();
 
@@ -1127,7 +1076,7 @@ mod point_defense_tests {
             assert!(!cadence.firing);
         }
 
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_point_defense_target).unwrap();
         world.run_system_once(on_projectile_input).unwrap();
 
@@ -1158,7 +1107,7 @@ mod point_defense_tests {
 
     /// One defense frame, in the production chain order.
     fn defend(world: &mut World) {
-        world.run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(world);
         world.run_system_once(update_point_defense_target).unwrap();
         world.run_system_once(update_turret_point_defense).unwrap();
         world.run_system_once(update_turret_target_input).unwrap();
@@ -1237,7 +1186,6 @@ mod point_defense_tests {
 
 #[cfg(test)]
 mod line_of_sight_tests {
-    use bevy::ecs::system::RunSystemOnce;
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
     use super::*;
@@ -1264,15 +1212,17 @@ mod line_of_sight_tests {
     #[test]
     fn a_rock_between_the_ships_takes_the_ai_pick_away_and_gives_it_back() {
         let mut app = unfinished_integrity_physics_app();
+        app.init_resource::<TargetingSettings>();
         let ai_ship = app
             .world_mut()
-            .spawn((AISpaceshipMarker, Transform::default()))
+            .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
             .id();
         let player = app
             .world_mut()
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(500.0, 0.0, 0.0)),
             ))
             .id();
@@ -1280,7 +1230,7 @@ mod line_of_sight_tests {
         app.finish();
         settle(&mut app);
 
-        app.world_mut().run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(app.world_mut());
         assert_eq!(
             **app.world().entity(ai_ship).get::<AITarget>().unwrap(),
             None,
@@ -1290,7 +1240,7 @@ mod line_of_sight_tests {
 
         app.world_mut().entity_mut(rock).despawn();
         settle(&mut app);
-        app.world_mut().run_system_once(update_ai_target).unwrap();
+        crate::input::ai::sense_and_pick(app.world_mut());
         assert_eq!(
             **app.world().entity(ai_ship).get::<AITarget>().unwrap(),
             Some(player),

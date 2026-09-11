@@ -65,7 +65,7 @@ Hold a combat lock focused for about a second and a half and you can drill into 
 
 ## Clearing locks
 
-Tap <kbd>Ctrl</kbd> (a press under the hold threshold) to clear in stages: with weapons lowered it drops the combat lock first, then the travel lock (which also disengages GOTO); with weapons raised it only ever drops the combat lock. Locks also fall on their own when the target dies, leaves range, turns non-hostile, or - for a combat lock - goes behind cover.
+Tap <kbd>Ctrl</kbd> (a press under the hold threshold) to clear in stages: with weapons lowered it drops the combat lock first, then the travel lock (which also disengages GOTO); with weapons raised it only ever drops the combat lock. Locks also fall on their own when the target dies, leaves range, turns non-hostile, or goes behind cover.
 
 An **idle** combat lock times out after about thirty seconds - "idle" meaning you are neither holding weapons raised nor firing, so a running fight never loses its lock no matter how long it lasts. You do not have to count: over the last few seconds of the window the red reticle dims and pulses faster and faster, and the moment anything you do counts as combat the reticle snaps back to full strength and the clock restarts.
 
@@ -73,10 +73,9 @@ An **idle** combat lock times out after about thirty seconds - "idle" meaning yo
 
 A lock needs to SEE its target. Asteroids and planets block the radar the same way they block a bullet, and while one sits on the line the radar will not hand you that body at all: holding <kbd>Ctrl</kbd> on a hostile you can plainly see through a gap in the rocks does nothing, with no buzz and no hollow box, because as far as the sweep is concerned there is nothing there. The off-screen threat arrows go quiet on the same rule - they are built from the same sweep - so a hostile behind a rock stops being marked for you.
 
-What a lock you ALREADY hold does next depends on which one it is:
+A lock you ALREADY hold goes the same way, whichever slot it is in. A lock is a radio link, and the white crosshair is the same link the red reticle is, so the moment cover crosses the line **both** slots let go, and the flight log names cover as the reason it lost the weapons lock. Nothing re-locks by itself when the line clears: hold <kbd>Ctrl</kbd> again and earn a fresh dwell.
 
-- A **combat lock** drops the moment cover crosses it, and the flight log says so. That is the fair trade for the hostile losing its own pick on you at the same instant.
-- A **travel lock** stays. A rock drifting across your destination is not a reason to cancel the burn you are flying, so GOTO holds and the white crosshair stays put until the body leaves range or dies.
+A **trip you have already engaged** is the exception, because it is not a lock. Once you press <kbd>G</kbd> the computer owns the destination, so a rock drifting across it cannot strand you - the burn flies on and the status line keeps reading GOTO. Only your own tap-clear ends a trip.
 
 ## Lock ranges
 

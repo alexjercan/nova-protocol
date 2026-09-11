@@ -1,16 +1,11 @@
 //! The live radar search: while the gesture is open, pick the best body on
 //! the look ray inside the cone and hold it for the dwell that commits it.
 
-use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 
-use super::{
-    contacts::{collect_lockable, Lockable, LockableQuery},
-    gesture::RadarHoldInput,
-    occlusion::RadarScan,
-};
+use super::gesture::RadarHoldInput;
 use crate::prelude::*;
 
 /// Half-angle (degrees) of the RADAR cone around the look ray. While the
@@ -46,18 +41,13 @@ pub(super) fn update_radar_search(
     look_ray: ActiveLookRay,
     time: Res<Time>,
     settings: Res<TargetingSettings>,
-    scan: RadarScan,
-    q_candidates: LockableQuery,
     q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
     mut acquired_cue: MessageWriter<RadarLockAcquired>,
     mut retarget_cue: MessageWriter<RadarRetargeted>,
     mut spaceship: Query<
         (
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            Entity,
-            Option<&Allegiance>,
             Option<&WeaponsRaised>,
+            &SensorContacts,
             &mut RadarState,
             &mut TravelLock,
             &mut CombatLock,
@@ -67,38 +57,18 @@ pub(super) fn update_radar_search(
     >,
 ) {
     let hold_fired = q_hold.iter().any(|&state| state == TriggerState::Fired);
-    for (
-        transform,
-        com,
-        ship,
-        ship_allegiance,
-        raised,
-        mut radar,
-        mut travel,
-        mut combat,
-        mut decay,
-    ) in &mut spaceship
-    {
+    for (raised, contacts, mut radar, mut travel, mut combat, mut decay) in &mut spaceship {
         let Some(aim_rotation) = look_ray.rotation() else {
             continue;
         };
-        let origin = live_structure_anchor(transform, com);
+        let origin = contacts.origin;
         let aim = (aim_rotation * Vec3::NEG_Z).normalize();
-        let candidates = collect_lockable(
-            &scan,
-            &q_candidates,
-            &settings,
-            origin,
-            ship,
-            ship_allegiance,
-            &[radar.candidate],
-        );
         let picked = radar_pick(
             radar.candidate,
             origin,
             aim,
             TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos(),
-            &candidates,
+            contacts,
         );
         if radar.candidate != picked {
             radar.candidate = picked;
@@ -142,11 +112,10 @@ pub(super) fn update_radar_search(
         radar.dwell_secs += time.delta_secs();
 
         // Distance to the pending candidate drives the dwell curve (the
-        // collected list already carries its world position).
-        let distance = candidates
-            .iter()
-            .find(|(entity, ..)| *entity == candidate)
-            .map_or(0.0, |(_, position, ..)| position.distance(origin));
+        // sensor pass already carries its world anchor).
+        let distance = contacts
+            .get(candidate)
+            .map_or(0.0, |contact| contact.anchor.distance(origin));
         // 1.0 = the stealth/aspect extension seam (no such mechanic yet).
         let needed = lock_dwell_secs(distance, 1.0, &settings);
         // Cache it for the ring HUD's fill.
@@ -207,17 +176,18 @@ fn radar_pick(
     origin: Vec3,
     aim: Vec3,
     min_cos: f32,
-    candidates: &[Lockable],
+    contacts: &SensorContacts,
 ) -> Option<Entity> {
-    let scored: Vec<(Entity, f32)> = candidates
+    let scored: Vec<(Entity, f32)> = contacts
         .iter()
-        .filter_map(|&(entity, position, _, _, in_sight)| {
+        .filter_map(|contact| {
             // Acquisition needs the line: you cannot designate what the radar
-            // cannot see, which is the rule a held travel lock is exempt from.
-            if !in_sight {
+            // cannot see.
+            if !contact.in_sight {
                 return None;
             }
-            let to_target = position - origin;
+            let entity = contact.entity;
+            let to_target = contact.anchor - origin;
             let distance = to_target.length();
             if distance < f32::EPSILON {
                 return None;
@@ -269,12 +239,30 @@ pub(super) fn lock_dwell_secs(distance: f32, modifier: f32, settings: &Targeting
 
 #[cfg(test)]
 mod tests {
+    use avian3d::prelude::*;
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
 
     fn cone_cos(half_angle_deg: f32) -> f32 {
         half_angle_deg.to_radians().cos()
+    }
+
+    /// A staged sighting set: what the ship's sensor pass would have
+    /// published, without standing up a world to publish it.
+    fn seen(entries: impl IntoIterator<Item = (Entity, Vec3, bool)>) -> SensorContacts {
+        entries
+            .into_iter()
+            .map(|(entity, anchor, in_sight)| SensorContact {
+                entity,
+                anchor,
+                relation: Relation::Hostile,
+                is_ship: true,
+                is_torpedo: false,
+                neutralized: false,
+                in_sight,
+            })
+            .collect()
     }
 
     #[test]
@@ -286,10 +274,10 @@ mod tests {
         let candidates = [
             // ~1.1 deg off axis, far vs ~8.5 deg off axis, near: the
             // nearer-to-center one wins even though it is further away.
-            (near_center, Vec3::new(2.0, 0.0, -100.0), false, true, true),
-            (off_center, Vec3::new(3.0, 0.0, -20.0), false, true, true),
+            (near_center, Vec3::new(2.0, 0.0, -100.0), true),
+            (off_center, Vec3::new(3.0, 0.0, -20.0), true),
         ];
-        let picked = radar_pick(None, origin, aim, cone_cos(18.0), &candidates);
+        let picked = radar_pick(None, origin, aim, cone_cos(18.0), &seen(candidates));
         assert_eq!(picked, Some(near_center));
     }
 
@@ -298,29 +286,25 @@ mod tests {
         let side = [(
             Entity::from_raw_u32(1).unwrap(),
             Vec3::new(50.0, 0.0, 0.0),
-            false,
-            true,
             true,
         )];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &side),
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &seen(side)),
             None,
             "a body outside the cone must not be picked"
         );
         let behind = [(
             Entity::from_raw_u32(1).unwrap(),
             Vec3::new(0.0, 0.0, 100.0),
-            false,
-            true,
             true,
         )];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &behind),
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &seen(behind)),
             None,
             "a body behind the ship must not be picked"
         );
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &[]),
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &seen([])),
             None
         );
     }
@@ -333,19 +317,19 @@ mod tests {
         let hidden = Entity::from_raw_u32(1).unwrap();
         let clear = Entity::from_raw_u32(2).unwrap();
         let min_cos = cone_cos(18.0);
-        let behind_cover = [(hidden, Vec3::new(0.0, 0.0, -100.0), false, true, false)];
+        let behind_cover = [(hidden, Vec3::new(0.0, 0.0, -100.0), false)];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &behind_cover),
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &seen(behind_cover)),
             None,
             "a body on the ray but behind cover must not be offered"
         );
         // And it does not shadow the body that IS visible behind it.
         let mixed = [
-            (hidden, Vec3::new(0.0, 0.0, -100.0), false, true, false),
-            (clear, Vec3::new(4.0, 0.0, -100.0), false, true, true),
+            (hidden, Vec3::new(0.0, 0.0, -100.0), false),
+            (clear, Vec3::new(4.0, 0.0, -100.0), true),
         ];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &mixed),
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &seen(mixed)),
             Some(clear),
             "the nearest VISIBLE body wins, not the nearest body"
         );
@@ -356,7 +340,7 @@ mod tests {
                 Vec3::ZERO,
                 Vec3::NEG_Z,
                 min_cos,
-                &behind_cover
+                &seen(behind_cover)
             ),
             None,
             "hysteresis must not hold a candidate the radar can no longer see"
@@ -376,29 +360,35 @@ mod tests {
         // a at ~8 deg off-ray, b at ~7.4 deg: nearer, but NOT decisively
         // ((1-cos7.4) ~ 0.0084 vs 0.75 * (1-cos8) ~ 0.0073).
         let marginal = [
-            (a, Vec3::new(14.0, 0.0, -100.0), false, true, true),
-            (b, Vec3::new(13.0, 0.0, -100.0), false, true, true),
+            (a, Vec3::new(14.0, 0.0, -100.0), true),
+            (b, Vec3::new(13.0, 0.0, -100.0), true),
         ];
         assert_eq!(
-            radar_pick(Some(a), origin, aim, min_cos, &marginal),
+            radar_pick(Some(a), origin, aim, min_cos, &seen(marginal)),
             Some(a),
             "a marginally-nearer challenger must not steal the candidate"
         );
         // b dead on the ray: decisive.
         let decisive = [
-            (a, Vec3::new(14.0, 0.0, -100.0), false, true, true),
-            (b, Vec3::new(0.1, 0.0, -100.0), false, true, true),
+            (a, Vec3::new(14.0, 0.0, -100.0), true),
+            (b, Vec3::new(0.1, 0.0, -100.0), true),
         ];
         assert_eq!(
-            radar_pick(Some(a), origin, aim, min_cos, &decisive),
+            radar_pick(Some(a), origin, aim, min_cos, &seen(decisive)),
             Some(b),
             "a decisively-nearer challenger takes the candidate"
         );
         // No incumbent: plain nearest wins.
-        assert_eq!(radar_pick(None, origin, aim, min_cos, &marginal), Some(b));
+        assert_eq!(
+            radar_pick(None, origin, aim, min_cos, &seen(marginal)),
+            Some(b)
+        );
         // Cone empty: candidate drops (the abort).
-        let outside = [(a, Vec3::new(100.0, 0.0, 0.0), false, true, true)];
-        assert_eq!(radar_pick(Some(a), origin, aim, min_cos, &outside), None);
+        let outside = [(a, Vec3::new(100.0, 0.0, 0.0), true)];
+        assert_eq!(
+            radar_pick(Some(a), origin, aim, min_cos, &seen(outside)),
+            None
+        );
     }
 
     /// Player + faithful split camera rigs (ACTIVE normal rig on -Z, dormant
@@ -444,7 +434,12 @@ mod tests {
         world.get::<RadarState>(player).unwrap().candidate
     }
 
+    /// The sensing pass FIRST: the picker reads what the ship can see, and
+    /// nothing else in the frame decides that any more.
     fn search(world: &mut World) {
+        world
+            .run_system_once(super::super::sensing::update_sensor_contacts)
+            .unwrap();
         world.run_system_once(update_radar_search).unwrap();
     }
 
@@ -462,7 +457,7 @@ mod tests {
             .spawn((
                 RigidBody::Dynamic,
                 LockSignature(20.0),
-                GlobalTransform::from_translation(Vec3::new(12.0, 0.0, -3.0)),
+                Transform::from_translation(Vec3::new(12.0, 0.0, -3.0)),
             ))
             .id();
 
@@ -485,7 +480,7 @@ mod tests {
                 SpaceshipRootMarker,
                 Allegiance::Neutral,
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(-100.0, 0.0, 0.0)),
+                Transform::from_translation(Vec3::new(-100.0, 0.0, 0.0)),
             ))
             .id();
 
@@ -523,7 +518,7 @@ mod tests {
             .spawn((
                 RigidBody::Dynamic,
                 LockSignature(2.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
             ))
             .id();
 
@@ -532,9 +527,7 @@ mod tests {
 
         world
             .entity_mut(rock)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -40.0,
-            )));
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -40.0)));
         search(&mut world);
         assert_eq!(candidate(&mut world, player), Some(rock));
     }
@@ -547,7 +540,7 @@ mod tests {
         let debris = world
             .spawn((
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -8.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -8.0)),
             ))
             .id();
 
@@ -560,7 +553,7 @@ mod tests {
 
         world
             .entity_mut(debris)
-            .insert(GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -4.0)));
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -4.0)));
         search(&mut world);
         assert_eq!(candidate(&mut world, player), Some(debris));
     }
@@ -572,7 +565,7 @@ mod tests {
             .spawn((
                 RigidBody::Static,
                 LockSignature(20.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
             .id();
         search(&mut world);
@@ -585,7 +578,7 @@ mod tests {
         let (mut world, player) = radar_world();
         world.spawn((
             RigidBody::Static,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
+            Transform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
         ));
         search(&mut world);
         assert_eq!(
@@ -599,7 +592,7 @@ mod tests {
     fn ships_and_well_bodies_keep_their_long_range_lock() {
         for components in 0..2 {
             let (mut world, player) = radar_world();
-            let far = GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -5000.0));
+            let far = Transform::from_translation(Vec3::new(0.0, 0.0, -5000.0));
             let target = match components {
                 0 => world
                     .spawn((
@@ -630,7 +623,7 @@ mod tests {
                 TorpedoProjectileMarker,
                 TorpedoTargetChosen,
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -2000.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -2000.0)),
             ))
             .id();
         search(&mut world);
@@ -638,9 +631,7 @@ mod tests {
 
         world
             .entity_mut(torpedo)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -5000.0,
-            )));
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -5000.0)));
         world.get_mut::<RadarState>(player).unwrap().candidate = None;
         search(&mut world);
         assert_eq!(
@@ -657,7 +648,7 @@ mod tests {
             .spawn((
                 RigidBody::Dynamic,
                 LockSignature(0.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
             ))
             .id();
         search(&mut world);
@@ -672,7 +663,7 @@ mod tests {
             .spawn((
                 RigidBody::Dynamic,
                 LockSignature(2.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -65.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -65.0)),
             ))
             .id();
         search(&mut world);
@@ -686,9 +677,7 @@ mod tests {
         // Truly out (past 1.15x): dropped.
         world
             .entity_mut(rock)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -80.0,
-            )));
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -80.0)));
         search(&mut world);
         assert_eq!(candidate(&mut world, player), None);
     }

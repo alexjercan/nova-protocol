@@ -21,6 +21,8 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
+use crate::input::targeting::prelude::{SensorContacts, SensorRange, AI_SENSOR_RANGE};
+
 mod acquisition;
 mod behavior;
 mod guns;
@@ -57,18 +59,34 @@ pub use self::{
     torpedo::{AITorpedoBay, AI_TORPEDO_MAX_RANGE},
 };
 
-/// A world for an AI unit test: bare, plus the empty collider tree the
-/// acquisition scan reads.
+/// A world for an AI unit test: bare, plus the two things the sensor pass
+/// reads.
 ///
-/// Acquisition asks for line of sight, and that question goes through avian's
+/// Sensing asks for line of sight, and that question goes through avian's
 /// `SpatialQuery`, which refuses to run without `ColliderTrees`. A rig that
 /// spawns no colliders wants exactly this: an empty tree, in which nothing
-/// stands between anybody.
+/// stands between anybody. The pass also reads the shipped
+/// [`TargetingSettings`], so the defaults stand in for a scenario's.
 #[cfg(test)]
 pub(super) fn ai_test_world() -> World {
     let mut world = World::new();
     world.init_resource::<avian3d::collider_tree::ColliderTrees>();
+    world.init_resource::<crate::input::targeting::prelude::TargetingSettings>();
     world
+}
+
+/// One production frame of acquisition in a test world that has no schedule:
+/// the single sensor pass publishes what every ship can see, then the picker
+/// reads it. Running the picker alone leaves every contact set empty, which
+/// is a silent pass rather than a failure, so tests go through here.
+#[cfg(test)]
+pub(super) fn sense_and_pick(world: &mut World) {
+    use bevy::ecs::system::RunSystemOnce;
+
+    world
+        .run_system_once(crate::input::targeting::update_sensor_contacts)
+        .unwrap();
+    world.run_system_once(update_ai_target).unwrap();
 }
 
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
@@ -207,6 +225,10 @@ impl Plugin for SpaceshipAIInputPlugin {
                 // now declares the edge the old in-chain position used to give
                 // it for free.
                 .after(super::point_defense::SpaceshipPointDefenseSystems)
+                // Acquisition reads the ship's own `SensorContacts`, which the
+                // one sensor pass publishes. Stated rather than inherited: the
+                // two plugins are siblings and nothing else orders them.
+                .after(super::targeting::SensorContactSystems)
                 .in_set(super::SpaceshipInputSystems),
         );
     }
@@ -215,10 +237,11 @@ impl Plugin for SpaceshipAIInputPlugin {
 /// Marker component to identify the ai's spaceship.
 ///
 /// This should be added to the root entity of the ai's spaceship.
-/// Carries [`Allegiance::Enemy`], an [`AIBehaviorState`] and an [`AITarget`]
-/// by requirement, so every AI-marked root participates in the relation
-/// model, the behavior state machine and target selection without extra
-/// spawn wiring.
+/// Carries [`Allegiance::Enemy`], an [`AIBehaviorState`], an [`AITarget`] and
+/// the sensing pair ([`SensorRange`] + [`SensorContacts`]) by requirement, so
+/// every AI-marked root participates in the relation model, the behavior state
+/// machine and target selection without extra spawn wiring. The AI sees
+/// through the same pass the player does; only the reach differs.
 #[derive(Component, Debug, Clone, Reflect)]
 #[require(
     SpaceshipRootMarker,
@@ -228,7 +251,9 @@ impl Plugin for SpaceshipAIInputPlugin {
     AIPointDefenseTarget,
     AIFireCadence,
     AIThreat,
-    AIEvade
+    AIEvade,
+    SensorRange = SensorRange(AI_SENSOR_RANGE),
+    SensorContacts
 )]
 pub struct AISpaceshipMarker;
 

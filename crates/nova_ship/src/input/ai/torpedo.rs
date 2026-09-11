@@ -17,8 +17,8 @@ use crate::prelude::*;
 /// 1/fire_rate seconds. Playtest knob.
 const AI_TORPEDO_COOLDOWN_SECS: f32 = 10.0;
 /// Outer edge of the launch envelope. Beyond detection range
-/// (AI_ENGAGE_RANGE) but well inside acquisition range
-/// (AI_TARGET_MAX_RANGE), so a launch can open the approach on a fight the
+/// (AI_ENGAGE_RANGE) but well inside the AI sensor reach
+/// (AI_SENSOR_RANGE), so a launch can open the approach on a fight the
 /// ship is already committing to. Playtest knob.
 ///
 /// Public because the balance audit's threat envelope IS this number: a copy
@@ -293,12 +293,14 @@ mod torpedo_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(target_position),
             ))
             .id();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AITarget(Some(target)),
                 Transform::default(),
             ))
@@ -388,6 +390,7 @@ mod torpedo_tests {
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 TorpedoTargetChosen,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
@@ -430,6 +433,7 @@ mod torpedo_tests {
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 ProjectileOwner(ship),
                 TorpedoSectionPartOf(bay),
             ))
@@ -470,6 +474,7 @@ mod torpedo_tests {
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 ProjectileOwner(ship),
                 TorpedoSectionPartOf(bay),
             ))
@@ -493,6 +498,7 @@ mod torpedo_tests {
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 ProjectileOwner(target),
                 TorpedoSectionPartOf(bay),
             ))
@@ -517,6 +523,7 @@ mod torpedo_tests {
         let hostile_torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 TorpedoTargetChosen,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
@@ -525,6 +532,7 @@ mod torpedo_tests {
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 ProjectileOwner(ship),
                 TorpedoSectionPartOf(bay),
             ))
@@ -551,6 +559,7 @@ mod torpedo_tests {
         let ship_b = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(500.0, 0.0, 0.0)),
             ))
             .id();

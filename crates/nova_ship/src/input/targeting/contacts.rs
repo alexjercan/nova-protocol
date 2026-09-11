@@ -1,21 +1,17 @@
-//! Per-frame lock upkeep: collect the lockable bodies, validate and drop the
-//! held locks (naming the branch that dropped one), rank the hostile
-//! [`ThreatContacts`] for the edge arrows, and accumulate the [`LockFocus`]
-//! dwell.
+//! Per-frame lock upkeep: validate and drop the held locks (naming the branch
+//! that dropped one), rank the hostile [`ThreatContacts`] for the edge arrows,
+//! and accumulate the [`LockFocus`] dwell.
+//!
+//! WHAT the ship can see is not decided here. The one sensor pass in
+//! [`sensing`](super::sensing) publishes that, and this reads it - so the
+//! locks, the radar picker and an AI picket beside the player cannot disagree
+//! about the same sighting.
 
-use avian3d::prelude::*;
+use avian3d::prelude::RigidBody;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
-use super::occlusion::RadarScan;
 use crate::prelude::*;
-
-/// Maximum distance at which the aim-assist will lock a target - the ceiling
-/// for the intrinsic classes (well bodies, ships), which stay designatable
-/// from across the play area for GOTO legs. Everything else is gated far
-/// shorter by the signature model (the later report: long-range locks should
-/// only see large objects), see [`LockSignature`] and [`TargetingSettings`].
-const TARGETING_MAX_RANGE: f32 = 20_000.0;
 
 /// Seconds without combat activity (the raised stance or a held weapon
 /// trigger) before a held combat lock decays and the weapons safety re-
@@ -58,123 +54,6 @@ impl LockFocus {
 /// indicators. A feel knob; more would clutter the HUD.
 const TARGET_CANDIDATE_COUNT: usize = 5;
 
-/// A collected lockable body: entity, world position, hostile-to-player,
-/// combat-target (ship or committed torpedo), and in-sight (no radar occluder
-/// on the line). Sight is REPORTED rather than applied, because the slots do
-/// not agree on it: see `update_contacts_and_locks`.
-pub(super) type Lockable = (Entity, Vec3, bool, bool, bool);
-
-/// The scanner query every collection pass walks. Turret bullets are excluded
-/// outright: they are dynamic bodies that stream straight down the aim ray.
-pub(super) type LockableQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static GlobalTransform,
-        &'static RigidBody,
-        Option<&'static GravityWell>,
-        Option<&'static LockSignature>,
-        Has<SpaceshipRootMarker>,
-        Option<&'static TorpedoProjectileMarker>,
-        Option<&'static TorpedoTargetChosen>,
-        Option<&'static Allegiance>,
-    ),
-    Without<TurretBulletProjectileMarker>,
->;
-
-/// Collect every body the scanner can currently see from `origin`, applying
-/// the LockSignature range model at collection so every consumer (the radar
-/// pick, lock validity, the threat set) inherits it:
-///
-/// - Only physical, movable bodies are lockable. This skips static sensor
-///   volumes such as scenario trigger areas (`RigidBody::Static`), which are
-///   invisible and must never be locked. Two exceptions sit on rails (Static)
-///   yet are visible things the player navigates by: gravity-well sources and
-///   bodies with an AUTHORED LockSignature (nav beacons) - trigger areas
-///   never carry a signature, so the invisible-statics rule holds.
-/// - A freshly launched torpedo that has not committed its target yet is
-///   skipped (it spawns right on the aim ray); once committed it is a normal
-///   lockable body.
-/// - Range: well bodies and ships return a signature at any range; committed
-///   torpedoes at combat range; signed bodies at `signature * range/unit`
-///   (floored at the debris range); unsigned debris only point-blank.
-/// - `incumbents` (current locks / the radar candidate) hold a little beyond
-///   their gate ([`TargetingSettings::range_hysteresis`]) so a body at the
-///   boundary cannot strobe its lock as the ship drifts.
-/// - Line of sight: a lock is a radio link, so a body that stops radar
-///   ([`RadarOccluder`] - an asteroid) standing between the scanner and the
-///   candidate takes the candidate out of the set. Cover is cover, for the
-///   pick, for lock validity and for the threat arrows alike.
-///
-/// The occlusion ray is cast LAST, after the cheap component and range
-/// rejects, so the frame pays for one ray per body it could otherwise lock
-/// rather than one per body in the world.
-pub(super) fn collect_lockable(
-    scan: &RadarScan,
-    q_candidates: &LockableQuery,
-    settings: &TargetingSettings,
-    origin: Vec3,
-    ship_entity: Entity,
-    ship_allegiance: Option<&Allegiance>,
-    incumbents: &[Option<Entity>],
-) -> Vec<Lockable> {
-    q_candidates
-        .iter()
-        .filter_map(
-            |(
-                entity,
-                transform,
-                rigid_body,
-                well,
-                signature,
-                is_ship,
-                is_torpedo,
-                torpedo_committed,
-                allegiance,
-            )| {
-                if !matches!(rigid_body, RigidBody::Dynamic)
-                    && well.is_none()
-                    && signature.is_none()
-                {
-                    return None;
-                }
-                // Never lock the player's own ship.
-                if entity == ship_entity {
-                    return None;
-                }
-                if is_torpedo.is_some() && torpedo_committed.is_none() {
-                    return None;
-                }
-                let mut max_range = if well.is_some() || is_ship {
-                    TARGETING_MAX_RANGE
-                } else if is_torpedo.is_some() {
-                    settings.torpedo_lock_range
-                } else {
-                    signature.map_or(settings.unsigned_lock_range, |signature| {
-                        (settings.signature_range_per_unit * **signature)
-                            .max(settings.unsigned_lock_range)
-                    })
-                };
-                if incumbents.contains(&Some(entity)) {
-                    max_range *= settings.range_hysteresis.max(1.0);
-                }
-                let position = transform.translation();
-                if position.distance_squared(origin) > max_range * max_range {
-                    return None;
-                }
-                // Recorded, not rejected: acquiring anything needs sight, but a
-                // travel designation the player already holds survives a rock
-                // drifting across it. Each slot applies its own policy below.
-                let in_sight = !scan.is_occluded(ship_entity, origin, position, entity);
-                let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
-                let is_combat_target = is_ship || is_torpedo.is_some();
-                Some((entity, position, is_hostile, is_combat_target, in_sight))
-            },
-        )
-        .collect()
-}
-
 /// Per-frame lock upkeep, always on: hold the LOCKS only while their targets
 /// stay collectible (death/despawn and out-of-range clear them - stickiness
 /// never needs a re-pick because NOTHING re-picks), clear the combat lock
@@ -188,12 +67,9 @@ pub(super) fn collect_lockable(
 pub(super) fn update_contacts_and_locks(
     time: Res<Time>,
     look_ray: ActiveLookRay,
-    settings: Res<TargetingSettings>,
-    scan: RadarScan,
-    q_candidates: LockableQuery,
     q_flipped: Query<(), Changed<Allegiance>>,
     q_allegiances: Query<&Allegiance>,
-    q_neutralized: Query<(), With<NeutralizedMarker>>,
+    q_bodies: Query<(), With<RigidBody>>,
     // Only WEAPON sections carry a trigger, so the filter skips hull,
     // thrusters and controllers rather than walking every section. EVERY
     // weapon: a pilot fighting with the lance alone is as much in combat as
@@ -215,9 +91,9 @@ pub(super) fn update_contacts_and_locks(
     mut spaceship: Query<
         (
             &Transform,
-            Option<&ComputedCenterOfMass>,
             Entity,
             Option<&Allegiance>,
+            &SensorContacts,
             &mut TravelLock,
             &mut CombatLock,
             &mut CombatDecay,
@@ -229,9 +105,9 @@ pub(super) fn update_contacts_and_locks(
 ) {
     for (
         transform,
-        com,
         ship,
         ship_allegiance,
+        contacts,
         mut travel,
         mut combat,
         mut decay,
@@ -239,49 +115,28 @@ pub(super) fn update_contacts_and_locks(
         raised,
     ) in &mut spaceship
     {
-        // Cone origin on the live structure, not the root origin, so the
-        // scanner agrees with the COM-anchored crosshair after losing
-        // sections.
-        let origin = live_structure_anchor(transform, com);
-        let candidates = collect_lockable(
-            &scan,
-            &q_candidates,
-            &settings,
-            origin,
-            ship,
-            ship_allegiance,
-            &[travel.0, combat.0],
-        );
+        let origin = contacts.origin;
 
-        let collected = |target: Entity| {
-            candidates
-                .iter()
-                .find(|&&(entity, ..)| entity == target)
-                .copied()
-        };
-
-        // Validity, and the one place the two slots differ. A TRAVEL
-        // designation is a place the player has already been told about, so it
-        // holds while the body is collectible at all - cover cannot take back
-        // what you were shown, and a rock drifting over a nav mark used to make
-        // [G] a silent no-op. A COMBAT lock is a live radio link and needs the
-        // line the whole time it is held.
-        let travel_now = travel.0.filter(|target| collected(*target).is_some());
+        // BOTH slots need the line. A lock is a radio link either way: the
+        // travel designation used to ride through cover on the reading that a
+        // place you were shown stays shown, and the two slots behaving
+        // differently under the same rock is exactly the inconsistency the one
+        // sensor pass exists to retire. Neither re-locks on its own when the
+        // line clears - a fresh dwell is what takes a lock.
+        let travel_now = travel.0.filter(|target| contacts.in_sight(*target));
         if travel.0 != travel_now {
             travel.0 = travel_now;
         }
-        let mut combat_now = combat
-            .0
-            .filter(|target| collected(*target).is_some_and(|(.., in_sight)| in_sight));
+        let mut combat_now = combat.0.filter(|target| contacts.in_sight(*target));
         // Name the branch that let go, rather than leaving the owner (and any
         // future investigation) to infer it from the wreckage - and name it off
         // the pass that made the decision, so the log cannot disagree with the
-        // gate. Collected but out of sight is COVER; dropped by the pass while
-        // still a lockable body is RANGE; gone from the query entirely is GONE.
+        // gate. Seen but out of sight is COVER; gone from the sensor pass while
+        // still a body is RANGE; not a body at all is GONE.
         if let (Some(target), None) = (combat.0, combat_now) {
-            let reason = match collected(target) {
+            let reason = match contacts.get(target) {
                 Some(_) => CombatLockDrop::Occluded,
-                None if q_candidates.get(target).is_ok() => CombatLockDrop::OutOfRange,
+                None if q_bodies.get(target).is_ok() => CombatLockDrop::OutOfRange,
                 None => CombatLockDrop::TargetGone,
             };
             report_combat_lock_drop(&mut dropped, target, reason, decay.0);
@@ -356,12 +211,15 @@ pub(super) fn update_contacts_and_locks(
         let ranked = rank_combat_targets(
             origin,
             aim,
-            candidates
+            contacts
                 .iter()
-                .filter(|&&(entity, _, is_hostile, is_combat, in_sight)| {
-                    is_hostile && is_combat && in_sight && !q_neutralized.contains(entity)
+                .filter(|contact| {
+                    contact.is_hostile()
+                        && contact.is_combat_target()
+                        && contact.in_sight
+                        && !contact.neutralized
                 })
-                .map(|&(entity, position, ..)| (entity, position)),
+                .map(|contact| (contact.entity, contact.anchor)),
         );
         let entries = maintain_contacts(&ranked, combat.0);
         if threats.entries != entries {
@@ -546,7 +404,7 @@ mod tests {
             .spawn((
                 RigidBody::Static,
                 LockSignature(20.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
             .id();
         let combat_target = world
@@ -554,7 +412,7 @@ mod tests {
                 SpaceshipRootMarker,
                 AISpaceshipMarker,
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -400.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -400.0)),
             ))
             .id();
         let player = world
@@ -570,8 +428,10 @@ mod tests {
         // call, which would see EVERYTHING as changed, exactly the
         // false-positive this rig must not have. Settle the spawn-frame
         // Changed ticks before locking, as a live app would.
+        let sensing_id = world.register_system(super::super::sensing::update_sensor_contacts);
         let upkeep_id = world.register_system(update_contacts_and_locks);
-        world.insert_resource(UpkeepSystem(upkeep_id));
+        world.insert_resource(UpkeepSystem(sensing_id, upkeep_id));
+        world.run_system(sensing_id).unwrap();
         world.run_system(upkeep_id).unwrap();
         world.get_mut::<TravelLock>(player).unwrap().0 = Some(travel_target);
         world.get_mut::<CombatLock>(player).unwrap().0 = Some(combat_target);
@@ -579,11 +439,17 @@ mod tests {
     }
 
     #[derive(Resource)]
-    struct UpkeepSystem(bevy::ecs::system::SystemId);
+    struct UpkeepSystem(bevy::ecs::system::SystemId, bevy::ecs::system::SystemId);
 
+    /// One frame of the chain, in production order: the sensor pass decides
+    /// what the ship can see, then the upkeep decides what it keeps.
     fn upkeep(world: &mut World) {
-        let id = world.resource::<UpkeepSystem>().0;
-        world.run_system(id).unwrap();
+        let (sensing, upkeep) = {
+            let systems = world.resource::<UpkeepSystem>();
+            (systems.0, systems.1)
+        };
+        world.run_system(sensing).unwrap();
+        world.run_system(upkeep).unwrap();
     }
 
     /// Drain the drop messages the last upkeep wrote - the evidence rig's
@@ -633,12 +499,10 @@ mod tests {
         // 2. Out of range: the target exists and is still lockable, it is
         // simply too far - even past the incumbent's widened gate.
         let (mut world, player, _travel, combat_target) = locked_world();
-        let past_gate = TARGETING_MAX_RANGE * 1.15 + 1.0;
+        let past_gate = PLAYER_SENSOR_RANGE * 1.15 + 1.0;
         world
             .entity_mut(combat_target)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -past_gate,
-            )));
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -past_gate)));
         upkeep(&mut world);
         assert_eq!(
             drops(&mut world),
@@ -812,9 +676,7 @@ mod tests {
             let distance = 400.0 + (step as f32) * 10.0;
             world
                 .entity_mut(combat_target)
-                .insert(GlobalTransform::from_translation(Vec3::new(
-                    0.0, 0.0, -distance,
-                )));
+                .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -distance)));
             world
                 .resource_mut::<Time>()
                 .advance_by(Duration::from_secs_f32(1.0));
@@ -844,7 +706,7 @@ mod tests {
                 SpaceshipRootMarker,
                 AISpaceshipMarker,
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -500.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -500.0)),
             ))
             .id();
         hold_trigger(&mut world, player);
@@ -898,9 +760,7 @@ mod tests {
         // ship (full-range class) survives.
         world
             .entity_mut(travel_target)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -900.0,
-            )));
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -900.0)));
         upkeep(&mut world);
         assert_eq!(world.get::<TravelLock>(player).unwrap().0, None);
         assert_eq!(
@@ -999,7 +859,7 @@ mod tests {
             SpaceshipRootMarker,
             Allegiance::Neutral,
             RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(50.0, 0.0, -100.0)),
+            Transform::from_translation(Vec3::new(50.0, 0.0, -100.0)),
         ));
         let torpedo = world
             .spawn((
@@ -1007,7 +867,7 @@ mod tests {
                 TorpedoTargetChosen,
                 Allegiance::Enemy,
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
+                Transform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
             ))
             .id();
 

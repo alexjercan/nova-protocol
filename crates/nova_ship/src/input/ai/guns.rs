@@ -376,6 +376,7 @@ mod fire_discipline_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(target_position),
                 LinearVelocity(target_velocity),
             ))
@@ -383,6 +384,7 @@ mod fire_discipline_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 AITarget(Some(target)),
                 Transform::default(),
                 LinearVelocity(Vec3::ZERO),
@@ -750,6 +752,7 @@ mod per_turret_defense_tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
                 LinearVelocity(Vec3::ZERO),
             ))
@@ -757,6 +760,7 @@ mod per_turret_defense_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                RigidBody::Dynamic,
                 SpaceshipRootMarker,
                 Allegiance::Enemy,
                 AITarget(Some(enemy)),
@@ -788,6 +792,7 @@ mod per_turret_defense_tests {
         world
             .spawn((
                 TorpedoProjectileMarker,
+                RigidBody::Dynamic,
                 TorpedoTargetChosen,
                 TorpedoTargetEntity(ship),
                 Allegiance::Player,
