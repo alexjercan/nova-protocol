@@ -15,23 +15,62 @@ which are easy to identify if we look at all hardcoded values."
 The velocity and gravity spheres are `20260909-212917`. This task is the
 rest of the presentation layer, from the 2026-09-09 sweep of `nova_hud`,
 `nova_ship::camera`, `nova_os_ui`, `nova_debug`, `nova_ui`, `nova_menu`.
-Sizes to derive from: `HullRadius` (own hull), the target's projected
+Sizes to derive from: `HullEnvelopeRadius` (own visible hull), the target's projected
 apparent radius (`screen_indicator::indicator_size` already computes it
 from the collider AABB union), `BodyRadius` (beacons, bodies), or a live
 `ComputedNode` size. Author margins in meters through `nova_events`.
+
+## Implementation decisions
+
+- Depend on `20260909-212917` and use its `HullEnvelopeRadius` whenever a
+  presentation element or camera must clear the visible hull. `HullRadius`
+  remains the structural arm and is not the containment contract.
+- Preserve the current skiff camera compositions. Normal remains the standard
+  chase view. Turret/combat remains closer and elevated with its focus ahead so
+  the hull leaves the combat area clear. FreeLook/alternate remains the wider
+  view. Grow each rig only when the live envelope plus the 5 m visual hull
+  clearance requires it.
+- Derive burn push from live forward main-drive acceleration: aligned authored
+  thruster force divided by ship mass, gated by live thruster input. Scale it
+  with the current rig distance and calibrate against the current skiff so its
+  full-burn push remains approximately 30 m. Do not let gravity move the rig.
+- Size the flip gate's major radius from the hull envelope plus visual
+  clearance. Keep its tube thickness an indicator-sized authored value.
+- Place an anchored widget at `projected target radius + visual gap + widget
+  half-size`. Calibrate each fixed gap to preserve the current skiff/small-target
+  composition rather than inventing a new baseline.
+- Dynamically cluster overlapping ammo gauges of the same kind in screen space.
+  Keep individual gauges while they fit. A cluster shows its mount count and
+  the lowest member ammo fraction, then separates again when screen space
+  permits.
+- Plot map bodies at their projected physical radius. Give them a separate
+  minimum-size interaction target and outline, so planets read to scale while
+  small contacts remain selectable.
+- The ship inspector has no `Special` section category. Keep a clickable dot
+  for every section, retain the existing class glyphs, and show a text label
+  only for the selected section.
+- Missing presentation data hides the entity but does not disable the systems
+  that measure it and make it ready. Hidden UI is not pickable. Any handler
+  that can produce an action must also validate semantic readiness; do not use
+  generic ECS `Disabled`, which could prevent layout or readiness processing.
+- Debug barrel lines use authored weapon reach. Projectile lines use velocity
+  over one authored time interval. Thruster lines use authored force times
+  live input. Marker radii derive from their collider or a small metric visual
+  clearance.
 
 ## Camera (player-visible first)
 
 - [ ] `crates/nova_ship/src/camera/framing.rs:131-141` `mode_camera_rig`:
       chase offsets fixed at (0,5,-20) Normal, (0,10,-30) FreeLook, (0,5,-10)
-      Turret world units. `block_carrier` has a `HullRadius` of ~17 u, so
-      Turret mode parks the camera INSIDE the hull. Derive from `HullRadius`
+      Turret world units. `block_carrier` has a hull reach of ~17 u, so Turret
+      mode parks the camera INSIDE the hull. Derive from `HullEnvelopeRadius`
       plus an authored margin.
 - [ ] `crates/nova_ship/src/camera/chase.rs:92` `ChaseCamera::default()`
       repeats the fixed offset; a respawned camera wears it for its first
       frame, so a respawn in a big hull opens from inside the ship.
 - [ ] `framing.rs:126,160-165` `SURVEY_MAX_DISTANCE` 250 u caps the orbit
-      survey dolly below a 400 u ring; include `HullRadius` in both bounds.
+      survey dolly below a 400 u ring; include `HullEnvelopeRadius` in both
+      bounds.
 - [ ] `framing.rs:116,235` `BURN_PUSH_DISTANCE` 3 u: imperceptible on the
       carrier, a lurch on a skiff. Make it a fraction of the rig distance.
 
@@ -40,7 +79,7 @@ from the collider AABB union), `BodyRadius` (beacons, bodies), or a live
 - [ ] `crates/nova_hud/src/holo_instruments.rs:31` `GATE_RADIUS` 4 u torus,
       built once into `HoloAssets::gate_mesh`. The carrier is 11 cells across
       the shoulders and swallows the flip gate. Size per ship from
-      `HullRadius`; rebuild or scale the mesh.
+      `HullEnvelopeRadius`; rebuild or scale the mesh.
 - [ ] `allegiance_markers.rs:85` `MARKER_OFFSET` -40 px: the triangle meant to
       float above the hull sits amidships on a big target. Use the target's
       projected radius.
@@ -89,7 +128,7 @@ from the collider AABB union), `BodyRadius` (beacons, bodies), or a live
       `MapContacts::collect` already has.
 - [ ] `map/scene.rs:484,84` `MAP_BLIP_PX` 12 px for every contact and a fixed
       16 m focus hub: a planetoid, the carrier and a torpedo plot identically.
-      Size from `BodyRadius` / `HullRadius`.
+      Size from `BodyRadius` / `HullEnvelopeRadius`.
 - [ ] `ship/scene.rs:602,712,653` one 12 px blip plus a label per live
       section: the carrier's inspector is a thousand overlapping labels.
       Count-aware declutter: label the selection and the specials.
@@ -114,7 +153,7 @@ settings `CHIP_WIDTH`.
 
 - Extend the sphere range from `20260909-212917` (skiff and carrier as the
   player hull) with an invariant per camera mode: the camera sits outside
-  `HullRadius` plus the margin. Add an invariant for each world-anchored
+  `HullEnvelopeRadius` plus the margin. Add an invariant for each world-anchored
   chip: its screen offset exceeds the target's projected radius.
 - `screenshot_combat_hud`, `screenshot_nova_os_apps` and the inset loop re-
   shot on the carrier; the wiki stills updated where they change.
