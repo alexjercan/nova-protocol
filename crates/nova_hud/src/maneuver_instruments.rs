@@ -21,6 +21,7 @@ use nova_ship::flight::prelude::*;
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
 use super::{
+    flight_status::prelude::DESTINATION_MARKER_PX,
     holo_instruments::{segment_transform, HoloAssets},
     screen_indicator::prelude::*,
 };
@@ -34,8 +35,14 @@ pub mod prelude {
     };
 }
 
-/// The destination readout sits this far below the destination marker (px).
-const READOUT_OFFSET: Vec2 = Vec2::new(0.0, 28.0);
+/// Clear space (px) between the destination marker's edge and the readout
+/// chip's centre line.
+const READOUT_GAP_PX: f32 = 16.0;
+
+/// The destination readout sits below the destination marker, clear of the
+/// marker's own radius. Derived from the marker rather than hand-matched to
+/// it: two numbers that have to agree eventually stop agreeing.
+const READOUT_OFFSET: Vec2 = Vec2::new(0.0, DESTINATION_MARKER_PX / 2.0 + READOUT_GAP_PX);
 
 /// The ring holo's tube thickness, world units - thin, an instrument line,
 /// not a solid.

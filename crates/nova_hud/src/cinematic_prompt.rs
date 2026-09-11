@@ -87,14 +87,19 @@ fn spawn_cinematic_prompt(mut commands: Commands) {
                 position_type: PositionType::Absolute,
                 bottom: Val::Px(PROMPT_BOTTOM_PX),
                 left: Val::Percent(50.0),
-                margin: UiRect::left(Val::Px(-90.0)),
-                width: Val::Px(180.0),
+                // No authored width: the pill hugs whatever the live binding
+                // label turns out to be. A fixed 180 px box with a half-width
+                // margin centred one particular label and clipped the rest -
+                // a pad glyph name or a rebound `RIGHT BRACKET` overflowed it.
                 justify_content: JustifyContent::Center,
                 padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
                 border: UiRect::all(Val::Px(theme::BORDER_W)),
                 border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                 ..default()
             },
+            // Centring the measured box on the screen midline, which is what
+            // the hand-computed negative margin was trying to be.
+            UiTransform::from_translation(Val2::percent(-50.0, 0.0)),
             BorderColor::all(tone.border()),
             BackgroundColor(tone.fill()),
         ))

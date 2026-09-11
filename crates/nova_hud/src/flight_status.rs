@@ -27,14 +27,15 @@ pub mod prelude {
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,
         AutopilotDestinationHudMarker, AutopilotDestinationUIMarker, FlightStatusHudConfig,
         FlightStatusHudMarker, FlightStatusHudPlugin, FlightStatusHudTargetEntity,
-        ModeChipUIMarker, SpeedChipUIMarker,
+        ModeChipUIMarker, SpeedChipUIMarker, DESTINATION_MARKER_PX,
     };
 }
 
 /// Fixed on-screen size (px) of the destination marker. Unlike the target
 /// reticle it does not track apparent size - it marks a nav point, not a
-/// silhouette.
-const DESTINATION_MARKER_PX: f32 = 24.0;
+/// silhouette. Public because the widgets that sit AROUND the marker derive
+/// their placement from it rather than hand-matching a second number.
+pub const DESTINATION_MARKER_PX: f32 = 24.0;
 
 /// The speed chip is the biggest readout on the flight HUD - it is the number
 /// you fly by (demo 2 `.speed`, 15 px against the family's 12).

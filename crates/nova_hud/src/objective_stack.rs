@@ -66,19 +66,18 @@ const CHIP_POP_SECS: f32 = 1.2;
 const CHIP_BREATH_PERIOD_SECS: f32 = 2.4;
 const CHIP_BREATH_MIN_ALPHA: f32 = 0.72;
 
-/// Top offset (px) of the stack. Demo 2 uses `.obj { top: 58px }`, but the mock
-/// has nothing else up there: the game's scenario readout strip
-/// (`super::readout`) is a top-centre column at `top: 16px` that grows DOWNWARD,
-/// and one two-line readout (a time trial's `RELIEF 01:09.7`) already reaches
-/// ~65 px - so 58 puts an objective chip on top of the run timer. Measured on
-/// the lifeline walk; 96 clears a one-readout strip with margin.
-///
-/// KNOWN LIMIT: a scenario showing two or more readouts can still reach this
-/// far. The durable fix is one shared top-centre COLUMN that both the strip and
-/// this stack flow inside, instead of two absolute nodes guessing at each
-/// other's height - out of scope here (it restructures a working widget), and
-/// worth doing if the playtest hits it.
-const STACK_TOP_PX: f32 = 96.0;
+/// Where the stack sits when nothing is above it - demo 2's `.obj { top: 58px }`.
+/// The floor, not the answer: the game's scenario readout strip
+/// (`super::readout`) is a top-centre column that grows DOWNWARD, and the stack
+/// clears whatever height that strip currently has.
+const STACK_TOP_MIN_PX: f32 = 58.0;
+
+/// Clear space (px) between the readout strip's live bottom edge and the first
+/// objective chip. One two-line readout (a time trial's `RELIEF 01:09.7`)
+/// reaches ~65 px, which with this gap puts the stack at the 96 px the
+/// lifeline walk was tuned to; a scenario with three readouts now pushes the
+/// stack down instead of stacking chips on the run clock.
+const STACK_GAP_PX: f32 = 30.0;
 
 /// The diamond that leads every objective chip - demo 2's `.di` glyph. Drawn
 /// as a rotated bordered SQUARE, not the `\u{25c6}` character: the shipped
@@ -195,7 +194,7 @@ pub fn objective_stack_hud() -> impl Bundle {
         ObjectiveStackHudMarker,
         Node {
             position_type: PositionType::Absolute,
-            top: Val::Px(STACK_TOP_PX),
+            top: Val::Px(STACK_TOP_MIN_PX),
             left: Val::Px(0.0),
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
@@ -207,11 +206,46 @@ pub fn objective_stack_hud() -> impl Bundle {
     )
 }
 
+/// Drop the stack below the scenario readout strip's LIVE bottom edge.
+///
+/// Two absolute top-centre nodes cannot both guess how tall the other is: the
+/// strip grows a row per authored readout, and a stack pinned at the height
+/// one readout happens to need stacks chips on the run clock the moment a mod
+/// shows two. Measuring costs one frame of lag, which a strip that gains a row
+/// mid-run can afford and a collision cannot.
+fn clear_the_readout_strip(
+    q_strip: Query<(&Node, &ComputedNode), With<HudReadoutStripMarker>>,
+    mut q_stack: Query<
+        &mut Node,
+        (
+            With<ObjectiveStackHudMarker>,
+            Without<HudReadoutStripMarker>,
+        ),
+    >,
+) {
+    let bottom = q_strip
+        .iter()
+        .map(|(node, computed)| {
+            let top = match node.top {
+                Val::Px(px) => px,
+                _ => 0.0,
+            };
+            top + computed.size().y * computed.inverse_scale_factor()
+        })
+        .fold(0.0f32, f32::max);
+    let want = Val::Px((bottom + STACK_GAP_PX).max(STACK_TOP_MIN_PX));
+    for mut stack in &mut q_stack {
+        if stack.top != want {
+            stack.top = want;
+        }
+    }
+}
+
 /// Drives the objective notification stack: posting detection, the read
 /// lifecycle and the rendered chips. Inits [`ObjectiveNotifications`]; runs
 /// `post_objective_notifications`, `age_objective_notifications`,
-/// `read_on_nova_os`, `sync_objective_chips` and `breathe_objective_chips` in
-/// Update within [`NovaHudSystems`].
+/// `read_on_nova_os`, `sync_objective_chips`, `breathe_objective_chips` and
+/// `clear_the_readout_strip` in Update within [`NovaHudSystems`].
 pub struct ObjectiveStackPlugin;
 
 impl Plugin for ObjectiveStackPlugin {
@@ -233,6 +267,7 @@ impl Plugin for ObjectiveStackPlugin {
                 read_on_nova_os,
                 sync_objective_chips,
                 breathe_objective_chips,
+                clear_the_readout_strip,
             )
                 .chain()
                 .in_set(NovaHudSystems),
@@ -599,10 +634,74 @@ pub(super) fn remove_objective_stack(
 mod tests {
     use core::time::Duration;
 
-    use bevy::{state::app::StatesPlugin, time::TimeUpdateStrategy};
+    use bevy::{ecs::system::RunSystemOnce, state::app::StatesPlugin, time::TimeUpdateStrategy};
     use nova_gameplay::objectives::Objective;
 
     use super::*;
+
+    /// A readout strip of `height` logical px at the top inset the strip
+    /// spawns with.
+    fn spawn_strip(world: &mut World, height: f32) {
+        world.spawn((
+            HudReadoutStripMarker,
+            Node {
+                top: Val::Px(16.0),
+                ..default()
+            },
+            ComputedNode {
+                size: Vec2::new(160.0, height),
+                ..ComputedNode::DEFAULT
+            },
+        ));
+    }
+
+    fn stack_top(world: &mut World) -> f32 {
+        let node = world
+            .query_filtered::<&Node, With<ObjectiveStackHudMarker>>()
+            .single(world)
+            .expect("one stack");
+        match node.top {
+            Val::Px(px) => px,
+            other => panic!("the stack is placed in pixels, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_stack_clears_the_live_readout_strip() {
+        let mut world = World::new();
+        world.spawn(objective_stack_hud());
+
+        // No strip at all: the stack sits at the demo's own top.
+        world.run_system_once(clear_the_readout_strip).unwrap();
+        assert_eq!(stack_top(&mut world), STACK_TOP_MIN_PX);
+
+        // One two-line readout reaching ~65 px puts the stack back where the
+        // lifeline walk tuned it.
+        spawn_strip(&mut world, 49.0);
+        world.run_system_once(clear_the_readout_strip).unwrap();
+        assert_eq!(stack_top(&mut world), 95.0);
+    }
+
+    #[test]
+    fn a_taller_strip_pushes_the_stack_further_down() {
+        let mut world = World::new();
+        world.spawn(objective_stack_hud());
+        spawn_strip(&mut world, 49.0);
+        world.run_system_once(clear_the_readout_strip).unwrap();
+        let one_readout = stack_top(&mut world);
+
+        let strip = world
+            .query_filtered::<Entity, With<HudReadoutStripMarker>>()
+            .single(&world)
+            .expect("one strip");
+        world.get_mut::<ComputedNode>(strip).unwrap().size.y = 147.0;
+        world.run_system_once(clear_the_readout_strip).unwrap();
+
+        assert!(
+            stack_top(&mut world) > one_readout + 90.0,
+            "three readouts push the chips clear of the clock"
+        );
+    }
 
     /// Virtual time each `app.update()` actually advances in this rig.
     /// MEASURED, not assumed (`manual-time-rig` lesson): the strategy below

@@ -34,7 +34,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::theme::combat;
+use nova_ui::{prelude::StatusBarRootMarker, theme::combat};
 
 use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
@@ -71,10 +71,17 @@ const INSET_TEXTURE_PX: u32 = INSET_PANEL_PX as u32;
 /// Panel inset from the screen's right edge (px).
 const INSET_MARGIN_PX: f32 = 12.0;
 
-/// Panel inset from the screen's top edge (px): pushed below the bcs
-/// status bar (FPS/latency row, top-right at 10 px - bcs ui/status.rs),
-/// which the panel used to overlap. A feel knob.
-const INSET_TOP_PX: f32 = 44.0;
+/// Panel inset from the screen's top edge (px) when nothing is above it -
+/// the same inset it keeps from the right edge, so an unoccupied corner reads
+/// square. The live answer comes from measuring the status bar; this is the
+/// floor.
+const INSET_TOP_MIN_PX: f32 = INSET_MARGIN_PX;
+
+/// Clear space (px) between the status bar's live bottom edge and the panel.
+/// Matches the bar's own item margin, so the panel sits under the row the way
+/// the row's items sit beside each other. A hand-read 44 px held only for the
+/// one-item bar that happened to be up there.
+const INSET_STATUS_GAP_PX: f32 = 4.0;
 
 /// Panel border thickness (px).
 const INSET_BORDER_PX: f32 = 2.0;
@@ -334,8 +341,10 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
             // Top-right, below the status bar: clear of the FPS/latency row
             // (top-right), the objectives column (mid-right), the keybind
             // hints (bottom-left) and the dev inspector overlay (top-left).
+            // `clear_the_status_bar` measures that row and drops `top` under
+            // whatever it currently is.
             right: Val::Px(INSET_MARGIN_PX),
-            top: Val::Px(INSET_TOP_PX),
+            top: Val::Px(INSET_TOP_MIN_PX),
             width: Val::Px(INSET_PANEL_PX),
             height: Val::Px(INSET_PANEL_PX),
             border: UiRect::all(Val::Px(INSET_BORDER_PX)),
@@ -490,9 +499,38 @@ impl Plugin for TargetInsetHudPlugin {
                 show_confirmed_destruction,
                 pulse_no_signal,
                 sync_section_highlight,
+                clear_the_status_bar,
             )
                 .in_set(super::NovaHudSystems),
         );
+    }
+}
+
+/// Drop the inset below the status bar's LIVE bottom edge.
+///
+/// The bar is bcs chrome that grows an item at a time (FPS, latency, build),
+/// each 24 px tall with its own margin; a top read by hand off one item's
+/// arithmetic is wrong the moment somebody adds a second row. A screen with
+/// no status bar at all lets the panel sit at its own corner inset.
+fn clear_the_status_bar(
+    q_bar: Query<(&Node, &ComputedNode), With<StatusBarRootMarker>>,
+    mut q_inset: Query<&mut Node, (With<TargetInsetHudMarker>, Without<StatusBarRootMarker>)>,
+) {
+    let bottom = q_bar
+        .iter()
+        .map(|(node, computed)| {
+            let top = match node.top {
+                Val::Px(px) => px,
+                _ => 0.0,
+            };
+            top + computed.size().y * computed.inverse_scale_factor()
+        })
+        .fold(0.0f32, f32::max);
+    let want = Val::Px((bottom + INSET_STATUS_GAP_PX).max(INSET_TOP_MIN_PX));
+    for mut inset in &mut q_inset {
+        if inset.top != want {
+            inset.top = want;
+        }
     }
 }
 
@@ -1048,6 +1086,54 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    // -- placement --
+
+    fn inset_top(world: &mut World) -> f32 {
+        let node = world
+            .query_filtered::<&Node, With<TargetInsetHudMarker>>()
+            .single(world)
+            .expect("one inset");
+        match node.top {
+            Val::Px(px) => px,
+            other => panic!("the inset is placed in pixels, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_inset_clears_the_live_status_bar() {
+        let mut world = World::new();
+        world.init_resource::<Assets<Image>>();
+        let image = world.resource_mut::<Assets<Image>>().reserve_handle();
+        world.spawn(target_inset_hud(image));
+
+        // No status bar: the panel keeps its own corner inset.
+        world.run_system_once(clear_the_status_bar).unwrap();
+        assert_eq!(inset_top(&mut world), INSET_TOP_MIN_PX);
+
+        // One 24 px item row with its 4 px margins, at the bar's 10 px top.
+        let bar = world
+            .spawn((
+                StatusBarRootMarker,
+                Node {
+                    top: Val::Px(10.0),
+                    ..default()
+                },
+                ComputedNode {
+                    size: Vec2::new(160.0, 32.0),
+                    ..ComputedNode::DEFAULT
+                },
+            ))
+            .id();
+        world.run_system_once(clear_the_status_bar).unwrap();
+        let one_row = inset_top(&mut world);
+        assert_eq!(one_row, 46.0, "just under the row the panel used to guess");
+
+        // A second row pushes the panel down with it.
+        world.get_mut::<ComputedNode>(bar).unwrap().size.y = 64.0;
+        world.run_system_once(clear_the_status_bar).unwrap();
+        assert_eq!(inset_top(&mut world), one_row + 32.0);
+    }
 
     // -- render target --
 

@@ -31,7 +31,7 @@ use super::HudTier;
 /// Glob-import surface: `use nova_hud::readout::prelude::*`
 /// re-exports the public API of this module.
 pub mod prelude {
-    pub use super::{HudReadoutEntry, HudReadoutFormat, HudReadouts};
+    pub use super::{HudReadoutEntry, HudReadoutFormat, HudReadoutStripMarker, HudReadouts};
 }
 
 /// How a [`HudReadoutEntry`] value renders as text. The scenario-side
@@ -107,9 +107,11 @@ pub struct HudReadouts(pub Vec<HudReadoutEntry>);
 /// reads at a glance.
 const READOUT_FONT_SIZE_PX: f32 = 18.0;
 
-/// The strip container (top-center).
-#[derive(Component)]
-struct HudReadoutStripMarker;
+/// The strip container (top-center). Public so the widgets that have to
+/// stay clear of the strip can MEASURE it instead of guessing how tall a
+/// scenario's readouts are.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+pub struct HudReadoutStripMarker;
 
 /// One readout row, keyed by its [`HudReadoutEntry::slot`] for reconciliation.
 #[derive(Component)]
