@@ -24,10 +24,10 @@ pub mod prelude {
 
 /// How the chip stands off the beacon so the label never sits on the orb.
 ///
-/// A beacon publishes no visible collider - its only one is the trigger sphere
-/// - so the clearance falls back to its authored `BodyRadius`, and a 50 m
-/// marker gets the chip pushed clear of the orb instead of printed across it.
-/// The floor is the 28 px the chip has always floated at.
+/// A beacon publishes no visible collider, because its only collider is the
+/// trigger sphere, so the clearance falls back to its authored `BodyRadius`:
+/// a 50 m marker gets the chip pushed clear of the orb instead of printed
+/// across it. The floor is the 28 px the chip has always floated at.
 const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     direction: Vec2::NEG_Y,
     gap_px: 12.0,
