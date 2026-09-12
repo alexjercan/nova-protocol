@@ -543,3 +543,48 @@ The carrier pair meets nose to nose and holds ONE contact, not the hundreds a
 frame the audit describes - two capitals coming alongside broadside would hold
 many more. The claim the range makes is the one it can stage: ten frames of
 capital-on-capital contact at a docking speed, and not a hit point spent.
+
+### A sever parts at the size of what it cut, 2026-09-12
+
+`SEVER_SEPARATION_SPEED` was a flat 1 u/s, so every fragment left at 10 m/s and
+two halves parted at 20 m/s whatever they were. The raw speed is now each
+fragment's OWN containment radius over `SEVER_CLEARANCE_SECS` (2 s), floored at
+10 m/s, and the mass-weighted mean of those kicks still comes back off all of
+them, so a cut moves the halves apart without moving the wreck.
+
+Measured on `system_section_severing`, which now cuts a hull of 30 m components
+so both sides of the cut are past the floor and the range reads the size rule
+rather than the floor:
+
+| figure | before | after |
+| --- | --- | --- |
+| the surviving hull's containment radius | 26.0 m | 26.0 m |
+| the wreck's containment radius | 36.7 m | 36.7 m |
+| the hull's separation speed | 10.0 m/s | 13.0 m/s |
+| the wreck's separation speed | 10.0 m/s | 18.4 m/s |
+| measured fracture speed | 20.08 m/s | 31.41 m/s |
+| the two are clear of each other in | 3.12 s | 2.00 s |
+
+The before column is a live reading: the range asserts the rule, so the old
+constant fails it and names the figure it measured (2.0079606 u/s).
+
+The two reference hulls are not cut by any range, so their rows apply the rule
+to the containment radius `system_hull_scaling` measures. Where a cut falls
+decides how much of that radius a half keeps, so each is a band: a half that
+takes the whole length keeps all of it, a half cut off the middle about half.
+
+| hull | containment radius | a half's speed, before | after | halves clear in, before | after |
+| --- | --- | --- | --- | --- | --- |
+| block_skiff | 48.3 m | 10 m/s | 12.1 - 24.2 m/s | 2.4 - 4.8 s | 2.0 s |
+| block_carrier | 194.3 m | 10 m/s | 48.6 - 97.2 m/s | 9.7 - 19.4 s | 2.0 s |
+
+A fragment under 20 m of containment radius is unchanged, because the floor is
+exactly the speed the old constant gave: a cockpit shard or a single cell still
+leaves at 10 m/s. Everything the floor does not bind clears in two seconds by
+construction, which is the whole of the change: the carrier's halves stop
+grinding against each other for the better part of twenty seconds, and nothing
+smaller than the skiff moves at all.
+
+The hull inputs read unchanged after the item, as a lifecycle change should:
+arm 47.8 m / 194.2 m, torque ceiling 86.3326 / 0.4446 rad/s2, structural ceiling
+1.6430 / 0.4042 rad/s2, both structure-bound, lock range 21.7 km / 59.5 km.

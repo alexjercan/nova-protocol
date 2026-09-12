@@ -691,8 +691,11 @@ gaps are irregular while a count that fell is direct evidence a section died.
 A severed wreck fragment is persistent until scenario teardown. Its healthy
 sections remain damageable, but `SectionInactiveMarker` disconnects every
 controller, thruster and weapon from the lost command bus. Fragments inherit
-rigid point velocity and receive a momentum-balanced kick of 10 m/s (one engine world unit per second) away from the
-cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
+rigid point velocity and receive a momentum-balanced kick away from the cut. Its
+raw speed is the fragment's own containment radius over two seconds, floored at
+10 m/s, so two halves open a gap as wide as themselves in about two seconds
+whatever they are: a carrier's halves part at tens of meters a second where a
+cockpit shard takes the floor. They are unsigned debris, not ships: no allegiance, control, defeat event,
 or scenario identity.
 
 A ship is disabled progressively, so a collapsing ship can keep shooting for a

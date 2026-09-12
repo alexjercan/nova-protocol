@@ -269,7 +269,7 @@ What is on disk today, in reading order:
   `system_hull_damage` (damage -> destroy -> ship survives, and the mass
   properties the losses move), `system_section_severing` (a destroyed interior
   section leaves a real hole and the structure behind it drifts free as its own
-  wreck body), `system_destruction_finale` (every destructible
+  wreck body, at the speed its own size asks for), `system_destruction_finale` (every destructible
   body - gltf section, procedural section, multi-part turret, asteroid -
   breaking into its OWN art rather than generic cubes, on one budget),
   `system_turret_gunnery` and `system_torpedo_launch` (the

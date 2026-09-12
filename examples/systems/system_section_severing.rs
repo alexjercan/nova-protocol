@@ -4,6 +4,11 @@
 //! BLUE is the controller-bearing command component. RED is the bridge that is
 //! destroyed. ORANGE is the healthy component that severs and drifts free.
 //!
+//! The components are three build-grid cells on a side, so the wreck the cut
+//! makes is large enough that its OWN size, and not the 10 m/s floor, sets the
+//! speed it leaves at. That is the fifth claim: a sever opens a gap as wide as
+//! the two halves it made in about two seconds, whatever their size.
+//!
 //! Headless smoke test:
 //!
 //! ```text
@@ -21,6 +26,29 @@ use nova_protocol::prelude::*;
 #[command(about = "Interior section destruction and physical wreck severing. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
+/// The edge of one probe component.
+///
+/// Three build-grid cells. Big enough that both halves of the cut are past the
+/// separation floor, so this range reads the size rule rather than the floor.
+const PART_SIZE: Meters = Meters(30.0);
+
+/// The separation speed a fragment gets when its own size does not ask for a
+/// faster one. Mirrored from `nova_ship::sections::integrity`.
+const SEVER_MIN_SEPARATION_SPEED: MetersPerSecond = MetersPerSecond(10.0);
+
+/// How long a sever is given to open a gap as wide as the halves it made.
+/// Mirrored from the same module.
+const SEVER_CLEARANCE_SECS: f32 = 2.0;
+
+/// How far the measured fracture speed may sit from the rule, u/s.
+///
+/// A settling allowance, not a band: the two bodies are re-based on the frame
+/// they are made, and the reading is taken one solve later.
+const KICK_TOLERANCE: f32 = 0.2;
+
+/// Frames the fracture kick is given to land before the range calls it missing.
+const KICK_FRAME_BUDGET: u32 = 120;
+
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 enum ProbePart {
     Command,
@@ -37,6 +65,7 @@ struct SeverProbe {
     frames: u32,
     fired: bool,
     verified: bool,
+    settling: u32,
     exit_delay: u32,
 }
 
@@ -69,6 +98,9 @@ fn spawn_part(
     part: ProbePart,
     at: Vec3,
 ) -> Entity {
+    let collider = SectionCollider::Cuboid {
+        size: Vec3::splat(PART_SIZE.to_engine()),
+    };
     commands
         .spawn((
             Name::new(format!("{part:?}")),
@@ -76,7 +108,8 @@ fn spawn_part(
             Transform::from_translation(at),
             SectionMarker,
             ConnectedTo::default(),
-            Collider::cuboid(1.0, 1.0, 1.0),
+            collider,
+            collider.to_collider(),
             ColliderDensity(1.0),
             Health::new(100.0),
             Visibility::default(),
@@ -90,6 +123,36 @@ fn spawn_part(
         .id()
 }
 
+/// The raw speed one severed fragment leaves at, from its own containment
+/// radius. Mirrored from `nova_ship::sections::integrity`.
+fn separation_speed(envelope: f32) -> f32 {
+    (envelope / SEVER_CLEARANCE_SECS).max(SEVER_MIN_SEPARATION_SPEED.to_engine())
+}
+
+/// The containment radius of a group of probe components: the distance from the
+/// group's centre of mass to the furthest corner of its furthest cube.
+///
+/// The components are one size and one density, so their centre of mass is the
+/// mean of their offsets and this range can state the figure the sever rule
+/// reads without borrowing the code that computes it.
+fn containment_radius(offsets: &[f32]) -> f32 {
+    let half = PART_SIZE.to_engine() * 0.5;
+    let center = offsets.iter().sum::<f32>() / offsets.len() as f32;
+    offsets
+        .iter()
+        .map(|offset| Vec3::new((center - offset).abs() + half, half, half).length())
+        .fold(0.0_f32, f32::max)
+}
+
+/// One body's world-space centre of mass and linear velocity.
+fn body_motion(world: &World, body: Entity) -> Option<(Vec3, Vec3)> {
+    let position = world.get::<Position>(body)?.0;
+    let rotation = world.get::<Rotation>(body)?.0;
+    let center = world.get::<ComputedCenterOfMass>(body)?.0;
+    let velocity = world.get::<LinearVelocity>(body)?.0;
+    Some((position + rotation * center, velocity))
+}
+
 fn setup_range(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -98,7 +161,7 @@ fn setup_range(
 ) {
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(9.0, 8.0, 16.0).looking_at(Vec3::new(1.5, 0.0, 0.0), Vec3::Y),
+        Transform::from_xyz(27.0, 24.0, 48.0).looking_at(Vec3::new(4.5, 0.0, 0.0), Vec3::Y),
     ));
     commands.spawn((
         DirectionalLight {
@@ -120,7 +183,8 @@ fn setup_range(
             TransformInterpolation,
         ))
         .id();
-    let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    let step = PART_SIZE.to_engine();
+    let cube = meshes.add(Cuboid::from_length(step));
     let command = spawn_part(
         &mut commands,
         root,
@@ -136,7 +200,7 @@ fn setup_range(
         cube.clone(),
         materials.add(Color::from(tailwind::RED_500)),
         ProbePart::Bridge,
-        Vec3::X,
+        Vec3::X * step,
     );
     let front = spawn_part(
         &mut commands,
@@ -144,7 +208,7 @@ fn setup_range(
         cube.clone(),
         materials.add(Color::from(tailwind::ORANGE_500)),
         ProbePart::DetachedFront,
-        Vec3::X * 2.0,
+        Vec3::X * 2.0 * step,
     );
     let rear = spawn_part(
         &mut commands,
@@ -152,7 +216,7 @@ fn setup_range(
         cube,
         materials.add(Color::from(tailwind::ORANGE_300)),
         ProbePart::DetachedRear,
-        Vec3::X * 3.0,
+        Vec3::X * 3.0 * step,
     );
 
     commands.entity(command).insert(ConnectedTo(vec![bridge]));
@@ -244,6 +308,43 @@ fn drive_range(world: &mut World) {
         detached_health > 0.0 && world.get::<SectionInactiveMarker>(detached).is_some(),
         "section_severing: detached structure must be intact, inert, and damageable"
     );
+    let step = PART_SIZE.to_engine();
+    let hull_envelope = containment_radius(&[0.0]);
+    let fragment_envelope = containment_radius(&[2.0 * step, 3.0 * step]);
+    let expected_fracture = separation_speed(hull_envelope) + separation_speed(fragment_envelope);
+    let (Some((hull_com, hull_velocity)), Some((fragment_com, fragment_velocity))) =
+        (body_motion(world, root), body_motion(world, fragment))
+    else {
+        return;
+    };
+    let spin = world
+        .get::<AngularVelocity>(root)
+        .map_or(Vec3::ZERO, |spin| spin.0);
+    // The cut alone is the subject: the pre-cut spin carries the two centres of
+    // mass apart by itself, so take that off before reading the kick.
+    let fracture = fragment_velocity - hull_velocity - spin.cross(fragment_com - hull_com);
+    if fracture.length() < 0.5 * expected_fracture {
+        let settling = {
+            let mut probe = world.resource_mut::<SeverProbe>();
+            probe.settling += 1;
+            probe.settling
+        };
+        assert!(
+            settling < KICK_FRAME_BUDGET,
+            "section_severing: the fracture kick never landed: {fracture:?}"
+        );
+        return;
+    }
+    assert!(
+        fragment_envelope / SEVER_CLEARANCE_SECS > SEVER_MIN_SEPARATION_SPEED.to_engine(),
+        "section_severing: the wreck must be past the separation floor, or this reads the floor"
+    );
+    assert!(
+        (fracture.length() - expected_fracture).abs() < KICK_TOLERANCE,
+        "section_severing: the halves must part at the speed their own sizes ask for: {} u/s against {expected_fracture} u/s",
+        fracture.length()
+    );
+
     nova_probe::probe_marker(
         world,
         "outcome: interior section becomes a hole",
@@ -263,6 +364,19 @@ fn drive_range(world: &mut World) {
         world,
         "outcome: wreck remains inert and damageable",
         serde_json::json!({ "health": detached_health }),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a fragment leaves at the speed its own size asks for",
+        serde_json::json!({
+            "hull_envelope_m": Meters::from_engine(hull_envelope).get(),
+            "hull_speed_mps": MetersPerSecond::from_engine(separation_speed(hull_envelope)).get(),
+            "fragment_envelope_m": Meters::from_engine(fragment_envelope).get(),
+            "fragment_speed_mps":
+                MetersPerSecond::from_engine(separation_speed(fragment_envelope)).get(),
+            "fracture_mps": MetersPerSecond::from_engine(fracture.length()).get(),
+            "floor_mps": SEVER_MIN_SEPARATION_SPEED.get(),
+        }),
     );
 
     world.resource_mut::<SeverProbe>().verified = true;

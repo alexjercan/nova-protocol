@@ -77,6 +77,11 @@ does NOT get an entry - and it is the only place they are written down.
   and above it only the excess is spent, so a carrier pair no longer shreds
   itself while it parks.
 
+### Ships & Sections
+- A severed wreck leaves at the speed its own size asks for: two halves are
+  clear of each other in about two seconds whatever the hull, where a carrier's
+  ground on for twenty. Under 20 m nothing moves.
+
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn
   5 m and 11 m outside the live hull about its centre of mass, and the speed and

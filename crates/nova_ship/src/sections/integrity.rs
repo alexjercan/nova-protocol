@@ -6,10 +6,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use avian3d::prelude::{mass_properties::MassPropertySystems, *};
 use bevy::prelude::*;
-use nova_events::prelude::EntityId;
+use nova_events::{prelude::EntityId, units::prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::link_points::prelude::*;
+use crate::prelude::SectionCollider;
 
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
@@ -26,8 +27,33 @@ pub mod prelude {
 /// this threshold only prevents a tiny command shard from lingering forever.
 pub const DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD: f32 = 0.05;
 
-/// Relative speed applied to each severed component before momentum balancing.
-const SEVER_SEPARATION_SPEED: f32 = 1.0;
+/// The separation speed a severed fragment gets when its own size does not ask
+/// for a faster one, before momentum balancing.
+///
+/// A floor and not the speed: a fragment the size of a cockpit is clear of what
+/// it left the moment it moves, and 10 m/s is a shove that reads as one on any
+/// hull. What sets the speed on a big fragment is
+/// [`SEVER_CLEARANCE_SECS`].
+const SEVER_MIN_SEPARATION_SPEED: MetersPerSecond = MetersPerSecond(10.0);
+
+/// How long a sever is given to open a gap as wide as the two halves it made.
+///
+/// The rule the separation speed comes from: a fragment leaves at its own
+/// containment radius divided by this, so two halves are clear of each other in
+/// about this many seconds WHATEVER they are - and a carrier's halves, which
+/// used to grind against each other for eighteen seconds at a flat 10 m/s, take
+/// as long to part as a gunship's.
+const SEVER_CLEARANCE_SECS: f32 = 2.0;
+
+/// The speed one severed fragment leaves at, from its own containment radius.
+///
+/// The kick a sever hands out is balanced against the fragments' masses
+/// afterwards, so this is the RAW figure, not what any one body ends up with.
+fn sever_separation_speed(envelope: f32) -> f32 {
+    // Engine boundary: an envelope is measured off avian colliders and the
+    // velocity is written to one, so both sides of this are world units.
+    (envelope / SEVER_CLEARANCE_SECS).max(SEVER_MIN_SEPARATION_SPEED.to_engine())
+}
 
 /// The fraction of a ship's PINNED maximum health below which the hull comes
 /// apart and the whole ship is destroyed - see [`aggregate_ship_health`].
@@ -460,6 +486,7 @@ fn apply_pending_sever_motion(
             &mut AngularVelocity,
         )>,
     )>,
+    q_section: Query<(&Transform, Option<&SectionCollider>, &ChildOf), With<SectionMarker>>,
 ) {
     let mut waiting = Vec::new();
     for batch in pending.0.drain(..) {
@@ -474,7 +501,9 @@ fn apply_pending_sever_motion(
                     let direction = (com_world - batch.cut_origin_world)
                         .try_normalize()
                         .unwrap_or(Vec3::X);
-                    Some((*body, com_world, mass.value(), direction))
+                    let speed =
+                        sever_separation_speed(fragment_envelope(&q_section, *body, center.0));
+                    Some((*body, com_world, mass.value(), direction, speed))
                 })
                 .collect()
         };
@@ -482,19 +511,22 @@ fn apply_pending_sever_motion(
             waiting.push(batch);
             continue;
         };
-        let total_mass: f32 = samples.iter().map(|(_, _, mass, _)| *mass).sum();
+        let total_mass: f32 = samples.iter().map(|(_, _, mass, _, _)| *mass).sum();
         if total_mass <= f32::EPSILON {
             waiting.push(batch);
             continue;
         }
+        // Momentum-neutral: each fragment leaves at the speed its OWN size asks
+        // for, and the mass-weighted mean of those kicks comes back off all of
+        // them, so a sever moves the halves apart without moving the wreck.
         let mean_kick = samples
             .iter()
-            .map(|(_, _, mass, direction)| *direction * (*mass * SEVER_SEPARATION_SPEED))
+            .map(|(_, _, mass, direction, speed)| *direction * (*mass * *speed))
             .sum::<Vec3>()
             / total_mass;
 
         let mut q_motion = bodies.p1();
-        for (body, com_world, _, direction) in samples {
+        for (body, com_world, _, direction, speed) in samples {
             let Ok((mut position, mut rotation, mut linear, mut angular)) = q_motion.get_mut(body)
             else {
                 continue;
@@ -505,11 +537,37 @@ fn apply_pending_sever_motion(
                 + batch
                     .old_angular_velocity
                     .cross(com_world - batch.old_com_world);
-            **linear = point_velocity + direction * SEVER_SEPARATION_SPEED - mean_kick;
+            **linear = point_velocity + direction * speed - mean_kick;
             **angular = batch.old_angular_velocity;
         }
     }
     pending.0 = waiting;
+}
+
+/// One fragment's containment radius: the distance from its own centre of mass
+/// to the furthest point of its furthest section.
+///
+/// The same measurement [`HullEnvelopeRadius`](crate::prelude::HullEnvelopeRadius)
+/// publishes for a live hull, taken here because a fragment is not a hull and
+/// never gets one: the sections are already re-parented and inert by the time
+/// the motion lands, and what the separation rule needs is how far this piece
+/// reaches, not how far the ship it came off did.
+fn fragment_envelope(
+    q_section: &Query<(&Transform, Option<&SectionCollider>, &ChildOf), With<SectionMarker>>,
+    fragment: Entity,
+    center_of_mass: Vec3,
+) -> f32 {
+    q_section
+        .iter()
+        .filter(|(_, _, ChildOf(parent))| *parent == fragment)
+        .map(|(transform, collider, _)| {
+            collider.copied().unwrap_or_default().furthest_distance(
+                transform.translation,
+                transform.rotation,
+                center_of_mass,
+            )
+        })
+        .fold(0.0_f32, f32::max)
 }
 
 /// A fragment root has no aggregate health component, so remove it explicitly
@@ -1559,9 +1617,13 @@ mod physics_tests {
                 * app.world().get::<ComputedCenterOfMass>(fragment).unwrap().0;
         let expected_relative_rotation = old_angular.cross(right_com - left_com);
         let fracture_relative = right_velocity - left_velocity - expected_relative_rotation;
+        // Both halves of this rig are a section or three of unit cube, so both
+        // sit on the floor rather than on their own size: the scaling itself is
+        // proved in `a_fragment_leaves_at_the_speed_its_own_size_asks_for`.
+        let floor = SEVER_MIN_SEPARATION_SPEED.to_engine();
         assert!(
-            (fracture_relative.length() - 2.0 * SEVER_SEPARATION_SPEED).abs() < 0.2,
-            "each side receives the accepted 1 u/s kick: {fracture_relative:?}"
+            (fracture_relative.length() - 2.0 * floor).abs() < 0.2,
+            "each side of a small sever receives the floor kick: {fracture_relative:?}"
         );
         let left_mass = app.world().get::<ComputedMass>(root).unwrap().value();
         let right_mass = app.world().get::<ComputedMass>(fragment).unwrap().value();
@@ -2531,5 +2593,47 @@ mod ghost_ship_tests {
             "the interleaved direct dent must not confuse the kill"
         );
         assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
+    }
+
+    /// The separation rule itself, over the range of fragments the fleet makes:
+    /// a cockpit-sized piece takes the floor, and everything big enough to need
+    /// longer than two seconds to clear itself is given the speed that clears
+    /// it in two.
+    #[test]
+    fn a_fragment_leaves_at_the_speed_its_own_size_asks_for() {
+        let floor = SEVER_MIN_SEPARATION_SPEED.to_engine();
+        // A single unit-cube section reaches less than a world unit, so nothing
+        // its size asks for beats the floor.
+        assert_eq!(sever_separation_speed(0.87), floor);
+        assert_eq!(sever_separation_speed(0.0), floor);
+        // The crossover is the envelope the floor already clears in two
+        // seconds: 20 m.
+        assert_eq!(
+            sever_separation_speed(Meters(20.0).to_engine()),
+            floor,
+            "the floor and the rule have to meet, not step"
+        );
+        // Half a carrier - 182 m of envelope on the shipped hull - leaves at
+        // 91 m/s and is clear of what it left in two seconds, where the flat
+        // floor took eighteen.
+        let carrier_half = Meters(182.0).to_engine();
+        let speed = sever_separation_speed(carrier_half);
+        assert!(
+            (MetersPerSecond::from_engine(speed) - MetersPerSecond(91.0)).abs()
+                < MetersPerSecond(0.5),
+            "a carrier half leaves at 91 m/s, got {:?}",
+            MetersPerSecond::from_engine(speed)
+        );
+        assert!(
+            (carrier_half / speed - SEVER_CLEARANCE_SECS).abs() < 0.01,
+            "and clears its own envelope in {SEVER_CLEARANCE_SECS} s"
+        );
+        // Monotone in between, so no size is served worse than a smaller one.
+        let mut last = 0.0;
+        for envelope in [0.0, 1.0, 2.0, 4.0, 8.0, 18.2] {
+            let speed = sever_separation_speed(envelope);
+            assert!(speed >= last, "{envelope} went backwards");
+            last = speed;
+        }
     }
 }

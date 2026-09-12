@@ -223,7 +223,7 @@ gameplay feedback ledger (`20260909-213118`).
       linear in mass: two carriers docking at 0.32 u/s trade about 49 hp
       per contact at hundreds of contacts a frame and shred each other.
       Make it an energy floor, or scale the speed floor by mass.
-- [ ] `nova_ship/src/sections/integrity.rs:30,508`
+- [x] `nova_ship/src/sections/integrity.rs:30,508`
       `SEVER_SEPARATION_SPEED` 1 u/s: two 18 u carrier halves grind for
       18 s before they are apart. Scale with the fragment's extent.
 - [ ] `nova_gameplay/src/integrity/explode.rs:86,365` `PIECE_KICK` 2-5 u/s
