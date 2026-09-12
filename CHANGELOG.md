@@ -107,7 +107,18 @@ does NOT get an entry - and it is the only place they are written down.
 - A planet is meshed at a 20 m facet whatever its size: a 200 m planetoid stops
   spending a big world's triangles, and a kilometre-wide one is round.
 
+### Modding & Mod Portal
+- A mod whose content will not load is switched off automatically and named in
+  one MODS DISABLED notice on the menu. Its files stay installed, so the Mods
+  screen can update, remove or re-enable it.
+- Only the base game has to load at boot: one broken installed mod can no longer
+  fail the whole launch before the game has asked whether that mod was even
+  enabled.
+
 ### Interface & HUD
+- A game file the game cannot do without now ends in a report instead of an
+  endless loading animation: Quit on the desktop build, reload-and-report
+  instructions in the browser.
 - The editor's stage camera covers the same ground at any frame rate, and a
   held direction builds it from 60 m/s to 32 times that over two seconds, with
   the lens widening as it goes.

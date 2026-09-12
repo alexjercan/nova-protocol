@@ -11,8 +11,8 @@ pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::load_downloaded_mods;
     pub use super::{
-        build_mod_catalog, installed_set_changed, load_enabled_mods,
-        mark_downloaded_bundles_loaded, save_enabled_mods, seed_enabled_mods, DownloadedMod,
+        build_mod_catalog, installed_bundles_changed, installed_set_changed, load_enabled_mods,
+        mark_installed_bundles_loaded, save_enabled_mods, seed_enabled_mods, DownloadedMod,
         DownloadedMods, EnabledMods, ModCatalog, ModInfo,
     };
     #[cfg(target_arch = "wasm32")]
@@ -24,7 +24,11 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use nova_modding::prelude::{BundleAsset, InstalledCatalog, ModEntry, ModMeta};
 
-use crate::{collections::GameAssets, mod_cache, mod_prefs};
+use crate::{
+    collections::GameAssets,
+    mod_cache, mod_prefs,
+    safe_mode::{catalog_bundle, OptionalBundles},
+};
 
 /// handle for its bundle, loaded from the `mods://` source
 /// (`mods://<id>/<bundle>`) through the same loaders as a shipped bundle.
@@ -45,7 +49,7 @@ pub struct DownloadedMod {
 /// install/uninstall flow. `build_mod_catalog` appends these as player-facing
 /// rows and `register_bundles` merges the ENABLED ones after the shipped
 /// bundles; both re-run when this resource changes, and
-/// [`mark_downloaded_bundles_loaded`] flags a change when a bundle's async load
+/// [`mark_installed_bundles_loaded`] flags a change when a bundle's async load
 /// completes so a mod never stays merged-out just because it loaded late.
 ///
 /// Downloaded mods install DISABLED: nothing here touches [`EnabledMods`], so a
@@ -119,6 +123,7 @@ pub fn build_mod_catalog(
     catalogs: Res<Assets<InstalledCatalog>>,
     bundles: Res<Assets<BundleAsset>>,
     downloaded: Res<DownloadedMods>,
+    optional: Res<OptionalBundles>,
     mut mod_catalog: ResMut<ModCatalog>,
 ) {
     let Some(catalog) = catalogs.get(&game_assets.catalog) else {
@@ -130,9 +135,14 @@ pub fn build_mod_catalog(
         .iter()
         .filter(|e| !e.decl.hidden)
         .map(|e| {
-            let meta = bundles.get(&e.bundle).map(|b| &b.meta);
+            let meta = catalog_bundle(e, &optional)
+                .and_then(|handle| bundles.get(handle))
+                .map(|b| &b.meta);
             if meta.is_none() {
-                error!(
+                // Normal for an OPTIONAL mod still in flight, and permanent for
+                // one safe mode quarantined: the row is what the player clicks
+                // to remove or update a broken mod, so it must exist either way.
+                warn!(
                     "build_mod_catalog: bundle for mod '{}' not loaded; using its id as the name",
                     e.decl.id
                 );
@@ -157,7 +167,7 @@ pub fn build_mod_catalog(
         // A downloaded bundle loads ASYNC via mods:// (it is not part of the
         // GameAssets collection gate), so a not-yet-loaded meta is normal here -
         // the row starts decl-only (name = id) and upgrades on the re-run that
-        // `mark_downloaded_bundles_loaded` triggers. No `hidden`/`base` flags:
+        // `mark_installed_bundles_loaded` triggers. No `hidden`/`base` flags:
         // downloaded records carry neither concept.
         let meta = bundles.get(&m.bundle).map(|b| &b.meta);
         let decl = ModEntry {
@@ -363,23 +373,44 @@ pub fn poll_mod_cache_hydration(
 /// The run condition for the installed-set-driven re-merge: EITHER half of the
 /// installed set changed - [`EnabledMods`] (a menu toggle, the startup seed) or
 /// [`DownloadedMods`] (install/uninstall, or a downloaded bundle's load landing
-/// via [`mark_downloaded_bundles_loaded`]). One reader consuming both change
+/// via [`mark_installed_bundles_loaded`]). One reader consuming both change
 /// ticks together, which two chained `resource_changed` conditions would not do
 /// (their or-combinator short-circuits and leaves the second tick primed).
 /// Public so the integration rigs gate on the exact production condition.
-pub fn installed_set_changed(enabled: Res<EnabledMods>, downloaded: Res<DownloadedMods>) -> bool {
-    enabled.is_changed() || downloaded.is_changed()
+pub fn installed_set_changed(
+    enabled: Res<EnabledMods>,
+    downloaded: Res<DownloadedMods>,
+    optional: Res<OptionalBundles>,
+) -> bool {
+    enabled.is_changed() || downloaded.is_changed() || optional.is_changed()
 }
 
-/// Flag [`DownloadedMods`] as changed when one of its bundles finishes loading
-/// (recursively, content files included). Downloaded bundles load async - they
-/// are outside the `GameAssets` collection gate - so without this the
+/// Whether the installed FILES changed - either half of the set that loads
+/// outside the collection gate.
+///
+/// What the player-facing mod rows watch: an enable toggle does not change a
+/// row, but a bundle that finished loading replaces its id-only fallback with
+/// the mod's real name.
+pub fn installed_bundles_changed(
+    downloaded: Res<DownloadedMods>,
+    optional: Res<OptionalBundles>,
+) -> bool {
+    downloaded.is_changed() || optional.is_changed()
+}
+
+/// Flag the set that owns a bundle as changed once that bundle finishes loading
+/// (recursively, content files included).
+///
+/// BOTH halves of the installed set load outside the `GameAssets` collection
+/// gate: downloaded bundles through `mods://`, and optional cataloged ones
+/// through the runtime load `crate::safe_mode` starts for them. Without this the
 /// change-gated re-runs of `register_bundles` / `build_mod_catalog` would never
 /// see a bundle that finished AFTER the last resource mutation, and an enabled
-/// downloaded mod would stay merged-out until some unrelated toggle.
-pub fn mark_downloaded_bundles_loaded(
+/// mod would stay merged-out until some unrelated toggle.
+pub fn mark_installed_bundles_loaded(
     mut events: MessageReader<AssetEvent<BundleAsset>>,
     mut downloaded: ResMut<DownloadedMods>,
+    mut optional: ResMut<OptionalBundles>,
 ) {
     for event in events.read() {
         let AssetEvent::LoadedWithDependencies { id } = event else {
@@ -387,6 +418,9 @@ pub fn mark_downloaded_bundles_loaded(
         };
         if downloaded.0.iter().any(|m| m.bundle.id() == *id) {
             downloaded.set_changed();
+        }
+        if optional.0.iter().any(|loaded| loaded.bundle.id() == *id) {
+            optional.set_changed();
         }
     }
 }

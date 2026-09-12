@@ -45,7 +45,7 @@ use nova_ui::status_bar::{
     StatusBarRootMarker,
 };
 
-mod loading_screen;
+pub mod loading_screen;
 use loading_screen::LoadingScreenPlugin;
 
 /// Glob-import surface: `use nova_core::prelude::*` re-exports every subsystem
@@ -64,7 +64,14 @@ pub mod prelude {
     pub use nova_scenario::prelude::*;
     pub use nova_ship::prelude::*;
 
-    pub use super::{editor_app, offscreen_app, run_app, AppBuilder, StartupScenario};
+    pub use super::{
+        editor_app,
+        loading_screen::{
+            spawn_failure_report, AssetFailureScreenMarker, FailurePlatform, FAILURE_ADVICE,
+            FAILURE_QUIT_BUTTON, FAILURE_SCREEN,
+        },
+        offscreen_app, run_app, AppBuilder, StartupScenario,
+    };
 }
 
 /// Build the editor application - the exact app the `nova_protocol` binary runs.

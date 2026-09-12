@@ -32,6 +32,7 @@ fn headless_app() -> App {
     ));
     app.add_plugins(NovaModdingPlugin);
     app.init_resource::<DownloadedMods>();
+    app.init_resource::<OptionalBundles>();
     app
 }
 
@@ -128,7 +129,7 @@ fn merge(app: &mut App, bundles: Vec<(&str, Vec<Content>)>) {
                     enabled_by_default: false,
                     hidden: false,
                 },
-                bundle,
+                bundle: Some(bundle),
             }
         })
         .collect();

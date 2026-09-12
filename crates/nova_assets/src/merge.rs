@@ -24,6 +24,7 @@ use crate::{
     collections::GameAssets,
     mod_refs,
     mod_set::{DownloadedMods, EnabledMods},
+    safe_mode::{catalog_bundle, OptionalBundles},
 };
 
 /// Route every ENABLED cataloged bundle's content into the id-keyed game registries,
@@ -36,18 +37,20 @@ use crate::{
 /// (load-order overlay); a duplicate id WITHIN one bundle is a conflict, logged and
 /// skipped. Both resources are always inserted (empty if nothing enabled/loaded).
 ///
-/// The catalog is part of the `GameAssets` collection and visits every installed
-/// bundle as a dependency, so bevy_asset_loader gates the collection on the whole
-/// tree's RECURSIVE load state - every installed bundle + content file is loaded
-/// before this first runs `OnEnter(Processing)`, regardless of which are enabled. A
-/// handle whose asset is somehow not loaded is logged and skipped (never a panic).
-/// Re-runs whenever `EnabledMods` changes so a menu toggle applies live.
+/// The catalog is part of the `GameAssets` collection, but it visits only its
+/// MANDATORY bundle (the base game's) as a dependency, so what the collection
+/// gates on is the base content alone. The OPTIONAL cataloged bundles load
+/// beside it (`crate::safe_mode`) and are settled before this first runs in
+/// `Processing`; a bundle that is still in flight, or that safe mode quarantined,
+/// is warned about and skipped (never a panic). Re-runs whenever the installed
+/// set changes, so a menu toggle applies live and a late bundle merges when it
+/// lands.
 ///
 /// ENABLED DOWNLOADED bundles ([`DownloadedMods`]) merge AFTER the shipped ones,
 /// in cache-index order, through the same overlay rules. They sit outside the
 /// collection gate (loaded async via `mods://`), so a still-loading bundle is
 /// skipped with a warning;
-/// [`mark_downloaded_bundles_loaded`](crate::mark_downloaded_bundles_loaded)
+/// [`mark_installed_bundles_loaded`](crate::mark_installed_bundles_loaded)
 /// re-triggers this system when the load lands, and a `DownloadedMods` change
 /// (install/uninstall) re-triggers it too.
 pub fn register_bundles(
@@ -55,6 +58,7 @@ pub fn register_bundles(
     game_assets: Res<GameAssets>,
     enabled: Res<EnabledMods>,
     downloaded: Res<DownloadedMods>,
+    optional: Res<OptionalBundles>,
     catalogs: Res<Assets<InstalledCatalog>>,
     bundles: Res<Assets<BundleAsset>>,
     contents: Res<Assets<ContentAsset>>,
@@ -70,9 +74,22 @@ pub fn register_bundles(
     let mut ordered: Vec<(&str, &Handle<BundleAsset>)> = Vec::new();
     if let Some(catalog) = catalog {
         for entry in &catalog.entries {
-            if enabled.0.contains(&entry.decl.id) {
-                ordered.push((entry.decl.id.as_str(), &entry.bundle));
+            if !enabled.0.contains(&entry.decl.id) {
+                continue;
             }
+            // An OPTIONAL entry reads through its runtime load, which - like a
+            // downloaded bundle - may still be in flight or may have failed and
+            // been quarantined. Both are handled below by the same
+            // loaded-or-skip rule; only `base` is guaranteed here.
+            let Some(handle) = catalog_bundle(entry, &optional) else {
+                warn!(
+                    "register_bundles: mod '{}' is enabled but its bundle has not started \
+                     loading; it merges when the load completes",
+                    entry.decl.id
+                );
+                continue;
+            };
+            ordered.push((entry.decl.id.as_str(), handle));
         }
     }
     for m in &downloaded.0 {
@@ -166,7 +183,10 @@ pub fn register_bundles(
     let mut undeclared_ref_issues: Vec<(String, String)> = Vec::new();
     for (mod_id, bundle_handle) in bundle_handles {
         let Some(bundle) = bundles.get(bundle_handle) else {
-            error!(
+            // WARN, not ERROR: an optional bundle that has not settled yet is a
+            // transient state. The change-driven re-merge registers it as soon
+            // as it lands, and safe mode quarantines it if it never does.
+            warn!(
                 "register_bundles: mod '{mod_id}' has no loaded bundle asset; skipping it \
                  (the other bundles still register)"
             );
@@ -253,7 +273,7 @@ pub fn register_bundles(
     let mut new_game: Option<String> = None;
     if let Some(catalog) = catalog {
         for entry in &catalog.entries {
-            let Some(bundle) = bundles.get(&entry.bundle) else {
+            let Some(bundle) = catalog_bundle(entry, &optional).and_then(|h| bundles.get(h)) else {
                 continue;
             };
             let Some(declared) = &bundle.new_game_scenario else {

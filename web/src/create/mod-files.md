@@ -91,6 +91,14 @@ metadata stays in its own bundle's `meta` block.
 | `enabled_by_default` | bool | `false` | Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. No shipped mod sets it today. |
 | `hidden` | bool | `false` | Kept out of the Mods menu but still installed and enableable by id, for tooling and test rigs. |
 
+Only `base` is mandatory. The game loads every other cataloged mod on its own,
+beside the boot load: if one of them will not parse or its content will not
+load, that mod is switched off, written off in the saved enabled set, and named
+in one `MODS DISABLED` notice on the main menu. The files stay installed, and
+the Mods screen is where the player updates, removes or re-enables it. So a mod
+you ship broken costs that mod, not the player's game - but nothing tells them
+more than the loader's own first line, which is what `content lint` is for.
+
 The full packaging, catalog, local installation, and publishing flow is in
 [Publish a mod](../publish-a-mod/).
 

@@ -21,13 +21,17 @@ use crate::{
     },
     merge::register_bundles,
     mod_set::{
-        build_mod_catalog, installed_set_changed, load_enabled_mods,
-        mark_downloaded_bundles_loaded, save_enabled_mods, seed_enabled_mods, DownloadedMods,
+        build_mod_catalog, installed_bundles_changed, installed_set_changed, load_enabled_mods,
+        mark_installed_bundles_loaded, save_enabled_mods, seed_enabled_mods, DownloadedMods,
         EnabledMods, ModCatalog,
     },
     portal,
     reload::{
         remerge_on_replaced_content, request_reload_on_key, restart_for_content, ReloadContent,
+    },
+    safe_mode::{
+        clear_quarantine, optional_loads_settled, quarantine_failed_mods, start_optional_loads,
+        FatalAssetFailure, ModQuarantine, OptionalBundles,
     },
 };
 #[cfg(target_arch = "wasm32")]
@@ -96,6 +100,12 @@ impl Plugin for GameAssetsPlugin {
         app.init_resource::<ModCatalog>();
         // The downloaded half of the installed set, from the local mod cache.
         app.init_resource::<DownloadedMods>();
+        // The OPTIONAL shipped half: cataloged mods the catalog declares but
+        // does not load, so one broken mod cannot fail the boot (see
+        // `crate::safe_mode`).
+        app.init_resource::<OptionalBundles>();
+        // What safe mode switched off, and whether the player has been told.
+        app.init_resource::<ModQuarantine>();
 
         // Read the cache index and kick the mods:// bundle loads. Native reads
         // the filesystem cache directly; the web must first hydrate the
@@ -115,7 +125,7 @@ impl Plugin for GameAssetsPlugin {
         }
         // A downloaded bundle finishing its async load must re-trigger the
         // DownloadedMods-gated re-runs below.
-        app.add_systems(Update, mark_downloaded_bundles_loaded);
+        app.add_systems(Update, mark_installed_bundles_loaded);
 
         // Setup the asset loader. Two chained loading states: Boot loads the
         // tiny BootAssets (UI font) so the loading screen can render themed text
@@ -139,6 +149,9 @@ impl Plugin for GameAssetsPlugin {
                 .load_collection::<GameAssets>(),
         );
         app.add_systems(OnEnter(GameAssetsStates::Failed), report_failed_assets);
+        // A boot and a content restart both pass through `Loading`, and each
+        // opens a new recovery episode.
+        app.add_systems(OnEnter(GameAssetsStates::Loading), clear_quarantine);
         // Publish the preloaded UI font once Boot resolves it. Filled at
         // OnExit(Boot) - which runs BEFORE OnEnter(Loading) in the state
         // transition - so `nova_core`'s loading screen, spawned at
@@ -146,21 +159,40 @@ impl Plugin for GameAssetsPlugin {
         // text in the themed Iosevka face from the first frame.
         app.add_systems(OnExit(GameAssetsStates::Boot), fill_ui_font);
 
+        // Processing in two halves. The first runs the moment the mandatory
+        // collection lands: it restores the enabled set and KICKS the optional
+        // mods, which the catalog deliberately did not load.
         app.add_systems(
             OnEnter(GameAssetsStates::Processing),
             (
                 prepare_cubemap_view,
-                build_mod_catalog,
                 load_enabled_mods,
                 seed_enabled_mods,
+                start_optional_loads,
+            )
+                .chain(),
+        );
+        // Safe mode's verdict, every frame for the life of the app: a
+        // downloaded bundle lands long after boot, and an install done from the
+        // Mods screen fails at the moment it is tried.
+        app.add_systems(Update, quarantine_failed_mods);
+        // The second half WAITS for those loads to settle, so the merge sees an
+        // enabled optional mod's content and the player is told about a broken
+        // one before the menu opens - and a mod that never answers is bounded
+        // rather than fatal (`optional_loads_settled`).
+        app.add_systems(
+            Update,
+            (
+                build_mod_catalog,
                 register_bundles,
                 register_sounds,
                 update_nova_hud_assets,
-                |mut state: ResMut<NextState<GameAssetsStates>>| {
-                    state.set(GameAssetsStates::Loaded);
-                },
+                finish_processing,
             )
-                .chain(),
+                .chain()
+                .after(quarantine_failed_mods)
+                .run_if(in_state(GameAssetsStates::Processing))
+                .run_if(optional_loads_settled),
         );
 
         // Re-merge live when the installed set changes in either half, once the
@@ -176,15 +208,15 @@ impl Plugin for GameAssetsPlugin {
                 .run_if(not(in_state(GameAssetsStates::Loading))),
         );
 
-        // Rebuild the player-facing rows on the same downloaded-set changes, so
-        // an install shows up and a loaded bundle's meta replaces its id-only
-        // fallback row. EnabledMods changes do not alter the rows, so this one
-        // watches only DownloadedMods.
+        // Rebuild the player-facing rows whenever the installed FILES change, so
+        // an install shows up and a bundle that finished loading replaces its
+        // id-only fallback row. EnabledMods changes do not alter the rows, so
+        // this one watches the two bundle sets rather than the enabled set.
         app.add_systems(
             Update,
             build_mod_catalog
                 .run_if(resource_exists::<GameAssets>)
-                .run_if(resource_changed::<DownloadedMods>)
+                .run_if(installed_bundles_changed)
                 .run_if(not(in_state(GameAssetsStates::Loading))),
         );
 
@@ -232,11 +264,33 @@ impl Plugin for GameAssetsPlugin {
 /// does not try to name the file. What it adds is the verdict: the state is
 /// terminal, nothing downstream will ever run, and a loading screen that never
 /// finishes is this and not a slow disk.
-fn report_failed_assets() {
+fn report_failed_assets(mut commands: Commands, boot: Option<Res<BootAssets>>) {
     error!(
         "asset loading FAILED - a path declared in a collection \
          (crates/nova_assets/src/collections.rs) does not resolve under assets/. \
          The bevy_asset_loader errors above name the handle. Nothing past this \
          point runs; the loading screen will not advance."
     );
+    // Which of the two collections failed is the one thing the state itself
+    // does not say, and it decides what the screen can DRAW: without the boot
+    // collection there is no UI font, so the report renders in the engine's
+    // default face.
+    let boot_failed = boot.is_none();
+    commands.insert_resource(FatalAssetFailure {
+        detail: if boot_failed {
+            "The boot assets did not load. The game's own interface font is missing \
+             or unreadable."
+                .to_string()
+        } else {
+            "A file the game needs did not load. The installation is incomplete or \
+             damaged."
+                .to_string()
+        },
+        boot: boot_failed,
+    });
+}
+
+/// Leave `Processing` for `Loaded`, once the merge has run.
+fn finish_processing(mut state: ResMut<NextState<GameAssetsStates>>) {
+    state.set(GameAssetsStates::Loaded);
 }

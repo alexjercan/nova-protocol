@@ -315,6 +315,10 @@ name = "system_session_loop"
 path = "examples/systems/system_session_loop.rs"
 
 [[example]]
+name = "bug_failed_assets"
+path = "examples/systems/bug_failed_assets.rs"
+
+[[example]]
 name = "bug_menu_picker"
 path = "examples/systems/bug_menu_picker.rs"
 

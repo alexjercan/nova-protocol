@@ -398,24 +398,38 @@ impl AssetLoader for BundleAssetLoader {
 }
 
 /// One loaded catalog entry: a mod's [`ModEntry`] declaration paired with the
-/// loaded handle for its [`BundleAsset`].
+/// handle for its [`BundleAsset`] when the catalog itself loaded one.
 #[derive(Clone, Debug)]
 pub struct CatalogEntry {
     /// The catalog declaration (id, bundle path, base/hidden flags).
     pub decl: ModEntry,
-    /// The loaded handle for this mod's bundle.
-    pub bundle: Handle<BundleAsset>,
+    /// The bundle handle for a MANDATORY entry, loaded WITH the catalog.
+    ///
+    /// `None` says the entry is OPTIONAL: the catalog declares the mod but does
+    /// not load it, so the bundle is not in the catalog's dependency tree and a
+    /// broken one cannot fail the collection the whole boot waits on.
+    /// `nova_assets` loads those at runtime instead, the way it loads a
+    /// downloaded mod, and a failure there disables that mod rather than the
+    /// game. [`CatalogLoader`] fills this for `base` entries only; a synthetic
+    /// catalog built in a test may fill it for any entry, and a consumer that
+    /// finds a handle here uses it.
+    pub bundle: Option<Handle<BundleAsset>>,
 }
 
 /// A loaded installed-mods catalog: every installed mod's declaration + bundle
 /// handle, in catalog (load) order.
 ///
-/// Like [`BundleAsset`] one level up, an `InstalledCatalog` HAS dependencies - the
-/// bundle of EVERY installed mod - so [`Asset`] and [`VisitAssetDependencies`] are
-/// hand-implemented to visit each entry's bundle handle. That makes bevy load every
-/// installed bundle (and, through each, its content) along with the catalog, and
-/// report the catalog's RECURSIVE load state as `Loaded` only once all of it has
-/// loaded - so the merge sees fully-loaded bundles regardless of which are enabled.
+/// Like [`BundleAsset`] one level up, an `InstalledCatalog` HAS dependencies -
+/// but only its MANDATORY ones, the entries [`CatalogLoader`] loaded a handle
+/// for. [`Asset`] and [`VisitAssetDependencies`] are hand-implemented to visit
+/// exactly those, so bevy loads the base game's bundle (and, through it, its
+/// content) along with the catalog and reports the catalog's RECURSIVE load
+/// state as `Loaded` only once all of that has loaded.
+///
+/// An OPTIONAL mod is deliberately absent from that tree. It used to be in it,
+/// which made one unreadable file in one installed mod fail the whole
+/// `GameAssets` collection - before anything could ask whether that mod was
+/// even enabled, and with no way out but editing the cache by hand.
 #[derive(TypePath, Clone, Debug)]
 pub struct InstalledCatalog {
     /// One entry per installed mod, in catalog order.
@@ -424,8 +438,12 @@ pub struct InstalledCatalog {
 
 impl VisitAssetDependencies for InstalledCatalog {
     fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        for entry in &self.entries {
-            visit(entry.bundle.id().untyped());
+        for entry in self
+            .entries
+            .iter()
+            .filter_map(|entry| entry.bundle.as_ref())
+        {
+            visit(entry.id().untyped());
         }
     }
 }
@@ -434,11 +452,17 @@ impl Asset for InstalledCatalog {}
 
 /// Bevy [`AssetLoader`] for `mods.catalog.ron` files (a RON [`CatalogManifest`]).
 ///
-/// Decodes the manifest, then for each installed mod issues a
-/// `load_context.load::<BundleAsset>` (the paths are asset-root-relative) and pairs
-/// each handle with its declaration into an [`InstalledCatalog`]. Mirrors
-/// [`BundleAssetLoader`] one level up (a catalog of bundles instead of a bundle of
-/// content).
+/// Decodes the manifest, then for each MANDATORY installed mod issues a
+/// `load_context.load::<BundleAsset>` (the paths are asset-root-relative) and
+/// pairs the handle with its declaration into an [`InstalledCatalog`]. Mirrors
+/// [`BundleAssetLoader`] one level up (a catalog of bundles instead of a bundle
+/// of content).
+///
+/// Mandatory means `base`. An optional mod gets an entry with no handle: a
+/// `load_context.load` here is a recursive dependency of the catalog whatever
+/// [`VisitAssetDependencies`] says (the loader records it too), so the only way
+/// to keep an optional mod out of the boot gate is not to load it here.
+/// `nova_assets` picks those up and loads them through the asset server.
 ///
 /// NAMING: same rule as bundles - the catalog MUST be named `<name>.catalog.ron`
 /// (e.g. `mods.catalog.ron`), never a bare `catalog.ron`. bevy_asset_loader loads it
@@ -471,7 +495,9 @@ impl AssetLoader for CatalogLoader {
             .mods
             .into_iter()
             .map(|decl| {
-                let bundle = load_context.load::<BundleAsset>(AssetPath::from(decl.bundle.clone()));
+                let bundle = decl.base.then(|| {
+                    load_context.load::<BundleAsset>(AssetPath::from(decl.bundle.clone()))
+                });
                 CatalogEntry { decl, bundle }
             })
             .collect();

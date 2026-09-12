@@ -11,10 +11,12 @@
 //! the `Boot` [`BootAssets`] collection (published as [`nova_ui::font::UiFont`]),
 //! and textures, meshes, the shared HUD art and the UI SFX in the `Loading`
 //! [`GameAssets`] collection - so everything is load-gated before gameplay
-//! starts rather than fetched lazily at first use. Scenario-authored `AssetRef`s
-//! and downloaded `mods://` bundles are the DYNAMIC exceptions: their paths vary
-//! at runtime, so they cannot sit behind a one-shot collection and stay on the
-//! asset server by design.
+//! starts rather than fetched lazily at first use. Scenario-authored `AssetRef`s,
+//! downloaded `mods://` bundles and OPTIONAL cataloged bundles are the DYNAMIC
+//! exceptions and stay on the asset server by design: the first two have paths
+//! that vary at runtime, and the third is what [`safe_mode`](crate::safe_mode)
+//! exists for - only the base game is mandatory, so a broken optional mod is
+//! disabled and reported rather than failing the collection the boot waits on.
 #![warn(missing_docs)]
 
 mod collections;
@@ -22,6 +24,7 @@ mod merge;
 mod mod_set;
 mod plugin;
 mod reload;
+mod safe_mode;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod loose;
@@ -32,7 +35,7 @@ pub mod persist;
 pub mod portal;
 pub mod storage;
 
-// The five private modules have no path of their own, so the crate root is
+// The six private modules have no path of their own, so the crate root is
 // where their preludes surface. The public modules are reachable as
 // `nova_assets::<module>::prelude::*` and are re-exported here only for the
 // names the crate's own consumers glob.
@@ -41,6 +44,7 @@ pub use merge::prelude::*;
 pub use mod_set::prelude::*;
 pub use plugin::prelude::*;
 pub use reload::prelude::*;
+pub use safe_mode::prelude::*;
 
 /// Glob-import surface: `use nova_assets::prelude::*` brings the loaded-asset
 /// resources, the mod-set/portal types, and [`GameAssetsPlugin`] into scope.
@@ -54,8 +58,9 @@ pub mod prelude {
             PortalConfig, PortalFetchTimeout, RemoteCatalog, RemoteCatalogState,
             UninstallPortalMod,
         },
-        DownloadedMod, DownloadedMods, EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates,
-        ModCatalog, ModInfo, ReloadContent, RELOAD_KEY,
+        DisabledMod, DownloadedMod, DownloadedMods, EnabledMods, FatalAssetFailure, GameAssets,
+        GameAssetsPlugin, GameAssetsStates, ModCatalog, ModInfo, ModQuarantine, OptionalBundle,
+        OptionalBundles, ReloadContent, RELOAD_KEY,
     };
 }
 

@@ -27,7 +27,7 @@ fn installed(id: &str, resources: &[&str]) -> World {
                 enabled_by_default: false,
                 hidden: false,
             },
-            bundle,
+            bundle: Some(bundle),
         }],
     });
     world.insert_resource(bundles);

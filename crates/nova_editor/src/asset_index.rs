@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_assets::{
     mod_refs::prelude::{rewrite_refs, DepRef, RefScope},
-    prelude::{DownloadedMods, EnabledMods},
+    prelude::{DownloadedMods, EnabledMods, OptionalBundles},
 };
 use nova_modding::prelude::{BundleAsset, Content, InstalledCatalog};
 use nova_scenario::prelude::ScenarioConfig;
@@ -78,6 +78,7 @@ impl AssetSort {
 pub(crate) struct AssetIndex<'w> {
     enabled: Option<Res<'w, EnabledMods>>,
     downloaded: Option<Res<'w, DownloadedMods>>,
+    optional: Option<Res<'w, OptionalBundles>>,
     catalogs: Option<Res<'w, Assets<InstalledCatalog>>>,
     bundles: Option<Res<'w, Assets<BundleAsset>>>,
 }
@@ -181,13 +182,23 @@ impl AssetIndex<'_> {
         // at: there is only ever the one, and reading it this way keeps the
         // index out of the boot collection, whose thirty handles a picker has
         // no use for.
+        // An optional mod's handle lives in `OptionalBundles`, not on its
+        // catalog entry - the catalog deliberately does not load one. A rig
+        // without that resource sees the mandatory entries only.
+        let optional = self.optional.as_deref();
         let shipped = self
             .catalogs
             .as_deref()
             .into_iter()
             .flat_map(Assets::iter)
             .flat_map(|(_, catalog)| catalog.entries.iter())
-            .map(|entry| (entry.decl.id.as_str(), &entry.bundle));
+            .filter_map(move |entry| {
+                let handle = entry
+                    .bundle
+                    .as_ref()
+                    .or_else(|| optional?.handle(&entry.decl.id))?;
+                Some((entry.decl.id.as_str(), handle))
+            });
         let downloaded = self
             .downloaded
             .as_deref()

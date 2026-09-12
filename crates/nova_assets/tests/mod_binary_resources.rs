@@ -26,7 +26,8 @@ use nova_modding::prelude::{
 use nova_scenario::prelude::{ContentIssues, GameScenarios, ScenarioConfig};
 
 /// A headless app: asset server on the workspace `assets/`, modding loaders, and
-/// an empty downloaded set (production always inits it; register_bundles reads it).
+/// the empty downloaded and optional sets (production always inits both;
+/// register_bundles reads them).
 fn headless_app() -> App {
     let mut app = App::new();
     app.add_plugins((
@@ -38,6 +39,7 @@ fn headless_app() -> App {
     ));
     app.add_plugins(NovaModdingPlugin);
     app.init_resource::<DownloadedMods>();
+    app.init_resource::<OptionalBundles>();
     app
 }
 
@@ -87,6 +89,31 @@ fn merge_with_enabled(enabled: &[&str]) -> App {
         catalog.id().untyped(),
         "the mods catalog",
     );
+
+    // The optional half: the catalog loads only `base`, so an optional entry's
+    // bundle is loaded here the way the game loads it at `Processing`.
+    let optional: Vec<OptionalBundle> = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let installed = catalogs.get(&catalog).expect("catalog loaded");
+        installed
+            .entries
+            .iter()
+            .filter(|entry| entry.bundle.is_none())
+            .map(|entry| OptionalBundle {
+                id: entry.decl.id.clone(),
+                bundle: server.load(entry.decl.bundle.clone()),
+            })
+            .collect()
+    };
+    for loaded in &optional {
+        wait_recursive_loaded(
+            &mut app,
+            &server,
+            loaded.bundle.id().untyped(),
+            &format!("bundle '{}'", loaded.id),
+        );
+    }
+    app.world_mut().insert_resource(OptionalBundles(optional));
 
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
@@ -189,7 +216,7 @@ fn an_undeclared_self_ref_is_an_error_content_issue() {
                 enabled_by_default: false,
                 hidden: false,
             },
-            bundle,
+            bundle: Some(bundle),
         }],
     };
     let handle = app
@@ -274,7 +301,7 @@ fn merge_cross_mod(reference: &str, consumer_deps: &[&str], art_resources: &[&st
             enabled_by_default: false,
             hidden: false,
         },
-        bundle,
+        bundle: Some(bundle),
     };
     let catalog = InstalledCatalog {
         entries: vec![entry("art", art_bundle), entry("consumer", consumer_bundle)],
@@ -436,7 +463,7 @@ fn a_nested_dep_ref_is_rewritten() {
             enabled_by_default: false,
             hidden: false,
         },
-        bundle,
+        bundle: Some(bundle),
     };
     let catalog = InstalledCatalog {
         entries: vec![entry("art", art_bundle), entry("consumer", consumer_bundle)],
@@ -527,7 +554,7 @@ fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
                     enabled_by_default: false,
                     hidden: false,
                 },
-                bundle: base_bundle,
+                bundle: Some(base_bundle),
             },
             CatalogEntry {
                 decl: ModEntry {
@@ -537,7 +564,7 @@ fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
                     enabled_by_default: false,
                     hidden: false,
                 },
-                bundle: consumer_bundle,
+                bundle: Some(consumer_bundle),
             },
         ],
     };

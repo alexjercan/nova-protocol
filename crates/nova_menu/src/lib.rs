@@ -20,7 +20,7 @@ use bevy::{
     prelude::*,
     state::state::{StateTransition, StateTransitionSystems},
 };
-use nova_assets::prelude::{GameAssets, ReloadContent};
+use nova_assets::prelude::{GameAssets, ModQuarantine, ReloadContent};
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_os::prelude::NovaOsTerminal;
@@ -50,6 +50,7 @@ mod mods;
 mod outcome;
 mod pause;
 mod portal;
+mod safe_mode;
 mod scenarios;
 mod settings;
 mod settings_store;
@@ -179,6 +180,15 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(
             Update,
             (stage_menu_camera, sync_mod_checkboxes).run_if(in_state(GameStates::MainMenu)),
+        );
+        // Safe mode's one report, owed on the front door once per recovery.
+        // `resource_exists`-gated: a menu rig without the content pipeline has
+        // no quarantine to report.
+        app.add_systems(
+            Update,
+            safe_mode::sync_mod_report_overlay
+                .run_if(in_state(GameStates::MainMenu))
+                .run_if(resource_exists::<ModQuarantine>),
         );
         // Chained so a default selection made while rebuilding the list is
         // rendered by the details refresh in the SAME frame.

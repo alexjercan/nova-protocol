@@ -1,10 +1,11 @@
 //! End-to-end proof of the catalog-driven modding pipeline on a headless asset
 //! server (on 134119/134127). The real `mods.catalog.ron` loads through
-//! `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
-//! `*.bundle.ron` (base + example) and, through each, its `*.content.ron`
-//! files. Waiting for the catalog's RECURSIVE load state waits for that whole
-//! tree. Then the real `register_bundles` system merges only the ENABLED subset
-//! (`EnabledMods`) into `GameSections` / `GameScenarios`, base first.
+//! `nova_modding`'s `CatalogLoader`, which loads the MANDATORY `base` bundle
+//! and, through it, its `*.content.ron` files; an optional entry (example) is
+//! only declared there, and is loaded here the way the game loads it - through
+//! the asset server, as its own root. Then the real `register_bundles` system
+//! merges only the ENABLED subset (`EnabledMods`) into `GameSections` /
+//! `GameScenarios`, base first.
 //!
 //! The asset IO reads the real workspace `assets/` dir (tests run with the crate root
 //! as cwd).
@@ -40,6 +41,9 @@ fn headless_app() -> App {
     // installed set; register_bundles/build_mod_catalog read it. Empty here -
     // the download path has its own rig (tests/mod_cache_install.rs).
     app.init_resource::<DownloadedMods>();
+    // ...and the optional half, which is where a non-base catalog entry's
+    // bundle handle lives now.
+    app.init_resource::<OptionalBundles>();
     app
 }
 
@@ -64,6 +68,38 @@ fn wait_recursive_loaded(
         assert!(Instant::now() < deadline, "timed out loading {what}");
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+/// Load every OPTIONAL catalog entry's bundle and publish [`OptionalBundles`] -
+/// the runtime half the game builds at `Processing`. The catalog itself loads
+/// only `base`, so without this an optional mod has no bundle to merge.
+fn load_optional_bundles(
+    app: &mut App,
+    asset_server: &AssetServer,
+    catalog: &Handle<InstalledCatalog>,
+) {
+    let optional: Vec<OptionalBundle> = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let installed = catalogs.get(catalog).expect("catalog loaded");
+        installed
+            .entries
+            .iter()
+            .filter(|entry| entry.bundle.is_none())
+            .map(|entry| OptionalBundle {
+                id: entry.decl.id.clone(),
+                bundle: asset_server.load(entry.decl.bundle.clone()),
+            })
+            .collect()
+    };
+    for loaded in &optional {
+        wait_recursive_loaded(
+            app,
+            asset_server,
+            loaded.bundle.id().untyped(),
+            &format!("bundle '{}'", loaded.id),
+        );
+    }
+    app.world_mut().insert_resource(OptionalBundles(optional));
 }
 
 /// A `GameAssets` with real defaults for the raw handles (register_bundles never
@@ -103,16 +139,30 @@ fn app_with_hidden_fixture() -> App {
         "the mods catalog",
     );
 
+    // The example bundle is OPTIONAL, so the catalog declares it without
+    // loading it: load it here as the game does, and publish it as the optional
+    // half both entries read through.
+    let example_bundle: Handle<BundleAsset> = asset_server.load("mods/example/example.bundle.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        example_bundle.id().untyped(),
+        "the example bundle",
+    );
+    app.world_mut().insert_resource(OptionalBundles(vec![
+        OptionalBundle {
+            id: "example".to_string(),
+            bundle: example_bundle.clone(),
+        },
+        OptionalBundle {
+            id: "hidden-fixture".to_string(),
+            bundle: example_bundle,
+        },
+    ]));
+
     let synthetic = {
         let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
         let real = catalogs.get(&catalog).expect("catalog loaded");
-        let example_bundle = real
-            .entries
-            .iter()
-            .find(|e| e.decl.id == "example")
-            .expect("example entry present")
-            .bundle
-            .clone();
         let mut entries = real.entries.clone();
         entries.push(CatalogEntry {
             decl: ModEntry {
@@ -122,7 +172,7 @@ fn app_with_hidden_fixture() -> App {
                 enabled_by_default: false,
                 hidden: true,
             },
-            bundle: example_bundle,
+            bundle: None,
         });
         InstalledCatalog { entries }
     };
@@ -148,6 +198,7 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
         "the mods catalog",
     );
 
+    load_optional_bundles(&mut app, &asset_server, &catalog);
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
     app.world_mut()
@@ -167,6 +218,10 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
 /// deliberately validates only what a manifest gate can, so this is the "does
 /// the content actually load" half, and it runs on the bundles this repository
 /// OWNS: an installed mod's own authors and linters cover theirs.
+///
+/// Only `base` is loaded BY the catalog; the optional entries are rooted here,
+/// which is the same shape the game gives them and keeps the gate over all of
+/// them.
 #[test]
 fn every_installed_bundle_loads_recursively() {
     let mut app = headless_app();
@@ -179,21 +234,34 @@ fn every_installed_bundle_loads_recursively() {
         "the mods catalog",
     );
 
-    let bundles: Vec<(String, UntypedAssetId)> = {
+    // Handles, not ids: a dropped strong handle cancels the very load this
+    // gate is waiting on.
+    let bundles: Vec<(String, Handle<BundleAsset>)> = {
         let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
         let installed = catalogs.get(&catalog).expect("catalog loaded");
         installed
             .entries
             .iter()
-            .map(|entry| (entry.decl.id.clone(), entry.bundle.id().untyped()))
+            .map(|entry| {
+                let bundle = entry
+                    .bundle
+                    .clone()
+                    .unwrap_or_else(|| asset_server.load::<BundleAsset>(entry.decl.bundle.clone()));
+                (entry.decl.id.clone(), bundle)
+            })
             .collect()
     };
     assert!(
         !bundles.is_empty(),
         "the catalog must name at least one bundle"
     );
-    for (id, bundle) in bundles {
-        wait_recursive_loaded(&mut app, &asset_server, bundle, &format!("bundle '{id}'"));
+    for (id, bundle) in &bundles {
+        wait_recursive_loaded(
+            &mut app,
+            &asset_server,
+            bundle.id().untyped(),
+            &format!("bundle '{id}'"),
+        );
     }
 }
 
@@ -215,6 +283,7 @@ fn mod_catalog_lists_installed_mods_metadata() {
         "the mods catalog",
     );
 
+    load_optional_bundles(&mut app, &asset_server, &catalog);
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
     app.world_mut().init_resource::<ModCatalog>();
@@ -471,6 +540,7 @@ fn toggling_enabled_mods_remerges_live() {
         "the mods catalog",
     );
 
+    load_optional_bundles(&mut app, &asset_server, &catalog);
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
     app.world_mut()
@@ -660,7 +730,7 @@ fn new_game_declaration_is_honored_only_from_base() {
                     enabled_by_default: false,
                     hidden: false,
                 },
-                bundle: base_bundle,
+                bundle: Some(base_bundle),
             },
             CatalogEntry {
                 decl: ModEntry {
@@ -670,7 +740,7 @@ fn new_game_declaration_is_honored_only_from_base() {
                     enabled_by_default: false,
                     hidden: false,
                 },
-                bundle: mod_bundle,
+                bundle: Some(mod_bundle),
             },
         ],
     };
@@ -772,7 +842,7 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
                 enabled_by_default: false,
                 hidden: false,
             },
-            bundle,
+            bundle: Some(bundle),
         }],
     };
     let handle = app

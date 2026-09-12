@@ -85,8 +85,12 @@ fn portal_app() -> App {
     app.init_resource::<EnabledMods>();
     app.init_resource::<DownloadedMods>();
     app.init_resource::<ModCatalog>();
+    // Empty, but read by the merge and its run condition: this rig installs
+    // downloaded mods, and the shipped catalog's optional half is nobody's
+    // dependency now (`nova_assets::safe_mode`).
+    app.init_resource::<OptionalBundles>();
     app.add_plugins(PortalPlugin);
-    app.add_systems(Update, nova_assets::mark_downloaded_bundles_loaded);
+    app.add_systems(Update, nova_assets::mark_installed_bundles_loaded);
     app.add_systems(
         Update,
         nova_assets::register_bundles_for_test

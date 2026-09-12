@@ -7,6 +7,7 @@ mod mods;
 mod outcome;
 mod pause;
 mod portal;
+mod safe_mode;
 mod scenarios;
 mod settings;
 mod settings_store;

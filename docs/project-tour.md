@@ -41,7 +41,7 @@ for responsibilities and the dependency graph.
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_events_macros` | The `EventKind` derive behind `nova_events`' engine events. Its only consumer is `nova_events`. |
-| `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs. |
+| `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal) + prefs. |
 | `nova_modding` | Bundle/content/catalog asset loaders and the `Content` routing enum. |
 | `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
 | `nova_editor` | The ship editor scene (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |
@@ -97,8 +97,12 @@ The state machines:
   `Playing` returns through `Loading`: the content is re-read on the way to the
   front door, and the menu is built once, on the far side of it.
 - `PauseStates { Unpaused, Paused }` -- the ESC overlay, nested in `Playing`.
-- `GameAssetsStates { Loading, Processing, Loaded }` -- the asset pipeline that
-  gates entry; on `OnEnter(Loaded)` the app hands off to `MainMenu`/`Playing`.
+- `GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }` -- the asset
+  pipeline that gates entry; on `OnEnter(Loaded)` the app hands off to
+  `MainMenu`/`Playing`. Only the base game is MANDATORY: an optional mod loads
+  beside the pipeline, and a broken one is switched off and reported instead of
+  failing the boot. `Failed` is the mandatory failure, and it is terminal - the
+  loading animation is replaced by a report.
 
 Gameplay systems run an explicit chain configured identically in `Update` and
 `FixedUpdate`; avian3d physics runs on a fixed timestep in `FixedPostUpdate`.

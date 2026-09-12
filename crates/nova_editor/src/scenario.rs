@@ -2069,7 +2069,7 @@ mod tests {
                     enabled_by_default: false,
                     hidden: false,
                 },
-                bundle,
+                bundle: Some(bundle),
             }],
         });
         world.insert_resource(bundles);

@@ -252,13 +252,15 @@ pub struct GameAssets {
     )]
     pub ui_sfx: bevy::platform::collections::HashMap<AssetFileStem, Handle<AudioSource>>,
     /// The installed-mods catalog (`assets/mods.catalog.ron`): every installed mod
-    /// (base first, then mods) with metadata + a `BundleAsset` handle. The
-    /// `InstalledCatalog` asset visits EVERY entry's bundle as a dependency, so
-    /// bevy_asset_loader gates the collection on the whole tree's RECURSIVE load
-    /// state - every installed bundle + its content is loaded before
-    /// `register_bundles` runs at `OnEnter(Processing)`, regardless of which mods
-    /// are enabled. `EnabledMods` then selects which cataloged bundles actually
-    /// merge (base enabled by default; the mods menu toggles the rest).
+    /// (base first, then mods), with a `BundleAsset` handle on the MANDATORY
+    /// entries only. The `InstalledCatalog` asset visits exactly those as
+    /// dependencies, so bevy_asset_loader gates the collection on the base
+    /// game's bundle + content and nothing else - one unreadable file in one
+    /// optional mod cannot fail the load the whole boot waits on. The optional
+    /// half is loaded beside the collection by `crate::safe_mode` and is settled
+    /// before `register_bundles` runs. `EnabledMods` then selects which cataloged
+    /// bundles actually merge (base enabled by default; the mods menu toggles the
+    /// rest).
     ///
     /// The `<name>.catalog.ron` STEM is load-bearing: bevy_asset_loader kicks off
     /// each collection field with an UNTYPED `load_untyped`, which resolves the

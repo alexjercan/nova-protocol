@@ -1746,7 +1746,7 @@ fn installed_bundle(app: &mut App, id: &str, resources: &[&str]) {
                 enabled_by_default: false,
                 hidden: false,
             },
-            bundle,
+            bundle: Some(bundle),
         }],
     });
     app.world_mut().insert_resource(bundles);

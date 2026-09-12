@@ -7,7 +7,7 @@
 //! the cache helpers read), the production startup system reads the index and
 //! kicks the bundle load, and the production merge wiring (register_bundles
 //! gated on EnabledMods-or-DownloadedMods changes, plus
-//! `mark_downloaded_bundles_loaded`) puts the fixture's scenario into
+//! `mark_installed_bundles_loaded`) puts the fixture's scenario into
 //! `GameScenarios` when the mod is enabled - and takes it back out on
 //! uninstall.
 //!
@@ -103,13 +103,49 @@ fn app_with_mods_source() -> App {
         },
     ));
     app.add_plugins(NovaModdingPlugin);
-    // GameAssetsPlugin inits all three; the run conditions and systems under
+    // GameAssetsPlugin inits all four; the run conditions and systems under
     // test read them (a condition's Res param must exist even while another
-    // condition gates the system off).
+    // condition gates the system off). `OptionalBundles` stays empty here: this
+    // rig's subject is the DOWNLOADED half, and the catalog it reads loads only
+    // the mandatory base bundle.
     app.init_resource::<EnabledMods>();
     app.init_resource::<DownloadedMods>();
     app.init_resource::<ModCatalog>();
+    app.init_resource::<OptionalBundles>();
     app
+}
+
+/// Load every OPTIONAL catalog entry's bundle and publish [`OptionalBundles`] -
+/// the runtime half the game builds at `Processing`. The shipped catalog loads
+/// only `base`, so a test that reads a shipped mod's content or meta publishes
+/// this first (`nova_assets::safe_mode`).
+fn load_optional_bundles(
+    app: &mut App,
+    asset_server: &AssetServer,
+    catalog: &Handle<InstalledCatalog>,
+) {
+    let optional: Vec<OptionalBundle> = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let installed = catalogs.get(catalog).expect("catalog loaded");
+        installed
+            .entries
+            .iter()
+            .filter(|entry| entry.bundle.is_none())
+            .map(|entry| OptionalBundle {
+                id: entry.decl.id.clone(),
+                bundle: asset_server.load(entry.decl.bundle.clone()),
+            })
+            .collect()
+    };
+    for loaded in &optional {
+        wait_recursive_loaded(
+            app,
+            asset_server,
+            loaded.bundle.id().untyped(),
+            &format!("bundle '{}'", loaded.id),
+        );
+    }
+    app.world_mut().insert_resource(OptionalBundles(optional));
 }
 
 /// Pump updates until `handle`'s recursive dependency load state is `Loaded`,
@@ -189,7 +225,7 @@ fn installed_fixture_merges_when_enabled_and_unmerges_on_uninstall() {
     // the loading-state gate this asset-only rig has no states for): the
     // loaded-event marker plus the merge gated on either half of the installed
     // set changing.
-    app.add_systems(Update, nova_assets::mark_downloaded_bundles_loaded);
+    app.add_systems(Update, nova_assets::mark_installed_bundles_loaded);
     app.add_systems(
         Update,
         nova_assets::register_bundles_for_test
@@ -398,7 +434,7 @@ fn enabled_mod_merges_when_its_bundle_load_lands() {
     .expect("install into the temp cache root");
 
     let mut app = app_with_mods_source();
-    app.add_systems(Update, nova_assets::mark_downloaded_bundles_loaded);
+    app.add_systems(Update, nova_assets::mark_installed_bundles_loaded);
     app.add_systems(
         Update,
         nova_assets::register_bundles_for_test
@@ -465,7 +501,7 @@ fn enabled_mod_merges_when_its_bundle_load_lands() {
     );
 }
 
-/// `mark_downloaded_bundles_loaded` at its OWN boundary, deterministically (no
+/// `mark_installed_bundles_loaded` at its OWN boundary, deterministically (no
 /// real asset IO - the events are written by hand): a LoadedWithDependencies
 /// event for a DOWNLOADED bundle flags `DownloadedMods` changed (what re-runs
 /// the change-gated merge/catalog systems); an unrelated bundle's event must
@@ -478,11 +514,12 @@ fn loaded_event_flags_downloaded_mods_changed() {
     let mut app = App::new();
     app.add_message::<AssetEvent<BundleAsset>>();
     app.init_resource::<DownloadedMods>();
+    app.init_resource::<OptionalBundles>();
     app.init_resource::<ChangedFrames>();
     app.add_systems(
         Update,
         (
-            nova_assets::mark_downloaded_bundles_loaded,
+            nova_assets::mark_installed_bundles_loaded,
             // The observer half of the pin: counts the frames on which the
             // resource reads as changed, the exact signal the production
             // run conditions consume.
@@ -703,6 +740,7 @@ fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
         bundle_id,
         "the shadowing downloaded bundle",
     );
+    load_optional_bundles(&mut app, &asset_server, &catalog);
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
     app.world_mut().insert_resource(EnabledMods(

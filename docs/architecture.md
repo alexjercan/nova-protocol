@@ -25,7 +25,7 @@ real code lives under `crates/`.
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `lint/` (the scenario half of the `content -- lint` checks), `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](scenario-system.md). |
 | `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. Also the world's scale: the `Meters`/`MetersPerSecond`/`Meters3` quantity types and `METERS_PER_UNIT` (`units`), and `LOAD_LIMIT` (`scale`). See [Units and scale](#units-and-scale). |
 | `nova_events_macros` | Procedural macros behind `nova_events`' derives. |
-| `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (`assets/base/`) through the same bundle machinery as mods. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`), the portal client and downloads (`portal/`), and prefs persistence. |
+| `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (`assets/base/`) through the same bundle machinery as mods. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`), safe mode (`safe_mode.rs`: the optional half of the installed set loads outside the boot gate, and a broken mod is disabled, persisted off and reported), the portal client and downloads (`portal/`), and prefs persistence. |
 | `nova_modding`  | Bundle/content/catalog ASSET LOADERS and the `Content` routing enum. See [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/). |
 | `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`, not a crate. See [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/). |
 | `nova_input`    | The bindings registry, a leaf crate under every rig and every rebind surface: the one table (`InputBindings`) that says which named actions exist, what each is called on screen, and which physical sources it holds, plus the shared capture (`poll::InputSources`) every rebind row reads and the by-name `dispatch`. Owners register their own defaults into it; nothing here knows what an action DOES. |
@@ -297,9 +297,19 @@ plugin test pins the count at one.
   it. Naming the owners is what stops one surface's release from unfreezing the
   other's world. Switching CRT shells never passes through the hold at all, so
   the world does not tick between a release and the re-hold it would need.
-- `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
-  pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
+- `GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }`
+  (`nova_assets`) - asset pipeline. `Boot` loads the UI font the loading screen
+  itself draws with; `Loading` loads the rest of the MANDATORY set (the shared
+  art and the catalog, whose only loaded dependency is the base game's bundle);
+  `Processing` kicks the OPTIONAL cataloged mods, waits for them to settle, and
+  merges. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
   `examples/systems/system_scenario_grammar.rs`.
+  `Failed` is the MANDATORY failure and is terminal: `nova_core`'s loading
+  screen replaces its animation with a report that offers Quit on native and
+  browser instructions on the web, and draws in the default font when the boot
+  font is what failed. An OPTIONAL mod never reaches it - `safe_mode` disables
+  that mod, persists the choice, and the front door owes one `MODS DISABLED`
+  report per recovery episode (`examples/systems/bug_failed_assets.rs`).
 
 The top-level lifecycle, the pause overlay nested inside `Playing`, and the asset
 pipeline that gates entry:
@@ -324,9 +334,12 @@ stateDiagram-v2
     }
 
     state "GameAssetsStates" as AS {
-        [*] --> AsLoading: Loading
+        [*] --> Boot
+        Boot --> AsLoading: Loading
         AsLoading --> Processing
         Processing --> Loaded
+        Boot --> Failed: mandatory asset failure
+        AsLoading --> Failed: mandatory asset failure
     }
 
     AS --> GS: OnEnter(Loaded) hands off to MainMenu / Playing

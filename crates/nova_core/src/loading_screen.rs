@@ -9,6 +9,12 @@
 //! prove the game is still alive. Real time also makes a long frame VISIBLE - the
 //! sweep jumps the distance the stall cost instead of gliding through it.
 //!
+//! The module also owns the load's OTHER ending: [`GameAssetsStates::Failed`],
+//! where a MANDATORY asset did not resolve and there is nothing to advance to.
+//! The indeterminate animation is the wrong thing to leave up there - it says
+//! "working" forever - so it is replaced by a report that says what happened
+//! and offers the one action the platform has.
+//!
 //! Change this module when the load presentation changes. The scenario
 //! screen's dismissal rule is the interesting part: it is up for exactly as
 //! long as the scenario is SETTLING (the engine's own spawn gate,
@@ -18,7 +24,7 @@
 //! [`SCENARIO_SETTLED_DELTA`] as the "the machine is smooth again" test.
 
 use bevy::prelude::*;
-use nova_assets::prelude::GameAssetsStates;
+use nova_assets::prelude::{FatalAssetFailure, GameAssetsStates};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
 use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload};
@@ -28,6 +34,10 @@ use nova_ui::font::UiFont;
 const LOADING_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 /// Hot neon phosphor (PoC `--phosphor`) for the mark and cursor.
 const LOADING_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
+/// The failure banner's red. Local rather than `theme::semantic::THREAT`: this
+/// screen is the one that draws when the theme's own assets did not load, so it
+/// reads no resource it cannot guarantee.
+const LOADING_ALARM: Color = Color::srgb_u8(255, 90, 77);
 /// Pale mint body text (PoC `--text`) for the LOADING label.
 const LOADING_TEXT: Color = Color::srgb_u8(185, 255, 201);
 /// Amber accent (PoC `--amber`) for the marching dots and the sweep block.
@@ -76,6 +86,13 @@ const SCENARIO_MAX_DWELL: f32 = 6.0;
 #[derive(Component)]
 struct LoadingScreenMarker;
 
+/// The unrecoverable-failure report root, spawned at `OnEnter(Failed)`.
+///
+/// Nothing despawns it: `Failed` is terminal, and the only ways out are the
+/// button on it and the window's own close.
+#[derive(Component)]
+pub struct AssetFailureScreenMarker;
+
 /// The dedicated 2D UI camera the boot loading screen renders through.
 #[derive(Component)]
 struct LoadingScreenCameraMarker;
@@ -107,6 +124,10 @@ impl Plugin for LoadingScreenPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameAssetsStates::Loading), spawn_loading_screen);
         app.add_systems(OnEnter(GameAssetsStates::Loaded), despawn_loading_screen);
+        app.add_systems(
+            OnEnter(GameAssetsStates::Failed),
+            spawn_asset_failure_screen,
+        );
         app.add_observer(spawn_scenario_load_screen);
         // Deliberately ungated: one animation drives EVERY screen, and they live in
         // different states, and the gate that matters is simply whether a panel
@@ -363,6 +384,192 @@ fn despawn_loading_screen(
     }
 }
 
+/// Which platform the fatal report is speaking to. The two differ in what the
+/// player can actually DO about it, so the screen asks rather than assumes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FailurePlatform {
+    /// A desktop build: the game owns its window, so it can offer to close it.
+    Native,
+    /// A web build: there is no window to quit, and the fix is the browser's
+    /// or the host's. Offering a Quit button here would be a button that lies.
+    Web,
+}
+
+impl FailurePlatform {
+    /// What this build is. The one place the `cfg` is read, so a caller can
+    /// build either presentation for inspection.
+    pub fn current() -> Self {
+        if cfg!(target_arch = "wasm32") {
+            Self::Web
+        } else {
+            Self::Native
+        }
+    }
+
+    /// What the screen tells the player to do, which is all this platform can
+    /// actually offer.
+    fn advice(self) -> &'static str {
+        match self {
+            Self::Native => {
+                "Verify the installed files, then start the game again. If the problem stays, \
+                 report it with the log next to this build."
+            }
+            Self::Web => {
+                "Reload the page to try again. If the problem stays, the deployment is missing \
+                 files - report it to whoever hosts this build."
+            }
+        }
+    }
+}
+
+/// The `Name` of the report's root, so an inspecting range can find it.
+pub const FAILURE_SCREEN: &str = "Asset Failure Screen";
+/// The `Name` of the report's Quit button (native only).
+pub const FAILURE_QUIT_BUTTON: &str = "Asset Failure Quit Button";
+/// The `Name` of the report's platform advice line.
+pub const FAILURE_ADVICE: &str = "Asset Failure Advice";
+
+/// Draw the unrecoverable-failure report at `OnEnter(GameAssetsStates::Failed)`.
+///
+/// It takes over from the loading animation, which claims work is still going
+/// on when nothing is left to wait for. The screen reads
+/// [`FatalAssetFailure`] for what to say and assumes nothing loaded: its own
+/// camera when boot failed before [`GameAssetsStates::Loading`] ever spawned
+/// one, and the engine's default face when the UI font is the thing that
+/// failed.
+fn spawn_asset_failure_screen(
+    mut commands: Commands,
+    failure: Option<Res<FatalAssetFailure>>,
+    ui_font: Option<Res<UiFont>>,
+    q_screen: Query<Entity, With<LoadingScreenMarker>>,
+    q_camera: Query<(), With<LoadingScreenCameraMarker>>,
+) {
+    for entity in &q_screen {
+        commands.entity(entity).despawn();
+    }
+    if q_camera.is_empty() {
+        commands.spawn((
+            Name::new("LoadingScreenCamera"),
+            LoadingScreenCameraMarker,
+            Camera2d,
+        ));
+    }
+
+    let boot = failure.as_ref().is_some_and(|failure| failure.boot);
+    let detail = failure.as_ref().map_or_else(
+        || "A required asset did not load.".to_string(),
+        |failure| failure.detail.clone(),
+    );
+    // A BOOT failure is the UI font itself failing to load, so the screen that
+    // reports it cannot be drawn in it.
+    let font = if boot {
+        Handle::default()
+    } else {
+        ui_font_handle(ui_font)
+    };
+
+    spawn_failure_report(&mut commands, FailurePlatform::current(), &detail, font);
+}
+
+/// Spawn the fatal report for `platform` and return its root.
+///
+/// Public so a correctness range can build BOTH presentations on one host and
+/// inspect them; the game itself only ever spawns [`FailurePlatform::current`].
+/// Nothing here reads a loaded asset: `font` may be the engine default, and the
+/// colours are this module's own.
+pub fn spawn_failure_report(
+    commands: &mut Commands,
+    platform: FailurePlatform,
+    detail: &str,
+    font: Handle<Font>,
+) -> Entity {
+    let detail = detail.to_string();
+    commands
+        .spawn((
+            Name::new(FAILURE_SCREEN),
+            AssetFailureScreenMarker,
+            // Terminal, and over everything: above the scenario loading screen
+            // (100), which is the highest layer a run can otherwise raise.
+            GlobalZIndex(200),
+            // Nothing behind this is worth clicking.
+            Pickable {
+                should_block_lower: true,
+                is_hoverable: false,
+            },
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                row_gap: Val::Px(18.0),
+                padding: UiRect::all(Val::Px(32.0)),
+                ..default()
+            },
+            BackgroundColor(LOADING_BACKDROP),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Name::new("Asset Failure Banner"),
+                loading_text("ASSET FAILURE", 44.0, LOADING_ALARM, &font),
+            ));
+            parent.spawn((
+                Name::new("Asset Failure Detail"),
+                loading_text(&detail, 20.0, LOADING_TEXT, &font),
+                // A wrapped line reads as one centred block under the banner,
+                // not as a ragged paragraph pinned to the left of the screen.
+                TextLayout::justify(Justify::Center),
+                Node {
+                    max_width: Val::Px(760.0),
+                    ..default()
+                },
+            ));
+            parent.spawn((
+                Name::new(FAILURE_ADVICE),
+                loading_text(platform.advice(), 16.0, LOADING_AMBER, &font),
+                TextLayout::justify(Justify::Center),
+                Node {
+                    max_width: Val::Px(760.0),
+                    ..default()
+                },
+            ));
+            if platform == FailurePlatform::Native {
+                parent.spawn((
+                    Name::new(FAILURE_QUIT_BUTTON),
+                    quit_button(&font),
+                    bevy::ui_widgets::observe(on_failure_quit),
+                ));
+            }
+        })
+        .id()
+}
+
+/// The one action a native failure screen has. Hand-built rather than the
+/// themed menu button: this screen draws when the theme's own assets may be the
+/// ones that failed, so it reads nothing it cannot guarantee.
+fn quit_button(font: &Handle<Font>) -> impl Bundle {
+    (
+        bevy::ui_widgets::Button,
+        Node {
+            padding: UiRect::axes(Val::Px(24.0), Val::Px(10.0)),
+            border: UiRect::all(Val::Px(2.0)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        BorderColor::all(LOADING_PHOSPHOR),
+        BackgroundColor(LOADING_BACKDROP),
+        children![loading_text("QUIT", 20.0, LOADING_PHOSPHOR, font)],
+    )
+}
+
+/// Leave the game. Reachable only from the native presentation, which is the
+/// only one that spawns the button: a web build has no window to close.
+fn on_failure_quit(_activate: On<bevy::ui_widgets::Activate>, mut exit: MessageWriter<AppExit>) {
+    exit.write(AppExit::Success);
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::state::app::StatesPlugin;
@@ -413,6 +620,132 @@ mod tests {
             count::<LoadingScreenCameraMarker>(&mut app),
             0,
             "loading screen camera must despawn on OnEnter(Loaded)"
+        );
+    }
+
+    /// The terminal state replaces the animation with the report: no panel
+    /// claiming work is still happening, a camera to draw on even though
+    /// `Loading` never ran, and the failure's own words on screen.
+    #[test]
+    fn the_failed_state_replaces_the_animation_with_a_report() {
+        let mut app = screen_app();
+        app.world_mut()
+            .resource_mut::<NextState<GameAssetsStates>>()
+            .set(GameAssetsStates::Loading);
+        app.update();
+
+        app.world_mut().insert_resource(FatalAssetFailure {
+            detail: "the base game's assets did not load".to_string(),
+            boot: false,
+        });
+        app.world_mut()
+            .resource_mut::<NextState<GameAssetsStates>>()
+            .set(GameAssetsStates::Failed);
+        app.update();
+
+        assert_eq!(
+            count::<LoadingScreenMarker>(&mut app),
+            0,
+            "the indeterminate animation must not survive the failure"
+        );
+        assert_eq!(
+            count::<AssetFailureScreenMarker>(&mut app),
+            1,
+            "the failure report must be up"
+        );
+        assert_eq!(
+            count::<LoadingScreenCameraMarker>(&mut app),
+            1,
+            "exactly one camera draws the report"
+        );
+        assert!(
+            texts(&mut app)
+                .iter()
+                .any(|text| text.contains("the base game's assets did not load")),
+            "the report says what failed: {:?}",
+            texts(&mut app)
+        );
+    }
+
+    /// A `Boot` failure is the UI FONT failing, so the report cannot be drawn
+    /// in it: it falls back to the engine's default face.
+    #[test]
+    fn a_boot_failure_reports_in_the_default_font() {
+        let mut app = screen_app();
+        app.world_mut().insert_resource(FatalAssetFailure {
+            detail: "the boot font did not load".to_string(),
+            boot: true,
+        });
+        app.world_mut()
+            .resource_mut::<NextState<GameAssetsStates>>()
+            .set(GameAssetsStates::Failed);
+        app.update();
+
+        let fonts: Vec<FontSource> = app
+            .world_mut()
+            .query::<&TextFont>()
+            .iter(app.world())
+            .map(|font| font.font.clone())
+            .collect();
+        assert!(!fonts.is_empty(), "the report has text");
+        assert!(
+            fonts
+                .iter()
+                .all(|font| *font == FontSource::Handle(Handle::default())),
+            "every line falls back to the default font: {fonts:?}"
+        );
+    }
+
+    /// The web presentation offers no Quit: there is no window to close, and a
+    /// button that did nothing would be worse than none. It says what the
+    /// browser CAN do instead.
+    #[test]
+    fn the_web_report_offers_no_quit_action() {
+        let mut app = screen_app();
+        let mut commands = app.world_mut().commands();
+        spawn_failure_report(
+            &mut commands,
+            FailurePlatform::Web,
+            "the deployment is missing files",
+            Handle::default(),
+        );
+        app.world_mut().flush();
+        app.update();
+
+        assert!(
+            !names(&mut app)
+                .iter()
+                .any(|name| name == FAILURE_QUIT_BUTTON),
+            "the web report must not offer a Quit action: {:?}",
+            names(&mut app)
+        );
+        let advice = texts(&mut app);
+        assert!(
+            advice.iter().any(|text| text.contains("Reload the page")),
+            "the web report tells the player what the browser can do: {advice:?}"
+        );
+    }
+
+    /// ...and the native one does, because the game owns its window.
+    #[test]
+    fn the_native_report_offers_quit() {
+        let mut app = screen_app();
+        let mut commands = app.world_mut().commands();
+        spawn_failure_report(
+            &mut commands,
+            FailurePlatform::Native,
+            "a required asset did not load",
+            Handle::default(),
+        );
+        app.world_mut().flush();
+        app.update();
+
+        assert!(
+            names(&mut app)
+                .iter()
+                .any(|name| name == FAILURE_QUIT_BUTTON),
+            "the native report offers Quit: {:?}",
+            names(&mut app)
         );
     }
 
@@ -599,6 +932,22 @@ mod tests {
             .query_filtered::<(), With<M>>()
             .iter(app.world())
             .count()
+    }
+
+    fn texts(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query::<&Text>()
+            .iter(app.world())
+            .map(|text| text.0.clone())
+            .collect()
+    }
+
+    fn names(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query::<&Name>()
+            .iter(app.world())
+            .map(|name| name.to_string())
+            .collect()
     }
 
     fn dots_text(app: &mut App) -> Option<String> {

@@ -510,6 +510,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "bug_failed_assets",
+        &[
+            "a broken optional mod is disabled instead of blocking the boot",
+            "the disabled set is persisted",
+            "the mods that still work are untouched",
+            "the acknowledgement re-enables nothing",
+            "the recovered game still starts",
+            "the native fatal report offers Quit",
+            "the web fatal report explains instead of offering Quit",
+        ],
+    ),
+    (
         "bug_menu_picker",
         &[
             "the row click selects the row",
@@ -651,7 +663,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 286;
+const SYSTEMS_INVARIANTS: usize = 293;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
