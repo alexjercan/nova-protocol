@@ -13,7 +13,11 @@ use bevy::{
 };
 use nova_assets::prelude::ModQuarantine;
 use nova_gameplay::prelude::GameStates;
-use nova_ui::{prelude::UiSkin, theme, widget::panel};
+use nova_ui::{
+    prelude::{UiSkin, REPORT_Z},
+    theme,
+    widget::panel,
+};
 
 use crate::widgets::button;
 
@@ -73,7 +77,7 @@ pub(crate) fn sync_mod_report_overlay(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             // The menu's modal layer, shared with the in-play reports.
-            GlobalZIndex(9),
+            GlobalZIndex(REPORT_Z),
         ))
         .with_children(|parent| {
             parent

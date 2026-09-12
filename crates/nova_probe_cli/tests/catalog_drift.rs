@@ -645,10 +645,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         "system_command_shell",
         &[
             "`:` opens the command shell",
+            "the shell over flight keeps the game frozen",
             "a typed command answers from the live world",
             "Tab completes an id only the live world knows",
             "Escape gives back the surface the shell covered",
             "Tab opens NOVA OS after the command shell has been used",
+            "`:` opens the command shell from the pause menu",
+            "the open computer sits above the modals it covers",
+            "the shell gives back the pause menu it covered",
+            "`:` opens the command shell on the main menu",
+            "the shell over the menu leaves the ambience running",
+            "the open computer blocks the menu behind it",
+            "the menu takes the click again once the computer closes",
         ],
     ),
     (
@@ -694,7 +702,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 309;
+const SYSTEMS_INVARIANTS: usize = 317;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

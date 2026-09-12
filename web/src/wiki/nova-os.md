@@ -34,7 +34,7 @@ Every ship carries a second seat of control: **NOVA OS**, the ship computer. Pre
 | <kbd>Shift</kbd>+<kbd>Esc</kbd> | Power off from anywhere, even inside an app. |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> or <kbd>Ctrl</kbd>+<kbd>[</kbd> | Leave the running app, keep the computer on. |
 | Type `exit`, or click the **PWR** button | The same animated power-off. |
-| <kbd>:</kbd> | Opens the same monitor on the [command shell](../commands/) instead - no ship needed, and it works over the pause menu too. |
+| <kbd>:</kbd> | Opens the same monitor on the [command shell](../commands/) instead - no ship needed, so it works over the pause menu and on the main menu too. |
 
 <details class="explain">
 <summary>Show explanation</summary>

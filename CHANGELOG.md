@@ -192,8 +192,16 @@ does NOT get an entry - and it is the only place they are written down.
 - The app holds exactly one seeded global RNG, pinned by an assembly test: a
   system that cannot find it logs once and drops its randomness, never its
   cleanup.
+- Every full-screen surface takes its stacking order from one table
+  (`nova_ui::layer`), so two modals can no longer share a z and be ordered by
+  whatever the UI stack happens to traverse first.
 
 ### Fixes
+- The command shell on the main menu leaves the backdrop flying: only a shell
+  opened over the game freezes it. The monitor still holds the front of the
+  screen, so the menu waits behind it.
+- Pausing in the editor covers the editor: the pause menu no longer draws under
+  the foot bar, an open parts gallery or a floating window.
 - A main menu with no backdrop to draw still ends the game behind it: a mod set
   that leaves nothing flagged, or nothing the content gate passes, no longer
   leaves the last scenario simulating under the front door.

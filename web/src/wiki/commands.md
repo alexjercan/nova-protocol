@@ -28,7 +28,7 @@ The ship computer speaks a second language. Press <kbd>:</kbd> anywhere - the ma
 
 | You do | What happens |
 | --- | --- |
-| <kbd>:</kbd> | The monitor opens straight on the command shell. It needs no ship, so it works in the menu and the editor too. |
+| <kbd>:</kbd> | The monitor opens straight on the command shell. It needs no ship, so it works in the menu and the editor too. Close it and you are back on exactly what it covered - the menu, the pause screen or your flight. |
 | Type `commands` at the NOVA OS prompt | Switch shells without closing the picture. Inside an app, you land on the NOVA OS prompt first. |
 | <kbd>Esc</kbd> | Climb one level: back to the NOVA OS prompt you came from, or out of the computer. |
 | Type `close` | Power the monitor off and return to whatever was underneath. |
@@ -39,7 +39,7 @@ The ship computer speaks a second language. Press <kbd>:</kbd> anywhere - the ma
 
 It is one monitor with two languages, not two overlays. The casing, the glass, the phosphor, the scrollback, <kbd>Tab</kbd> completion, the history keys and <kbd>PgUp</kbd>/<kbd>PgDn</kbd> are the terminal's and are shared. What each shell owns is its own vocabulary, its own prompt (`nova>` against `cmd>`), its own transcript and its own history - so switching back and forth loses nothing, and never replays the power-on animation.
 
-Opening the command shell freezes the game exactly as NOVA OS does: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the shell rather than the pause menu. Switching between the two shells does not unpause and re-pause; the monitor owns the freeze for as long as it is open. The one place it will not open is mid-load, where there is nothing yet to inspect.
+Opened over the game, the command shell freezes it exactly as NOVA OS does: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the shell rather than the pause menu. Switching between the two shells does not unpause and re-pause; the monitor owns the freeze for as long as it is open. Opened on the main menu it stops nothing - the backdrop behind it keeps flying, because that is a view and not a game you are being kept out of - but the monitor is still the front-most thing on the screen, so the menu buttons under it wait until you close it. The one place it will not open is mid-load, where there is nothing yet to inspect.
 
 </details>
 

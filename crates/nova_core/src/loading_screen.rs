@@ -28,7 +28,10 @@ use nova_assets::prelude::{FatalAssetFailure, GameAssetsStates};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
 use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload, ScenarioStartFailure};
-use nova_ui::font::UiFont;
+use nova_ui::{
+    font::UiFont,
+    prelude::{FATAL_Z, LOADING_Z},
+};
 
 /// Near-black CRT screen (PoC `--screen`). The panel background.
 const LOADING_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
@@ -273,9 +276,9 @@ fn spawn_scenario_load_screen(
         // Dies with gameplay: backing out to the menu mid-load must not leave
         // the panel over the front door.
         DespawnOnExit(GameStates::Playing),
-        // Above the pause overlay (10) and its settings modal (11): a load
-        // requested from a paused outcome frame draws over both.
-        GlobalZIndex(100),
+        // Above every modal a run can raise: a load requested from a paused
+        // outcome frame draws over all of them.
+        GlobalZIndex(LOADING_Z),
         // Deliberately NOT a modal blocker: the panel is up for a handful of
         // frames and swallowing a click in that window is worse than letting
         // one through to a screen the player cannot see anyway.
@@ -499,9 +502,9 @@ pub fn spawn_failure_report(
         .spawn((
             Name::new(FAILURE_SCREEN),
             AssetFailureScreenMarker,
-            // Terminal, and over everything: above the scenario loading screen
-            // (100), which is the highest layer a run can otherwise raise.
-            GlobalZIndex(200),
+            // Terminal, and over everything: above the scenario loading screen,
+            // which is the highest layer a run can otherwise raise.
+            GlobalZIndex(FATAL_Z),
             // Nothing behind this is worth clicking.
             Pickable {
                 should_block_lower: true,

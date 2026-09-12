@@ -9,6 +9,11 @@
 //! out in the world - is part of the scene, and the docked chrome is the window
 //! you look at the scene through. A window is never behind what it frames, so
 //! anything anchored to the world sits below the panels.
+//!
+//! The whole ladder lives UNDER the game's modal band
+//! ([`nova_ui::layer`](nova_ui::layer)): an ESC pause, an outcome frame and an
+//! open NOVA OS each take the screen from the editor, tooltip and all. The test
+//! below pins that ceiling, because the two tables cannot see each other.
 
 /// Names hung on nodes out in the world: the hull nameplates, the section
 /// keybind chips and the leaders that tie them to their parts.
@@ -48,3 +53,36 @@ pub(crate) const WINDOW_Z: i32 = 30;
 /// The hover hint, frontmost: it lives for as long as the pointer rests, and
 /// it is the only surface that is allowed over an open window.
 pub(crate) const TOOLTIP_Z: i32 = 40;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every editor rung stays under the game's modal band.
+    ///
+    /// Two crates, two tables, one screen: `nova_ui::layer` reserves
+    /// `EDITOR_CEILING_Z` for this ladder and starts its own band above it. A
+    /// rung that climbed past the ceiling would put editor chrome over a pause
+    /// overlay that is supposed to be blocking it.
+    #[test]
+    fn the_whole_ladder_stays_under_the_game_modals() {
+        let ceiling = nova_ui::prelude::EDITOR_CEILING_Z;
+        for (name, z) in [
+            ("stage label", STAGE_LABEL_Z),
+            ("stage verdict", STAGE_VERDICT_Z),
+            ("chrome", CHROME_Z),
+            ("foot", FOOT_Z),
+            ("gallery", GALLERY_Z),
+            ("scrim", SCRIM_Z),
+            ("menu", MENU_Z),
+            ("window", WINDOW_Z),
+            ("tooltip", TOOLTIP_Z),
+        ] {
+            assert!(
+                z <= ceiling,
+                "the editor's '{name}' rung ({z}) must stay under the game's modal band \
+                 (ceiling {ceiling})"
+            );
+        }
+    }
+}

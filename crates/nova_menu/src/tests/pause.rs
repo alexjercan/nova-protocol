@@ -549,3 +549,41 @@ fn focus_loss_leaves_the_nova_os_the_active_modal() {
         "the terminal keeps the screen"
     );
 }
+
+/// The command shell opens over the MAIN MENU too, and there it is a surface
+/// over a cinematic backdrop rather than over a game: the menu's ambience
+/// scenario keeps flying beneath it. The terminal's freeze is for GAMEPLAY, so
+/// it is taken in `Playing` and nowhere else.
+#[test]
+fn the_command_shell_over_the_menu_leaves_the_backdrop_flying() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    assert_eq!(clocks_paused(&app), (false, false));
+
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::NovaOs);
+    app.update();
+
+    assert_eq!(pause_state(&app), PauseStates::NovaOs);
+    assert_eq!(
+        clocks_paused(&app),
+        (false, false),
+        "the menu's backdrop is the menu's own scene: a shell opened over it \
+         must not stop it"
+    );
+
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Unpaused);
+    app.update();
+    assert_eq!(
+        clocks_paused(&app),
+        (false, false),
+        "and closing it leaves them where it found them"
+    );
+}

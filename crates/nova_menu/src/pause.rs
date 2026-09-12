@@ -19,7 +19,7 @@ use nova_os::prelude::{NovaOsTerminal, ShellKind};
 use nova_os_ui::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::*;
 use nova_ui::{
-    prelude::UiSkin,
+    prelude::{UiSkin, PAUSE_SETTINGS_Z, PAUSE_Z},
     screen::{scroll_bar, scroll_column, scroll_viewport},
     theme,
     widget::{panel, ButtonVariant, UiText},
@@ -239,7 +239,17 @@ pub(crate) fn release_clocks_for_pause_menu(mut clocks: Clocks) {
 /// Freeze the simulation for the CRT terminal, in either shell. Switching
 /// shells never passes through this, so the world does not tick between the
 /// release and the re-hold it would otherwise need.
-pub(crate) fn hold_clocks_for_terminal(mut clocks: Clocks) {
+///
+/// GAMEPLAY only. `:` opens the command shell over the main menu as well, and
+/// what runs behind it there is the menu's own ambience backdrop - a cinematic
+/// the shell is drawn over, not a game the player is being kept out of.
+/// Stopping it would leave the front door on a still frame for as long as the
+/// shell is up. `Playing` is the whole of what the terminal freezes, the
+/// editor's build mode included.
+pub(crate) fn hold_clocks_for_terminal(game: Option<Res<State<GameStates>>>, mut clocks: Clocks) {
+    if game.is_some_and(|game| *game.get() != GameStates::Playing) {
+        return;
+    }
     clocks.hold(FreezeOwner::Terminal);
 }
 
@@ -386,7 +396,7 @@ pub(crate) fn reconcile_pause_overlay(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             // Above the HUD chrome.
-            GlobalZIndex(10),
+            GlobalZIndex(PAUSE_Z),
         ))
         .with_children(|parent| {
             parent
@@ -449,8 +459,8 @@ pub(crate) fn reconcile_pause_overlay(
 
     // The pause Settings modal: the SAME shared body as the main menu, hidden
     // until the pause Settings button toggles it, and despawned with the pause
-    // overlay. Above the pause overlay (GlobalZIndex(10)) and a modal blocker so
-    // the pause buttons underneath cannot receive clicks through it.
+    // overlay. Above the pause overlay and a modal blocker so the pause buttons
+    // underneath cannot receive clicks through it.
     commands
         .spawn((
             DespawnOnExit(PauseStates::Paused),
@@ -469,7 +479,7 @@ pub(crate) fn reconcile_pause_overlay(
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
-            GlobalZIndex(11),
+            GlobalZIndex(PAUSE_SETTINGS_Z),
         ))
         .with_children(|parent| {
             parent

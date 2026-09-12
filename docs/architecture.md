@@ -285,13 +285,19 @@ plugin test pins the count at one.
   exempt: it has no restart to come back from.
 - `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
   ESC pause overlay; `NovaOs` is the CRT terminal takeover, whichever shell it
-  is showing - Tab opens the ship computer, `:` opens the command shell (same
-  clock freeze, cursor freed, no pause menu). The live transitions are
+  is showing - Tab opens the ship computer, `:` opens the command shell (cursor
+  freed, no pause menu). The live transitions are
   `Unpaused <-> Paused`, `Unpaused <-> NovaOs` and `Paused <-> NovaOs`: the CRT
   is a surface OVER what was there, so `NovaOsCloseTransition::return_to`
   records the state it covered and closing restores it. `nova_gameplay` owns the
   enum and gates the spaceship sets; `nova_menu` owns the toggles and the
-  overlay UI. Only meaningful inside `Playing`; leaving `Playing` resets it.
+  overlay UI. The two keys are gated differently: Tab needs a player ship and
+  so runs `in_state(Playing)`, while `:` is a GLOBAL gesture over the main
+  menu, the editor and flight alike - gated only on a live terminal, Normal
+  input mode, no armed rebind, and not mid-load, where there is nothing yet to
+  inspect. On the main menu the open shell is still the active modal, because
+  its full-screen backdrop takes every pick and the menu buttons under it are
+  unreachable until it closes.
 - The pause PANEL is reconciled, not spawned on the way in
   (`reconcile_pause_overlay`): `Paused` is a freeze axis three surfaces share,
   and the outcome frame and the FAILED TO START report each hold it while
@@ -319,6 +325,24 @@ plugin test pins the count at one.
   it. Naming the owners is what stops one surface's release from unfreezing the
   other's world. Switching CRT shells never passes through the hold at all, so
   the world does not tick between a release and the re-hold it would need.
+  The terminal's hold is SCOPED to `Playing` (`hold_clocks_for_terminal`): what
+  runs behind the main menu is the ambience backdrop, a cinematic the shell is
+  drawn over rather than a game the player is being kept out of, and stopping
+  it would leave the front door on a still frame for as long as the shell is up
+  (`examples/systems/system_command_shell.rs`).
+- Every full-screen surface takes its `GlobalZIndex` from one table,
+  `nova_ui::layer`: HUD, the menu's own panels, the editor's ceiling, the report
+  frames (outcome, FAILED TO START, MODS DISABLED), the pause menu, its Settings
+  panel, the NOVA OS backdrop and monitor, the diagnostics exempt from the NOVA
+  OS dim, the scenario loading screen, the fatal asset report. Two modals
+  sharing a number are ordered by whatever the UI stack's traversal produces
+  that frame, which is not a decision - the pause Settings panel and the open
+  NOVA OS shared 11 until the table was written, and only survived it because
+  the pause overlay is `DespawnOnExit(Paused)` and is gone before the computer
+  draws. The editor keeps its own ladder (`nova_editor::ui::layer`) for chrome
+  the two tables cannot see across; that ladder lives entirely under
+  `EDITOR_CEILING_Z`, pinned by a test, so a pause or an outcome covers editor
+  chrome instead of losing to its foot bar.
 - `GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }`
   (`nova_assets`) - asset pipeline. `Boot` loads the UI font the loading screen
   itself draws with; `Loading` loads the rest of the MANDATORY set (the shared

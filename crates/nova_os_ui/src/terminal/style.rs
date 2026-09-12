@@ -7,7 +7,10 @@
 //! Touch this module when retuning the monitor's spacing, timing or type.
 
 use bevy::prelude::*;
-use nova_ui::font::UiFont;
+use nova_ui::{
+    font::UiFont,
+    prelude::{NOVA_OS_BACKDROP_Z, NOVA_OS_EXEMPT_Z, NOVA_OS_Z},
+};
 
 /// Seconds for the monitor to fade/activate fully open (or closed).
 pub(crate) const DRAWER_SLIDE_SECS: f32 = 0.22;
@@ -181,18 +184,19 @@ pub(crate) const NOVA_OS_CRT_OVERSCAN: f32 = 0.93;
 /// `remaining / NOVA_OS_DEGAUSS_DURATION`, fed to the shader's `degauss` uniform.
 pub(crate) const NOVA_OS_DEGAUSS_DURATION: f32 = 0.45;
 
-/// Global stacking-context z for the OPEN NOVA OS: it is a modal, so backdrop and
-/// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
-/// Same modal tier the pause overlay uses (`nova_menu`); the NOVA OS and the
-/// pause menu are mutually exclusive `PauseStates` variants, so sharing the tier
-/// is fine. The tab handle stays at the HUD z (it is chrome).
-pub(crate) const DRAWER_BACKDROP_Z: i32 = 10;
-pub(crate) const DRAWER_PANEL_Z: i32 = 11;
+/// Global stacking-context z for the OPEN NOVA OS, straight out of the one
+/// table every full-screen surface is numbered in (`nova_ui::layer`): the
+/// backdrop and the monitor rise above the flight HUD chrome, above the pause
+/// menu and above its Settings panel, because `:` opens the shell OVER all
+/// three and the covering surface is the one on top. The tab handle stays at
+/// the HUD z (it is chrome).
+pub(crate) const DRAWER_BACKDROP_Z: i32 = NOVA_OS_BACKDROP_Z;
+pub(crate) const DRAWER_PANEL_Z: i32 = NOVA_OS_Z;
 /// z for NOVA OS-exempt diagnostic/status chrome that stays visible while the
-/// NOVA OS is open: it must sit above the deepened backdrop so the gray field
-/// cannot dim it. Read by status widgets that tag themselves
-/// [`nova_hud::prelude::HudNovaOsExempt`].
-pub(crate) const DRAWER_EXEMPT_Z: i32 = 12;
+/// NOVA OS is open: it must sit above the monitor so neither the deepened
+/// backdrop nor the casing can take it. Read by status widgets that tag
+/// themselves [`nova_hud::prelude::HudNovaOsExempt`].
+pub(crate) const DRAWER_EXEMPT_Z: i32 = NOVA_OS_EXEMPT_Z;
 
 pub(crate) fn nova_os_font(ui_font: Option<&UiFont>) -> Handle<Font> {
     ui_font.map(UiFont::handle).unwrap_or_default()

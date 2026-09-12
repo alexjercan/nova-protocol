@@ -8,7 +8,11 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ui::{prelude::UiSkin, theme, widget::panel};
+use nova_ui::{
+    prelude::{UiSkin, REPORT_Z},
+    theme,
+    widget::panel,
+};
 
 use crate::{
     pause::{focus_lost, on_back_to_menu, FocusPause},
@@ -111,10 +115,10 @@ pub(crate) fn sync_outcome_overlay(
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
-            // Above the HUD chrome. Below the pause overlay's z (10) as a defensive
-            // ordering, though the two no longer coexist: a shown outcome holds its own
-            // pause and makes ESC inert, so the pause overlay cannot stack over it.
-            GlobalZIndex(9),
+            // Below the pause overlay as a defensive ordering, though the two no
+            // longer coexist: a shown outcome holds its own pause and the panel is
+            // reconciled away, so neither can stack over the other.
+            GlobalZIndex(REPORT_Z),
         ))
         .with_children(|parent| {
             parent
@@ -314,7 +318,7 @@ pub(crate) fn sync_start_failure_overlay(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             // Same layer as the outcome overlay (which a refusal clears).
-            GlobalZIndex(9),
+            GlobalZIndex(REPORT_Z),
         ))
         .with_children(|parent| {
             parent

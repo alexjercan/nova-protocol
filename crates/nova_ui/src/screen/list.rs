@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 
 use super::scroll::ScrollViewport;
-use crate::theme;
+use crate::{layer::MENU_PANEL_Z, theme};
 
 /// Width of the list pane, as a share of the screen card.
 const LIST_PANE_PERCENT: f32 = 40.0;
@@ -30,7 +30,7 @@ pub fn overlay_root() -> impl Bundle {
             justify_content: JustifyContent::Center,
             ..default()
         },
-        GlobalZIndex(1),
+        GlobalZIndex(MENU_PANEL_Z),
     )
 }
 
