@@ -226,7 +226,7 @@ gameplay feedback ledger (`20260909-213118`).
 - [x] `nova_ship/src/sections/integrity.rs:30,508`
       `SEVER_SEPARATION_SPEED` 1 u/s: two 18 u carrier halves grind for
       18 s before they are apart. Scale with the fragment's extent.
-- [ ] `nova_gameplay/src/integrity/explode.rs:86,365` `PIECE_KICK` 2-5 u/s
+- [x] `nova_gameplay/src/integrity/explode.rs:86,365` `PIECE_KICK` 2-5 u/s
       with `chunk.rs:85` `CHUNK_GRACE_SECS` 0.5: a section 6 u deep in the
       carrier goes rigid while still buried in 2081 others. Scale both with
       the dying body's `HullRadius`.

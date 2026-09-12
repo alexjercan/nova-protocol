@@ -16,7 +16,9 @@
 
 use avian3d::prelude::ComputedCenterOfMass;
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
-use nova_gameplay::prelude::{SectionInactiveMarker, SectionMarker, TorpedoProjectileMarker};
+use nova_gameplay::prelude::{
+    IntegrityEnvelope, SectionInactiveMarker, SectionMarker, TorpedoProjectileMarker,
+};
 
 use crate::prelude::{structural_arm, BodyRadius, SectionCollider};
 
@@ -114,6 +116,48 @@ pub(crate) fn publish_target_hit_radii(
             }
             None => {
                 commands.entity(body).try_insert(TargetHitRadius(resolved));
+            }
+        }
+    }
+}
+
+/// Publish every destructible body's
+/// [`IntegrityEnvelope`](nova_gameplay::prelude::IntegrityEnvelope) from the
+/// size its class measures by, beside the hit radius taken from the same pass.
+///
+/// The destruction layer owns the component and cannot derive it: it reacts to
+/// one dying node at a time, and a pass over a capital's sections per node
+/// would be quadratic on the frame a capital collapses. It is published here
+/// because this is where a body's size is already known.
+///
+/// A ship measures by its CONTAINMENT radius and not by its arm: what a piece
+/// coming off has to climb out of is the whole shape, corners included, rather
+/// than the lever the attitude loop turns about.
+pub(crate) fn publish_integrity_envelopes(
+    mut commands: Commands,
+    mut q_body: Query<
+        (
+            Entity,
+            Option<&HullEnvelopeRadius>,
+            Option<&BodyRadius>,
+            Option<&mut IntegrityEnvelope>,
+        ),
+        Or<(With<HullEnvelopeRadius>, With<BodyRadius>)>,
+    >,
+) {
+    for (body, envelope, body_radius, published) in &mut q_body {
+        let resolved = envelope
+            .map(|envelope| **envelope)
+            .or(body_radius.map(|radius| **radius))
+            .unwrap_or(0.0);
+        match published {
+            Some(mut published) => {
+                published.set_if_neq(IntegrityEnvelope(resolved));
+            }
+            None => {
+                commands
+                    .entity(body)
+                    .try_insert(IntegrityEnvelope(resolved));
             }
         }
     }

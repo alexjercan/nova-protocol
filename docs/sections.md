@@ -505,8 +505,8 @@ death is decided by its own remesh (see
 
 Nothing computes geometry when something dies. A destroyed `ExplodableEntity`
 DETACHES: it comes off its parent, becomes a rigid body of its own carrying the
-art and the collider it already had, takes an outward kick and a spin, and
-despawns on a timer (`PIECE_LIFETIME_SECS`). A death moves entities and clones
+art and the collider it already had, takes an outward kick sized by how deeply
+it was buried and a spin, and despawns on a timer (`PIECE_LIFETIME_SECS`). A death moves entities and clones
 one collider handle, which is why the module has no fragment budget and no
 spawn queue - there is nothing left to ration.
 
@@ -581,6 +581,15 @@ Four properties follow from that, and each is load-bearing:
   interpenetrating another - something the solver fixes by shoving hard. So it
   takes the same `ChunkGrace` a carved rock chunk takes: kinematic and
   colliderless until it has drifted clear.
+- **How far clear is measured on the piece, not on the constant.** A piece has
+  to cross the structure standing over it, plus its own reach, plus 10 m of
+  daylight. The kick and the grace window are both multiplied by the square
+  root of that distance over 10 m (`clearance_scale`), so the SLOWEST piece is
+  exactly outside as its window runs out: a plate off the skin leaves at 20 to
+  50 m/s and is physical in half a second, while a section 97 m inside a
+  capital leaves at over 100 m/s and stays a ghost for 1.7 s. The depth comes
+  from `IntegrityEnvelope`, which the layer that owns the body publishes - a
+  hull from its live containment radius, a rock from its own.
 
 There is NO FALLBACK for a body with no collider: it leaves nothing behind and
 logs an error, and `system_destruction_finale` asserts that branch never runs

@@ -245,11 +245,16 @@ impl Plugin for SpaceshipSectionPlugin {
             FixedUpdate,
             signature::publish_ship_signatures.after(hull_radius::publish_hull_radii),
         );
-        // How big this body is to shoot at, off the arm and the envelope the
-        // pass above just wrote.
+        // How big this body is to shoot at, and how far its structure reaches
+        // for the destruction layer, both off the envelope the pass above just
+        // wrote.
         app.add_systems(
             FixedUpdate,
-            hull_radius::publish_target_hit_radii.after(hull_radius::publish_hull_radii),
+            (
+                hull_radius::publish_target_hit_radii,
+                hull_radius::publish_integrity_envelopes,
+            )
+                .after(hull_radius::publish_hull_radii),
         );
         app.add_plugins(integrity::ShipIntegrityPlugin);
         // The authored-animation rig and driver. Unconditional, not

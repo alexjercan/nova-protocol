@@ -81,6 +81,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A severed wreck leaves at the speed its own size asks for: two halves are
   clear of each other in about two seconds whatever the hull, where a carrier's
   ground on for twenty. Under 20 m nothing moves.
+- A wreck piece is thrown out of what buried it: a section deep in a capital
+  leaves at over 100 m/s and stays a ghost until it is outside, where it used
+  to go solid still standing in the hull.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

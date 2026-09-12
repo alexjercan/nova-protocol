@@ -21,6 +21,11 @@
 //! dies ([`explode`](super::explode)) is born inside the ship it was bolted to
 //! and needs exactly this window.
 //!
+//! How far a piece has to go is the caller's to state, because only the caller
+//! knows what it is buried in: a crater chunk is already at the surface, while
+//! a section can be a hundred meters inside a capital. The window is stretched
+//! by [`clearance_scale`] for the second kind.
+//!
 //! This matters most for SHIPS, whose sections carry convex colliders with a
 //! real inside. A chunk only ever comes off a rock that has been carved, and a
 //! carved rock's collider is a trimesh - a shell rather than a solid - so a
@@ -29,8 +34,7 @@
 //!
 //! # A crowd of them lands a few at a time
 //!
-//! The grace is a fixed window, so pieces born together come out of it
-//! together. One collapse sheds hundreds of them in a single command flush, and
+//! Pieces born together at one depth come out of their window together. One collapse sheds hundreds of them in a single command flush, and
 //! half a second later every one of those inserts a collider and a dynamic body
 //! on the SAME frame - still stacked where they were bolted, so the solver
 //! meets the whole population as contacts on that frame as well.
@@ -51,6 +55,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::*;
 
 use crate::lifetime::TempEntity;
 
@@ -58,8 +63,8 @@ use crate::lifetime::TempEntity;
 /// `chunk_collider` and `spawn_carved_chunk`.
 pub mod prelude {
     pub use super::{
-        chunk_collider, spawn_carved_chunk, CarvedChunkMarker, CarvedChunkPlugin, ChunkGrace,
-        ChunkSpawn, CHUNK_MIN_VOLUME,
+        chunk_collider, clearance_scale, spawn_carved_chunk, CarvedChunkMarker, CarvedChunkPlugin,
+        ChunkGrace, ChunkSpawn, CHUNK_CLEARANCE, CHUNK_MIN_VOLUME,
     };
 }
 
@@ -77,12 +82,37 @@ pub mod prelude {
 /// which a piece is worth a ship noticing.
 pub const CHUNK_MIN_VOLUME: f32 = 1.0;
 
-/// How long a chunk drifts before it becomes a physical body.
+/// How long a chunk drifts before it becomes a physical body, when it has only
+/// [`CHUNK_CLEARANCE`] to cross.
 ///
 /// Long enough to clear the collider it was born inside at the speed a carve
 /// throws it, short enough that a player cannot see the moment it starts
 /// colliding. See the module docs for why it is not zero.
 pub const CHUNK_GRACE_SECS: f32 = 0.5;
+
+/// The clearance the flat window and the flat kick are cut against: what a
+/// piece born at the SURFACE of what it left has to cross to be outside it.
+///
+/// A piece born deeper is given a longer window AND a harder shove, both by
+/// [`clearance_scale`], rather than one of the two: a piece that is only thrown
+/// harder arrives somewhere else at the same wrong moment, and a piece that is
+/// only given longer hangs inside the wreck while it waits.
+pub const CHUNK_CLEARANCE: Meters = Meters(10.0);
+
+/// How much longer, and how much faster, a piece with `clearance` to cross has
+/// to be given than one with only [`CHUNK_CLEARANCE`].
+///
+/// The square root is what makes the pair exact. Stretch the window and the
+/// kick by the same `s`, and the slowest piece covers `v * s * t * s`, so
+/// `s = sqrt(clearance / CHUNK_CLEARANCE)` puts it exactly at `clearance` as
+/// the window runs out. Never below one: the flat pair is the floor, so a small
+/// piece off a small body leaves the way it always did.
+///
+/// Engine boundary: `clearance` is a distance between avian positions, so it is
+/// world units.
+pub fn clearance_scale(clearance: f32) -> f32 {
+    (clearance / CHUNK_CLEARANCE.to_engine()).max(1.0).sqrt()
+}
 
 /// The most pieces that may become physical in one frame.
 ///
@@ -147,12 +177,22 @@ pub struct ChunkGrace {
 }
 
 impl ChunkGrace {
+    /// How much of the window is left, seconds.
+    ///
+    /// Read by a range asking what a piece was given rather than waiting to
+    /// see it land: the window is cut per piece, so the figure is evidence
+    /// about THAT piece and not about the constant.
+    pub fn remaining(&self) -> f32 {
+        self.remaining
+    }
+
     /// The window a piece born inside its parent drifts through before it
-    /// becomes physical and grows `collider`.
-    pub fn new(collider: Collider) -> Self {
+    /// becomes physical and grows `collider`, stretched to carry it the
+    /// `clearance` world units it has to cross to be outside what it left.
+    pub fn new(collider: Collider, clearance: f32) -> Self {
         Self {
             collider,
-            remaining: CHUNK_GRACE_SECS,
+            remaining: CHUNK_GRACE_SECS * clearance_scale(clearance),
         }
     }
 }
@@ -203,7 +243,9 @@ pub fn spawn_carved_chunk(commands: &mut Commands, spawn: ChunkSpawn) -> Entity 
             RigidBody::Kinematic,
             LinearVelocity(spawn.velocity),
             AngularVelocity(spawn.spin),
-            ChunkGrace::new(spawn.collider),
+            // A crater chunk is cut at the surface and is already looking at
+            // open space, so it crosses the flat clearance and no more.
+            ChunkGrace::new(spawn.collider, CHUNK_CLEARANCE.to_engine()),
             TempEntity(CHUNK_LIFETIME_SECS),
         ))
         .id()
@@ -575,6 +617,31 @@ mod tests {
         assert!(
             collider.mass_properties(1.0).mass > 0.0,
             "a body with no mass makes the solver produce NaN"
+        );
+    }
+
+    /// The window is cut against the distance the piece actually has to cross,
+    /// and a piece that is already at the surface crosses the flat one.
+    #[test]
+    fn a_piece_with_further_to_go_drifts_for_longer() {
+        let flat = CHUNK_CLEARANCE.to_engine();
+        assert_eq!(clearance_scale(flat), 1.0, "the flat clearance is the unit");
+        assert_eq!(
+            clearance_scale(flat * 0.25),
+            1.0,
+            "and it is a floor: nothing leaves slower or later than a crater chunk"
+        );
+        assert_eq!(
+            clearance_scale(flat * 4.0),
+            2.0,
+            "four times the distance is twice the window and twice the kick"
+        );
+        assert!(
+            (ChunkGrace::new(Collider::sphere(0.5), flat * 9.0).remaining()
+                - CHUNK_GRACE_SECS * 3.0)
+                .abs()
+                < 1.0e-5,
+            "nine times the distance is three times the window"
         );
     }
 }

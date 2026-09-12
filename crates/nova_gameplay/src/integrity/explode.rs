@@ -60,7 +60,10 @@ use rand::RngExt;
 
 use super::components::prelude::*;
 use crate::{
-    integrity::{chunk::prelude::ChunkGrace, neutralize::prelude::DefeatedMarker},
+    integrity::{
+        chunk::prelude::{clearance_scale, ChunkGrace, CHUNK_CLEARANCE},
+        neutralize::prelude::DefeatedMarker,
+    },
     lifetime::TempEntity,
     prelude::SpaceshipRootMarker,
 };
@@ -81,8 +84,15 @@ pub mod prelude {
 /// flat.
 const PIECE_LIFETIME_SECS: f32 = 30.0;
 
-/// How fast a piece is pushed away from the middle of the structure, in world
-/// units per second, on top of whatever that structure was already doing.
+/// How fast a piece born at the SURFACE of a structure is pushed away from its
+/// middle, in world units per second, on top of whatever that structure was
+/// already doing.
+///
+/// The pair with [`CHUNK_GRACE_SECS`](super::chunk::CHUNK_GRACE_SECS): the
+/// slowest of these carries a piece exactly [`CHUNK_CLEARANCE`] in that window,
+/// which is what the window is for. A piece born deeper takes both figures
+/// multiplied by [`clearance_scale`], so the pair still closes on the distance
+/// THAT piece has to cross.
 const PIECE_KICK: std::ops::Range<f32> = 2.0..5.0;
 
 /// How fast a piece tumbles as it leaves, in radians per second.
@@ -159,6 +169,36 @@ pub fn inherited_motion(
         }
         current = q_parents.get(current).ok()?.0;
     }
+}
+
+/// How far a piece standing at `at` has to travel to be outside the structure
+/// it came off, world units: how deep it is buried, plus its own reach, plus
+/// [`CHUNK_CLEARANCE`] of daylight past the skin.
+///
+/// The burial depth is what the structure has left about the piece:
+/// [`IntegrityEnvelope`] is how far that structure reaches from its centre of
+/// mass, so the piece is that much less however far out it already stands. A
+/// body that publishes no envelope is read as reaching no further than the
+/// piece - a lone collider or a drifting wreck buries nothing.
+fn escape_clearance(
+    entity: Entity,
+    at: Vec3,
+    piece_reach: f32,
+    q_parents: &Query<&ChildOf>,
+    q_structure: &Query<(&GlobalTransform, &ComputedCenterOfMass, &IntegrityEnvelope)>,
+) -> f32 {
+    let mut current = entity;
+    let buried = loop {
+        if let Ok((frame, center_of_mass, envelope)) = q_structure.get(current) {
+            let middle = frame.transform_point(center_of_mass.0);
+            break (**envelope - at.distance(middle)).max(0.0);
+        }
+        match q_parents.get(current) {
+            Ok(parent) => current = parent.0,
+            Err(_) => break 0.0,
+        }
+    };
+    buried + piece_reach + CHUNK_CLEARANCE.to_engine()
 }
 
 /// Despawn a destroyed entity that [`detach_destroyed_body`] does not own.
@@ -310,6 +350,7 @@ fn detach_destroyed_body(
     q_parents: Query<&ChildOf>,
     q_children: Query<&Children>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
+    q_structure: Query<(&GlobalTransform, &ComputedCenterOfMass, &IntegrityEnvelope)>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
     let entity = add.entity;
@@ -339,6 +380,19 @@ fn detach_destroyed_body(
     let kick = random_unit_vector(&mut rng);
     let away =
         Dir3::new(transform.translation - centre).unwrap_or(Dir3::new(kick).unwrap_or(Dir3::Y));
+    // A piece is born inside the structure, and how far inside decides both
+    // halves of its escape: a section deep in a capital is thrown harder and
+    // stays a ghost longer, in the one proportion that still lands it outside
+    // as its grace runs out.
+    let aabb = collider.aabb(Vec3::ZERO, Quat::IDENTITY);
+    let clearance = escape_clearance(
+        entity,
+        transform.translation,
+        aabb.max.abs().max(aabb.min.abs()).length(),
+        &q_parents,
+        &q_structure,
+    );
+    let urgency = clearance_scale(clearance);
 
     let piece = commands
         .spawn((
@@ -363,9 +417,9 @@ fn detach_destroyed_body(
             // says this value is the whole answer.
             CenterOfMass(collider.center_of_mass()),
             NoAutoCenterOfMass,
-            LinearVelocity(drift + away * rng.random_range(PIECE_KICK)),
+            LinearVelocity(drift + away * (rng.random_range(PIECE_KICK) * urgency)),
             AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(PIECE_SPIN)),
-            ChunkGrace::new(collider),
+            ChunkGrace::new(collider, clearance),
             TempEntity(PIECE_LIFETIME_SECS),
         ))
         .id();
@@ -798,6 +852,114 @@ mod tests {
             (velocity, spin),
             leaving(4242),
             "delivery guard: the tumble is drawn from the stream at all"
+        );
+    }
+
+    /// A structure of `envelope` world units about the origin, with one
+    /// destructible unit-cube section standing `at` units out along x. Returns
+    /// the piece the section leaves as.
+    fn piece_off_a_structure(app: &mut App, envelope: f32, at: f32) -> Entity {
+        let body = app
+            .world_mut()
+            .spawn((
+                IntegrityRoot,
+                IntegrityEnvelope(envelope),
+                ComputedCenterOfMass::default(),
+                LinearVelocity::default(),
+                Transform::default(),
+                GlobalTransform::IDENTITY,
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                ExplodableEntity,
+                Collider::cuboid(1.0, 1.0, 1.0),
+                Transform::from_translation(Vec3::X * at),
+                GlobalTransform::from_translation(Vec3::X * at),
+            ))
+            .id();
+        app.world_mut()
+            .entity_mut(section)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+        app.world_mut()
+            .query::<(Entity, &DetachedPieceMarker)>()
+            .iter(app.world())
+            .find_map(|(piece, came_off)| (came_off.0 == section).then_some(piece))
+            .expect("the section detached")
+    }
+
+    /// The thing the item is about: a section buried in a capital used to go
+    /// rigid while it was still standing in 2 000 others, because the kick and
+    /// the window were cut against a hull ten times smaller.
+    #[test]
+    fn a_piece_buried_deep_is_thrown_out_of_what_buried_it() {
+        let mut app = finale_app(20260912);
+        let deep = piece_off_a_structure(&mut app, 20.0, 14.0);
+        let shallow = piece_off_a_structure(&mut app, 2.0, 2.0);
+
+        let window = |piece: Entity, app: &App| {
+            app.world()
+                .get::<ChunkGrace>(piece)
+                .expect("a piece waits out a grace")
+                .remaining()
+        };
+        let speed =
+            |piece: Entity, app: &App| app.world().get::<LinearVelocity>(piece).unwrap().0.length();
+
+        assert!(
+            window(deep, &app) > 1.8 * window(shallow, &app),
+            "six units of structure over the piece is a much longer ghost: {} against {}",
+            window(deep, &app),
+            window(shallow, &app)
+        );
+        assert!(
+            speed(deep, &app) > speed(shallow, &app),
+            "and a harder shove, so it is out rather than merely late: {} against {}",
+            speed(deep, &app),
+            speed(shallow, &app)
+        );
+    }
+
+    /// The two figures are one pair, and this is the arithmetic that makes them
+    /// one: the SLOWEST piece is exactly clear as its window runs out.
+    #[test]
+    fn the_slowest_piece_is_clear_the_moment_it_goes_rigid() {
+        for clearance in [1.0, 2.0, 7.9, 30.0, 120.0] {
+            let urgency = clearance_scale(clearance);
+            let travelled =
+                PIECE_KICK.start * urgency * (super::super::chunk::CHUNK_GRACE_SECS * urgency);
+            assert!(
+                travelled >= clearance - 1.0e-4,
+                "a piece with {clearance} units to cross covers {travelled}"
+            );
+        }
+    }
+
+    /// A body with nothing above it buries nothing: a lone rock's piece, or a
+    /// piece off a wreck that has already come apart, leaves at the flat pair
+    /// plus its own reach.
+    #[test]
+    fn a_piece_off_a_body_that_publishes_no_envelope_clears_only_itself() {
+        let mut app = finale_app(20260912);
+        let (body, _) = body_drawing_through_descendants(&mut app, 1);
+        app.world_mut()
+            .entity_mut(body)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+        let piece = *wreckage(&mut app).first().expect("the section detached");
+
+        let reach = Collider::cuboid(1.0, 1.0, 1.0)
+            .aabb(Vec3::ZERO, Quat::IDENTITY)
+            .max
+            .length();
+        let expected = super::super::chunk::CHUNK_GRACE_SECS
+            * clearance_scale(reach + CHUNK_CLEARANCE.to_engine());
+        assert!(
+            (app.world().get::<ChunkGrace>(piece).unwrap().remaining() - expected).abs() < 1.0e-5,
+            "an unburied piece crosses its own reach and the flat clearance, nothing more"
         );
     }
 }

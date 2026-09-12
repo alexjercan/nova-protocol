@@ -9,22 +9,28 @@
 //! which is the frame cost `tasks/20260904-155338` attributed to avian rather
 //! than to nova.
 //!
-//! FIVE named claims - three asserted, two recorded:
+//! SIX named claims - four asserted, two recorded:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: one siege slug opens exactly its rake corridor` | every cell inside the authored rake radius is charged, exactly once, and nothing outside it |
 //! | 2 | `outcome: every corridor cell left the hull` | the corridor is DESTROYED, so the section count falls by exactly its size |
 //! | 3 | `outcome: every wreck piece went physical` | the collapse ran to completion - nothing is still waiting on its grace when the window closes |
-//! | 4 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
-//! | 5 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
+//! | 4 | `outcome: every piece is thrown clear of what buried it` | each piece's own kick and its own grace window carry it past the structure standing over it, so none goes rigid inside the hull |
+//! | 5 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
+//! | 6 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
 //!
 //! Claim 3 is the one a debris BUDGET has to keep. Spreading activation over
 //! frames is safe in the direction the grace exists for - a piece stays
 //! kinematic longer, never shorter - but a budget that dropped activations
 //! would leave ghost wreckage nothing can fly into, and this is what says so.
 //!
-//! Claims 4 and 5 assert NOTHING. Milliseconds are a statement about the host:
+//! Claim 4 is what a piece born INSIDE a capital needs: the kick and the grace
+//! window are cut per piece, against the depth that piece is buried at, so the
+//! one at the bottom of the corridor is thrown as hard as its own burial asks
+//! rather than as hard as a gunship's skin plate.
+//!
+//! Claims 5 and 6 assert NOTHING. Milliseconds are a statement about the host:
 //! this range's numbers are read against a named reference in a task's
 //! before/after, never against a threshold. Same reading as `bug_sandbox_soak`
 //! and as the probe's own `fps_within_baseline`. Do not turn them into asserts.
@@ -231,6 +237,34 @@ fn loop_requested() -> bool {
 #[derive(Component, Clone, Copy, Debug)]
 struct HullCell(IVec3);
 
+/// One piece the collapse threw, read the moment it was born.
+#[derive(Clone, Copy, Debug)]
+struct PieceEscape {
+    /// How much structure stood over it, world units: the hull's live reach
+    /// less how far out the piece already was.
+    buried: f32,
+    /// The grace window it was given, seconds.
+    window: f32,
+    /// The kick it left with, world units per second, with the hull's own drift
+    /// taken off.
+    speed: f32,
+}
+
+impl PieceEscape {
+    /// How far it travels before it goes rigid, world units.
+    fn travel(self) -> f32 {
+        self.speed * self.window
+    }
+
+    /// What it has to cross to be outside what it left, world units. The piece's
+    /// OWN reach is deliberately left out: it is measured off a collider this
+    /// range cannot see once the piece is holding it, and leaving it out only
+    /// makes the claim harder.
+    fn required(self) -> f32 {
+        self.buried + CHUNK_CLEARANCE.to_engine()
+    }
+}
+
 /// One cell the range watched the slug pay for, and WHERE the corridor met it.
 #[derive(Clone, Copy, Debug)]
 struct CorridorBite {
@@ -269,6 +303,8 @@ struct CollapseProbe {
     shots: u32,
     /// Every cell the slug charged, in the order it paid for them.
     bites: Vec<CorridorBite>,
+    /// Every piece the collapse threw, read at birth.
+    escapes: Vec<PieceEscape>,
     /// When the collapse window opened, in app seconds: the frame the shot
     /// left. The flush the corridor costs lands on that frame, and a window
     /// that opened when the slug finally expired 1.2 s later measured only the
@@ -323,6 +359,7 @@ fn range_plugin(app: &mut App) {
     app.init_resource::<CollapseProbe>();
     app.add_observer(count_shots);
     app.add_observer(record_corridor_bites);
+    app.add_observer(record_piece_escapes);
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_range);
     // The safety is DERIVED every frame from the held combat stance, so a range
     // that pokes `WeaponsHot` has it stomped back before the lance reads it.
@@ -624,6 +661,39 @@ fn record_corridor_bites(
         section: impact.entity,
         cell,
         offset: cell_offset(cell),
+    });
+}
+
+/// Read a wreck piece the frame it is born: how deep it was standing, and what
+/// it was given to get out.
+///
+/// An observer and not a sampler, because both figures are only true at birth -
+/// the grace window ticks down from the next frame, and the piece has left by
+/// the time a query would see it.
+fn record_piece_escapes(
+    add: On<Add, DetachedPieceMarker>,
+    q_piece: Query<(&Transform, &LinearVelocity, &ChunkGrace)>,
+    q_hull: Query<(
+        &GlobalTransform,
+        &ComputedCenterOfMass,
+        &IntegrityEnvelope,
+        &LinearVelocity,
+    )>,
+    mut probe: ResMut<CollapseProbe>,
+) {
+    let Some(block) = probe.block else {
+        return;
+    };
+    let (Ok((at, velocity, grace)), Ok((frame, center_of_mass, envelope, drift))) =
+        (q_piece.get(add.entity), q_hull.get(block))
+    else {
+        return;
+    };
+    let middle = frame.transform_point(center_of_mass.0);
+    probe.escapes.push(PieceEscape {
+        buried: (**envelope - at.translation.distance(middle)).max(0.0),
+        window: grace.remaining(),
+        speed: (velocity.0 - drift.0).length(),
     });
 }
 
@@ -1014,7 +1084,70 @@ fn verify(world: &mut World) {
         }),
     );
 
-    // --- claims 4 and 5: RECORDED, and asserted nowhere ---
+    // --- claim 4: every piece was thrown out of what buried it ---
+
+    let escapes = world.resource::<CollapseProbe>().escapes.clone();
+    let short: Vec<&PieceEscape> = escapes
+        .iter()
+        .filter(|escape| escape.travel() < escape.required())
+        .collect();
+    let deepest = escapes
+        .iter()
+        .copied()
+        .reduce(|worst, escape| {
+            if escape.buried > worst.buried {
+                escape
+            } else {
+                worst
+            }
+        })
+        .unwrap_or(PieceEscape {
+            buried: 0.0,
+            window: 0.0,
+            speed: 0.0,
+        });
+    let shallowest = escapes
+        .iter()
+        .copied()
+        .reduce(|best, escape| {
+            if escape.buried < best.buried {
+                escape
+            } else {
+                best
+            }
+        })
+        .unwrap_or(deepest);
+    assert!(
+        escapes.len() >= CORRIDOR_CELLS && short.is_empty(),
+        "hull_collapse: {} of {} pieces go rigid before they are out of the hull, and {} were          read of {CORRIDOR_CELLS} - a piece that lands inside the structure it came off is the          shove the solver has to undo",
+        short.len(),
+        escapes.len(),
+        escapes.len()
+    );
+    assert!(
+        deepest.window > shallowest.window,
+        "hull_collapse: the piece from {} units down was given the same {} s window as the one          off the skin at {} units - the window is not being cut per piece",
+        deepest.buried,
+        deepest.window,
+        shallowest.buried
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: every piece is thrown clear of what buried it",
+        serde_json::json!({
+            "pieces_read": escapes.len(),
+            "went_rigid_inside": short.len(),
+            "deepest_burial_m": Meters::from_engine(deepest.buried).get(),
+            "deepest_window_secs": deepest.window,
+            "deepest_kick_mps": MetersPerSecond::from_engine(deepest.speed).get(),
+            "deepest_travel_m": Meters::from_engine(deepest.travel()).get(),
+            "shallowest_burial_m": Meters::from_engine(shallowest.buried).get(),
+            "shallowest_window_secs": shallowest.window,
+            "shallowest_kick_mps": MetersPerSecond::from_engine(shallowest.speed).get(),
+        }),
+    );
+
+    // --- claims 5 and 6: RECORDED, and asserted nowhere ---
 
     let step_ms = avian_reading(world, "avian/total_step_time");
     let contacts_ms = avian_reading(world, "avian/collision/update_contacts");

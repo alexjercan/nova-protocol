@@ -588,3 +588,52 @@ smaller than the skiff moves at all.
 The hull inputs read unchanged after the item, as a lifecycle change should:
 arm 47.8 m / 194.2 m, torque ceiling 86.3326 / 0.4446 rad/s2, structural ceiling
 1.6430 / 0.4042 rad/s2, both structure-bound, lock range 21.7 km / 59.5 km.
+
+### A piece is thrown out of what buried it, 2026-09-12
+
+`PIECE_KICK` was a flat 20 to 50 m/s and `CHUNK_GRACE_SECS` a flat 0.5 s, so
+every piece was given 10 to 25 m of travel before it went rigid, whatever it
+was standing in. A piece is now given the distance IT has to cross - the
+structure over it (`IntegrityEnvelope`, published by the layer that owns the
+body), plus its own reach, plus 10 m of daylight - with both the kick and the
+window multiplied by the square root of that over 10 m, so the slowest piece is
+exactly outside as its window runs out.
+
+Measured on `stress_hull_collapse`, one siege slug through a block capital, 720
+corridor cells shed in one flush:
+
+| figure | before | after |
+| --- | --- | --- |
+| pieces that went rigid still inside the hull | 720 of 720 | 0 of 720 |
+| deepest piece, buried | 97.2 m | 97.2 m |
+| deepest piece, kick | 20 - 50 m/s | 124.7 m/s |
+| deepest piece, grace window | 0.50 s | 1.70 s |
+| deepest piece, travel before it goes rigid | 10 - 25 m | 212.3 m |
+| shallowest piece, buried | 19.0 m | 19.0 m |
+| shallowest piece, kick | 20 - 50 m/s | 53.0 m/s |
+| shallowest piece, grace window | 0.50 s | 0.97 s |
+
+The "720 of 720" is a live reading: the range now claims that every piece is
+clear of what buried it before it goes rigid, and the old pair fails that claim
+on every piece it threw, including the ones off the skin. That is the finding.
+Nothing in the old figures was about the body: a plate 97 m inside a capital
+and a plate on its outer face were given the same shove and the same window,
+and both landed inside the wreck for the solver to push out.
+
+The two reference hulls are read the same way, from the containment radius
+`system_hull_scaling` measures. A piece at the centre is the worst case, and a
+one-cell section reaches 8.7 m:
+
+| hull | containment radius | deepest burial | kick before | kick after | window before | window after |
+| --- | --- | --- | --- | --- | --- | --- |
+| block_skiff | 48.3 m | 48.3 m | 20 - 50 m/s | 51.8 - 129.4 m/s | 0.50 s | 1.29 s |
+| block_carrier | 194.3 m | 194.3 m | 20 - 50 m/s | 92.3 - 230.7 m/s | 0.50 s | 2.31 s |
+
+The balance consequence is visible and is meant to be: wreckage off a capital
+now leaves fast. A section from the middle of a carrier crosses its own hull in
+about two seconds instead of hanging in it, which is what a hull coming apart
+looks like, and what the grace window was always supposed to buy.
+
+The hull inputs read unchanged again: arm 47.8 m / 194.2 m, torque ceiling
+86.3326 / 0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both
+structure-bound, lock range 21.7 km / 59.5 km.

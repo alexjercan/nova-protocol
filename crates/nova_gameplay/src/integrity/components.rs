@@ -15,12 +15,12 @@
 
 use bevy::prelude::*;
 
-/// The structural graph components: `IntegrityRoot`, `ConnectedTo` and the leaf, disabled and
-/// destroy markers.
+/// The structural graph components: `IntegrityRoot`, `IntegrityEnvelope`,
+/// `ConnectedTo` and the leaf, disabled and destroy markers.
 pub mod prelude {
     pub use super::{
-        ConnectedTo, IntegrityDestroyMarker, IntegrityDisabledMarker, IntegrityLeafMarker,
-        IntegrityRoot,
+        ConnectedTo, IntegrityDestroyMarker, IntegrityDisabledMarker, IntegrityEnvelope,
+        IntegrityLeafMarker, IntegrityRoot,
     };
 }
 
@@ -34,6 +34,27 @@ pub mod prelude {
 #[derive(Component, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct IntegrityRoot;
+
+/// How far an [`IntegrityRoot`]'s own structure reaches from its centre of
+/// mass, world units.
+///
+/// Published by the layer that OWNS the body, because only that layer knows
+/// what the body is made of: a ship writes its live hull envelope, a rock its
+/// radius. This layer never derives it - a pass over a capital's sections for
+/// every section that dies in its collapse is quadratic in the worst frame
+/// there is.
+///
+/// The destruction layer is the reader. A piece is born INSIDE the structure it
+/// came off, so how deep it is standing decides how hard it has to be thrown
+/// and how long it stays a ghost ([`explode`](super::explode)). A body that
+/// publishes nothing is read as reaching no further than the piece itself,
+/// which is what a lone collider or a drifting wreck actually is.
+///
+/// Engine units: it is compared against avian positions and spent on avian
+/// velocities.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct IntegrityEnvelope(pub f32);
 
 /// The integrity neighbours of a node: the adjacent nodes it is structurally
 /// connected to. Lives on the node itself (a section collider, a structural
