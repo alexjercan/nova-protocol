@@ -566,6 +566,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "every wreck piece went physical",
             "every piece is thrown clear of what buried it",
             "the chain of fires is the size of the collapse",
+            "one hull coming apart is one kick",
             "the collapse frame cost is recorded",
             "the debris the collapse threw is recorded",
         ],
@@ -630,7 +631,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 275;
+const SYSTEMS_INVARIANTS: usize = 276;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

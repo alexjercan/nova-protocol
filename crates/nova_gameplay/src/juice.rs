@@ -28,11 +28,12 @@
 //!
 //! Both effects are **distance-attenuated** from the gameplay camera (the one
 //! carrying `SfxListenerMarker`, shared with the audio layer; the trauma
-//! impulse and the spark count both scale with the falloff) and
-//! **per-area-cell throttled**, mirroring `audio/`: a blast that damages a
+//! impulse and the spark count both scale with the falloff) and **throttled per
+//! STRUCTURE**, on the audio layer's own [`CueGroup`]: a blast that damages a
 //! dozen colliders of one ship in a single frame collapses to one kick and one
-//! burst, and a distant event kicks weaker and throws fewer sparks than one in
-//! your face. Every tunable
+//! burst, a capital shedding two hundred sections at once is one collapse
+//! rather than two dozen kicks, and a distant event kicks weaker and throws
+//! fewer sparks than one in your face. Every tunable
 //! lives on the [`JuiceSettings`] resource (with per-effect enable toggles and a
 //! master switch) so a settings menu can bind to it later. All the math a headless
 //! run cannot exercise (the rendering) is pushed into pure helpers that are
@@ -40,20 +41,18 @@
 
 use std::collections::HashMap;
 
+use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
 
-use crate::prelude::*;
+use crate::{
+    audio::{body_middle, cue_body, cue_group, CueGroup},
+    prelude::*,
+};
 
 /// The shake and spark settings, `JuiceSettings` and `NovaJuicePlugin`.
 pub mod prelude {
     pub use super::{JuiceSettings, NovaJuicePlugin, ShakeSettings, SparkSettings};
 }
-
-/// World-cell size (units) for grouping co-located juice events, matching the
-/// audio layer's `SFX_AREA_CELL`. A blast hitting many colliders of one ship, or a
-/// ship's sections all destroyed at once, fall in the same cell and collapse to a
-/// single kick/burst; events far enough apart get their own.
-const JUICE_AREA_CELL: f32 = 6.0;
 
 /// Minimum seconds between successive impact / destruction juice events per cell.
 /// Without this a single blast's many-collider damage burst would stack a dozen
@@ -63,8 +62,9 @@ const JUICE_AREA_CELL: f32 = 6.0;
 const IMPACT_MIN_INTERVAL: f32 = 0.04;
 const DESTROY_MIN_INTERVAL: f32 = 0.06;
 
-/// Drop throttle keys not touched within this many seconds, so the per-cell map
-/// stays bounded as combat moves through new cells (mirrors the audio throttle).
+/// Drop throttle keys not touched within this many seconds, so the map stays
+/// bounded as combat moves through new bodies and cells (mirrors the audio
+/// throttle).
 const JUICE_THROTTLE_PRUNE_WINDOW: f32 = 2.0;
 
 /// Which kind of juice event this is, selecting its trauma from
@@ -218,13 +218,14 @@ impl JuiceSettings {
     }
 }
 
-/// Per-throttle-key last-fired timestamp, keyed by event kind and world cell, so a
-/// co-located burst collapses while distinct locations each fire. Mirrors the audio
-/// layer's `SfxThrottle`.
+/// Per-throttle-key last-fired timestamp, keyed by event kind and by what the
+/// event happened TO, so one structure's burst collapses while distinct
+/// structures each fire. The grouping is the audio layer's [`CueGroup`], shared
+/// deliberately: a frame that is one bang has to be one kick.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum ThrottleKey {
-    Impact(IVec3),
-    Destroy(IVec3),
+    Impact(CueGroup),
+    Destroy(CueGroup),
 }
 
 /// Last-fired timestamp per throttle key, seconds since startup. An absent key has
@@ -251,12 +252,6 @@ impl JuiceThrottle {
     fn prune(&mut self, now: f32, window: f32) {
         self.last.retain(|_, &mut last| now - last < window);
     }
-}
-
-/// Quantize a world position to a [`JUICE_AREA_CELL`]-sized integer cell, so nearby
-/// events share a throttle key and far ones do not.
-fn area_cell(pos: Vec3) -> IVec3 {
-    (pos / JUICE_AREA_CELL).floor().as_ivec3()
 }
 
 /// Distance attenuation in `[0, 1]`: full within `near`, zero at/beyond `far`, with
@@ -399,6 +394,7 @@ fn sync_camera_shake_config(settings: Res<JuiceSettings>, mut q_shake: Query<&mu
 )]
 fn emit_juice(
     pos: Vec3,
+    group: CueGroup,
     kind: JuiceEventKind,
     now: f32,
     settings: &JuiceSettings,
@@ -421,8 +417,8 @@ fn emit_juice(
     }
 
     let (min_interval, throttle_key) = match kind {
-        JuiceEventKind::Impact => (IMPACT_MIN_INTERVAL, ThrottleKey::Impact(area_cell(pos))),
-        JuiceEventKind::Destroy => (DESTROY_MIN_INTERVAL, ThrottleKey::Destroy(area_cell(pos))),
+        JuiceEventKind::Impact => (IMPACT_MIN_INTERVAL, ThrottleKey::Impact(group)),
+        JuiceEventKind::Destroy => (DESTROY_MIN_INTERVAL, ThrottleKey::Destroy(group)),
     };
     if !throttle.allow(throttle_key, now, min_interval) {
         return;
@@ -462,11 +458,17 @@ fn emit_juice(
 /// only to the original target keeps one hit = one cue, and the original
 /// target is also the better cue position: the actual hit location. Any future
 /// damage-cue observer needs this same guard (mirrors `audio/`).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the settings, the clock, where the hit was, what it was on, the listener and the throttle"
+)]
 fn on_damage_juice(
     damage: On<HealthApplyDamage>,
     settings: Res<JuiceSettings>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
+    q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
+    q_parents: Query<&ChildOf>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
     mut commands: Commands,
@@ -481,8 +483,12 @@ fn on_damage_juice(
     let Ok(source) = q_transform.get(damage.entity) else {
         return;
     };
+    // Grouped by the hull that was hit, and thrown from the HIT: a hit is an
+    // event on a surface, and where on the hull it landed is the whole read.
+    let body = cue_body(damage.entity, &q_bodies, &q_parents);
     emit_juice(
         source.translation(),
+        cue_group(body, source.translation()),
         JuiceEventKind::Impact,
         time.elapsed_secs(),
         &settings,
@@ -495,11 +501,17 @@ fn on_damage_juice(
 
 /// Destruction juice on any destroy (section, asteroid, or torpedo detonation, all
 /// of which funnel through `IntegrityDestroyMarker`).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the settings, the clock, where the death was, what came apart, the listener and the throttle"
+)]
 fn on_destroy_juice(
     add: On<Add, IntegrityDestroyMarker>,
     settings: Res<JuiceSettings>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
+    q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
+    q_parents: Query<&ChildOf>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
     mut commands: Commands,
@@ -512,8 +524,16 @@ fn on_destroy_juice(
     let Ok(source) = q_transform.get(add.entity) else {
         return;
     };
+    // Grouped by the structure that came apart, and thrown from ITS middle:
+    // one kick for one collapse, where the wreck is, rather than one at
+    // whichever section of it happened to be destroyed first.
+    let body = cue_body(add.entity, &q_bodies, &q_parents);
+    let at = body
+        .and_then(|body| body_middle(body, &q_bodies))
+        .unwrap_or_else(|| source.translation());
     emit_juice(
-        source.translation(),
+        at,
+        cue_group(body, at),
         JuiceEventKind::Destroy,
         time.elapsed_secs(),
         &settings,
@@ -527,10 +547,11 @@ fn on_destroy_juice(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::SFX_AREA_CELL;
 
     #[test]
     fn throttle_blocks_one_key_until_the_interval_elapses() {
-        let key = ThrottleKey::Impact(IVec3::ZERO);
+        let key = ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO));
         let mut state = JuiceThrottle::default();
         // First event of a key always fires (absent -> NEG_INFINITY).
         assert!(state.allow(key, 0.0, 0.04));
@@ -543,35 +564,36 @@ mod tests {
     #[test]
     fn throttle_is_independent_per_key() {
         let mut state = JuiceThrottle::default();
-        // Distinct cells of the same kind are independent...
-        assert!(state.allow(ThrottleKey::Impact(IVec3::ZERO), 0.0, 0.04));
-        assert!(state.allow(ThrottleKey::Impact(IVec3::ONE), 0.0, 0.04));
-        // ...and impact vs destroy at the same cell are independent too.
-        assert!(state.allow(ThrottleKey::Destroy(IVec3::ZERO), 0.0, 0.06));
+        // Distinct groups of the same kind are independent...
+        assert!(state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04));
+        assert!(state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ONE)), 0.0, 0.04));
+        // ...two bodies are independent of each other and of any cell...
+        assert!(state.allow(
+            ThrottleKey::Impact(CueGroup::Body(Entity::from_raw_u32(1).unwrap())),
+            0.0,
+            0.04
+        ));
+        assert!(state.allow(
+            ThrottleKey::Impact(CueGroup::Body(Entity::from_raw_u32(2).unwrap())),
+            0.0,
+            0.04
+        ));
+        // ...and impact vs destroy on the same group are independent too.
+        assert!(state.allow(ThrottleKey::Destroy(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.06));
         // Same key again in the window is still blocked.
-        assert!(!state.allow(ThrottleKey::Impact(IVec3::ZERO), 0.0, 0.04));
+        assert!(!state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04));
     }
 
     #[test]
     fn prune_drops_only_idle_keys() {
         let mut state = JuiceThrottle::default();
-        state.allow(ThrottleKey::Impact(IVec3::ZERO), 0.0, 0.04); // last = 0.0
-        state.allow(ThrottleKey::Impact(IVec3::ONE), 9.5, 0.04); // last = 9.5
+        let old = ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO));
+        let fresh = ThrottleKey::Impact(CueGroup::Cell(IVec3::ONE));
+        state.allow(old, 0.0, 0.04); // last = 0.0
+        state.allow(fresh, 9.5, 0.04); // last = 9.5
         state.prune(10.0, 2.0); // keep last > 8.0
         assert_eq!(state.last.len(), 1);
-        assert!(state.last.contains_key(&ThrottleKey::Impact(IVec3::ONE)));
-    }
-
-    #[test]
-    fn area_cell_groups_nearby_and_separates_distant() {
-        assert_eq!(
-            area_cell(Vec3::ZERO),
-            area_cell(Vec3::splat(JUICE_AREA_CELL * 0.5))
-        );
-        assert_ne!(
-            area_cell(Vec3::ZERO),
-            area_cell(Vec3::splat(JUICE_AREA_CELL * 1.5))
-        );
+        assert!(state.last.contains_key(&fresh));
     }
 
     #[test]
@@ -681,6 +703,35 @@ mod tests {
             .id()
     }
 
+    /// A physical structure at `pos` with `cells` sections standing in a line
+    /// down its X axis, each one its own entity under the body.
+    ///
+    /// The shape every hull in the game has: one rigid body, many nodes, and
+    /// the nodes are what a hit or a death names.
+    fn a_hull_at(app: &mut App, pos: Vec3, cells: usize) -> (Entity, Vec<Entity>) {
+        let body = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                ComputedCenterOfMass::default(),
+                GlobalTransform::from(Transform::from_translation(pos)),
+            ))
+            .id();
+        let sections = (0..cells)
+            .map(|cell| {
+                #[expect(
+                    clippy::cast_precision_loss,
+                    reason = "a cell index used as a position in a small fixture"
+                )]
+                let at = pos + Vec3::X * (cell as f32 * SFX_AREA_CELL * 2.0);
+                let section = spawn_at(app, at);
+                app.world_mut().entity_mut(section).insert(ChildOf(body));
+                section
+            })
+            .collect();
+        (body, sections)
+    }
+
     /// Spawn a gameplay camera (the marked attenuation listener) at `pos`.
     fn spawn_camera_at(app: &mut App, pos: Vec3) {
         app.world_mut().spawn((
@@ -758,7 +809,7 @@ mod tests {
         let sink = spawn_shake_sink(&mut app);
         // Two targets in the same area cell, damaged in the same frame (elapsed 0).
         let a = spawn_at(&mut app, Vec3::ZERO);
-        let b = spawn_at(&mut app, Vec3::splat(JUICE_AREA_CELL * 0.25));
+        let b = spawn_at(&mut app, Vec3::splat(SFX_AREA_CELL * 0.25));
 
         for target in [a, b] {
             app.world_mut().trigger(HealthApplyDamage {
@@ -784,7 +835,7 @@ mod tests {
         // original-target guard must keep it at exactly one.
         let mut app = juice_test_app();
         let sink = spawn_shake_sink(&mut app);
-        let parent = spawn_at(&mut app, Vec3::new(JUICE_AREA_CELL * 4.0, 0.0, 0.0));
+        let parent = spawn_at(&mut app, Vec3::new(SFX_AREA_CELL * 4.0, 0.0, 0.0));
         let child = spawn_at(&mut app, Vec3::ZERO);
         app.world_mut().entity_mut(child).insert(ChildOf(parent));
 
@@ -814,7 +865,7 @@ mod tests {
         let mut app = juice_test_app();
         let _sink = spawn_shake_sink(&mut app);
         let a = spawn_at(&mut app, Vec3::ZERO);
-        let b = spawn_at(&mut app, Vec3::new(JUICE_AREA_CELL * 4.0, 0.0, 0.0));
+        let b = spawn_at(&mut app, Vec3::new(SFX_AREA_CELL * 4.0, 0.0, 0.0));
 
         for target in [a, b] {
             app.world_mut().trigger(HealthApplyDamage {
@@ -825,6 +876,85 @@ mod tests {
         }
 
         assert_eq!(burst_count(&mut app), 2);
+    }
+
+    #[test]
+    fn a_hull_shedding_every_section_at_once_is_one_kick_from_the_middle_of_it() {
+        let mut app = juice_test_app();
+        let sink = spawn_shake_sink(&mut app);
+        // Six sections spread over six area cells: the grid throttle collapsed
+        // none of them, and a capital spans far more than six.
+        let (_, sections) = a_hull_at(&mut app, Vec3::ZERO, 6);
+        for section in sections {
+            app.world_mut()
+                .entity_mut(section)
+                .insert(IntegrityDestroyMarker);
+        }
+
+        let expected = JuiceSettings::default().shake.destroy_trauma;
+        assert!(
+            (trauma_of(&app, sink) - expected).abs() < 1e-6,
+            "one hull coming apart is one kick, got {}",
+            trauma_of(&app, sink)
+        );
+        assert_eq!(burst_count(&mut app), 1);
+        assert_eq!(
+            bursts(&mut app)[0].at,
+            Vec3::ZERO,
+            "the kick belongs to the wreck, not to whichever section went first"
+        );
+    }
+
+    #[test]
+    fn two_hulls_dying_in_the_same_place_are_two_kicks() {
+        let mut app = juice_test_app();
+        let _sink = spawn_shake_sink(&mut app);
+        let (_, mine) = a_hull_at(&mut app, Vec3::ZERO, 1);
+        let (_, yours) = a_hull_at(&mut app, Vec3::ZERO, 1);
+        for section in mine.into_iter().chain(yours) {
+            app.world_mut()
+                .entity_mut(section)
+                .insert(IntegrityDestroyMarker);
+        }
+
+        assert_eq!(
+            burst_count(&mut app),
+            2,
+            "a cell key hears one death where there were two",
+        );
+    }
+
+    #[test]
+    fn a_hit_is_grouped_by_the_hull_and_thrown_from_the_contact() {
+        let mut app = juice_test_app();
+        let _sink = spawn_shake_sink(&mut app);
+        let (_, sections) = a_hull_at(&mut app, Vec3::ZERO, 3);
+        // The far plate is struck FIRST, so the cue that passes the throttle is
+        // the one whose position says where the round bit.
+        let far = sections[2];
+        let bit = app
+            .world()
+            .get::<GlobalTransform>(far)
+            .expect("the fixture's plates are placed")
+            .translation();
+        for section in std::iter::once(far).chain(sections) {
+            app.world_mut().trigger(HealthApplyDamage {
+                entity: section,
+                source: None,
+                amount: 5.0,
+            });
+        }
+
+        assert_eq!(
+            burst_count(&mut app),
+            1,
+            "a blast raking one hull is one report, however far apart the plates are",
+        );
+        assert_eq!(
+            bursts(&mut app)[0].at,
+            bit,
+            "and it is thrown where the round bit, not at the hull's middle",
+        );
     }
 
     #[test]

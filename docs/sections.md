@@ -622,6 +622,27 @@ on shipped content. A refusal rather than a stand-in, because a stand-in looks
 like SOMETHING - a body that had silently failed to come apart would be
 indistinguishable from one that came apart badly.
 
+What the frame SOUNDS and FEELS like is grouped the same way, by the STRUCTURE
+rather than by the place. An impact or a destruction cue - the explosion, the
+surface hit, the camera kick and the spark burst - is throttled on its
+`CueGroup` (`nova_gameplay::audio::mixing`), which is the nearest `RigidBody` at
+or above the entity the event named: a section, a plate, a health node and an
+asteroid's collider node all hang under one. A severed fragment, a rock and a
+torpedo each resolve to their own body, so each is its own event, and only a cue
+with nothing physical over it falls back to a 60 m world cell (`SFX_AREA_CELL`,
+six world units). That cell used to be the whole rule, and a cell is about the
+size of a gunship, so it was the same mistake in both directions: a carrier
+collapse spanned two dozen cells and threw 25 trauma kicks in the frame it came
+apart - the pile-up the throttle exists to stop - while two hulls dying a few
+metres apart shared one death. The same collapse throws 3 kicks now.
+
+WHERE it plays is the other half. A death is emitted from the body's centre of
+mass, not from the section that happened to be raised first, because the
+sections a collapse raises first are the ones nearest the wound and not the ones
+a listener is watching let go. A HIT still plays at the contact: that is a real
+place on a hull the listener can see being struck. Audio and juice share one
+resolver, so a collapse is one explosion and one kick from the same point.
+
 Editor placement mates the same sockets, so the editor cannot build a ship the
 graph would reject. `snap_placement` (`nova_ship::sections::link_points`) poses a
 part from one mate: the two sockets become coincident and their normals opposed,
@@ -1116,8 +1137,10 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_gameplay/src/integrity/chunk.rs`.
 - How a body comes apart: `detach_destroyed_body`, `DetachedPieceMarker` -
   `crates/nova_gameplay/src/integrity/explode.rs`; the fireball over it,
-  `SECTION_PYRE`, `HULK_PYRE`, `PYRE_FRAME_CAP`, `warm_the_pyres` -
-  `crates/nova_gameplay/src/integrity/pyre.rs`.
+  `SECTION_PYRE`, `HULK_PYRE`, `frame_cap`, `warm_the_pyres` -
+  `crates/nova_gameplay/src/integrity/pyre.rs`; what it sounds and feels like,
+  `CueGroup`, `cue_body`, `body_middle` -
+  `crates/nova_gameplay/src/audio/mixing.rs`.
 - Authored damage looks: `DamageEffect`, `fit_damage_effects` -
   `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
   `damage_cracks.rs`, `damage_sparks.rs` and `damage_plume.rs`.

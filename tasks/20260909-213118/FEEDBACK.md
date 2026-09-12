@@ -21,6 +21,7 @@ because a balance item is measured before it is tuned.
 | 2026-09-12 | sweep `20260909-213708` | destruction, block_carrier | every wreck piece was given a flat kick and a flat 0.5 s of grace, so all 720 pieces of a collapse went rigid still standing inside the hull | balance | a piece is thrown out of what buried it - the structure over it, its own reach and 10 m of daylight - with kick and window scaled by the root of that: 0 of 720 now go rigid inside. `stress_hull_collapse` holds it |
 | 2026-09-12 | sweep `20260909-213708` | destruction, block_skiff and block_carrier | every hull died at one authored size, so the carrier's fireball stopped 58 m inside its own wreck and the skiff was swallowed by a burst three times its size | balance | the hulk pyre is scaled by the dying root's `IntegrityEnvelope` over the 55.2 m gunship it was cut on, lengths linearly and lumens by the square: 0.87x on the skiff and 3.52x on the carrier, from 1.00x each. `system_hull_scaling` holds it |
 | 2026-09-12 | sweep `20260909-213708` | destruction, block_carrier | a collapse lit six fires per frame and took them in arrival order, so a 720-cell corridor burned in six touching cells at the entry wound | balance | the frame's deaths are queued and the chain is cut from the batch - `6 * sqrt(condemned / 53)`, 6 to 48 - and spread by farthest-point sampling: 23 fires over the whole 150 m corridor, from 6 over 20 m. `stress_hull_collapse` holds it |
+| 2026-09-12 | sweep `20260909-213708` | destruction and audio, block_skiff and block_carrier | impact and destruction cues were throttled on a 60 m grid cell, so a carrier collapse threw a kick per cell of wreck while two skiffs dying side by side shared one | balance | both layers group by the physical structure the event happened on and fall back to the cell only where there is no body; a death plays from the body's centre of mass. The 720-cell collapse throws 3 kicks, from 25. `stress_hull_collapse` holds it |
 
 ## Measured figures
 
@@ -687,7 +688,7 @@ which is the intent - it is the largest thing the game can destroy.
 The hull inputs read unchanged: arm 47.8 m / 194.2 m, torque ceiling 86.3326 /
 0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both structure-bound,
 lock range 21.7 km / 59.5 km.
-\n
+
 ### The chain of fires is the size of the collapse, 2026-09-12
 
 `PYRE_FRAME_CAP` was a flat six deaths per frame, spent on the first six the
@@ -729,6 +730,61 @@ already right - the floor is there to keep it.
 
 The ceiling is a GPU bound and not a look: every lit death allocates its own
 pair of per-instance buffers in the frame it is born.
+
+The hull inputs read unchanged: arm 47.8 m / 194.2 m, torque ceiling 86.3326 /
+0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both structure-bound,
+lock range 21.7 km / 59.5 km.
+
+### One hull coming apart is one kick, 2026-09-12
+
+Impact and destruction cues - the explosion, the surface hit, the camera kick
+and the spark burst - were throttled on a 6 world unit grid cell
+(`SFX_AREA_CELL`, `JUICE_AREA_CELL`). A cell is 60 m, about the size of the
+gunship the numbers were cut on, so the key was the same mistake in both
+directions: one hull spanning many cells is many events, and two hulls sharing
+one cell is one event.
+
+Both layers now group by the physical STRUCTURE the event happened on - the
+nearest `RigidBody` at or above the entity the event named - and fall back to
+the cell only where there is no body at all. A severed fragment, a rock and a
+torpedo are each their own body, so each is still its own event. A death is
+emitted from the body's centre of mass rather than from the first section the
+destruction pass raised, because the first sections raised are the ones at the
+wound.
+
+Measured on `stress_hull_collapse`, one siege slug through a block capital, 720
+corridor cells shed in one flush. The "before" is the same run with the group
+resolver neutered back to the cell key:
+
+| figure | before | after |
+| --- | --- | --- |
+| condemning frames | 1 | 1 |
+| deaths in that frame | 720 | 720 |
+| camera kicks in that frame | 25 | 3 |
+| kicks over the whole run | 25 | 3 |
+| the ceiling the claim holds | none | 4 |
+
+The three are the collapse itself and the cues of the shot that caused it. The
+ceiling is four rather than one because a hull under fire is legitimately a hit
+AND a death, and the slug leaves its own wreckage behind it.
+
+The two reference hulls are read from the containment radii in the hull inputs
+table. A cell is 60 m, so the most the old key could throw for one hull is the
+cells its own containment sphere spans:
+
+| hull | containment radius | hull across, in cells | most kicks the cell key could throw | after |
+| --- | --- | --- | --- | --- |
+| block_skiff | 48.3 m | 1.6 (2 per axis) | 8 | 1 |
+| block_carrier | 194.3 m | 6.5 (7 per axis) | 343 | 1 |
+
+A sphere does not fill its box and a hull does not fill its sphere, so the
+count reached is well under the column - the measured corridor throws 25 of a
+possible 720. The column is there for its SHAPE: the old key's kick count grew
+with the cube of the hull, and the new one does not grow at all.
+
+The skiff is the direction that matters as much. Two needles dying a few metres
+apart used to share one cell and one kick, and are now two deaths, because they
+are two ships.
 
 The hull inputs read unchanged: arm 47.8 m / 194.2 m, torque ceiling 86.3326 /
 0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both structure-bound,

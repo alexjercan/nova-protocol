@@ -101,8 +101,9 @@ pub mod prelude {
 pub use self::{
     bus::{bus_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, MusicVolume, WorldVolume},
     mixing::{
-        area_cell, distance_attenuation, listener_position, SfxListenerMarker, SfxThrottle,
-        ThrottleKey, SFX_AREA_CELL, SFX_AUDIBLE_THRESHOLD, SFX_FAR_DISTANCE, SFX_NEAR_DISTANCE,
+        area_cell, body_middle, cue_body, cue_group, distance_attenuation, listener_position,
+        CueGroup, SfxListenerMarker, SfxThrottle, ThrottleKey, SFX_AREA_CELL,
+        SFX_AUDIBLE_THRESHOLD, SFX_FAR_DISTANCE, SFX_NEAR_DISTANCE,
     },
     registry::{sounds_loaded, SoundBank},
     sfx::{PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxPlugin},

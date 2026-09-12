@@ -237,7 +237,7 @@ gameplay feedback ledger (`20260909-213118`).
 - [x] `integrity/pyre.rs:94` `PYRE_FRAME_CAP` 6 per frame "enough for the
       largest shipped hull": a carrier collapse condemns 2081 sections and
       lights six. Scale with the sections the frame condemned.
-- [ ] `nova_gameplay/src/juice.rs:56` `JUICE_AREA_CELL` 6 u and
+- [x] `nova_gameplay/src/juice.rs:56` `JUICE_AREA_CELL` 6 u and
       `audio/mixing.rs:41` `SFX_AREA_CELL` 6 u: a carrier collapse spans
       two dozen cells and fires two dozen trauma kicks in one frame, the
       failure the throttle exists to stop. Size the cell off the dying

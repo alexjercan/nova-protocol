@@ -8,9 +8,10 @@
 //! rolloff and the pan follow from that, so no observer here looks up the
 //! listener.
 
+use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
 use nova_gameplay::{
-    audio::{area_cell, SfxThrottle, ThrottleKey},
+    audio::{body_middle, cue_body, cue_group, SfxThrottle, ThrottleKey},
     prelude::*,
 };
 
@@ -53,11 +54,16 @@ fn nearest<'a, C: Component>(
 
 /// Explosion cue on any destruction (section, asteroid, or torpedo detonation,
 /// which all funnel through `IntegrityDestroyMarker`).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the bank, the clock, where the death was, what came apart, its voice, its route and the throttle"
+)]
 pub(super) fn on_destroyed_play_explosion(
     add: On<Add, IntegrityDestroyMarker>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
+    q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_sounds: Query<&DestroySound>,
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
@@ -76,9 +82,15 @@ pub(super) fn on_destroyed_play_explosion(
     let Some(sound) = nearest(add.entity, &q_sounds, &q_child_of).and_then(|s| s.0.as_ref()) else {
         return;
     };
-    let pos = source.translation();
+    // One structure coming apart is ONE explosion, wherever its sections
+    // stood, and it is heard from the middle of the wreck rather than from
+    // whichever of them was destroyed first.
+    let body = cue_body(add.entity, &q_bodies, &q_child_of);
+    let pos = body
+        .and_then(|body| body_middle(body, &q_bodies))
+        .unwrap_or_else(|| source.translation());
     if throttle_state.allow(
-        ThrottleKey::Explosion(area_cell(pos)),
+        ThrottleKey::Explosion(cue_group(body, pos)),
         time.elapsed_secs(),
         EXPLOSION_MIN_INTERVAL,
     ) {
@@ -181,12 +193,17 @@ pub(super) fn on_collapse_play_hull_loss(
 /// up `ChildOf` to the ship root and had to filter the hops back out. It also
 /// carries the CONTACT POINT rather than the struck entity's origin, so the cue
 /// plays where the round actually bit.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the bank, the clock, the impact table, the struck surface, what it is part of, its route and the throttle"
+)]
 pub(super) fn on_surface_impact_play_sfx(
     impact: On<SurfaceImpact>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     impacts: Res<GameImpacts>,
     q_material: Query<&SurfaceMaterial>,
+    q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
     q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
@@ -198,8 +215,12 @@ pub(super) fn on_surface_impact_play_sfx(
         return;
     };
     let pos = impact.at;
+    // Grouped by the hull that was hit - a blast raking a dozen of one ship's
+    // colliders is one report - and played at the CONTACT, because where on
+    // the hull a round bit is the whole read of a hit.
+    let body = cue_body(impact.entity, &q_bodies, &q_child_of);
     if throttle_state.allow(
-        ThrottleKey::Impact(area_cell(pos)),
+        ThrottleKey::Impact(cue_group(body, pos)),
         time.elapsed_secs(),
         IMPACT_MIN_INTERVAL,
     ) {
@@ -349,7 +370,7 @@ pub(super) fn on_railgun_fire_play_sfx(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::audio::SFX_AREA_CELL;
+    use nova_gameplay::audio::{area_cell, CueGroup, SFX_AREA_CELL};
 
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};
@@ -493,11 +514,11 @@ mod tests {
         let throttle = app.world().resource::<SfxThrottle>();
         assert!(throttle
             .tracked_keys()
-            .eq([ThrottleKey::Impact(area_cell(Vec3::new(
+            .eq([ThrottleKey::Impact(CueGroup::Cell(area_cell(Vec3::new(
                 SFX_AREA_CELL * 4.0,
                 0.0,
                 0.0
-            )))]));
+            ))))]));
     }
 
     #[test]
@@ -778,6 +799,60 @@ mod tests {
             app.world().resource::<LastPlayed>().0,
             None,
             "an unauthored target is destroyed in silence"
+        );
+    }
+
+    #[test]
+    fn one_hull_shedding_every_section_is_one_explosion_from_the_middle_of_it() {
+        // A capital sheds its sections over hundreds of world units, so the
+        // old cell key heard a collapse as two dozen separate bangs walking
+        // across the wreck. One body is one death.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<PlayedSfx>();
+        app.add_observer(on_destroyed_play_explosion);
+        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+
+        let hull = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                ComputedCenterOfMass::default(),
+                GlobalTransform::default(),
+                DestroySound(Some(AssetRef::from("base/sounds/explosion.wav"))),
+            ))
+            .id();
+        let sections: Vec<Entity> = (0..8)
+            .map(|cell: u8| {
+                let at = Vec3::X * (f32::from(cell) * SFX_AREA_CELL * 3.0);
+                app.world_mut()
+                    .spawn((
+                        GlobalTransform::from(Transform::from_translation(at)),
+                        ChildOf(hull),
+                    ))
+                    .id()
+            })
+            .collect();
+        for section in sections {
+            app.world_mut()
+                .entity_mut(section)
+                .insert(IntegrityDestroyMarker);
+        }
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().resource::<PlayedSfx>().0,
+            1,
+            "eight cells of one hull are one collapse, not eight bangs"
+        );
+        let throttle = app.world().resource::<SfxThrottle>();
+        assert!(
+            throttle
+                .tracked_keys()
+                .eq([ThrottleKey::Explosion(CueGroup::Body(hull))]),
+            "and it is keyed by the hull that came apart"
         );
     }
 

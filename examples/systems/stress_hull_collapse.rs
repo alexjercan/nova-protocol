@@ -9,7 +9,7 @@
 //! which is the frame cost `tasks/20260904-155338` attributed to avian rather
 //! than to nova.
 //!
-//! SEVEN named claims - five asserted, two recorded:
+//! EIGHT named claims - six asserted, two recorded:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -18,8 +18,9 @@
 //! | 3 | `outcome: every wreck piece went physical` | the collapse ran to completion - nothing is still waiting on its grace when the window closes |
 //! | 4 | `outcome: every piece is thrown clear of what buried it` | each piece's own kick and its own grace window carry it past the structure standing over it, so none goes rigid inside the hull |
 //! | 5 | `outcome: the chain of fires is the size of the collapse` | the frame that condemns 720 cells lights the chain that batch earns, and the fires are spread down the corridor instead of crowded into the frame's first cells |
-//! | 6 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
-//! | 7 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
+//! | 6 | `outcome: one hull coming apart is one kick` | the camera is kicked once for the collapse and once for the hit that caused it, not once per cell-sized cell of wreck |
+//! | 7 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
+//! | 8 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
 //!
 //! Claim 3 is the one a debris BUDGET has to keep. Spreading activation over
 //! frames is safe in the direction the grace exists for - a piece stays
@@ -36,7 +37,12 @@
 //! order all land in the first cells the destruction pass walked - so the
 //! chain is cut from the batch, and sampled across it.
 //!
-//! Claims 6 and 7 assert NOTHING. Milliseconds are a statement about the host:
+//! Claim 6 is the other throttle a collapse saturates. Impact and destruction
+//! juice are grouped by the STRUCTURE the event happened on, so a capital
+//! shedding 720 cells is one kick however far apart they stood; the hull-sized
+//! grid it replaced threw 25 in this one frame.
+//!
+//! Claims 7 and 8 assert NOTHING. Milliseconds are a statement about the host:
 //! this range's numbers are read against a named reference in a task's
 //! before/after, never against a threshold. Same reading as `bug_sandbox_soak`
 //! and as the probe's own `fps_within_baseline`. Do not turn them into asserts.
@@ -116,6 +122,16 @@ const PYRE_FRAME_CEILING: usize = 48;
 
 /// The batch the floor is the right chain for: the gunship's own section count.
 const PYRE_BATCH_REFERENCE: usize = 53;
+
+/// The most camera kicks one frame of this collapse may throw.
+///
+/// A juice event is one trauma impulse and one spark burst, and they are
+/// throttled per STRUCTURE: a frame that condemns 720 cells of one hull is one
+/// collapse and one hit on the hull it came off, whatever the wreck's size.
+/// Four leaves room for the shot's own cues without leaving room for a kick per
+/// cell of wreck, which is the saturation the throttle exists to stop - the
+/// grid key threw 25 of them here.
+const JUICE_KICK_CEILING: usize = 4;
 
 /// How much of the corridor's own length the chain has to walk.
 ///
@@ -334,6 +350,9 @@ struct FrameChain {
     deaths: usize,
     /// Fires lit for them.
     pyres: usize,
+    /// Juice events that passed the throttle: one camera kick and one spark
+    /// burst each.
+    kicks: usize,
 }
 
 /// What the range has watched happen.
@@ -363,6 +382,8 @@ struct CollapseProbe {
     deaths_this_frame: usize,
     /// Fireball INSTANCES spawned so far this frame. A death is two of them.
     pyre_instances_this_frame: usize,
+    /// Juice events that passed the throttle so far this frame.
+    kicks_this_frame: usize,
     /// One row per frame that condemned anything, closed in [`First`].
     chain: Vec<FrameChain>,
     /// Where every fire of the collapse burned, world space.
@@ -423,6 +444,7 @@ fn range_plugin(app: &mut App) {
     app.add_observer(record_corridor_bites);
     app.add_observer(record_piece_escapes);
     app.add_observer(record_pyres);
+    app.add_observer(record_kicks);
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_range);
     // The safety is DERIVED every frame from the held combat stance, so a range
     // that pokes `WeaponsHot` has it stomped back before the lance reads it.
@@ -782,6 +804,15 @@ fn record_pyres(
     }
 }
 
+/// Count the camera kicks the collapse throws.
+///
+/// One [`ImpactSparks`] ask is one juice event that passed the throttle, and
+/// the kick and the burst are gated together - so this counts trauma without
+/// reading the camera, which a headless range has no hold of.
+fn record_kicks(_: On<ImpactSparks>, mut probe: ResMut<CollapseProbe>) {
+    probe.kicks_this_frame += 1;
+}
+
 /// Close the previous frame's tally.
 ///
 /// In [`First`], because the two halves of a frame's row are written in
@@ -790,8 +821,13 @@ fn record_pyres(
 fn close_the_frame_chain(mut probe: ResMut<CollapseProbe>) {
     let deaths = std::mem::take(&mut probe.deaths_this_frame);
     let pyres = std::mem::take(&mut probe.pyre_instances_this_frame) / 2;
+    let kicks = std::mem::take(&mut probe.kicks_this_frame);
     if deaths > 0 || pyres > 0 {
-        probe.chain.push(FrameChain { deaths, pyres });
+        probe.chain.push(FrameChain {
+            deaths,
+            pyres,
+            kicks,
+        });
     }
 }
 
@@ -1268,6 +1304,7 @@ fn verify(world: &mut World) {
         .unwrap_or(FrameChain {
             deaths: 0,
             pyres: 0,
+            kicks: 0,
         });
     assert!(
         wrong.is_empty() && biggest.pyres > PYRE_FRAME_FLOOR,
@@ -1319,7 +1356,29 @@ fn verify(world: &mut World) {
         }),
     );
 
-    // --- claims 6 and 7: RECORDED, and asserted nowhere ---
+    // --- claim 6: one hull coming apart is one kick ---
+
+    assert!(
+        biggest.kicks <= JUICE_KICK_CEILING,
+        "hull_collapse: the frame that condemned {} cells threw {} camera kicks, over the {} \
+         one collapse is allowed - a trauma impulse per cell-sized cell of wreck saturates the \
+         shake instantly, which is the failure the throttle exists to stop",
+        biggest.deaths,
+        biggest.kicks,
+        JUICE_KICK_CEILING,
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: one hull coming apart is one kick",
+        serde_json::json!({
+            "biggest_frame_deaths": biggest.deaths,
+            "biggest_frame_kicks": biggest.kicks,
+            "kicks_total": chain.iter().map(|frame| frame.kicks).sum::<usize>(),
+            "kick_ceiling": JUICE_KICK_CEILING,
+        }),
+    );
+
+    // --- claims 7 and 8: RECORDED, and asserted nowhere ---
 
     let step_ms = avian_reading(world, "avian/total_step_time");
     let contacts_ms = avian_reading(world, "avian/collision/update_contacts");

@@ -117,6 +117,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A collapse burns across the whole wreck: the chain of fires grows with what
   the frame condemned, up to 48, and is spread over the dead sections instead
   of lighting the first six the hull shed.
+- A ship coming apart is ONE event: a hit or a death is grouped by the hull,
+  wreck, rock or torpedo it landed on, not by 60 m of space. A carrier collapse
+  is one kick from its middle, not 25.
 
 ### Internals & Tooling
 - Debug section gizmos are measured: a barrel line runs the mount's authored
