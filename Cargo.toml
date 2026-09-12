@@ -191,6 +191,10 @@ name = "system_hull_scaling"
 path = "examples/systems/system_hull_scaling.rs"
 
 [[example]]
+name = "system_collision_damage"
+path = "examples/systems/system_collision_damage.rs"
+
+[[example]]
 name = "system_ai_combat"
 path = "examples/systems/system_ai_combat.rs"
 

@@ -73,6 +73,9 @@ does NOT get an entry - and it is the only place they are written down.
 - An AI hull keeps its 900 m torpedo margin between the two HULLS, not the two
   origins, so a carrier holds ordnance out to 1,290 m where a skiff launches at
   1,000.
+- Two hulls may come alongside for free: a contact under 5 m/s costs nothing,
+  and above it only the excess is spent, so a carrier pair no longer shreds
+  itself while it parks.
 
 ### Interface & HUD
 - The velocity and gravity spheres enclose the hull at any size: both are drawn

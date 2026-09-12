@@ -218,7 +218,7 @@ gameplay feedback ledger (`20260909-213118`).
 
 ## Destruction
 
-- [ ] `nova_gameplay/src/integrity/core.rs:51,234,278`
+- [x] `nova_gameplay/src/integrity/core.rs:51,234,278`
       `MIN_IMPACT_SPEED_SQUARED` 0.1 is a 3.16 m/s floor while damage is
       linear in mass: two carriers docking at 0.32 u/s trade about 49 hp
       per contact at hundreds of contacts a frame and shred each other.

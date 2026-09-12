@@ -502,7 +502,12 @@ pub fn spend_piercing_damage(
 /// which nova owns - so the two cannot drift. Never a hand copy of the same
 /// constants.
 pub fn representative_kinetic_damage(mass: f32, speed: f32) -> f32 {
-    crate::integrity::core::impact_damage(mass, speed)
+    use crate::integrity::core::{contact_bite, contact_impulse, impact_damage};
+
+    // No section, so nothing absorbs: this prices a round, it does not hit
+    // anything.
+    let (impulse, energy) = contact_bite(contact_impulse(mass, speed), speed);
+    impact_damage(impulse, energy, 0.0)
 }
 
 /// Fraction of explosive pressure left after it destroys one structural layer.
@@ -1162,49 +1167,63 @@ mod tests {
 
     #[test]
     fn authored_turret_amounts_reproduce_the_old_emergent_kinetic() {
-        // Pins the authored `bullet_damage` values in nova_assets/sections.rs to
-        // the historical emergent per-hit (better turret mass 0.1 @ 100 u/s;
-        // light turret mass 0.05 @ 60 u/s), so the Kinetic anchor is genuinely
-        // feel-preserving. If these move, the config values must move with them.
-        assert!((representative_kinetic_damage(0.1, 100.0) - 20.25).abs() < 1e-3);
-        assert!((representative_kinetic_damage(0.05, 60.0) - 3.825).abs() < 1e-3);
+        // Pins the anchor the shipped `bullet_damage` values were authored
+        // against: the historical emergent per-hit (better turret mass 0.1 @
+        // 100 u/s; light turret mass 0.05 @ 60 u/s). If these move, the
+        // authored amounts must be re-read against them.
+        //
+        // A hair under the old 20.25 / 3.825 because the ram model now spends
+        // only the approach ABOVE the safe contact speed, and 5 m/s of 1,000
+        // is a half percent of the shot.
+        assert!((representative_kinetic_damage(0.1, 100.0) - 20.055).abs() < 1e-3);
+        assert!((representative_kinetic_damage(0.05, 60.0) - 3.765).abs() < 1e-3);
     }
 
     #[test]
     fn neutralized_bullet_mass_makes_the_emergent_kinetic_negligible() {
-        // Drive the REAL impact observer against a neutralized-mass bullet
-        // and confirm the emergent kinetic it deals is negligible, then A/B the
-        // same rig at the old 0.1 mass to prove the test can fail (the old mass
-        // deals ~20). This is the neutralization the typed path depends on.
+        // Drive the REAL ram system against a neutralized-mass round and
+        // confirm the emergent kinetic it deals is negligible, then A/B the
+        // same rig at the old 0.1 mass to prove the test can fail. This is the
+        // neutralization the typed path depends on.
+        //
+        // The round is SOLID here, not a Sensor. A sensor is solved by nothing
+        // and exchanges no impulse, so it would read zero at any mass and
+        // prove nothing about the mass. Production carries both guards.
         fn emergent_impact_damage(bullet_mass: f32) -> f32 {
             let mut app = integrity_physics_app();
-            let (target_body, target_collider) = spawn_target(&mut app, Vec3::ZERO, 1000.0, None);
+            // A section a round cannot cross in one step: at 100 u/s a tick
+            // carries 1.7 u, and a round that passes a target's CENTRE is
+            // leaving it, not hitting it.
+            let target_body = app.world_mut().spawn(RigidBody::Dynamic).id();
+            let target_collider = app
+                .world_mut()
+                .spawn((
+                    ChildOf(target_body),
+                    Collider::sphere(3.0),
+                    ColliderDensity(1.0),
+                    Health::new(1000.0),
+                ))
+                .id();
             let bullet = app
                 .world_mut()
                 .spawn((
                     RigidBody::Dynamic,
                     Collider::sphere(0.05),
-                    Sensor,
                     Mass(bullet_mass),
-                    Transform::from_xyz(10.0, 0.0, 0.0),
+                    Transform::from_xyz(3.2, 0.0, 0.0),
                 ))
                 .id();
             settle(&mut app);
-            // Bullet closing at 100 u/s head-on; target at rest.
+            // Round closing at 100 u/s head-on; target at rest.
             app.world_mut().get_mut::<LinearVelocity>(bullet).unwrap().0 =
                 Vec3::new(-100.0, 0.0, 0.0);
             app.world_mut()
                 .get_mut::<LinearVelocity>(target_body)
                 .unwrap()
                 .0 = Vec3::ZERO;
-            // Target is collider1/body1 so the impact lands on the section.
-            app.world_mut().trigger(CollisionStart {
-                collider1: target_collider,
-                collider2: bullet,
-                body1: Some(target_body),
-                body2: Some(bullet),
-            });
-            app.update();
+            for _ in 0..4 {
+                app.update();
+            }
             1000.0 - health(&app, target_collider)
         }
 
@@ -1212,8 +1231,11 @@ mod tests {
         let old = emergent_impact_damage(0.1);
         assert!(
             neutralized < 1.0e-2,
-            "neutralized bullet must deal ~0 emergent kinetic, got {neutralized}"
+            "neutralized round must deal ~0 emergent kinetic, got {neutralized}"
         );
+        // ~19, within a few percent of the 20.06 the anchor prices the same
+        // round at: the solver settles on the same impulse the closed form
+        // predicts.
         assert!(
             old > 15.0,
             "A/B guard: the old 0.1 mass must deal real emergent kinetic (got {old}), \

@@ -496,3 +496,50 @@ to sit past it.
 arm) and `block_warship` (118 m arm), both structure-bound before and after, so
 the fight reads 1,029 m / 1,034 m of face gap at 92 m/s / 83 m/s exactly as it
 did. The retune is worth nothing until a hull as big as the carrier flies one.
+
+### A contact under 5 m/s is free, 2026-09-12
+
+`MIN_IMPACT_SPEED_SQUARED` 0.1 was a 3.16 m/s floor over damage linear in the
+pair's effective mass, dealt to ONE side of the pair by a `CollisionStart`
+observer. It is now a universal 5 m/s `SAFE_CONTACT_SPEED`: above it, avian's
+solved contact-pair impulse is scaled by the approach speed's EXCESS over the
+safe speed, the dissipated energy is derived from that impulse, that excess and
+the restitution, each section soaks one percent of the health it was BUILT with
+before the energy term, and both sides of the contact pay. The system reads the
+contact graph in `FixedPostUpdate` after `PhysicsSystems::Last` instead of
+observing an event.
+
+Measured on the new `system_collision_damage`, before and after, hit points lost
+per side:
+
+| pair | hull | closing | touching frames | before | after |
+| --- | --- | --- | --- | --- | --- |
+| carrier dock | block_carrier | 3.2 m/s | 10 | 0.00 | 0.00 |
+| skiff touch | block_skiff | 4.0 m/s | 6 | 0.00 | 0.00 |
+| skiff ram | block_skiff | 15.0 m/s | 8 | 0.00 | 0.75 |
+| skiff hard ram | block_skiff | 30.0 m/s | 14 | 0.00 | 2.77 |
+
+The before column is a live reading, and it is zero in every row. That is the
+finding: the old path was driven by `CollisionStart`, and the two shipped hulls
+staged here raised none between them, so a ram between two ships cost nothing at
+ANY speed. The 49 hit points per contact the audit quotes was arithmetic from the
+formula, not a figure any ship ever paid. The new path reads what the solver
+settled on, so it does not depend on a collider having had collision events
+enabled at the moment it was linked - and ship-to-ram-ship damage exists for the
+first time. Both hulls keep the docking case free, which is what the item asked
+for; what is new is that the ram case above it is no longer free either.
+
+Twice the closing speed costs 3.7x the hit points (2.77 against 0.75 at 30 m/s
+against 15). The bite is taken on the excess, so a ram at 3x the safe speed
+spends two thirds of its impulse and a ram at 6x spends five sixths of a much
+larger one.
+
+The census sums every health pool under a root rather than the ship layer's
+roll-up over sections, because at these speeds two skiffs meet scab to scab: the
+outermost thing a shipped skin puts in a contact's way is a decor patch with a
+pool of its own. A census that counted sections alone read a real ram as free.
+
+The carrier pair meets nose to nose and holds ONE contact, not the hundreds a
+frame the audit describes - two capitals coming alongside broadside would hold
+many more. The claim the range makes is the one it can stage: ten frames of
+capital-on-capital contact at a docking speed, and not a hit point spent.

@@ -4,8 +4,8 @@
 //!
 //! The lifecycle, all observer-driven:
 //!
-//! - a fast impact between two rigid bodies deals kinetic damage scaled by
-//!   relative velocity and effective mass (`on_impact_collision_deal_damage`);
+//! - a fast contact between two rigid bodies deals kinetic damage from the
+//!   impulse the solver settled on (`deal_contact_impact_damage`);
 //! - a node whose health hits zero is disabled;
 //! - structure adapters may destroy it immediately (ships do); otherwise a
 //!   disabled LEAF - or a disabled [`IntegrityRoot`] - is destroyed, which is
@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use nova_events::prelude::EntityTypeName;
+use nova_events::{prelude::EntityTypeName, units::prelude::*};
 
 use super::{components::prelude::*, health::prelude::*};
 use crate::damage::prelude::{apply_damage, DamageType};
@@ -46,9 +46,31 @@ const RESTITUTION_COEFFICIENT: f32 = 0.5;
 const IMPULSE_DAMAGE_MODIFIER: f32 = 0.1;
 const ENERGY_DAMAGE_MODIFIER: f32 = 0.05;
 
-/// Below this squared relative speed an impact is a nudge, not a ram, and deals
-/// nothing. Without it two docked hulls grind each other down at rest.
-const MIN_IMPACT_SPEED_SQUARED: f32 = 0.1;
+/// The closing speed at a contact under which a touch is FREE, whatever is
+/// touching: two hulls may dock, settle, scrape and rest against each other
+/// without trading a hit point.
+///
+/// Universal and stated in meters per second, because it is a statement about
+/// what a ship is built to survive rather than about any one hull: a docking
+/// clamp takes a 5 m/s arrival, and a mass floor would make the same arrival
+/// safe for a skiff and lethal for a carrier.
+///
+/// Only the EXCESS over this is a ram. A contact at 6 m/s is not "a 6 m/s ram
+/// minus a little", it is a 1 m/s one, so the curve leaves the safe speed
+/// smoothly instead of stepping over it.
+const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(5.0);
+
+/// The share of the health a section was BUILT with that its own structure
+/// soaks before an impact's ENERGY term does anything at all.
+///
+/// Per section rather than flat, because a reinforced hull plate is built to
+/// take what a light one is not, and "built to take" is exactly what its
+/// maximum health says. Read it as the rule it is: an impact that would cost a
+/// section less than one percent of itself did not happen to it.
+///
+/// The IMPULSE term is not absorbed. A hard shove is transmitted through
+/// whatever is in the way whether or not the metal survives it.
+const ABSORBED_HEALTH_FRACTION: f32 = 0.01;
 
 /// System set for the leaf derivation, so gameplay can order graph edits around
 /// it. `glue` builds the section graph inside it; `neutralize` reads the result
@@ -74,7 +96,6 @@ impl Plugin for IntegrityCorePlugin {
         app.init_resource::<DestructionTally>();
 
         app.add_observer(on_collider_of_spawn_insert_collision_events);
-        app.add_observer(on_impact_collision_deal_damage);
         app.add_observer(on_health_depleted_insert_disabled);
         app.add_observer(tally_a_destroyed_node);
         app.add_observer(destroy_a_disabled_leaf);
@@ -83,6 +104,12 @@ impl Plugin for IntegrityCorePlugin {
         app.add_observer(prune_a_destroyed_node_from_its_neighbours);
 
         app.add_systems(Update, derive_integrity_leaves.in_set(IntegritySystems));
+        // AFTER the physics step, like `advance_rounds`: a contact's impulse
+        // does not exist until the solver has settled it.
+        app.add_systems(
+            FixedPostUpdate,
+            deal_contact_impact_damage.after(PhysicsSystems::Last),
+        );
         app.add_systems(Last, (report_impact_tally, report_destruction_tally));
     }
 }
@@ -197,92 +224,135 @@ fn on_collider_of_spawn_insert_collision_events(
     commands.entity(entity).insert(CollisionEventsEnabled);
 }
 
-/// Damage a body from the impulse and energy lost in a fast impact against
-/// another body.
+/// Damage both sides of every touching contact from the impulse the SOLVER
+/// exchanged there.
 ///
-/// A ram carries its own velocity in the amount (the formula is
-/// mass x relative speed), so it needs no speed curve of its own - it goes
-/// straight to [`apply_damage`]. It enters as KINETIC, which is what a ram is:
-/// solid meeting solid, and the one class whose debris is chips off the
-/// surface.
-fn on_impact_collision_deal_damage(
-    collision: On<CollisionStart>,
+/// Runs after the physics step, in [`FixedPostUpdate`], because the numbers it
+/// reads only exist once the solver has run: a contact point carries both the
+/// approach speed avian measured before the solve and the normal impulse it
+/// settled on. Nothing here recomputes either.
+///
+/// WHY NOT THE `CollisionStart` OBSERVER: two hulls do not meet at one point.
+/// A carrier pair touches on hundreds of collider pairs in a frame, and the
+/// observer charged every one of them the whole ship-to-ship effective mass -
+/// so two carriers closing at docking speed traded tens of hit points per
+/// contact, hundreds of times, and shredded each other standing still. The
+/// solver already divides ONE impact across the contacts that carry it, which
+/// is the figure this wants; summing its impulses is the whole ram.
+///
+/// A sensor is solved by nothing and exchanges no impulse, so a blast volume
+/// or a passing round deals nothing here without needing to be excluded - its
+/// damage is its own system's job.
+///
+/// Damage enters as KINETIC, which is what a ram is: solid meeting solid, and
+/// the one class whose debris is chips off the surface.
+fn deal_contact_impact_damage(
     mut commands: Commands,
     mut tally: ResMut<ImpactTally>,
-    q_body: Query<(&LinearVelocity, &ComputedMass), With<RigidBody>>,
-    // Excluding a blast volume keeps a blast overlap from ALSO dealing
-    // impact damage - it is a massless static sensor, and its damage is the
-    // NovaBlast observer's job.
-    q_other: Query<
-        (&LinearVelocity, &ComputedMass),
-        (With<RigidBody>, Without<crate::damage::NovaBlast>),
-    >,
-    q_where: Query<&GlobalTransform>,
+    collisions: Collisions,
+    q_collider: Query<(Option<&Health>, &GlobalTransform), With<ColliderOf>>,
 ) {
-    let collider1 = collision.collider1;
-    let collider2 = collision.collider2;
+    for pair in collisions.iter() {
+        if pair.body1.is_none() || pair.body2.is_none() {
+            continue;
+        }
+        let Ok((health1, where1)) = q_collider.get(pair.collider1) else {
+            continue;
+        };
+        let Ok((health2, where2)) = q_collider.get(pair.collider2) else {
+            continue;
+        };
+        // One pass over the manifolds for both sides: the impulse and the
+        // energy are the contact's, and only the absorption is the section's.
+        let (impulse, energy) = pair
+            .manifolds
+            .iter()
+            .flat_map(|manifold| manifold.points.iter())
+            .map(|point| contact_bite(point.normal_impulse, -point.normal_speed))
+            .fold((0.0, 0.0), |(impulse, energy), (this, that)| {
+                (impulse + this, energy + that)
+            });
+        if impulse <= f32::EPSILON {
+            continue;
+        }
 
-    let (Some(body), Some(other)) = (collision.body1, collision.body2) else {
-        return;
-    };
-    let (Ok((velocity1, mass1)), Ok((velocity2, mass2))) = (q_body.get(body), q_other.get(other))
-    else {
-        return;
-    };
+        for (target, source, health, at) in [
+            (pair.collider1, pair.collider2, health1, where2),
+            (pair.collider2, pair.collider1, health2, where1),
+        ] {
+            let absorbed = health.map_or(0.0, |health| absorbed_energy(health.max));
+            let amount = impact_damage(impulse, energy, absorbed);
+            if amount <= f32::EPSILON {
+                continue;
+            }
 
-    let relative_velocity = **velocity1 - **velocity2;
-    if relative_velocity.length_squared() < MIN_IMPACT_SPEED_SQUARED {
-        return;
+            trace!(
+                "contact impact: collider {target:?} rammed by {source:?} for {amount:.2} \
+                 (impulse {impulse:.2}, energy {energy:.2}, absorbed {absorbed:.2})"
+            );
+            tally.contacts += 1;
+            tally.damage += amount;
+            if amount > tally.worst {
+                tally.worst = amount;
+                tally.worst_at = Some(target);
+            }
+            // Where the OTHER collider is, which for a contact is where it hit
+            // to within the half-cell the carve is quantized to anyway.
+            apply_damage(
+                &mut commands,
+                target,
+                Some(source),
+                amount,
+                DamageType::Kinetic,
+                Some(at.translation()),
+            );
+        }
     }
-
-    let effective_mass = (mass1.value() * mass2.value()) / (mass1.value() + mass2.value());
-    let amount = impact_damage(effective_mass, relative_velocity.length());
-    if amount <= f32::EPSILON {
-        return;
-    }
-
-    trace!(
-        "on_impact_collision: collider {:?} (body {:?}) rammed by {:?} (body {:?}) for {amount:.2}",
-        collider1,
-        body,
-        collider2,
-        other
-    );
-    tally.contacts += 1;
-    tally.damage += amount;
-    if amount > tally.worst {
-        tally.worst = amount;
-        tally.worst_at = Some(body);
-    }
-    // Where the rammer IS, which for a contact is where it hit to within the
-    // half-cell the carve is quantized to anyway. Avian reports the pair, not
-    // the manifold, so a true contact point would cost a second lookup for a
-    // precision nothing downstream can draw.
-    let at = q_where
-        .get(collider2)
-        .ok()
-        .map(|transform| transform.translation());
-    apply_damage(
-        &mut commands,
-        collider1,
-        Some(collider2),
-        amount,
-        DamageType::Kinetic,
-        at,
-    );
 }
 
-/// Hit points a ram deals: the impulse term plus the energy the collision
-/// absorbs, each scaled into health units. Pure, so the turret's damage
+/// The unsafe share of one contact point: the part of the solved normal
+/// impulse that belongs to the approach ABOVE [`SAFE_CONTACT_SPEED`], and the
+/// energy that share dissipates.
+///
+/// For a head-on collision the normal impulse is `m (1 + e) v`, so the energy
+/// it dissipates, `0.5 m (1 - e^2) v^2`, is `0.5 (1 - e) J v` with no mass term
+/// left in it at all. That is why the solver's impulse is enough: the pair's
+/// effective mass is already inside the number avian handed back, and nothing
+/// here has to guess at it per collider.
+pub fn contact_bite(normal_impulse: f32, approach_speed: f32) -> (f32, f32) {
+    let excess = approach_speed - SAFE_CONTACT_SPEED.to_engine();
+    if excess <= 0.0 || normal_impulse <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let impulse = normal_impulse * (excess / approach_speed);
+    (
+        impulse,
+        0.5 * (1.0 - RESTITUTION_COEFFICIENT) * impulse * excess,
+    )
+}
+
+/// The normal impulse a head-on collision exchanges, from the effective mass of
+/// the pair.
+///
+/// The closed form of what the solver settles on for a real contact, for the
+/// one caller that has no solver to ask: the turret's damage authoring, which
+/// prices a round before any of it exists.
+pub fn contact_impulse(effective_mass: f32, closing_speed: f32) -> f32 {
+    effective_mass * (1.0 + RESTITUTION_COEFFICIENT) * closing_speed
+}
+
+/// The energy one section soaks before the energy term bites, from the health
+/// it was BUILT with. See [`ABSORBED_HEALTH_FRACTION`].
+fn absorbed_energy(max_health: f32) -> f32 {
+    ABSORBED_HEALTH_FRACTION * max_health / ENERGY_DAMAGE_MODIFIER
+}
+
+/// Hit points one side of a contact takes: the impulse term, which nothing
+/// absorbs, plus whatever is left of the energy term after the section's own
+/// structure has soaked what it is built to soak. Pure, so the turret's damage
 /// authoring can call the same formula.
-pub fn impact_damage(effective_mass: f32, relative_speed: f32) -> f32 {
-    let impulse = effective_mass * (1.0 + RESTITUTION_COEFFICIENT) * relative_speed;
-    let energy_lost = 0.5
-        * effective_mass
-        * (1.0 - RESTITUTION_COEFFICIENT.powi(2))
-        * relative_speed
-        * relative_speed;
-    impulse * IMPULSE_DAMAGE_MODIFIER + energy_lost * ENERGY_DAMAGE_MODIFIER
+pub fn impact_damage(impulse: f32, energy: f32, absorbed_energy: f32) -> f32 {
+    impulse * IMPULSE_DAMAGE_MODIFIER + (energy - absorbed_energy).max(0.0) * ENERGY_DAMAGE_MODIFIER
 }
 
 /// Disable a node the moment its health reaches zero.
@@ -558,12 +628,149 @@ mod tests {
         assert!(app.world().get::<IntegrityDestroyMarker>(root).is_some());
     }
 
+    /// One contact's bite, from the two figures the solver hands back.
+    fn bite(effective_mass: f32, speed: f32, absorbed: f32) -> f32 {
+        let (impulse, energy) = contact_bite(contact_impulse(effective_mass, speed), speed);
+        impact_damage(impulse, energy, absorbed)
+    }
+
     /// The ram formula is monotone in both inputs and zero at rest - the
     /// property the turret's damage authoring leans on.
     #[test]
     fn impact_damage_grows_with_mass_and_speed_and_is_zero_at_rest() {
-        assert_eq!(impact_damage(100.0, 0.0), 0.0);
-        assert!(impact_damage(100.0, 20.0) > impact_damage(100.0, 10.0));
-        assert!(impact_damage(200.0, 10.0) > impact_damage(100.0, 10.0));
+        assert_eq!(bite(100.0, 0.0, 0.0), 0.0);
+        assert!(bite(100.0, 20.0, 0.0) > bite(100.0, 10.0, 0.0));
+        assert!(bite(200.0, 10.0, 0.0) > bite(100.0, 10.0, 0.0));
+    }
+
+    /// A touch under the safe contact speed is free at any mass, which is what
+    /// lets two hulls dock, settle and rest against each other. The old speed
+    /// floor was 3.16 m/s and mass-blind in the other direction: damage was
+    /// linear in mass, so a carrier pair drifting together traded tens of hit
+    /// points on every one of hundreds of contacts.
+    #[test]
+    fn a_contact_under_the_safe_speed_is_free_however_heavy_it_is() {
+        let safe = SAFE_CONTACT_SPEED.to_engine();
+        for mass in [1.0_f32, 25.0, 2360.0, 100_000.0] {
+            assert_eq!(bite(mass, safe, 0.0), 0.0, "{mass} kg at the safe speed");
+            assert_eq!(bite(mass, safe * 0.64, 0.0), 0.0, "{mass} kg docking");
+        }
+        assert!(
+            bite(2360.0, safe * 1.5, 0.0) > 0.0,
+            "and half again over it is a ram"
+        );
+    }
+
+    /// The curve leaves the safe speed smoothly: just over it is a small bite,
+    /// not the whole speed's worth.
+    #[test]
+    fn the_bite_is_taken_on_the_excess_not_the_whole_approach() {
+        let safe = SAFE_CONTACT_SPEED.to_engine();
+        let (impulse, _) = contact_bite(contact_impulse(100.0, safe * 1.01), safe * 1.01);
+        let (whole, _) = contact_bite(contact_impulse(100.0, safe * 1.01), f32::MAX);
+        assert!(
+            impulse < whole * 0.02,
+            "a 1 percent overspeed spends 1 percent of the impulse, got {impulse} of {whole}"
+        );
+    }
+
+    /// A section soaks energy in proportion to what it was BUILT to take, so
+    /// the same scrape costs a light plate and shrugs off a reinforced one -
+    /// and the impulse term goes through both.
+    #[test]
+    fn a_tougher_section_soaks_more_of_the_same_energy() {
+        let speed = SAFE_CONTACT_SPEED.to_engine() * 3.0;
+        let light = bite(50.0, speed, absorbed_energy(60.0));
+        let reinforced = bite(50.0, speed, absorbed_energy(200.0));
+        assert!(
+            reinforced < light,
+            "the reinforced plate takes less: {reinforced} against {light}"
+        );
+        assert!(
+            reinforced > 0.0,
+            "but the impulse still lands: {reinforced}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod physics_tests {
+    use super::*;
+    use crate::test_support::{integrity_physics_app, settle};
+
+    /// A ship-shaped body: a rigid root with one child collider that carries
+    /// the hit points, which is where a section's health lives.
+    fn spawn_hull(app: &mut App, at: Vec3, hp: f32) -> Entity {
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::from_translation(at)))
+            .id();
+        app.world_mut()
+            .spawn((
+                ChildOf(body),
+                Collider::sphere(1.0),
+                ColliderDensity(1.0),
+                Health::new(hp),
+            ))
+            .id()
+    }
+
+    fn hurt(app: &App, collider: Entity) -> f32 {
+        let health = app.world().get::<Health>(collider).expect("alive");
+        health.max - health.current
+    }
+
+    fn push(app: &mut App, collider: Entity, velocity: Vec3) {
+        let body = app.world().get::<ColliderOf>(collider).unwrap().body;
+        app.world_mut().get_mut::<LinearVelocity>(body).unwrap().0 = velocity;
+    }
+
+    /// Two identical hulls a fifth of a unit apart, nose to nose, closing at
+    /// `closing` world units per second. Health is far from zero on both, so
+    /// the destroy pipeline stays out of the measurement. Returns what each
+    /// side lost after `ticks`.
+    fn head_on(closing: f32, ticks: usize) -> (f32, f32) {
+        let mut app = integrity_physics_app();
+        let left = spawn_hull(&mut app, Vec3::new(-1.1, 0.0, 0.0), 1.0e6);
+        let right = spawn_hull(&mut app, Vec3::new(1.1, 0.0, 0.0), 1.0e6);
+        settle(&mut app);
+        push(&mut app, left, Vec3::X * closing * 0.5);
+        push(&mut app, right, Vec3::NEG_X * closing * 0.5);
+        for _ in 0..ticks {
+            app.update();
+        }
+        (hurt(&app, left), hurt(&app, right))
+    }
+
+    /// The whole point of the safe contact speed: two hulls may come together,
+    /// touch and rest against each other without trading a hit point, however
+    /// many contact frames that takes.
+    #[test]
+    fn two_hulls_touching_under_the_safe_speed_trade_nothing() {
+        let docking = SAFE_CONTACT_SPEED.to_engine() * 0.8;
+        let (left, right) = head_on(docking, 240);
+        assert_eq!(
+            (left, right),
+            (0.0, 0.0),
+            "a docking touch cost hit points: {left} / {right}"
+        );
+    }
+
+    /// A real ram spends hit points on BOTH bodies - a contact has two sides -
+    /// and spends more of them the harder it is.
+    #[test]
+    fn a_ram_spends_hit_points_on_both_sides_and_more_of_them_the_faster_it_is() {
+        let safe = SAFE_CONTACT_SPEED.to_engine();
+        let (left, right) = head_on(safe * 8.0, 8);
+        assert!(left > 0.0 && right > 0.0, "one-sided ram: {left} / {right}");
+        assert!(
+            (left - right).abs() < left * 1.0e-3,
+            "identical hulls must split a ram evenly: {left} / {right}"
+        );
+        let (harder, _) = head_on(safe * 16.0, 8);
+        assert!(
+            harder > left * 2.0,
+            "twice the closing speed must cost more than twice: {harder} against {left}"
+        );
     }
 }

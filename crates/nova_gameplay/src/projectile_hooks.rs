@@ -195,25 +195,30 @@ mod physics_tests {
     #[test]
     fn a_torpedo_overlapping_a_body_it_does_not_own_still_collides() {
         // Control for the filter: the same overlap against a ship that did NOT
-        // fire the torpedo must produce a real contact - impact damage lands on
-        // at least one side of the pair.
-        // High health on both sides: the invariant is "contact damage lands",
-        // and staying far from zero keeps the destroy/explode pipeline (whose
+        // fire the torpedo must produce a real contact. The mirror of the owned
+        // case above, and read on the same figure - the torpedo's motion. An
+        // overlap is not an APPROACH, so the ram model spends nothing on it;
+        // what the filter decides is whether the pair is solved at all.
+        // High health on both sides keeps the destroy/explode pipeline (whose
         // render-facing observer cannot run headless) out of the test.
         let mut app = hooks_app();
         let (owner_ship, _) = spawn_ship(&mut app, Vec3::new(100.0, 0.0, 0.0), 1e6);
-        let (_, target_section) = spawn_ship(&mut app, Vec3::ZERO, 1e6);
-        let (_, warhead) = spawn_torpedo(&mut app, owner_ship, Vec3::ZERO, Vec3::NEG_Z * 20.0, 1e6);
+        let (_, _target_section) = spawn_ship(&mut app, Vec3::ZERO, 1e6);
+        let (torpedo, warhead) =
+            spawn_torpedo(&mut app, owner_ship, Vec3::ZERO, Vec3::NEG_Z * 20.0, 1e6);
 
         run(&mut app, 10);
 
-        let warhead_health = health_of(&app, warhead).expect("warhead alive at 1e6 hp");
-        let target_health = health_of(&app, target_section).expect("target alive at 1e6 hp");
-        let warhead_damaged = warhead_health.current < warhead_health.max;
-        let target_damaged = target_health.current < target_health.max;
         assert!(
-            warhead_damaged || target_damaged,
-            "an unowned overlap produced no contact damage on either side"
+            health_of(&app, warhead).is_some(),
+            "warhead alive at 1e6 hp"
+        );
+        let velocity = app.world().get::<LinearVelocity>(torpedo).unwrap();
+        assert!(
+            (velocity.0 - Vec3::NEG_Z * 20.0).length() > 1e-3,
+            "an unowned overlap was filtered out: the torpedo flew through \
+             untouched at {:?}",
+            velocity.0
         );
     }
 

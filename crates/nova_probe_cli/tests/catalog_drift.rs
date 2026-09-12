@@ -161,6 +161,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_collision_damage",
+        &[
+            "two capitals may come alongside for free",
+            "a touch under the safe speed is free at either hull size",
+            "a ram spends hit points on both bodies",
+            "the bite grows with the closing speed",
+            "the contact census is recorded",
+        ],
+    ),
+    (
         "system_ai_combat",
         &[
             "an engaged hull is flown by its flight computer",
@@ -616,7 +626,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 266;
+const SYSTEMS_INVARIANTS: usize = 271;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
