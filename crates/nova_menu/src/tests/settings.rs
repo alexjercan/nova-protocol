@@ -851,9 +851,13 @@ fn rebinding_a_gesture_moves_the_half_that_follows_it() {
     );
 }
 
-/// The Graphics row that has nowhere else to live: the window is created once
-/// at a fixed size, so the only way out of a 1024x768 frame is this button. It
-/// must move the LIVE window, not just the saved value.
+/// The Graphics row that has nowhere else to live: a fresh install opens
+/// BORDERLESS, so this button is the only way to get the desk back. It must
+/// move the LIVE window, not just the saved value.
+///
+/// Walked out of the default first and then back into it, because the row that
+/// proves the mode is applied at all is the one that LEAVES where the game
+/// already is.
 #[test]
 fn the_window_row_drives_the_primary_window() {
     use bevy::window::{MonitorSelection, PrimaryWindow, WindowMode};
@@ -865,29 +869,30 @@ fn the_window_row_drives_the_primary_window() {
         .id();
     open_tab(&mut app, SettingsTabKind::Graphics);
 
-    let borderless =
-        entity_by_name(&mut app, "Window Borderless").expect("the Graphics tab offers the mode");
+    let windowed =
+        entity_by_name(&mut app, "Window Windowed").expect("the Graphics tab offers the mode");
     app.world_mut()
-        .trigger(bevy::ui_widgets::Activate { entity: borderless });
+        .trigger(bevy::ui_widgets::Activate { entity: windowed });
     app.update();
 
     assert_eq!(
         *app.world().resource::<WindowModeSetting>(),
-        WindowModeSetting::Borderless
+        WindowModeSetting::Windowed
     );
     assert_eq!(
         app.world().entity(window).get::<Window>().unwrap().mode,
-        WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+        WindowMode::Windowed,
         "the live window followed the row"
     );
 
-    let windowed = entity_by_name(&mut app, "Window Windowed").expect("and the way back out of it");
+    let borderless =
+        entity_by_name(&mut app, "Window Borderless").expect("and the way back into it");
     app.world_mut()
-        .trigger(bevy::ui_widgets::Activate { entity: windowed });
+        .trigger(bevy::ui_widgets::Activate { entity: borderless });
     app.update();
     assert_eq!(
         app.world().entity(window).get::<Window>().unwrap().mode,
-        WindowMode::Windowed
+        WindowMode::BorderlessFullscreen(MonitorSelection::Current)
     );
 }
 

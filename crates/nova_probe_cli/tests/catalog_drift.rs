@@ -422,6 +422,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_pause_settings",
+        &[
+            "the Settings panel fits a narrow window",
+            "the Settings panel fits the smallest window the game allows",
+            "the Settings panel stops at its own maximum width",
+            "the window keeps a floor under its own layout",
+            "a fresh install opens borderless",
+            "an explicitly saved window mode survives a restart",
+            "the menu's Settings panel fits a narrow window",
+        ],
+    ),
+    (
         "system_field_controls",
         &[
             "a declared field wears its own unit",
@@ -702,7 +714,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 317;
+const SYSTEMS_INVARIANTS: usize = 324;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

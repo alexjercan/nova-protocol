@@ -13,7 +13,7 @@ The game boots into a main menu. **New Game** drops you into **Basic Training** 
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
 - **Mods** - opens the installed-mod and online-catalog browser. A mod whose content will not load is switched off for you and named in one **MODS DISABLED** notice on the front door; its files stay installed, so you can update, remove or switch it back on from this screen.
-- **Settings** - adjusts volume, graphics quality, and UI skin, and shows the control reference.
+- **Settings** - adjusts volume, graphics quality, window mode and UI skin, and shows the control reference. The desktop build opens borderless fullscreen; **Windowed** is one click away.
 - **Exit** - quits (hidden in the browser build).
 
 </details>

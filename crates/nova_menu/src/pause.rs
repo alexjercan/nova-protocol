@@ -28,7 +28,10 @@ use nova_ui::{
 #[cfg(not(target_arch = "wasm32"))]
 use crate::menu_ui::on_exit;
 use crate::{
-    settings::{build_settings_tabs, PauseSettingsPanel, SettingsActiveTab, SettingsTabBody},
+    settings::{
+        build_settings_tabs, PauseSettingsPanel, SettingsActiveTab, SettingsTabBody,
+        SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
+    },
     widgets::{back_button, button, button_variant},
 };
 
@@ -488,13 +491,15 @@ pub(crate) fn reconcile_pause_overlay(
                     Node {
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Stretch,
-                        // Wide enough for a keybind label plus its two chip
-                        // columns, and a FIXED height so the panel does not
-                        // resize under the pointer when a tab with fewer rows
-                        // opens. The cap keeps it on screen on a short display.
-                        width: px(620),
-                        height: px(560),
-                        max_height: percent(92),
+                        // A share of the window up to its own maximum, and a
+                        // FIXED height so the panel does not resize under the
+                        // pointer when a tab with fewer rows opens. Both caps
+                        // keep it on screen on a small display; see
+                        // `SETTINGS_PANEL_WIDTH_PCT`.
+                        width: percent(SETTINGS_PANEL_WIDTH_PCT),
+                        max_width: px(SETTINGS_PANEL_MAX_W),
+                        height: px(SETTINGS_PANEL_H),
+                        max_height: percent(SETTINGS_PANEL_MAX_H_PCT),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         border_radius: BorderRadius::all(px(theme::RADIUS)),

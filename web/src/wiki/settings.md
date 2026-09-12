@@ -56,6 +56,21 @@ win is small, so Low is a knob for the low end rather than a general speed-up.
 
 </details>
 
+## Window
+
+The desktop build opens **borderless fullscreen**, filling the monitor it
+starts on. The **Windowed** row on the Graphics tab gives the desk back, and
+whichever you pick is remembered - an install that has already chosen keeps its
+choice.
+
+A window will not be dragged narrower than **640x600**. The Settings panel is
+the widest thing the game draws, and below that size there is no layout left to
+read it in.
+
+The web build has no such row: the game fits the canvas the page gives it. The
+panels themselves are sized as a share of the window, so a narrow browser column
+still gets a readable Settings modal with its Back button on screen.
+
 ## Controls
 
 <figure class="figure">

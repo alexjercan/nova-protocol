@@ -70,7 +70,7 @@ pub mod prelude {
             spawn_failure_report, AssetFailureScreenMarker, FailurePlatform, FAILURE_ADVICE,
             FAILURE_QUIT_BUTTON, FAILURE_SCREEN,
         },
-        offscreen_app, run_app, AppBuilder, StartupScenario,
+        offscreen_app, run_app, AppBuilder, StartupScenario, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH,
     };
 }
 
@@ -610,6 +610,26 @@ pub const PROBE_ENV: &str = "NOVA_PROBE";
 /// catch a hand-run someone is playing.
 pub const MEASURE_WINDOW_CLASS: &str = "nova-measure";
 
+/// The narrowest a windowed native run may be dragged, in logical pixels.
+///
+/// A floor exists because the game's widest modal - the Settings panel, the
+/// same one from the menu and from pause - is sized for a keybind label plus
+/// two chip columns. It is a flex item, so a window narrower than it SQUEEZES
+/// it rather than letting it overflow, and what the squeeze takes is the label
+/// column: past some width the rows stop being readable and there is nothing
+/// left to give. This is the width below which no layout is asked to cope.
+///
+/// Native only. A canvas fits its parent, and a page that embeds the game in a
+/// narrow column is not something the window can refuse - which is why the
+/// panel carries its own share-of-the-window policy ([`nova_menu`]'s
+/// `SETTINGS_PANEL_WIDTH_PCT`) rather than relying on this number.
+pub const MIN_WINDOW_WIDTH: f32 = 640.0;
+
+/// The shortest a windowed native run may be dragged, in logical pixels.
+/// See [`MIN_WINDOW_WIDTH`]; this is the height the Settings panel's own
+/// `92%` cap is measured against before its scroll region takes over.
+pub const MIN_WINDOW_HEIGHT: f32 = 600.0;
+
 fn window_plugin(assembly: Assembly) -> WindowPlugin {
     if assembly != Assembly::Windowed {
         // Offscreen included: the channel spawns its virtual `PrimaryWindow`
@@ -636,6 +656,15 @@ fn window_plugin(assembly: Assembly) -> WindowPlugin {
             fit_canvas_to_parent: true,
             // True lets the canvas capture tab and other browser keys on wasm.
             prevent_default_event_handling: true,
+            // The floor the layouts are designed against. Handed to the window
+            // manager, so the drag stops rather than the UI coming apart; the
+            // web build has no such lever and relies on the panels themselves.
+            #[cfg(not(target_arch = "wasm32"))]
+            resize_constraints: bevy::window::WindowResizeConstraints {
+                min_width: MIN_WINDOW_WIDTH,
+                min_height: MIN_WINDOW_HEIGHT,
+                ..default()
+            },
             ..Default::default()
         }),
         ..default()

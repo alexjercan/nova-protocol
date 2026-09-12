@@ -30,6 +30,39 @@ use nova_ui::{
 };
 use serde::{Deserialize, Serialize};
 
+/// How wide the Settings panel grows, as a percentage of the window.
+///
+/// The panel is the same layout from both entry points, and both are read at
+/// whatever size the player has. A fixed width did not overflow a narrower
+/// window - the panel is a flex ITEM, so at 500 px the 620 px panel measured
+/// 500, squeezed edge to edge with no gutter and with the keybind rows' label
+/// column paying for it. A width nobody chose is not a layout, and a squeeze
+/// that runs out of label to give is a real overflow one window narrower, so
+/// the panel asks for a share of the window and caps it at
+/// [`SETTINGS_PANEL_MAX_W`].
+///
+/// A percentage rather than the native floor alone (`nova_core`'s
+/// `MIN_WINDOW_WIDTH`), because a canvas in a narrow page column obeys no
+/// resize constraint of ours.
+pub const SETTINGS_PANEL_WIDTH_PCT: f32 = 92.0;
+
+/// The widest the Settings panel is allowed to become, in logical pixels.
+///
+/// Wide enough for a keybind label plus its two chip columns, and a cap rather
+/// than a target: on a desk monitor [`SETTINGS_PANEL_WIDTH_PCT`] of the window
+/// would be a settings panel most of a screen wide.
+pub const SETTINGS_PANEL_MAX_W: f32 = 620.0;
+
+/// How tall the Settings panel is, in logical pixels.
+///
+/// FIXED, so the panel does not resize under the pointer when a tab with fewer
+/// rows opens; the body scrolls instead. [`SETTINGS_PANEL_MAX_H_PCT`] is what
+/// keeps it on a short display.
+pub const SETTINGS_PANEL_H: f32 = 560.0;
+
+/// The share of the window height the Settings panel may take.
+pub const SETTINGS_PANEL_MAX_H_PCT: f32 = 92.0;
+
 /// Marker for the main-menu Settings panel, toggled by the Settings button.
 #[derive(Component)]
 pub(crate) struct SettingsPanel;
@@ -286,10 +319,19 @@ impl PendingRebind {
 /// too would conflict.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WindowModeSetting {
-    /// A 1024x768 window, what the game has always launched as.
-    #[default]
+    /// A window, at the size the platform gives it.
     Windowed,
     /// Borderless, filling the monitor the window is on.
+    ///
+    /// The DEFAULT, and what a fresh install opens in: a game bought from a
+    /// store is started to be played, not arranged, and a 1024x768 window in
+    /// the corner of a 4K monitor is a first impression nobody chose. The row
+    /// is one click away for a player who wants the desk back.
+    ///
+    /// Only an install that never chose gets this. The store's field carries
+    /// `#[serde(default)]`, so a player who explicitly saved Windowed keeps it
+    /// and an older store with no field at all takes the new default.
+    #[default]
     Borderless,
 }
 

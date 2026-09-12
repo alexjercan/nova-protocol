@@ -119,6 +119,14 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
+- The desktop build opens borderless fullscreen on a fresh install. Windowed is
+  one row away on the Graphics tab, and an install that already chose keeps its
+  choice.
+- A desktop window will not be dragged below 640x600, the size the game's widest
+  panel is laid out for.
+- The Settings panel takes 92% of the window up to its 620 px maximum, so its
+  keybind rows and Back button stay readable in a narrow browser column, which
+  no desktop minimum reaches.
 - A game file the game cannot do without now ends in a report instead of an
   endless loading animation: Quit on the desktop build, reload-and-report
   instructions in the browser.

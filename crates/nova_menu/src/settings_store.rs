@@ -713,6 +713,49 @@ mod tests {
         clear(&store);
     }
 
+    /// A store written before the window-mode row existed opens borderless.
+    ///
+    /// The field carries `#[serde(default)]`, so "no choice recorded" and "no
+    /// field at all" are the same answer - which is what makes changing the
+    /// default a change to fresh installs and to nobody else.
+    #[test]
+    fn an_older_store_without_a_window_mode_opens_borderless() {
+        let store = temp_store("window_mode_absent");
+        clear(&store);
+        write_raw(&store, b"(master_volume: 0.5)");
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY).map(|saved| saved.window_mode),
+            Some(WindowModeSetting::Borderless),
+            "a store with no window-mode field takes the current default"
+        );
+        clear(&store);
+    }
+
+    /// A player who asked for a window keeps one.
+    ///
+    /// The pair to the test above: the new default reaches installs that never
+    /// chose, and an explicit choice is not quietly upgraded out from under
+    /// the player who made it.
+    #[test]
+    fn an_explicitly_saved_windowed_choice_survives_a_restart() {
+        let store = temp_store("window_mode_explicit");
+        clear(&store);
+        save_to(
+            &store,
+            KEY,
+            &PersistedSettings {
+                window_mode: WindowModeSetting::Windowed,
+                ..PersistedSettings::default()
+            },
+        );
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY).map(|saved| saved.window_mode),
+            Some(WindowModeSetting::Windowed),
+            "an explicit Windowed choice is not replaced by the fresh-install default"
+        );
+        clear(&store);
+    }
+
     /// The UI skin choice survives a save/load round-trip (DoD 2). Default is Phosphor,
     /// so a Hardware choice is the non-default proof; and an older store lacking the
     /// field defaults to Phosphor rather than failing to load.

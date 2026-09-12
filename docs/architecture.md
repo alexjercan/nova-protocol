@@ -343,6 +343,20 @@ plugin test pins the count at one.
   the two tables cannot see across; that ladder lives entirely under
   `EDITOR_CEILING_Z`, pinned by a test, so a pause or an outcome covers editor
   chrome instead of losing to its foot bar.
+- The window a native run opens is BORDERLESS by default and has a floor.
+  `WindowModeSetting` defaults to `Borderless`, and the store's field carries
+  `#[serde(default)]`, so a fresh install and an older store with no field both
+  open full-screen while a player who explicitly saved `Windowed` keeps it;
+  `apply_window_mode` is registered only for a READING store, so a harnessed run
+  (inert store) never touches the window it was given. `window_plugin` hands the
+  window manager `MIN_WINDOW_WIDTH` x `MIN_WINDOW_HEIGHT` (640x600) as resize
+  constraints. The floor is not what makes the layouts safe: the Settings panel
+  (the widest modal, and the same one from the menu and from pause) sizes itself
+  at `SETTINGS_PANEL_WIDTH_PCT` of the window capped at `SETTINGS_PANEL_MAX_W`,
+  because a canvas in a narrow page column obeys no native constraint. A fixed
+  width there did not overflow - the panel is a flex ITEM, so at 500 px the
+  620 px panel measured 500, squeezed edge to edge with the keybind rows' label
+  column paying for it (`examples/systems/system_pause_settings.rs`).
 - `GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }`
   (`nova_assets`) - asset pipeline. `Boot` loads the UI font the loading screen
   itself draws with; `Loading` loads the rest of the MANDATORY set (the shared

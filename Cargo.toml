@@ -283,6 +283,10 @@ name = "system_ui_scale"
 path = "examples/systems/system_ui_scale.rs"
 
 [[example]]
+name = "system_pause_settings"
+path = "examples/systems/system_pause_settings.rs"
+
+[[example]]
 name = "system_field_controls"
 path = "examples/systems/system_field_controls.rs"
 

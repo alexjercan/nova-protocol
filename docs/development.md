@@ -449,6 +449,12 @@ is an output mask; persistence and the settings menu never see it). `NOVA_MUTE=0
 `NOVA_MUTE=1` mutes a normal one, and the game binary's `--mute` flag does the
 same - see the outputs-off pair above.
 
+A HAND-RUN example is not silent and not pinned: it reads the store like the
+game does, so with no `settings.ron` saved it opens in the default window mode,
+which is now borderless fullscreen. Save Windowed once from the game's Graphics
+tab (or `window windowed` in the command shell) and every example follows -
+examples read that file, they never write it.
+
 ### Examples as bug pins
 
 A bug becomes a RANGE (`AGENTS.md`): reproduce it in `examples/systems/`

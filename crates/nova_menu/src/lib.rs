@@ -38,8 +38,14 @@ pub mod prelude {
     pub use super::{
         ambience::MENU_BACKDROP_ENV,
         pause::FocusPause,
-        settings::WindowModeSetting,
-        settings_store::{SettingsStoreAccess, SettingsStorePlugin, SettingsStoreRoot},
+        settings::{
+            WindowModeSetting, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
+            SETTINGS_PANEL_WIDTH_PCT,
+        },
+        settings_store::{
+            load_settings, save_settings, PersistedSettings, SettingsStoreAccess,
+            SettingsStorePlugin, SettingsStoreRoot,
+        },
         widgets::MenuCueSystems,
         NewGameScenario, NovaMenuPlugin,
     };
