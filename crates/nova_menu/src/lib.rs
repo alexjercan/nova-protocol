@@ -70,7 +70,8 @@ use mods::{
 };
 use outcome::{
     auto_advance_outcome, clear_start_failure, regrab_cursor_on_player_spawn, sync_outcome_cursor,
-    sync_outcome_overlay, sync_outcome_pause, sync_start_failure_overlay,
+    sync_outcome_overlay, sync_outcome_pause, sync_start_failure_cursor,
+    sync_start_failure_overlay,
 };
 use pause::{
     force_unpause, hold_clocks_for_pause_menu, hold_clocks_for_terminal,
@@ -311,7 +312,7 @@ impl Plugin for NovaMenuPlugin {
         // out of the pick instead of reporting them.
         app.add_systems(
             Update,
-            sync_start_failure_overlay
+            (sync_start_failure_overlay, sync_start_failure_cursor)
                 .run_if(in_state(GameStates::Playing))
                 .run_if(resource_exists::<ScenarioStartFailure>),
         );

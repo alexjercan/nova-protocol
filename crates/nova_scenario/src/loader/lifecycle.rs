@@ -349,9 +349,14 @@ pub(super) fn on_load_scenario(
 ) {
     // The runtime content gate: a scenario with Error-level findings REFUSES to
     // start - better a clear failure than a silently half-spawned scene.
-    // Checked BEFORE teardown so whatever was on screen stays; the stale
-    // outcome overlay is cleared so the FAILED TO START modal does not stack
-    // under it.
+    //
+    // A refusal ENDS the scenario it was asked to replace, so the teardown
+    // happens first and `CurrentScenario` goes with it. The scenario that was
+    // running is not a fallback: the report is a dead end with Main Menu as its
+    // only way out, and leaving the old leg live behind it means a simulation
+    // ticking under a blocking modal, with the cursor still grabbed for a ship
+    // the player can neither see nor fly. The teardown also clears the stale
+    // outcome, so the FAILED TO START modal cannot stack under a Victory one.
     let messages = start_errors(&load.0, &gate);
     if !messages.is_empty() {
         error!(
@@ -362,9 +367,17 @@ pub(super) fn on_load_scenario(
         for message in &messages {
             error!("  {message}");
         }
-        if let Some(outcome) = outcome.as_deref_mut() {
-            outcome.0 = None;
-        }
+        teardown_scenario_entities(
+            &mut commands,
+            &q_scoped,
+            &mut world,
+            emphasis.as_deref_mut(),
+            outcome.as_deref_mut(),
+            objectives.as_deref_mut(),
+            story_feed.as_deref_mut(),
+            cheats.as_deref_mut(),
+        );
+        **current_scenario = None;
         if let Some(failure) = failure.as_deref_mut() {
             failure.0 = Some(ScenarioStartFailureReport {
                 scenario_name: load.0.name.clone(),
@@ -900,6 +913,98 @@ mod tests {
         assert!(
             app.world().resource::<CurrentScenario>().is_none(),
             "the refused scenario never becomes current"
+        );
+    }
+
+    /// A refusal ENDS the scenario it was asked to replace. The campaign case:
+    /// a chapter chains on to a next one whose content is refused, and what the
+    /// player is left with is the report - not the previous chapter still
+    /// simulating behind a modal it cannot dismiss.
+    #[test]
+    fn a_refused_scenario_tears_down_the_one_it_replaces() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.init_resource::<ScenarioStartFailure>();
+        let mut issues = ContentIssues::default();
+        issues.0.insert(
+            "broken".to_string(),
+            vec![LintIssue {
+                severity: LintSeverity::Error,
+                scenario: "broken".to_string(),
+                message: "NextScenario targets unknown scenario 'gone'".to_string(),
+            }],
+        );
+        app.insert_resource(issues);
+        app.register_input_actions(scenario_bindings());
+        app.add_observer(on_load_scenario);
+
+        let chapter = |id: &str, name: &str| ScenarioConfig {
+            description: "a chapter".to_string(),
+            events: vec![],
+            ..ScenarioConfig::new(
+                id.to_string(),
+                name.to_string(),
+                AssetRef::from("textures/x.png".to_string()),
+            )
+        };
+
+        // The leg the player is on: live, with a HUD mirror of its own.
+        app.world_mut()
+            .trigger(LoadScenario(chapter("live", "Live Chapter")));
+        app.update();
+        let live = app
+            .world_mut()
+            .query_filtered::<(), With<ScenarioScopedMarker>>()
+            .iter(app.world())
+            .count();
+        assert!(live > 0, "delivery guard: the first chapter is really up");
+        app.world_mut()
+            .resource_mut::<GameObjectives>()
+            .objectives
+            .push(Objective::new("hold", "Hold the line"));
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("on_the_leg".to_string(), VariableLiteral::Number(1.0));
+
+        // ...and the chapter it chains to is refused.
+        app.world_mut()
+            .trigger(LoadScenario(chapter("broken", "Broken Chapter")));
+        app.update();
+
+        let left = app
+            .world_mut()
+            .query_filtered::<(), With<ScenarioScopedMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(
+            left, 0,
+            "the refused start ends the leg it replaces: {left} scoped entities live on"
+        );
+        assert!(
+            app.world().resource::<CurrentScenario>().is_none(),
+            "nothing is current after a refusal, so `scenario_is_live` is false"
+        );
+        assert_eq!(
+            app.world().resource::<NovaEventWorld>().variables().count(),
+            0,
+            "the event world goes with the scenario"
+        );
+        assert!(
+            app.world()
+                .resource::<GameObjectives>()
+                .objectives
+                .is_empty(),
+            "so does the objectives mirror"
+        );
+        assert!(
+            app.world().resource::<ScenarioStartFailure>().0.is_some(),
+            "and the player is told why"
         );
     }
 

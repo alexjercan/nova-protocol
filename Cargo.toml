@@ -323,6 +323,10 @@ name = "bug_menu_picker"
 path = "examples/systems/bug_menu_picker.rs"
 
 [[example]]
+name = "bug_refused_scenario"
+path = "examples/systems/bug_refused_scenario.rs"
+
+[[example]]
 name = "system_nova_os"
 path = "examples/systems/system_nova_os.rs"
 

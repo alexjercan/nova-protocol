@@ -530,6 +530,17 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "bug_refused_scenario",
+        &[
+            "a refused scenario ends the one it replaces",
+            "the refusal clears the scenario mirrors",
+            "the refusal report names the issue",
+            "the refusal leaves no loading panel over the report",
+            "the refusal frees the cursor",
+            "the refusal report reaches the main menu",
+        ],
+    ),
+    (
         "system_nova_os",
         &[
             "tab opens the computer",
@@ -663,7 +674,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 293;
+const SYSTEMS_INVARIANTS: usize = 299;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

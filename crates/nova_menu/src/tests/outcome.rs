@@ -15,7 +15,7 @@ use super::support::{
     all_text, app, app_with_outcome, clocks_paused, dummy_scenarios, enter_playing, find_named,
     pause_state, press_escape,
 };
-use crate::outcome::StartFailureOverlay;
+use crate::outcome::{StartFailureCamera, StartFailureOverlay};
 
 /// Defeat with a queued lingering retry (the shakedown death shape):
 /// DEFEAT banner, message, a Retry button that releases the lingering
@@ -522,6 +522,55 @@ fn start_failure_shows_the_overlay_and_menu_entry_clears_it() {
         .iter(app.world())
         .count();
     assert_eq!(overlays, 0, "the modal died with the Playing state");
+}
+
+/// The report is a modal over a scenario that ENDED. It frees the cursor the
+/// flight grab took - the only thing left on screen is a button - and it brings
+/// the camera it is drawn on, because the scenario camera died with the
+/// scenario the refusal tore down.
+#[test]
+fn the_refusal_report_frees_the_cursor_and_brings_its_own_camera() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.update();
+    // A window mid-flight: grabbed and hidden, the way the game leaves it.
+    let window = app
+        .world_mut()
+        .spawn((
+            bevy::window::Window::default(),
+            PrimaryWindow,
+            CursorOptions {
+                grab_mode: CursorGrabMode::Locked,
+                visible: false,
+                ..default()
+            },
+        ))
+        .id();
+    enter_playing(&mut app);
+
+    app.world_mut().resource_mut::<ScenarioStartFailure>().0 = Some(ScenarioStartFailureReport {
+        scenario_name: "Broken Chapter".to_string(),
+        messages: vec!["NextScenario targets unknown scenario 'gone'".to_string()],
+    });
+    app.update();
+
+    let cursor = app.world().get::<CursorOptions>(window).unwrap();
+    assert_eq!(
+        cursor.grab_mode,
+        CursorGrabMode::None,
+        "the report's button needs a pointer, exactly like the outcome overlay's"
+    );
+    assert!(cursor.visible, "and the pointer has to be visible to aim");
+
+    let cameras = app
+        .world_mut()
+        .query_filtered::<(), (With<Camera2d>, With<StartFailureCamera>)>()
+        .iter(app.world())
+        .count();
+    assert_eq!(
+        cameras, 1,
+        "the report brings its own camera: the scenario's went with the scenario"
+    );
 }
 
 /// A player ship spawning mid-flight (a Retry reloads the scenario without a

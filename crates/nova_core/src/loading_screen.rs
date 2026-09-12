@@ -27,7 +27,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::{FatalAssetFailure, GameAssetsStates};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
-use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload};
+use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload, ScenarioStartFailure};
 use nova_ui::font::UiFont;
 
 /// Near-black CRT screen (PoC `--screen`). The panel background.
@@ -284,10 +284,10 @@ fn spawn_scenario_load_screen(
     ));
 }
 
-/// Take the scenario screen down once the swap is done: never while the
-/// scenario is still spawning or its art is still loading, and then after the
-/// minimum dwell on the first frame back under [`SCENARIO_SETTLED_DELTA`], or at
-/// the hard cap.
+/// Take the scenario screen down once the swap is done: at once when the load
+/// was REFUSED, and otherwise never while the scenario is still spawning or its
+/// art is still loading, and then after the minimum dwell on the first frame
+/// back under [`SCENARIO_SETTLED_DELTA`], or at the hard cap.
 ///
 /// The spawn gate ([`EventWorld::is_settling`]) makes the panel and the script
 /// gate ONE fact: the scenario engine holds every handler while its queued
@@ -309,8 +309,19 @@ fn dismiss_scenario_load_screen(
     time: Res<Time<Real>>,
     event_world: Option<Res<NovaEventWorld>>,
     preload: Option<Res<ScenarioPreload>>,
+    failure: Option<Res<ScenarioStartFailure>>,
     q_screen: Query<(Entity, &ScenarioLoadScreenMarker)>,
 ) {
+    // A REFUSED scenario has nothing to load. The panel comes down on the spot,
+    // before any dwell: what is underneath it is the FAILED TO START report,
+    // a dead end with one button on it, and a full-screen LOADING panel over
+    // that both hides the report and swallows the click that is the way out.
+    if failure.is_some_and(|failure| failure.0.is_some()) {
+        for (entity, _) in &q_screen {
+            commands.entity(entity).despawn();
+        }
+        return;
+    }
     if event_world.is_some_and(|world| world.is_settling())
         || preload.is_some_and(|preload| preload.is_pending())
     {
@@ -573,7 +584,7 @@ fn on_failure_quit(_activate: On<bevy::ui_widgets::Activate>, mut exit: MessageW
 #[cfg(test)]
 mod tests {
     use bevy::state::app::StatesPlugin;
-    use nova_scenario::prelude::ScenarioConfig;
+    use nova_scenario::prelude::{ScenarioConfig, ScenarioStartFailureReport};
 
     use super::*;
 
@@ -856,6 +867,40 @@ mod tests {
             count::<ScenarioLoadScreenMarker>(&mut app),
             0,
             "past the dwell, a settled frame takes the screen down"
+        );
+    }
+
+    /// A REFUSED load takes the panel straight down, inside the minimum dwell
+    /// and without waiting on a settled frame. What is under it is the FAILED
+    /// TO START report: a dead end with one button on it, and a full-screen
+    /// LOADING panel over that hides the report and eats the click.
+    #[test]
+    fn a_refused_load_takes_the_scenario_screen_down_at_once() {
+        let mut app = screen_app();
+        app.init_resource::<ScenarioStartFailure>();
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "delivery guard: the screen went up, and the dwell has not run"
+        );
+
+        app.world_mut().resource_mut::<ScenarioStartFailure>().0 =
+            Some(ScenarioStartFailureReport {
+                scenario_name: "Broken Chapter".to_string(),
+                messages: vec!["NextScenario targets unknown scenario 'gone'".to_string()],
+            });
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            0,
+            "a refusal has nothing to load: the panel comes down on the spot"
         );
     }
 

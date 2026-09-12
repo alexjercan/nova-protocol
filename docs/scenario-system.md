@@ -147,6 +147,16 @@ scene that is not the one the author wrote, with no way to know it. Leaving
 through `UnloadScenario` is the one path out of `Failed`, and it drops the
 hold with the scenario that took it.
 
+A load the content GATE refuses never takes a hold at all - `on_load_scenario`
+lints the config in hand (`start_errors`) and returns before `ScenarioLoaded`
+fires. A refusal ENDS the scenario it was asked to replace: the teardown runs
+and `CurrentScenario` is cleared BEFORE the report is published, the LOADING
+panel comes down on the spot, and the report is drawn on a 2D camera of its
+own, with the cursor freed for the one button on it. Nothing is left to
+simulate behind the modal, which is the point - the report is a dead end, and
+the scenario it interrupted is not a fallback the player can be handed back.
+The campaign case is a chapter whose next chapter a mod removed.
+
 ## The vocabulary, and who documents it
 
 Three closed enums are the whole authored language, one dispatch match each:

@@ -250,14 +250,24 @@ pub(crate) fn auto_advance_outcome(
 #[derive(Component)]
 pub(crate) struct StartFailureOverlay;
 
+/// Marker for the 2D camera the report is drawn on. Its own component rather
+/// than the overlay's, so counting overlays counts modals.
+#[derive(Component)]
+pub(crate) struct StartFailureCamera;
+
 /// Show the Wesnoth-style refusal report: banner, the scenario's name, one
 /// line per content error, and the only road out - Main Menu. Mirrors the
 /// outcome overlay's modal shell.
+///
+/// The report brings its own 2D camera. A refusal ENDS the scenario it was
+/// asked to replace, and the scenario camera dies with it, so unlike the
+/// outcome overlay this modal has nothing left to be drawn on - the same reason
+/// the boot loading screen owns one.
 pub(crate) fn sync_start_failure_overlay(
     mut commands: Commands,
     skin: Res<UiSkin>,
     failure: Res<ScenarioStartFailure>,
-    q_existing: Query<Entity, With<StartFailureOverlay>>,
+    q_existing: Query<Entity, Or<(With<StartFailureOverlay>, With<StartFailureCamera>)>>,
 ) {
     if !failure.is_changed() {
         return;
@@ -268,6 +278,14 @@ pub(crate) fn sync_start_failure_overlay(
     let Some(report) = failure.0.as_ref() else {
         return;
     };
+
+    commands.spawn((
+        Name::new("Start Failure Camera"),
+        StartFailureCamera,
+        DespawnOnExit(GameStates::Playing),
+        Camera2d,
+        bevy::ui::IsDefaultUiCamera,
+    ));
 
     commands
         .spawn((
@@ -369,6 +387,23 @@ pub(crate) fn sync_outcome_cursor(
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     if outcome.is_changed() && outcome.0.is_some() {
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
+    }
+}
+
+/// Free the cursor while the FAILED TO START report is up, for the same reason
+/// the outcome overlay frees it: the report is a modal with a button on it, and
+/// the refusal that raised it tore the flight the grab belonged to down.
+///
+/// Nothing re-grabs behind it. A refusal spawns no ship, so
+/// `regrab_cursor_on_player_spawn` never fires, and the one way out of the
+/// report leaves `Playing`, where the menu's own cursor handling takes over.
+pub(crate) fn sync_start_failure_cursor(
+    failure: Res<ScenarioStartFailure>,
+    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if failure.is_changed() && failure.0.is_some() {
         cursor.grab_mode = CursorGrabMode::None;
         cursor.visible = true;
     }

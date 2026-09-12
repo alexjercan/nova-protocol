@@ -98,6 +98,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A load that fails, or that stops moving for ten seconds, says FAILED TO START
   and names the art it could not get. A load that is still arriving is never
   cut off, however long it takes.
+- A chapter that cannot start ends the one it replaces: the report is what is
+  left on screen, with the pointer back and Main Menu working, instead of the
+  old chapter still flying behind it.
 - A scenario's camera opens behind the player's own hull wherever it spawns: a
   carrier no longer starts inside its own plate, and a player 5 km out no
   longer opens on empty space.

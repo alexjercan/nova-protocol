@@ -414,13 +414,39 @@ pub fn register_bundles(
     commands.insert_resource(content_issues);
 
     commands.insert_resource(GameSections(outcome.sections));
-    commands.insert_resource(outcome.scenarios);
+    publish_scenarios(&mut commands, outcome.scenarios);
     commands.insert_resource(outcome.campaigns);
     commands.insert_resource(GameStyles(outcome.styles));
     commands.insert_resource(GameImpacts(outcome.impacts));
     commands.insert_resource(GameShips(outcome.ships));
     commands.insert_resource(GameGrammars(outcome.grammars));
     commands.insert_resource(GameChannels(outcome.channels));
+}
+
+/// The scenario ids the last merge published, so the next one knows which
+/// entries of [`GameScenarios`] are ITS to replace.
+#[derive(Resource, Default)]
+pub(crate) struct ContentScenarioIds(HashSet<String>);
+
+/// Replace what CONTENT declares in [`GameScenarios`] and keep the rest.
+///
+/// Scenarios are the one merged registry code also writes into: the editor's
+/// sandbox and a probe fixture have no content file behind them, and a re-merge
+/// that rebuilt the whole resource deleted them - which a live re-merge does
+/// whenever an enabled mod's bundle lands after the first pass. What a previous
+/// merge published is dropped (a removed mod's chapters really do go), and
+/// everything else survives.
+fn publish_scenarios(commands: &mut Commands, published: GameScenarios) {
+    commands.queue(move |world: &mut World| {
+        let mine = world
+            .remove_resource::<ContentScenarioIds>()
+            .unwrap_or_default();
+        let mut registry = world.remove_resource::<GameScenarios>().unwrap_or_default();
+        registry.0.retain(|id, _| !mine.0.contains(id));
+        world.insert_resource(ContentScenarioIds(published.0.keys().cloned().collect()));
+        registry.0.extend(published.0);
+        world.insert_resource(registry);
+    });
 }
 
 /// The result of merging an ordered list of bundles: the id-keyed registries plus
@@ -563,6 +589,7 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::world::CommandQueue;
     use nova_gameplay::prelude::{AssetRef, DamageType};
     use nova_scenario::prelude::ScenarioConfig;
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
@@ -603,6 +630,58 @@ mod tests {
         assert_eq!(sections[1].base.id, "thruster");
         // Last-wins: the overlaid value took effect.
         assert_eq!(sections[0].base.health, 999.0, "later section must win");
+    }
+
+    /// A live re-merge replaces what CONTENT publishes and leaves everything
+    /// else alone.
+    ///
+    /// Scenarios are the one merged registry code also writes into - the
+    /// editor's sandbox, a probe fixture - and a re-merge runs whenever an
+    /// enabled mod's bundle lands after the first pass. Rebuilding the whole
+    /// resource deleted those entries, and the scenario they named stopped
+    /// existing mid-run. A chapter a previous merge published still goes when
+    /// the mod behind it does.
+    #[test]
+    fn a_re_merge_keeps_the_scenarios_no_bundle_published() {
+        let scenario = |id: &str, name: &str| {
+            ScenarioConfig::new(
+                id.to_string(),
+                name,
+                AssetRef::from("dep://base/textures/cubemap.png".to_string()),
+            )
+        };
+        let publish = |world: &mut World, ids: &[&str]| {
+            let mut queue = CommandQueue::default();
+            let mut scenarios = GameScenarios::default();
+            for id in ids {
+                scenarios.insert(id.to_string(), scenario(id, "content"));
+            }
+            publish_scenarios(&mut Commands::new(&mut queue, world), scenarios);
+            queue.apply(world);
+        };
+
+        let mut world = World::new();
+        publish(&mut world, &["chapter_one", "from_a_mod"]);
+
+        // Code registers a scenario of its own, beside the merged ones.
+        world
+            .resource_mut::<GameScenarios>()
+            .insert("sandbox".to_string(), scenario("sandbox", "sandbox"));
+
+        // The mod is switched off and its bundle drops out of the re-merge.
+        publish(&mut world, &["chapter_one"]);
+
+        let live = world.resource::<GameScenarios>();
+        assert!(
+            live.contains_key("sandbox"),
+            "a scenario no bundle published survives the re-merge: {:?}",
+            live.keys().collect::<Vec<_>>(),
+        );
+        assert!(live.contains_key("chapter_one"), "content is republished");
+        assert!(
+            !live.contains_key("from_a_mod"),
+            "a chapter the last merge published goes when its bundle does",
+        );
     }
 
     /// A later scenario with the same id overlays the earlier one, same as
