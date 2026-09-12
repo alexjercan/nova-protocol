@@ -20,6 +20,7 @@ because a balance item is measured before it is tuned.
 | 2026-09-12 | sweep `20260909-213708` | destruction, block_skiff and block_carrier | a severed wreck left at one flat 10 m/s, so a carrier's two halves ground against each other for the better part of twenty seconds | balance | a fragment leaves at its own containment radius over two seconds, floored at 10 m/s: 12.1 - 24.2 m/s on the skiff and 48.6 - 97.2 m/s on the carrier. `system_section_severing` holds it |
 | 2026-09-12 | sweep `20260909-213708` | destruction, block_carrier | every wreck piece was given a flat kick and a flat 0.5 s of grace, so all 720 pieces of a collapse went rigid still standing inside the hull | balance | a piece is thrown out of what buried it - the structure over it, its own reach and 10 m of daylight - with kick and window scaled by the root of that: 0 of 720 now go rigid inside. `stress_hull_collapse` holds it |
 | 2026-09-12 | sweep `20260909-213708` | destruction, block_skiff and block_carrier | every hull died at one authored size, so the carrier's fireball stopped 58 m inside its own wreck and the skiff was swallowed by a burst three times its size | balance | the hulk pyre is scaled by the dying root's `IntegrityEnvelope` over the 55.2 m gunship it was cut on, lengths linearly and lumens by the square: 0.87x on the skiff and 3.52x on the carrier, from 1.00x each. `system_hull_scaling` holds it |
+| 2026-09-12 | sweep `20260909-213708` | destruction, block_carrier | a collapse lit six fires per frame and took them in arrival order, so a 720-cell corridor burned in six touching cells at the entry wound | balance | the frame's deaths are queued and the chain is cut from the batch - `6 * sqrt(condemned / 53)`, 6 to 48 - and spread by farthest-point sampling: 23 fires over the whole 150 m corridor, from 6 over 20 m. `stress_hull_collapse` holds it |
 
 ## Measured figures
 
@@ -682,6 +683,52 @@ merely broke still looks different from one that was destroyed.
 The balance consequence is a look, not a capability: nothing about a death's
 damage, timing, piece count or budget moved. A carrier death is much brighter,
 which is the intent - it is the largest thing the game can destroy.
+
+The hull inputs read unchanged: arm 47.8 m / 194.2 m, torque ceiling 86.3326 /
+0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both structure-bound,
+lock range 21.7 km / 59.5 km.
+\n
+### The chain of fires is the size of the collapse, 2026-09-12
+
+`PYRE_FRAME_CAP` was a flat six deaths per frame, spent on the first six the
+destruction pass raised. A collapse condemns its whole hull in one flush and
+the pass walks the section graph, so those six were six fires in the corner the
+walk started in - a puff at the entry wound whatever the wreck's size.
+
+Compartment deaths are now QUEUED, and the frame's batch is spent when it is
+whole: `clamp(ceil(6 * sqrt(condemned / 53)), 6, 48)` fires, picked by
+farthest-point sampling over where the deaths happened. 53 is the gunship's own
+section count, the hull the death look was cut on, so an ordinary frame lights
+the six it always did. A hull root's fireball is never queued and never
+dropped.
+
+Measured on `stress_hull_collapse`, one siege slug through a block capital, 720
+corridor cells shed in one flush:
+
+| figure | before | after |
+| --- | --- | --- |
+| condemning frames | 1 | 1 |
+| deaths in that frame | 720 | 720 |
+| fires lit | 6 | 23 |
+| corridor the chain walked | 20 m of 150 m | 150 m of 150 m |
+| closest two fires | 10 m | 31.6 m |
+
+10 m apart is one build-grid cell: the old six burned in six cells that touched.
+
+The two reference hulls are read from the live section counts
+`system_hull_scaling` measures, for the frame a whole hull lets go at once:
+
+| hull | live sections | fires before | after |
+| --- | --- | --- | --- |
+| block_skiff | 21 | 6 | 6 |
+| block_carrier | 2 081 | 6 | 38 |
+
+The skiff is deliberately unchanged. It has fewer sections than the hull the
+chain was tuned on, and a needle coming apart in six fires is the read that was
+already right - the floor is there to keep it.
+
+The ceiling is a GPU bound and not a look: every lit death allocates its own
+pair of per-instance buffers in the frame it is born.
 
 The hull inputs read unchanged: arm 47.8 m / 194.2 m, torque ceiling 86.3326 /
 0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both structure-bound,

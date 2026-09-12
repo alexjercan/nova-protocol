@@ -565,11 +565,19 @@ the render thread, because `nova_core` asks for
 VISIBLE instance, which a warm-up is not: these are hidden exactly so that
 nothing draws them.
 
-What a death still mints is instances, so this half DOES need a budget:
-`PYRE_FRAME_CAP` bounds how many fireballs one frame lights, and a root's own is
-never the one dropped, because that is the one the whole death reads as.
-Material has the last word - `IntegrityDestroyMarker` is a shared seam that an
-exhausted asteroid also raises, and rock does not burn.
+What a death still mints is instances, so this half DOES need a budget. A
+compartment death is QUEUED, and the whole frame's batch is spent at the end of
+it: `6 * sqrt(condemned / 53)` fires, floored at six and capped at 48, picked by
+farthest-point sampling over where the deaths happened. The reference is the
+53-section gunship the look was cut on, so an ordinary frame still lights the
+six it always did, a 720-cell corridor lights 23 and a whole carrier 38. The
+sampling is the half that matters: deaths arrive in section-graph order, so the
+first six of a collapse are six fires in one shoulder of the wreck - the chain
+has to be cut from the batch and spread over it, not taken off the front. A
+root's own fireball is never queued and never dropped, because that is the one
+the whole death reads as. Material has the last word -
+`IntegrityDestroyMarker` is a shared seam that an exhausted asteroid also
+raises, and rock does not burn.
 
 Four properties follow from that, and each is load-bearing:
 

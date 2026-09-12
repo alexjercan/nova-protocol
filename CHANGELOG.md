@@ -114,6 +114,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A hull dies at its own size: the fireball, its debris and its flash are drawn
   from the ship's live structure, so a carrier's death reaches 479 m instead of
   ending 58 m inside its own wreck.
+- A collapse burns across the whole wreck: the chain of fires grows with what
+  the frame condemned, up to 48, and is spread over the dead sections instead
+  of lighting the first six the hull shed.
 
 ### Internals & Tooling
 - Debug section gizmos are measured: a barrel line runs the mount's authored

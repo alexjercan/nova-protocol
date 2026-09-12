@@ -234,7 +234,7 @@ gameplay feedback ledger (`20260909-213118`).
       85 m": the carrier dies with a firecracker covering 7 percent of the
       wreck, the skiff is swallowed by a burst four times its size. Scale
       off the root's `HullRadius`.
-- [ ] `integrity/pyre.rs:94` `PYRE_FRAME_CAP` 6 per frame "enough for the
+- [x] `integrity/pyre.rs:94` `PYRE_FRAME_CAP` 6 per frame "enough for the
       largest shipped hull": a carrier collapse condemns 2081 sections and
       lights six. Scale with the sections the frame condemned.
 - [ ] `nova_gameplay/src/juice.rs:56` `JUICE_AREA_CELL` 6 u and

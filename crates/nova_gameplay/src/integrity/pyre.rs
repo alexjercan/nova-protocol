@@ -37,13 +37,18 @@
 //! into the asset: a baked size curve cannot be multiplied by anything, so
 //! every size curve here is an expression over the particle's own age instead.
 //!
-//! # A collapse is a chain, and a chain has to be capped
+//! # A collapse is a chain, and a chain is a SAMPLE of the collapse
 //!
 //! Structural collapse destroys every section a hull has left in ONE frame, so
-//! the unbudgeted reading of "one fireball per death" is fifty deaths born
-//! together. The chain across the hull is exactly what a ship blowing up looks
-//! like, so it is kept - up to [`PYRE_FRAME_CAP`] of it - and the root's own
-//! fireball is never the one dropped.
+//! the unbudgeted reading of "one fireball per death" is two thousand deaths
+//! born together. The chain across the hull is exactly what a ship blowing up
+//! looks like, so it is kept - [`frame_cap`] of it, which grows with the root
+//! of the batch - and the root's own fireball is never one of the ones dropped.
+//!
+//! Which of them burn cannot be answered while they are still arriving: the
+//! first six of a carrier collapse are six fires in one shoulder, because the
+//! destruction pass walks the section graph. So compartment deaths QUEUE, and
+//! [`spend_the_pyre_queue`] picks them apart at the end of the frame.
 //!
 //! Engine units throughout: every size, speed and reach below is world units
 //! (one is 10 m) and world units per second, because they are measured against
@@ -115,26 +120,76 @@ const PYRE_SCALE_PROPERTY: &str = "hull_scale";
 /// is tuned once.
 const PYRE_REFERENCE_RADIUS: Meters = Meters(55.2);
 
-/// How many deaths one frame may light.
+/// The fewest compartment deaths one frame lights.
 ///
 /// A collapsing hull destroys everything it has left at once, and the read
 /// wanted is a chain of blasts walking across the wreck rather than a single
-/// puff. Six is enough for that on the largest shipped hull and bounds the
-/// per-instance GPU buffers a death can allocate in one frame.
-///
-/// It is a per-FRAME cap and not a per-death one, so a railgun corridor - a
-/// rake that condemns thirty cells over several frames - still lights a fire
-/// in every one of them. That is the right read for a wound down the length
-/// of a hull; what keeps it from becoming a wall is the section pyre's own
-/// reach, which is deliberately shorter than the lens is far.
-const PYRE_FRAME_CAP: u32 = 6;
+/// puff. Six is that chain on the hull the look was cut on, and it is what
+/// every ordinary frame gets: a railgun corridor - a rake that condemns thirty
+/// cells over several frames - lights a fire in every one of them.
+const PYRE_FRAME_FLOOR: usize = 6;
 
-/// How many deaths this frame has already lit.
+/// The most, whatever dies.
 ///
-/// Reset in [`First`], spent by the observer. A resource and not a `Local`
-/// because the observer and the reset are different systems.
+/// This is the GPU bound: every lit death allocates its own pair of
+/// per-instance buffers in the frame it is born, and past four dozen the chain
+/// stops reading as more fires and starts costing the frame they are supposed
+/// to sell.
+const PYRE_FRAME_CEILING: usize = 48;
+
+/// The batch [`PYRE_FRAME_FLOOR`] is the right chain for: the 53 sections of
+/// the gunship [`HULK_PYRE`] was cut on.
+///
+/// A whole gunship going up at once lights six. Everything else is that read
+/// held at a bigger or smaller size - see [`frame_cap`].
+const PYRE_BATCH_REFERENCE: usize = 53;
+
+/// How many of the frame's compartment deaths are lit.
+///
+/// `6 * sqrt(condemned / 53)`, bounded by [`PYRE_FRAME_FLOOR`] and
+/// [`PYRE_FRAME_CEILING`]. The ROOT of the batch and not the batch: a wreck
+/// twice the size is read by eye as roughly twice as much fire, not as forty
+/// times as much, and the chain is a sample of the collapse rather than a
+/// drawing of it. A carrier shedding all 2 081 of its sections lights 38, a
+/// 720-cell corridor 23, and anything at or under the gunship's own count the
+/// six it always had.
+fn frame_cap(condemned: usize) -> usize {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a section count, and the result is a count of fires to light"
+    )]
+    let scaled = PYRE_FRAME_FLOOR as f32 * (condemned as f32 / PYRE_BATCH_REFERENCE as f32).sqrt();
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "ceil of a positive float bounded by the clamp below"
+    )]
+    let cap = scaled.ceil() as usize;
+    cap.clamp(PYRE_FRAME_FLOOR, PYRE_FRAME_CEILING)
+}
+
+/// One compartment death waiting for the rest of the frame's batch.
+///
+/// Everything a fireball is built from, taken where the death happened: the
+/// body itself is despawned in the same frame, so the request cannot hold an
+/// entity.
+#[derive(Clone, Copy, Debug)]
+struct PyreRequest {
+    /// Where it burns, world space.
+    at: Vec3,
+    /// The velocity the wreck was carrying.
+    drift: Vec3,
+}
+
+/// The compartment deaths this frame has raised, spent at the end of it.
+///
+/// A collapse is one frame's worth of deaths, and which six of two thousand to
+/// light cannot be answered while they are still arriving - taking the first
+/// six draws the fire wherever the destruction pass happened to walk first,
+/// which on a hull graph is one corner of the wreck. So the observer QUEUES,
+/// and [`spend_the_pyre_queue`] answers it once the batch is whole.
 #[derive(Resource, Default, Debug)]
-struct PyreBudget(u32);
+struct PyreQueue(Vec<PyreRequest>);
 
 /// The shared graphs. Two per size: the core and its ejecta.
 ///
@@ -575,11 +630,6 @@ fn build_pyre_ejecta(ejecta: PyreEjecta, name: &str) -> EffectAsset {
         })
 }
 
-/// Give the frame its fireball allowance back.
-fn refill_pyre_budget(mut budget: ResMut<PyreBudget>) {
-    budget.0 = 0;
-}
-
 /// The two asset stores a fireball needs, or nothing at all.
 ///
 /// Two refusals with one answer, because they have the same consequence. A
@@ -766,7 +816,7 @@ fn light_the_pyre(
     images: Option<ResMut<Assets<Image>>>,
     mut pyres: ResMut<PyreEffects>,
     mut soft_dot: ResMut<SoftDot>,
-    mut budget: ResMut<PyreBudget>,
+    mut queue: ResMut<PyreQueue>,
     tier: Option<Res<GraphicsBudget>>,
     q_dead: Query<
         (
@@ -801,40 +851,140 @@ fn light_the_pyre(
         return;
     }
 
-    // The root's fireball is the one the whole death reads as, so it is never
-    // the one the cap drops.
-    if !root && budget.0 >= PYRE_FRAME_CAP {
+    let request = PyreRequest {
+        at: frame.translation(),
+        drift: inherited_drift(entity, &q_drift, &q_parents),
+    };
+    if !root {
+        // One of possibly two thousand. Which of them burn is decided at the
+        // end of the frame, when the batch is whole.
+        queue.0.push(request);
         return;
     }
-    budget.0 += 1;
 
-    let size = if root {
-        PyreSize::Hulk
-    } else {
-        PyreSize::Section
-    };
-    let scale = size.scale();
-    // A compartment is the size of the cell it stood in whatever ship it was
-    // part of; only the whole hull letting go is the size of THAT hull.
-    let hull_scale = match size {
-        PyreSize::Hulk => hulk_scale(envelope.map(|envelope| **envelope)),
-        PyreSize::Section => 1.0,
-    };
-    let pair = pyres.pair(size, &mut effects);
-    let drift = inherited_drift(entity, &q_drift, &q_parents);
-    let at = frame.translation();
+    // The hull's own fireball is the one the whole death reads as, so it is
+    // never queued and never dropped - and it is the size of THAT hull, where
+    // a compartment is the size of the cell it stood in on any ship.
+    let hull_scale = hulk_scale(envelope.map(|envelope| **envelope));
+    let pair = pyres.pair(PyreSize::Hulk, &mut effects);
     let dot = soft_dot.handle(&mut images);
-    for handle in [pair.core, pair.ejecta] {
+    burn(
+        &mut commands,
+        &pair,
+        &dot,
+        request,
+        PyreSize::Hulk,
+        hull_scale,
+    );
+}
+
+/// Light the compartment deaths this frame earned, spread over the wreck.
+///
+/// In [`Last`], because that is where the frame's destruction batch is whole:
+/// a marker raised anywhere from [`First`] to here is in it.
+fn spend_the_pyre_queue(
+    mut commands: Commands,
+    effects: Option<ResMut<Assets<EffectAsset>>>,
+    images: Option<ResMut<Assets<Image>>>,
+    mut pyres: ResMut<PyreEffects>,
+    mut soft_dot: ResMut<SoftDot>,
+    tier: Option<Res<GraphicsBudget>>,
+    mut queue: ResMut<PyreQueue>,
+) {
+    let condemned = std::mem::take(&mut queue.0);
+    if condemned.is_empty() {
+        return;
+    }
+    let Some((mut effects, mut images)) = drawable(tier, effects, images) else {
+        return;
+    };
+    let pair = pyres.pair(PyreSize::Section, &mut effects);
+    let dot = soft_dot.handle(&mut images);
+    for lit in spread(&condemned, frame_cap(condemned.len())) {
+        burn(
+            &mut commands,
+            &pair,
+            &dot,
+            condemned[lit],
+            PyreSize::Section,
+            1.0,
+        );
+    }
+}
+
+/// Which of the frame's deaths to light, as indices into `condemned`.
+///
+/// Farthest-point sampling: the first is the death furthest from the batch's
+/// own centre, and every one after it is whichever is furthest from all of
+/// those already taken. That is what makes a chain read as a wreck coming
+/// apart - six fires in one shoulder of a carrier read as one hit, and the
+/// deaths arrive in graph order, which IS one corner first.
+///
+/// Deterministic and allocation-bounded: ties go to the earlier death, and the
+/// walk is `keep` passes over a distance table rather than a sort of the
+/// batch.
+fn spread(condemned: &[PyreRequest], keep: usize) -> Vec<usize> {
+    if condemned.len() <= keep {
+        return (0..condemned.len()).collect();
+    }
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a count of deaths in one frame, dividing their summed positions"
+    )]
+    let middle = condemned.iter().map(|death| death.at).sum::<Vec3>() / condemned.len() as f32;
+    let furthest = |from: &[f32]| {
+        from.iter()
+            .enumerate()
+            .fold((0usize, f32::NEG_INFINITY), |best, (index, &distance)| {
+                if distance > best.1 {
+                    (index, distance)
+                } else {
+                    best
+                }
+            })
+            .0
+    };
+
+    let mut reach: Vec<f32> = condemned
+        .iter()
+        .map(|death| death.at.distance_squared(middle))
+        .collect();
+    let mut lit = Vec::with_capacity(keep);
+    for _ in 0..keep {
+        let next = furthest(&reach);
+        lit.push(next);
+        let taken = condemned[next].at;
+        reach[next] = f32::NEG_INFINITY;
+        for (index, left) in reach.iter_mut().enumerate() {
+            if *left > f32::NEG_INFINITY {
+                *left = left.min(condemned[index].at.distance_squared(taken));
+            }
+        }
+    }
+    lit
+}
+
+/// Spawn one death: the two instances, and the light it throws.
+fn burn(
+    commands: &mut Commands,
+    pair: &PyrePair,
+    dot: &Handle<Image>,
+    request: PyreRequest,
+    size: PyreSize,
+    hull_scale: f32,
+) {
+    let scale = size.scale();
+    for handle in [pair.core.clone(), pair.ejecta.clone()] {
         let mut properties = EffectProperties::default();
-        properties.set("base_velocity", drift.into());
+        properties.set("base_velocity", request.drift.into());
         properties.set(PYRE_SCALE_PROPERTY, hull_scale.into());
         commands.spawn((
             Name::new("Pyre Effect"),
             PyreEffectMarker {
-                hulk: root,
+                hulk: size == PyreSize::Hulk,
                 scale: hull_scale,
             },
-            Transform::from_translation(at),
+            Transform::from_translation(request.at),
             ParticleEffect::new(handle),
             EffectMaterial {
                 images: vec![dot.clone()],
@@ -844,14 +994,12 @@ fn light_the_pyre(
         ));
     }
 
-    // Asked for, never assumed - the cap may refuse it, and a death that lit
-    // nothing is still a death. Amber rather than the core's first white key:
-    // the light stands in for the whole burn averaged over its life.
-    // The flash grows with the fireball, and its lumens with the SQUARE of it:
-    // the light stands in for a burning surface, and a surface goes up with
-    // the square of what it is wrapped around.
+    // Amber rather than the core's first white key: the light stands in for
+    // the whole burn averaged over its life. It grows with the fireball, and
+    // its lumens with the SQUARE of it, because lumens stand in for a burning
+    // surface and a surface goes up with the square of what it wraps.
     commands.trigger(LightFlash {
-        at,
+        at: request.at,
         color: Color::srgb(1.0, 0.66, 0.32),
         peak_intensity: scale.lumens * hull_scale * hull_scale,
         range: scale.light_range * hull_scale,
@@ -910,7 +1058,7 @@ impl Plugin for PyrePlugin {
 
         app.register_type::<PyreEffectMarker>();
         app.init_resource::<PyreEffects>();
-        app.init_resource::<PyreBudget>();
+        app.init_resource::<PyreQueue>();
         // The mask is shared with the weapon effects, and whichever plugin
         // asks for it first is the one that builds the slot. A ship carrying
         // no armed section still dies, so the pyre cannot rely on a turret
@@ -924,7 +1072,7 @@ impl Plugin for PyrePlugin {
                 .run_if(the_tier_draws_particles)
                 .run_if(a_view_exists),
         );
-        app.add_systems(First, refill_pyre_budget);
+        app.add_systems(Last, spend_the_pyre_queue);
         app.add_systems(Update, cool_the_warm_pyres.after(warm_the_pyres));
         app.add_observer(light_the_pyre);
     }
@@ -1002,8 +1150,17 @@ mod tests {
     /// A body the pipeline can kill: it carries the transform the fireball is
     /// placed at.
     fn a_body(app: &mut App) -> Entity {
+        a_body_at(app, Vec3::ZERO)
+    }
+
+    /// The same, somewhere in particular. The global transform is written
+    /// rather than propagated: these apps run no transform pass.
+    fn a_body_at(app: &mut App, at: Vec3) -> Entity {
         app.world_mut()
-            .spawn((Transform::default(), GlobalTransform::default()))
+            .spawn((
+                Transform::from_translation(at),
+                GlobalTransform::from_translation(at),
+            ))
             .id()
     }
 
@@ -1351,7 +1508,7 @@ mod tests {
     #[test]
     fn a_collapse_is_capped_but_the_hull_itself_never_is() {
         let mut app = pyre_app();
-        for _ in 0..(PYRE_FRAME_CAP + 4) {
+        for _ in 0..(PYRE_FRAME_FLOOR + 4) {
             let section = a_body(&mut app);
             kill(&mut app, section);
         }
@@ -1361,8 +1518,8 @@ mod tests {
         app.update();
 
         assert_eq!(
-            bursts(&mut app).len() as u32,
-            (PYRE_FRAME_CAP + 1) * 2,
+            bursts(&mut app).len(),
+            (PYRE_FRAME_FLOOR + 1) * 2,
             "six compartments walk across the wreck, and the hull's own fire is never the one dropped"
         );
     }
@@ -1370,21 +1527,121 @@ mod tests {
     #[test]
     fn the_allowance_comes_back_the_next_frame() {
         let mut app = pyre_app();
-        for _ in 0..(PYRE_FRAME_CAP + 4) {
+        for _ in 0..(PYRE_FRAME_FLOOR + 4) {
             let section = a_body(&mut app);
             kill(&mut app, section);
         }
         app.update();
-        for _ in 0..(PYRE_FRAME_CAP + 4) {
+        for _ in 0..(PYRE_FRAME_FLOOR + 4) {
             let section = a_body(&mut app);
             kill(&mut app, section);
         }
         app.update();
 
         assert_eq!(
-            bursts(&mut app).len() as u32,
-            PYRE_FRAME_CAP * 2 * 2,
+            bursts(&mut app).len(),
+            PYRE_FRAME_FLOOR * 2 * 2,
             "a rake down a hull lights a fire in every frame it condemns cells in"
+        );
+    }
+
+    #[test]
+    fn a_bigger_collapse_lights_more_fires_by_the_root_of_it() {
+        assert_eq!(
+            frame_cap(0),
+            PYRE_FRAME_FLOOR,
+            "a frame that condemned nothing still answers with the floor",
+        );
+        assert_eq!(
+            frame_cap(PYRE_BATCH_REFERENCE),
+            PYRE_FRAME_FLOOR,
+            "the hull the chain was tuned on lights the chain it was tuned at",
+        );
+        assert_eq!(frame_cap(720), 23, "a 720-cell corridor");
+        assert_eq!(frame_cap(2_081), 38, "a whole carrier letting go");
+        assert_eq!(
+            frame_cap(1_000_000),
+            PYRE_FRAME_CEILING,
+            "the GPU bound is a bound, whatever died",
+        );
+    }
+
+    #[test]
+    fn a_compartment_waits_for_the_batch_and_a_hull_never_does() {
+        let mut app = pyre_app();
+        let section = a_body(&mut app);
+        kill(&mut app, section);
+        let hull = a_body(&mut app);
+        app.world_mut().entity_mut(hull).insert(IntegrityRoot);
+        kill(&mut app, hull);
+
+        assert_eq!(
+            lit_at(&mut app).len(),
+            2,
+            "the hull's own death is the one the whole thing reads as, so it never waits",
+        );
+        app.update();
+        assert_eq!(
+            lit_at(&mut app).len(),
+            4,
+            "and the compartment burns once the frame's batch is whole",
+        );
+    }
+
+    #[test]
+    fn the_chain_walks_the_whole_wreck_rather_than_the_corner_it_arrived_in() {
+        const CELLS: usize = 60;
+        let mut app = pyre_app();
+        // Condemned in graph order along one line, which is the order a
+        // collapse really raises them in.
+        for cell in 0..CELLS {
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "a cell index used as a position in a 60-cell fixture"
+            )]
+            let section = a_body_at(&mut app, Vec3::X * cell as f32);
+            kill(&mut app, section);
+        }
+        app.update();
+
+        let mut lit: Vec<f32> = bursts(&mut app)
+            .iter()
+            .map(|&burst| {
+                app.world()
+                    .get::<Transform>(burst)
+                    .expect("a burst carries its transform")
+                    .translation
+                    .x
+            })
+            .collect();
+        lit.sort_by(f32::total_cmp);
+        lit.dedup();
+        assert_eq!(
+            lit.len(),
+            frame_cap(CELLS),
+            "a fire per lit cell, each of them drawn once as a core and once as ejecta",
+        );
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "a 60-cell fixture measured against its own length"
+        )]
+        let span = (CELLS - 1) as f32;
+        assert!(
+            lit[0] <= 1.0 && lit[lit.len() - 1] >= span - 1.0,
+            "the chain stopped short of the ends of the wreck: {lit:?}",
+        );
+        let closest = lit
+            .windows(2)
+            .map(|pair| pair[1] - pair[0])
+            .fold(f32::INFINITY, f32::min);
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "a count of fires in a 60-cell fixture"
+        )]
+        let crowded = span / (frame_cap(CELLS) * 3) as f32;
+        assert!(
+            closest > crowded,
+            "two of the chain burned on top of each other, {closest} apart: {lit:?}",
         );
     }
 

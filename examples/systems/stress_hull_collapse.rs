@@ -9,7 +9,7 @@
 //! which is the frame cost `tasks/20260904-155338` attributed to avian rather
 //! than to nova.
 //!
-//! SIX named claims - four asserted, two recorded:
+//! SEVEN named claims - five asserted, two recorded:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -17,8 +17,9 @@
 //! | 2 | `outcome: every corridor cell left the hull` | the corridor is DESTROYED, so the section count falls by exactly its size |
 //! | 3 | `outcome: every wreck piece went physical` | the collapse ran to completion - nothing is still waiting on its grace when the window closes |
 //! | 4 | `outcome: every piece is thrown clear of what buried it` | each piece's own kick and its own grace window carry it past the structure standing over it, so none goes rigid inside the hull |
-//! | 5 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
-//! | 6 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
+//! | 5 | `outcome: the chain of fires is the size of the collapse` | the frame that condemns 720 cells lights the chain that batch earns, and the fires are spread down the corridor instead of crowded into the frame's first cells |
+//! | 6 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
+//! | 7 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
 //!
 //! Claim 3 is the one a debris BUDGET has to keep. Spreading activation over
 //! frames is safe in the direction the grace exists for - a piece stays
@@ -30,7 +31,12 @@
 //! one at the bottom of the corridor is thrown as hard as its own burial asks
 //! rather than as hard as a gunship's skin plate.
 //!
-//! Claims 5 and 6 assert NOTHING. Milliseconds are a statement about the host:
+//! Claim 5 is the other half of a collapse a player can read. A fixed six
+//! fires per frame is a puff on a wreck this size, and six taken in arrival
+//! order all land in the first cells the destruction pass walked - so the
+//! chain is cut from the batch, and sampled across it.
+//!
+//! Claims 6 and 7 assert NOTHING. Milliseconds are a statement about the host:
 //! this range's numbers are read against a named reference in a task's
 //! before/after, never against a threshold. Same reading as `bug_sandbox_soak`
 //! and as the probe's own `fps_within_baseline`. Do not turn them into asserts.
@@ -95,6 +101,45 @@ const RANGE_ID: &str = "hull_collapse_range";
 
 /// The lance's scenario-object id, so the probe and the rig cannot drift apart.
 const LANCE_ID: &str = "lance";
+
+// --- the fireball chain, mirrored -----------------------------------------
+//
+// `nova_gameplay::integrity::pyre` keeps its budget private. These restate the
+// rule so the range fails if the shipped one is moved without this being moved
+// with it, the same way `system_section_severing` mirrors the sever speed.
+
+/// The fewest compartment deaths one frame lights.
+const PYRE_FRAME_FLOOR: usize = 6;
+
+/// The most, whatever dies.
+const PYRE_FRAME_CEILING: usize = 48;
+
+/// The batch the floor is the right chain for: the gunship's own section count.
+const PYRE_BATCH_REFERENCE: usize = 53;
+
+/// How much of the corridor's own length the chain has to walk.
+///
+/// The failure this range is here to catch draws every fire in the cells the
+/// destruction pass reached first, which on a bore-aligned corridor is the
+/// entry face. A chain that covers most of the wound is the read wanted; one
+/// that covers a fifth of it is a puff at the entry wound whatever it cost.
+const CHAIN_SPAN_FLOOR: f32 = 0.6;
+
+/// How many of the frame's compartment deaths are lit.
+fn pyre_frame_cap(condemned: usize) -> usize {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a section count, and the result is a count of fires to light"
+    )]
+    let scaled = PYRE_FRAME_FLOOR as f32 * (condemned as f32 / PYRE_BATCH_REFERENCE as f32).sqrt();
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "ceil of a positive float bounded by the clamp below"
+    )]
+    let cap = scaled.ceil() as usize;
+    cap.clamp(PYRE_FRAME_FLOOR, PYRE_FRAME_CEILING)
+}
 
 // --- the hull, at stress scale ---------------------------------------------
 //
@@ -282,6 +327,15 @@ struct WorstFrame {
     at: f32,
 }
 
+/// One frame of the collapse: what it condemned, and what it lit for it.
+#[derive(Clone, Copy, Debug)]
+struct FrameChain {
+    /// Compartment deaths raised in the frame.
+    deaths: usize,
+    /// Fires lit for them.
+    pyres: usize,
+}
+
 /// What the range has watched happen.
 #[derive(Resource, Default)]
 struct CollapseProbe {
@@ -305,6 +359,14 @@ struct CollapseProbe {
     bites: Vec<CorridorBite>,
     /// Every piece the collapse threw, read at birth.
     escapes: Vec<PieceEscape>,
+    /// Compartment deaths raised so far this frame.
+    deaths_this_frame: usize,
+    /// Fireball INSTANCES spawned so far this frame. A death is two of them.
+    pyre_instances_this_frame: usize,
+    /// One row per frame that condemned anything, closed in [`First`].
+    chain: Vec<FrameChain>,
+    /// Where every fire of the collapse burned, world space.
+    lit: Vec<Vec3>,
     /// When the collapse window opened, in app seconds: the frame the shot
     /// left. The flush the corridor costs lands on that frame, and a window
     /// that opened when the slug finally expired 1.2 s later measured only the
@@ -360,6 +422,7 @@ fn range_plugin(app: &mut App) {
     app.add_observer(count_shots);
     app.add_observer(record_corridor_bites);
     app.add_observer(record_piece_escapes);
+    app.add_observer(record_pyres);
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_range);
     // The safety is DERIVED every frame from the held combat stance, so a range
     // that pokes `WeaponsHot` has it stomped back before the lance reads it.
@@ -370,6 +433,7 @@ fn range_plugin(app: &mut App) {
             .after(bevy::input::InputSystems)
             .run_if(in_state(GameStates::Playing)),
     );
+    app.add_systems(First, close_the_frame_chain);
     app.add_systems(FixedUpdate, count_fixed_steps);
     app.add_systems(
         Update,
@@ -690,11 +754,45 @@ fn record_piece_escapes(
         return;
     };
     let middle = frame.transform_point(center_of_mass.0);
+    probe.deaths_this_frame += 1;
     probe.escapes.push(PieceEscape {
         buried: (**envelope - at.translation.distance(middle)).max(0.0),
         window: grace.remaining(),
         speed: (velocity.0 - drift.0).length(),
     });
+}
+
+/// Read every fireball the collapse lights, where it burns.
+///
+/// An observer, because the budget spends its queue in [`Last`]: a sampler in
+/// `Update` reads the frame before the one that lit them.
+fn record_pyres(
+    add: On<Add, PyreEffectMarker>,
+    q_pyre: Query<&Transform, With<PyreEffectMarker>>,
+    mut probe: ResMut<CollapseProbe>,
+) {
+    let Ok(at) = q_pyre.get(add.entity) else {
+        return;
+    };
+    probe.pyre_instances_this_frame += 1;
+    let at = at.translation;
+    // The core and its ejecta burn in the same place; the chain is the places.
+    if !probe.lit.iter().any(|seen| *seen == at) {
+        probe.lit.push(at);
+    }
+}
+
+/// Close the previous frame's tally.
+///
+/// In [`First`], because the two halves of a frame's row are written in
+/// different schedules - a death is raised wherever the damage pass runs, and
+/// its fireball is lit at the end of the frame - and both are whole here.
+fn close_the_frame_chain(mut probe: ResMut<CollapseProbe>) {
+    let deaths = std::mem::take(&mut probe.deaths_this_frame);
+    let pyres = std::mem::take(&mut probe.pyre_instances_this_frame) / 2;
+    if deaths > 0 || pyres > 0 {
+        probe.chain.push(FrameChain { deaths, pyres });
+    }
 }
 
 /// How many entities of one kind are alive right now.
@@ -1147,7 +1245,81 @@ fn verify(world: &mut World) {
         }),
     );
 
-    // --- claims 5 and 6: RECORDED, and asserted nowhere ---
+    // --- claim 5: the chain is the size of the collapse, and spread over it ---
+
+    let (chain, lit) = {
+        let probe = world.resource::<CollapseProbe>();
+        (probe.chain.clone(), probe.lit.clone())
+    };
+    let wrong: Vec<&FrameChain> = chain
+        .iter()
+        .filter(|frame| frame.pyres != pyre_frame_cap(frame.deaths))
+        .collect();
+    let biggest = chain
+        .iter()
+        .copied()
+        .reduce(|worst, frame| {
+            if frame.deaths > worst.deaths {
+                frame
+            } else {
+                worst
+            }
+        })
+        .unwrap_or(FrameChain {
+            deaths: 0,
+            pyres: 0,
+        });
+    assert!(
+        wrong.is_empty() && biggest.pyres > PYRE_FRAME_FLOOR,
+        "hull_collapse: {} of {} condemning frames lit a chain the batch did not earn, and the \
+         biggest lit {} for {} deaths against the {} it asks for - a fixed six is a puff on a \
+         wreck this size",
+        wrong.len(),
+        chain.len(),
+        biggest.pyres,
+        biggest.deaths,
+        pyre_frame_cap(biggest.deaths),
+    );
+
+    let span = lit
+        .iter()
+        .fold(Vec3::NEG_INFINITY, |box_max, at| box_max.max(*at))
+        - lit
+            .iter()
+            .fold(Vec3::INFINITY, |box_min, at| box_min.min(*at));
+    let corridor = HULL_CELL * f32::from(i16::try_from(HULL_DEPTH).unwrap_or(0) - 1);
+    let closest = lit
+        .iter()
+        .enumerate()
+        .flat_map(|(index, at)| {
+            lit.iter()
+                .skip(index + 1)
+                .map(move |other| at.distance(*other))
+        })
+        .fold(f32::INFINITY, f32::min);
+    assert!(
+        span.max_element() >= corridor * CHAIN_SPAN_FLOOR && closest >= HULL_CELL,
+        "hull_collapse: the chain walked {:.1} units of a {corridor:.1} unit corridor with its \
+         two closest fires {closest:.2} units apart - fires taken in arrival order crowd into \
+         the cells the destruction pass reached first",
+        span.max_element(),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the chain of fires is the size of the collapse",
+        serde_json::json!({
+            "condemning_frames": chain.len(),
+            "biggest_frame_deaths": biggest.deaths,
+            "biggest_frame_pyres": biggest.pyres,
+            "flat_cap_before": PYRE_FRAME_FLOOR,
+            "fires_lit": lit.len(),
+            "chain_span_m": Meters::from_engine(span.max_element()).get(),
+            "corridor_span_m": Meters::from_engine(corridor).get(),
+            "closest_pair_m": Meters::from_engine(closest).get(),
+        }),
+    );
+
+    // --- claims 6 and 7: RECORDED, and asserted nowhere ---
 
     let step_ms = avian_reading(world, "avian/total_step_time");
     let contacts_ms = avian_reading(world, "avian/collision/update_contacts");
