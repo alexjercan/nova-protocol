@@ -17,6 +17,26 @@ fails first, then the fix, one commit per item. Docs items are edited in
 place. Perf items are measured before they are changed, and left alone if
 the number is flat. Design calls go to the owner as a list, not as edits.
 
+## Re-check, 2026-09-12
+
+Reviewed commit subjects and bodies from `v0.13.0` through HEAD, then checked
+current code for every touched path. Work has started outside this task:
+
+- `68c3ebe6f` replaced the duplicate targeting ray-cast passes with one
+  `SensorContacts` pass per observer. The targeting perf item below is done.
+- `47a4ab860` staged root deaths on both reference hulls and measured the hulk
+  pyre scale. `abfcfead6` measured and replaced the flat section-pyre frame cap.
+  The remaining pyre measurement questions stay open below.
+- `f3267c18d` changed evade legs and cooldown duration, but the current exit
+  edge still arms the cooldown on ANY Evade exit. It did not close that bug.
+- `f3a78a434` protects seeded parts from stud erosion, but
+  `keel_component` still sets `kept[start]` without checking `standing[start]`.
+  It did not close the bow-seed resurrection bug.
+- `a89931404` touched the cited flight page and WFC file for other review
+  findings. The 55.2 m hull wording and `kept[start]` finding remain present.
+- The other cited paths either did not change after this task was created or
+  changed for unrelated work. Their findings remain open.
+
 ## Bugs
 
 - [ ] `nova_scenario/src/objects/asteroid_carve.rs:413` a severed rock island
@@ -94,19 +114,39 @@ web CI job (`20260909-213100`).
 
 - [ ] `nova_scenario/src/world.rs:281,309` clones `story_messages` before
       the length compare and allocates the skip action string per frame.
-- [ ] `nova_ship/src/input/targeting/contacts.rs:246` + `radar.rs:87` two
+- [x] `nova_ship/src/input/targeting/contacts.rs:246` + `radar.rs:87` two
       `collect_lockable` ray-cast passes per frame while the radar is held.
+      Closed by `68c3ebe6f`: one `SensorContacts` pass now publishes the answer
+      per observing ship and both consumers read it.
 - [ ] `nova_scenario/src/objects/planet.rs:90` `PlanetVisual::build` inline
       on the spawn frame, about 50 ms per planet.
 - [ ] `nova_editor/src/preview.rs:317` scrubbing a planet radius rebuilds
       the surface every frame.
 - [ ] `nova_hud/src/cinematic_title.rs:212,215` bare visibility writes
       where the idiom is `set_if_neq`.
-- [ ] `nova_gameplay/src/integrity/pyre.rs` five feel questions never
-      measured: `HULK_PYRE` and its 1700 m light, the shed ceiling,
-      `PYRE_FRAME_CAP` under load, a release-profile number, the
-      `CAMERA_BASE` confound. Stage a root death in a range or record them
-      as accepted unmeasured.
+- [ ] `nova_gameplay/src/integrity/pyre.rs` three feel questions remain
+      unmeasured: the shed ceiling, a release-profile number, and the
+      `CAMERA_BASE` confound. `47a4ab860` staged and measured root deaths on
+      both reference hulls; `abfcfead6` measured the section-pyre frame cap
+      under a collapse. Measure the remaining three or record them as accepted
+      unmeasured.
+
+## Open questions before implementation
+
+These choices can change a worker's implementation and need owner answers:
+
+- When `CommsQueue::pending` reaches its cap, drop the oldest cue, drop the
+  newest cue, or reject the producer write? What is the cap?
+- Is an empty bench `expand` invalid input, or a valid request for no expansion?
+- Should the unreachable `"<1km"` and `"1-2km"` observation bands be made
+  reachable by changing the boundaries, or removed from the report format?
+- Which side owns `DEFAULT_ACT_TICKS`: Rust, TypeScript, or generated shared
+  data?
+- For `feature-gravity.png`, should the page reference the existing image, or
+  should the example and unreferenced asset be deleted?
+- What measurement scenario and regression threshold should decide whether the
+  planet spawn and editor scrub costs are worth changing?
+- The six owner design calls below are unresolved and block those edits.
 
 ## Design calls for the owner
 
