@@ -1,6 +1,6 @@
 # Flight, AI, weapon and destruction figures derive from the hull and the round
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 83
 - TAGS: v0.14.0, bug, balance, ai, combat, review
 
