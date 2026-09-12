@@ -10,7 +10,10 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::{prelude::UiSkin, theme, widget::panel};
 
-use crate::{pause::on_back_to_menu, widgets::button};
+use crate::{
+    pause::{focus_lost, on_back_to_menu, FocusPause},
+    widgets::button,
+};
 
 /// Marker for the outcome overlay root (see `sync_outcome_overlay`). Carries
 /// the queued-switch snapshot the overlay was built against, so the sync can
@@ -206,6 +209,12 @@ pub(crate) fn on_outcome_advance(
 /// the wall clock is the only one still moving - via exactly the Continue button's
 /// release. The local clock re-arms per outcome (reset on any CurrentOutcome change)
 /// and idles when no lingering chain waits (nothing to advance).
+///
+/// The wall clock keeps running when the window does not have focus, and that
+/// is the authored behavior: the cutscene beat the timer paces is the scenario
+/// speaking, not the player acting. What the player is owed is the world on the
+/// other side of it, which `sync_outcome_pause` hands to the pause menu rather
+/// than to a fight nobody is watching.
 pub(crate) fn auto_advance_outcome(
     // Optional: headless rigs run without TimePlugin (the menu tests feed
     // their clocks by hand) - no wall clock, no auto-advance.
@@ -425,6 +434,8 @@ pub(crate) fn sync_start_failure_cursor(
 pub(crate) fn sync_outcome_pause(
     outcome: Res<CurrentOutcome>,
     current: Res<State<PauseStates>>,
+    policy: Option<Res<FocusPause>>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
     mut next: ResMut<NextState<PauseStates>>,
 ) {
     if !outcome.is_changed() {
@@ -433,6 +444,16 @@ pub(crate) fn sync_outcome_pause(
     if outcome.0.is_some() {
         next.set(PauseStates::Paused);
     } else if *current.get() == PauseStates::Paused {
+        // An authored `auto_advance_secs` runs on the wall clock, so a timed
+        // outcome advances while the player is in another window - and the
+        // scenario it advances INTO would then get its first frames with
+        // nobody watching. The pause is transferred rather than released: the
+        // state never leaves `Paused`, so the clocks are never unheld, and
+        // `reconcile_pause_overlay` hands the screen to the ordinary pause menu
+        // in the same frame. The new scenario waits for Resume.
+        if focus_lost(policy.as_deref(), q_window.iter().next()) {
+            return;
+        }
         // Only an outcome-driven pause can be live here: the ESC toggle is
         // suppressed while an outcome is shown, so a set outcome is the only
         // reason we could be Paused when it clears.

@@ -296,6 +296,15 @@ What is on disk today, in reading order:
   `system_outcomes`
   (die -> the Defeat overlay -> Retry -> a clean reload -> kill -> the
   objective and the CHECKPOINT -> Continue -> the chained scenario),
+  `bug_outcome_pause` (who owns the screen and whether the world is running
+  behind them: alt-tab pauses a fight and coming back does not resume, an
+  outcome landing over the pause menu takes the screen, and a timed advance
+  taken while the player is away hands its pause to the pause menu without one
+  unpaused frame),
+  `bug_refused_scenario` (a chapter the content gate refuses ends the one it
+  replaces, cursor freed and Main Menu working),
+  `bug_failed_assets` (a broken optional mod is quarantined and reported, and a
+  broken base asset is fatal and says so),
   `bug_neutralized_quiet` (a wreck's point defence stands down) and
   `system_borrowed_battery` (the Flight Computer works idle player PDCs). Then
   the interface, driven by synthesized pointer input: `system_ship_editor`

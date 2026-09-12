@@ -37,6 +37,7 @@ use nova_ui::{
 pub mod prelude {
     pub use super::{
         ambience::MENU_BACKDROP_ENV,
+        pause::FocusPause,
         settings::WindowModeSetting,
         settings_store::{SettingsStoreAccess, SettingsStorePlugin, SettingsStoreRoot},
         widgets::MenuCueSystems,
@@ -75,8 +76,9 @@ use outcome::{
 };
 use pause::{
     force_unpause, hold_clocks_for_pause_menu, hold_clocks_for_terminal,
-    keep_frozen_cursor_released, open_command_shell, release_clocks_for_pause_menu,
-    release_clocks_for_terminal, release_cursor, restore_cursor, setup_pause_ui, toggle_pause,
+    keep_frozen_cursor_released, open_command_shell, pause_on_focus_loss, reconcile_pause_overlay,
+    release_clocks_for_pause_menu, release_clocks_for_terminal, release_cursor, restore_cursor,
+    toggle_pause, FocusPause,
 };
 use portal::{drive_update_choreography, UpdateRequested};
 pub use scenarios::NewGameScenario;
@@ -223,7 +225,21 @@ impl Plugin for NovaMenuPlugin {
         // Update systems keep running while paused - pausing Time<Virtual>
         // zeroes deltas, it does not stop schedules - which is exactly what lets
         // the overlay stay interactive.
-        app.add_systems(Update, toggle_pause.run_if(in_state(GameStates::Playing)));
+        // The pause axis, in the order its decisions are made: the player's own
+        // gesture, then the window's, then the panel that mirrors whatever they
+        // settled on. Ordered rather than left to chance because all three read
+        // and write the same `NextState` in one frame - a panel reconciled
+        // before the gesture that opened it would appear a frame late, and a
+        // focus pause that landed after it would find it already built.
+        app.add_systems(
+            Update,
+            (toggle_pause, pause_on_focus_loss, reconcile_pause_overlay)
+                .chain()
+                .run_if(in_state(GameStates::Playing)),
+        );
+        // The focus policy this process runs under. Inserted rather than
+        // init'd so a range (or the editor) can state its own.
+        app.init_resource::<FocusPause>();
         // The command shell opens over every surface, so its key is NOT gated
         // on Playing the way the pause overlay's is. It IS gated on the CRT
         // existing: a menu-only rig has no monitor to open. And on Normal input
@@ -239,7 +255,7 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             OnEnter(PauseStates::Paused),
-            (hold_clocks_for_pause_menu, release_cursor, setup_pause_ui),
+            (hold_clocks_for_pause_menu, release_cursor),
         );
         app.add_systems(
             OnExit(PauseStates::Paused),

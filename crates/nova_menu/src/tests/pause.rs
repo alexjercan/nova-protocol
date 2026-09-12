@@ -6,7 +6,7 @@ use bevy::{
     prelude::*,
     state::app::StatesPlugin,
     ui_widgets::Activate,
-    window::{CursorGrabMode, CursorOptions},
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -388,4 +388,164 @@ fn overlay_roots_carry_an_explicit_z_index() {
             z.0
         );
     }
+}
+
+/// A playing rig with a window of its own, so focus can be taken from it.
+fn windowed_scenario_app() -> (App, Entity) {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+    let window = app
+        .world_mut()
+        .spawn((Window::default(), PrimaryWindow))
+        .id();
+    enter_playing(&mut app);
+    (app, window)
+}
+
+/// Change the window's focus and run the two frames the answer takes: the one
+/// that reads the window and asks for the pause, and the one the state
+/// transition lands on.
+fn set_focus(app: &mut App, window: Entity, focused: bool) {
+    app.world_mut().get_mut::<Window>(window).unwrap().focused = focused;
+    app.update();
+    app.update();
+}
+
+/// Alt-tabbing out of a fight pauses it, and alt-tabbing back does not resume:
+/// the player left, and what they come back to is the pause menu they would
+/// have opened themselves, with Resume under the pointer.
+#[test]
+fn losing_the_window_pauses_play_and_regaining_it_never_resumes() {
+    let (mut app, window) = windowed_scenario_app();
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+    assert_eq!(clocks_paused(&app), (false, false));
+
+    set_focus(&mut app, window, false);
+
+    assert_eq!(pause_state(&app), PauseStates::Paused, "focus loss pauses");
+    assert_eq!(clocks_paused(&app), (true, true), "both clocks freeze");
+    assert!(
+        find_named(&mut app, "Pause Overlay").is_some(),
+        "it is the ORDINARY pause menu, with its own Resume"
+    );
+
+    set_focus(&mut app, window, true);
+    app.update();
+
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Paused,
+        "coming back must not drop the player into a running fight"
+    );
+    assert_eq!(clocks_paused(&app), (true, true));
+}
+
+/// A run that enters `Playing` already unfocused sees no focus EDGE, and is
+/// owed the pause all the same: the player who alt-tabbed during the load is
+/// the same player.
+#[test]
+fn entering_play_while_already_unfocused_still_pauses() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+    app.world_mut().spawn((
+        Window {
+            focused: false,
+            ..default()
+        },
+        PrimaryWindow,
+    ));
+
+    enter_playing(&mut app);
+    app.update();
+
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+}
+
+/// A scripted run drives a display nobody is looking at. Pausing it would
+/// freeze every harnessed walk on its first frame, so the policy is off there -
+/// and the same switch is what lets this test prove the pause is really the
+/// policy's doing.
+#[test]
+fn a_scripted_run_ignores_focus() {
+    let (mut app, window) = windowed_scenario_app();
+    app.insert_resource(crate::pause::FocusPause(false));
+
+    set_focus(&mut app, window, false);
+
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "a harness run keeps flying while unfocused"
+    );
+
+    // Delivery guard: the identical focus loss pauses under the shipped policy.
+    app.insert_resource(crate::pause::FocusPause(true));
+    app.update();
+    app.update();
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+}
+
+/// The editor's build mode is a workbench, not a fight: alt-tabbing to a
+/// reference image and coming back to a pause panel over the parts gallery
+/// helps nobody. A live scenario is what makes the run interactive gameplay.
+#[test]
+fn the_build_mode_workbench_does_not_pause_on_focus_loss() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.insert_resource(CurrentScenario(None));
+    let window = app
+        .world_mut()
+        .spawn((Window::default(), PrimaryWindow))
+        .id();
+    enter_playing(&mut app);
+
+    set_focus(&mut app, window, false);
+
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "no scenario, no gameplay pause"
+    );
+
+    // Delivery guard: the same rig with a scenario loaded does pause.
+    app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+    app.update();
+    app.update();
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+}
+
+/// A windowless run - `--norender`, an offscreen rig - has no focus to lose and
+/// behaves as focused. Nothing may pause a run that has no window to alt-tab
+/// away from.
+#[test]
+fn a_windowless_run_never_pauses_on_focus() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+    enter_playing(&mut app);
+    app.update();
+
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+}
+
+/// An open NOVA OS is the active modal, and focus loss does not take that away
+/// from it: the freeze is already held, and a pause panel underneath would be
+/// waiting when the terminal slid shut.
+#[test]
+fn focus_loss_leaves_the_nova_os_the_active_modal() {
+    let (mut app, window) = windowed_scenario_app();
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::NovaOs);
+    app.update();
+
+    set_focus(&mut app, window, false);
+
+    assert_eq!(pause_state(&app), PauseStates::NovaOs);
+    assert!(
+        find_named(&mut app, "Pause Overlay").is_none(),
+        "the terminal keeps the screen"
+    );
 }

@@ -150,9 +150,9 @@ fn main() -> bevy::app::AppExit {
                 .step("report the chain")
                 .on_enter(report_chain)
                 .add()
-                // Enrolled in capture looping: when a frame capture outlives the
-                // script the scene reloads and the arc replays, so the capture
-                // measures ACTIVITY rather than an idle tail.
+                // Enrolled in capture looping: when a SCREENSHOT capture outlives
+                // the script the scene reloads and the arc replays, so what is
+                // shot is the live arc rather than an idle tail.
                 .loop_from(LOAD_STEP)
                 .on_loop(reload_the_probe),
         ));
@@ -162,7 +162,15 @@ fn main() -> bevy::app::AppExit {
         // "die -> retry -> kill -> continue" beside the scenario's own events.
         // `hostile_down` is one-way across the run. `player_down` is not: Retry
         // intentionally re-seeds it to 0.
-        app.add_plugins(nova_probe::NovaProbePlugin::default().monotonic(["hostile_down"]));
+        // No frame-time claim. Every arc this range walks ENDS - in a defeat
+        // frame, in a victory frame - and a shown outcome stops `Time<Virtual>`,
+        // which a capture correctly refuses to measure. The window would have to
+        // close before the first death, four frames into a 180-frame warmup.
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default()
+                .monotonic(["hostile_down"])
+                .without_frametime(),
+        );
     }
 
     app.run()

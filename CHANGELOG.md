@@ -164,6 +164,12 @@ does NOT get an entry - and it is the only place they are written down.
 - NOVA OS plots map bodies at their physical size with a minimum pick target,
   ranges its rings from the live contact spread, and labels only the section
   the inspector is pointing at.
+- Interactive play pauses when the window loses focus, and never resumes by
+  itself: coming back leaves the pause menu up for you to dismiss. A scripted
+  run is exempt.
+- One overlay at a time: an outcome or a start refusal takes the screen from
+  the pause menu, and a timed outcome that advances unfocused hands its pause
+  to the menu rather than dropping a live frame.
 
 ### Audio & Visuals
 - A hull dies at its own size: the fireball, its debris and its flash are drawn

@@ -288,6 +288,24 @@ plugin test pins the count at one.
   records the state it covered and closing restores it. `nova_gameplay` owns the
   enum and gates the spaceship sets; `nova_menu` owns the toggles and the
   overlay UI. Only meaningful inside `Playing`; leaving `Playing` resets it.
+- The pause PANEL is reconciled, not spawned on the way in
+  (`reconcile_pause_overlay`): `Paused` is a freeze axis three surfaces share,
+  and the outcome frame and the FAILED TO START report each hold it while
+  drawing a modal of their own. The panel exists exactly while `Paused` is the
+  pause MENU's, so an outcome landing behind it takes the screen, and an outcome
+  clearing into a pause the player still owns hands it back. Exactly one modal,
+  whichever arrived last.
+- Losing the window pauses interactive play (`pause_on_focus_loss`): an unpaused
+  run over a live scenario takes the ordinary pause the moment the window is not
+  focused, and regaining focus never resumes - Resume is the player's. A run
+  already paused stays as it is, so an open NOVA OS or a shown outcome remains
+  the active modal, and the editor's build mode (no live scenario) never pauses
+  at all. `FocusPause` carries the policy and boots OFF under a harness
+  (`harness_env_active`): a probe drives an X display nobody is looking at, and
+  a `--norender` run has no window to lose. An authored `auto_advance_secs`
+  keeps running on the wall clock while unfocused, and the chapter it advances
+  into gets no unpaused frame - the outcome's pause is TRANSFERRED to the pause
+  menu rather than released (`examples/systems/bug_outcome_pause.rs`).
 - The freeze itself is a NAMED hold, not a boolean: `ClockFreeze` counts
   `FreezeOwner::{PauseMenu, Terminal}` and stops `Time<Virtual>` +
   `Time<Physics>` while any owner holds. It has to be named because the two
@@ -324,7 +342,7 @@ stateDiagram-v2
         Playing --> Loading: leaving gameplay (content restart)
         state "Playing" as Playing {
             [*] --> Unpaused
-            Unpaused --> Paused: ESC
+            Unpaused --> Paused: ESC / focus lost / outcome
             Paused --> Unpaused: ESC
             Unpaused --> NovaOs: Tab / :
             NovaOs --> Unpaused: Tab / ESC

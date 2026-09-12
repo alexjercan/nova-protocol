@@ -530,6 +530,17 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "bug_outcome_pause",
+        &[
+            "a scripted run is exempt from the focus pause",
+            "losing the window pauses interactive play",
+            "regaining the window never resumes by itself",
+            "an outcome landing over the pause menu takes the screen",
+            "a timed advance leaves no unpaused frame",
+            "a timed advance hands its pause to the pause menu",
+        ],
+    ),
+    (
         "bug_refused_scenario",
         &[
             "a refused scenario ends the one it replaces",
@@ -674,7 +685,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 299;
+const SYSTEMS_INVARIANTS: usize = 305;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

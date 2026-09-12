@@ -12,8 +12,8 @@ use nova_scenario::prelude::*;
 use nova_ui::prelude::UiSkin;
 
 use super::support::{
-    all_text, app, app_with_outcome, clocks_paused, dummy_scenarios, enter_playing, find_named,
-    pause_state, press_escape,
+    all_text, app, app_with_outcome, clocks_paused, dummy_scenario, dummy_scenarios, enter_playing,
+    find_named, pause_state, press_escape,
 };
 use crate::outcome::{StartFailureCamera, StartFailureOverlay};
 
@@ -667,4 +667,152 @@ fn a_defeat_sounds_and_a_victory_leaves_the_chime_to_the_objective_panel() {
 
     let mut won = outcome_app(ScenarioOutcomeKind::Victory);
     assert!(take_cues(&mut won).is_empty());
+}
+
+/// The race the arbitration exists for: ESC on the frame an `Outcome` action is
+/// still queued opens the pause menu BEFORE the outcome resource changes. The
+/// outcome then lands behind a panel that ESC can no longer close (it is inert
+/// over an outcome) and whose Resume would unfreeze the world under the banner.
+///
+/// The outcome takes the screen. Exactly one modal, and it is the one with the
+/// story's own buttons on it.
+#[test]
+fn an_outcome_landing_over_the_pause_menu_takes_the_screen() {
+    let mut app = app_with_outcome();
+    enter_playing(&mut app);
+
+    // The player's ESC, answered in full: the pause menu is up and owns the
+    // screen.
+    press_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+    assert!(
+        find_named(&mut app, "Pause Overlay").is_some(),
+        "the pause menu got there first"
+    );
+
+    // ...and the queued Outcome action lands a frame later.
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig::new(
+        ScenarioOutcomeKind::Defeat,
+        "Your ship broke apart.",
+    ));
+    app.update();
+    app.update();
+
+    assert!(
+        find_named(&mut app, "Outcome Overlay").is_some(),
+        "the outcome is the modal"
+    );
+    assert!(
+        find_named(&mut app, "Pause Overlay").is_none(),
+        "the pause panel may not stack under it"
+    );
+    assert!(
+        find_named(&mut app, "Pause Settings Panel Root").is_none(),
+        "nor may its Settings modal, which sits ABOVE the outcome"
+    );
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Paused,
+        "the freeze is continuous across the handover"
+    );
+    assert_eq!(clocks_paused(&app), (true, true));
+}
+
+/// The refusal report is a harder dead end than an outcome: the scenario it
+/// interrupted is torn down, so a Resume over it would resume nothing and a
+/// Retry would reload a scenario that no longer exists. ESC leaves it alone.
+#[test]
+fn escape_over_the_refusal_report_raises_no_pause_menu() {
+    let mut app = app_with_outcome();
+    enter_playing(&mut app);
+    app.world_mut().resource_mut::<ScenarioStartFailure>().0 = Some(ScenarioStartFailureReport {
+        scenario_name: "Chapter Two".to_string(),
+        messages: vec!["NextScenario targets unknown scenario 'gone'".to_string()],
+    });
+    app.update();
+
+    press_escape(&mut app);
+
+    assert!(
+        find_named(&mut app, "Pause Overlay").is_none(),
+        "the report is the one modal, and Main Menu is the way out"
+    );
+    assert!(find_named(&mut app, "Start Failure Overlay").is_some());
+}
+
+/// An authored `auto_advance_secs` runs on the wall clock, so a timed outcome
+/// advances while the player is in another window. The scenario it advances
+/// INTO must not get a single unpaused frame: the outcome's pause is
+/// TRANSFERRED to the ordinary pause menu rather than released, so the player
+/// comes back to Resume instead of to a fight already in progress.
+#[test]
+fn a_timed_outcome_that_advances_unfocused_hands_its_pause_to_the_menu() {
+    let mut app = app_with_outcome();
+    app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                focused: false,
+                ..default()
+            },
+            PrimaryWindow,
+            CursorOptions::default(),
+        ))
+        .id();
+    enter_playing(&mut app);
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+        outcome: ScenarioOutcomeKind::Victory,
+        message: None,
+        auto_advance_secs: Some(2.0),
+    });
+    app.update();
+    app.update();
+    assert_eq!(pause_state(&app), PauseStates::Paused, "the outcome pause");
+
+    // The timer fires and the chain advances: the loader's teardown clears the
+    // outcome as the next scenario comes up.
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+    for _ in 0..4 {
+        app.update();
+        assert_eq!(
+            clocks_paused(&app),
+            (true, true),
+            "not one unpaused frame between the outcome and the pause menu"
+        );
+        assert_eq!(pause_state(&app), PauseStates::Paused);
+    }
+
+    assert!(
+        find_named(&mut app, "Outcome Overlay").is_none(),
+        "the outcome frame is gone with the chapter it ended"
+    );
+    assert!(
+        find_named(&mut app, "Pause Overlay").is_some(),
+        "the ordinary pause menu has the screen, and Resume is the player's"
+    );
+
+    // Delivery guard: the same advance with the window focused resumes play,
+    // which is what makes the pause above the focus policy's doing.
+    app.world_mut().get_mut::<Window>(window).unwrap().focused = true;
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Unpaused);
+    app.update();
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+        outcome: ScenarioOutcomeKind::Victory,
+        message: None,
+        auto_advance_secs: Some(2.0),
+    });
+    app.update();
+    app.update();
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+    app.update();
+    app.update();
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "delivery guard: a focused advance runs the next chapter"
+    );
+    assert_eq!(clocks_paused(&app), (false, false));
 }

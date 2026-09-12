@@ -1,5 +1,12 @@
 //! The pause overlay: ESC freezes the sim and raises a modal panel with
 //! Resume / Retry / Settings / Back to Main Menu / Exit.
+//!
+//! ESC is not the only way in. Losing the window pauses interactive play too
+//! ([`pause_on_focus_loss`]), and the panel itself is RECONCILED
+//! ([`reconcile_pause_overlay`]) rather than spawned on the way in, because
+//! `Paused` is a freeze axis the outcome frame and the refusal report share -
+//! each holds it while drawing a modal of its own, and either can arrive or
+//! clear without the state changing.
 
 use bevy::{
     input::{keyboard::KeyboardInput, ButtonState},
@@ -40,6 +47,7 @@ pub(crate) fn toggle_pause(
     mut next: ResMut<NextState<PauseStates>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     outcome: Option<Res<CurrentOutcome>>,
+    failure: Option<Res<ScenarioStartFailure>>,
     mut commands: Commands,
 ) {
     // A scene surface that owns Escape this frame answers it as BACK - leaving
@@ -62,6 +70,13 @@ pub(crate) fn toggle_pause(
     // buttons: ESC/Start must not toggle here, or it would either resume the sim behind
     // the still-open overlay or stack the pause panel over it.
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
+        return;
+    }
+    // The refusal report is the same shape of modal and a harder dead end: the
+    // scenario it interrupted is torn down, so a Resume button over it would
+    // resume nothing and a Retry would reload a scenario that no longer exists.
+    // Main Menu, on the report itself, is the way out.
+    if failure.is_some_and(|failure| failure.0.is_some()) {
         return;
     }
     // Off the `Gamepad` COMPONENT: bevy 0.19 registers no
@@ -142,6 +157,65 @@ pub(crate) fn open_command_shell(
     // running world the player never asked to be in.
     close.return_to = *current.get();
     next.set(PauseStates::NovaOs);
+}
+
+/// Whether losing the window pauses interactive play in this process.
+///
+/// Off for a scripted run. A probe drives an X display nobody is looking at and
+/// a `--norender` run has no window at all, so a focus pause would freeze every
+/// harnessed walk on its first frame and every one of them would stall. Read
+/// once at build (`harness_env_active`) rather than per frame, and a resource
+/// rather than a constant so a range can state which side of the policy it is
+/// proving.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FocusPause(pub bool);
+
+impl Default for FocusPause {
+    fn default() -> Self {
+        Self(!nova_gameplay::prelude::harness_env_active())
+    }
+}
+
+/// Whether an interactive run should be holding a focus pause right now.
+///
+/// The WINDOW is asked, not a focus event: a run that enters `Playing` already
+/// unfocused never sees an edge, and the player who alt-tabbed during the load
+/// is owed the same pause as the one who alt-tabbed during flight. No window
+/// (a headless rig, `--norender`) reads as focused - there is nothing to lose.
+pub(crate) fn focus_lost(policy: Option<&FocusPause>, window: Option<&Window>) -> bool {
+    policy.is_some_and(|policy| policy.0) && window.is_some_and(|window| !window.focused)
+}
+
+/// Pause interactive play when the window goes away.
+///
+/// The pause is the ORDINARY one: the same panel, the same freeze, the same
+/// Resume. Coming back never resumes by itself - the player left the game
+/// running by accident once, and the fix is not to drop them back into a fight
+/// the moment they click the taskbar.
+///
+/// Only an unpaused run acquires it. A pause already held stays held whatever
+/// owns it, so an open NOVA OS remains the active modal and an outcome frame
+/// remains the one modal over its own pause.
+pub(crate) fn pause_on_focus_loss(
+    policy: Option<Res<FocusPause>>,
+    pause: Res<State<PauseStates>>,
+    scenario: Option<Res<CurrentScenario>>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    mut next: ResMut<NextState<PauseStates>>,
+) {
+    if *pause.get() != PauseStates::Unpaused {
+        return;
+    }
+    // A live scenario is what makes the run interactive gameplay. The editor's
+    // build mode is a workbench: alt-tabbing to a reference image and coming
+    // back to a pause panel over the parts gallery helps nobody.
+    if !scenario.is_some_and(|scenario| scenario.is_some()) {
+        return;
+    }
+    if !focus_lost(policy.as_deref(), q_window.iter().next()) {
+        return;
+    }
+    next.set(PauseStates::Paused);
 }
 
 /// Freeze the simulation for the pause overlay: virtual time (Update deltas +
@@ -233,29 +307,67 @@ pub(crate) fn force_unpause(mut next: ResMut<NextState<PauseStates>>, mut clocks
     clocks.release_all();
 }
 
+/// Marker for the pause overlay root, so the panel can be counted and
+/// reconciled rather than looked up by name.
+#[derive(Component)]
+pub(crate) struct PauseOverlay;
+
 /// The pause overlay: a dim full-screen layer with a centered panel.
+///
+/// Reconciled every frame rather than spawned at `OnEnter(Paused)`, because the
+/// pause STATE is shared with the modals that take the screen from it. An
+/// outcome frame and the FAILED TO START report both hold `Paused` and draw a
+/// surface of their own, and either can arrive or clear while the state itself
+/// never changes - so a panel built on the way in could neither be taken away
+/// when an outcome landed behind it nor handed back when that outcome cleared
+/// into a pause the player still owns (the unfocused auto-advance).
+///
+/// It reads the pause the app is about to be in, not the one it is in: the
+/// decisions that open and close the menu are made in `Update` and apply next
+/// frame, and a panel built from the state before the transition would flash
+/// for a frame on the way out.
+///
 /// `CurrentScenario` is optional for the same reason it is in the loader's
 /// consumers: headless menu rigs run without the scenario loader.
-pub(crate) fn setup_pause_ui(
+pub(crate) fn reconcile_pause_overlay(
     mut commands: Commands,
-    current: Option<Res<CurrentScenario>>,
+    pause: Res<State<PauseStates>>,
+    next_pause: Res<NextState<PauseStates>>,
+    scenario: Option<Res<CurrentScenario>>,
     skin: Res<UiSkin>,
     active_settings_tab: Res<SettingsActiveTab>,
     outcome: Option<Res<CurrentOutcome>>,
+    failure: Option<Res<ScenarioStartFailure>>,
+    q_overlay: Query<Entity, With<PauseOverlay>>,
+    q_owned: Query<Entity, Or<(With<PauseOverlay>, With<PauseSettingsPanel>)>>,
 ) {
-    // The outcome frame also enters `Paused` (`sync_outcome_pause`) to freeze the sim,
-    // but it is its own modal with its own buttons: do not stack the pause panel (or
-    // its Settings modal) underneath it. The ESC toggle is already inert here, so this
-    // only fires on the outcome-driven pause.
-    if outcome.is_some_and(|outcome| outcome.0.is_some()) {
+    let pausing = match next_pause.as_ref() {
+        NextState::Pending(pending) | NextState::PendingIfNeq(pending) => *pending,
+        NextState::Unchanged => *pause.get(),
+    };
+    // The outcome frame and the refusal report enter the same `Paused` to
+    // freeze the sim, but each is its own modal with its own buttons: the pause
+    // panel (and its Settings modal) may not stack under either. Exactly one
+    // modal, whichever arrived last.
+    let taken = outcome.is_some_and(|outcome| outcome.0.is_some())
+        || failure.is_some_and(|failure| failure.0.is_some());
+    let wanted = pausing == PauseStates::Paused && !taken;
+    if wanted == !q_overlay.is_empty() {
+        return;
+    }
+    if !wanted {
+        for entity in q_owned.iter() {
+            commands.entity(entity).despawn();
+        }
         return;
     }
     // Retry only makes sense over a live scenario. The editor's build mode
     // pauses through this same overlay but never has one loaded, so it gets
     // no dead button.
-    let live = current.is_some_and(|current| current.is_some());
+    let live = scenario.is_some_and(|scenario| scenario.is_some());
     commands
         .spawn((
+            PauseOverlay,
             DespawnOnExit(PauseStates::Paused),
             Name::new("Pause Overlay"),
             // A modal blocker, unlike the main menu root: the editor's
