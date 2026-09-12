@@ -515,6 +515,23 @@ what `explode` does not. `pyre.rs` observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`.
 
+A section is the same size on every ship, because a build-grid cell is. A HULL
+is not, so `HULK_PYRE` is the look and the dying root's `IntegrityEnvelope` is
+the size it is drawn at: every length is multiplied by the hull's containment
+radius over the 55.2 m gunship the look was cut on, and the flash by the square
+of it, because lumens stand in for a burning surface. The shipped hulls run
+from 0.88 on `block_skiff` to 3.52 on `block_carrier`, so a carrier's debris
+reaches 479 m rather than ending 58 m inside its own wreck. Durations and
+particle counts are NOT scaled: a bigger ship does not burn for longer, and the
+count is what the frame budget was written against. A body that publishes no
+envelope gets the authored death rather than no death.
+
+Hanabi bakes a `Gradient` into the asset, so a baked size curve cannot be
+multiplied by a per-instance property. Every size curve in `pyre.rs` is
+therefore an expression over the particle's own normalised age, built by
+`key_curve` from the same keys a gradient would hold, and multiplied by one
+`hull_scale` property written per death - the same shape the railgun wake uses.
+
 Almost nothing about those graphs is built at the death. `warm_the_pyres` runs
 in `Update`, on the first frame that has all three of a cold store, a tier that
 draws particles at all, and an active camera - and it does the whole job: the

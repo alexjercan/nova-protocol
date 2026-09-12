@@ -110,6 +110,11 @@ does NOT get an entry - and it is the only place they are written down.
   ranges its rings from the live contact spread, and labels only the section
   the inspector is pointing at.
 
+### Audio & Visuals
+- A hull dies at its own size: the fireball, its debris and its flash are drawn
+  from the ship's live structure, so a carrier's death reaches 479 m instead of
+  ending 58 m inside its own wreck.
+
 ### Internals & Tooling
 - Debug section gizmos are measured: a barrel line runs the mount's authored
   reach, and round and drive stubs one interval of their own flight or burn.

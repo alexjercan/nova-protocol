@@ -17,6 +17,10 @@
 //! | 3 | `outcome: the computer is pinned to the largest shipped hull` | the intact carrier clears its structural ceiling by a small margin and the skiff clears its own by a wide one, so the controller's torque is visible on the fleet's big hull and invisible on its small one |
 //! | 4 | `outcome: a bigger hull is seen from further away` | each hull publishes a radar signature derived from its own structure, and the carrier is lockable from several times the distance the skiff is |
 //! | 5 | `outcome: the hull inputs are recorded` | RECORD: arm, envelope, cells, mass, inertia, summed computer torque, both ceilings, the live section census and the lock range, per hull |
+//! | 6 | `outcome: a hull burns at the size of the hull` | each hull is killed where it is parked, and the fireball its death lights is scaled by its own containment radius against the gunship the look was cut on |
+//!
+//! Claim 6 is the last beat because it ENDS both hulls: the death is read one
+//! frame after the kill, and nothing is measured on either hull afterwards.
 //!
 //! Claim 5 asserts NOTHING. It is the table the ledger quotes, read against the
 //! figures in `tasks/20260909-213118/FEEDBACK.md` and never against a
@@ -24,13 +28,15 @@
 //!
 //! The hulls are parked far apart and given no controller demand and no AI, so
 //! nothing here is a statement about flying: the subject is the geometry every
-//! other range's constant is supposed to be derived from.
+//! other range's constant is supposed to be derived from - and, at the end,
+//! the one derived figure a player reads straight off that geometry.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_hull_scaling --features debug
 //! # look for: `hull scaling: block_skiff: ...`,
 //! #           `hull scaling: block_carrier: ...`,
+//! #           `hull scaling: block_skiff burns at ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -124,6 +130,28 @@ const CARRIER_HEADROOM_CEILING: f32 = 0.20;
 /// away, so its margin is a different order of magnitude, not a nearby number.
 #[cfg(feature = "debug")]
 const SKIFF_HEADROOM_FLOOR: f32 = 10.0;
+
+/// The hull [`HULK_PYRE`] was cut against, m.
+///
+/// Mirrored from `nova_gameplay::integrity::pyre`, which keeps it private: the
+/// range states the rule independently and fails if the shipped one is moved
+/// without this being moved with it.
+#[cfg(feature = "debug")]
+const PYRE_REFERENCE_RADIUS: Meters = Meters(55.2);
+
+/// How close a lit fireball has to be to the scale its hull asks for.
+///
+/// The scale is a division, so the only slack wanted is the float's.
+#[cfg(feature = "debug")]
+const PYRE_SCALE_TOLERANCE: f32 = 1.0e-3;
+
+/// How much bigger the carrier's death must be than the skiff's.
+///
+/// The same argument the arm ratio makes, on the one number a player sees: one
+/// fixed fireball for every hull put a firecracker over a carrier and swallowed
+/// a skiff whole. Flatten the scale back to a constant and this fails.
+#[cfg(feature = "debug")]
+const PYRE_SCALE_RATIO_FLOOR: f32 = 2.0;
 
 /// How much further the carrier must be lockable from than the skiff.
 ///
@@ -221,6 +249,122 @@ fn scaling_script() -> Script {
         .step("measure both reference hulls")
         .on_enter(measure_both_hulls)
         .add()
+        .step("kill both reference hulls")
+        .on_enter(kill_both_hulls)
+        .until(both_deaths_burning())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("read both fireballs")
+        .on_enter(measure_both_pyres)
+        .add()
+}
+
+/// The containment radius each hull had the frame before it died, kept because
+/// the hull itself is gone by the time its fireball is read.
+#[cfg(feature = "debug")]
+#[derive(Resource, Clone, Copy, Debug)]
+struct HullsKilled {
+    /// The skiff's, m.
+    skiff: Meters,
+    /// The carrier's, m.
+    carrier: Meters,
+}
+
+/// End both hulls where they are parked, recording what each was first.
+#[cfg(feature = "debug")]
+fn kill_both_hulls(world: &mut World) {
+    let killed = HullsKilled {
+        skiff: read_hull(world, SKIFF_ID).envelope,
+        carrier: read_hull(world, CARRIER_ID).envelope,
+    };
+    world.insert_resource(killed);
+    for id in [SKIFF_ID, CARRIER_ID] {
+        let root = weighed_hull(world, id)
+            .unwrap_or_else(|| panic!("hull scaling: hull '{id}' is present"));
+        world.entity_mut(root).insert(IntegrityDestroyMarker);
+    }
+}
+
+/// Both deaths have thrown both of their halves.
+#[cfg(feature = "debug")]
+fn both_deaths_burning() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| hulk_pyres(world).len() >= 4)
+}
+
+/// Every live whole-hull fireball: where it burns, and the scale it was lit at.
+#[cfg(feature = "debug")]
+fn hulk_pyres(world: &World) -> Vec<(Vec3, f32)> {
+    let Some(mut lit) = world.try_query::<(&GlobalTransform, &PyreEffectMarker)>() else {
+        return vec![];
+    };
+    lit.iter(world)
+        .filter(|(_, pyre)| pyre.hulk)
+        .map(|(at, pyre)| (at.translation(), pyre.scale))
+        .collect()
+}
+
+/// The scale one death was lit at, from the two halves it threw.
+#[cfg(feature = "debug")]
+fn death_scale(halves: &[(Vec3, f32)], label: &str) -> f32 {
+    assert_eq!(
+        halves.len(),
+        2,
+        "hull scaling: {label} threw {} whole-hull instances, not the flash AND the pieces",
+        halves.len(),
+    );
+    assert!(
+        (halves[0].1 - halves[1].1).abs() < PYRE_SCALE_TOLERANCE,
+        "hull scaling: {label} lit its two halves at different sizes, {} and {}",
+        halves[0].1,
+        halves[1].1,
+    );
+    halves[0].1
+}
+
+/// The last beat: read the two deaths, and hold each against the hull it came
+/// out of.
+#[cfg(feature = "debug")]
+fn measure_both_pyres(world: &mut World) {
+    let killed = *world.resource::<HullsKilled>();
+    let lit = hulk_pyres(world);
+    // The hulls are parked either side of the origin, so which wreck a
+    // fireball came out of is its own position.
+    let (skiff_lit, carrier_lit): (Vec<_>, Vec<_>) = lit.iter().partition(|(at, _)| at.x < 0.0);
+    let skiff = death_scale(&skiff_lit, SKIFF);
+    let carrier = death_scale(&carrier_lit, CARRIER);
+
+    for (label, scale, envelope) in [
+        (SKIFF, skiff, killed.skiff),
+        (CARRIER, carrier, killed.carrier),
+    ] {
+        let expected = envelope.get() / PYRE_REFERENCE_RADIUS.get();
+        assert!(
+            (scale - expected).abs() < PYRE_SCALE_TOLERANCE,
+            "hull scaling: {label} reaches {:.1} m and should burn at {expected:.2}x the              {:.1} m hull the look was cut on, but its death was lit at {scale:.2}x",
+            envelope.get(),
+            PYRE_REFERENCE_RADIUS.get(),
+        );
+    }
+    let ratio = carrier / skiff.max(f32::EPSILON);
+    assert!(
+        ratio >= PYRE_SCALE_RATIO_FLOOR,
+        "hull scaling: the carrier's death is only {ratio:.1}x the skiff's ({carrier:.2}x          against {skiff:.2}x) - one fireball for every hull is the thing this range is here          to catch",
+    );
+    info!(
+        "hull scaling: {SKIFF} burns at {skiff:.2}x, {CARRIER} at {carrier:.2}x, ratio {ratio:.1}x"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a hull burns at the size of the hull",
+        serde_json::json!({
+            "skiff_scale": skiff,
+            "carrier_scale": carrier,
+            "skiff_envelope_m": killed.skiff.get(),
+            "carrier_envelope_m": killed.carrier.get(),
+            "reference_m": PYRE_REFERENCE_RADIUS.get(),
+            "ratio": ratio,
+        }),
+    );
 }
 
 /// Both hulls are present AND have been weighed: a root avian has not measured

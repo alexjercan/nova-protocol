@@ -230,7 +230,7 @@ gameplay feedback ledger (`20260909-213118`).
       with `chunk.rs:85` `CHUNK_GRACE_SECS` 0.5: a section 6 u deep in the
       carrier goes rigid while still buried in 2081 others. Scale both with
       the dying body's `HullRadius`.
-- [ ] `integrity/pyre.rs:252` `HULK_PYRE` sized "against a shipped gunship,
+- [x] `integrity/pyre.rs:252` `HULK_PYRE` sized "against a shipped gunship,
       85 m": the carrier dies with a firecracker covering 7 percent of the
       wreck, the skiff is swallowed by a burst four times its size. Scale
       off the root's `HullRadius`.

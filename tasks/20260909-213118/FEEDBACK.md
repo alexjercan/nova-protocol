@@ -17,6 +17,9 @@ because a balance item is measured before it is tuned.
 | 2026-09-11 | sweep `20260909-213708` | gunnery, block_skiff and block_carrier | every gun and every AI lance was graded on one fixed cone, so a mount held fire on a carrier it could not miss and spent rounds on a torpedo it could not hit | balance | a `TargetHitRadius` is published per body and the gates are `atan(hit radius / distance)`. Permitted miss at 1 km goes from 16 m for everything to 194 m on the carrier, 48 m on the skiff and 12 m on a Serpent; `system_turret_gunnery` holds it |
 | 2026-09-11 | sweep `20260909-213708` | AI flight, block_skiff and block_carrier | an engaging ship wrote one throttle scalar to EVERY live thruster and steered with a rotation command of its own, so a hull with retros and laterals burned them against its own mains and turned its nose off the target to fly | balance | combat asks the flight computer for a held velocity and a facing (the generic `MatchVelocity` action); the computer clusters, balances and spools as it does for the player. Hull inputs unchanged (see below); the unit and physics pair in `ai/maneuver.rs` holds it |
 | 2026-09-11 | sweep `20260909-213708` | weapons, any hull | a six-layer ceiling sat under the pierce power budget, so a gun round stopped six sections in whatever the plating cost, while the lance alone was bounded by power | balance | the ceiling is removed and power alone bounds every pierce round; a layer costing zero power stops it. Twenty 1 hp panels used to take 6 rounds' worth of travel and now take 20 of 300 power; `system_railgun_lance` holds the budget rule |
+| 2026-09-12 | sweep `20260909-213708` | destruction, block_skiff and block_carrier | a severed wreck left at one flat 10 m/s, so a carrier's two halves ground against each other for the better part of twenty seconds | balance | a fragment leaves at its own containment radius over two seconds, floored at 10 m/s: 12.1 - 24.2 m/s on the skiff and 48.6 - 97.2 m/s on the carrier. `system_section_severing` holds it |
+| 2026-09-12 | sweep `20260909-213708` | destruction, block_carrier | every wreck piece was given a flat kick and a flat 0.5 s of grace, so all 720 pieces of a collapse went rigid still standing inside the hull | balance | a piece is thrown out of what buried it - the structure over it, its own reach and 10 m of daylight - with kick and window scaled by the root of that: 0 of 720 now go rigid inside. `stress_hull_collapse` holds it |
+| 2026-09-12 | sweep `20260909-213708` | destruction, block_skiff and block_carrier | every hull died at one authored size, so the carrier's fireball stopped 58 m inside its own wreck and the skiff was swallowed by a burst three times its size | balance | the hulk pyre is scaled by the dying root's `IntegrityEnvelope` over the 55.2 m gunship it was cut on, lengths linearly and lumens by the square: 0.87x on the skiff and 3.52x on the carrier, from 1.00x each. `system_hull_scaling` holds it |
 
 ## Measured figures
 
@@ -637,3 +640,49 @@ looks like, and what the grace window was always supposed to buy.
 The hull inputs read unchanged again: arm 47.8 m / 194.2 m, torque ceiling
 86.3326 / 0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both
 structure-bound, lock range 21.7 km / 59.5 km.
+
+### A hull burns at the size of the hull, 2026-09-12
+
+`HULK_PYRE` is one authored look, cut against a shipped gunship of 55.2 m, and
+every hull in the game died at exactly that size. The look is kept and the
+dying root's `IntegrityEnvelope` now says how big to draw it: every LENGTH is
+multiplied by the hull's containment radius over 55.2 m, and the flash by the
+square of it, because lumens stand in for a burning surface. Durations and
+particle counts are not scaled - a bigger ship does not burn for longer, and
+the count is what `PYRE_FRAME_CAP` was written against.
+
+Measured on `system_hull_scaling`, which now kills both reference hulls where
+they are parked and reads the scale off each fireball:
+
+| hull | containment radius | scale before | after | live reading |
+| --- | --- | --- | --- | --- |
+| block_skiff | 48.3 m | 1.00x | 0.87x | `outcome: a hull burns at the size of the hull` |
+| block_carrier | 194.3 m | 1.00x | 3.52x | same claim, same run |
+
+The "1.00x before" is a live reading too: with `hulk_scale` neutered to the old
+constant the range fails on the skiff at `lit at 1.00x`, which is the finding.
+
+What the scale moves, from the authored figures:
+
+| figure | authored (gunship) | block_skiff, after | block_carrier, after |
+| --- | --- | --- | --- |
+| core peak quad | 13.0 m | 11.4 m | 45.8 m |
+| ejecta reach (top speed x longest life) | 136 m | 119 m | 479 m |
+| flash peak | 60 Mlm | 45.9 Mlm | 743 Mlm |
+| flash range | 1 700 m | 1 488 m | 5 984 m |
+| burn time | 0.65 s | 0.65 s | 0.65 s |
+
+The number that decides whether a death reads is the reach against the hull's
+own size. It was 2.82x on the skiff and 0.70x on the carrier - a burst nearly
+three times the wreck on one, and one that stopped 58 m short of the wreck's
+own ends on the other. It is now 2.46x on every hull by construction, which is
+the gunship's own figure: the debris leaves the silhouette, and a ship that
+merely broke still looks different from one that was destroyed.
+
+The balance consequence is a look, not a capability: nothing about a death's
+damage, timing, piece count or budget moved. A carrier death is much brighter,
+which is the intent - it is the largest thing the game can destroy.
+
+The hull inputs read unchanged: arm 47.8 m / 194.2 m, torque ceiling 86.3326 /
+0.4446 rad/s2, structural ceiling 1.6430 / 0.4042 rad/s2, both structure-bound,
+lock range 21.7 km / 59.5 km.

@@ -22,14 +22,20 @@
 //!   streaks contracting into fragments rather than as a cloud of circles. It
 //!   outlives the flash, and it is what the eye follows afterwards.
 //!
-//! # Two sizes, because a death has two scales
+//! # Two sizes, and the hull one is the size of its hull
 //!
 //! A SECTION dying is a compartment going up: a core about the size of the
-//! build-grid cell it stood in, over in a third of a second. A ship's
-//! INTEGRITY ROOT dying is the whole hull letting go, and it is the only death
-//! in the game that is allowed to fill the frame. Each size is its own pair of
-//! [`EffectAsset`]s rather than one asset scaled, because hanabi bakes its
-//! size and colour gradients into the asset.
+//! build-grid cell it stood in, over in a third of a second. That is the same
+//! event on every ship, because a cell is the same size on every ship. A
+//! ship's INTEGRITY ROOT dying is the whole hull letting go, and it is the
+//! only death in the game that is allowed to fill the frame - so it is drawn
+//! at the size of the hull it came out of, from that root's
+//! [`IntegrityEnvelope`] against the gunship [`HULK_PYRE`] was cut on.
+//!
+//! Each size is its own pair of [`EffectAsset`]s, and the hull scale is a
+//! per-instance PROPERTY multiplied into both, because hanabi bakes a gradient
+//! into the asset: a baked size curve cannot be multiplied by anything, so
+//! every size curve here is an expression over the particle's own age instead.
 //!
 //! # A collapse is a chain, and a chain has to be capped
 //!
@@ -49,6 +55,7 @@
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
+use nova_events::prelude::*;
 
 use super::components::prelude::*;
 use crate::{
@@ -64,11 +71,29 @@ pub mod prelude {
     pub use super::{PyreEffectMarker, PyrePlugin};
 }
 
-/// Tags a live death fireball, so a range can count them. Both halves of one
-/// death carry it.
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+/// Tags a live death fireball, so a range can count them and say what it was
+/// lit at. Both halves of one death carry it.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
-pub struct PyreEffectMarker;
+pub struct PyreEffectMarker {
+    /// Whether this is a whole hull letting go rather than one compartment.
+    pub hulk: bool,
+    /// How much bigger than the hull the graph was cut against the dead body
+    /// was: every length in this instance is multiplied by it, and its flash
+    /// is brightened by its square. One for a section, whatever its ship.
+    pub scale: f32,
+}
+
+impl Default for PyreEffectMarker {
+    /// A section-sized death at the authored size, which is what a fireball is
+    /// before anything says otherwise.
+    fn default() -> Self {
+        Self {
+            hulk: false,
+            scale: 1.0,
+        }
+    }
+}
 
 /// Tags a throwaway instance the warm-up spawned to mint a shader.
 ///
@@ -77,6 +102,18 @@ pub struct PyreEffectMarker;
 /// gone the frame after they are made.
 #[derive(Component, Clone, Copy, Debug)]
 struct PyreWarmMarker;
+
+/// The name the per-instance spatial scale is written under, in both graphs.
+const PYRE_SCALE_PROPERTY: &str = "hull_scale";
+
+/// The hull [`HULK_PYRE`] was cut against: a shipped gunship, 55.2 m of
+/// structural arm.
+///
+/// A hull death is that fireball multiplied by how much bigger the dead hull
+/// is, so the gunship is the one hull whose death is exactly as authored. One
+/// reference and not a table, because the figures below are a LOOK and a look
+/// is tuned once.
+const PYRE_REFERENCE_RADIUS: Meters = Meters(55.2);
 
 /// How many deaths one frame may light.
 ///
@@ -236,10 +273,14 @@ const SECTION_PYRE: PyreScale = PyreScale {
     linger: 0.9,
 };
 
-/// The whole hull letting go. Sized against a shipped gunship - 90 m stem to
-/// stern, 9 units - so the core covers the wreck without swallowing the
-/// frame: a death the camera cannot see THROUGH is a death nobody can read,
-/// and the sections thrown out of it are half of what makes it one.
+/// The whole hull letting go, at the size of the gunship it was cut on - 90 m
+/// stem to stern, 9 units - so the core covers THAT wreck without swallowing
+/// the frame: a death the camera cannot see THROUGH is a death nobody can
+/// read, and the sections thrown out of it are half of what makes it one.
+///
+/// Every length below is multiplied per death by how much bigger the dead hull
+/// is than [`PYRE_REFERENCE_RADIUS`], so the figures here are what a gunship
+/// gets and the band each one covers is in [`hulk_scale`].
 ///
 /// The fragments carry it after that, and they are most of the picture: the
 /// flash is over in a third of a second, while at up to 8 units per second for
@@ -247,21 +288,19 @@ const SECTION_PYRE: PyreScale = PyreScale {
 /// leaving the wreck when the light has gone out, which is the order a vacuum
 /// burst happens in.
 ///
-/// One fixed size serves every integrity root, and the gunship is the hull it
-/// was cut against. On that hull and the smaller ones the fragments reach past
-/// the silhouette, which is the read wanted: a debris field that stopped at
-/// the hull's own outline says the ship has merely broken rather than been
-/// destroyed. On the two capital hulls they do not - `block_warship` is 22
-/// units stem to stern, 220 m, and `block_carrier` 37 units, 370 m - so a
-/// carrier death lights the middle of a wreck whose ends the fragments never
-/// get near. That is a THIRD scale this module does not have, not a constant
-/// to retune: see [`PyreSize`], which is the enum a capital scale would be
-/// added to.
+/// The reach is the number that carries it: the fragments must get PAST the
+/// silhouette, because a debris field that stopped at the hull's own outline
+/// says the ship has merely broken rather than been destroyed. At up to 8
+/// units per second for 1.7 s a gunship's cross about 13 units, 130 m, out of
+/// a hull 9 units long. A carrier is 37 units stem to stern - `block_warship`
+/// is 22 - and gets the same picture only because the scale carries the speeds
+/// with it. A flat cut lit the middle of a wreck whose ends the fragments
+/// never got near.
 ///
-/// Those three spans are outer FACE to outer face, so each includes the
-/// overhang a multi-cell drive has past its own centre cell - half a unit on
-/// the gunship and the warship, a whole one on the carrier. A centre-to-centre
-/// span reads each of them short.
+/// Those spans are outer FACE to outer face, so each includes the overhang a
+/// multi-cell drive has past its own centre cell - half a unit on the gunship
+/// and the warship, a whole one on the carrier. A centre-to-centre span reads
+/// each of them short.
 const HULK_PYRE: PyreScale = PyreScale {
     core: PyreCore {
         size: 1.30,
@@ -357,6 +396,28 @@ fn scatter(writer: &ExprWriter) -> bevy_hanabi::WriterExpr {
         .normalized()
 }
 
+/// One piecewise-linear curve over a particle's own normalised age, built as
+/// an expression rather than baked into the asset.
+///
+/// The same keys a [`bevy_hanabi::Gradient`] would hold and the same straight
+/// lines between them, written in code because a gradient cannot be multiplied
+/// by a per-instance property and a fireball has to be the size of the hull
+/// that threw it. `keys` are `(age, value)` in ascending age.
+fn key_curve(writer: &ExprWriter, age: &WriterExpr, keys: &[(f32, f32)]) -> WriterExpr {
+    let mut value = writer.lit(keys[0].1);
+    for pair in keys.windows(2) {
+        let ((from, was), (to, becomes)) = (pair[0], pair[1]);
+        let ramp = ((age.clone() - writer.lit(from)) * writer.lit(1.0 / (to - from))).saturate();
+        value = value + ramp * writer.lit(becomes - was);
+    }
+    value
+}
+
+/// A particle's age over its lifetime, the input every curve here is read at.
+fn normalised_age(writer: &ExprWriter) -> WriterExpr {
+    writer.attr(Attribute::AGE) / writer.attr(Attribute::LIFETIME)
+}
+
 /// The core graph: the vaporised mass, camera-facing.
 ///
 /// It grows fast, holds, and thins. The peak is early because a fireball
@@ -385,15 +446,27 @@ fn build_pyre_core(core: PyreCore, name: &str) -> EffectAsset {
     // it, which reads as two unrelated events.
     let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
+    // How much bigger than the hull this graph was cut against the dead one
+    // was, written per death. Every LENGTH here is multiplied by it and no
+    // duration is, so a capital's death is the same event at the size of a
+    // capital.
+    let hull_scale = writer.add_property(PYRE_SCALE_PROPERTY, 1.0f32.into());
     let speed = writer.lit(core.drift.0).uniform(writer.lit(core.drift.1));
-    let velocity = scatter(&writer) * speed + base_velocity;
+    let velocity = scatter(&writer) * speed * writer.prop(hull_scale) + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    let mut size_gradient = bevy_hanabi::Gradient::new();
-    size_gradient.add_key(0.0, Vec3::splat(core.size * 0.28));
-    size_gradient.add_key(0.16, Vec3::splat(core.size));
-    size_gradient.add_key(0.60, Vec3::splat(core.size * 0.78));
-    size_gradient.add_key(1.0, Vec3::ZERO);
+    let age = normalised_age(&writer);
+    let size = key_curve(
+        &writer,
+        &age,
+        &[
+            (0.0, core.size * 0.28),
+            (0.16, core.size),
+            (0.60, core.size * 0.78),
+            (1.0, 0.0),
+        ],
+    ) * writer.prop(hull_scale);
+    let update_size = SetAttributeModifier::new(Attribute::SIZE, size.expr());
 
     // Round, not rectangular. These are the biggest quads in the frame while
     // they burn, and without the mask a death reads as a cluster of glowing
@@ -412,11 +485,8 @@ fn build_pyre_core(core: PyreCore, name: &str) -> EffectAsset {
         // Camera-facing, and said in code rather than in a comment: a quad
         // with no orient modifier is expanded along the fixed WORLD axes, so
         // the fireball is drawn edge-on from any camera looking down one.
+        .update(update_size)
         .render(OrientModifier::new(OrientMode::ParallelCameraDepthPlane))
-        .render(SizeOverLifetimeModifier {
-            gradient: size_gradient,
-            screen_space_size: false,
-        })
         .render(mask)
         .render(ColorOverLifetimeModifier {
             gradient: flash_gradient(),
@@ -449,21 +519,38 @@ fn build_pyre_ejecta(ejecta: PyreEjecta, name: &str) -> EffectAsset {
 
     let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
+    let hull_scale = writer.add_property(PYRE_SCALE_PROPERTY, 1.0f32.into());
     let speed = writer
         .lit(ejecta.speed.0)
         .uniform(writer.lit(ejecta.speed.1));
-    let velocity = scatter(&writer) * speed + base_velocity;
+    let velocity = scatter(&writer) * speed * writer.prop(hull_scale) + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
     // Stretched along X, which the orient modifier puts on the velocity. It
     // reaches its length early and then draws in, so the burst is streaks
-    // first and sparks last.
-    let streak = |scale: f32| Vec3::new(ejecta.length * scale, ejecta.width, ejecta.width);
-    let mut size_gradient = bevy_hanabi::Gradient::new();
-    size_gradient.add_key(0.0, streak(0.35));
-    size_gradient.add_key(0.10, streak(1.0));
-    size_gradient.add_key(0.55, streak(0.55));
-    size_gradient.add_key(1.0, Vec3::ZERO);
+    // first and sparks last. The width holds while the length moves, until
+    // both go to nothing at the end of the streak's life.
+    let age = normalised_age(&writer);
+    let length = key_curve(
+        &writer,
+        &age,
+        &[
+            (0.0, ejecta.length * 0.35),
+            (0.10, ejecta.length),
+            (0.55, ejecta.length * 0.55),
+            (1.0, 0.0),
+        ],
+    );
+    let width = key_curve(
+        &writer,
+        &age,
+        &[(0.0, ejecta.width), (0.55, ejecta.width), (1.0, 0.0)],
+    );
+    let streak = (length * writer.prop(hull_scale)).vec3(
+        width.clone() * writer.prop(hull_scale),
+        width * writer.prop(hull_scale),
+    );
+    let update_size = SetAttributeModifier::new(Attribute::SIZE3, streak.expr());
 
     // On a velocity-oriented quad the circular mask reads as a tapered streak
     // rather than as a lozenge with corners.
@@ -478,10 +565,7 @@ fn build_pyre_ejecta(ejecta: PyreEjecta, name: &str) -> EffectAsset {
         .init(init_age)
         .init(init_lifetime)
         .init(init_color)
-        .render(SizeOverLifetimeModifier {
-            gradient: size_gradient,
-            screen_space_size: false,
-        })
+        .update(update_size)
         .render(OrientModifier::new(OrientMode::AlongVelocity))
         .render(mask)
         .render(ColorOverLifetimeModifier {
@@ -684,7 +768,14 @@ fn light_the_pyre(
     mut soft_dot: ResMut<SoftDot>,
     mut budget: ResMut<PyreBudget>,
     tier: Option<Res<GraphicsBudget>>,
-    q_dead: Query<(&GlobalTransform, Has<IntegrityRoot>), With<IntegrityDestroyMarker>>,
+    q_dead: Query<
+        (
+            &GlobalTransform,
+            Has<IntegrityRoot>,
+            Option<&IntegrityEnvelope>,
+        ),
+        With<IntegrityDestroyMarker>,
+    >,
     q_drift: Query<&avian3d::prelude::LinearVelocity>,
     q_parents: Query<&ChildOf>,
     q_debris: Query<&CarveDebris>,
@@ -694,7 +785,7 @@ fn light_the_pyre(
     };
 
     let entity = add.entity;
-    let Ok((frame, root)) = q_dead.get(entity) else {
+    let Ok((frame, root, envelope)) = q_dead.get(entity) else {
         // Nothing that carries no transform: a health node hanging off a
         // section, which the section's own fireball already covers.
         return;
@@ -723,6 +814,12 @@ fn light_the_pyre(
         PyreSize::Section
     };
     let scale = size.scale();
+    // A compartment is the size of the cell it stood in whatever ship it was
+    // part of; only the whole hull letting go is the size of THAT hull.
+    let hull_scale = match size {
+        PyreSize::Hulk => hulk_scale(envelope.map(|envelope| **envelope)),
+        PyreSize::Section => 1.0,
+    };
     let pair = pyres.pair(size, &mut effects);
     let drift = inherited_drift(entity, &q_drift, &q_parents);
     let at = frame.translation();
@@ -730,9 +827,13 @@ fn light_the_pyre(
     for handle in [pair.core, pair.ejecta] {
         let mut properties = EffectProperties::default();
         properties.set("base_velocity", drift.into());
+        properties.set(PYRE_SCALE_PROPERTY, hull_scale.into());
         commands.spawn((
             Name::new("Pyre Effect"),
-            PyreEffectMarker,
+            PyreEffectMarker {
+                hulk: root,
+                scale: hull_scale,
+            },
             Transform::from_translation(at),
             ParticleEffect::new(handle),
             EffectMaterial {
@@ -746,13 +847,34 @@ fn light_the_pyre(
     // Asked for, never assumed - the cap may refuse it, and a death that lit
     // nothing is still a death. Amber rather than the core's first white key:
     // the light stands in for the whole burn averaged over its life.
+    // The flash grows with the fireball, and its lumens with the SQUARE of it:
+    // the light stands in for a burning surface, and a surface goes up with
+    // the square of what it is wrapped around.
     commands.trigger(LightFlash {
         at,
         color: Color::srgb(1.0, 0.66, 0.32),
-        peak_intensity: scale.lumens,
-        range: scale.light_range,
+        peak_intensity: scale.lumens * hull_scale * hull_scale,
+        range: scale.light_range * hull_scale,
         duration: scale.light_secs,
     });
+}
+
+/// How much bigger than the reference hull a dying body is.
+///
+/// `envelope` is the body's live [`IntegrityEnvelope`], world units. A body
+/// that publishes none has never said how big it is, and gets the reference
+/// death rather than no death: the figure is a multiplier on a LOOK, so the
+/// safe answer is the one the look was authored at.
+///
+/// Unclamped in both directions. The shipped hulls run from `block_skiff` at
+/// 48.3 m of containment radius, 0.88, to `block_carrier` at 194.3 m, 3.52 -
+/// and a hull outside that band is a hull this look was never cut for, which
+/// is a reason to see it at its own size rather than at a bound.
+fn hulk_scale(envelope: Option<f32>) -> f32 {
+    match envelope {
+        Some(envelope) if envelope > 0.0 => envelope / PYRE_REFERENCE_RADIUS.to_engine(),
+        _ => 1.0,
+    }
 }
 
 /// The velocity the dead body was carrying, from the nearest ancestor that has
@@ -898,6 +1020,44 @@ mod tests {
         query.iter(app.world()).collect()
     }
 
+    /// What every live fireball says it was lit at.
+    fn lit_at(app: &mut App) -> Vec<PyreEffectMarker> {
+        bursts(app)
+            .iter()
+            .map(|&burst| {
+                *app.world()
+                    .get::<PyreEffectMarker>(burst)
+                    .expect("a burst carries its marker")
+            })
+            .collect()
+    }
+
+    /// The flashes the deaths asked for. The transient-light module is not in
+    /// this app, so the request is caught here instead of looked for as a
+    /// light.
+    #[derive(Resource, Default)]
+    struct Flashes(Vec<LightFlash>);
+
+    /// [`pyre_app`] with the flash requests kept, which only the tests about
+    /// the light need.
+    fn flash_watching_pyre_app() -> App {
+        let mut app = pyre_app();
+        app.init_resource::<Flashes>();
+        app.add_observer(|flash: On<LightFlash>, mut flashes: ResMut<Flashes>| {
+            flashes.0.push(*flash);
+        });
+        app
+    }
+
+    /// A hull of `envelope` world units that is about to let go.
+    fn a_hull_reaching(app: &mut App, envelope: f32) -> Entity {
+        let hull = a_body(app);
+        app.world_mut()
+            .entity_mut(hull)
+            .insert((IntegrityRoot, IntegrityEnvelope(envelope)));
+        hull
+    }
+
     #[test]
     fn a_death_lights_a_core_and_its_ejecta() {
         let mut app = pyre_app();
@@ -947,6 +1107,89 @@ mod tests {
             graphs.len(),
             4,
             "a compartment and a whole hull are two sizes, so four graphs, not two"
+        );
+    }
+
+    #[test]
+    fn a_hull_burns_at_the_size_of_the_hull() {
+        let mut app = pyre_app();
+        let hull = a_hull_reaching(&mut app, 2.0 * PYRE_REFERENCE_RADIUS.to_engine());
+        kill(&mut app, hull);
+        app.update();
+
+        let lit = lit_at(&mut app);
+        assert_eq!(lit.len(), 2, "a death is a flash AND the pieces it throws");
+        for burst in lit {
+            assert!(burst.hulk, "a root letting go is the whole hull");
+            assert!(
+                (burst.scale - 2.0).abs() < 1.0e-5,
+                "a hull twice the reference burns twice the size, got {}",
+                burst.scale
+            );
+        }
+    }
+
+    #[test]
+    fn a_compartment_is_the_same_size_whatever_ship_it_is_part_of() {
+        let mut app = pyre_app();
+        let section = a_body(&mut app);
+        app.world_mut()
+            .entity_mut(section)
+            .insert(IntegrityEnvelope(20.0 * PYRE_REFERENCE_RADIUS.to_engine()));
+        kill(&mut app, section);
+        app.update();
+
+        for burst in lit_at(&mut app) {
+            assert!(!burst.hulk, "a node that is not the root is a compartment");
+            assert!(
+                (burst.scale - 1.0).abs() < 1.0e-5,
+                "a build-grid cell is one cell on a carrier too, got {}",
+                burst.scale
+            );
+        }
+    }
+
+    #[test]
+    fn a_hull_that_says_no_size_burns_as_it_was_authored() {
+        let mut app = pyre_app();
+        let hull = a_body(&mut app);
+        app.world_mut().entity_mut(hull).insert(IntegrityRoot);
+        kill(&mut app, hull);
+        app.update();
+
+        for burst in lit_at(&mut app) {
+            assert!(
+                (burst.scale - 1.0).abs() < 1.0e-5,
+                "an unmeasured hull gets the authored death, not no death, got {}",
+                burst.scale
+            );
+        }
+    }
+
+    #[test]
+    fn a_bigger_hull_lights_further_and_brighter_by_the_square() {
+        let mut app = flash_watching_pyre_app();
+        let hull = a_hull_reaching(&mut app, 3.0 * PYRE_REFERENCE_RADIUS.to_engine());
+        kill(&mut app, hull);
+        app.update();
+
+        let flashes = &app.world().resource::<Flashes>().0;
+        assert_eq!(flashes.len(), 1, "one death, one flash");
+        let flash = flashes[0];
+        assert!(
+            (flash.range - 3.0 * HULK_PYRE.light_range).abs() < 1.0e-3,
+            "the flash reaches as far as the fireball is wide, got {}",
+            flash.range
+        );
+        assert!(
+            (flash.peak_intensity - 9.0 * HULK_PYRE.lumens).abs() < 1.0,
+            "lumens go up with the burning SURFACE, so with the square, got {}",
+            flash.peak_intensity
+        );
+        assert!(
+            (flash.duration - HULK_PYRE.light_secs).abs() < 1.0e-5,
+            "a bigger hull does not burn for longer, got {}",
+            flash.duration
         );
     }
 

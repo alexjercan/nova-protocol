@@ -158,6 +158,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the computer is pinned to the largest shipped hull",
             "a bigger hull is seen from further away",
             "the hull inputs are recorded",
+            "a hull burns at the size of the hull",
         ],
     ),
     (
@@ -628,7 +629,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 273;
+const SYSTEMS_INVARIANTS: usize = 274;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
