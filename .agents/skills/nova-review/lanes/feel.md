@@ -24,8 +24,14 @@ and say the judgement is unrendered.
 Probe brings up its own throwaway X server:
 
 ```bash
-nix develop --command cargo run --features debug probe run <name>
+nix develop --command cargo run --features dev probe run <name>
 ```
 
-Read the captured frames under `probe-runs/<short-commit>/<name>/`. When you
-start an X server by hand, record its PID and stop it by that PID.
+Inspect captured frames when the range produces them. Otherwise use an
+existing screenshot example, or a recorded bench play following
+[Verify](../../verify/SKILL.md). State the player steps and expected visible
+feedback before the run. A headless score cannot prove appearance, and a
+rendered run with no inspected frames is not visual evidence.
+
+Use only existing fixtures during review. When you start an X server by hand,
+record its PID and stop it by that PID.

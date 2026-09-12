@@ -46,9 +46,9 @@ choice is not a kind of check.
 
 ## Every claim is named
 
-`AGENTS.md` Nova behavior. An assert with no name can be deleted into a green run
-that proves less. So each one carries a `nova_probe::probe_marker` reading
-`outcome: <slug>` beside it, and the slug goes on that range's roster in
+`AGENTS.md` requires named outcomes. An assert with no name can be deleted into
+a green run that proves less. So each one carries a `nova_probe::probe_marker`
+reading `outcome: <slug>` beside it, and the slug goes on that range's roster in
 `crates/nova_probe_cli/tests/catalog_drift.rs`. That test matches both ways: a
 slug with no marker is a deleted assertion, a marker with no slug is a claim
 nobody declared, and a new range with no roster fails outright.
@@ -108,6 +108,6 @@ the range is renamed.
 4. Emit each slug as an `outcome:` marker beside its assert.
 5. RUN it, and `probe run <name>` green.
 
-Renaming one is Nova 5: nothing type-checks a name. Grep the catalog, the
-roster, `docs/`, `web/src/`, `.github/` and every sibling range, then run what
-you touched.
+Nothing type-checks a runtime name. On a rename, grep the catalog, the roster,
+`docs/`, `web/src/`, `.github/` and every sibling range, then run what you
+touched.

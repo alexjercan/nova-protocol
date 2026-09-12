@@ -252,12 +252,7 @@ __marimo__/
 
 # Profiled-pass scratch artifacts (traces run to hundreds of MB)
 /perf-profile/
-# probe-run artifacts (`cargo run -p nova_probe_cli -- run ...` default out)
+# Probe artifacts (`cargo run --features dev probe run ...` default out)
 /probe-runs/
-
-# Benchmark run output - transcripts, answer sheets, rollups and reports alike.
-# Owner ruling 2026-08-07: none of it is stored. A run is reproducible from the
-# harness plus the keys, and the baseline-vs-after comparison is made locally
-# (`./report.py after baseline` renders both side by side).
-/benchmark/results/
+# Gameplay agent bench artifacts (`cargo run --features dev bench play ...`)
 /bench-runs/

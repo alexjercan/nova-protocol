@@ -24,11 +24,8 @@ Read `docs/keeping-docs-in-sync.md` for the documentation map.
 - Documentation the change invalidated: player behavior in `web/src/wiki/`,
   creator contracts in `web/src/create/`, developer mechanisms in `docs/`.
   Re-derive a claim from the code; do not only grep for the name.
-- `CHANGELOG.md`: one entry per released user-visible change, at most 200
-  characters once wrapped lines are joined, grouped by subsystem, measured
-  against the last RELEASE rather than the last commit. A bug introduced and
-  fixed inside this cycle gets no entry. A revision of an unreleased change is
-  collapsed into its entry, not added beside it.
+- `CHANGELOG.md`: apply AGENTS.md's release-baseline and entry rules. Collapse
+  pre-release revisions; omit bugs introduced and fixed inside the cycle.
 
 ## Verifying
 

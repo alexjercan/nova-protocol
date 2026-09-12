@@ -183,6 +183,10 @@ does NOT get an entry - and it is the only place they are written down.
   is one kick from its middle, not 25.
 
 ### Internals & Tooling
+- Agent work defaults to Pair, with code-backed proposals and a required Verify
+  workflow for bugs and features. Claude shares the same instructions and skills.
+- The retired code-navigation benchmark tools are removed. The gameplay agent
+  bench and probe harness are unchanged.
 - Debug section gizmos are measured: a barrel line runs the mount's authored
   reach, and round and drive stubs one interval of their own flight or burn.
 - The app holds exactly one seeded global RNG, pinned by an assembly test: a

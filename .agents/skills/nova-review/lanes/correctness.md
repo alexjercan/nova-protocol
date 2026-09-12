@@ -1,7 +1,6 @@
 # Lane: correctness and tests
 
-Judge whether the change is right at its edges, and whether its tests would
-catch it being wrong.
+Judge edge cases and whether tests catch the change being wrong.
 
 Read `examples/systems/README.md` before you judge a range.
 
@@ -17,15 +16,15 @@ Read `examples/systems/README.md` before you judge a range.
     `EntityRef` outside a system is silently always false.
   - The first update of a `ManualDuration` app has a delta of zero. A
     single-tick test needs a warm-up `app.update()`.
-  - A fixture must spawn every component production spawns, or the test proves
-    nothing.
+  - A fixture must spawn the components that production spawns.
   - A `Local`-guarded reconciler needs an `Added<Marker>` override.
 - State and ordering: a transition that can run twice, a message two systems
   read where only one drains it, a system pair with no explicit order.
 - A test that asserts the implementation instead of the behavior. A test whose
   name does not read as a behavior statement.
-- Behavior the change adds with no test and no example range. A substantial
-  feature earns a harnessed range, not only a unit test.
+- Behavior the change adds with no sufficient check. A unit test can prove
+  local logic; cross-system and player-flow claims need the affected app path.
+  Use Verify to select the check, not the size of the diff.
 - An `outcome: <slug>` marker missing beside a range assertion, or missing from
   `crates/nova_probe_cli/tests/catalog_drift.rs`.
 - A bug fixed with no test that fails without the fix.
@@ -34,7 +33,8 @@ Read `examples/systems/README.md` before you judge a range.
 
 ```bash
 nix develop --command cargo test -p <crate> --lib <filter>
-nix develop --command cargo run --features debug probe run <name> --correctness-only
+nix develop --command cargo run --features dev probe run <name> \
+  --correctness-only
 ```
 
 Run only what the change touches. Never the workspace suite.

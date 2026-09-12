@@ -1,6 +1,8 @@
 interface:
   display_name: "Pair"
-  short_description: "Pair-mode session"
-  default_prompt: "Use $pair to work conversationally, stopping at decisions."
+  short_description: "Default code-backed pairing workflow"
+  default_prompt: >-
+    Use $pair to show code-backed proposals, continue approved work,
+    and stop at user decisions.
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

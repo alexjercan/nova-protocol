@@ -1,25 +1,19 @@
 # Reviewer contract
 
-Every lane obeys this. Read it with your lane brief.
+Read AGENTS.md, [Verify](../../verify/SKILL.md), and your lane brief.
 
 ## Rules
 
-- You review. You never edit, stage, commit, or fix. Findings only.
-- Work from the bundle paths you were given. Do not re-derive the range.
-- Read the tree when the diff is not enough. Read a whole file rather than
-  guess from a hunk.
-- Ground every finding: `file:line`, and a concrete failure scenario - the
-  inputs or state, then the wrong result. Drop what you cannot ground. A
-  plausible smell is not a finding.
-- Read `AGENTS.md` at the repository root. It is the house authority.
-- Run Cargo through the Nix development shell:
-  `nix develop --command cargo ...`.
-- Never run the workspace test suite or Clippy. The suite exhausts memory on
-  this machine and CI owns both. Use `cargo test -p <crate> --lib <filter>`.
-- Do not run a rendered example or a measuring probe unless your brief grants
-  the measurement slot.
-- Stop a helper process by its recorded PID. Never match processes by name.
-- Say what you did not check. A skip is not a pass.
+- Review only. Never edit, stage, commit, or fix. Propose missing fixtures.
+- Use the supplied bundle and range. Read source when a diff is not enough.
+- Ground each finding in `file:line`, inputs or state, and a concrete failure.
+  Drop claims without evidence. Mark source-only reasoning as untested.
+- Run Cargo through Nix: `nix develop --command cargo ...`.
+  Use focused tests; never the workspace suite or Clippy.
+- Run games or probes only with the measurement slot granted by your brief.
+  Use existing fixtures. Artifact output is allowed; repository edits are not.
+- Stop helpers by recorded PID, never by process-name matching.
+- A skipped check is not a pass. Never implement Verify's fix step in review.
 
 ## Severity
 
@@ -32,9 +26,11 @@ Every lane obeys this. Read it with your lane brief.
 Return findings only, strongest first. For each:
 
 - `<SEVERITY> - <file:line> - <one-line claim>`
-- The failure scenario.
-- The actionable change.
-- Why it is not higher, when the severity is arguable.
+- Expected and observed behavior, with a short relevant code excerpt.
+- Proposed types or signatures for the fix, or no new API needed.
+- Blast radius: callers, ordering, content, UI, platforms, and docs.
+- Reproduction steps, predicted result, and actual check or artifact.
+  Separate game defects from pilot, fixture, and harness errors.
+- Why the severity is not higher, when arguable.
 
-Close with `Checked:` and `Not checked:`. Return nothing else: your text is the
-review, not a message to a person.
+Close with `Checked:` and `Not checked:`. Return nothing else.

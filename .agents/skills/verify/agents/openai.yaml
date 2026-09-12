@@ -1,0 +1,8 @@
+interface:
+  display_name: "Verify"
+  short_description: "Ground changes in tests and playtest evidence"
+  default_prompt: >-
+    Use $verify to ground the claim in code, predict the run, reproduce it,
+    and inspect focused test or playtest evidence.
+policy:
+  allow_implicit_invocation: true

@@ -2,15 +2,13 @@
 
 Judge what the change costs a frame.
 
-Read the probe sections of `docs/performance.md` before you make any timing
-claim. You hold the measurement slot: no other lane runs a rendered example
-while you work.
+Read `docs/performance.md` before timing claims. You hold the measurement
+slot: no other lane runs a rendered example while you work.
 
 ## Look for
 
-- Per-frame work that scales with entity count: a query that walks everything to
-  find one thing, a `Vec` or `String` built every frame, a `format!` in a hot
-  system, a large asset cloned.
+- Work that scales with entity count: full queries for one item, per-frame
+  allocations or `format!`, and large asset clones.
 - A system in `Update` that belongs in `FixedUpdate`, and gameplay in
   `FixedUpdate` that a render frame drives instead. The fixed loop is
   single-threaded on purpose.
@@ -31,8 +29,8 @@ while you work.
 Judge a repeat set against a named reference. Never assert a single timing.
 
 ```bash
-nix develop --command cargo run --features debug probe run <name>
-nix develop --command cargo run --features debug probe run <name> --repeat 5
+nix develop --command cargo run --features dev probe run <name>
+nix develop --command cargo run --features dev probe run <name> --repeat 5
 ```
 
 Read `checks.json` and `report.html` in `probe-runs/<short-commit>/<name>/`.
