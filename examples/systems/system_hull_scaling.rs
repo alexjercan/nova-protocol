@@ -14,10 +14,11 @@
 //! | - | - | - |
 //! | 1 | `outcome: the reference hulls span the size the sweep assumes` | the carrier's structural arm and live section count are each an order of magnitude over the skiff's, so a constant that works on one is not evidence about the other |
 //! | 2 | `outcome: both hulls publish a live attitude envelope` | each hull publishes both ceilings off its own live geometry, which is the input every derived figure in the sweep reads |
-//! | 3 | `outcome: a bigger hull is seen from further away` | each hull publishes a radar signature derived from its own structure, and the carrier is lockable from several times the distance the skiff is |
-//! | 4 | `outcome: the hull inputs are recorded` | RECORD: arm, envelope, cells, mass, inertia, summed computer torque, both ceilings, the live section census and the lock range, per hull |
+//! | 3 | `outcome: the computer is pinned to the largest shipped hull` | the intact carrier clears its structural ceiling by a small margin and the skiff clears its own by a wide one, so the controller's torque is visible on the fleet's big hull and invisible on its small one |
+//! | 4 | `outcome: a bigger hull is seen from further away` | each hull publishes a radar signature derived from its own structure, and the carrier is lockable from several times the distance the skiff is |
+//! | 5 | `outcome: the hull inputs are recorded` | RECORD: arm, envelope, cells, mass, inertia, summed computer torque, both ceilings, the live section census and the lock range, per hull |
 //!
-//! Claim 4 asserts NOTHING. It is the table the ledger quotes, read against the
+//! Claim 5 asserts NOTHING. It is the table the ledger quotes, read against the
 //! figures in `tasks/20260909-213118/FEEDBACK.md` and never against a
 //! threshold.
 //!
@@ -99,6 +100,30 @@ const ARM_RATIO_FLOOR: f32 = 4.0;
 /// against the skiff's 21.
 #[cfg(feature = "debug")]
 const CELL_RATIO_FLOOR: f32 = 20.0;
+
+/// The torque headroom the INTACT carrier must keep over its structural
+/// ceiling, as a fraction of that ceiling.
+///
+/// `DEFAULT_MAX_TORQUE` is pinned here and nowhere else. Below the floor the
+/// largest shipped hull is torque-bound with every computer alive, which is the
+/// regime the constant used to declare unreachable; above the ceiling the
+/// margin is wide enough that losing computers costs the hull nothing, and the
+/// number goes back to being invisible on everything that ships. Re-tune the
+/// controller, or the carrier, and this says which way it moved.
+#[cfg(feature = "debug")]
+const CARRIER_HEADROOM_FLOOR: f32 = 0.05;
+
+/// The other side of that band.
+#[cfg(feature = "debug")]
+const CARRIER_HEADROOM_CEILING: f32 = 0.20;
+
+/// The headroom the skiff must keep, over the same ceiling.
+///
+/// The same constant has to be invisible on a small hull: a needle is
+/// structure-bound on one computer and stays sharp however much of it is shot
+/// away, so its margin is a different order of magnitude, not a nearby number.
+#[cfg(feature = "debug")]
+const SKIFF_HEADROOM_FLOOR: f32 = 10.0;
 
 /// How much further the carrier must be lockable from than the skiff.
 ///
@@ -473,6 +498,40 @@ fn measure_both_hulls(world: &mut World) {
         serde_json::json!({
             "skiff_binds": skiff.binds(),
             "carrier_binds": carrier.binds(),
+        }),
+    );
+
+    assert!(
+        carrier.headroom() >= CARRIER_HEADROOM_FLOOR
+            && carrier.headroom() <= CARRIER_HEADROOM_CEILING,
+        "hull scaling: the shipped flight computer is pinned to this hull - ten of them are \
+         supposed to put the intact carrier just over its structural ceiling - but it sits at \
+         {:+.1}% ({:.4} rad/s2 of torque against {:.4} rad/s2 of structure, {:.0} of torque \
+         over {:.3e} of inertia on a {:.1} m arm)",
+        carrier.headroom() * 100.0,
+        carrier.torque_ceiling,
+        carrier.structural_ceiling,
+        carrier.torque,
+        carrier.inertia,
+        carrier.arm.get(),
+    );
+    assert!(
+        skiff.headroom() >= SKIFF_HEADROOM_FLOOR,
+        "hull scaling: the same computer has to be invisible on a small hull, but the skiff \
+         keeps only {:+.1}% over its structural ceiling ({:.4} against {:.4} rad/s2) - a \
+         needle that can be made blunt by losing torque is a retune that went too far",
+        skiff.headroom() * 100.0,
+        skiff.torque_ceiling,
+        skiff.structural_ceiling,
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the computer is pinned to the largest shipped hull",
+        serde_json::json!({
+            "carrier_headroom": carrier.headroom(),
+            "skiff_headroom": skiff.headroom(),
+            "carrier_torque": carrier.torque,
+            "carrier_controllers": carrier.controllers,
         }),
     );
 

@@ -187,7 +187,7 @@ export function engineMetersPerSec2(
 // exactly as `AttitudeEnvelope::new` takes `Meters::from_engine(arm)`
 // (controller_section.rs:487-489).
 const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:17 (MetersPerSecondSquared)
-const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:718
+const CONTROLLER_MAX_TORQUE = 9760; // standard.rs:718
 // The Patrol Gunship: its structural arm, centre of mass to the outer FACE of
 // its furthest section (attitude.rs, `structural_arm`). WORLD UNITS - it is measured off
 // avian collider boxes, and the cell tables below are the same geometry.
@@ -3332,8 +3332,9 @@ function initControllerArm(host: HTMLElement): void {
                 `${structural.toFixed(2)} rad/s^2, and the two flight ` +
                 `computers together could push ${torque.toFixed(1)} - ` +
                 `${(torque / structural).toFixed(0)} times as hard. Every base ` +
-                "hull but the carrier sits this far clear of its computers, " +
-                "which is why bolting more of them on buys no turn rate at all.";
+                "hull sits clear of its computers while it is whole - the " +
+                "carrier only just - which is why bolting more of them on " +
+                "buys no turn rate at all.";
         } else if (gain <= -0.5) {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +

@@ -35,6 +35,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A patrolling ship rounds a rock with its whole hull: the 200 m of daylight is
   measured from its skin, not its centre, so a carrier no longer scrapes past
   with 23 m. Authorable per ship with `avoid_margin`.
+- A flight computer carries 9760 of torque, not 1501: an intact carrier turns at
+  the rate its metal allows (0.40 rad/s2, up from 0.07) and goes back to being a
+  barge once its bridge is shot up. Small hulls are unchanged.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the

@@ -302,14 +302,24 @@ pub struct ControllerSectionTuning {
 
 /// The torque one shipped flight computer carries.
 ///
-/// PROVISIONAL, and a floor rather than an estimate: it was pinned by putting
-/// the structure/torque crossover at a 100 m structural arm, and the largest
-/// hull in the game reaches only 29.3 m, so the inertia at that radius is an
-/// extrapolation and every measured hull comes out heavier than the curve it
-/// was read off. Nothing that ships can settle it, and nothing that ships can
-/// see it either - all four reference hulls are structure-bound with 12x to
-/// 115x of headroom.
-pub(crate) const DEFAULT_MAX_TORQUE: f32 = 1501.0;
+/// Pinned against a MEASURED hull rather than an extrapolated curve: with all
+/// ten of its computers alive, `block_carrier` (2 081 sections, a 194 m
+/// structural arm, 2.20e5 of inertia) reaches about 10 percent over its own
+/// structural ceiling, so the largest hull the game ships is structure-bound
+/// while intact and turns at the rate its metal allows.
+///
+/// Ten percent and not more, because the margin is what makes the number
+/// VISIBLE: a carrier that loses one computer falls back under its structural
+/// ceiling and is torque-bound for the rest of the fight, so both regimes
+/// occur on shipped content and a player can feel the difference between a
+/// whole bridge and a wrecked one. Small hulls stay structure-bound whatever
+/// happens to them - the skiff keeps 50x of headroom on one computer - so this
+/// is the capital's knob, exactly as it was, with a crossover that now sits
+/// inside the fleet instead of three times past it.
+///
+/// Re-measure with `system_hull_scaling`, which holds the carrier to this
+/// band, whenever the reference hulls change.
+pub(crate) const DEFAULT_MAX_TORQUE: f32 = 9760.0;
 
 /// The hidden response profile. At the shipped 0.5 second lag this derives the
 /// former frequency 4 / damping 4 gains exactly.
@@ -1169,10 +1179,12 @@ mod tests {
     #[test]
     fn a_torque_bound_hull_buys_its_physics_back_and_stops_there() {
         let mut app = stack_app();
-        // Fifteen sections at twenty times the density: four times the inertia
-        // the same arm can carry, so this hull is torque-bound where the
-        // reference 1-1-1 is structure-bound.
-        let (root, _) = spawn_hull(&mut app, 15, 20.0);
+        // Fifteen sections at a hundred and thirty times the density: far more
+        // inertia than the same arm can carry, so this hull is torque-bound on
+        // one computer where the reference 1-1-1 is structure-bound. The
+        // density tracks `DEFAULT_MAX_TORQUE` - a stronger computer needs a
+        // heavier hull to stay on the torque side of the crossover.
+        let (root, _) = spawn_hull(&mut app, 15, 130.0);
         let controllers = spawn_computers(&mut app, root, 8);
 
         let budget = |app: &mut App, live: usize| {

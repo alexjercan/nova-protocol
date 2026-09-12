@@ -380,7 +380,7 @@ to fly.
 ```ron
 kind: Controller((
     steering_lag: 0.5,
-    max_torque: 1501.0,
+    max_torque: 9760.0,
 )),
 ```
 
@@ -392,7 +392,9 @@ kind: Controller((
   time: the computer reacts immediately, and the hull's turn ceiling still
   limits large turns.
 - `max_torque` - how hard this computer's reaction wheels twist the hull, in
-  torque units. Every shipped controller carries `1501.0`. Controllers on one
+  torque units. Every shipped controller carries `9760.0`, which is pinned so
+  that the largest hull the base game ships is structure-bound with all ten of
+  its computers alive and torque-bound once it loses one. Controllers on one
   hull ADD: two are twice the torque, with no cap and no stacking curve.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
 - `render_mesh_transform` (optional) - visual-only position, rotation and scale.
@@ -425,7 +427,7 @@ A hull may mount several controllers, but they do NOT each steer it: the ship
 derives ONE attitude loop and shares it out. The turn ceiling it derives is
 never authored:
 
-<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 1501.0 :384). -->
+<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 9760.0 :384). -->
 
 ```text
 ceiling = min( sum(max_torque) / I , 78.48 / r )   rad/s2
@@ -443,14 +445,16 @@ ceiling = min( sum(max_torque) / I , 78.48 / r )   rad/s2
   for every ship and every mod.
 
 So `max_torque` is the only handling number you author, and it binds only on a
-hull heavy enough that its computers give up before its metal does. Everything
-that ships is on the second term: the hull would tear first, so fitting more
-computers buys it no turn rate at all. Size and shape set the rest. A long hull
-has a long arm and a low ceiling; a short one is sharp. Author a bigger
-`max_torque` for a capital-scale hull that reads sluggish, not for a small one -
-a small one is already at its limit.
+hull heavy enough that its computers give up before its metal does. Small hulls
+are all on the second term: the metal would tear first, so fitting more
+computers buys them no turn rate at all. Capital hulls sit near the crossover -
+the base game's carrier is on the structural term with its whole bridge alive
+and on the torque term once it has lost a computer. Size and shape set the rest.
+A long hull has a long arm and a low ceiling; a short one is sharp. Author a
+bigger `max_torque` for a capital-scale hull that reads sluggish, not for a small
+one - a small one is already at its limit.
 
-Three consequences to author around:
+Four consequences to author around:
 
 - **Damage sharpens a hull.** Losing sections shortens `r`, which raises the
   ceiling. A wreck turns harder than it did intact.
@@ -458,6 +462,10 @@ Three consequences to author around:
   centripetal load `omega^2 * r` add as a vector, and that sum is what must stay
   under 8 G. So a hull holds `sqrt(78.48 / r)` rad/s indefinitely and has no
   authority left to tighten past it.
+- **A capital's computers are worth losing.** On a hull near the crossover,
+  every computer shot off the bridge costs real turn rate, because the torque
+  term falls while the structural one does not. On a small hull it costs
+  nothing until the last one dies and the ship stops steering at all.
 - **Stacking buys precision, not authority.** A stack starts arresting a turn
   earlier and lands on the commanded attitude instead of swinging past. That
   gain approaches x1.5 from below: x1.25 at two computers, x1.375 at four,

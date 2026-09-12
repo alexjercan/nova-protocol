@@ -447,3 +447,52 @@ The planner moved to `flight/navigation.rs` with an explicit `DetourPolicy`
 for a skiff threading a belt is not what is safe for a carrier, so the caller
 states it. AI patrol is the only caller today. `AIControllerConfig::avoid_margin`
 authors it per ship, 0 m meaning "pass on my own skin".
+
+### The flight computer is pinned to a hull that exists, 2026-09-12
+
+`DEFAULT_MAX_TORQUE` was 1501, pinned by putting the structure/torque crossover
+at a 100 m arm on the belief that "the largest hull in the game reaches only
+29.3 m". `block_carrier` reaches 194.2 m. The constant's own doc said all four
+reference hulls were structure-bound with 12x to 115x of headroom; the carrier
+was torque-bound by 5.9x, inside the regime the constant declared unreachable.
+
+Measured on `system_hull_scaling`, before and after:
+
+| figure | block_skiff | block_carrier |
+| --- | --- | --- |
+| computers | 1 | 10 |
+| structural arm | 47.8 m | 194.2 m |
+| inertia | 1.131e2 | 2.195e5 |
+| torque before | 1 501 | 15 010 |
+| torque after | 9 760 | 97 600 |
+| torque ceiling before | 13.2772 rad/s2 | 0.0684 rad/s2 |
+| torque ceiling after | 86.3326 rad/s2 | 0.4446 rad/s2 |
+| structural ceiling | 1.6430 rad/s2 | 0.4042 rad/s2 |
+| binds before | structure | torque |
+| binds after | structure | structure |
+| headroom before | +708.1% | -83.1% |
+| headroom after | +5154.7% | +10.0% |
+| what the hull gets | 1.6430 rad/s2, unchanged | 0.0684 -> 0.4042 rad/s2 |
+| bang-bang 180 | 2.77 s, unchanged | 13.55 s -> 5.58 s |
+
+The skiff's ceiling does not move at all: it was structure-bound and it stays
+structure-bound, now with 51x of headroom instead of 7x. The whole change lands
+on the capital, which is what the knob was always for.
+
+Ten percent and not more, because the margin is what makes the number visible.
+A carrier that loses ONE of its ten computers drops to 0.4002 rad/s2 and is
+torque-bound for the rest of the fight, so both regimes occur on shipped content
+and a wrecked bridge costs real turn rate. That is now a claim a range holds:
+`system_hull_scaling` asserts the intact carrier sits in a 5-20 percent band
+over its structural ceiling and the skiff keeps at least 10x, so a retune that
+drifts either way says so.
+
+`attitude.rs` lost its extrapolated capital rig - inertia 7906 at a 150 m arm,
+which no shipped hull resembles - for the measured carrier, and now proves the
+crossover on the hull the constant is pinned to rather than on a number picked
+to sit past it.
+
+`system_ai_combat` is unchanged by this: its movers are `block_picket` (50 m
+arm) and `block_warship` (118 m arm), both structure-bound before and after, so
+the fight reads 1,029 m / 1,034 m of face gap at 92 m/s / 83 m/s exactly as it
+did. The retune is worth nothing until a hull as big as the carrier flies one.

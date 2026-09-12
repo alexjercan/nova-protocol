@@ -199,6 +199,17 @@ pub fn hull_mass_properties(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sections::controller_section::DEFAULT_MAX_TORQUE;
+
+    /// One shipped flight computer, so a rig that says "the same computer"
+    /// keeps saying it after the controller is retuned.
+    const SHIPPED_COMPUTER: f32 = DEFAULT_MAX_TORQUE;
+
+    /// `block_carrier` as `system_hull_scaling` measures it: the largest hull
+    /// the game ships, and the one the computer's torque is pinned against.
+    const CARRIER_INERTIA: f32 = 2.195e5;
+    /// The same hull's structural arm.
+    const CARRIER_ARM: Meters = Meters(194.2);
 
     /// The reference hull: three unit cubes in a line about their centre of
     /// mass. Its arm is 1.5 u by the face rule, and every number the model was
@@ -255,23 +266,30 @@ mod tests {
     /// 0.5 rad/s2 model gave it.
     #[test]
     fn the_reference_hull_is_structure_bound_and_sharp() {
-        let envelope = AttitudeEnvelope::new(1501.0, 2.5, Meters(15.0));
+        let envelope = AttitudeEnvelope::new(SHIPPED_COMPUTER, 2.5, Meters(15.0));
         assert_eq!(envelope.binds(), AttitudeLimit::Structure);
         assert!((envelope.ceiling() - 5.232).abs() < 1e-2, "{envelope:?}");
         let flip = 2.0 * (core::f32::consts::PI / envelope.ceiling()).sqrt();
         assert!((flip - 1.55).abs() < 0.02, "bang-bang 180 in {flip} s");
     }
 
-    /// Size falls out for free: ten times the reference hull's arm, and the
-    /// inertia that comes with it, turns the same computer's hull from
-    /// structure-bound into torque-bound with no rule anywhere that says so.
-    /// A capital is a barge because it is a capital.
+    /// Size falls out for free, and so does damage: the measured carrier is
+    /// structure-bound with its whole bridge alive and torque-bound the moment
+    /// it loses a computer, with no rule anywhere that says so. A capital is a
+    /// barge because it is a capital, and a wrecked capital is worse.
     #[test]
-    fn a_capital_binds_on_torque_instead() {
-        let envelope = AttitudeEnvelope::new(1501.0, 7906.0, Meters(150.0));
-        assert_eq!(envelope.binds(), AttitudeLimit::Torque);
-        let flip = 2.0 * (core::f32::consts::PI / envelope.ceiling()).sqrt();
-        assert!((flip - 8.14).abs() < 0.05, "bang-bang 180 in {flip} s");
+    fn a_capital_binds_on_torque_once_it_loses_a_computer() {
+        let intact = AttitudeEnvelope::new(SHIPPED_COMPUTER * 10.0, CARRIER_INERTIA, CARRIER_ARM);
+        assert_eq!(intact.binds(), AttitudeLimit::Structure);
+
+        let hurt = AttitudeEnvelope::new(SHIPPED_COMPUTER * 9.0, CARRIER_INERTIA, CARRIER_ARM);
+        assert_eq!(hurt.binds(), AttitudeLimit::Torque);
+        assert!(
+            hurt.ceiling() < intact.ceiling(),
+            "losing a computer has to cost the hull rate: {} -> {}",
+            intact.ceiling(),
+            hurt.ceiling()
+        );
     }
 
     /// Controllers add, and the structure stops them: doubling the torque on a
@@ -279,8 +297,8 @@ mod tests {
     /// buys nothing at all.
     #[test]
     fn torque_stacks_until_the_structure_catches_it() {
-        let one = AttitudeEnvelope::new(1501.0, 7906.0, Meters(150.0));
-        let two = AttitudeEnvelope::new(3002.0, 7906.0, Meters(150.0));
+        let one = AttitudeEnvelope::new(SHIPPED_COMPUTER, CARRIER_INERTIA, CARRIER_ARM);
+        let two = AttitudeEnvelope::new(SHIPPED_COMPUTER * 2.0, CARRIER_INERTIA, CARRIER_ARM);
         assert!(
             (two.ceiling() / one.ceiling() - 2.0).abs() < 1e-3,
             "a torque-bound hull doubles: {} -> {}",
@@ -288,8 +306,8 @@ mod tests {
             two.ceiling()
         );
 
-        let fighter_one = AttitudeEnvelope::new(1501.0, 2.5, Meters(15.0));
-        let fighter_ten = AttitudeEnvelope::new(15010.0, 2.5, Meters(15.0));
+        let fighter_one = AttitudeEnvelope::new(SHIPPED_COMPUTER, 2.5, Meters(15.0));
+        let fighter_ten = AttitudeEnvelope::new(SHIPPED_COMPUTER * 10.0, 2.5, Meters(15.0));
         assert_eq!(fighter_one.ceiling(), fighter_ten.ceiling());
     }
 

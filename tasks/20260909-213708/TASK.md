@@ -209,7 +209,7 @@ gameplay feedback ledger (`20260909-213118`).
 
 ## Flight
 
-- [ ] `nova_ship/src/sections/controller_section.rs:312`
+- [x] `nova_ship/src/sections/controller_section.rs:312`
       `DEFAULT_MAX_TORQUE` 1501 per flight computer, doc: "the largest hull
       reaches only 29.3 m", "all four reference hulls are structure-bound".
       The carrier's arm is 182.9 m and it is torque-bound 4.7x inside the

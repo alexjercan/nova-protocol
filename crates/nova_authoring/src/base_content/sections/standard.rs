@@ -709,13 +709,12 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             kind: SectionKind::Controller(ControllerSectionConfig {
                 steering_lag: 0.5,
                 // What a hull DOES with this is `min(torque / inertia, load
-                // limit / arm)`, so every hull that ships today is structure-
-                // bound and this number is invisible on all of them - it has 12x
-                // to 115x of headroom over what their metal takes. It is the
-                // capital's knob, and it is provisional: the crossover it was
-                // pinned against sits three times further out than the largest
-                // hull in the game.
-                max_torque: 1501.0,
+                // limit / arm)`. Pinned on the measured carrier: ten of these
+                // put the largest shipped hull about 10 percent over its own
+                // structural ceiling, so an intact capital turns at the rate
+                // its metal allows and a capital that has lost a computer does
+                // not. Small hulls are structure-bound either way.
+                max_torque: 9760.0,
                 // Full flight-verb loadout by default (no WithheldVerbs on the
                 // built controller). Scenarios withhold a verb via a
                 // `DisableVerb` section modification or the `SetControllerVerb`

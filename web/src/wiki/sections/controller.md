@@ -24,7 +24,7 @@ A hurt computer cracks and, past about a third of its health gone, throws sparks
 
 ## What sets how hard a ship turns
 
-<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 5.52 u (55.2 m) on the base Patrol Gunship :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The hull the widgets fly is block_gunship in assets/base/ships/base.content.ron - 53 authored cells, two flight computers at 1501 of torque each (crates/nova_authoring/src/base_content/sections/standard.rs:701,:718) - and web/tests/widgets.test.ts holds the widget's cell table to that ship's section count, mass and arm. Density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:470-471). Severing on a disconnected graph, and the rank that picks which body keeps the ship: crates/nova_ship/src/sections/integrity.rs:231-349,:345-385. -->
+<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 5.52 u (55.2 m) on the base Patrol Gunship :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The hull the widgets fly is block_gunship in assets/base/ships/base.content.ron - 53 authored cells, two flight computers at 9760 of torque each (crates/nova_authoring/src/base_content/sections/standard.rs:701,:718) - and web/tests/widgets.test.ts holds the widget's cell table to that ship's section count, mass and arm. Density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:470-471). Severing on a disconnected graph, and the rank that picks which body keeps the ship: crates/nova_ship/src/sections/integrity.rs:231-349,:345-385. -->
 
 The computer does not decide it on its own. A ship turns as hard as the lower of two limits allows:
 
@@ -88,14 +88,14 @@ The other half of stacking is **redundancy**. Lose one of two and the ship does 
 One flight computer ships, and every hull in the game is steered by copies of it. What a ship does with them is the ship's own business: its mass and its length decide that, and a second one buys redundancy and precision rather than turn rate.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 used :701, steering_lag 0.5 :709, max_torque 1501.0 :718). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 used :701, steering_lag 0.5 :709, max_torque 9760.0 :718). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-controller.png</span></span></span><span class="catalog__title">Controller - shipped prototypes</span></div>
 <table>
 <thead>
 <tr><th></th><th>Variant</th><th>Torque</th><th>Steering lag</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">9760</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
 </tbody>
 </table>
 </div>

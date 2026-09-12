@@ -825,7 +825,7 @@
         ),
         kind: Controller((
             steering_lag: 0.5,
-            max_torque: 1501.0,
+            max_torque: 9760.0,
             render_mesh: Some("self://gltf/core_wires.glb#Scene0"),
             lock_on_sound: Some("self://sounds/lock_on.wav"),
             lock_off_sound: Some("self://sounds/lock_off.wav"),
