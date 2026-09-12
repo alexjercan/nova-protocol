@@ -72,6 +72,12 @@ fn teardown_scenario_entities(
 ) {
     world.clear();
     commands.queue(resume_player_control);
+    // A sever spans two schedules - `Update` queues the cut, `FixedPostUpdate`
+    // applies the motion - so a scenario that ends between them leaves a batch
+    // naming bodies this sweep is about to despawn. Cleared here for the same
+    // reason the event world is: whatever the last scenario had in flight is
+    // not the next one's.
+    commands.queue(clear_pending_severs);
     // The objectives HUD mirror dies with the scenario too (same reset class as
     // the event world / emphasis / outcome above). The panel rides the player
     // ship, so it is despawned and rebuilt EMPTY on every (re)load, and bcs

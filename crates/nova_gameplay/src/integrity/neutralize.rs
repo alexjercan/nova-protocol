@@ -142,15 +142,18 @@ fn detect_neutralized(
 
         // History stamps. The computer stamp lands even on a not-yet-armed
         // hull: history is history, whichever section attaches first.
+        // try_insert, for the reason the neutralization write below states:
+        // the root can be despawned earlier in this same command flush, and a
+        // history stamp that missed its entity is not worth a panic.
         if !had_computer && has_controller_section {
-            commands.entity(root).insert(HadFlightComputer);
+            commands.entity(root).try_insert(HadFlightComputer);
         }
         // Arming guard: a root only becomes eligible once it has carried a
         // weapon section. Stamp it the first frame we see one, and never
         // neutralize on that same frame (nor for a ship that was never armed).
         if !was_armed {
             if has_weapon_section {
-                commands.entity(root).insert(WasArmedCombatant);
+                commands.entity(root).try_insert(WasArmedCombatant);
             }
             continue;
         }
@@ -284,6 +287,49 @@ mod tests {
 
     fn is_neutralized(app: &App, root: Entity) -> bool {
         app.world().entity(root).contains::<NeutralizedMarker>()
+    }
+
+    /// Every write this pass makes to a root is a `try_`, including the two
+    /// history stamps - the arming stamp and the flight-computer stamp - that
+    /// used to be plain inserts.
+    ///
+    /// The pass runs after `IntegritySystems`, and a destruction earlier in
+    /// that same frame queues the root's despawn without applying it, so the
+    /// stamp is written onto a root that will be gone by the time the buffers
+    /// flush. `EntityCommands::insert` PANICS there, and a stamp that missed
+    /// its entity costs nothing: a despawned root has no history to keep.
+    #[test]
+    fn a_root_despawned_in_the_same_flush_is_stamped_without_a_panic() {
+        fn reap_every_root(
+            mut commands: Commands,
+            q_root: Query<Entity, With<SpaceshipRootMarker>>,
+        ) {
+            for root in &q_root {
+                commands.entity(root).try_despawn();
+            }
+        }
+
+        let mut app = neutralize_app();
+        // The reaper runs first with the automatic sync points off, so its
+        // despawn is still pending while the pass stamps the root - the same
+        // pinning the audio teardown test uses.
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_build_settings(bevy::ecs::schedule::ScheduleBuildSettings {
+                auto_insert_apply_deferred: false,
+                ..default()
+            });
+        });
+        app.add_systems(Update, (reap_every_root, detect_neutralized).chain());
+        // A first-frame root: never stamped, so this update writes BOTH the
+        // arming stamp and the flight-computer stamp.
+        let (root, ..) = spawn_ship(&mut app, 1, 1, 1);
+
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(root),
+            "the reaper is the owner that wins: the root is gone"
+        );
     }
 
     #[test]

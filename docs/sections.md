@@ -104,6 +104,13 @@ it into its `PDController`. The authored numbers stay put in
 controller dies. The smallest live `steering_lag` supplies the stack's base
 response.
 
+The pass measures or it does nothing. A root with no finite, positive inertia
+and arm yet - the spawn frame before avian has computed mass properties, or a
+hull that has lost every live section and is no longer sized at all (see
+`publish_hull_radii`) - is SKIPPED, and every controller on it keeps the tuning
+it already had. Dividing by a missing arm writes an infinite structural ceiling
+onto each `PDController`, which disables the load clamp for that tick.
+
 The ship-level loop, for `n` live controllers:
 
 - authority: the envelope above. Torque SUMS across controllers, with no curve

@@ -331,6 +331,14 @@ fn on_destroyed_entity(
 /// Despawns the body on every path. It is the only thing that despawns a
 /// destroyed explodable, so an early return leaves a zero-health wreck standing
 /// with a live collider.
+///
+/// The shared RNG is `Option<Single>` for exactly that reason. A plain `Single`
+/// that matches nothing - no global RNG, or two of them - skips the WHOLE
+/// observer, which is the one thing this path may never do. Production has one
+/// seeded `GlobalRng` (`NovaGameplayPlugin`) and game code creates no local or
+/// fallback randomness, so the empty arm is an assembly error: it says so once
+/// per process, leaves no debris, and still takes the dead body and its
+/// collider off the ship.
 fn detach_destroyed_body(
     add: On<Add, IntegrityDestroyMarker>,
     mut commands: Commands,
@@ -351,12 +359,26 @@ fn detach_destroyed_body(
     q_children: Query<&Children>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
     q_structure: Query<(&GlobalTransform, &ComputedCenterOfMass, &IntegrityEnvelope)>,
-    mut rng: Single<&mut WyRand, With<GlobalRng>>,
+    mut rng: Option<Single<&mut WyRand, With<GlobalRng>>>,
+    mut broken_rng_reported: Local<bool>,
 ) {
     let entity = add.entity;
     trace!("detach_destroyed_body: entity {:?}", entity);
 
     let Ok((frame, collider, children, name)) = q_dying.get(entity) else {
+        return;
+    };
+
+    let Some(rng) = rng.as_deref_mut() else {
+        if !*broken_rng_reported {
+            *broken_rng_reported = true;
+            error!(
+                "detach_destroyed_body: no single seeded GlobalRng in this app - destroyed \
+                 bodies leave no debris. Every death from here on is silently plain; this \
+                 is reported once."
+            );
+        }
+        commands.entity(entity).try_despawn();
         return;
     };
 
@@ -377,7 +399,7 @@ fn detach_destroyed_body(
         .unwrap_or((transform.translation, Vec3::ZERO));
     // Outward from the middle of the structure, so a ship comes apart instead of
     // every piece sliding the same way.
-    let kick = random_unit_vector(&mut rng);
+    let kick = random_unit_vector(&mut *rng);
     let away =
         Dir3::new(transform.translation - centre).unwrap_or(Dir3::new(kick).unwrap_or(Dir3::Y));
     // A piece is born inside the structure, and how far inside decides both
@@ -418,7 +440,7 @@ fn detach_destroyed_body(
             CenterOfMass(collider.center_of_mass()),
             NoAutoCenterOfMass,
             LinearVelocity(drift + away * (rng.random_range(PIECE_KICK) * urgency)),
-            AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(PIECE_SPIN)),
+            AngularVelocity(random_unit_vector(&mut *rng) * rng.random_range(PIECE_SPIN)),
             ChunkGrace::new(collider, clearance),
             TempEntity(PIECE_LIFETIME_SECS),
         ))
@@ -641,6 +663,42 @@ mod tests {
         assert!(
             !app.world().entities().contains(body),
             "the dead section itself is gone"
+        );
+    }
+
+    /// The finale is the ONLY thing that despawns a destroyed explodable, so
+    /// it may never be skipped - and a plain `Single` parameter that matches
+    /// nothing skips the whole observer.
+    ///
+    /// Production has exactly one seeded `GlobalRng`
+    /// (`the_production_assembly_provides_exactly_one_global_rng`), and game
+    /// code creates no local or fallback randomness, so an app with none - or
+    /// with two - is an assembly error rather than a mode to support. What it
+    /// must not be is SILENT: the old shape left the zero-health section
+    /// standing with a live collider on a hull the player then flew into.
+    #[test]
+    fn a_destroyed_body_is_taken_off_its_hull_even_with_no_global_rng() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        // No `EntropyPlugin`: the broken assembly, stated.
+        app.add_plugins(CarvedChunkPlugin);
+        app.add_plugins(ExplodablePlugin);
+        let (body, _) = body_drawing_through_descendants(&mut app, 2);
+
+        app.world_mut()
+            .entity_mut(body)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(body),
+            "the dead body and its collider come off the hull whatever the RNG does"
+        );
+        assert!(
+            wreckage(&mut app).is_empty(),
+            "and nothing randomised is invented to replace it"
         );
     }
 

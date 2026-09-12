@@ -125,3 +125,37 @@ impl Plugin for NovaGameplayPlugin {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ONE seeded `GlobalRng`, provided here and nowhere else.
+    ///
+    /// Every gameplay system that needs randomness takes it as
+    /// `Option<Single<&mut WyRand, With<GlobalRng>>>` and creates nothing of its
+    /// own, so a second entropy plugin anywhere in the assembly does not make
+    /// two RNGs - it makes every one of those systems stop finding one, and
+    /// destroyed sections quietly keep their colliders. That failure is a
+    /// composition mistake and this is where it is caught.
+    #[test]
+    fn the_gameplay_assembly_provides_exactly_one_global_rng() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            bevy::asset::AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            bevy::audio::AudioPlugin::default(),
+        ));
+        app.add_plugins(NovaGameplayPlugin { render: false });
+        app.finish();
+
+        let mut rngs = app.world_mut().query_filtered::<(), With<GlobalRng>>();
+        assert_eq!(
+            rngs.iter(app.world()).count(),
+            1,
+            "gameplay must compose exactly one seeded GlobalRng"
+        );
+    }
+}

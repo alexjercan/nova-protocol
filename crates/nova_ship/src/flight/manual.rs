@@ -14,7 +14,7 @@ use super::{
     state::RcsReference,
     thrusters::{balance_throttles, spool_allocated_thrusters, BalanceEngine},
 };
-use crate::prelude::*;
+use crate::{prelude::*, sections::thruster_section::engine_direction_local};
 
 /// Integrate one RCS virtual-joystick axis by `delta` and clamp to the unit
 /// range the primitive expects (`RcsIntent` components are ~`[-1, 1]`). The
@@ -192,7 +192,9 @@ pub(super) fn manual_burn_system(
             if parent != ship {
                 continue;
             }
-            let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
+            let Some(local_dir) = engine_direction_local(transform) else {
+                continue;
+            };
             let aligned = local_dir.dot(Vec3::NEG_Z);
             let primary = is_forward_aligned(local_dir, Vec3::NEG_Z);
             let torque = (transform.translation - com_local).cross(local_dir * **magnitude);

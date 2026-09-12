@@ -6,8 +6,8 @@ use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_ship::prelude::{
     derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
     PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig,
-    SectionFootprint, SectionKind, SectionReloadConfig, ShipGrammarConfig, TurretJoint,
-    TurretSectionConfig, MAX_GRAMMAR_CELLS,
+    SectionFootprint, SectionKind, SectionReloadConfig, ShipGrammarConfig, TorpedoSectionConfig,
+    TurretJoint, TurretSectionConfig, MAX_GRAMMAR_CELLS,
 };
 
 use super::{KnownSections, KnownShips, LintIssue, LintSeverity};
@@ -311,6 +311,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
                 source,
                 &mut issues,
             );
+            check_torpedo_numbers(config.base.id.as_str(), torpedo, source, &mut issues);
         }
         SectionKind::Railgun(railgun) => {
             check_reload_config(
@@ -373,6 +374,32 @@ fn check_reload_config(
         issues.push(LintIssue::error(
             source,
             format!("section '{section_id}': reload amount must be greater than zero"),
+        ));
+    }
+}
+
+/// Flag a bay whose cadence is not one.
+///
+/// `1.0 / fire_rate` is the launch interval, and the value has no usable answer
+/// off the positive finite line: `0.0` gives an infinite cooldown that fires
+/// once and never again, a negative or non-finite one gives a cooldown that is
+/// ready every tick. The runtime withholds the bay's launcher outright rather
+/// than substituting a cadence nobody authored, so this is the early, named
+/// report of a bay that will not shoot.
+fn check_torpedo_numbers(
+    section_id: &str,
+    config: &TorpedoSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    if !config.fire_rate.is_finite() || config.fire_rate <= 0.0 {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': torpedo fire_rate must be a positive, finite number \
+                 of launches/s, got {}",
+                config.fire_rate
+            ),
         ));
     }
 }
@@ -1163,6 +1190,86 @@ mod tests {
             &base_channels(),
         )
         .is_empty());
+    }
+
+    /// A mount rotation is a DIRECTION before it is a pose.
+    ///
+    /// A thruster pushes along its own local -Z turned by this quaternion, so
+    /// a zero or non-finite one names no direction at all and every runtime
+    /// reader of an engine's line of thrust skips the section (see
+    /// `nova_ship`'s `engine_direction`). The link-point graph already rejects
+    /// both, for its own reasons; this pins that rule in the terms the flight
+    /// layer depends on it, so nobody relaxes it into a warning.
+    #[test]
+    fn a_section_mounted_on_a_degenerate_rotation_is_an_error() {
+        let ship = |rotation: Quat| ShipConfig {
+            id: "block_gunship".to_string(),
+            name: "Gunship".to_string(),
+            hull: ShipHull {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "fuselage".to_string(),
+                    position: Vec3::ZERO,
+                    rotation,
+                    source: SectionSource::Prototype("hull".to_string()),
+                    modifications: vec![],
+                }],
+                ..default()
+            },
+        };
+
+        assert!(
+            lint_ship_config(&ship(Quat::IDENTITY), &sections(&["hull"]), "base").is_empty(),
+            "fixture guard: an ordinary mount lints clean"
+        );
+
+        for rotation in [
+            Quat::from_xyzw(0.0, 0.0, 0.0, 0.0),
+            Quat::from_xyzw(f32::NAN, 0.0, 0.0, 1.0),
+        ] {
+            let issues = lint_ship_config(&ship(rotation), &sections(&["hull"]), "base");
+            assert!(
+                errors(&issues)
+                    .iter()
+                    .any(|issue| issue.message.contains("rotation")),
+                "rotation {rotation:?} must be a lint error: {issues:?}"
+            );
+        }
+    }
+
+    /// A bay's cadence is the one number its whole launcher is built from.
+    ///
+    /// `1.0 / fire_rate` has no usable answer off the positive finite line, and
+    /// the runtime withholds the launcher outright rather than inventing one -
+    /// so a bay authored this way never fires, and the author hears it here.
+    #[test]
+    fn a_torpedo_bay_without_a_usable_fire_rate_is_an_error() {
+        use nova_ship::prelude::BaseSectionConfig;
+
+        let bay = |fire_rate: f32| SectionConfig {
+            base: BaseSectionConfig {
+                id: "bay".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Torpedo(TorpedoSectionConfig {
+                fire_rate,
+                ..default()
+            }),
+        };
+
+        assert!(
+            errors(&lint_section_config(&bay(1.0), "s")).is_empty(),
+            "fixture guard: a real cadence lints clean"
+        );
+
+        for rate in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            let issues = lint_section_config(&bay(rate), "s");
+            assert!(
+                errors(&issues)
+                    .iter()
+                    .any(|issue| issue.message.contains("fire_rate")),
+                "fire_rate {rate} must be a lint error: {issues:?}"
+            );
+        }
     }
 
     /// A CATALOG ship is linted where it is authored: its own section

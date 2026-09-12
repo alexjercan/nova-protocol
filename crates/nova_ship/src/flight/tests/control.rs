@@ -65,6 +65,88 @@ fn a_disabled_controller_leaves_the_spin_untouched() {
     );
 }
 
+/// Mount an engine whose authored rotation names no direction.
+///
+/// No collider, deliberately: avian asserts on the AABB of a collider carrying
+/// the zero quaternion and takes the step down before the flight layer is
+/// reached, so a rig that gave this one a shape would be testing avian. What
+/// is under test is the autopilot's read of an AUTHORED section rotation.
+fn spawn_directionless_thruster(app: &mut App, ship: Entity) -> Entity {
+    app.world_mut()
+        .spawn((
+            ChildOf(ship),
+            Name::new("directionless thruster"),
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(1.0),
+            ThrusterSectionInput(0.0),
+            Transform::from_xyz(0.0, 0.0, 2.0).with_rotation(Quat::from_xyzw(0.0, 0.0, 0.0, 0.0)),
+        ))
+        .id()
+}
+
+/// An engine whose authored rotation names no direction is SKIPPED, and the
+/// ship flies on the ones that do.
+///
+/// The three autopilot sites that read a thruster's line of thrust used a raw
+/// `normalize()`. A hand-written mod can spell the zero quaternion, and the
+/// NaN it produces poisoned the group scores, the wrench allocation and the
+/// spool tail - so the burn never completed and the maneuver never ended.
+/// The content lint now rejects the rotation outright; this is what a ship
+/// that reached the world with one does.
+#[test]
+fn a_thruster_with_a_degenerate_authored_rotation_does_not_poison_the_burn() {
+    let mut app = flight_app();
+    let (ship, _, _) = spawn_ship(&mut app);
+    withhold_rcs(&mut app, ship);
+    spawn_directionless_thruster(&mut app, ship);
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Stop));
+
+    run(&mut app, 900);
+
+    let velocity = velocity_of(&app, ship);
+    assert!(
+        velocity.is_finite(),
+        "a directionless engine must not reach the hull at all: {velocity:?}"
+    );
+    assert!(
+        velocity.length() < 0.5,
+        "the ship still stops, on the engine that does name a direction: {velocity:?}"
+    );
+}
+
+/// ...and a ship whose ONLY engine is directionless has no engines: it takes
+/// the existing no-live-engines disengagement rather than flying on NaN.
+#[test]
+fn a_ship_whose_only_engine_is_directionless_disengages() {
+    let mut app = flight_app();
+    let (ship, thruster, _) = spawn_ship(&mut app);
+    withhold_rcs(&mut app, ship);
+    app.world_mut()
+        .entity_mut(thruster)
+        .insert(SectionInactiveMarker);
+    spawn_directionless_thruster(&mut app, ship);
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Stop));
+
+    run(&mut app, 5);
+
+    assert!(
+        app.world().get::<Autopilot>(ship).is_none(),
+        "a hull with nothing that can push must let the maneuver go"
+    );
+}
+
 /// The playtest bug: an editor-built ship binds keys straight
 /// to its thrusters (`SpaceshipThrusterInputBinding`), and the autopilot
 /// used to exclude bound thrusters from its authority - so it rotated but

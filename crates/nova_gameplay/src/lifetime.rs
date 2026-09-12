@@ -102,7 +102,9 @@ fn update_temp_entities(
             // try_despawn: this sweep runs against entities other systems also
             // delete (a torpedo that fuzes on the frame its lifetime expires),
             // and both despawns land in the same flush. The loser of that race
-            // is a hard panic under the game's FallbackErrorHandler(panic).
+            // logs a WARN (`despawn` bakes in the warn handler, see
+            // `crate::test_log`), which is a failed clean pass on every probe
+            // run.
             commands.entity(entity).try_despawn();
             trace!("update_temp_entities: despawn entity {:?}", entity);
         }
@@ -130,9 +132,63 @@ impl Plugin for DespawnEntityPlugin {
 /// Observer system that runs when a `DespawnEntity` component is inserted.
 ///
 /// This system immediately despawns the entity.
+///
+/// try_despawn, for the same race `update_temp_entities` names above: the mark
+/// is data-driven, so a scenario script can raise it on the same frame the
+/// entity dies of something else, and the loser of that flush warns.
 fn on_insert_despawn_entity(insert: On<Insert, DespawnEntity>, mut commands: Commands) {
     let entity = insert.entity;
     trace!("on_insert_despawn_entity: entity {:?}", entity);
 
-    commands.entity(entity).despawn();
+    commands.entity(entity).try_despawn();
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+    use super::*;
+    use crate::test_log::CapturedLog;
+
+    /// The mark is a public, data-driven signal, so it can have more than one
+    /// answer: a mod that reaps its own entities registers a second observer
+    /// on it. Observer order for one event is unspecified, so one of them
+    /// finds the entity already gone - the same race `on_destroyed_entity`
+    /// names for the destruction reaper, and the reason its sibling
+    /// `update_temp_entities` already reaches for `try_despawn`.
+    ///
+    /// Asserted on the LOG: `EntityCommands::despawn` bakes in the WARN
+    /// handler at queue time (see `crate::test_log`), so the loser leaves a
+    /// warn line rather than a crash - and the probe's clean pass fails a run
+    /// that logs it.
+    #[test]
+    fn a_second_reaper_on_the_same_mark_leaves_no_stale_command() {
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        let mut app = App::new();
+        // The mod's own reaper, registered FIRST so the plugin's is the one
+        // that finds nothing left. Observer order is unspecified in general;
+        // it is pinned here so the test is about the losing reaper rather
+        // than about which one loses.
+        app.add_observer(
+            |insert: On<Insert, DespawnEntity>, mut commands: Commands| {
+                commands.entity(insert.entity).try_despawn();
+            },
+        );
+        app.add_plugins(DespawnEntityPlugin);
+        let entity = app.world_mut().spawn_empty().id();
+
+        app.world_mut().entity_mut(entity).insert(DespawnEntity);
+
+        assert!(!app.world().entities().contains(entity));
+        assert!(
+            !log.contents().contains("despawn"),
+            "the reaper that loses the race must leave no stale command; got: {}",
+            log.contents()
+        );
+    }
 }

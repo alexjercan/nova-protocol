@@ -15,8 +15,9 @@ use crate::prelude::SectionCollider;
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
     pub use super::{
-        ShipCollapseSound, ShipIntegrityPlugin, ShipWreckFragmentMarker, StructuralCollapseMarker,
-        StructuralCollapseThreshold, DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
+        clear_pending_severs, ShipCollapseSound, ShipIntegrityPlugin, ShipWreckFragmentMarker,
+        StructuralCollapseMarker, StructuralCollapseThreshold,
+        DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
     };
 }
 
@@ -133,10 +134,41 @@ struct PendingSeverBatch {
     old_com_world: Vec3,
     old_linear_velocity: Vec3,
     old_angular_velocity: Vec3,
+    /// Fixed steps this batch has already waited for mass data it needs.
+    /// Bounded by [`SEVER_MASS_RETRIES`]; see [`apply_pending_sever_motion`].
+    waits: u8,
 }
 
 #[derive(Resource, Default)]
 struct PendingSeverMotion(Vec<PendingSeverBatch>);
+
+/// How many extra fixed steps a sever waits for mass properties that have not
+/// arrived before it is dropped.
+///
+/// One, because the wait has exactly one legitimate cause: the batch was queued
+/// in `Update` and the bodies it names are new, so avian's recomputation can
+/// land a step behind the first read. Anything still missing after that step is
+/// a body that will never report mass, and a batch kept for it is kept forever -
+/// with [`recompute_pending_sever_mass`] rewriting mass properties for every
+/// live body in it on every tick for the rest of the process.
+const SEVER_MASS_RETRIES: u8 = 1;
+
+/// Drop every sever still in flight, in both of its stages.
+///
+/// For scenario teardown. The sever pipeline spans two schedules - `Update`
+/// queues a cut, `FixedPostUpdate` applies the motion - so a scenario that
+/// ends between them leaves a batch naming entities the teardown has just
+/// despawned. Expiry ([`apply_pending_sever_motion`]) would drop it on the
+/// next fixed step anyway; clearing here means the next scenario never starts
+/// with the last one's cuts queued against it.
+pub fn clear_pending_severs(world: &mut World) {
+    if let Some(mut roots) = world.get_resource_mut::<PendingSeverRoots>() {
+        roots.0.clear();
+    }
+    if let Some(mut motion) = world.get_resource_mut::<PendingSeverMotion>() {
+        motion.0.clear();
+    }
+}
 
 /// Adapts section-based ships to the generic gameplay integrity pipeline.
 pub struct ShipIntegrityPlugin;
@@ -429,7 +461,11 @@ fn sever_disconnected_structures(
                 let Ok((_, transform, ..)) = q_sections.get(*section) else {
                     continue;
                 };
-                commands.entity(*section).insert((
+                // try_insert, like the disable observer above: this loop reads
+                // sections the destruction pipeline may already have queued a
+                // despawn for in the same flush, and re-parenting one that went
+                // down with the cut is a panic rather than a problem.
+                commands.entity(*section).try_insert((
                     ChildOf(fragment),
                     *transform,
                     SectionInactiveMarker,
@@ -448,6 +484,7 @@ fn sever_disconnected_structures(
             old_com_world,
             old_linear_velocity: cut.old_linear_velocity,
             old_angular_velocity: cut.old_angular_velocity,
+            waits: 0,
         });
         debug!(
             "sever_disconnected_structures: {root:?} split into {} bodies",
@@ -471,6 +508,21 @@ fn recompute_pending_sever_mass(
 
 /// Restore each new body's rigid point velocity after Avian computes its new
 /// centre of mass, then add a momentum-neutral fracture kick.
+///
+/// # When a batch does not land
+///
+/// A batch is DROPPED the moment any body it names is gone. That is not a
+/// wait: the motion is one balanced kick across the whole set, and a set with
+/// a hole in it has no momentum-neutral answer left to apply. The common case
+/// is the one the wreck-fragment cleanup makes - a hull whose root dies in the
+/// same frame its cut was queued.
+///
+/// A batch whose bodies all exist but whose mass data has not arrived waits
+/// [`SEVER_MASS_RETRIES`] further steps and is then dropped with one line. The
+/// old code re-queued such a batch unconditionally, with no counter and no
+/// expiry, so one dead root left [`recompute_pending_sever_mass`] rewriting
+/// mass properties for every live body in every stuck batch on every tick for
+/// the rest of the process.
 #[expect(
     clippy::type_complexity,
     reason = "one filtered query over the integrity tree"
@@ -486,10 +538,22 @@ fn apply_pending_sever_motion(
             &mut AngularVelocity,
         )>,
     )>,
+    // Every entity, so "this body is gone" can be told apart from "this body
+    // has no mass yet" - the two have different answers and the old single
+    // `Option` collapsed them into an unbounded wait.
+    q_alive: Query<()>,
     q_section: Query<(&Transform, Option<&SectionCollider>, &ChildOf), With<SectionMarker>>,
 ) {
     let mut waiting = Vec::new();
     for batch in pending.0.drain(..) {
+        if let Some(dead) = batch.bodies.iter().find(|body| !q_alive.contains(**body)) {
+            debug!(
+                "apply_pending_sever_motion: body {dead:?} died before its sever landed - \
+                 dropping the batch of {}",
+                batch.bodies.len()
+            );
+            continue;
+        }
         let samples: Option<Vec<_>> = {
             let q_body = bodies.p0();
             batch
@@ -508,12 +572,12 @@ fn apply_pending_sever_motion(
                 .collect()
         };
         let Some(samples) = samples else {
-            waiting.push(batch);
+            wait_for_mass(batch, &mut waiting, "no mass properties");
             continue;
         };
         let total_mass: f32 = samples.iter().map(|(_, _, mass, _, _)| *mass).sum();
         if total_mass <= f32::EPSILON {
-            waiting.push(batch);
+            wait_for_mass(batch, &mut waiting, "zero total mass");
             continue;
         }
         // Momentum-neutral: each fragment leaves at the speed its OWN size asks
@@ -542,6 +606,21 @@ fn apply_pending_sever_motion(
         }
     }
     pending.0 = waiting;
+}
+
+/// Hold `batch` for one more step, or expire it and say so once.
+fn wait_for_mass(mut batch: PendingSeverBatch, waiting: &mut Vec<PendingSeverBatch>, why: &str) {
+    if batch.waits < SEVER_MASS_RETRIES {
+        batch.waits += 1;
+        waiting.push(batch);
+        return;
+    }
+    warn!(
+        "apply_pending_sever_motion: sever of {} bodies has {why} after {} step(s) - \
+         dropping it; the fragments keep the velocity they were born with",
+        batch.bodies.len(),
+        SEVER_MASS_RETRIES + 1,
+    );
 }
 
 /// One fragment's containment radius: the distance from its own centre of mass
@@ -1312,7 +1391,10 @@ mod tests {
 #[cfg(test)]
 mod physics_tests {
     use bevy_rand::prelude::*;
-    use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+    use nova_gameplay::{
+        test_log::CapturedLog,
+        test_support::{settle, unfinished_integrity_physics_app},
+    };
 
     use super::*;
     use crate::{
@@ -2065,6 +2147,180 @@ mod physics_tests {
 
         assert!(app.world().get::<IntegrityRoot>(body).is_some());
         assert_eq!(neighbors(&app, node), Vec::<Entity>::new());
+    }
+
+    /// How many severs are still waiting to be applied.
+    fn pending_motion(app: &App) -> usize {
+        app.world().resource::<PendingSeverMotion>().0.len()
+    }
+
+    /// A sever with a hole in it is DROPPED, not held.
+    ///
+    /// The cut is queued in `Update` and applied in `FixedPostUpdate`, so a
+    /// hull whose root dies in between leaves a batch naming an entity that no
+    /// longer exists. That batch used to go straight back on the queue, with no
+    /// counter and no expiry, and `recompute_pending_sever_mass` then rewrote
+    /// mass properties for every live body in it on every tick for the rest of
+    /// the process.
+    #[test]
+    fn a_sever_whose_root_died_first_is_dropped_rather_than_held_forever() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        spawn_section(&mut app, root, Vec3::ZERO);
+        let bridge = spawn_section(&mut app, root, Vec3::X);
+        spawn_section(&mut app, root, Vec3::X * 2.0);
+        settle(&mut app);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge,
+            source: None,
+            amount: 100.0,
+        });
+        // Stop on the frame the cut is queued: the next fixed step would apply
+        // it, and this test is about what happens when the hull does not live
+        // that long.
+        for _ in 0..4 {
+            app.update();
+            if pending_motion(&app) > 0 {
+                break;
+            }
+        }
+        assert_eq!(
+            pending_motion(&app),
+            1,
+            "fixture guard: the cut must be waiting for its fixed step"
+        );
+
+        app.world_mut().entity_mut(root).despawn();
+        app.update();
+
+        assert_eq!(
+            pending_motion(&app),
+            0,
+            "a sever naming a body that no longer exists has no momentum-neutral \
+             answer left and must be dropped"
+        );
+    }
+
+    /// Mass data that never arrives costs ONE retry, then the batch goes.
+    ///
+    /// Distinct from a dead body: a live body whose mass avian has not computed
+    /// yet is the one legitimate wait, and it is over in a step. The ghost here
+    /// stands in for the body that never reports mass at all - what used to
+    /// keep a batch, and the recompute behind it, alive for the whole process.
+    #[test]
+    fn a_sever_that_never_gets_mass_data_retries_once_then_expires_with_one_line() {
+        use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        let mut app = integrity_physics_app();
+        let ghost = app.world_mut().spawn(Transform::default()).id();
+        app.world_mut()
+            .resource_mut::<PendingSeverMotion>()
+            .0
+            .push(PendingSeverBatch {
+                bodies: vec![ghost],
+                origin_world: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                cut_origin_world: Vec3::ZERO,
+                old_com_world: Vec3::ZERO,
+                old_linear_velocity: Vec3::ZERO,
+                old_angular_velocity: Vec3::ZERO,
+                waits: 0,
+            });
+
+        // One system, run directly, once per call: what is under test is how
+        // many fixed steps a batch survives, not how many of them one frame
+        // runs - and the log capture is the calling thread's, which a
+        // multi-threaded schedule would step around.
+        let step = |app: &mut App| {
+            app.world_mut()
+                .run_system_cached(apply_pending_sever_motion)
+                .expect("the sever motion system runs");
+        };
+
+        step(&mut app);
+        assert_eq!(
+            pending_motion(&app),
+            1,
+            "the first step is the retry a body whose mass is one step late gets"
+        );
+
+        step(&mut app);
+        assert_eq!(pending_motion(&app), 0, "the second step expires it");
+        assert_eq!(
+            log.contents().matches("dropping it").count(),
+            1,
+            "a batch that expires says so once; got: {}",
+            log.contents()
+        );
+
+        step(&mut app);
+        assert_eq!(
+            log.contents().matches("dropping it").count(),
+            1,
+            "and never again - the batch is gone"
+        );
+    }
+
+    /// Scenario teardown drops both stages of the pipeline.
+    ///
+    /// A cut queued in `Update` and a motion queued for `FixedPostUpdate` both
+    /// name entities the teardown is about to despawn. Neither survives into
+    /// the next scenario.
+    #[test]
+    fn clearing_pending_severs_empties_both_stages() {
+        let mut app = integrity_physics_app();
+        let ghost = app.world_mut().spawn(Transform::default()).id();
+        app.world_mut()
+            .resource_mut::<PendingSeverMotion>()
+            .0
+            .push(PendingSeverBatch {
+                bodies: vec![ghost],
+                origin_world: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                cut_origin_world: Vec3::ZERO,
+                old_com_world: Vec3::ZERO,
+                old_linear_velocity: Vec3::ZERO,
+                old_angular_velocity: Vec3::ZERO,
+                waits: 0,
+            });
+        app.world_mut()
+            .resource_mut::<PendingSeverRoots>()
+            .0
+            .insert(
+                ghost,
+                PendingSeverCut {
+                    cut_offsets_from_com: Vec::new(),
+                    old_origin_world: Vec3::ZERO,
+                    old_rotation: Quat::IDENTITY,
+                    old_com_local: Vec3::ZERO,
+                    old_linear_velocity: Vec3::ZERO,
+                    old_angular_velocity: Vec3::ZERO,
+                },
+            );
+
+        clear_pending_severs(app.world_mut());
+
+        assert_eq!(pending_motion(&app), 0);
+        assert!(app.world().resource::<PendingSeverRoots>().0.is_empty());
     }
 }
 

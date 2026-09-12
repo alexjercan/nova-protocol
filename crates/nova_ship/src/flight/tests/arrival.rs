@@ -5,10 +5,9 @@
 //! ```
 //!
 //! Engine units, like the rest of this tree: a distance here is a world unit
-//! (10 m). The rig's sections carry no `SectionMarker`, so `publish_hull_radii`
-//! writes nothing for these hulls and a test's authored [`HullRadius`] is the
-//! only mover size in play - which is what makes the arithmetic below exact
-//! rather than mesh-dependent.
+//! (10 m). Every mover below is sized by [`size_hull`], one live section
+//! centred on the hull's centre of mass, so the published arm is exactly
+//! [`MOVER_RADIUS`] and the arithmetic stays exact rather than mesh-dependent.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -27,9 +26,7 @@ const GOAL: Vec3 = Vec3::new(0.0, 0.0, -300.0);
 /// A ship that publishes its own size, engaged on `action`, one tick in.
 fn engaged_ship(app: &mut App, action: AutopilotAction) -> Entity {
     let (ship, _, _) = spawn_ship(app);
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(HullRadius(MOVER_RADIUS));
+    size_hull(app, ship, MOVER_RADIUS);
     settle(app);
     app.world_mut()
         .entity_mut(ship)
@@ -158,9 +155,10 @@ fn an_authored_anchor_flies_the_margin_its_ship_was_given() {
         ))
         .id();
     let (ship, _, _) = spawn_ship(&mut app);
+    size_hull(&mut app, ship, MOVER_RADIUS);
     app.world_mut()
         .entity_mut(ship)
-        .insert((HullRadius(MOVER_RADIUS), FlightArrivalStandoff(0.0)));
+        .insert(FlightArrivalStandoff(0.0));
     settle(&mut app);
     app.world_mut()
         .entity_mut(ship)
@@ -189,9 +187,10 @@ fn a_zero_margin_means_the_same_thing_on_a_mark_as_on_a_body() {
         ))
         .id();
     let (ship, _, _) = spawn_ship(&mut app);
+    size_hull(&mut app, ship, MOVER_RADIUS);
     app.world_mut()
         .entity_mut(ship)
-        .insert((HullRadius(MOVER_RADIUS), FlightArrivalStandoff(0.0)));
+        .insert(FlightArrivalStandoff(0.0));
     settle(&mut app);
     app.world_mut()
         .entity_mut(ship)
@@ -224,10 +223,10 @@ fn a_big_well_parks_on_a_ring_the_orbit_band_already_accepts() {
         ))
         .id();
     let (ship, _, _) = spawn_ship(&mut app);
-    app.world_mut().entity_mut(ship).insert((
-        HullRadius(MOVER_RADIUS),
-        Transform::from_xyz(0.0, 0.0, 900.0),
-    ));
+    size_hull(&mut app, ship, MOVER_RADIUS);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Transform::from_xyz(0.0, 0.0, 900.0));
     settle(&mut app);
     app.world_mut()
         .entity_mut(ship)
@@ -273,10 +272,10 @@ fn a_big_well_accepts_the_ring_the_ship_is_already_on() {
         .orbit_clearance_factor
         * (body_radius + gravity.surface_margin);
     let (ship, _, _) = spawn_ship(&mut app);
-    app.world_mut().entity_mut(ship).insert((
-        HullRadius(MOVER_RADIUS),
-        Transform::from_xyz(0.0, 0.0, band_floor),
-    ));
+    size_hull(&mut app, ship, MOVER_RADIUS);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Transform::from_xyz(0.0, 0.0, band_floor));
     settle(&mut app);
     app.world_mut()
         .entity_mut(ship)
@@ -333,8 +332,8 @@ fn the_orbit_park_spends_the_ships_own_margin() {
     // and the ring is planned from the leg's intent, not from a flown-in
     // position. The ship's own margin is 4x the global one.
     let ship_margin = 200.0;
+    size_hull(&mut app, ship, MOVER_RADIUS);
     app.world_mut().entity_mut(ship).insert((
-        HullRadius(MOVER_RADIUS),
         FlightArrivalStandoff(ship_margin),
         Transform::from_xyz(0.0, 0.0, 150.0),
     ));

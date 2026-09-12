@@ -173,9 +173,18 @@ pub(crate) fn publish_integrity_envelopes(
 /// live - a shell sized from a different section set than the arm is a shell
 /// that can be wrong for a frame after a hit.
 ///
-/// A root with no live sections left is not written at all: a wreck has no
-/// arrival to plan and no attitude loop to feed, and zeroing it would hand
-/// the envelope an infinite structural ceiling on the tick a hull dies.
+/// A root with no live sections left is not SIZED - it is UNSIZED: both
+/// components come off it, and so do the two envelopes published from them
+/// ([`TargetHitRadius`], [`IntegrityEnvelope`]) unless the body carries a
+/// [`BodyRadius`] of its own to fall back on. A wreck has no arrival to plan
+/// and no attitude loop to feed, and neither of the alternatives is honest -
+/// zeroing the arm hands the attitude envelope an infinite structural ceiling
+/// on the tick a hull dies, and KEEPING the last measurement tunes whatever
+/// controller survived to a hull ten times the size of what is left of it.
+///
+/// Removal is what the readers are built for: the attitude pass skips a hull
+/// with no arm (see `update_controller_stack_tuning`), and a weapon gate with
+/// no hit radius has nothing to grade itself against rather than a stale one.
 pub(crate) fn publish_hull_radii(
     // Reused across ticks: this runs for every hull on every fixed tick and
     // must not allocate per ship per tick.
@@ -186,6 +195,7 @@ pub(crate) fn publish_hull_radii(
         Option<&mut HullRadius>,
         Option<&mut HullEnvelopeRadius>,
     )>,
+    q_sized: Query<(Entity, Has<BodyRadius>), (With<HullRadius>, With<ComputedCenterOfMass>)>,
     q_section: Query<
         (&Transform, Option<&SectionCollider>, &ChildOf),
         (With<SectionMarker>, Without<SectionInactiveMarker>),
@@ -210,6 +220,29 @@ pub(crate) fn publish_hull_radii(
         let entry = radii.entry(root).or_insert((0.0, 0.0));
         entry.0 = entry.0.max(arm);
         entry.1 = entry.1.max(envelope);
+    }
+
+    // Hulls that were sized and no longer measure: take the size off before the
+    // pass below writes the ones that do, so nothing downstream sees a root
+    // both unsized and stale in the same tick. Scoped to roots this pass could
+    // measure at all - the centre of mass is what it measures sections about,
+    // and a size on anything without one was never published from here.
+    for (root, has_body_radius) in &q_sized {
+        if radii.contains_key(&root) {
+            continue;
+        }
+        commands
+            .entity(root)
+            .try_remove::<(HullRadius, HullEnvelopeRadius)>();
+        // The two envelopes are published FROM the hull sizes, so a root with
+        // no other size to fall back on has no envelope left either. A body
+        // that carries its own `BodyRadius` keeps both: they are republished
+        // from it on the same tick.
+        if !has_body_radius {
+            commands
+                .entity(root)
+                .try_remove::<(TargetHitRadius, IntegrityEnvelope)>();
+        }
     }
 
     for (&root, &(arm, envelope)) in radii.iter() {
@@ -342,6 +375,95 @@ mod tests {
         let expected = Vec3::new(0.5, 0.5, 2.5).length();
         let envelope = world.get::<HullEnvelopeRadius>(ship).expect("published");
         assert!((**envelope - expected).abs() < 1e-4, "got {}", **envelope);
+    }
+
+    /// Every live size the root publishes, from one pass in publication order.
+    fn publish_sizes(world: &mut World) {
+        world.run_system_once(publish_hull_radii).unwrap();
+        world.run_system_once(publish_target_hit_radii).unwrap();
+        world.run_system_once(publish_integrity_envelopes).unwrap();
+    }
+
+    /// A hull with nothing live left is UNSIZED, not left at its last size.
+    ///
+    /// The reported defect: the pass wrote only the roots it could measure, so
+    /// a root that lost every section KEPT the arm it had when it was whole -
+    /// and the attitude envelope went on tuning whatever controller survived to
+    /// a hull ten times the size of what was left of it.
+    #[test]
+    fn a_hull_that_loses_every_section_drops_its_size_and_the_envelopes_from_it() {
+        let mut world = World::new();
+        let ship = hull(&mut world, &[-1.0, 0.0, 1.0]);
+        publish_sizes(&mut world);
+        assert!(
+            world.get::<HullRadius>(ship).is_some()
+                && world.get::<TargetHitRadius>(ship).is_some()
+                && world.get::<IntegrityEnvelope>(ship).is_some(),
+            "fixture guard: an intact hull publishes all three"
+        );
+
+        let sections: Vec<Entity> = world
+            .query_filtered::<Entity, With<SectionMarker>>()
+            .iter(&world)
+            .collect();
+        for section in sections {
+            world.entity_mut(section).insert(SectionInactiveMarker);
+        }
+
+        publish_sizes(&mut world);
+
+        assert!(
+            world.get::<HullRadius>(ship).is_none(),
+            "an unmeasurable hull has no arm"
+        );
+        assert!(
+            world.get::<HullEnvelopeRadius>(ship).is_none(),
+            "and no containment radius"
+        );
+        assert!(
+            world.get::<TargetHitRadius>(ship).is_none(),
+            "nor a hit size published from them"
+        );
+        assert!(
+            world.get::<IntegrityEnvelope>(ship).is_none(),
+            "nor an integrity envelope"
+        );
+    }
+
+    /// ...unless the body has a size of its own. A root carrying
+    /// [`BodyRadius`] still answers "how big is it to shoot at" and "how far
+    /// does a piece have to climb out", from that, on the same tick.
+    #[test]
+    fn a_hull_with_its_own_body_radius_keeps_the_envelopes_it_can_still_answer() {
+        let mut world = World::new();
+        let ship = hull(&mut world, &[-1.0, 0.0, 1.0]);
+        world.entity_mut(ship).insert(BodyRadius(4.0));
+        publish_sizes(&mut world);
+
+        let sections: Vec<Entity> = world
+            .query_filtered::<Entity, With<SectionMarker>>()
+            .iter(&world)
+            .collect();
+        for section in sections {
+            world.entity_mut(section).insert(SectionInactiveMarker);
+        }
+
+        publish_sizes(&mut world);
+
+        assert!(
+            world.get::<HullRadius>(ship).is_none(),
+            "the hull sizes still go: they measure sections, and there are none"
+        );
+        assert_eq!(
+            world.get::<TargetHitRadius>(ship).map(|hit| **hit),
+            Some(4.0),
+            "the hit size falls back to the body's own radius"
+        );
+        assert_eq!(
+            world.get::<IntegrityEnvelope>(ship).map(|shell| **shell),
+            Some(4.0),
+            "and so does the integrity envelope"
+        );
     }
 
     /// Severing the section that decided the envelope shrinks it, and leaves

@@ -272,7 +272,7 @@ pub(super) fn start_sfx_voices(
         let point = resolve_point(voice.source, &q_pose);
         let placement = place_voice(voice, mixer.bus_gain(voice.route), listener, &point);
         if !voice.looping && placement.level < SFX_AUDIBLE_THRESHOLD {
-            commands.entity(entity).despawn();
+            commands.entity(entity).try_despawn();
             continue;
         }
         let mut voice_entity = commands.entity(entity);
@@ -299,7 +299,10 @@ pub(super) fn retire_unplayable_one_shots(
 ) {
     for (entity, waiting) in &q_waiting {
         if time.elapsed().saturating_sub(waiting.0) >= ONE_SHOT_SINK_GRACE {
-            commands.entity(entity).despawn();
+            // try_despawn, like every other write to a voice here: the entity
+            // is scenario-scoped and the teardown behind a Retry can despawn it
+            // in the same flush this sweep retires it in.
+            commands.entity(entity).try_despawn();
         }
     }
 }
@@ -496,7 +499,9 @@ pub(super) fn resume_world_voices(
 pub(super) fn stop_world_voices(mut commands: Commands, q_voices: Query<(Entity, &SfxVoice)>) {
     for (entity, voice) in &q_voices {
         if voice.route.bus() == super::bus::AudioBus::World {
-            commands.entity(entity).despawn();
+            // try_despawn: this runs on the way out of a scenario, which is
+            // exactly when the scoped sweep is despawning the same voices.
+            commands.entity(entity).try_despawn();
         }
     }
 }
@@ -806,6 +811,99 @@ mod tests {
         assert!(
             app.world().get_entity(voice).is_err(),
             "the teardown is the owner that wins: the voice is gone"
+        );
+    }
+
+    /// Every RETIRING write in this module is a `try_` for the same reason the
+    /// player-opening write beside it is: the voices are scenario-scoped, and
+    /// the teardown behind a Retry despawns them in the same command flush
+    /// these passes are retiring them in.
+    ///
+    /// All three retiring paths at once, because they lose the same race: the
+    /// inaudible one-shot the start pass drops, the one-shot that never got a
+    /// sink, and the world voice the end of a scenario silences.
+    ///
+    /// Asserted on the LOG, not on a panic: `EntityCommands::despawn` bakes in
+    /// the WARN handler at queue time (see `nova_gameplay::test_log`), so a
+    /// stale one is a warn line rather than a crash - and the probe's clean
+    /// pass fails a run that logs it, which is the same reason
+    /// `teardown_scenario_entities` reaches for `try_despawn`.
+    #[test]
+    fn a_voice_the_teardown_already_took_is_retired_without_a_stale_command() {
+        use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+        use crate::test_log::CapturedLog;
+
+        fn tear_down_every_voice(mut commands: Commands, q_voices: Query<Entity, With<SfxVoice>>) {
+            for entity in &q_voices {
+                commands.entity(entity).try_despawn();
+            }
+        }
+
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        // The same pinning the flush test above uses: the teardown runs first
+        // with the automatic sync points off, so its despawn is still pending
+        // while each retiring pass reads the voice it is about to drop.
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_build_settings(bevy::ecs::schedule::ScheduleBuildSettings {
+                auto_insert_apply_deferred: false,
+                ..default()
+            });
+        });
+        app.add_systems(
+            Update,
+            (
+                tear_down_every_voice,
+                start_sfx_voices,
+                retire_unplayable_one_shots,
+                stop_world_voices,
+            )
+                .chain(),
+        );
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(ONE_SHOT_SINK_GRACE);
+
+        // One voice per retiring path. The first is silent, so the start pass
+        // drops it instead of opening a player; the second has been waiting
+        // out its grace with no sink; the third is a world loop, which is what
+        // the end of a scenario silences.
+        let inaudible = app
+            .world_mut()
+            .spawn(voice_at(AudioRoute::Exterior, 0.0, Vec3::ZERO))
+            .id();
+        let stranded = app
+            .world_mut()
+            .spawn((
+                SfxVoice::one_shot(Handle::default(), AudioRoute::Interface),
+                AwaitingSink(Duration::ZERO),
+            ))
+            .id();
+        let world_loop = app
+            .world_mut()
+            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Hull))
+            .id();
+
+        app.update();
+
+        for voice in [inaudible, stranded, world_loop] {
+            assert!(
+                app.world().get_entity(voice).is_err(),
+                "the teardown is the owner that wins: {voice} is gone"
+            );
+        }
+        assert!(
+            !log.contents().contains("despawn"),
+            "no retiring pass may leave a stale command behind; got: {}",
+            log.contents()
         );
     }
 

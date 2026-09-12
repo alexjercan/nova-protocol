@@ -714,7 +714,9 @@ kind: Torpedo((
   starts inside the tube and slides its whole length out past the muzzle.
   `0.0` births it at the muzzle point itself, and any depth is safe: the cold
   coast means the torpedo has no colliders until its drive lights.
-- `fire_rate` - launches per second.
+- `fire_rate` - launches per second. The value must be positive and finite;
+  lint rejects anything else, and a bay that reaches the game with a bad rate
+  is built with no launcher at all rather than a guessed cadence.
 - `spawner_speed` - the ejection charge, in meters per second. A torpedo is not
   fired, it is dropped: this is the cold kick that pushes it clear of the hull,
   not the speed it flies at. That comes from the drive, once it lights.

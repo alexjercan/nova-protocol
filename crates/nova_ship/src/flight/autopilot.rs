@@ -24,7 +24,7 @@ use super::{
         BalanceEngine,
     },
 };
-use crate::prelude::*;
+use crate::{prelude::*, sections::thruster_section::engine_direction};
 
 /// Fraction of `rcs_accel` the local gravity accel must stay under for the
 /// autopilot to hand a goal to the RCS - the ORBIT trim or the STOP settle.
@@ -247,9 +247,14 @@ pub(super) fn autopilot_system(
             if parent != ship {
                 continue;
             }
-            let dir = rotation
-                .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
-                .normalize();
+            // An engine whose AUTHORED rotation names no direction is not an
+            // engine: see `engine_direction`. Skipped rather than pushed as a
+            // NaN, which would poison the group scores, the allocation and the
+            // spool tail so the burn never completed. A hull with no valid
+            // engine LEFT takes the no-live-engines disengagement below.
+            let Some(dir) = engine_direction(rotation, transform) else {
+                continue;
+            };
             engines.push((dir, **magnitude));
             hottest_input = hottest_input.max(**input);
         }
@@ -847,9 +852,9 @@ pub(super) fn autopilot_system(
                 if parent != ship {
                     continue;
                 }
-                let dir = rotation
-                    .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
-                    .normalize();
+                let Some(dir) = engine_direction(rotation, transform) else {
+                    continue;
+                };
                 let gate = if **input > 0.1 {
                     settings.align_cos - settings.align_hysteresis
                 } else {
@@ -1187,9 +1192,9 @@ pub(super) fn autopilot_system(
                     if parent != ship {
                         continue;
                     }
-                    let dir = rotation
-                        .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
-                        .normalize();
+                    let Some(dir) = engine_direction(rotation, transform) else {
+                        continue;
+                    };
                     push += dir.dot(error_dir).max(0.0) * **magnitude * **input / dt / mass.value();
                 }
                 tail_dv = spool_tail(

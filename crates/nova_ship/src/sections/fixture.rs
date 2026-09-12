@@ -267,7 +267,14 @@ pub(crate) fn shed_dead_fixtures(
     q_parents: Query<&ChildOf>,
     q_children: Query<&Children>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
-    mut rng: Single<&mut WyRand, With<GlobalRng>>,
+    // `Option<Single>`, like the turret's spread: a plain `Single` that matches
+    // nothing - no global RNG, or two of them - skips the whole system, and a
+    // dead plate that is never shed keeps its collider bolted to the hull
+    // forever. Production has exactly one seeded `GlobalRng` and game code
+    // creates no fallback randomness, so the empty arm is an assembly error:
+    // it says so once per process and the plate still comes OFF, unthrown.
+    mut rng: Option<Single<&mut WyRand, With<GlobalRng>>>,
+    mut broken_rng_reported: Local<bool>,
     // Held across ticks rather than allocated per fixture: the descendant walk
     // below sits inside a loop the cap already lets reach two dozen plates.
     mut greebles: Local<Vec<Entity>>,
@@ -277,6 +284,22 @@ pub(crate) fn shed_dead_fixtures(
     if allowance == 0 {
         return;
     }
+    let Some(rng) = rng.as_deref_mut() else {
+        if !*broken_rng_reported {
+            *broken_rng_reported = true;
+            error!(
+                "shed_dead_fixtures: no single seeded GlobalRng in this app - dead cladding \
+                 is removed instead of thrown clear. Reported once."
+            );
+        }
+        let mut shed = 0usize;
+        for (fixture, ..) in q_dead.iter().take(allowance) {
+            shed += 1;
+            commands.entity(fixture).try_despawn();
+        }
+        budget.left -= shed;
+        return;
+    };
     let mut shed = 0usize;
     for (fixture, frame, ChildOf(section), collider) in q_dead.iter().take(allowance) {
         shed += 1;
@@ -287,7 +310,7 @@ pub(crate) fn shed_dead_fixtures(
         let (centre, drift) =
             inherited_motion(fixture, transform.translation, &q_parents, &q_motion)
                 .unwrap_or((transform.translation, Vec3::ZERO));
-        let toss = random_unit_vector(&mut rng);
+        let toss = random_unit_vector(&mut *rng);
         let away =
             Dir3::new(transform.translation - centre).unwrap_or(Dir3::new(toss).unwrap_or(Dir3::Y));
 
@@ -311,7 +334,7 @@ pub(crate) fn shed_dead_fixtures(
                 CenterOfMass(collider.center_of_mass()),
                 NoAutoCenterOfMass,
                 LinearVelocity(drift + away * rng.random_range(SHED_KICK)),
-                AngularVelocity(random_unit_vector(&mut rng) * rng.random_range(SHED_SPIN)),
+                AngularVelocity(random_unit_vector(&mut *rng) * rng.random_range(SHED_SPIN)),
                 TempEntity(SHED_LIFETIME_SECS),
             ));
 
@@ -352,9 +375,17 @@ mod tests {
     /// absorbs; every frame after it is exactly one timestep, so a frame here
     /// is exactly one drain and the cap can be counted.
     fn shed_app(offset: Vec3) -> (App, Entity, Entity) {
+        shed_app_with_rng(offset, true)
+    }
+
+    /// The same rig, with the seeded `GlobalRng` optional: `false` builds the
+    /// broken assembly the shed has to survive.
+    fn shed_app_with_rng(offset: Vec3, rng: bool) -> (App, Entity, Entity) {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, TransformPlugin, NovaHealthPlugin));
-        app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
+        if rng {
+            app.add_plugins(EntropyPlugin::<WyRand>::with_seed(7u64.to_ne_bytes()));
+        }
         app.init_resource::<ShedBudget>();
         app.add_systems(First, refill_shed_budget);
         app.add_systems(FixedPostUpdate, shed_dead_fixtures);
@@ -395,6 +426,32 @@ mod tests {
             amount: 1000.0,
         });
         app.update();
+    }
+
+    /// A broken assembly does not bolt dead cladding to the hull forever.
+    ///
+    /// The shed needs the shared `GlobalRng` only to decide which way a plate
+    /// tumbles. Taking it as a plain `Single` meant that an app with no global
+    /// RNG - or two of them - skipped the WHOLE system, and every spent plate
+    /// kept its collider on the ship for the rest of the run. The plate now
+    /// comes off unthrown, and the broken contract is reported once.
+    #[test]
+    fn a_spent_fixture_comes_off_even_with_no_global_rng() {
+        let (mut app, section, fixture) = shed_app_with_rng(Vec3::Y * 2.0, false);
+
+        kill(&mut app, fixture);
+        app.update();
+
+        assert!(
+            app.world().get_entity(fixture).is_err(),
+            "a dead plate must not keep its collider bolted to the hull"
+        );
+        assert!(
+            app.world()
+                .get::<Children>(section)
+                .is_none_or(|children| !children.contains(&fixture)),
+            "and must not still hang off the section it clad"
+        );
     }
 
     /// A spent plate leaves the hull as a body of its own rather than being

@@ -239,6 +239,16 @@ juice, settings. The ship stack (input, sections, flight, camera, physics) is
 `NovaShipPlugin`'s, and the HUD is `NovaHudPlugin`'s - both added by
 `nova_core`, not by gameplay.
 
+`bevy_rand` is added THERE and nowhere else, so the whole app holds exactly one
+seeded `GlobalRng` (`NOVA_SEED` picks the seed, see
+[Environment variables](environment-variables.md)). A gameplay system that needs
+randomness takes it as `Option<Single<&mut WyRand, With<GlobalRng>>>` and builds
+no fallback of its own: a second entropy plugin anywhere in the assembly does not
+make two RNGs, it makes every one of those systems find none. Each of them logs
+the broken contract once and then does its non-random work anyway - a destroyed
+section still loses its collider, it just bursts no debris. `nova_gameplay`'s
+plugin test pins the count at one.
+
 ## States
 
 - `GameStates { Loading, MainMenu, Playing }` (`nova_gameplay`) - top-level

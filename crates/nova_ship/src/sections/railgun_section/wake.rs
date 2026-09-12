@@ -314,16 +314,33 @@ fn layer_density(tuning: &RailgunWakeTuning, layer: RailgunWakeLayer) -> f32 {
     }
 }
 
+/// The most particles one emitter may be charged for in a single frame.
+///
+/// The wake is priced per unit of GROUND COVERED, which is the right rule for
+/// a slug and the wrong one for a hitch: a frame that runs long at the lance's
+/// 15 km/s covers kilometres, and the honest debt for it is tens of thousands
+/// of particles handed to hanabi in one spawn - on the frame the machine was
+/// already late. The cap makes a hitch cost a dense wake segment instead of a
+/// second one.
+///
+/// 512 is well above what any real frame asks for (the shipped haze density
+/// over a 16 ms step at lance speed is ~24) and well under hanabi's per-effect
+/// capacity, so it binds on hitches and on nothing else.
+const WAKE_SPAWN_CAP: u32 = 512;
+
 /// Particles a layer owes for `covered` units of flight, carrying the
 /// fraction it cannot spawn to the next frame.
 ///
 /// Pure, so the spread's arithmetic can be read without a running app: the
 /// count is whole, the remainder is what was left under one particle, and
-/// nothing is lost between frames whatever their length.
+/// nothing is lost between frames whatever their length - up to
+/// [`WAKE_SPAWN_CAP`], past which the excess WHOLE particles are discarded
+/// rather than carried. Carrying them would spend the next frame paying off a
+/// debt the hitch ran up, and the frames after that paying off that one.
 fn owed_particles(covered: f32, per_unit: f32, remainder: f32) -> (u32, f32) {
     let wanted = (covered * per_unit + remainder).max(0.0);
     let count = wanted.floor();
-    (count as u32, wanted - count)
+    ((count as u32).min(WAKE_SPAWN_CAP), wanted - count)
 }
 
 /// Ride each emitter on its slug and hand it the frame's properties; retire
@@ -725,6 +742,23 @@ mod tests {
         let (count, remainder) = owed_particles(0.25, 1.0, remainder);
         assert_eq!((count, remainder), (0, 0.5));
         assert_eq!(owed_particles(0.5, 1.0, remainder), (1, 0.0));
+    }
+
+    /// A hitch costs a dense segment, not a second one.
+    ///
+    /// The debt is priced per unit of ground covered, so a long frame at lance
+    /// speed asks for tens of thousands of particles in one spawn. The cap
+    /// binds, and the excess WHOLE particles are discarded rather than carried:
+    /// only the sub-particle fraction survives, so the frame after a hitch is
+    /// an ordinary frame.
+    #[test]
+    fn a_hitch_long_enough_to_owe_thousands_spawns_the_cap_and_carries_no_debt() {
+        let (count, remainder) = owed_particles(50_000.0, 1.0, 0.75);
+        assert_eq!(count, WAKE_SPAWN_CAP, "the frame pays the cap and no more");
+        assert_eq!(
+            remainder, 0.75,
+            "and carries only what was under one particle"
+        );
     }
 
     #[test]

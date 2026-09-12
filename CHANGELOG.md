@@ -76,6 +76,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Two hulls may come alongside for free: a contact under 5 m/s costs nothing,
   and above it only the excess is spent, so a carrier pair no longer shreds
   itself while it parks.
+- A pierce round no longer crosses a dense debris cloud untouched: it steps
+  past the near misses it has already counted, so it reaches what is standing
+  behind them.
 
 ### Ships & Sections
 - A severed wreck leaves at the speed its own size asks for: two halves are
@@ -84,6 +87,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A wreck piece is thrown out of what buried it: a section deep in a capital
   leaves at over 100 m/s and stays a ghost until it is outside, where it used
   to go solid still standing in the hull.
+- A torpedo bay must author a positive, finite `fire_rate` **(breaking)**:
+  lint rejects anything else, and a bay that still reaches the game is built
+  with no launcher rather than firing every tick.
 
 ### Scenarios & Objectives
 - A scenario opens complete: the world is held still while its objects spawn
@@ -159,11 +165,25 @@ does NOT get an entry - and it is the only place they are written down.
 ### Internals & Tooling
 - Debug section gizmos are measured: a barrel line runs the mount's authored
   reach, and round and drive stubs one interval of their own flight or burn.
+- The app holds exactly one seeded global RNG, pinned by an assembly test: a
+  system that cannot find it logs once and drops its randomness, never its
+  cleanup.
 
 ### Fixes
 - Screen markers land where they belong under a scripted camera: photo mode,
   cinematics and capture scripts pose the camera last, and the indicators were
   projected through the pose it replaced.
+- A hull with nothing live left on it stops reporting a size, so a surviving
+  flight computer is no longer tuned to the whole ship it came off.
+- A sever that cannot be applied expires: one naming a body already gone is
+  dropped at once, one that never gets mass data retries once, and scenario
+  teardown clears the rest.
+- A thruster authored on a degenerate rotation is skipped instead of filling
+  the burn with NaN, and a ship whose only engine is directionless disengages.
+- Railgun wake emission is capped at 512 particles per emitter per frame, so a
+  hitch mid-flight no longer asks for tens of thousands at once.
+- A voice, a lifetime mark, a neutralized hull or a re-parented section torn
+  down in the same flush no longer crashes or leaves a stale command.
 
 ## [0.13.2] - 2026-09-10
 

@@ -147,6 +147,26 @@ pub(super) fn spawn_ship(app: &mut App) -> (Entity, Entity, Entity) {
     (ship, thruster, controller)
 }
 
+/// Size `root`'s hull to `radius` the way the game does: one live section
+/// whose outer face sits that far from the root's centre of mass.
+///
+/// [`HullRadius`] is DERIVED every tick from live sections, and
+/// `publish_hull_radii` takes it back off a root it cannot measure - so a rig
+/// that only inserted the component had it removed on the next tick. The
+/// generic ship's colliders are symmetric about its origin, so the section is
+/// mounted there and the published arm is exactly `radius`.
+pub(super) fn size_hull(app: &mut App, root: Entity, radius: f32) {
+    app.world_mut().spawn((
+        ChildOf(root),
+        Name::new("hull section"),
+        SectionMarker,
+        Transform::default(),
+        SectionCollider::Cuboid {
+            size: Vec3::splat(radius * 2.0),
+        },
+    ));
+}
+
 /// Withhold the RCS verb on every controller of `ship`. The legacy autopilot
 /// tests predate RCS and assert the MAIN-DRIVE arrival (flip + retro burn);
 /// with the verb granted (the production default) the autopilot would settle

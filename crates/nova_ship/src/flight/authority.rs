@@ -19,7 +19,10 @@ use nova_gameplay::prelude::{
 };
 
 use super::{guidance::ship_turn_rate, state::FlightSettings, thrusters::cluster_thrusters};
-use crate::prelude::{PDController, ThrusterSectionMagnitude};
+use crate::{
+    prelude::{PDController, ThrusterSectionMagnitude},
+    sections::thruster_section::engine_direction_local,
+};
 
 /// The `FlightAuthority` component.
 pub mod prelude {
@@ -113,8 +116,11 @@ pub(super) fn publish_flight_authority(
     drives.clear();
     for (transform, magnitude, &ChildOf(root)) in &q_thruster {
         // A section's local rotation is the way its engine points; -Z is a
-        // thruster's own thrust axis.
-        let direction = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize_or_zero();
+        // thruster's own thrust axis. One that names no direction is not a
+        // drive and is not counted as one.
+        let Some(direction) = engine_direction_local(transform) else {
+            continue;
+        };
         drives.push((root, direction, (**magnitude).max(0.0)));
     }
     drives.sort_unstable_by_key(|(root, _, _)| *root);

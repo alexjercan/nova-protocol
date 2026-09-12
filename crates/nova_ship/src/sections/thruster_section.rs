@@ -539,6 +539,34 @@ impl Plugin for ThrusterSectionPlugin {
 
 // `pub(crate)` so the flight-control tests can register the real impulse
 // system and cover the whole intent -> thrust -> velocity pipeline.
+/// The line one engine pushes along IN ITS HULL'S FRAME, or `None` when the
+/// section's authored rotation cannot name one.
+///
+/// An engine does not gimbal: its thrust runs along its own local -Z. AUTHORED
+/// data reaches the maths here, so the normalisation is the fallible one. The
+/// zero quaternion a hand-written mod can spell yields a zero vector,
+/// `normalize()` hands back NaN, and the NaN then spreads: multiplied by a
+/// zero input it is STILL NaN, so an engine nothing ever commands puts a NaN
+/// impulse on the hull and takes the whole step down inside avian's AABB
+/// assertion.
+///
+/// Every reader of an engine's line of thrust goes through this or through
+/// [`engine_direction`] - the impulse below, the autopilot's three sites, the
+/// manual balancer, the drive census and the camera's heat - so they cannot
+/// disagree about what a directionless engine is. The content lint rejects
+/// such a rotation before it ever loads; this is what a ship that reached the
+/// world with one does.
+pub(crate) fn engine_direction_local(section: &Transform) -> Option<Vec3> {
+    section.rotation.mul_vec3(Vec3::NEG_Z).try_normalize()
+}
+
+/// The same line in WORLD space, for the readers that compare an engine
+/// against a world-space burn. `hull` is a unit rotation, so nothing here has
+/// to normalise twice.
+pub(crate) fn engine_direction(hull: &Rotation, section: &Transform) -> Option<Vec3> {
+    engine_direction_local(section).map(|local| hull.mul_vec3(local))
+}
+
 pub(crate) fn thruster_impulse_system(
     q_thruster: Query<
         (
@@ -568,9 +596,9 @@ pub(crate) fn thruster_impulse_system(
         // COM-centered engine torques the ship it must not touch.
         let position = force.position().0;
         let rotation = *force.rotation();
-        let thrust_direction = rotation
-            .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
-            .normalize();
+        let Some(thrust_direction) = engine_direction(&rotation, transform) else {
+            continue;
+        };
         // RAW IMPULSE, no `dt`: the magnitude IS a per-tick impulse, see
         // `ThrusterSectionMagnitude`. Multiplying by `dt` here without
         // rescaling every authored magnitude would cut all thrust by 64x.

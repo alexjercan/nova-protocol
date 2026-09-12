@@ -182,11 +182,27 @@ pub struct NovaRoundSystems;
 /// dropping the body changes what a round COSTS, not what it hits.
 const ROUND_RADIUS: f32 = 0.05;
 
-/// How many near misses one round may look past in a single step. Separate
-/// from [`BITE_MEMORY`] on purpose: a round crossing a swarm is offered many
-/// candidates it does not hit, and spending the pierce budget on those would
-/// drop a real hit sitting behind them.
+/// How many near misses one round may look past from ONE standing point.
+/// Separate from [`BITE_MEMORY`] on purpose: a round crossing a swarm is
+/// offered many candidates it does not hit, and spending the pierce budget on
+/// those would drop a real hit sitting behind them.
+///
+/// Filling it does not end the walk. The tip moves past the region the rejects
+/// stand in and starts a fresh list there ([`TipWalk::skip_rejected_region`]),
+/// so the budget bounds how many near misses one CAST SITE may cost rather
+/// than how much debris a round may cross.
 const REJECT_BUDGET: usize = 16;
+
+/// How many times one step's walk may move past a region of near misses and
+/// start its reject list over.
+///
+/// The termination bound, and the only reason there is one: a round born
+/// inside overlapping geometry can be offered the same rejects again from just
+/// past where it stood, and without a cap that is a cast loop the length of
+/// the step divided by [`PIERCE_SKIN`]. Eight regions of sixteen is far past
+/// any debris field content builds, and the tip has crossed a whole region of
+/// near misses between each.
+const REJECT_REGIONS: usize = 8;
 
 /// How many bitten colliders a round remembers ACROSS steps, so a section
 /// thicker than one step's travel is charged once rather than once per step.
@@ -537,6 +553,19 @@ struct TipHit {
     closing: f32,
 }
 
+/// One candidate the exact test proved the round misses, and where it stands.
+///
+/// The depth is carried because the WIDENED candidate cast offers anything
+/// within [`Sweep::reach`] of the tip, in front of it or behind it: a near
+/// miss the walk has already stepped over comes straight back unless the walk
+/// knows it is behind. Measured from the start of the step, the one frame that
+/// does not move while the tip does.
+#[derive(Clone, Copy)]
+struct Reject {
+    collider: Entity,
+    depth: f32,
+}
+
 /// The tip's walk along one step: where it has got to, what is left of the
 /// step, and the near misses it has already looked past.
 struct TipWalk<'a> {
@@ -550,8 +579,11 @@ struct TipWalk<'a> {
     remaining: f32,
     /// Candidates the exact test rejected. They are near misses this step, not
     /// bites, so they must not enter `bitten` and be ignored forever.
-    rejected: [Entity; REJECT_BUDGET],
+    rejected: [Reject; REJECT_BUDGET],
     rejects: usize,
+    /// How many reject lists this step has already stepped past. Bounded by
+    /// [`REJECT_REGIONS`].
+    regions: usize,
     bites: usize,
     /// What this step's casts have already resolved. [`RoundBitten`] covers
     /// this for a walk that charges as it goes; a walk that defers the charge
@@ -571,8 +603,12 @@ impl<'a> TipWalk<'a> {
             origin: sweep.start,
             elapsed: 0.0,
             remaining: sweep.dt,
-            rejected: [Entity::PLACEHOLDER; REJECT_BUDGET],
+            rejected: [Reject {
+                collider: Entity::PLACEHOLDER,
+                depth: f32::NEG_INFINITY,
+            }; REJECT_BUDGET],
             rejects: 0,
+            regions: 0,
             bites: 0,
             found: [Entity::PLACEHOLDER; MAX_BITES_PER_STEP],
         }
@@ -588,10 +624,10 @@ impl<'a> TipWalk<'a> {
         bitten: &RoundBitten,
         skip: &[Entity],
     ) -> Option<TipHit> {
-        while self.remaining > 0.0
-            && self.bites < MAX_BITES_PER_STEP
-            && self.rejects < REJECT_BUDGET
-        {
+        while self.remaining > 0.0 && self.bites < MAX_BITES_PER_STEP {
+            if self.rejects == REJECT_BUDGET && !self.skip_rejected_region(sweep) {
+                return None;
+            }
             // Copied, not borrowed: the predicate is handed to the cast while
             // `bitten` still has to be written after it returns.
             let already = *bitten;
@@ -613,7 +649,7 @@ impl<'a> TipWalk<'a> {
                 &|collider| {
                     passable(collider, owner, &world.sensors, &world.collider_of)
                         && !already.contains(collider)
-                        && !near.contains(&collider)
+                        && !near.iter().any(|near| near.collider == collider)
                         && !found.contains(&collider)
                         && !skip.contains(&collider)
                 },
@@ -632,7 +668,18 @@ impl<'a> TipWalk<'a> {
             ) else {
                 // Widened past it: close enough to be a candidate, not close
                 // enough to be a hit. Skip it and look further along.
-                self.rejected[self.rejects] = candidate.entity;
+                //
+                // Where it STANDS, not where the cast stopped: a candidate the
+                // tip already sits within `reach` of reports a zero distance,
+                // which would make a whole debris cloud one point and leave the
+                // walk nowhere to step to.
+                let depth = world
+                    .corridor_contact(candidate.entity, self.origin, sweep.direction)
+                    .map_or(candidate.distance, |corridor| corridor.depth);
+                self.rejected[self.rejects] = Reject {
+                    collider: candidate.entity,
+                    depth: self.elapsed * sweep.speed + depth,
+                };
                 self.rejects += 1;
                 continue;
             };
@@ -648,6 +695,49 @@ impl<'a> TipWalk<'a> {
             });
         }
         None
+    }
+
+    /// Move the tip past the near misses it has already looked at, and drop
+    /// the ones it has left far enough behind to be offered again. `false`
+    /// when the walk cannot free a slot and so has nowhere left to look.
+    ///
+    /// The rejects are not obstacles - each is a candidate the exact test
+    /// proved the round MISSES - so stepping over them crosses nothing the
+    /// round was owed. What it buys is the hit BEHIND them: a full list used to
+    /// end the walk outright, so a round crossing a dense debris cloud passed
+    /// through the ship on the far side of it unharmed.
+    ///
+    /// The tip lands one [`PIERCE_SKIN`] past the furthest of them, the same
+    /// nudge [`advance`](Self::advance) leaves a pierced surface with. A near
+    /// miss still inside the widened cast's [`Sweep::reach`] keeps its slot
+    /// there, because the cast would otherwise hand it straight back and the
+    /// walk would spend a whole region learning nothing.
+    fn skip_rejected_region(&mut self, sweep: Sweep) -> bool {
+        if self.regions == REJECT_REGIONS || sweep.speed <= 0.0 {
+            return false;
+        }
+        // Counted before the early exits below: this is the termination bound,
+        // and a pass that frees a slot without moving still spent a region.
+        self.regions += 1;
+        let far = self.rejected[..self.rejects]
+            .iter()
+            .fold(f32::NEG_INFINITY, |far, reject| far.max(reject.depth));
+        let target = (far + PIERCE_SKIN) / sweep.speed;
+        let advance = (target - self.elapsed).clamp(0.0, self.remaining);
+        self.origin += sweep.velocity * advance;
+        self.elapsed += advance;
+        self.remaining -= advance;
+
+        let out_of_reach = self.elapsed * sweep.speed - sweep.reach;
+        let mut kept = 0;
+        for index in 0..self.rejects {
+            if self.rejected[index].depth >= out_of_reach {
+                self.rejected[kept] = self.rejected[index];
+                kept += 1;
+            }
+        }
+        self.rejects = kept;
+        self.remaining > 0.0 && self.rejects < REJECT_BUDGET
     }
 
     /// Restart the walk just past a resolved hit, so the next cast leaves the
@@ -1363,6 +1453,77 @@ mod tests {
                 "layer {layer} was not raked - the slug stopped short inside one step"
             );
         }
+    }
+
+    /// A round crossing a debris cloud must still reach what is behind it.
+    ///
+    /// The candidate cast is WIDENED by a step of the fastest body's travel,
+    /// so anything near the line of flight is offered to the exact test and
+    /// most of it comes back a near miss. Those cost [`REJECT_BUDGET`], and a
+    /// full budget used to END the walk where it stood: the round flew on
+    /// through the ship on the far side of the cloud without touching it.
+    ///
+    /// The walk now steps past the region the rejects stand in and looks again
+    /// from there, which crosses nothing it was owed - every reject is a
+    /// candidate the exact test proved it MISSES.
+    #[test]
+    fn a_round_crossing_more_near_misses_than_it_can_hold_still_hits_what_is_behind_them() {
+        /// Comfortably past [`REJECT_BUDGET`], so the walk has to empty its
+        /// list and carry on more than once.
+        const DEBRIS: usize = 20;
+        const PLATE_HP: f32 = 100.0;
+        /// Far enough off the line to miss the round's sphere, near enough to
+        /// be offered by the widened candidate cast.
+        const MISS_OFFSET: f32 = 0.5;
+
+        let mut app = round_app();
+        // What makes the cast widen at all: the sweep measures its candidate
+        // margin from the fastest body in the world. Parked far off the line
+        // of flight, it is never a candidate itself.
+        app.world_mut().spawn((
+            Name::new("pacer"),
+            RigidBody::Kinematic,
+            Transform::from_xyz(5_000.0, 0.0, 0.0),
+            LinearVelocity(Vec3::X * 600.0),
+        ));
+        for index in 0..DEBRIS {
+            let body = app
+                .world_mut()
+                .spawn((
+                    Name::new("debris"),
+                    RigidBody::Static,
+                    Transform::from_xyz(MISS_OFFSET, 0.0, -(index as f32)),
+                ))
+                .id();
+            app.world_mut().spawn((
+                ChildOf(body),
+                Transform::default(),
+                Collider::cuboid(0.2, 0.2, 0.2),
+            ));
+        }
+        let target = spawn_plate(&mut app, -30.0, PLATE_HP);
+        settle(&mut app);
+
+        // One step across the whole field, so the cloud and the target are
+        // resolved by a single walk.
+        app.world_mut().spawn((
+            Name::new("slug"),
+            RailgunSlugProjectileMarker,
+            Transform::from_translation(Vec3::Z * 5.0),
+            RoundVelocity(Vec3::NEG_Z * 6_000.0),
+            ProjectileDamage {
+                amount: 40.0,
+                power: 4_000.0,
+                kind: DamageType::Pierce,
+            },
+        ));
+        app.update();
+
+        assert!(
+            plate_health(&app, target) < PLATE_HP,
+            "the round stopped at its reject budget and flew through the plate behind \
+             {DEBRIS} near misses unharmed"
+        );
     }
 
     /// The other half of the [`BITE_MEMORY`] / [`MAX_BITES_PER_STEP`] split,

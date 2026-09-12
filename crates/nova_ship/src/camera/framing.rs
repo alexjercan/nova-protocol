@@ -20,7 +20,7 @@ use super::{
         SpaceshipCameraController, SpaceshipCameraInputMarker, SpaceshipRotationInputActiveMarker,
     },
 };
-use crate::prelude::*;
+use crate::{prelude::*, sections::thruster_section::engine_direction_local};
 
 pub(super) fn update_chase_camera_input(
     mut commands: Commands,
@@ -323,7 +323,9 @@ pub(super) fn update_camera_rig(
         if parent != ship {
             continue;
         }
-        let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
+        let Some(local_dir) = engine_direction_local(transform) else {
+            continue;
+        };
         if is_forward_aligned(local_dir, Vec3::NEG_Z) {
             heat = heat.max(**input);
             authority += **magnitude * local_dir.dot(Vec3::NEG_Z);

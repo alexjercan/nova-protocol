@@ -451,20 +451,29 @@ pub(crate) fn update_controller_stack_tuning(
             .iter()
             .map(|(_, _, tuning)| tuning.max_torque.max(0.0))
             .sum();
-        // A root avian has not measured yet reads as a point mass: both
-        // ceilings come out infinite, which is the honest answer while the
-        // colliders are still being linked and neither can be asked.
-        let (inertia, arm, spin) = match q_root.get(root) {
-            Ok((angular_inertia, angular_velocity, hull_radius)) => (
-                angular_inertia
-                    .principal_angular_inertia_with_local_frame()
-                    .0
-                    .max_element(),
-                hull_radius.map_or(0.0, |radius| **radius),
-                angular_velocity.length(),
-            ),
-            Err(_) => (0.0, 0.0, 0.0),
+        // A root nothing can be measured on is SKIPPED, not guessed at. Both
+        // of the envelope's ceilings are a division by a measurement - torque
+        // over inertia, the load limit over the arm - and a missing one comes
+        // out INFINITE: every controller on the hull would be handed an
+        // unbounded `max_angular_acceleration`, which is the load clamp turned
+        // off for the tick. That happens on the spawn frame, before avian has
+        // linked the colliders and before `publish_hull_radii` has any live
+        // section to measure, and again on a root that has just lost its last
+        // one. Leaving the controllers on their previous tuning (a fresh stack
+        // has the authored seed) is the honest answer: nothing about this hull
+        // is known yet, or anything is left to tune for.
+        let Ok((angular_inertia, angular_velocity, Some(hull_radius))) = q_root.get(root) else {
+            continue;
         };
+        let inertia = angular_inertia
+            .principal_angular_inertia_with_local_frame()
+            .0
+            .max_element();
+        let arm = **hull_radius;
+        if !(inertia.is_finite() && inertia > 0.0 && arm.is_finite() && arm > 0.0) {
+            continue;
+        }
+        let spin = angular_velocity.length();
         // Engine boundary: `HullRadius` measures the hull off its avian
         // colliders, so the arm arrives in world units.
         let envelope = AttitudeEnvelope::new(total_torque, inertia, Meters::from_engine(arm));
@@ -1100,6 +1109,82 @@ mod tests {
             (live.max_angular_acceleration - 5.232).abs() < 1e-2,
             "8 G over a 15 m arm is 5.23 rad/s2, got {}",
             live.max_angular_acceleration
+        );
+    }
+
+    /// A hull nothing can be measured on is SKIPPED, not guessed at.
+    ///
+    /// Both ceilings are a division by a measurement, so a missing one came
+    /// out INFINITE and every computer on the hull got an unbounded
+    /// `max_angular_acceleration` - the load clamp switched off for that tick.
+    /// A wreck with no live structure left is one of the two ways in.
+    #[test]
+    fn a_hull_that_lost_its_last_section_keeps_the_tuning_it_had() {
+        let mut app = stack_app();
+        let (root, controllers) = spawn_stack(&mut app, 1);
+        app.world_mut().run_schedule(FixedUpdate);
+        let tuned = app
+            .world()
+            .get::<PDController>(controllers[0])
+            .unwrap()
+            .max_angular_acceleration;
+        assert!(
+            tuned.is_finite() && tuned > 0.0,
+            "fixture guard: a live hull tunes to a real ceiling, got {tuned}"
+        );
+
+        let sections: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<(Entity, &ChildOf), With<SectionMarker>>()
+            .iter(app.world())
+            .filter(|(_, parent)| parent.0 == root)
+            .map(|(section, _)| section)
+            .collect();
+        for section in sections {
+            app.world_mut()
+                .entity_mut(section)
+                .insert(SectionInactiveMarker);
+        }
+        app.world_mut().run_schedule(FixedUpdate);
+
+        assert_eq!(
+            app.world()
+                .get::<PDController>(controllers[0])
+                .unwrap()
+                .max_angular_acceleration,
+            tuned,
+            "a hull with no arm left must not be retuned at all"
+        );
+    }
+
+    /// The other way in: the spawn frame, before avian has linked a collider
+    /// and before the hull pass has a live section to measure.
+    #[test]
+    fn a_root_nothing_has_measured_yet_is_left_on_its_authored_seed() {
+        let mut app = stack_app();
+        let root = app
+            .world_mut()
+            .spawn((
+                ComputedCenterOfMass(Vec3::ZERO),
+                ComputedAngularInertia::new(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let controllers = spawn_computers(&mut app, root, 1);
+        let seed = PDController {
+            frequency: 4.0,
+            damping_ratio: 4.0,
+            max_angular_acceleration: 1.5,
+            sustained_angular_speed: 2.0,
+        };
+        app.world_mut().entity_mut(controllers[0]).insert(seed);
+
+        app.world_mut().run_schedule(FixedUpdate);
+
+        assert_eq!(
+            *app.world().get::<PDController>(controllers[0]).unwrap(),
+            seed,
+            "an unmeasured hull writes nothing, least of all an infinite ceiling"
         );
     }
 

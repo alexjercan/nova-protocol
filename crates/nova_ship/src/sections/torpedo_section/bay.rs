@@ -29,6 +29,16 @@ fn torpedo_lock_signature(max_speed: MetersPerSecond) -> f32 {
     (TORPEDO_SIGNATURE_BASE + Meters(max_speed.get().max(0.0))).to_engine()
 }
 
+/// Seconds between launches for an authored `fire_rate`, or `None` when the
+/// rate is not a cadence: zero, negative, or not a number.
+///
+/// Shared by the spawn path and its tests so both read the same rule, and
+/// stated as `Option` rather than clamped so the caller decides what a bay
+/// with no cadence is - here, a bay with no launcher.
+fn torpedo_fire_interval(fire_rate: f32) -> Option<f32> {
+    (fire_rate.is_finite() && fire_rate > 0.0).then(|| 1.0 / fire_rate)
+}
+
 /// Mark the whole torpedo as killed when any of its body sections dies.
 ///
 /// The torpedo root is collider-less: bullets kill its CHILD sections
@@ -81,6 +91,16 @@ pub(super) fn despawn_shot_down_torpedoes(
     }
 }
 
+/// Build a bay: a launch spawner, a body, and the magazine the two share.
+///
+/// A bay whose authored `fire_rate` is not a positive, finite number gets NO
+/// SPAWNER. `1.0 / fire_rate` has no usable answer there - `0.0` gives an
+/// infinite interval that fires once and never again, a negative or NaN rate
+/// gives a cooldown that is ready every tick - and neither a default cadence
+/// nor an epsilon clamp is a cadence anybody authored. The bay is a hull
+/// section with a hole where its launcher goes: `shoot_spawn_projectile`
+/// requires [`TorpedoSectionSpawnerEntity`], so it simply never fires. The
+/// content lint reports the same value as an Error before it ever loads.
 pub(super) fn insert_torpedo_section(
     add: On<Add, TorpedoSectionMarker>,
     mut commands: Commands,
@@ -97,7 +117,14 @@ pub(super) fn insert_torpedo_section(
         return;
     };
 
-    let interval = 1.0 / config.fire_rate;
+    let Some(interval) = torpedo_fire_interval(config.fire_rate) else {
+        error!(
+            "insert_torpedo_section: entity {:?} authors fire_rate {}, which is not a \
+             positive, finite number of launches/s - the bay gets no launcher",
+            entity, config.fire_rate
+        );
+        return;
+    };
 
     let spawner = commands
         .spawn((
@@ -676,6 +703,51 @@ mod tests {
             TORPEDO_SIGNATURE_BASE.to_engine(),
             "a malformed speed never digs below the coasting floor"
         );
+    }
+
+    /// An unusable cadence is not a cadence: the bay gets no launcher.
+    ///
+    /// `1.0 / fire_rate` used to go in unguarded. Zero gave an infinite
+    /// interval - a bay that fires once and then never again; a negative or
+    /// NaN rate gave a cooldown that reads ready every tick. The turret has
+    /// guarded the same line since it was written.
+    #[test]
+    fn a_bay_that_authors_no_usable_fire_rate_is_built_without_a_launcher() {
+        assert_eq!(
+            torpedo_fire_interval(4.0),
+            Some(0.25),
+            "a real rate is still seconds per launch"
+        );
+
+        for rate in [0.0, -2.0, f32::NAN, f32::INFINITY] {
+            assert_eq!(
+                torpedo_fire_interval(rate),
+                None,
+                "{rate} is not a number of launches per second"
+            );
+
+            let mut app = App::new();
+            app.add_observer(insert_torpedo_section);
+            let section = app
+                .world_mut()
+                .spawn(preview_torpedo_section(TorpedoSectionConfig {
+                    fire_rate: rate,
+                    ..default()
+                }))
+                .id();
+            app.update();
+
+            assert!(
+                app.world()
+                    .get::<TorpedoSectionSpawnerEntity>(section)
+                    .is_none(),
+                "a bay authored at {rate} must have nothing to fire from"
+            );
+            assert!(
+                app.world().get::<Children>(section).is_none(),
+                "and no launcher parts at all"
+            );
+        }
     }
 
     /// The section's `MuzzleDoor` progress: 0 closed, 1 fully open.
