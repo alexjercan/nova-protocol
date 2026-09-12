@@ -399,6 +399,33 @@ physics: a rig hull with 21.3 u/s2 and 2.52 rad/s flies all three legs on
 achieved displacement in 2.80 s of a 5.94 s liveness budget. The pure tests
 cover the plan itself, the authority gate covers the crippled hull.
 
+`system_ai_evade` is the same reading on shipped hulls, staged 2026-09-12: two
+AI ships close on a parked hostile whose nose is held on them, and the range
+cuts the cycle into legs off the heading each hull is asked to hold.
+
+| hull | live arm | leg owes | legs flown, m | leg seconds | cycle |
+| --- | --- | --- | --- | --- | --- |
+| block_picket | 50.0 m | 60.0 m | 59, -35, 62 | 1.6, 6.2, 2.0 | 9.9 s |
+| block_warship | 118.0 m | 128.0 m | 127, 77, 170 | 4.8, 6.0, 7.6 | 18.5 s |
+
+The derived figures hold live: the clearance is the hull's own arm plus 10 m on
+both, and the cycle is the 9 s the refractory window was scaled against.
+
+The middle leg is the backstop doing its job, and it is worth reading. Both
+movers break off while still carrying the speed of their approach, so the
+second leg is spent turning that speed around: the picket goes 35 m the WRONG
+way along the new heading before the deadline moves it on. A leg ends on the
+clearance it achieved or on its liveness deadline, and a ship that jinks in the
+middle of a burn is exactly the hull the deadline exists for. What the range
+asserts is therefore one leg of the cycle making its full clearance, not all
+three, and it records all three.
+
+`block_carrier` cannot be staged here at all, and that is the shipped rule
+rather than a gap in the range: a hull with no weapon section is an
+`AINonCombatant`, so it never acquires a target, never engages, and can never
+be broken out of an engagement. The largest hull that can fly a jink is
+`block_warship`.
+
 `system_ai_combat` also had to stop being a duel. Its targets were parked with
 `Quat::IDENTITY`, which points a nose down the plane the mover circles in, and
 a hostile's nose on the mover inside `AI_THREAT_AIM_RANGE` is a threat whether

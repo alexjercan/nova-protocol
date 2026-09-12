@@ -18,7 +18,7 @@
 //! | 3 | `outcome: every wreck piece went physical` | the collapse ran to completion - nothing is still waiting on its grace when the window closes |
 //! | 4 | `outcome: every piece is thrown clear of what buried it` | each piece's own kick and its own grace window carry it past the structure standing over it, so none goes rigid inside the hull |
 //! | 5 | `outcome: the chain of fires is the size of the collapse` | the frame that condemns 720 cells lights the chain that batch earns, and the fires are spread down the corridor instead of crowded into the frame's first cells |
-//! | 6 | `outcome: one hull coming apart is one kick` | the camera is kicked once for the collapse and once for the hit that caused it, not once per cell-sized cell of wreck |
+//! | 6 | `outcome: one hull coming apart is one kick` | the camera is kicked once for the collapse and once for the hit that caused it, not once per cell of wreck |
 //! | 7 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
 //! | 8 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
 //!

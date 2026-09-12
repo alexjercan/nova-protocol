@@ -254,12 +254,32 @@ budget.
 
 ## Proof
 
-- The combat ranges in `20260909-213623` run on both hulls: the fire gate,
-  torpedo arming, and railgun items each get an invariant there.
-- `system_collision_damage` asserts the docking-speed case is free on the
-  carrier pair.
-- A `bug_` or `system_` range per AI item that stages the carrier: standoff
-  face to face, orbit speed held, no retro lit on engage, evade legs
-  completing.
-- `stress_hull_collapse` extended with the pyre count and the trauma kick
-  count per frame on the carrier.
+What was asked for, and what holds it. The ranges named here are live and on
+the `catalog_drift.rs` roster.
+
+- [x] The combat ranges run on both hulls: the fire gate, torpedo arming and
+      railgun items each get an invariant there. Held by the ranges that
+      already stage those weapons rather than by new ones:
+      `system_turret_gunnery` (`the fire gate is the size of what is shot
+      at`), `system_torpedo_launch` (`a warhead arms clear of the hull that
+      fired it`) and `system_railgun_lance` (`the rake spends one budget`,
+      rewritten onto the power rule). The new ranges `20260909-213623` lists -
+      `system_railgun_hulls`, `system_torpedo_capital`, `system_wreck_lock` -
+      stay that task's scope.
+- [x] `system_collision_damage` asserts the docking-speed case is free on the
+      carrier pair: `two capitals may come alongside for free`, with `a touch
+      under the safe speed is free at either hull size` beside it.
+- [x] A range per AI item that stages the carrier. `system_ai_combat` holds
+      standoff face to face, orbit speed held and no retro lit on engage - it
+      stages a `block_warship` against a `block_carrier` and asserts the mover
+      flies the fight on its flight computer and settles rather than closes.
+      `system_ai_evade` holds the evade legs: a `block_picket` and a
+      `block_warship` under a held nose each fly three legs and hand the fight
+      back, with one leg per cycle carrying the hull its own arm plus 10 m off
+      the line. The carrier cannot fly the evade half: a hull with no weapon
+      section is an `AINonCombatant`, so it never acquires a target and is
+      never in an engagement to be broken out of. `block_warship` is the
+      largest hull that can.
+- [x] `stress_hull_collapse` extended with the pyre count and the trauma kick
+      count per frame on the carrier: `the chain of fires is the size of the
+      collapse` and `one hull coming apart is one kick`.

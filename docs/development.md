@@ -278,7 +278,14 @@ What is on disk today, in reading order:
   and two salvos that cannot use the hole they make in the same tick) and
   `system_railgun_lance` (the spinal gun: a commit that outlives the trigger, a
   charge cue, one slug raking six plates in a single step, and the recoil that
-  shoves the firing ship). Then the
+  shoves the firing ship). Beside them, the ranges that read a figure off the
+  HULL rather than off a constant, each staged on a skiff and a capital at
+  once: `system_hull_scaling` (the two reference hulls' live inputs and what
+  the game derives from them - lock range, the fire gate, the size a hull burns
+  at), `system_collision_damage` (a ram at three closing speeds, and the
+  docking speed that costs nothing), `system_ai_combat` (what an AI ship does
+  when it fights) and `system_ai_evade` (what it does when a gun is held on it:
+  three jink legs, each the size of the hull flying it). Then the
   cross-cutting systems, every fixture a `ScenarioConfig` written in Rust and
   loaded with `LoadScenario`: `system_scenario_grammar` (the scenario language -
   variables, events, filters, actions), `system_player_path` (a scenario played
