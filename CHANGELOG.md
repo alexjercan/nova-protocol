@@ -170,6 +170,13 @@ does NOT get an entry - and it is the only place they are written down.
   cleanup.
 
 ### Fixes
+- Leaving a scenario goes straight to the loading screen: the return no longer
+  builds a whole main menu and loads an ambience backdrop for one frame before
+  throwing both away.
+- `--scenario` opens its scenario once. Back to Main Menu reaches the MENU
+  instead of dropping the player back into the launch scenario every time.
+- The flight status bar is rebuilt on a content restart instead of stacked, so
+  the FPS and version readouts still work after a return to the menu.
 - Screen markers land where they belong under a scripted camera: photo mode,
   cinematics and capture scripts pose the camera last, and the indicators were
   projected through the pose it replaced.

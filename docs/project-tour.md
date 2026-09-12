@@ -93,7 +93,9 @@ wired -- `DefaultPlugins` + window/log/asset/render setup, then the plugin stack
 (assets, gameplay, ship, scenario, HUD + NOVA OS monitor, editor, menu, debug).
 The state machines:
 
-- `GameStates { Loading, MainMenu, Playing }` -- top-level lifecycle.
+- `GameStates { Loading, MainMenu, Playing }` -- top-level lifecycle. Leaving
+  `Playing` returns through `Loading`: the content is re-read on the way to the
+  front door, and the menu is built once, on the far side of it.
 - `PauseStates { Unpaused, Paused }` -- the ESC overlay, nested in `Playing`.
 - `GameAssetsStates { Loading, Processing, Loaded }` -- the asset pipeline that
   gates entry; on `OnEnter(Loaded)` the app hands off to `MainMenu`/`Playing`.

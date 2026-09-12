@@ -229,7 +229,14 @@ when no custom game plugins were supplied - the menu fronts the default app and
 nothing else, so an example that brings its own game plugins goes straight
 `Loading -> Playing`), and finally `DebugPlugin` under the `debug` feature. On
 `OnEnter(GameAssetsStates::Loaded)` it hands off to `MainMenu` (or straight to
-`Playing` when the menu is off) and spawns the status UI.
+`Playing` when the menu is off) and spawns the status UI. That handoff runs on
+every pass through `Loaded`, boot and content restart alike, so what separates
+them is the `--scenario` launch request: `boot_into_the_game` TAKES it, and a
+restart therefore finds nothing to open and lands in the menu. The status bar is
+taken down again on `OnExit(Loaded)` - its FPS icon is a handle out of the
+collection the restart is about to re-read, and `insert_status_bar_item` hangs
+every item off a `Single` root, so a second root would silence the new items
+rather than draw a second bar.
 
 `NovaGameplayPlugin` pulls in avian3d `PhysicsPlugins` (zero gravity, projectile
 collision hooks), `bevy_rand`, `bevy_hanabi` particles (on wasm via the WebGPU
@@ -256,6 +263,22 @@ plugin test pins the count at one.
   default editor app); examples with custom game plugins go straight
   `Loading -> Playing`. The `GameMode` resource (`Sandbox` default | `NewGame`)
   records what the menu handed off to.
+- Leaving `Playing` goes back through `Loading`, not straight to the menu.
+  `nova_menu` writes `ReloadContent` on `OnExit(Playing)` - the Wesnoth rule:
+  the front door is where the game catches up with what is on disk, so a
+  scenario just played, a ship just saved or a mod just installed is merged
+  before the Scenarios picker, the campaign list or the ship catalog is read
+  again. `restart_through_loading` rewrites the pending `MainMenu` into
+  `Loading` in the `StateTransition` schedule, before
+  `StateTransitionSystems::DependentTransitions`, so the menu, its UI camera and
+  its randomly drawn ambience backdrop are never built for the one frame the
+  restart would have thrown them away in. Every exit path gets this - the pause
+  overlay's Back, the editor's File menu, the outcome frame, a scenario's own
+  `ExitToMenu` - because the redirect is on the transition rather than on the
+  four call sites, and `OnExit(Playing)` is also where the scenario is torn down
+  (`end_gameplay_scenario`) rather than on whichever screen comes next. An app
+  with no content pipeline (no `GameAssets`) is exempt: it has no restart to
+  come back from.
 - `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
   ESC pause overlay; `NovaOs` is the CRT terminal takeover, whichever shell it
   is showing - Tab opens the ship computer, `:` opens the command shell (same
@@ -288,6 +311,7 @@ stateDiagram-v2
         Loading --> MainMenu: menu app
         Loading --> Playing: custom game plugins
         MainMenu --> Playing: New Game / Sandbox
+        Playing --> Loading: leaving gameplay (content restart)
         state "Playing" as Playing {
             [*] --> Unpaused
             Unpaused --> Paused: ESC

@@ -41,7 +41,8 @@ pub use nova_ship;
 use nova_ship::prelude::*;
 use nova_ui::status_bar::{
     status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn, status_version_color_fn,
-    status_version_value_fn, StatusBarItemConfig, StatusBarRootConfig,
+    status_version_value_fn, StatusBarItemConfig, StatusBarItemMarker, StatusBarRootConfig,
+    StatusBarRootMarker,
 };
 
 mod loading_screen;
@@ -419,7 +420,10 @@ impl AppBuilder {
         if startup_scenario.is_some() {
             self.app.insert_resource(GameMode::NewGame);
         }
-        let boot_to_menu = has_menu && startup_scenario.is_none();
+        self.app.insert_resource(BootHandoff {
+            startup: startup_scenario,
+            has_menu,
+        });
 
         // Only advance when still in Loading - a scripted run may already
         // have set Playing, and this hook firing seconds later must not yank the
@@ -431,51 +435,84 @@ impl AppBuilder {
         self.app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
             (
-                (move |state: Res<State<GameStates>>,
-                       mut next: ResMut<NextState<GameStates>>,
-                       mut scenarios: Option<ResMut<GameScenarios>>,
-                       pick: Option<ResMut<NewGameScenario>>,
-                       mut exit: MessageWriter<AppExit>| {
-                    if *state.get() != GameStates::Loading {
-                        return;
-                    }
-                    // The merged registry only exists here, once the bundle
-                    // merge has run - which is why an unknown `--scenario` id
-                    // cannot be refused before the window opens.
-                    if let Some(startup) = &startup_scenario {
-                        let mut empty = GameScenarios::default();
-                        let scenarios = scenarios.as_deref_mut().unwrap_or(&mut empty);
-                        match resolve_startup_scenario(startup, scenarios) {
-                            Err(message) => {
-                                eprintln!("error: {message}");
-                                exit.write(AppExit::error());
-                                return;
-                            }
-                            Ok(id) if !scenarios.contains_key(&id) => {
-                                report_unknown_startup_scenario(&id, scenarios);
-                                exit.write(AppExit::error());
-                                return;
-                            }
-                            Ok(id) => {
-                                if let Some(mut pick) = pick {
-                                    pick.0 = Some(id);
-                                }
-                            }
-                        }
-                    }
-                    next.set(if boot_to_menu {
-                        GameStates::MainMenu
-                    } else {
-                        GameStates::Playing
-                    });
-                })
-                .after(EditorSandboxSystems),
+                boot_into_the_game.after(EditorSandboxSystems),
                 setup_status_ui,
             ),
         );
+        // The status bar is REBUILT across a content restart rather than kept:
+        // its FPS icon is a handle out of the collection that is about to be
+        // re-read, and a second root would leave `insert_status_bar_item`
+        // (a `Single` over the root) with nowhere to hang the new items.
+        self.app
+            .add_systems(OnExit(GameAssetsStates::Loaded), teardown_status_ui);
 
         self.app
     }
+}
+
+/// What the `Loaded` handoff needs to know, and the one piece of it that is
+/// spent on use.
+#[derive(Resource, Debug, Clone)]
+struct BootHandoff {
+    /// The `--scenario` / `--scenario-file` launch REQUEST, until it is spent.
+    ///
+    /// [`boot_into_the_game`] takes it, which is what makes the flag a launch
+    /// request rather than a standing preference: every later pass through
+    /// `Loaded` is a content restart, and a restart that reopened the launch
+    /// scenario would put Back to Main Menu back where it started, forever.
+    startup: Option<StartupScenario>,
+    /// Whether this app has a menu to hand the player back to. An app that
+    /// supplied its own game plugins has none and always boots into gameplay.
+    has_menu: bool,
+}
+
+/// The `Loaded` handoff: resolve a pending `--scenario` request (once), then
+/// hand the player to the menu or straight into gameplay.
+///
+/// Runs on EVERY `OnEnter(GameAssetsStates::Loaded)`, boot and content restart
+/// alike, and the only difference between them is whether the launch request is
+/// still there to take.
+fn boot_into_the_game(
+    state: Res<State<GameStates>>,
+    mut next: ResMut<NextState<GameStates>>,
+    mut scenarios: Option<ResMut<GameScenarios>>,
+    pick: Option<ResMut<NewGameScenario>>,
+    mut handoff: ResMut<BootHandoff>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    if *state.get() != GameStates::Loading {
+        return;
+    }
+    // The merged registry only exists here, once the bundle merge has run -
+    // which is why an unknown `--scenario` id cannot be refused before the
+    // window opens.
+    let startup = handoff.startup.take();
+    if let Some(startup) = &startup {
+        let mut empty = GameScenarios::default();
+        let scenarios = scenarios.as_deref_mut().unwrap_or(&mut empty);
+        match resolve_startup_scenario(startup, scenarios) {
+            Err(message) => {
+                eprintln!("error: {message}");
+                exit.write(AppExit::error());
+                return;
+            }
+            Ok(id) if !scenarios.contains_key(&id) => {
+                report_unknown_startup_scenario(&id, scenarios);
+                exit.write(AppExit::error());
+                return;
+            }
+            Ok(id) => {
+                if let Some(mut pick) = pick {
+                    pick.0 = Some(id);
+                }
+            }
+        }
+    }
+    next.set(if handoff.has_menu && startup.is_none() {
+        GameStates::MainMenu
+    } else {
+        GameStates::Playing
+    });
 }
 
 /// Resolve a [`StartupScenario`] to the id the run boots into, registering a
@@ -798,6 +835,13 @@ fn single_thread_the_fixed_loop(app: &mut App) {
     single(app, FixedLast);
 }
 
+/// Spawn the flight status bar: one root and one item per metric.
+///
+/// Runs at `OnEnter(GameAssetsStates::Loaded)`, which a content restart reaches
+/// again - [`teardown_status_ui`] is what keeps that from stacking a second
+/// root. The pair is the whole ownership rule: exactly one root and one of each
+/// item exist at a time, and both are rebuilt from the collection the restart
+/// just re-read.
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
     // The bar is deliberately NOT `HudNovaOsExempt`. While the NOVA OS
     // computer is open the whole flight status bar hides, and the one item that
@@ -826,6 +870,26 @@ fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
         prefix: "v".to_string(),
         suffix: "".to_string(),
     }),));
+}
+
+/// Take the status bar down at `OnExit(GameAssetsStates::Loaded)`, so the
+/// content restart that follows rebuilds it instead of stacking on it.
+///
+/// The items are children of the root by the time they are built
+/// (`insert_status_bar_item`), so the root's recursive despawn takes them; the
+/// item sweep catches one spawned in the same frame the restart began, which
+/// the observer has not parented yet.
+fn teardown_status_ui(
+    mut commands: Commands,
+    q_root: Query<Entity, With<StatusBarRootMarker>>,
+    q_item: Query<Entity, With<StatusBarItemMarker>>,
+) {
+    for entity in &q_root {
+        commands.entity(entity).try_despawn();
+    }
+    for entity in &q_item {
+        commands.entity(entity).try_despawn();
+    }
 }
 
 #[cfg(test)]

@@ -16,13 +16,16 @@
 //! that supply their own game plugins never see the menu.
 #![warn(missing_docs)]
 
-use bevy::prelude::*;
-use nova_assets::prelude::ReloadContent;
+use bevy::{
+    prelude::*,
+    state::state::{StateTransition, StateTransitionSystems},
+};
+use nova_assets::prelude::{GameAssets, ReloadContent};
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_os::prelude::NovaOsTerminal;
 use nova_os_ui::prelude::NovaOsCloseTransition;
-use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
+use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure, UnloadScenario};
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
     prelude::UiSkin,
@@ -244,7 +247,15 @@ impl Plugin for NovaMenuPlugin {
             OnExit(PauseStates::NovaOs),
             (release_clocks_for_terminal, restore_cursor),
         );
-        app.add_systems(OnExit(GameStates::Playing), force_unpause);
+        // Leaving gameplay ENDS the scenario, whatever the exit path and
+        // whichever screen comes next. The teardown used to ride the menu's own
+        // backdrop load, which made it a property of where the player landed
+        // rather than of what they left - and the content restart below does
+        // not land in the menu at all.
+        app.add_systems(
+            OnExit(GameStates::Playing),
+            (force_unpause, end_gameplay_scenario),
+        );
         // The message this plugin writes below. `nova_assets` owns it and adds
         // it too, which is a no-op the second time - declared here so a rig
         // that stands the menu up without the content pipeline still runs.
@@ -259,6 +270,14 @@ impl Plugin for NovaMenuPlugin {
             |mut reload: MessageWriter<ReloadContent>| {
                 reload.write(ReloadContent);
             },
+        );
+        // ...and the restart goes THROUGH the loading screen, not through the
+        // menu. See `restart_through_loading`.
+        app.add_systems(
+            StateTransition,
+            restart_through_loading
+                .before(StateTransitionSystems::DependentTransitions)
+                .run_if(resource_exists::<GameAssets>),
         );
         app.add_systems(
             PostUpdate,
@@ -292,4 +311,50 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(OnEnter(GameStates::MainMenu), clear_start_failure);
         app.add_observer(regrab_cursor_on_player_spawn);
     }
+}
+
+/// End the scenario the player is leaving.
+///
+/// `OnExit(GameStates::Playing)` is the one gate every way out passes through -
+/// the pause menu's Back, the editor's File menu, the outcome frame's Main
+/// Menu, the scenario-advance key - so the teardown belongs here rather than on
+/// whatever screen happens to be next. Before this, the menu's backdrop load
+/// was the de-facto owner, and the two paths that do not load a backdrop (the
+/// no-clean-backdrop fallback, and the content restart that goes straight to
+/// the loading screen) left gameplay simulating behind the next screen.
+fn end_gameplay_scenario(mut commands: Commands) {
+    commands.trigger(UnloadScenario);
+}
+
+/// Send a departure from gameplay through the LOADING screen instead of through
+/// the menu.
+///
+/// The reload itself is unconditional and stays that way (see the
+/// `OnExit(Playing)` writer above): leaving the editor or a scenario is where
+/// the game catches up with what is on disk. What this removes is the disposable
+/// menu in the middle of it. `Playing -> MainMenu` used to build the whole front
+/// door - the menu panel, its UI camera, a randomly drawn ambience backdrop and
+/// the scenario load behind it - one frame before `restart_for_content` threw it
+/// all away and started the boot load. The player saw the flash; the machine
+/// paid for a scenario nobody watched.
+///
+/// Rewriting the pending state rather than changing the four call sites keeps
+/// "back to the front door" as what each of them means, and keeps the reload
+/// policy in the one crate that owns it. `boot_into_the_game` (nova_core) puts
+/// the player in the menu when the load finishes, so the destination is
+/// unchanged - only the route is.
+///
+/// Gated on [`GameAssets`]: an app with no content pipeline has no restart to
+/// come back from, and redirecting it into `Loading` would strand it there.
+fn restart_through_loading(
+    current: Res<State<GameStates>>,
+    mut next: ResMut<NextState<GameStates>>,
+) {
+    if *current.get() != GameStates::Playing {
+        return;
+    }
+    if !matches!(*next, NextState::Pending(GameStates::MainMenu)) {
+        return;
+    }
+    *next = NextState::Pending(GameStates::Loading);
 }

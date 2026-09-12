@@ -476,6 +476,10 @@ cargo run -- --scenario nope               # refuses, and lists every id
 - The launch is the picker's own door (`NewGameScenario` + `GameMode::NewGame`
   + `GameStates::Playing`), so the scenario comes up through the same loader and
   the same non-blocking load screen as a click on Play.
+- It is a launch REQUEST, spent on the first boot. Back to Main Menu re-reads
+  the content on the way out, and the second pass through `Loaded` finds no
+  request left to open - so the flag opens its scenario once and then hands the
+  session over to the menu, instead of being a door onto itself.
 - Native only. The wasm bundle has no command line.
 
 ## Content CLI

@@ -498,6 +498,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_session_loop",
+        &[
+            "the launch scenario opens once and the menu is reachable",
+            "leaving gameplay restarts the content exactly once",
+            "the restart builds no throwaway menu or backdrop",
+            "the restart leaves one status bar with its FPS and version",
+            "a returned-to menu is a first-boot menu",
+            "New Game after a restart starts the bundle's own start",
+            "the session loop repeats at the same cost",
+        ],
+    ),
+    (
         "bug_menu_picker",
         &[
             "the row click selects the row",
@@ -639,7 +651,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 279;
+const SYSTEMS_INVARIANTS: usize = 286;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
