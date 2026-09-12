@@ -79,12 +79,20 @@ pub(crate) fn spawn_menu_ui_camera(mut commands: Commands) {
 /// NOTHING flagged is a warned degradation, not a panic (a mod set that
 /// removes every backdrop must not brick the menu): a plain fixed camera
 /// spawns instead so the UI still renders, over empty space.
+///
+/// The unload is UNCONDITIONAL and comes first, before the draw and before
+/// either camera. Menu entry ends whatever was running, and the branch that
+/// happens to load a backdrop must not be the only one that says so: a mod set
+/// with no clean backdrop took the early return, and whatever the player left
+/// went on simulating behind the front door.
 pub(crate) fn load_menu_ambience(
     mut commands: Commands,
     scenarios: Res<GameScenarios>,
     issues: Option<Res<ContentIssues>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
+    commands.trigger(UnloadScenario);
+
     // Deterministic candidate order before the draw (the registry is
     // HashMap-backed; iteration order must not leak into the pick). A
     // backdrop with Error-level content issues is filtered OUT of the draw:

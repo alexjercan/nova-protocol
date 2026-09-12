@@ -522,6 +522,15 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "bug_menu_fallback",
+        &[
+            "the menu has no clean backdrop to draw",
+            "the fallback camera is the menu's only 3D camera",
+            "a bare menu ends the scenario it came from",
+            "the fallback camera never stands over a live scene",
+        ],
+    ),
+    (
         "bug_menu_picker",
         &[
             "the row click selects the row",
@@ -685,7 +694,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 305;
+const SYSTEMS_INVARIANTS: usize = 309;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -319,7 +319,8 @@ What is on disk today, in reading order:
   and the window changes shape, and the top bar and the stage's nameplates are
   read at every shape alongside it), `system_hud_indicators`
   (where a screen-projected indicator lands), `system_menu_boot` (the shipped
-  boot flow) and
+  boot flow), `bug_menu_fallback` (a menu with no clean backdrop to draw ends
+  the scenario it came from and stands on one bare camera) and
   `bug_menu_picker` (the Scenarios picker, whose pane split must not depend on
   the selection - real fonts, real taffy, which a headless unit rig cannot
   measure at all), `bug_sandbox_soak` (the editor sandbox entered and then left

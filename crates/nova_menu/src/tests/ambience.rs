@@ -11,7 +11,8 @@ use nova_ship::prelude::*;
 
 use super::support::{
     app, dummy_backdrop, dummy_scenario, dummy_scenarios, observe_load_scenario,
-    script_backdrop_pose, LoadedScenario, TEST_BACKDROP_ID, TEST_START_ID,
+    observe_unload_scenario, script_backdrop_pose, LoadedScenario, Unloaded, TEST_BACKDROP_ID,
+    TEST_START_ID,
 };
 
 /// Entering MainMenu loads the ambience backdrop through the real OnEnter systems.
@@ -306,5 +307,127 @@ fn no_menu_backdrop_degrades_to_a_bare_camera() {
     assert_eq!(
         cameras, 1,
         "the fallback camera spawns so the menu UI still renders"
+    );
+}
+
+/// The world as the unload found it: how many 3D cameras were standing when
+/// the teardown landed. The fallback camera is spawned by the same system, so
+/// a zero here is the ORDER - the teardown ran before the menu put a camera
+/// of its own up, not after it.
+#[derive(Resource, Default)]
+struct UnloadWitness(Option<usize>);
+
+fn witness_the_unload(app: &mut App) {
+    app.init_resource::<UnloadWitness>();
+    app.add_observer(
+        |_: On<UnloadScenario>,
+         q_cameras: Query<(), With<Camera3d>>,
+         mut witness: ResMut<UnloadWitness>| {
+            witness.0 = Some(q_cameras.iter().count());
+        },
+    );
+}
+
+fn enter_the_menu(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+}
+
+fn cameras_3d(app: &mut App) -> usize {
+    app.world_mut()
+        .query_filtered::<(), With<Camera3d>>()
+        .iter(app.world())
+        .count()
+}
+
+/// The fallback path is a TEARDOWN as much as the draw is: entering the menu
+/// ends whatever was running before it goes looking for a backdrop, so a mod
+/// set that leaves nothing to draw cannot leave gameplay simulating behind the
+/// front door. The bare camera goes up after that, never over a live scene.
+#[test]
+fn the_fallback_path_ends_the_scenario_it_replaces() {
+    let mut app = app();
+    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_scenario(TEST_START_ID),
+    ])));
+    observe_load_scenario(&mut app);
+    observe_unload_scenario(&mut app);
+    witness_the_unload(&mut app);
+    app.update();
+
+    enter_the_menu(&mut app);
+
+    assert!(
+        app.world().resource::<Unloaded>().0,
+        "a menu entry with nothing to draw must still end the scenario it replaces"
+    );
+    assert_eq!(
+        app.world().resource::<UnloadWitness>().0,
+        Some(0),
+        "the teardown must land before the fallback camera, not after it"
+    );
+    assert_eq!(
+        app.world().resource::<LoadedScenario>().0,
+        None,
+        "no backdrop scenario loads"
+    );
+    assert_eq!(cameras_3d(&mut app), 1, "exactly one fallback camera");
+}
+
+/// Same when every backdrop is REGISTERED but erroring: the draw filters them
+/// out and reaches the same bare-camera branch, which owes the same teardown.
+#[test]
+fn a_menu_whose_every_backdrop_errors_ends_the_scenario_too() {
+    let mut app = app();
+    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_backdrop("backdrop_broken"),
+    ])));
+    let mut issues = ContentIssues::default();
+    issues.0.insert(
+        "backdrop_broken".to_string(),
+        vec![LintIssue {
+            severity: LintSeverity::Error,
+            scenario: "backdrop_broken".to_string(),
+            message: "unknown section prototype 'ghost'".to_string(),
+        }],
+    );
+    app.insert_resource(issues);
+    observe_load_scenario(&mut app);
+    observe_unload_scenario(&mut app);
+    witness_the_unload(&mut app);
+    app.update();
+
+    enter_the_menu(&mut app);
+
+    assert!(
+        app.world().resource::<Unloaded>().0,
+        "a backdrop the gate refuses leaves the same debt as no backdrop at all"
+    );
+    assert_eq!(app.world().resource::<UnloadWitness>().0, Some(0));
+    assert_eq!(app.world().resource::<LoadedScenario>().0, None);
+    assert_eq!(cameras_3d(&mut app), 1, "exactly one fallback camera");
+}
+
+/// The teardown belongs to the menu ENTRY, not to the fallback branch: an
+/// entry that does draw a backdrop ends the previous scenario first as well,
+/// so the ordering is one rule rather than one branch's good luck.
+#[test]
+fn drawing_a_backdrop_ends_the_scenario_it_replaces_first() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    observe_load_scenario(&mut app);
+    observe_unload_scenario(&mut app);
+    witness_the_unload(&mut app);
+    app.update();
+
+    enter_the_menu(&mut app);
+
+    assert!(app.world().resource::<Unloaded>().0);
+    assert_eq!(
+        app.world().resource::<LoadedScenario>().0.as_deref(),
+        Some(TEST_BACKDROP_ID),
+        "the backdrop still draws"
     );
 }

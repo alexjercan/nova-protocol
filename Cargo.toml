@@ -319,6 +319,10 @@ name = "bug_failed_assets"
 path = "examples/systems/bug_failed_assets.rs"
 
 [[example]]
+name = "bug_menu_fallback"
+path = "examples/systems/bug_menu_fallback.rs"
+
+[[example]]
 name = "bug_menu_picker"
 path = "examples/systems/bug_menu_picker.rs"
 

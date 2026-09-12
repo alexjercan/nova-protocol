@@ -276,9 +276,13 @@ plugin test pins the count at one.
   overlay's Back, the editor's File menu, the outcome frame, a scenario's own
   `ExitToMenu` - because the redirect is on the transition rather than on the
   four call sites, and `OnExit(Playing)` is also where the scenario is torn down
-  (`end_gameplay_scenario`) rather than on whichever screen comes next. An app
-  with no content pipeline (no `GameAssets`) is exempt: it has no restart to
-  come back from.
+  (`end_gameplay_scenario`) rather than on whichever screen comes next. Menu
+  ENTRY owes the same debt on its own account: `load_menu_ambience` triggers
+  `UnloadScenario` before it draws anything, so the branch that finds no clean
+  backdrop - a mod set with nothing flagged, or nothing the content gate lets
+  through - puts its bare camera over an empty world instead of over whatever
+  was last running. An app with no content pipeline (no `GameAssets`) is
+  exempt: it has no restart to come back from.
 - `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
   ESC pause overlay; `NovaOs` is the CRT terminal takeover, whichever shell it
   is showing - Tab opens the ship computer, `:` opens the command shell (same

@@ -190,6 +190,9 @@ does NOT get an entry - and it is the only place they are written down.
   cleanup.
 
 ### Fixes
+- A main menu with no backdrop to draw still ends the game behind it: a mod set
+  that leaves nothing flagged, or nothing the content gate passes, no longer
+  leaves the last scenario simulating under the front door.
 - Leaving a scenario goes straight to the loading screen: the return no longer
   builds a whole main menu and loads an ambience backdrop for one frame before
   throwing both away.
