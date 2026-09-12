@@ -112,7 +112,7 @@ constraints.
 
 ### 1. Reload lifecycle, status UI and startup scenario
 
-- [ ] `crates/nova_core/src/lib.rs:473` `setup_status_ui` runs on every
+- [x] `crates/nova_core/src/lib.rs:473` `setup_status_ui` runs on every
       `OnEnter(GameAssetsStates::Loaded)` with no teardown. A content restart
       adds another status-bar root; `insert_status_bar_item` then has an
       unsatisfied `Single<StatusBarRootMarker>`, and the new FPS/version items
@@ -120,11 +120,11 @@ constraints.
       reload. Teardown/rebuild across the asset-state restart is preferred when
       refreshed handles matter; spawn-once is acceptable only if it proves the
       same ownership and handle behavior.
-- [ ] `crates/nova_menu/src/lib.rs:257` sends `ReloadContent` from
+- [x] `crates/nova_menu/src/lib.rs:257` sends `ReloadContent` from
       `OnExit(GameStates::Playing)`. Preserve the unconditional reload, but do
       not enter and build a disposable menu/backdrop before it. The loading
       screen may appear; the transient backdrop and visible flash may not.
-- [ ] `crates/nova_core/src/lib.rs:466,422` captures `boot_to_menu` once and
+- [x] `crates/nova_core/src/lib.rs:466,422` captures `boot_to_menu` once and
       reuses the startup choice after every content restart. A run launched with
       `--scenario <id>` must consume that launch request on the first successful
       boot only. Back to Main Menu then reloads content and stays in the menu
@@ -132,7 +132,7 @@ constraints.
 
 ### 2. Failed assets and safe mode
 
-- [ ] `crates/nova_assets/src/plugin.rs:141,235`
+- [x] `crates/nova_assets/src/plugin.rs:141,235`
       `OnEnter(GameAssetsStates::Failed)` only logs, while the loading screen
       despawns only on `Loaded`. Implement the optional-mod recovery and
       aggregate acknowledgement report described above. If the failed asset is
@@ -140,7 +140,7 @@ constraints.
 
 ### 3. Refused scenario teardown
 
-- [ ] `crates/nova_scenario/src/loader/lifecycle.rs:245,254` checks the content
+- [x] `crates/nova_scenario/src/loader/lifecycle.rs:245,254` checks the content
       gate before teardown. A campaign's refused next scenario therefore leaves
       the previous scenario simulating under a blocking failure overlay with the
       cursor locked. Tear down before publishing the refusal: clear the event
@@ -151,24 +151,24 @@ constraints.
 
 ### 4. Outcome, pause and focus arbitration
 
-- [ ] `crates/nova_menu/src/outcome.rs:114` and
+- [x] `crates/nova_menu/src/outcome.rs:114` and
       `crates/nova_menu/src/pause.rs:277` assume outcome and pause cannot race.
       ESC on the frame an `Outcome` action is still queued can open pause before
       the outcome resource changes; later `toggle_pause` returns early and
       leaves the pause panel over the outcome. Give outcome explicit precedence,
       order the systems, and reconcile an outcome when `PauseStates::Paused`
       already holds. Exactly one modal may remain.
-- [ ] `crates/nova_menu/src/outcome.rs:209` advances on `Time<Real>`. Keep that
+- [x] `crates/nova_menu/src/outcome.rs:209` advances on `Time<Real>`. Keep that
       authored timer running on focus loss, but use the focus policy above: if
       it expires while unfocused, the next scenario loads and immediately owns
       an ordinary player pause. No unpaused gameplay frame may pass.
-- [ ] Add general interactive focus-loss pause behavior, including loss before
+- [x] Add general interactive focus-loss pause behavior, including loss before
       scenario readiness, no automatic resume, NOVA OS/outcome precedence, and
       windowless/harness exemptions.
 
 ### 5. Menu ambience fallback
 
-- [ ] `crates/nova_menu/src/ambience.rs:112` returns from the no-clean-backdrop
+- [x] `crates/nova_menu/src/ambience.rs:112` returns from the no-clean-backdrop
       branch without `UnloadScenario`; `load_menu_ambience` is the gameplay to
       menu teardown owner. A mod set with no clean backdrop can leave gameplay
       simulating behind the menu. Trigger unload before selecting a backdrop or
@@ -177,12 +177,14 @@ constraints.
 
 ### 6. Command shell and modal z ordering
 
-- [ ] `crates/nova_menu/src/pause.rs:108` and `lib.rs:218` let `:` open the
-      command shell on the main menu, freezing its backdrop and blocking its
-      buttons. Gate the gesture on `GameStates::Playing`. It remains available
-      over flight and the pause menu, subject to the existing input-mode and
-      rebind guards.
-- [ ] Verify the plausible z collision before fixing it:
+- [x] Keep `:` available on the main menu as well as during flight and from the
+      pause menu, subject to the existing input-mode and rebind guards. It must
+      remain inert during asset loading and on any surface without a live NOVA
+      OS terminal. On the main menu, NOVA OS is the active modal and therefore
+      blocks menu buttons while open, but menu ambience continues running
+      beneath it. During gameplay, NOVA OS retains its simulation freeze. Close
+      returns to the exact surface it covered: main menu, flight or pause.
+- [x] Verify the plausible z collision before fixing it:
       `crates/nova_os_ui/src/terminal/style.rs:190` gives
       `DRAWER_PANEL_Z` 11, tied with the pause Settings panel. Both are
       full-screen blockers during the transition from pause Settings to `:`.
@@ -194,7 +196,7 @@ constraints.
 
 ### 7. Responsive pause Settings and fullscreen default
 
-- [ ] Verify the plausible overflow at a rendered 500 px viewport, then replace
+- [x] Verify the plausible overflow at a rendered 500 px viewport, then replace
       the pause Settings panel's fixed 620 px width with the responsive policy
       above. Add the 640x600 native resize constraints and make borderless
       fullscreen the fresh-install default. Inspect the keybind rows and Back
@@ -207,42 +209,79 @@ Follow `examples/systems/README.md`: every assertion has an `outcome:` marker,
 every slug is on the `crates/nova_probe_cli/tests/catalog_drift.rs` roster, and
 new examples have explicit `Cargo.toml` blocks.
 
-- [ ] `system_session_loop` from task `20260909-213441` carries the reload
+- [x] `system_session_loop` from task `20260909-213441` carries the reload
       lifecycle group. Main menu -> New Game -> ESC -> Back to Main Menu -> New
       Game again, through real pointer clicks over `editor_app`. Add invariants
       for exactly one content restart, no transient backdrop load, one final
       backdrop, one status root with FPS/version after reload, no first-run
       entities/resources/HUD tiers, and `--scenario` returning permanently to
       the menu after its first boot.
-- [ ] `bug_failed_assets` covers an optional cataloged mod failure, a downloaded
+- [x] `bug_failed_assets` covers an optional cataloged mod failure, a downloaded
       mod failure, multiple failures aggregated into one report, persisted
       disablement, successful automatic recovery, acknowledgement-only
       Continue, and the mandatory/base native and WASM fatal presentations.
-- [ ] `bug_refused_scenario` chains from a live scenario to a refused one and
+- [x] `bug_refused_scenario` chains from a live scenario to a refused one and
       proves zero scoped entities, empty `CurrentScenario`, stopped simulation,
       cleared mirrors/event world, visible issue text, released cursor and a
       working Main Menu action.
-- [ ] `bug_outcome_pause` queues an outcome behind a heavy spawn, presses ESC on
+- [x] `bug_outcome_pause` queues an outcome behind a heavy spawn, presses ESC on
       the race frame, and proves outcome wins with one modal. It also loses
       focus during a timed outcome, proves the chain advances, and proves the
       next scenario gets no unpaused frame before the normal pause menu.
-- [ ] `bug_menu_fallback` returns from gameplay with every backdrop absent or
+- [x] `bug_menu_fallback` returns from gameplay with every backdrop absent or
       erroring and proves unload precedes the fallback camera.
-- [ ] Extend `system_command_shell` with named invariants that `:` is inert on
-      the main menu, opens during play and from pause, and the active NOVA OS has
+- [x] Extend `system_command_shell` with named invariants that `:` opens on the
+      main menu, during play and from pause; close returns to the exact covered
+      surface; menu ambience keeps running while the main-menu shell is open;
+      gameplay stays frozen while its shell is open; and the active NOVA OS has
       deterministic modal precedence.
-- [ ] Extend `system_pause_settings` with a rendered 500 px viewport invariant,
+- [x] Extend `system_pause_settings` with a rendered 500 px viewport invariant,
       keybind-row and Back-button containment, 640x600 native constraints, and
       the fresh-install borderless default while an explicit saved Windowed
       choice survives restart.
 - [ ] Run the affected ranges through `probe run ui` three times in a row after
       their shard is registered by task `20260909-213100`.
 
+### Proof runs
+
+The `ui` shard from task `20260909-213100` is still OPEN, so no shard spec
+exists to run. Each range was run directly instead, three times in a row on the
+final source, all OK:
+
+| range | runs | verdict |
+| - | - | - |
+| `system_session_loop` | 3 | OK |
+| `bug_failed_assets` | 3 | OK |
+| `bug_refused_scenario` | 3 | OK |
+| `bug_outcome_pause` | 3 | OK |
+| `bug_menu_fallback` | 3 | OK |
+| `system_command_shell` | 3 | OK (UNPROBEABLE before this task added its probe plugin) |
+| `system_pause_settings` | 3 | OK (new range) |
+
+### Reproducing the plausible items
+
 The two items originally marked plausible (modal z traversal and narrow-window
 overflow) must be reproduced first. If current traversal or layout happens to
 work, record that evidence and still pin the deterministic z and responsive
 containment invariants; do not preserve equal modal z values or an uncapped
 fixed-width panel.
+
+Both were reproduced, and NEITHER manifested:
+
+- MODAL Z. `DRAWER_PANEL_Z` and the pause Settings panel really did share 11,
+  but the pause overlay and its Settings panel are `DespawnOnExit(Paused)` and
+  are gone before `drive_nova_os_slide` makes the computer visible, so the tie
+  never rendered. Recorded as `pause_overlays_standing: 0` in the precedence
+  marker; the layers were still renumbered into one table
+  (`nova_ui::layer`), which then found a REAL collision the audit had not
+  named - the editor's own ladder put `CHROME_Z` on the pause menu's number and
+  drew its foot bar, gallery, windows and tooltip over the pause overlay.
+- NARROW WINDOW. At 500x600 the fixed 620 px panel measured 500 wide, not 620:
+  the panel is a flex ITEM, so the default `flex_shrink` squeezed it to the
+  window instead of overflowing it. Nothing left the screen; the width was
+  simply whatever flex left, paid for out of the keybind rows' label column.
+  The responsive policy landed anyway and the range now pins the CHOSEN width
+  (`policy_width`) as well as the containment that was never lost.
 
 ## Commit groups
 
@@ -251,7 +290,8 @@ fixed-width panel.
 3. Refused-scenario teardown and cursor release.
 4. Outcome/pause arbitration and focus-loss policy.
 5. Menu fallback teardown.
-6. Playing-only command shell and deterministic modal z ordering.
+6. Main-menu and gameplay command shell, state-aware freezing and deterministic
+   modal z ordering.
 7. Responsive pause Settings, window constraints and borderless default.
 
 Each commit includes its proof changes. Do not leave a regression range to a
@@ -265,13 +305,14 @@ At minimum:
 - add concise `[Unreleased]` changelog entries, collapsed by final user-visible
   behavior rather than one line per pre-release revision;
 - update player documentation for menu reloads, automatic focus pause, safe
-  mode, the command-shell availability and the fullscreen default where those
-  behaviors are described;
+  mode, the command shell's main-menu/gameplay availability and state-aware
+  freeze behavior, and the fullscreen default where those behaviors are
+  described;
 - update architecture/project-tour claims for the asset loading split and state
   transitions;
 - update rustdoc and module comments that currently claim every cataloged bundle
-  is a recursive boot dependency, the command shell is global, focus does not
-  pause, or a failed asset is always unrecoverable.
+  is a recursive boot dependency, the command shell is available on every app
+  surface, focus does not pause, or a failed asset is always unrecoverable.
 
 ## Done when
 
@@ -283,7 +324,9 @@ At minimum:
   without a transient menu/backdrop; Mods Back and F5 retain the same reload
   policy.
 - Outcome, pause, NOVA OS and focus transitions leave one deterministic modal
-  and never leak an unpaused gameplay frame.
+  and never leak an unpaused gameplay frame. The command shell opens from the
+  main menu, flight and pause, preserves the covered surface on close, and only
+  freezes gameplay simulation.
 - The affected ranges pass in the `ui` shard three consecutive times.
 - Affected unit/integration checks, docs builds and rendered output inspection
   pass.
