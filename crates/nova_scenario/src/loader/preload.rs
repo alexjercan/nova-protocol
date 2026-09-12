@@ -15,6 +15,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
+use super::gate::fail_scenario_load;
 use crate::prelude::*;
 
 /// The held-handle resource and the walk that fills it.
@@ -22,14 +23,19 @@ pub mod prelude {
     pub use super::{scenario_render_meshes, ScenarioPreload};
 }
 
-/// How long a load waits for the scenario's art before giving up, seconds.
+/// How long a load waits WITHOUT PROGRESS before giving up, seconds.
 ///
-/// The bound is for the FAILURE case only. A handle that neither loads nor
-/// reports a failure - an asset source that never answers - would otherwise
-/// hold the loading panel up forever, which is a far worse defect than the
-/// pop-in this warm-up exists to remove. Set well above any honest load of the
-/// shipped catalog, so a machine that trips it is broken rather than slow.
-const PRELOAD_TIMEOUT_SECS: f32 = 10.0;
+/// A no-progress budget, not a total one. A total budget punishes a slow
+/// machine for being slow: a big catalog on a cold spinning disk is WORKING,
+/// and cutting it off at ten seconds was how a load that would have succeeded
+/// turned into a scene with art missing. Every asset that settles resets the
+/// budget, so the total load time is unbounded while anything is still
+/// arriving.
+///
+/// What it catches is the case a total budget was really for: an asset source
+/// that never answers at all. Ten seconds of complete silence from every
+/// outstanding handle is a broken source, not a slow one.
+const PRELOAD_STALL_SECS: f32 = 10.0;
 
 /// Every glTF the loaded scenario can spawn, held for its lifetime, plus
 /// whether the load is still waiting on them.
@@ -44,10 +50,17 @@ pub struct ScenarioPreload {
     handles: Vec<Handle<WorldAsset>>,
     /// Whether anything in `handles` is still in flight.
     pending: bool,
-    /// `Time<Real>` elapsed when the wait began, for [`PRELOAD_TIMEOUT_SECS`].
-    /// Absolute rather than an accumulated delta, so the reported wait is the
-    /// wall time the load actually cost and not the frame that preceded it.
+    /// `Time<Real>` elapsed when the wait began. Absolute rather than an
+    /// accumulated delta, so the reported wait is the wall time the load
+    /// actually cost and not the frame that preceded it.
     started: f32,
+    /// `Time<Real>` elapsed when this load last made progress, for
+    /// [`PRELOAD_STALL_SECS`]. Set with `started`, then moved forward every
+    /// time the outstanding count drops.
+    progressed: f32,
+    /// How many handles were outstanding at `progressed`. The progress test:
+    /// fewer outstanding than last frame is an asset that settled.
+    outstanding: usize,
 }
 
 impl ScenarioPreload {
@@ -171,6 +184,8 @@ fn preload_scenario_render_meshes(
         .collect();
     preload.pending = !preload.handles.is_empty();
     preload.started = time.elapsed_secs();
+    preload.progressed = preload.started;
+    preload.outstanding = preload.handles.len();
     debug!(
         "preload_scenario_render_meshes: '{}' warms {} render mesh(es)",
         scenario.id,
@@ -187,9 +202,9 @@ fn drop_scenario_preload(_: On<UnloadScenario>, mut preload: ResMut<ScenarioPrel
 /// Whether this handle has stopped moving: loaded with its whole dependency
 /// tree, or failed.
 ///
-/// FAILURE counts as settled. The spawn falls back to placeholder art either
-/// way, so holding the load until the deadline over a mesh that is never
-/// arriving buys a blank screen and nothing else.
+/// FAILURE counts as settled - as in "stopped moving", not as in "fine". A
+/// failed handle ends the WAIT, and [`track_scenario_preload`] then fails the
+/// whole load closed on it.
 fn has_settled(asset_server: &AssetServer, handle: &Handle<WorldAsset>) -> bool {
     if asset_server.is_loaded_with_dependencies(handle) {
         return true;
@@ -209,27 +224,41 @@ fn mesh_name(handle: &Handle<WorldAsset>) -> String {
         .unwrap_or_else(|| format!("{:?}", handle.id()))
 }
 
-/// Release the load once every held mesh is in memory (or has failed), and at
-/// [`PRELOAD_TIMEOUT_SECS`] regardless.
+/// Release the load once every held mesh is in memory, fail it closed when one
+/// of them failed, and fail it closed again after [`PRELOAD_STALL_SECS`] with
+/// nothing moving.
 ///
-/// `Time<Real>`, not the virtual clock: a scenario can be loaded from a paused
-/// outcome frame, where the virtual clock is stopped and the deadline would
-/// never arrive.
+/// `Time<Real>`, not the virtual clock: the load HOLDS the virtual clock (see
+/// [`gate`](super::gate)), so a deadline measured on it would never arrive.
+///
+/// Failing CLOSED is the contract. The alternative - carry on with placeholder
+/// art, let the real mesh pop in when it shows up - hands the player a scene
+/// that is not the scene the author wrote and no way to know it.
 fn track_scenario_preload(
     time: Res<Time<Real>>,
     asset_server: Res<AssetServer>,
     mut preload: ResMut<ScenarioPreload>,
+    mut gate: ResMut<ScenarioLoadGate>,
+    mut failure: Option<ResMut<ScenarioStartFailure>>,
+    current: Res<CurrentScenario>,
 ) {
     if !preload.pending {
         return;
     }
-    let waited = time.elapsed_secs() - preload.started;
+    let now = time.elapsed_secs();
+    let waited = now - preload.started;
 
     let outstanding = preload
         .handles
         .iter()
         .filter(|handle| !has_settled(&asset_server, handle))
         .count();
+    // Any asset settling is progress, and progress buys the whole budget
+    // again: a load is only stuck when NOTHING has moved for the whole of it.
+    if outstanding < preload.outstanding {
+        preload.outstanding = outstanding;
+        preload.progressed = now;
+    }
 
     if outstanding == 0 {
         let failed: Vec<String> = preload
@@ -238,40 +267,55 @@ fn track_scenario_preload(
             .filter(|handle| !asset_server.is_loaded_with_dependencies(*handle))
             .map(mesh_name)
             .collect();
+        preload.pending = false;
         if failed.is_empty() {
             debug!(
                 "track_scenario_preload: {} render mesh(es) warm after {:.3}s",
                 preload.handles.len(),
                 waited
             );
-        } else {
-            warn!(
-                "track_scenario_preload: {} render mesh(es) failed to load and will spawn as \
-                 placeholder art: {}",
-                failed.len(),
-                failed.join(", ")
-            );
+            return;
         }
-        preload.pending = false;
+        let messages = failed
+            .iter()
+            .map(|mesh| format!("'{mesh}' failed to load"))
+            .collect();
+        fail_scenario_load(
+            &mut gate,
+            failure.as_deref_mut(),
+            scenario_name(&current),
+            messages,
+        );
         return;
     }
 
-    if waited >= PRELOAD_TIMEOUT_SECS {
+    if now - preload.progressed >= PRELOAD_STALL_SECS {
         let stalled: Vec<String> = preload
             .handles
             .iter()
             .filter(|handle| !has_settled(&asset_server, handle))
             .map(mesh_name)
             .collect();
-        warn!(
-            "track_scenario_preload: giving up after {:.1}s with {} render mesh(es) still \
-             loading: {}",
-            waited,
-            stalled.len(),
-            stalled.join(", ")
-        );
+        let messages = stalled
+            .iter()
+            .map(|mesh| format!("'{mesh}' stopped loading"))
+            .collect();
         preload.pending = false;
+        fail_scenario_load(
+            &mut gate,
+            failure.as_deref_mut(),
+            scenario_name(&current),
+            messages,
+        );
     }
+}
+
+/// What the failure report calls the scenario that could not start.
+fn scenario_name(current: &CurrentScenario) -> String {
+    current.as_ref().map_or_else(
+        || "the scenario".to_string(),
+        |scenario| scenario.name.clone(),
+    )
 }
 
 /// Register the warm-up: the resource, the load/unload observers and the
@@ -553,28 +597,80 @@ mod tests {
         );
     }
 
-    /// The worst failure this warm-up could cause is a load that never ends,
-    /// because the loading panel and the scenario clock both wait on it. A
-    /// handle the `AssetServer` will never report on (here a defaulted one)
-    /// stands in for the asset source that never answers.
-    #[test]
-    fn a_wait_that_outlasts_the_deadline_ends_anyway() {
+    /// A rig with the tracker and the gate it reports to.
+    fn preload_app(preload: ScenarioPreload) -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_resource::<ScenarioLoadGate>();
+        app.init_resource::<ScenarioStartFailure>();
+        app.insert_resource(CurrentScenario(Some(scenario_with("stuck", vec![]))));
         app.add_systems(Update, track_scenario_preload);
-        app.insert_resource(ScenarioPreload {
+        app.insert_resource(preload);
+        app
+    }
+
+    /// The worst failure this warm-up could cause is a load that never ends,
+    /// because the loading panel and the simulation hold both wait on it. A
+    /// handle the `AssetServer` will never report on (here a defaulted one)
+    /// stands in for the asset source that never answers.
+    ///
+    /// It ends CLOSED: the scene is missing art the author asked for, so the
+    /// run reports rather than flying with holes in it.
+    #[test]
+    fn a_load_that_stops_moving_fails_closed() {
+        let mut app = preload_app(ScenarioPreload {
             handles: vec![Handle::default()],
             pending: true,
-            // Backdated past the deadline rather than slept through it: the
+            // Backdated past the budget rather than slept through it: the
             // system reads `Time<Real>`, which a test cannot advance.
-            started: -PRELOAD_TIMEOUT_SECS - 1.0,
+            started: -PRELOAD_STALL_SECS - 1.0,
+            progressed: -PRELOAD_STALL_SECS - 1.0,
+            outstanding: 1,
         });
 
         app.update();
 
         assert!(
             !app.world().resource::<ScenarioPreload>().is_pending(),
-            "a preload past its deadline must release the load"
+            "a stalled preload must stop waiting"
+        );
+        assert_eq!(
+            *app.world().resource::<ScenarioLoadGate>(),
+            ScenarioLoadGate::Failed,
+            "and fail the load rather than release it"
+        );
+        let report = app.world().resource::<ScenarioStartFailure>().0.clone();
+        let report = report.expect("a failed load reports");
+        assert_eq!(report.scenario_name, "Test Scenario");
+        assert_eq!(report.messages.len(), 1, "the stalled path is named");
+    }
+
+    /// A load that is still MOVING is not a load that is stuck. The budget is
+    /// per stall, not per load: the total-time budget this replaced cut off a
+    /// cold-disk load of the shipped catalog that was working the whole time.
+    #[test]
+    fn progress_buys_the_whole_budget_again() {
+        let mut app = preload_app(ScenarioPreload {
+            handles: vec![Handle::default(), Handle::default()],
+            pending: true,
+            started: -600.0,
+            // Nothing has moved for longer than the budget...
+            progressed: -PRELOAD_STALL_SECS - 1.0,
+            // ...but this frame finds fewer outstanding than the last frame
+            // recorded here, which is an asset that settled in between.
+            outstanding: 9,
+        });
+
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<ScenarioLoadGate>(),
+            ScenarioLoadGate::Idle,
+            "a load that made progress this frame is not a stalled load"
+        );
+        assert!(
+            app.world().resource::<ScenarioStartFailure>().0.is_none(),
+            "and nothing is reported"
         );
     }
 }

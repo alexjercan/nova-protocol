@@ -8,8 +8,8 @@
 //! frame.
 //!
 //! Mechanism: [`beat_later`] - the introducing handler starts a one-step
-//! `Sequence`, and the ENGINE holds the delay. The named gaps below are the
-//! delay itself, chosen by how the line relates to the objective.
+//! `Sequence`, and the ENGINE holds the delay. The delay itself belongs to the
+//! BEAT: each scenario names its own, beside the line it follows.
 //!
 //! This used to be spelled with three moving parts per beat: a `mark_clock`
 //! action stamping `scenario_elapsed + delay` into a gate variable, a
@@ -20,41 +20,9 @@
 //! The clock is engine-owned and pauses behind menus/outcome, so a gap measures
 //! play time, not wall time.
 
-use nova_hud::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
 use nova_scenario::prelude::*;
 
 use crate::scenario_helpers::prelude::*;
-
-// The beat gap - how long an objective waits after the conversation line that
-// introduces it - is a FEEL call, and the right value depends on the line's
-// RELATIONSHIP to the objective (out-of-context pacing review). A single global
-// gap (the old BEAT_GAP) conflated two: a coaching line the objective echoes
-// wants the objective mid-read, while a threat/situation reveal wants the line
-// to fully land first. So there are three named categories below, all derived
-// from the comms panel's own constants so they cannot drift from the dwell.
-// THESE ARE TUNABLE: they are authored timings, not physics - nudge them after
-// playtest.
-
-/// Reveal gap: the line fully lands and fades, THEN the objective posts. For a
-/// threat or situation reveal the player should absorb before acting (the
-/// scavenger telegraph, the corvette ambush, the flagship cast-off). This is
-/// the previous uniform gap ([`COMMS_DWELL_SECS`] + [`COMMS_FADE_OUT_SECS`],
-/// 8.4s).
-pub(crate) const REVEAL_GAP: f64 = (COMMS_DWELL_SECS + COMMS_FADE_OUT_SECS) as f64;
-
-/// Instruction gap: the objective posts MID-READ, while the coaching line is
-/// still on screen (the line still holds its full dwell - nothing is queued
-/// behind it - only the objective posts early). For a line the objective
-/// echoes in real time: "Now hand her to the computer" -> "Press [G]" lands as
-/// the player reads to the keypress. Tied to [`COMMS_MIN_SECS`], the panel's
-/// yield floor - "the reader has had a beat with the line" (4s).
-pub(crate) const INSTRUCTION_GAP: f64 = COMMS_MIN_SECS as f64;
-
-/// Mid gap: halfway between instruction and reveal (~6s), for a line that
-/// reveals then instructs ("that's the planetoid's pull - ease off the drive").
-/// Let the reveal register, land the task as the player reaches the coaching
-/// half.
-pub(crate) const MID_GAP: f64 = ((COMMS_DWELL_SECS + COMMS_MIN_SECS) / 2.0) as f64;
 
 /// The beat that lands `delay` seconds after the line that introduces it.
 ///

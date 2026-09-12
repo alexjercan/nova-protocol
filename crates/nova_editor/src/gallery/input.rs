@@ -12,7 +12,7 @@ use nova_ship::prelude::*;
 
 use crate::{
     config::SectionChoice,
-    gallery::{catalog, ui::GalleryCell, GalleryState, COLS, PAGE},
+    gallery::{catalog, ui::GalleryCell, GalleryLayout, GalleryState},
 };
 
 /// Opens and closes the gallery from the editor.
@@ -56,6 +56,7 @@ pub(crate) fn gallery_keyboard(
     keys: Res<ButtonInput<KeyCode>>,
     mut typed: MessageReader<KeyboardInput>,
     sections: Res<GameSections>,
+    layout: Res<GalleryLayout>,
     hovered: Query<(&GalleryCell, &Hovered)>,
     mut state: ResMut<GalleryState>,
     mut choice: ResMut<SectionChoice>,
@@ -127,10 +128,10 @@ pub(crate) fn gallery_keyboard(
         for (key, delta) in [
             (KeyCode::ArrowLeft, -1),
             (KeyCode::ArrowRight, 1),
-            (KeyCode::ArrowUp, -(COLS as isize)),
-            (KeyCode::ArrowDown, COLS as isize),
-            (KeyCode::PageUp, -(PAGE as isize)),
-            (KeyCode::PageDown, PAGE as isize),
+            (KeyCode::ArrowUp, -(layout.cols() as isize)),
+            (KeyCode::ArrowDown, layout.cols() as isize),
+            (KeyCode::PageUp, -(layout.page() as isize)),
+            (KeyCode::PageDown, layout.page() as isize),
         ] {
             if keys.just_pressed(key) {
                 next.step(delta, listed.len());
@@ -254,6 +255,7 @@ mod tests {
         app.init_resource::<ButtonInput<KeyCode>>();
         app.add_message::<KeyboardInput>();
         app.insert_resource(state);
+        app.init_resource::<GalleryLayout>();
         app.insert_resource(SectionChoice::None);
         app.insert_resource(GameSections(vec![
             SectionConfig {
@@ -295,6 +297,56 @@ mod tests {
         let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
         keys.release(key);
         keys.clear();
+    }
+
+    /// A catalog long enough that a page step lands somewhere, whatever grid
+    /// the window gives.
+    fn long_catalog(count: usize) -> GameSections {
+        GameSections(
+            (0..count)
+                .map(|index| SectionConfig {
+                    base: BaseSectionConfig {
+                        id: format!("hull_{index}"),
+                        name: format!("Hull {index}"),
+                        ..default()
+                    },
+                    kind: SectionKind::Hull(HullSectionConfig::default()),
+                })
+                .collect(),
+        )
+    }
+
+    /// Down moves a row and Page Down moves a page, at whatever grid the window
+    /// currently gives. The grid is derived, so a resize has to change what
+    /// both keys mean - the bug a fixed 4x3 hid was Page Down skipping tiles
+    /// the player could see.
+    #[test]
+    fn the_arrow_keys_step_the_grid_the_window_gives() {
+        let mut app = gallery_app(GalleryState {
+            open: true,
+            ..default()
+        });
+        app.insert_resource(long_catalog(200));
+
+        for viewport in [Vec2::new(1024.0, 768.0), Vec2::new(3840.0, 2160.0)] {
+            let layout = GalleryLayout::for_viewport(viewport);
+            app.insert_resource(layout);
+            app.world_mut().resource_mut::<GalleryState>().selected = 0;
+
+            tap(&mut app, KeyCode::ArrowDown, None);
+            assert_eq!(
+                app.world().resource::<GalleryState>().selected,
+                layout.cols(),
+                "Down is one row of {layout:?}"
+            );
+
+            tap(&mut app, KeyCode::PageDown, None);
+            assert_eq!(
+                app.world().resource::<GalleryState>().selected,
+                layout.cols() + layout.page(),
+                "Page Down is one page of {layout:?}"
+            );
+        }
     }
 
     /// Tab opens the gallery from the build view and closes it again. It is the

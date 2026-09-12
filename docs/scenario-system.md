@@ -47,7 +47,10 @@ the panel says about it, through `bevy/reflect_documentation`.
   `GameScenarios`, `commands.trigger(LoadScenario(cfg.clone()))` (see
   `examples/systems/system_scenario_grammar.rs`). Load tears down the previous
   scenario, spawns the camera, input context, one handler per event, fires
-  `OnStart`. No engine
+  `OnStart`. The camera opens on the authored PLAYER spawn, in the chase rig's
+  own pose for that hull's envelope (`chase_camera_opening_pose`), so the first
+  frame is already the shot the live rig will hold; a scenario with no player
+  falls back to 100 m up and 200 m back from the origin. No engine
   light: a scene is lit by the `Light` objects it authors, and one that authors
   none renders black.
 - `ScenarioLoaded` - fired after a load; carries `scenario_id`,
@@ -96,15 +99,53 @@ Three parts make it work:
 - `ScenarioPreload` HOLDS the handles for the scenario's lifetime. Without a
   strong handle bevy frees the mesh again long before the mid-mission spawn.
 - The load WAITS: `scenario_has_settled` and the LOADING panel both hold while
-  the warm-up is pending, bounded by its own deadline so a missing or broken
-  mesh cannot hang the load. A failed mesh counts as settled and is named in a
-  warning; the section spawns in placeholder art, exactly as it would have.
+  the warm-up is pending. The budget is a NO-PROGRESS one
+  (`PRELOAD_STALL_SECS`, 10 s): every handle that settles buys the whole budget
+  again, so a big catalog on a cold disk takes as long as it takes, and what
+  the budget catches is an asset source that has gone silent. A handle that
+  fails, or a load that stops moving, fails the load CLOSED - see below.
 
 Ships are the only object kind involved. A beacon and a salvage crate build
 primitives, an asteroid meshes itself on a worker, and a light and an anchor
 have no mesh at all. The warm-up is also registered only when
 `NovaScenarioPlugin::render` is set: a headless rig builds no mesh children, so
 there is nothing to warm and nothing to wait for.
+
+### The load is atomic (`loader/gate.rs`)
+
+A scenario used to start the moment its config landed: its objects arrived over
+the following frames, its art after that, and the player had the helm through
+all of it. Rocks popped in around a ship already flying, mission time had
+already run, and a collision could happen against a body still spawning.
+
+`ScenarioLoadGate` closes that. From `ScenarioLoaded` until the frame the
+scenario is built it is `Loading`, and while it is:
+
+- the simulation is HELD - `Clocks::hold(FreezeOwner::ScenarioLoad)` pauses
+  `Time<Virtual>` and `Time<Physics>`, so the scenario clock, physics, timers
+  and every `Time`-driven system stand still;
+- gameplay input and both camera rigs are gated off (`scenario_play_is_free`
+  on `SpaceshipInputSystems`, `SpaceshipSectionSystems`, `NovaCameraSystems`
+  and `WASDCameraSystems::Sync`) - holding the clocks alone is not enough,
+  because a chase camera reads the mouse and a free-fly camera reads held keys
+  on REAL time;
+- `Time<Real>` keeps running, so the LOADING panel animates.
+
+The release is `scenario_has_settled` PIPED into
+`release_when_scenario_is_built`, which is the same condition the panel's own
+dismissal reads: the panel cannot come down over a held world, and the world
+cannot start behind a panel. The frame that releases is the last frozen one -
+its delta was taken while the clocks were held - so the first frame the player
+is given is a complete scene at scenario time zero.
+
+A load that FAILS never releases. An explicitly failed handle, or a load that
+stops making progress, calls `fail_scenario_load`: the gate goes to `Failed`,
+the hold STAYS, and the paths are reported through `ScenarioStartFailure` -
+the same `FAILED TO START` overlay the content gate uses, which offers Main
+Menu and nothing else. Continuing with placeholder art would hand the player a
+scene that is not the one the author wrote, with no way to know it. Leaving
+through `UnloadScenario` is the one path out of `Failed`, and it drops the
+hold with the scenario that took it.
 
 ## The vocabulary, and who documents it
 
@@ -314,7 +355,8 @@ dropped: they dispatch in order on the frame the world goes live.
 for one more reason: the glTF warm-up above. Dispatch is not, so `OnStart`
 still fires and the scene still builds while the art arrives; what waits is the
 scenario CLOCK, so no mission time passes behind a panel the player cannot see
-past.
+past. It is also what the load gate releases on, so the panel, the clock and
+the simulation hold all come down on one frame and one condition.
 
 Variables are typed literals (`String`, `Number`, `Boolean`) with a small
 expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
@@ -819,7 +861,9 @@ one nudge does not silently cost the player three quarters of a revolution.
 - Loading and scoping: `ScenarioLoaderPlugin`, `ScenarioScopedMarker`,
   `scenario_is_live` - `crates/nova_scenario/src/loader/mod.rs`; the glTF
   warm-up: `ScenarioPreload`, `scenario_render_meshes` -
-  `crates/nova_scenario/src/loader/preload.rs`; what the pulse wakes for:
+  `crates/nova_scenario/src/loader/preload.rs`; the load hold and its failure:
+  `ScenarioLoadGate`, `scenario_play_is_free` -
+  `crates/nova_scenario/src/loader/gate.rs`; what the pulse wakes for:
   `WakeProfile`, `configure_scenario_shape` -
   `crates/nova_scenario/src/loader/wake.rs`.
 - Objects: `ScenarioObjectsPlugin` - `crates/nova_scenario/src/objects/mod.rs`;

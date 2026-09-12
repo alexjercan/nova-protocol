@@ -1042,6 +1042,12 @@ fn a_row_that_is_not_a_number_has_no_grip() {
 #[test]
 fn a_scrub_of_one_axis_moves_by_the_rows_own_step() {
     let mut app = inspector_app();
+    // A position drags at the scale the camera is framing: 100 m of reach is
+    // half a meter a pixel, which is 0.05 in the world units the pose holds.
+    app.insert_resource(CameraFraming {
+        point: Vec3::ZERO,
+        distance: Meters(100.0),
+    });
     let scenario = document(&mut app);
     let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     app.world_mut()
@@ -1055,6 +1061,39 @@ fn a_scrub_of_one_axis_moves_by_the_rows_own_step() {
     assert!(
         (moved - 3.05).abs() < 1e-4,
         "one pixel is one step of 0.05 (got {moved})"
+    );
+}
+
+/// The SAME drag over a range framed ten times further out crosses ten times
+/// the ground.
+///
+/// The point of deriving the step: a fixed half-metre a pixel is 16,000 px
+/// across the tutorial's range and five metres of travel inside a hull, so the
+/// one gesture is unusable at both ends of what a scenario spans.
+#[test]
+fn a_position_drags_at_the_scale_the_camera_is_framing() {
+    let step_at = |reach: Meters| {
+        let mut app = inspector_app();
+        app.insert_resource(CameraFraming {
+            point: Vec3::ZERO,
+            distance: reach,
+        });
+        let scenario = document(&mut app);
+        let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
+        select(&mut app, rock);
+        scrub(&mut app, "Position X", 1.0);
+        position_of(&app, rock).x
+    };
+
+    let close = step_at(Meters(100.0));
+    let far = step_at(Meters(1_000.0));
+    assert!(
+        (close - 0.05).abs() < 1e-4,
+        "half a meter up close (got {close})"
+    );
+    assert!(
+        (far - 0.5).abs() < 1e-4,
+        "five meters across a range (got {far})"
     );
 }
 
@@ -1211,15 +1250,18 @@ fn only_a_config_edit_that_took_makes_the_body_stale() {
     submit(&mut app, "Name", "boulder");
     assert_eq!(stale_bodies(&mut app), 0, "and neither does a name");
 
+    // The seed picks the silhouette, and the silhouette decides how far the
+    // body reaches past its authored radius - so the schematic ball is sized
+    // from it and has to be rebuilt when it changes.
     submit(&mut app, "Seed", "9");
     assert_eq!(
         stale_bodies(&mut app),
-        0,
-        "the preview draws a plain ball, so a seed is not what it is built from"
+        1,
+        "a seed that took rebuilds the ball"
     );
 
     submit(&mut app, "Radius", "12");
-    assert_eq!(stale_bodies(&mut app), 1, "a radius that took does");
+    assert_eq!(stale_bodies(&mut app), 2, "and so does a radius");
 }
 
 /// How many stale bodies the message buffer is holding.

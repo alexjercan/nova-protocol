@@ -349,6 +349,13 @@ the key printed beside it, so this table is a shortcut list and not a second
 interface. The bottom-left legend shows the gestures that apply to whatever you
 are holding right now; **View > Key Legend** hides it.
 
+The stage camera starts at a walking 60 m/s, which is the register a plate is
+inspected in, and a held direction ramps it to 32 times that over two seconds -
+the far end of an 8 km range is about four seconds away. Let go and it is back
+at walking pace at once. Double-click a ship and the camera frames the whole
+hull, however big it is; <kbd>F</kbd> does the same for whatever is selected,
+and at the scenario level it frames the whole document.
+
 Keys are verbs only while nothing else has the keyboard. With the parts gallery
 up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
 than backing out of the ship; with the caret in a text field, every key is a
@@ -362,7 +369,7 @@ field and a pending rebind.
         <td>
             <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>,
             <kbd>Space</kbd> / <kbd>Shift</kbd> for up and down,
-            right-drag to look
+            right-drag to look. Hold a direction and it builds speed
         </td>
     </tr>
     <tr>

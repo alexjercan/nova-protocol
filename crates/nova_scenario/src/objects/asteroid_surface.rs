@@ -60,8 +60,8 @@ use super::asteroid_kind::prelude::AsteroidKindLook;
 /// `AsteroidSurfaceMaterialExt` and `AsteroidSurfaceUniform`.
 pub mod prelude {
     pub use super::{
-        spends_macro_field, AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt,
-        AsteroidSurfaceUniform, RockHeight, RockHeightNoise,
+        rock_geometric_factor, spends_macro_field, AsteroidSurfaceMaterial,
+        AsteroidSurfaceMaterialExt, AsteroidSurfaceUniform, RockHeight, RockHeightNoise,
     };
 }
 
@@ -420,6 +420,24 @@ impl RockHeightNoise {
             furthest * (1.0 + ROCK_REACH_SLACK_FAR),
         )
     }
+}
+
+/// How far a pristine rock with `seed` reaches from its own centre, as a
+/// multiple of its authored radius.
+///
+/// The far half of [`RockHeightNoise::reach`] - the same number
+/// `asteroid_carve::pristine_field` sizes its domain from, and therefore what
+/// the meshed body and the collider taken off it actually occupy. It falls
+/// between
+/// [`ASTEROID_GEOMETRIC_FACTOR_MIN`](super::asteroid::ASTEROID_GEOMETRIC_FACTOR_MIN)
+/// and
+/// [`ASTEROID_GEOMETRIC_FACTOR_MAX`](super::asteroid::ASTEROID_GEOMETRIC_FACTOR_MAX).
+///
+/// The editor's schematic rock is drawn at THIS rather than at the 3.5 floor:
+/// a belt laid flush against the floor by eye has rocks overlapping by up to
+/// their own radius again, and the first physics step shoves them apart.
+pub fn rock_geometric_factor(seed: u32) -> f32 {
+    RockHeight::default().with_seed(seed).sampler().reach().1
 }
 
 /// An even spread of `count` directions over the sphere - a Fibonacci lattice,

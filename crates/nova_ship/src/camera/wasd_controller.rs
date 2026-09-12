@@ -14,7 +14,7 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_input::prelude::{mouse_sensitivity, MousePath};
 
-use super::wasd::{WASDCamera, WASDCameraInput};
+use super::wasd::{WASDCamera, WASDCameraInput, WASDCameraProfile};
 
 /// Glob-import surface for the WASD camera input controller.
 pub mod prelude {
@@ -79,17 +79,26 @@ impl Plugin for WASDCameraControllerPlugin {
     }
 }
 
-/// Initializes a new WASD camera entity with default settings and input bindings.
-fn setup_wasd_camera(insert: On<Insert, WASDCameraController>, mut commands: Commands) {
+/// Initializes a new WASD camera entity with its profile and input bindings.
+///
+/// The PROFILE is what the rig is built from, so a camera that was flown with
+/// the ramp off keeps it off across every remove-and-reinsert the editor's
+/// framing, the gallery's park and a scripted scenario pose make. A camera that
+/// carries none gets the stock profile and keeps it from then on.
+fn setup_wasd_camera(
+    insert: On<Insert, WASDCameraController>,
+    mut commands: Commands,
+    q_profile: Query<&WASDCameraProfile>,
+) {
     let entity = insert.entity;
     trace!("setup_wasd_camera: entity {:?}", entity);
 
+    let profile = q_profile.get(entity).copied().unwrap_or_default();
+
     commands.entity(entity).insert((
         Camera3d::default(),
-        WASDCamera {
-            wasd_sensitivity: 0.1,
-            ..default()
-        },
+        profile,
+        profile.0,
         WASDCameraLookEnabled(false),
         WASDCameraInputMarker,
         actions!(
@@ -134,12 +143,27 @@ fn setup_wasd_camera(insert: On<Insert, WASDCameraController>, mut commands: Com
     ));
 }
 
-/// Removes input components and bindings when the WASD camera controller is removed.
-fn destroy_wasd_camera(remove: On<Remove, WASDCameraController>, mut commands: Commands) {
+/// Removes input components and bindings when the WASD camera controller is
+/// removed, stashing the live settings so putting the rig back restores them.
+///
+/// [`WASDCameraProfile`] deliberately SURVIVES: it is the settings, and the rig
+/// coming off is not the camera changing its mind about them.
+fn destroy_wasd_camera(
+    remove: On<Remove, WASDCameraController>,
+    mut commands: Commands,
+    q_camera: Query<&WASDCamera>,
+) {
     let entity = remove.entity;
     trace!("destroy_wasd_camera: entity {:?}", entity);
 
-    commands.entity(entity).try_remove::<(
+    let mut camera = commands.entity(entity);
+    if let Ok(live) = q_camera.get(entity) {
+        // TRY, because the commonest way a rig comes off is the camera being
+        // DESPAWNED - leaving the editor scene takes the whole stage with it -
+        // and there is no entity left to stash a profile on.
+        camera.try_insert(WASDCameraProfile(*live));
+    }
+    camera.try_remove::<(
         Actions<WASDCameraInputMarker>,
         WASDCamera,
         WASDCameraLookEnabled,
@@ -291,6 +315,42 @@ mod tests {
         assert!(
             (sweep(&mut app) - at_top).abs() < 1e-9,
             "the look and RCS sliders leave the free camera alone"
+        );
+    }
+
+    /// The rig comes off and goes back on every time something poses the camera
+    /// by hand - the editor's framing, the gallery's park, a scripted scenario
+    /// pose - so a profile that did not survive that would silently put an
+    /// example's constant-speed camera back on the accelerated one.
+    #[test]
+    fn a_camera_keeps_its_profile_across_losing_and_regaining_the_rig() {
+        let (mut app, camera) = free_camera_app();
+        let constant = WASDCamera {
+            accelerate: false,
+            fov_feedback: false,
+            speed: nova_events::units::prelude::MetersPerSecond(1_200.0),
+            ..default()
+        };
+        app.world_mut().entity_mut(camera).insert(constant);
+        app.update();
+
+        app.world_mut()
+            .entity_mut(camera)
+            .remove::<WASDCameraController>();
+        app.update();
+        assert!(
+            app.world().get::<WASDCamera>(camera).is_none(),
+            "delivery guard: the rig came off"
+        );
+
+        app.world_mut()
+            .entity_mut(camera)
+            .insert(WASDCameraController);
+        app.update();
+        assert_eq!(
+            app.world().get::<WASDCamera>(camera).copied(),
+            Some(constant),
+            "the restored rig must be the one the camera was flown with"
         );
     }
 

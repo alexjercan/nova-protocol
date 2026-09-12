@@ -51,7 +51,7 @@ use nova_scenario::prelude::{
     ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipConfig, ShipSource,
     SpaceshipController, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::GameSections;
+use nova_ship::prelude::{GameSections, TargetingSettings};
 use nova_ui::theme;
 
 use crate::{
@@ -172,6 +172,7 @@ pub(crate) fn document_content(
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
+    targeting: &TargetingSettings,
 ) -> Vec<Content> {
     let mut items: Vec<Content> = fleet
         .designs()
@@ -189,6 +190,7 @@ pub(crate) fn document_content(
         world,
         fleet,
         script,
+        targeting,
     )));
     items
 }
@@ -663,7 +665,9 @@ pub(crate) fn apply_file_request(
     script: ScriptNodes,
     q_settings: Query<&ScenarioNode>,
     roots: Query<Entity, With<ScenarioNode>>,
+    targeting: Option<Res<TargetingSettings>>,
 ) {
+    let targeting = targeting.as_deref().cloned().unwrap_or_default();
     let asked = std::mem::take(&mut *request);
     let now = time.elapsed_secs_f64();
     // Save writes where the document already lives; Save As says where it is
@@ -686,6 +690,7 @@ pub(crate) fn apply_file_request(
                 world_objects(&context, &q_objects),
                 &lower_fleet(&q_ships, &nodes),
                 world_script(&context, &script),
+                &targeting,
             );
             match write_save(&slot, &items) {
                 Ok(()) => {

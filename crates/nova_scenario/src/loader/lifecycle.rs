@@ -23,11 +23,24 @@ use crate::prelude::*;
 pub(crate) fn configure_scenario_gating(app: &mut App) {
     app.configure_sets(
         Update,
-        (SpaceshipInputSystems, SpaceshipSectionSystems).run_if(scenario_is_live),
+        (SpaceshipInputSystems, SpaceshipSectionSystems)
+            .run_if(scenario_is_live.and_then(scenario_play_is_free)),
     );
     app.configure_sets(
         FixedUpdate,
-        (SpaceshipInputSystems, SpaceshipSectionSystems).run_if(scenario_is_live),
+        (SpaceshipInputSystems, SpaceshipSectionSystems)
+            .run_if(scenario_is_live.and_then(scenario_play_is_free)),
+    );
+    // The camera is held on the same gate, in both of its rigs. Holding the
+    // CLOCKS alone is not enough: a chase camera reads mouse look, and a WASD
+    // camera reads held keys, so a load with a frozen world still handed the
+    // player a camera to swing around a scene that was still arriving. The
+    // rigs stay ungated outside a scenario - the editor's stage and the menu
+    // backdrop own their own cameras.
+    app.configure_sets(Update, NovaCameraSystems.run_if(scenario_play_is_free));
+    app.configure_sets(
+        PostUpdate,
+        WASDCameraSystems::Sync.run_if(scenario_play_is_free),
     );
     // FixedPostUpdate carries the torpedo fuze, which sits after avian's step
     // because it is a spatial test against a body physics has just moved. It
@@ -220,6 +233,98 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
     messages
 }
 
+/// Where the scenario camera stands when no scenario spawns a player: 100 m up
+/// and 200 m back from the origin, looking at it.
+///
+/// A scene with nobody to chase - a menu backdrop, an observed set piece - is
+/// framed by its own `SetCamera` action if it cares. This is what it opens on
+/// until then.
+const UNCREWED_VIEW: (Meters3, Vec3) = (Meters3::new(0.0, 100.0, 200.0), Vec3::ZERO);
+
+/// The pose the scenario camera opens on: behind the player hull it is about to
+/// spawn, at the chase rig's own distance for that hull's size.
+///
+/// Read off the AUTHORED spawn rather than the live entity, because the camera
+/// is spawned before any of the scenario's objects are: a camera that waited
+/// for the hull would render the first frame from somewhere else. The same walk
+/// `scenario_render_meshes` makes, for the same reason - a spawn action carries
+/// its object's full config, so the player's position, heading and hull are all
+/// readable from authored data plus the two catalogs.
+///
+/// The FIRST player-driven spawn wins. A scenario with two is already a lint
+/// error, and the camera has to pick one either way.
+fn opening_view(
+    scenario: &ScenarioConfig,
+    ships: Option<&GameShips>,
+    sections: Option<&GameSections>,
+) -> Transform {
+    let Some((base, spaceship)) = player_spawn(scenario) else {
+        let (at, look) = UNCREWED_VIEW;
+        return Transform::from_translation(at.to_engine()).looking_at(look, Vec3::Y);
+    };
+    // An inline hull needs no catalog, and a rig that never merged content has
+    // none to give: the empty stand-in keeps both cases on one path.
+    let catalog = GameShips(Vec::new());
+    let envelope = spaceship
+        .hull
+        .resolve(ships.unwrap_or(&catalog))
+        .map_or(0.0, |hull| hull_envelope(hull, sections));
+    // Engine boundary: a Bevy transform counts world units.
+    chase_camera_opening_pose(base.position.to_engine(), base.rotation, envelope)
+}
+
+/// The scenario's player spawn, if it has one.
+fn player_spawn(
+    scenario: &ScenarioConfig,
+) -> Option<(&BaseScenarioObjectConfig, &SpaceshipConfig)> {
+    scenario
+        .events
+        .iter()
+        .flat_map(|event| &event.actions)
+        .filter_map(|action| match action {
+            EventActionConfig::SpawnScenarioObject(object) => Some(object),
+            _ => None,
+        })
+        .find_map(|object| match &object.kind {
+            ScenarioObjectKind::Spaceship(spaceship)
+                if matches!(spaceship.controller, SpaceshipController::Player(_)) =>
+            {
+                Some((&object.base, spaceship))
+            }
+            _ => None,
+        })
+}
+
+/// How far a hull's furthest section collider reaches from its root, world
+/// units: the authored form of the live
+/// [`HullEnvelopeRadius`](nova_ship::prelude::HullEnvelopeRadius).
+///
+/// Measured from the ROOT rather than the centre of mass, which no config
+/// knows: the live rig re-measures on its first pass, and the opening frame
+/// only has to stand outside the hull. A section that resolves to nothing
+/// contributes nothing - the spawn reports that miss, and lint reports it
+/// first.
+fn hull_envelope(hull: &ShipHull, sections: Option<&GameSections>) -> f32 {
+    hull.sections
+        .iter()
+        .filter_map(|section| {
+            let config = match &section.source {
+                SectionSource::Inline(config) => config,
+                SectionSource::Prototype(id) => sections?.get_section(id)?,
+            };
+            Some(
+                config
+                    .base
+                    .collider
+                    .unwrap_or_default()
+                    // Engine boundary: a section's mount is authored in
+                    // build-grid cells, which are world units.
+                    .furthest_distance(section.position, section.rotation, Vec3::ZERO),
+            )
+        })
+        .fold(0.0, f32::max)
+}
+
 pub(super) fn on_load_scenario(
     load: On<LoadScenario>,
     mut commands: Commands,
@@ -299,7 +404,7 @@ pub(super) fn on_load_scenario(
         Camera3d::default(),
         PostProcessingCamera,
         WASDCameraController,
-        Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
+        opening_view(&scenario, gate.ships.as_deref(), gate.sections.as_deref()),
         PendingSkyboxSwap {
             cubemap: scenario.cubemap.resolve(&asset_server),
             brightness: Some(scenario.skybox_brightness),
@@ -575,6 +680,123 @@ mod tests {
 
     use super::*;
     use crate::loader::fixtures::*;
+
+    /// A player-driven ship of `cells` cubic cells, spawned at `at` facing
+    /// `rotation`.
+    fn player_at(at: Meters3, rotation: Quat, cells: i32) -> ScenarioEventConfig {
+        let sections = (0..cells)
+            .map(|cell| SpaceshipSectionConfig {
+                id: format!("hull_{cell}"),
+                // Build-grid cells: one cell is one world unit.
+                position: Vec3::new(0.0, 0.0, cell as f32),
+                rotation: Quat::IDENTITY,
+                source: SectionSource::Inline(SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "plate".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Hull(HullSectionConfig::default()),
+                }),
+                modifications: vec![],
+            })
+            .collect();
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: vec![EventActionConfig::SpawnScenarioObject(
+                ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "player".to_string(),
+                        name: "Player".to_string(),
+                        position: at,
+                        rotation,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                        controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+                        hull: ShipSource::Inline(ShipHull {
+                            sections,
+                            ..default()
+                        }),
+                        ..default()
+                    }),
+                },
+            )],
+        }
+    }
+
+    /// The opening frame is BEHIND the player, wherever the player is. A fixed
+    /// pose at the origin opened a scenario whose player is kilometres out on
+    /// empty space, with the ship a speck somewhere off screen.
+    #[test]
+    fn the_camera_opens_behind_a_player_spawned_far_from_the_origin() {
+        let out_there = Meters3::new(4_000.0, 0.0, -12_000.0);
+        let scenario = scenario_with("far_player", vec![player_at(out_there, Quat::IDENTITY, 1)]);
+
+        let view = opening_view(&scenario, None, None);
+
+        let spawn = out_there.to_engine();
+        assert!(
+            view.translation.distance(spawn) < 100.0,
+            "the camera stands with the ship, not at the origin (got {:?})",
+            view.translation
+        );
+        assert!(
+            view.translation.z > spawn.z,
+            "and behind it, since the hull faces -Z (got {:?})",
+            view.translation
+        );
+        assert!(
+            view.forward().dot((spawn - view.translation).normalize()) > 0.9,
+            "looking at it"
+        );
+    }
+
+    /// A big hull pushes the camera out to clear itself. The fixed 200 m this
+    /// replaced opened a carrier from inside its own plate.
+    #[test]
+    fn a_large_player_hull_starts_with_the_camera_outside_it() {
+        let at = Meters3::new(0.0, 0.0, 0.0);
+        let reach = |cells| {
+            let scenario = scenario_with("hull", vec![player_at(at, Quat::IDENTITY, cells)]);
+            opening_view(&scenario, None, None).translation.length()
+        };
+        let (carrier, skiff) = (reach(30), reach(1));
+
+        // The hull runs 30 cells down +Z from its root, so the furthest point
+        // of its last cell is what the camera has to stand clear of.
+        let envelope = SectionCollider::default().furthest_distance(
+            Vec3::new(0.0, 0.0, 29.0),
+            Quat::IDENTITY,
+            Vec3::ZERO,
+        );
+
+        assert!(
+            carrier > envelope,
+            "the camera stands outside the hull it opens on ({carrier} u against a {envelope} u reach)"
+        );
+        assert!(
+            carrier > skiff,
+            "and a carrier is framed from further out than a skiff ({carrier} u against {skiff} u)"
+        );
+    }
+
+    /// A scene with nobody to chase keeps the pose it always had, so a menu
+    /// backdrop that poses its own camera is unaffected.
+    #[test]
+    fn a_scenario_with_no_player_opens_on_the_origin() {
+        let view = opening_view(&scenario_with("empty", vec![]), None, None);
+
+        assert_eq!(
+            view.translation,
+            Meters3::new(0.0, 100.0, 200.0).to_engine()
+        );
+        assert!(
+            view.forward().dot(-view.translation.normalize()) > 0.999,
+            "looking at the origin"
+        );
+    }
 
     #[test]
     fn a_persistent_wreck_fragment_is_scoped_to_its_scenario() {

@@ -393,6 +393,7 @@ fn lower(world: &mut World) -> Vec<Content> {
                     world_objects(&context, &q_objects),
                     &lower_fleet(&q_ships, &nodes),
                     world_script(&context, &script),
+                    &TargetingSettings::default(),
                 )
             },
         )

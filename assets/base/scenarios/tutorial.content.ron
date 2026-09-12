@@ -2132,7 +2132,7 @@
                         key: "beat_11",
                         steps: [
                             (
-                                after: Some(8.399999618530273),
+                                after: Some(8.4),
                                 actions: [
                                     VariableSet((
                                         key: "beat",

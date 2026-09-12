@@ -106,6 +106,13 @@ pub struct EditorProbe {
     /// to, and the only way a driven run can tell "entered ship_2" from "still
     /// looking at ship_1 from outside".
     pub inside: Option<String>,
+    /// Where that node stands in the WORLD, or `None` at the scenario node.
+    ///
+    /// Inside a ship every pose the probe reports is ship-LOCAL, and the ship
+    /// itself stands wherever the stage's layout put it. This is what turns one
+    /// into the other, so a driven run can aim a pointer at a face of a ship
+    /// that is not standing on the origin.
+    pub inside_origin: Option<Vec3>,
     /// The node ids the current context CONTAINS: at the scenario node its
     /// ships in id order and then the world's objects in id order, inside a
     /// ship that ship's sections. The Scene tree draws more than this (the root
@@ -206,6 +213,10 @@ pub(crate) fn sync_editor_probe(
         let listed = context_nodes(&context, &q_ships, &q_objects, &nodes);
         snapshot.ship = edited_ship(&context, &nodes);
         snapshot.inside = inside_id(&context, &q_ships).map(|id| id.0.clone());
+        snapshot.inside_origin = context
+            .ship()
+            .and_then(|ship| poses.get(ship).ok())
+            .map(|pose| pose.translation);
         let id_of = |node: Option<Entity>| {
             node.and_then(|node| {
                 listed
@@ -339,6 +350,7 @@ fn snapshot(
         // snapshot is a pure function of the tool and the gallery.
         ship: Vec::new(),
         inside: None,
+        inside_origin: None,
         context_nodes: Vec::new(),
         selected_node: None,
         hovered_node: None,
@@ -824,6 +836,7 @@ mod tests {
         app.insert_resource(SectionChoice::None);
         app.init_resource::<PlacementPreview>();
         app.init_resource::<GalleryState>();
+        app.init_resource::<crate::gallery::GalleryLayout>();
         app.init_resource::<EditContext>();
         app.init_resource::<SelectedNode>();
         app.init_resource::<HoveredNode>();

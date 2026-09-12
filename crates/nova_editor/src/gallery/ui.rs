@@ -22,7 +22,7 @@ use crate::{
     gallery::{
         catalog::{self, GalleryCategory},
         scene::{spawn_tile, GalleryItem},
-        GalleryState, COLS, PAGE, ROWS,
+        GalleryLayout, GalleryState,
     },
     ui::layer,
     ExampleStates,
@@ -120,12 +120,17 @@ const LABEL_H: f32 = 34.0;
 pub(crate) fn rebuild_gallery(
     mut commands: Commands,
     state: Res<GalleryState>,
+    layout: Res<GalleryLayout>,
+    stage: Res<crate::gallery::scene::GalleryStage>,
     sections: Res<GameSections>,
     skin: Res<UiSkin>,
     existing: Query<Entity, Or<(With<GalleryRoot>, With<GalleryItem>)>>,
     mut last: Local<Option<GalleryState>>,
 ) {
-    let dirty = last.as_ref() != Some(&*state) || sections.is_changed() || skin.is_changed();
+    let dirty = last.as_ref() != Some(&*state)
+        || sections.is_changed()
+        || skin.is_changed()
+        || layout.is_changed();
     if !dirty {
         return;
     }
@@ -140,9 +145,10 @@ pub(crate) fn rebuild_gallery(
 
     let skin = *skin;
     let listed = catalog::browsable(&sections, state.category, &state.filter);
-    let pages = listed.len().div_ceil(PAGE).max(1);
-    let page = state.selected / PAGE;
-    let start = page * PAGE;
+    let per_page = layout.page();
+    let pages = listed.len().div_ceil(per_page).max(1);
+    let page = state.selected / per_page;
+    let start = page * per_page;
     let stocked = catalog::browsable(&sections, GalleryCategory::All, "").len();
     let narrowed = listed.len() != stocked;
     let count = part_count(listed.len(), stocked);
@@ -293,7 +299,15 @@ pub(crate) fn rebuild_gallery(
             if state.focused {
                 focus_body(root, &sections, &listed, state.selected, skin, &mut stages);
             } else {
-                grid_body(root, &sections, &listed, start, state.selected, &mut stages);
+                grid_body(
+                    root,
+                    &sections,
+                    &listed,
+                    start,
+                    state.selected,
+                    *layout,
+                    &mut stages,
+                );
             }
 
             root.spawn((
@@ -325,21 +339,22 @@ pub(crate) fn rebuild_gallery(
             ));
         });
 
-    for (stage, index, spin) in stages {
+    for (cell, index, spin) in stages {
         if let Some(section) = sections.get(index) {
-            spawn_tile(&mut commands, section, stage, spin);
+            spawn_tile(&mut commands, section, cell, spin, stage.0);
         }
     }
 }
 
-/// The tile grid: `ROWS` rows of `COLS` cells, padded with empty slots so the
-/// last page keeps the same cell size as a full one.
+/// The tile grid: the derived rows of derived columns, padded with empty slots
+/// so the last page keeps the same cell size as a full one.
 fn grid_body(
     root: &mut ChildSpawnerCommands,
     sections: &GameSections,
     listed: &[usize],
     start: usize,
     selected: usize,
+    layout: GalleryLayout,
     stages: &mut Vec<(Entity, usize, bool)>,
 ) {
     root.spawn((
@@ -354,7 +369,7 @@ fn grid_body(
         },
     ))
     .with_children(|grid| {
-        for row in 0..ROWS {
+        for row in 0..layout.rows() {
             grid.spawn((Node {
                 width: percent(100),
                 flex_grow: 1.0,
@@ -363,8 +378,8 @@ fn grid_body(
                 ..default()
             },))
                 .with_children(|row_node| {
-                    for column in 0..COLS {
-                        let slot = start + row * COLS + column;
+                    for column in 0..layout.cols() {
+                        let slot = start + row * layout.cols() + column;
                         match listed
                             .get(slot)
                             .and_then(|index| sections.get(*index).map(|section| (*index, section)))
@@ -701,6 +716,7 @@ pub(crate) fn on_gallery_action(
     activate: On<Activate>,
     actions: Query<&GalleryAction>,
     sections: Res<GameSections>,
+    layout: Res<GalleryLayout>,
     mut state: ResMut<GalleryState>,
     mut choice: ResMut<SectionChoice>,
 ) {
@@ -758,7 +774,7 @@ pub(crate) fn on_gallery_action(
         }
         GalleryAction::Page(step) => {
             let listed = catalog::browsable(&sections, state.category, &state.filter);
-            state.step(step * PAGE as isize, listed.len());
+            state.step(step * layout.page() as isize, listed.len());
         }
     }
 }

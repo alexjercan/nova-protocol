@@ -95,7 +95,7 @@ pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig)
         return;
     }
 
-    let visual = PlanetVisual::build(&config, PLANET_SUBDIVISIONS);
+    let visual = PlanetVisual::build(&config, planet_subdivisions(config.body_radius()));
 
     let radius = config.radius.to_engine();
     let body_radius = config.body_radius().to_engine();

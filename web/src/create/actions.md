@@ -131,7 +131,7 @@ ScatterObjects((
 | `template` | object config | required | the object each copy clones (any kind; same `base`/`kind` shape as `SpawnScenarioObject`) |
 | `asteroid_radius` | `Option` (lo, hi) | `None` | Asteroid templates only: randomize each rock's radius, in meters, in `[lo, hi)` |
 | `asteroid_kinds` | list of (kind, weight) | required on an asteroid template | the field's [KINDS](../objects/#what-a-rock-is-made-of) and how common each one is. Weights are relative COUNTS, not percentages: `[("rock", 12), ("metal", 1)]` is one metal body in thirteen. Empty on any other template |
-| `min_separation` | `Option` number | `None` | minimum centre-to-centre distance in meters against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped |
+| `min_separation` | `Option` number | `None` | an EXTRA centre-to-centre floor in meters, on top of the automatic body-to-body clearance below. Measured against every body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped |
 
 `region` variants (struct variants - single parens, named fields):
 
@@ -145,12 +145,23 @@ adding a kind to a field that already ships moves no rock and changes no
 radius. An asteroid template with no mix, or with every weight at zero, is a
 lint error and spawns nothing - a belt has to say what it is made of.
 
-Set `min_separation` on any field of SOLID bodies: uniform sampling WILL
-nest rocks inside each other, and two overlapping dynamic bodies shove apart
-violently on the first physics step. Size it as the two widest bodies side
-by side - for asteroids that is NOT `radius`: the noise mesh reaches up to
-6x the nominal radius. Scatter results are gameplay content and are never
-thinned by graphics quality.
+Bodies are kept clear of each other WITHOUT you sizing anything. Every
+placement records its own reach - a rock's noise mesh reach (up to 6x the
+nominal `radius`, drawn from the same seed the body will use), a planet's
+surface radius, zero for anything with no body - and a candidate is rejected
+inside `existing reach + candidate reach`. A field of mixed sizes is therefore
+packed by the bodies it actually holds, not by one number sized for its
+biggest pair.
+
+`min_separation` is what you add ON TOP of that: a spacing you want for
+gameplay rather than for geometry - a belt you can fly through, a picket line
+that reads as a line. The rule is `max(min_separation, reach + reach)`, so a
+value smaller than two bodies side by side changes nothing.
+
+A randomized `asteroid_radius` is drawn BEFORE placement, on a stream of its
+own, so a rock is the same size however many tries its neighbourhood cost.
+Scatter results are gameplay content and are never thinned by graphics
+quality.
 
 </details>
 

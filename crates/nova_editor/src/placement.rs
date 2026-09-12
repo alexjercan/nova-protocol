@@ -25,12 +25,12 @@ use crate::{
     },
     cues::EditorCues,
     event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
-    frame::{ask_for, FrameRequest},
+    frame::{ask_for, CameraFraming, FrameRequest},
     keybind::EditorRebind,
     node::{
         node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
-        EditContext, NextChildOrdinal, NodeId, NodeView, ObjectChoice, ObjectNode, SectionNode,
-        SectionNodes, ShipDriver, ShipNode, MINTED_SHIP_STEM,
+        EditContext, NextChildOrdinal, NodeView, ObjectChoice, ObjectNode, SectionNode,
+        SectionNodes, ShipDriver, ShipNode,
     },
     preview::{insert_preview_section, PreviewRole},
     snap::{self, PlacedSection},
@@ -204,24 +204,15 @@ pub(crate) fn create_blank_ship(
     _activate: On<Activate>,
     mut commands: Commands,
     mut ordinals: Query<&mut NextChildOrdinal>,
-    q_ships: Query<(&NodeId, &ShipNode)>,
+    q_ships: Query<&ShipNode>,
     mut context: ResMut<EditContext>,
     mut says: EditorSays,
 ) {
-    // MINTED ships only, for the slot: the stock range's hulks and pickets are
-    // ship nodes too, and they stand where the scenario put them rather than in
-    // this row - counting them would push the first blank ship a belt away.
-    let ships = q_ships
-        .iter()
-        .filter(|(id, _)| id.0.starts_with(MINTED_SHIP_STEM))
-        .count();
     // A document with no ship the player flies gets one; anything built beside
     // it is scenery until something says otherwise. A second Player ship would
     // make "which one do I fly" ambiguous, and the answer belongs to the ship
     // rather than to the order the buttons were pressed.
-    let flown = q_ships
-        .iter()
-        .any(|(_, ship)| ship.driver == ShipDriver::Player);
+    let flown = q_ships.iter().any(|ship| ship.driver == ShipDriver::Player);
     let driver = if flown {
         ShipDriver::Ai
     } else {
@@ -229,19 +220,11 @@ pub(crate) fn create_blank_ship(
     };
     // Entered, because a blank ship is not a ship yet: the founding click is
     // the next thing the builder does and it happens INSIDE.
-    match spawn_ship_node(&mut commands, &mut ordinals, &context, ships, driver) {
+    match spawn_ship_node(&mut commands, &mut ordinals, &context, driver) {
         Some(ship) => context.enter(ship),
         None => says.refuse("there is no scenario to add a ship to"),
     }
 }
-
-/// How far out in front of the stage camera a freshly placed object lands.
-///
-/// In front of the CAMERA rather than at a spaced-out slot, unlike a new ship:
-/// a ship is a workbench the editor then flies you to, an object is scenery you
-/// are pointing at a gap for. It arrives where you are looking, and the drag
-/// gesture moves it from there.
-const NEW_OBJECT_DISTANCE: f32 = 30.0;
 
 /// Place one scenario object of the clicked kind - the scenario context's
 /// object palette.
@@ -257,6 +240,7 @@ pub(crate) fn create_scenario_object(
     camera: Query<&GlobalTransform, With<crate::gallery::EditorCamera>>,
     mut ordinals: Query<&mut NextChildOrdinal>,
     context: Res<EditContext>,
+    framing: Res<CameraFraming>,
     mut selected: ResMut<SelectedNode>,
     mut says: EditorSays,
 ) {
@@ -267,7 +251,10 @@ pub(crate) fn create_scenario_object(
         says.refuse("there is no scenario to add an object to");
         return;
     };
-    let at = camera.iter().next().map_or(Vec3::ZERO, in_front_of);
+    let at = camera
+        .iter()
+        .next()
+        .map_or(Vec3::ZERO, |camera| in_front_of(camera, &framing));
     let object = spawn_object_node(
         &mut commands,
         &mut ordinals,
@@ -279,8 +266,17 @@ pub(crate) fn create_scenario_object(
 }
 
 /// The point a placed object lands on, out in front of `camera`.
-fn in_front_of(camera: &GlobalTransform) -> Vec3 {
-    camera.translation() + camera.forward() * NEW_OBJECT_DISTANCE
+///
+/// In front of the CAMERA rather than at a spaced-out slot, unlike a new ship:
+/// a ship is a workbench the editor then flies you to, an object is scenery you
+/// are pointing at a gap for. It arrives where you are looking, and the drag
+/// gesture moves it from there.
+///
+/// At the FRAMING distance rather than a fixed reach, so the object lands on
+/// what is on screen: a fixed 30 u put a beacon on the lens while a 7 km range
+/// was in frame, and behind everything while a cockpit was.
+fn in_front_of(camera: &GlobalTransform, framing: &CameraFraming) -> Vec3 {
+    camera.translation() + camera.forward() * framing.distance.to_engine()
 }
 
 /// The key that deletes the selection.
@@ -1345,11 +1341,12 @@ pub(crate) fn draw_ship_heading(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_events::units::prelude::Meters;
     use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
     use nova_ui::prelude::{in_input_mode, InputMode};
 
     use super::*;
-    use crate::node::{ensure_document, NodeId, ScenarioNode};
+    use crate::node::{ensure_document, NodeId, ScenarioNode, MINTED_SHIP_STEM};
 
     fn hull_config(id: &str) -> SectionConfig {
         SectionConfig {
@@ -1373,6 +1370,7 @@ mod tests {
         app.init_resource::<EditContext>();
         // Every verb here can refuse, and a refusal says so on the line.
         app.init_resource::<EditorStatus>();
+        app.init_resource::<CameraFraming>();
         app.init_resource::<Time>();
         app.world_mut()
             .run_system_once(ensure_document)
@@ -1748,6 +1746,55 @@ mod tests {
             app.world().resource::<SelectedNode>().0,
             Some(placed[0].0),
             "what you just placed is what the tree has marked"
+        );
+    }
+
+    /// An object lands on what is ON SCREEN. The fixed 30 u this replaced put
+    /// a beacon on the lens while a 7 km range was in frame, and behind
+    /// everything while a cockpit was, so the reach is the one the camera
+    /// stored when it framed the node.
+    #[test]
+    fn a_placed_object_lands_at_the_distance_the_camera_is_framing() {
+        let mut app = document_app(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.add_observer(create_scenario_object);
+
+        let eye = Vec3::new(0.0, 0.0, 400.0);
+        app.world_mut().spawn((
+            crate::gallery::EditorCamera,
+            GlobalTransform::from(Transform::from_translation(eye).looking_at(Vec3::ZERO, Vec3::Y)),
+        ));
+
+        let framed = Meters(2_500.0);
+        app.world_mut().insert_resource(CameraFraming {
+            point: Vec3::ZERO,
+            distance: framed,
+        });
+
+        let button = app.world_mut().spawn(ObjectChoice::Beacon).id();
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+
+        let placed = app
+            .world()
+            .resource::<SelectedNode>()
+            .0
+            .expect("the press placed an object and marked it");
+        let at = app
+            .world()
+            .entity(placed)
+            .get::<Transform>()
+            .expect("a placed object stands somewhere")
+            .translation;
+
+        assert!(
+            (at.distance(eye) - framed.to_engine()).abs() < 1e-3,
+            "the object stands at the framed reach (got {} m)",
+            Meters::from_engine(at.distance(eye)).get()
+        );
+        assert!(
+            at.z < eye.z,
+            "and in front of the lens, not behind it (got {at:?})"
         );
     }
 

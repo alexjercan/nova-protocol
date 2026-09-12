@@ -44,6 +44,7 @@ use bevy::{
     shader::ShaderRef,
 };
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin, RidgedMulti};
+use nova_events::units::prelude::*;
 
 use super::planet_type::prelude::*;
 
@@ -51,9 +52,9 @@ use super::planet_type::prelude::*;
 /// and `PlanetSurfacePlugin`.
 pub mod prelude {
     pub use super::{
-        planet_mesh, PlanetShape, PlanetShapeNoise, PlanetSurfaceMaterial,
+        planet_mesh, planet_subdivisions, PlanetShape, PlanetShapeNoise, PlanetSurfaceMaterial,
         PlanetSurfaceMaterialExt, PlanetSurfacePlugin, PlanetVisual, PLANET_EDITOR_SUBDIVISIONS,
-        PLANET_SUBDIVISIONS, PLANET_SUBDIVISIONS_MAX,
+        PLANET_FACET_TARGET, PLANET_SUBDIVISIONS_MAX,
     };
 }
 
@@ -61,14 +62,24 @@ pub mod prelude {
 /// and emissive are decided per pixel by a banded palette.
 pub type PlanetSurfaceMaterial = ExtendedMaterial<StandardMaterial, PlanetSurfaceMaterialExt>;
 
-/// Icosphere subdivisions a planet is meshed at by default.
+/// How wide a planet's surface facets are meshed to be, whatever the body's
+/// size.
 ///
-/// Bevy's icosphere counts subdivisions as POINTS ADDED PER EDGE, not as
-/// recursion depth, so the vertex count is `10 * (n + 1)^2 + 2` and its own
-/// doc's "a good default is 5" is 362 vertices - a fine ball and a hopeless
-/// planet. 48 is 24,010 triangles, a facet about 1.3 degrees of arc across:
-/// 18 m on an 800 m body, which is where a mountain range stops being facets.
-pub const PLANET_SUBDIVISIONS: u32 = 48;
+/// A SIZE, not a subdivision count, because a facet count is meaningless
+/// without a radius to spend it on: the 48 this replaced put 18 m facets on an
+/// 800 m world, 113 m facets on a 5 km one - past the point where a mountain
+/// range reads as terrain - and spent the same 24,010 triangles on a 200 m
+/// planetoid that needed a fraction of them. 20 m is a ship length: relief
+/// finer than that is not relief a pilot flying past can see.
+pub const PLANET_FACET_TARGET: Meters = Meters(20.0);
+
+/// The fewest subdivisions a planet is meshed at, whatever
+/// [`PLANET_FACET_TARGET`] asks for on a small body.
+///
+/// A body meshed below this stops reading as a body and starts reading as a cut
+/// gem: the facets become large enough to see as flats against the limb. 2,880
+/// triangles, which is cheap on any budget that draws a planet at all.
+const PLANET_SUBDIVISIONS_MIN: u32 = 12;
 
 /// The most subdivisions a planet may be meshed at.
 ///
@@ -79,9 +90,40 @@ pub const PLANET_SUBDIVISIONS: u32 = 48;
 /// available, not a failure.
 pub const PLANET_SUBDIVISIONS_MAX: u32 = 79;
 
+/// The arc one icosahedron edge subtends, radians.
+///
+/// Bevy's icosphere counts subdivisions as POINTS ADDED PER EDGE, not as
+/// recursion depth, so an edge carries `n + 1` facets and one facet subtends
+/// `ICOSAHEDRON_EDGE_ARC / (n + 1)`. The vertex count is `10 * (n + 1)^2 + 2`,
+/// which is why the builder's own doc's "a good default is 5" is 362 vertices -
+/// a fine ball and a hopeless planet.
+const ICOSAHEDRON_EDGE_ARC: f32 = 1.107_148_7;
+
+/// The subdivisions a body of `body_radius` is meshed at to put
+/// [`PLANET_FACET_TARGET`] across one facet, clamped to what the builder can
+/// hold.
+///
+/// Measured on the RELIEVED radius, where the surface actually is, rather than
+/// on the nominal one - that is the sphere the facets end up on.
+///
+/// The same shape [`field_resolution`](super::asteroid_carve) solves for a
+/// rock's carve grid: pick the count that puts one target cell across the body,
+/// then clamp.
+pub fn planet_subdivisions(body_radius: Meters) -> u32 {
+    let target = PLANET_FACET_TARGET.get();
+    if target <= 0.0 {
+        return PLANET_SUBDIVISIONS_MAX;
+    }
+    let facets = body_radius.get() * ICOSAHEDRON_EDGE_ARC / target;
+    // `facets` counts facets per icosahedron EDGE; subdivisions are the points
+    // between them, one fewer.
+    let wanted = facets.round().max(1.0) as u32 - 1;
+    wanted.clamp(PLANET_SUBDIVISIONS_MIN, PLANET_SUBDIVISIONS_MAX)
+}
+
 /// What an EDITOR preview meshes at.
 ///
-/// Coarser than [`PLANET_SUBDIVISIONS`] on purpose. A preview body is rebuilt
+/// A FIXED count, independent of [`planet_subdivisions`], on purpose. A preview body is rebuilt
 /// every time a creator edits a field the body is drawn from, so the mesh has
 /// to be cheap to make; the palette, the seed and the silhouette all read the
 /// same at this density, and only the limb loses a little smoothness.
@@ -498,7 +540,6 @@ impl Plugin for PlanetSurfacePlugin {
 #[cfg(test)]
 mod tests {
     use bevy::render::mesh::VertexAttributeValues;
-    use nova_events::prelude::*;
 
     use super::*;
 
@@ -661,6 +702,73 @@ mod tests {
         };
         assert_eq!(first, second);
         assert_eq!(once.surface.summary(), again.surface.summary());
+    }
+
+    /// How wide one facet comes out on a body of this radius, meters - the
+    /// number [`planet_subdivisions`] is solving for.
+    fn facet_across(body_radius: Meters) -> f32 {
+        let subdivisions = planet_subdivisions(body_radius);
+        body_radius.get() * ICOSAHEDRON_EDGE_ARC / (subdivisions + 1) as f32
+    }
+
+    /// A body is meshed to its own size. The fixed 48 this replaced put 113 m
+    /// facets on a 5 km world and spent a full 24,010 triangles on a 200 m
+    /// planetoid.
+    #[test]
+    fn a_planet_is_meshed_at_the_facet_size_not_at_a_fixed_count() {
+        // The common shipped body: the count lands where the target asks.
+        let common = Meters(800.0);
+        assert!(
+            (facet_across(common) - PLANET_FACET_TARGET.get()).abs() < 1.0,
+            "an 800 m body gets {} m facets",
+            facet_across(common)
+        );
+
+        // A small body spends less, a large one spends more, and both are
+        // meshed at the same facet size.
+        let small = planet_subdivisions(Meters(200.0));
+        let large = planet_subdivisions(Meters(1_200.0));
+        assert!(
+            small < planet_subdivisions(common) && planet_subdivisions(common) < large,
+            "the count follows the body ({small}, {}, {large})",
+            planet_subdivisions(common)
+        );
+        assert!(
+            (facet_across(Meters(1_200.0)) - PLANET_FACET_TARGET.get()).abs() < 1.0,
+            "a 1.2 km body gets {} m facets too",
+            facet_across(Meters(1_200.0))
+        );
+        // Past the cap the target can no longer be met, and the body takes the
+        // finest mesh the builder holds instead of failing.
+        assert!(
+            facet_across(Meters(5_000.0)) > PLANET_FACET_TARGET.get(),
+            "a 5 km world is capped, not meshed at the target"
+        );
+    }
+
+    /// The floor and the ceiling: a pebble is still a body, and a world too big
+    /// to mesh at the target takes the most the builder can hold rather than
+    /// failing.
+    #[test]
+    fn planet_subdivisions_clamp_at_both_ends() {
+        assert_eq!(
+            planet_subdivisions(Meters(1.0)),
+            PLANET_SUBDIVISIONS_MIN,
+            "a tiny body is still meshed as a body"
+        );
+        assert_eq!(
+            planet_subdivisions(Meters(0.0)),
+            PLANET_SUBDIVISIONS_MIN,
+            "and so is a degenerate one"
+        );
+
+        // 20 m facets on a body this big asks for more vertices than the
+        // builder holds.
+        let huge = Meters(PLANET_SUBDIVISIONS_MAX as f32 * 20.0 * 2.0 / ICOSAHEDRON_EDGE_ARC);
+        assert_eq!(planet_subdivisions(huge), PLANET_SUBDIVISIONS_MAX);
+        // And the mesh at the cap is a mesh, not an error.
+        let shape = shape_of(PlanetType::DustWorld, 3);
+        assert!(planet_mesh(&shape, planet_subdivisions(huge)).count_vertices() > 0);
     }
 
     /// Meshing must not fail or silently degrade at the top of the supported

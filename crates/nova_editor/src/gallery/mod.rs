@@ -26,12 +26,107 @@ pub(crate) use ui::{EditorChrome, GalleryAction};
 
 use crate::ExampleStates;
 
-/// Tile grid of one page.
-pub(crate) const COLS: usize = 4;
-/// Tile rows of one page.
-pub(crate) const ROWS: usize = 3;
-/// Prototypes shown per page.
-pub(crate) const PAGE: usize = COLS * ROWS;
+/// The widest grid the gallery ever draws.
+///
+/// A cap rather than "as many as fit": past eight across, a tile is a thumbnail
+/// the size of its own name strip, and the browse flow this surface exists for
+/// (see the module comment) is reading shapes, not scanning a contact sheet.
+const COLS_MAX: usize = 8;
+
+/// The tallest grid the gallery ever draws, for the reason [`COLS_MAX`] gives.
+const ROWS_MAX: usize = 5;
+
+/// The smallest a tile may be drawn and still read, in logical pixels: enough
+/// preview to tell a thruster from a turret, and enough name strip to hold a
+/// prototype name without clipping it.
+const TILE_MIN: Vec2 = Vec2::new(220.0, 200.0);
+
+/// The grid's own padding on each side, and the gap between two tiles. The
+/// numbers `ui::grid_body` lays out with.
+const GRID_PAD: f32 = 12.0;
+/// See [`GRID_PAD`].
+const TILE_GAP: f32 = 10.0;
+
+/// What the gallery's header row and hint line take off the window height
+/// before the grid is given what is left.
+///
+/// A measured constant rather than a read of the laid-out nodes: the grid's own
+/// height is what this decides, so reading it back would be a layout that
+/// depended on its own answer.
+const GALLERY_CHROME: f32 = 86.0;
+
+/// How many tiles a page holds, and in what shape.
+///
+/// DERIVED from the window rather than a fixed 4x3: 200 prototypes are 17 pages
+/// on a 4K display with room for 40, and the same grid on a small window draws
+/// tiles too small to tell apart. Paging and the arrow keys both read it, so a
+/// resize changes what Page Down means and what Down lands on together.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GalleryLayout {
+    cols: usize,
+    rows: usize,
+}
+
+impl Default for GalleryLayout {
+    /// The grid at the 1024x768 size the editor is built for, which is the 4x3
+    /// this replaced.
+    fn default() -> Self {
+        Self::for_viewport(Vec2::new(1024.0, 768.0))
+    }
+}
+
+impl GalleryLayout {
+    /// The grid that fits a window of `viewport` logical pixels.
+    pub(crate) fn for_viewport(viewport: Vec2) -> Self {
+        Self {
+            cols: fits(viewport.x, TILE_MIN.x, COLS_MAX),
+            rows: fits(viewport.y - GALLERY_CHROME, TILE_MIN.y, ROWS_MAX),
+        }
+    }
+
+    /// Tiles across.
+    pub(crate) fn cols(self) -> usize {
+        self.cols
+    }
+
+    /// Tile rows.
+    pub(crate) fn rows(self) -> usize {
+        self.rows
+    }
+
+    /// Prototypes on one page.
+    pub(crate) fn page(self) -> usize {
+        self.cols * self.rows
+    }
+}
+
+/// How many tiles of at least `tile` fit along `space`: at least one, at most
+/// `cap`. A window too small for even one still gets one, because a gallery
+/// with no tiles is a gallery that cannot be used at all.
+fn fits(space: f32, tile: f32, cap: usize) -> usize {
+    let room = space - 2.0 * GRID_PAD + TILE_GAP;
+    let count = (room / (tile + TILE_GAP)).floor();
+    if count >= 1.0 {
+        (count as usize).min(cap)
+    } else {
+        1
+    }
+}
+
+/// Follow the window: the grid is derived, so a resize has to reach the paging
+/// and the keyboard before either answers again.
+pub(crate) fn sync_gallery_layout(
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    mut layout: ResMut<GalleryLayout>,
+) {
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let wanted = GalleryLayout::for_viewport(Vec2::new(window.width(), window.height()));
+    if *layout != wanted {
+        *layout = wanted;
+    }
+}
 
 /// What the gallery is showing. The single source the overlay is rebuilt from,
 /// so every control (mouse, keyboard, autopilot) drives the same seam.
@@ -92,6 +187,8 @@ fn gallery_reachable(context: Res<crate::node::EditContext>, state: Res<GalleryS
 /// Wire the gallery into the editor plugin.
 pub(crate) fn register(app: &mut App) {
     app.init_resource::<GalleryState>();
+    app.init_resource::<GalleryLayout>();
+    app.init_resource::<scene::GalleryStage>();
     app.init_resource::<scene::FocusView>();
 
     // A stale gallery must not survive a scene change, exactly as the section
@@ -116,6 +213,11 @@ pub(crate) fn register(app: &mut App) {
                 .run_if(gallery_reachable)
                 .run_if(owns_or_enters(InputMode::Browse)),
             input::gallery_keyboard.run_if(owns_or_enters(InputMode::Browse)),
+            // Both BEFORE the rebuild: the grid is laid out from one and the
+            // tiles are spawned on the other, and either read a frame late
+            // would draw the page the window used to hold.
+            sync_gallery_layout,
+            scene::sync_gallery_stage,
             ui::rebuild_gallery,
             ui::paint_gallery_cells,
             ui::sync_editor_chrome,
@@ -164,6 +266,73 @@ mod tests {
         )
     }
 
+    /// The grid a window gets is the grid its space pays for, between one tile
+    /// and the readable caps. The 1024x768 editor keeps the 4x3 this replaced,
+    /// so the change is a 4K display gaining tiles, not every window changing
+    /// shape.
+    #[test]
+    fn the_grid_grows_with_the_window_and_stops_at_the_caps() {
+        assert_eq!(
+            GalleryLayout::for_viewport(Vec2::new(1024.0, 768.0)),
+            GalleryLayout { cols: 4, rows: 3 },
+            "the size the editor is built for keeps the grid it had"
+        );
+
+        let wall = GalleryLayout::for_viewport(Vec2::new(3840.0, 2160.0));
+        assert_eq!(
+            (wall.cols(), wall.rows()),
+            (COLS_MAX, ROWS_MAX),
+            "a 4K display fills to the caps, not past them"
+        );
+        assert!(wall.page() > GalleryLayout::default().page());
+
+        let slot = GalleryLayout::for_viewport(Vec2::new(200.0, 120.0));
+        assert_eq!(
+            (slot.cols(), slot.rows()),
+            (1, 1),
+            "a window too small for one tile still draws one"
+        );
+    }
+
+    /// A resize has to reach the layout: the paging and the arrow keys both
+    /// read it, so a stale grid means Page Down moves by a page the player is
+    /// no longer looking at.
+    #[test]
+    fn a_resize_moves_the_grid_the_paging_reads() {
+        let mut app = App::new();
+        app.init_resource::<GalleryLayout>();
+        let window = app
+            .world_mut()
+            .spawn((
+                Window {
+                    resolution: bevy::window::WindowResolution::new(1024, 768),
+                    ..default()
+                },
+                bevy::window::PrimaryWindow,
+            ))
+            .id();
+        app.add_systems(Update, sync_gallery_layout);
+
+        app.update();
+        let small = *app.world().resource::<GalleryLayout>();
+        assert_eq!((small.cols(), small.rows()), (4, 3));
+
+        app.world_mut()
+            .entity_mut(window)
+            .get_mut::<Window>()
+            .expect("the window is still there")
+            .resolution
+            .set(2560.0, 1440.0);
+        app.update();
+
+        let wide = *app.world().resource::<GalleryLayout>();
+        assert!(
+            wide.cols() > small.cols() && wide.rows() > small.rows(),
+            "the wider window draws a wider grid (got {wide:?})"
+        );
+        assert_eq!(wide.page(), wide.cols() * wide.rows());
+    }
+
     /// Paging past either end stops at the end. Wrapping here would silently
     /// move the selection a page away from what the player was looking at.
     #[test]
@@ -207,6 +376,7 @@ mod tests {
             open: true,
             ..default()
         });
+        app.init_resource::<scene::GalleryStage>();
         app.add_systems(Update, scene::park_camera_for_gallery);
         let flown_to = Vec3::new(1.0, 2.0, 3.0);
         let camera = app
@@ -250,6 +420,7 @@ mod tests {
     fn clearing_the_filter_keeps_the_category() {
         let mut world = World::new();
         world.insert_resource(catalog_of(&["hull_a"]));
+        world.init_resource::<GalleryLayout>();
         world.insert_resource(SectionChoice::default());
         world.insert_resource(GalleryState {
             open: true,
@@ -279,6 +450,7 @@ mod tests {
     fn browsing_a_kind_opens_the_gallery_on_that_kind() {
         let mut world = World::new();
         world.insert_resource(catalog_of(&["hull_a"]));
+        world.init_resource::<GalleryLayout>();
         world.insert_resource(SectionChoice::default());
         world.insert_resource(GalleryState {
             category: GalleryCategory::Structure,

@@ -1245,10 +1245,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // The second ship is BUILT ON, in its own space. Founding drops a
-        // controller at ship_2's origin (x=24 in the WORLD), and the next
-        // placement must mate the socket under the pointer - the world-space
-        // hit against ship-local sockets used to make an offset ship accept
-        // exactly one link point, wherever the pointer was.
+        // controller at ship_2's origin, which the stage's automatic row stands
+        // off the first ship's bounds, and the next placement must mate the
+        // socket under the pointer - the world-space hit against ship-local
+        // sockets used to make an offset ship accept exactly one link point,
+        // wherever the pointer was.
         .arm_from_the_gallery("editor: arm the second controller", CONTROLLER_PROTOTYPE)
         .step("editor: point at empty space beside the second ship")
         .on_enter(|world: &mut World| {
@@ -1260,7 +1261,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .arm_from_the_gallery("editor: arm a hull for the second ship", HULL_PROTOTYPE)
         .place_on_the_face(
             "editor: roof a hull onto the second ship",
-            Vec3::new(24.0, 0.49, 0.0),
+            Vec3::new(0.0, 0.49, 0.0),
         )
         .step("editor: the second ship built in its own space")
         .on_enter(|world: &mut World| {
@@ -4029,7 +4030,14 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     fn place_on_the_face(self, label: &str, socket: Vec3) -> Self {
         self.step(format!("{label}: aim"))
             .on_enter(move |world: &mut World| {
-                let at = aim_at_world(world, socket).expect("that face is on screen");
+                // SHIP space, as the trait says: a ship stands wherever the
+                // stage's automatic row put it, and a literal world point would
+                // aim at whatever else is standing there.
+                let origin = world
+                    .resource::<EditorProbe>()
+                    .inside_origin
+                    .unwrap_or(Vec3::ZERO);
+                let at = aim_at_world(world, origin + socket).expect("that face is on screen");
                 move_cursor(at)(world);
                 stamp_sections(world);
             })

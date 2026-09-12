@@ -23,6 +23,8 @@ mod camera;
 mod clock;
 #[cfg(test)]
 mod fixtures;
+/// The load gate: what holds the world still while a scenario is built.
+pub mod gate;
 mod lifecycle;
 /// The scenario's glTF warm-up: resolved at load, held for the run.
 pub mod preload;
@@ -37,6 +39,7 @@ pub use camera::{
 use clock::register_clock_and_pulse;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use clock::tick_scenario_timers;
+use gate::register_scenario_load_gate;
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
     configure_scenario_gating, on_load_scenario, on_next_input, on_player_spaceship_destroyed,
@@ -55,13 +58,14 @@ pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 /// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
-        lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live, CameraEasing,
-        CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues, CurrentScenario,
-        GameCampaigns, GameScenarios, LoadScenario, NewGameStart, ScenarioCameraMarker,
-        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
-        ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport,
-        ScriptedCameraAnchor, ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose,
-        ScriptedCameraTransform, UnloadScenario, ORBIT_LAP_GRACE_SECS,
+        gate::prelude::*, lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live,
+        CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues,
+        CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
+        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
+        ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
+        ScenarioStartFailureReport, ScriptedCameraAnchor, ScriptedCameraBlend,
+        ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
+        ORBIT_LAP_GRACE_SECS,
     };
 }
 
@@ -552,6 +556,7 @@ impl Plugin for ScenarioLoaderPlugin {
     fn build(&self, app: &mut App) {
         trace!("ScenarioLoaderPlugin: build");
 
+        register_scenario_load_gate(app);
         configure_scenario_gating(app);
         register_scenario_preload(app, self.render);
 

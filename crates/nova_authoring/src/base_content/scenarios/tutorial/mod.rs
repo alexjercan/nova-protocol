@@ -32,7 +32,7 @@ mod tests;
 use range::*;
 use script::{PLAYER, RANGE_CONTROL};
 
-use super::pacing::{self, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP};
+use super::pacing;
 use crate::scenario_helpers::prelude::*;
 
 /// The scenario id New Game starts, and the id the retry hands back to.
@@ -112,13 +112,43 @@ const OPEN_CARD_SECONDS: f32 = 8.0;
 /// hull with the range behind it.
 const OPEN_OFFSET: Meters3 = Meters3::new(-140.0, 50.0, 160.0);
 
-/// The ORBIT lesson's gap, in place of [`INSTRUCTION_GAP`]. Short on purpose:
-/// every other lesson on the card waits for the cadet, and this one does not.
-/// GOTO hands the trainer back inside the planetoid's pull, so the key the line
-/// names has to answer while there is still fall left to spend - and the beat
-/// this step advances is what arms the handler that reads the orbit, so the
-/// cadet must not be able to fly it before the step lands.
+// Each lesson's gap: how long the card waits after the line that hands it
+// over. One value per beat, authored where the beat is - a line the objective
+// echoes wants the card mid-read, and a line the cadet should absorb first
+// wants the card after it. Nudge them after playtest.
+
+/// Range Control hands the helm over -> the helm and the first card. The card
+/// arrives while the cadet is still reading the line that gives it.
+const HELM_GAP: f64 = 4.0;
+/// "Stop her" -> the STOP card. The line names the key the card asks for.
+const STOP_GAP: f64 = 4.0;
+/// The thruster line -> the RCS card and the BRAVO mark.
+const RCS_GAP: f64 = 4.0;
+/// The radar line -> the NAV card and the planetoid's marker.
+const NAV_GAP: f64 = 4.0;
+/// The flight-computer line -> the GOTO card.
+const GOTO_GAP: f64 = 4.0;
+/// The ORBIT lesson's gap. Short on purpose: every other lesson on the card
+/// waits for the cadet, and this one does not. GOTO hands the trainer back
+/// inside the planetoid's pull, so the key the line names has to answer while
+/// there is still fall left to spend - and the beat this step advances is what
+/// arms the handler that reads the orbit, so the cadet must not be able to fly
+/// it before the step lands.
 const ORBIT_GAP: f64 = 1.5;
+/// The leg home -> the RETURN card and the CHARLIE mark.
+const RETURN_GAP: f64 = 4.0;
+/// The gunnery line -> the LOCK card and Target 1's marker.
+const LOCK_GAP: f64 = 4.0;
+/// "She is hot" -> the FIRE card.
+const FIRE_GAP: f64 = 4.0;
+/// The scrap line -> the rest of the firing line. Longer than a lesson gap and
+/// shorter than a reveal: the line tells the cadet what just happened and then
+/// what to do with it, so the card lands as the cadet reaches the second half.
+const LINE_GAP: f64 = 6.0;
+/// The drones go LIVE. The longest gap on the card: the range turning hostile
+/// is a reveal the cadet should take in before a card asks for anything, so the
+/// line lands and fades first.
+const LIVE_GAP: f64 = 8.4;
 
 /// The keybind-dock chips a lesson pulses.
 const HINT_STOP: &str = "STOP";
@@ -331,7 +361,7 @@ pub(crate) fn tutorial(
                 // The helm and the first card land together, a beat after the
                 // line that hands them over.
                 step(
-                    INSTRUCTION_GAP,
+                    HELM_GAP,
                     [
                         release_camera(),
                         resume_player_control(),
@@ -368,7 +398,7 @@ pub(crate) fn tutorial(
                     comms(RANGE_CONTROL, script::STOP_LINE),
                     lesson_later(
                         BEAT_STOP,
-                        INSTRUCTION_GAP,
+                        STOP_GAP,
                         vec![
                             advance(BEAT_STOP),
                             grant(FlightVerb::Stop),
@@ -389,7 +419,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::RCS_LINE),
                 lesson_later(
                     BEAT_RCS,
-                    INSTRUCTION_GAP,
+                    RCS_GAP,
                     [
                         advance(BEAT_RCS),
                         grant(FlightVerb::Rcs),
@@ -414,7 +444,7 @@ pub(crate) fn tutorial(
                     comms(RANGE_CONTROL, script::NAV_LINE),
                     lesson_later(
                         BEAT_NAV,
-                        INSTRUCTION_GAP,
+                        NAV_GAP,
                         vec![
                             advance(BEAT_NAV),
                             grant(FlightVerb::Lock),
@@ -442,7 +472,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::GOTO_LINE),
                 lesson_later(
                     BEAT_GOTO,
-                    INSTRUCTION_GAP,
+                    GOTO_GAP,
                     vec![
                         advance(BEAT_GOTO),
                         grant(FlightVerb::Goto),
@@ -489,7 +519,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::RETURN_LINE),
                 lesson_later(
                     BEAT_RETURN,
-                    INSTRUCTION_GAP,
+                    RETURN_GAP,
                     [
                         advance(BEAT_RETURN),
                         post_objective(OBJ_RETURN, script::OBJ_TEXT_RETURN),
@@ -521,7 +551,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::LOCK_LINE),
                 lesson_later(
                     BEAT_LOCK,
-                    INSTRUCTION_GAP,
+                    LOCK_GAP,
                     vec![
                         advance(BEAT_LOCK),
                         post_objective(OBJ_LOCK, script::OBJ_TEXT_LOCK),
@@ -549,7 +579,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::FIRE_LINE),
                 lesson_later(
                     BEAT_FIRE,
-                    INSTRUCTION_GAP,
+                    FIRE_GAP,
                     vec![
                         advance(BEAT_FIRE),
                         post_objective(OBJ_FIRE, script::OBJ_TEXT_FIRE),
@@ -570,7 +600,7 @@ pub(crate) fn tutorial(
                 clear_hint_emphasis(HINT_RADAR),
                 complete_objective(OBJ_LOCK),
                 comms(RANGE_CONTROL, script::SCRAP_EARLY_LINE),
-                lesson_later(BEAT_LINE, MID_GAP, line_setup()),
+                lesson_later(BEAT_LINE, LINE_GAP, line_setup()),
             ],
         ),
         // Target 1 down: the rest of the line.
@@ -583,7 +613,7 @@ pub(crate) fn tutorial(
             vec![
                 complete_objective(OBJ_FIRE),
                 comms(RANGE_CONTROL, script::SCRAP_LINE),
-                lesson_later(BEAT_LINE, MID_GAP, line_setup()),
+                lesson_later(BEAT_LINE, LINE_GAP, line_setup()),
             ],
         ),
         // The line clear: the drones go live a reveal later.
@@ -598,7 +628,7 @@ pub(crate) fn tutorial(
                 comms(RANGE_CONTROL, script::LIVE_LINE),
                 lesson_later(
                     BEAT_LIVE,
-                    REVEAL_GAP,
+                    LIVE_GAP,
                     [advance(BEAT_LIVE)]
                         .into_iter()
                         .chain(DRONES.iter().map(|(id, _, _)| wake_drone(id)))

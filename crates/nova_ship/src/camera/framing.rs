@@ -207,6 +207,27 @@ pub(super) fn spaceship_camera_rig(
     }
 }
 
+/// Where the chase camera stands the moment it opens on a hull of `envelope`
+/// world units, anchored at `anchor` and facing `facing`.
+///
+/// The SAME composition [`spaceship_camera_rig`] gives, resolved to a pose:
+/// this is the rig's own settled answer, not an approximation of it, so the
+/// frame the scenario opens on is the frame the chase camera would have eased
+/// to. A scenario spawns its camera before the player hull exists, and a fixed
+/// pose there opened a big hull from inside its own plate and a distant player
+/// on empty space.
+///
+/// Engine units, like everything else in this module: `envelope` is a world
+/// unit reach and the returned transform is a Bevy transform.
+pub fn chase_camera_opening_pose(anchor: Vec3, facing: Quat, envelope: f32) -> Transform {
+    let rig = spaceship_camera_rig(&SpaceshipCameraControlMode::Normal, envelope);
+    // `chase_camera_update_state_system`'s frame, written out: the rig's own Z
+    // counts FORWARD, so a rig standing behind the hull has a negative one.
+    let behind = |offset: Vec3| facing * Vec3::new(offset.x, offset.y, -offset.z);
+    Transform::from_translation(anchor + behind(rig.offset))
+        .looking_at(anchor + behind(rig.focus_offset), facing * Vec3::Y)
+}
+
 /// The burn push for this frame, world units along the rig's own axis: a
 /// fraction of the LIVE rig distance, scaled by how hard the main drive is
 /// authored to push this hull and gated by the spooled throttle.

@@ -349,6 +349,13 @@ pub(crate) struct InspectorRow {
     /// How far one pixel of a drag moves this row's number. Zero for a row
     /// holding something that is not a number, which has nothing to scrub.
     pub(crate) nudge: f32,
+    /// Whether [`InspectorRow::nudge`] is a DISTANCE the camera's framing
+    /// sets, rather than a step in the field's own register.
+    ///
+    /// Resolved by [`scale_framed_drags`] once the panel can see the camera: a
+    /// row is built by a pure function that has no framing to read, and half a
+    /// meter a pixel is unusable at both ends of the range a scenario spans.
+    pub(crate) framed: bool,
     /// What the field takes. Carried on the ROW because the grip is handed the
     /// path of one vector component, and `x` is not a name any declaration can
     /// match - resolving the rule a second time from there finds nothing.
@@ -390,6 +397,12 @@ impl InspectorRow {
     /// The same row, saying what it is for.
     pub(crate) fn saying(mut self, hint: impl Into<String>) -> Self {
         self.hint = hint.into();
+        self
+    }
+
+    /// The same row, dragged at whatever scale the camera's framing sets.
+    pub(crate) fn framed_by_the_camera(mut self) -> Self {
+        self.framed = true;
         self
     }
 }
@@ -467,6 +480,7 @@ fn kind_row(
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
+        framed: false,
         limit: Limit::Free,
         value: RowValue::Choice {
             options: options.map(str::to_string).collect(),
@@ -491,6 +505,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
+        framed: false,
         limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
         hint: String::new(),
@@ -524,6 +539,7 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         label,
         unit,
         nudge,
+        framed: false,
         limit,
         value,
         hint: String::new(),
@@ -902,7 +918,8 @@ fn declare_by_type(type_path: &str, rows: &mut [InspectorRow]) {
             continue;
         }
         row.unit = unit;
-        row.nudge = POSE_STEP;
+        row.nudge = POSE_STEP_FLOOR;
+        row.framed = true;
     }
 }
 
@@ -2126,6 +2143,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             label: "Driver".to_string(),
             unit: "",
             nudge: 0.0,
+            framed: false,
             limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
             hint: "Who flies this ship: you, a bot, or nobody.".to_string(),
@@ -2208,6 +2226,7 @@ pub(crate) fn section_rows(
             label: "Key".to_string(),
             unit: "",
             nudge: 0.0,
+            framed: false,
             limit: Limit::Free,
             value: RowValue::Key(if binding.is_empty() {
                 UNBOUND.to_string()
@@ -2445,6 +2464,7 @@ pub(crate) fn operand_row(
         label: place.to_string(),
         unit: "",
         nudge: 0.0,
+        framed: false,
         limit: Limit::Free,
         value: RowValue::Operand {
             options: offered
@@ -2648,6 +2668,7 @@ fn name_row(name: String) -> InspectorRow {
         label: "Name".to_string(),
         unit: "",
         nudge: 0.0,
+        framed: false,
         limit: Limit::Free,
         value: RowValue::Text(name),
         hint: "What this node is called on the board and in the tree.".to_string(),
@@ -2685,10 +2706,11 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             FieldRoot::Pose,
             "Position",
             "m",
-            POSE_STEP,
+            POSE_STEP_FLOOR,
             Limit::Free,
             Meters3::from_engine(pose.translation).get(),
         )
+        .framed_by_the_camera()
         .saying("Where this node stands, in meters."),
         // ROTATION, not heading: it is the node's rotation, and rotation is
         // what every other editor calls that. Both facts it used to keep in a
@@ -2705,9 +2727,39 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
     ]
 }
 
-/// How far one pixel of a drag slides a node, in METERS: fine enough to seat a
-/// beacon by eye, coarse enough to cross the stage in one pull.
-const POSE_STEP: f32 = 0.5;
+/// How many pixels of drag cross what the camera is framing.
+///
+/// A pull the width of the panel's own column moves a node from one side of
+/// the framed thing to the other, whether that is a cockpit or a 7 km range.
+/// The fixed half-metre this replaced was 16,000 px across the tutorial's
+/// range and far too coarse to seat a part by eye up close.
+const FRAMING_PIXELS: f32 = 200.0;
+
+/// The finest a position drag ever gets, in METERS: a centimetre a pixel.
+///
+/// A floor rather than the scale alone, because the scale goes to zero as the
+/// camera closes on what it frames, and a step of zero is a grip that has
+/// stopped answering.
+const POSE_STEP_FLOOR: f32 = 0.01;
+
+/// How far one pixel of a drag slides a node framed from `reach` away.
+pub(crate) fn framed_step(reach: Meters) -> f32 {
+    (reach.get() / FRAMING_PIXELS).max(POSE_STEP_FLOOR)
+}
+
+/// Give every distance row the step the camera's framing asks for.
+///
+/// Run once over a built page rather than inside the builders: the rows come
+/// out of pure functions with no world to read, and the panel is the one place
+/// that has both. Applied at REPAINT, which is what freezes the scale through
+/// a gesture - a grip carries the rule it was spawned with, and a drag does not
+/// change which rows exist.
+pub(crate) fn scale_framed_drags(rows: &mut [InspectorRow], reach: Meters) {
+    let step = framed_step(reach);
+    for row in rows.iter_mut().filter(|row| row.framed) {
+        row.nudge = step;
+    }
+}
 /// The same for a turn. A degree per pixel: a full turn is one drag across the
 /// panel.
 const TURN_STEP: f32 = 1.0;
@@ -2734,6 +2786,7 @@ fn axes_row(
         label: label.to_string(),
         unit,
         nudge,
+        framed: false,
         limit,
         value: axes_of(value),
         hint: String::new(),

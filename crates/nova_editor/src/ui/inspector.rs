@@ -40,15 +40,16 @@ use crate::{
         action_config_mut, expr_config_mut, filter_config_mut, retype_script_node, ActionNode,
         EventNode, ExpressionNode, FilterNode, GateNode, StepNode,
     },
+    frame::CameraFraming,
     gizmo::GizmoAxis,
     inspect::{
         action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
         driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
         object_config_mut, object_rows, operand_path, operand_row, parse_colour, rotation_degrees,
-        rotation_from_degrees, scenario_rows, script_name, section_config_mut, section_rows,
-        ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule, FieldRoot,
-        InspectTarget, InspectorRow, NodeKinds, Operand, PathStep, RowValue, ScriptNames,
-        GRIP_GONE,
+        rotation_from_degrees, scale_framed_drags, scenario_rows, script_name, section_config_mut,
+        section_rows, ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule,
+        FieldRoot, InspectTarget, InspectorRow, NodeKinds, Operand, PathStep, RowValue,
+        ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -299,6 +300,9 @@ pub(crate) struct Document<'w, 's> {
     /// Optional like the catalog: the editor's plugin puts it in, and a fixture
     /// that runs the panel without the rest of the editor is the Inspector.
     tab: Option<Res<'w, RailTab>>,
+    /// What the camera is framing, which is the scale every distance row is
+    /// dragged at. Optional for the same reason the tab is.
+    framing: Option<Res<'w, CameraFraming>>,
     overlays: Res<'w, EditorOverlays>,
     selected: Res<'w, SelectedNode>,
     kinds: NodeKinds<'w, 's>,
@@ -366,7 +370,7 @@ impl Document<'_, '_> {
     /// to inspect.
     pub(crate) fn inspection(&self) -> Option<(InspectTarget, Vec<InspectorRow>)> {
         let target = inspected(&self.selected, &self.context, &self.kinds)?;
-        let rows = match target {
+        let mut rows = match target {
             // The document root holds ships and objects rather than fields of
             // its own. It gets a panel anyway: one that vanished at the root
             // would read as the inspector breaking every time you left a ship.
@@ -419,6 +423,8 @@ impl Document<'_, '_> {
             InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
             InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
         };
+        let framing = self.framing.as_deref().copied().unwrap_or_default();
+        scale_framed_drags(&mut rows, framing.distance);
         Some((target, rows))
     }
 

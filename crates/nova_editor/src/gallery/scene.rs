@@ -6,6 +6,7 @@
 //! grid, and a tile is placed by unprojecting its cell's centre. Change this
 //! module when the stage framing or the tile fitting changes.
 
+use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{
     camera::primitives::Aabb,
     core_pipeline::Skybox,
@@ -13,21 +14,66 @@ use bevy::{
     prelude::*,
     ui::{ComputedNode, UiGlobalTransform},
 };
+use nova_events::units::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::theme;
 
 use crate::{
     config::EditorGizmos,
+    frame::node_bounds,
     gallery::{catalog, GalleryState},
+    node::EditContext,
     placement::draw_socket,
     preview::{insert_preview_section, PreviewRole},
     ExampleStates,
 };
 
-/// Where the gallery stage sits. Far above the build area so a tile's collider
-/// can never be picked as part of the ship, and so nothing the player built
-/// wanders into frame.
-const STAGE_ORIGIN: Vec3 = Vec3::new(0.0, 2_000.0, 0.0);
+/// How far above everything the document holds the gallery stage stands.
+///
+/// Clear of the build area so a tile's collider can never be picked as part of
+/// the ship, and so nothing the builder made wanders into frame behind the
+/// tiles.
+const STAGE_CLEARANCE: Meters = Meters(2_000.0);
+
+/// Where the gallery stage sits.
+///
+/// OFFSET from the document rather than fixed at 2 km: an object authored near
+/// y = 20 km drew straight through the tiles, because the stage assumed a
+/// bounded build area and the build area has no bound.
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct GalleryStage(pub(crate) Vec3);
+
+impl Default for GalleryStage {
+    /// Clear of an empty document, which is what the editor opens on.
+    fn default() -> Self {
+        Self(Vec3::Y * STAGE_CLEARANCE.to_engine())
+    }
+}
+
+/// Stand the stage clear of everything the document holds.
+///
+/// Only while the gallery is CLOSED: the tiles are spawned on this and the
+/// parked camera is placed from it, and a stage that moved mid-browse would
+/// drag one out from under the other.
+pub(crate) fn sync_gallery_stage(
+    state: Res<GalleryState>,
+    context: Res<EditContext>,
+    q_children: Query<&Children>,
+    q_bounds: Query<&ColliderAabb, Without<Sensor>>,
+    mut stage: ResMut<GalleryStage>,
+) {
+    if state.open {
+        return;
+    }
+    let top = context
+        .scenario()
+        .and_then(|scenario| node_bounds(scenario, &q_children, &q_bounds))
+        .map_or(0.0, |bounds| bounds.max.y);
+    let wanted = GalleryStage(Vec3::Y * (top + STAGE_CLEARANCE.to_engine()));
+    if *stage != wanted {
+        *stage = wanted;
+    }
+}
 
 /// Ray distance from the parked camera to every tile. Equal distances mean
 /// equal apparent size, so a part in a corner cell reads as large as the same
@@ -149,6 +195,7 @@ pub(crate) fn spawn_tile(
     section: &SectionConfig,
     cell: Entity,
     focused: bool,
+    origin: Vec3,
 ) {
     let extent = catalog::extent(section).max_element().max(f32::EPSILON);
     let mut entity = commands.spawn((
@@ -165,7 +212,7 @@ pub(crate) fn spawn_tile(
             radius: None,
             focused,
         },
-        Transform::from_translation(STAGE_ORIGIN).with_rotation(Quat::from_rotation_y(PRESENT_YAW)),
+        Transform::from_translation(origin).with_rotation(Quat::from_rotation_y(PRESENT_YAW)),
         // A tile is scenery: the build observers must never see it as a
         // section of the ship under the pointer.
         Pickable {
@@ -193,6 +240,7 @@ pub(crate) fn spawn_tile(
 pub(crate) fn park_camera_for_gallery(
     mut commands: Commands,
     state: Res<GalleryState>,
+    stage: Res<GalleryStage>,
     camera: Option<
         Single<(Entity, &mut Transform, Option<&Skybox>, Option<&ParkedPose>), With<EditorCamera>>,
     >,
@@ -212,8 +260,8 @@ pub(crate) fn park_camera_for_gallery(
                 })
                 .remove::<Skybox>();
         }
-        *transform = Transform::from_translation(STAGE_ORIGIN + Vec3::Z * STAGE_DISTANCE)
-            .looking_at(STAGE_ORIGIN, Vec3::Y);
+        *transform = Transform::from_translation(stage.0 + Vec3::Z * STAGE_DISTANCE)
+            .looking_at(stage.0, Vec3::Y);
     } else if let Some(parked) = parked {
         *transform = parked.transform;
         let sky = parked.skybox.clone();
@@ -441,5 +489,92 @@ pub(crate) fn pose_focused_item(
         if item.focused {
             transform.rotation = rotation;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use avian3d::prelude::{Collider, SimpleCollider};
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+    use crate::node::{found_empty_document, EditorNode, NodeId};
+
+    /// A document holding one body whose top stands at `top_y` engine units.
+    fn document_with_a_body_at(top_y: f32) -> App {
+        let mut app = App::new();
+        app.init_resource::<EditContext>();
+        app.init_resource::<GalleryState>();
+        app.init_resource::<GalleryStage>();
+        app.world_mut()
+            .run_system_once(|mut commands: Commands, mut context: ResMut<EditContext>| {
+                found_empty_document(&mut commands, &mut context);
+            })
+            .expect("the document is founded");
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("a document");
+        let body = app
+            .world_mut()
+            .spawn((
+                EditorNode,
+                NodeId("body".to_string()),
+                Transform::default(),
+                ChildOf(scenario),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(body),
+            Collider::sphere(1.0).aabb(Vec3::Y * (top_y - 1.0), Quat::IDENTITY),
+        ));
+        app
+    }
+
+    fn stage_of(app: &mut App) -> Vec3 {
+        app.world_mut()
+            .run_system_once(sync_gallery_stage)
+            .expect("the stage is placed");
+        app.world().resource::<GalleryStage>().0
+    }
+
+    /// The fixed 2 km this replaced assumed a bounded build area. An object
+    /// authored near y = 20 km drew straight through the tiles.
+    #[test]
+    fn the_stage_stands_clear_of_whatever_the_document_holds() {
+        let tall = 20_000.0;
+        let mut app = document_with_a_body_at(tall);
+        assert_eq!(
+            stage_of(&mut app),
+            Vec3::Y * (tall + STAGE_CLEARANCE.to_engine()),
+            "the stage clears the top of the document, not a fixed altitude"
+        );
+    }
+
+    /// The tiles are spawned on the stage and the parked camera is placed from
+    /// it, so a stage that moved mid-browse would drag one out from under the
+    /// other.
+    #[test]
+    fn the_stage_holds_still_while_the_gallery_is_open() {
+        let mut app = document_with_a_body_at(0.0);
+        let parked = stage_of(&mut app);
+
+        app.world_mut().resource_mut::<GalleryState>().open = true;
+        let body = app
+            .world_mut()
+            .query_filtered::<Entity, With<NodeId>>()
+            .iter(app.world())
+            .next()
+            .expect("the body is there");
+        app.world_mut()
+            .entity_mut(body)
+            .insert(Transform::from_xyz(0.0, 5_000.0, 0.0));
+
+        assert_eq!(
+            stage_of(&mut app),
+            parked,
+            "the stage the tiles stand on does not move mid-browse"
+        );
     }
 }

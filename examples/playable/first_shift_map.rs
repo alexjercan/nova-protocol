@@ -464,9 +464,19 @@ fn frame_new_camera(
     }
 }
 
+/// The map walk flies a constant 1.2 km/s: the overview is 12 km up, and a
+/// ramp that changed speed under a held key would make the fixed vantages the
+/// walk cuts between impossible to reach by hand at a repeatable rate.
+const MAP_CAMERA: WASDCamera = WASDCamera {
+    look_sensitivity: 0.1,
+    speed: MetersPerSecond(1_200.0),
+    accelerate: false,
+    fov_feedback: false,
+};
+
 fn accelerate_camera(mut cameras: Query<&mut WASDCamera>) {
     for mut camera in &mut cameras {
-        camera.wasd_sensitivity = 2.0;
+        *camera = MAP_CAMERA;
     }
 }
 
@@ -512,10 +522,7 @@ fn select_view(
             commands
                 .entity(entity)
                 .remove::<WASDCamera>()
-                .insert(WASDCamera {
-                    wasd_sensitivity: 2.0,
-                    ..default()
-                });
+                .insert(MAP_CAMERA);
         }
     }
 }

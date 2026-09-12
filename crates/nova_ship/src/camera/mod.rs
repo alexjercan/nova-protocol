@@ -34,7 +34,7 @@ pub mod wasd_controller;
 
 pub use self::{
     authority::{CameraAuthorityPlugin, CameraAuthoritySystems},
-    framing::CAMERA_HULL_CLEARANCE,
+    framing::{chase_camera_opening_pose, CAMERA_HULL_CLEARANCE},
     handback::CameraHandbackBlend,
     mode::{SpaceshipCameraControlMode, WeaponsRaised},
     rig::{
@@ -61,13 +61,13 @@ use self::{
 /// public API of this module and of the six rigs it is built on.
 pub mod prelude {
     pub use super::{
-        chase::prelude::*, post::prelude::*, skybox::prelude::*, wasd::prelude::*,
-        wasd_controller::prelude::*, ActiveLookRay, CameraAuthorityPlugin, CameraAuthoritySystems,
-        NovaCameraSystems, SpaceshipCameraControlMode, SpaceshipCameraController,
-        SpaceshipCameraControllerPlugin, SpaceshipCameraFreeLookInputMarker,
-        SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
-        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker, WeaponsRaised,
-        CAMERA_HULL_CLEARANCE,
+        chase::prelude::*, chase_camera_opening_pose, post::prelude::*, skybox::prelude::*,
+        wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthorityPlugin,
+        CameraAuthoritySystems, NovaCameraSystems, SpaceshipCameraControlMode,
+        SpaceshipCameraController, SpaceshipCameraControllerPlugin,
+        SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
+        SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
+        SpaceshipRotationInputActiveMarker, WeaponsRaised, CAMERA_HULL_CLEARANCE,
     };
 }
 

@@ -13,6 +13,7 @@
 
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use nova_events::units::prelude::*;
 use nova_ship::prelude::WASDCameraController;
 use nova_ui::prelude::InputMode;
 
@@ -38,6 +39,43 @@ pub(crate) struct FrameRequest {
     pub(crate) node: Option<Entity>,
     /// Which way to come at it from.
     pub(crate) angle: ViewAngle,
+}
+
+/// What the camera was last put on, and how far its eye stood from it.
+///
+/// The editor's two distance-dependent gestures - dropping a new object out in
+/// front of the camera, and dragging a position field - are unusable at a fixed
+/// scale. A fixed 30 u lands a beacon on the lens while a 7 km range is in
+/// frame and behind everything while a cockpit is; a fixed half-metre per pixel
+/// is five metres a pixel inside a hull and 16,000 px across the tutorial's
+/// range. Both read this instead, so the gesture follows what is on screen.
+///
+/// Written wherever the camera is PUT on something - context focus, F, Frame
+/// Selection, a view preset - and never while the builder flies. A free-fly
+/// camera has no target to measure against, and a drag scale that drifted with
+/// the camera would make the same pixel mean two distances inside one gesture.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CameraFraming {
+    /// The point the camera was framed on.
+    pub(crate) point: Vec3,
+    /// How far the eye stood from that point.
+    pub(crate) distance: Meters,
+}
+
+impl Default for CameraFraming {
+    fn default() -> Self {
+        Self::on(Vec3::ZERO, frame_stage(Vec3::ZERO, 0.0).translation)
+    }
+}
+
+impl CameraFraming {
+    /// The framing an eye at `eye` looking at `point` makes.
+    pub(crate) fn on(point: Vec3, eye: Vec3) -> Self {
+        Self {
+            point,
+            distance: Meters::from_engine(eye.distance(point)),
+        }
+    }
 }
 
 /// Where the camera stands to look at what it is framing.
@@ -175,6 +213,7 @@ pub(crate) fn look_from(request: &mut FrameRequest, node: Option<Entity>, angle:
 pub(crate) fn apply_frame_request(
     mut commands: Commands,
     mut request: ResMut<FrameRequest>,
+    mut framing: ResMut<CameraFraming>,
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_poses: Query<&Transform, Without<EditorCamera>>,
@@ -194,18 +233,30 @@ pub(crate) fn apply_frame_request(
     let Some(camera) = camera else {
         return;
     };
-    let (centre, spread) = match node_bounds(node, &q_children, &q_bounds) {
-        Some(bounds) => (bounds.center(), bounds.size().length() * 0.5),
-        None => (pose.translation, 0.0),
-    };
+    let (centre, spread) = framed_extent(node, pose, &q_children, &q_bounds);
     let angle = request.angle;
     request.node = None;
     let (entity, mut transform) = camera.into_inner();
     *transform = view_stage(centre, spread, angle);
+    *framing = CameraFraming::on(centre, transform.translation);
     commands
         .entity(entity)
         .remove::<WASDCameraController>()
         .insert(WASDCameraController);
+}
+
+/// The point and half-spread to frame `node` on: its subtree's merged collider
+/// box, or its own origin when nothing under it carries a collider yet.
+pub(crate) fn framed_extent(
+    node: Entity,
+    pose: &Transform,
+    q_children: &Query<&Children>,
+    q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
+) -> (Vec3, f32) {
+    match node_bounds(node, q_children, q_bounds) {
+        Some(bounds) => (bounds.center(), bounds.size().length() * 0.5),
+        None => (pose.translation, 0.0),
+    }
 }
 
 /// Marks the camera whose free-fly rig the mode hold took away, so putting it

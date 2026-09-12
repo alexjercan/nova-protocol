@@ -273,6 +273,25 @@ impl ScatterRegion {
     }
 }
 
+/// One body a scatter has placed: where it stands, and how far its own geometry
+/// reaches from that point.
+///
+/// The RADIUS is what makes a field stop exploding as it spawns. A scattered
+/// rock is a dynamic body whose collider reaches several times its authored
+/// radius, so two of them placed a fixed centre distance apart still overlap
+/// when both are large - and overlapping dynamic bodies are shoved apart on the
+/// first physics step hard enough to damage each other. Carrying the reach lets
+/// each PAIR be measured against both bodies instead of against one number
+/// authored for the field's average rock.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScatterPlacement {
+    /// The body's centre.
+    pub position: Meters3,
+    /// How far the body's own geometry reaches from that centre. Zero for a
+    /// kind with no body at all (a beacon, a light).
+    pub radius: Meters,
+}
+
 /// The most objects one `ScatterObjects` action will spawn.
 ///
 /// `count` is an unvalidated authored `u32`, and the spawn loop allocates an
@@ -326,15 +345,20 @@ pub struct ScatterObjectsConfig {
     /// spawn: "what is this field made of" has no house answer, and forty rocks
     /// is the last place to guess one.
     pub asteroid_kinds: Vec<(String, u32)>,
-    /// Minimum centre-to-centre distance between a copy of this
+    /// An ABSOLUTE minimum centre-to-centre distance between a copy of this
     /// scatter and EVERY body already scattered this scenario - this action's
-    /// earlier copies and every earlier scatter's. Uniform sampling puts bodies
-    /// on top of each other, and
-    /// overlapping DYNAMIC bodies (a scattered rock is one) are shoved apart on
-    /// the first physics step hard enough to damage or destroy each other - a
-    /// field that explodes as it spawns. Author it as the widest two bodies
-    /// side by side: for asteroids the collider reaches
-    /// `radius * ASTEROID_GEOMETRIC_FACTOR_MAX`, not `radius`.
+    /// earlier copies and every earlier scatter's.
+    ///
+    /// A floor on top of the rule every scatter already keeps: no two bodies
+    /// may interpenetrate, measured against BOTH bodies' own derived reach
+    /// ([`ScatterPlacement::radius`]). The pair rule is what stops a field
+    /// exploding as it spawns; this is for the breathing room a field wants
+    /// beyond touching - a belt whose rocks should read as separate, an
+    /// approach lane kept clear.
+    ///
+    /// Authored in meters, centre to centre, and it means exactly that: a value
+    /// smaller than two bodies' combined reach changes nothing, because the
+    /// pair rule is the wider of the two.
     ///
     /// A sample that cannot clear the placed copies within
     /// [`Self::SEPARATION_ATTEMPTS`] tries is DROPPED, so a region too small
@@ -352,21 +376,63 @@ impl ScatterObjectsConfig {
     /// deterministic because a rejected sample still advances the seeded RNG.
     pub const SEPARATION_ATTEMPTS: u32 = 64;
 
-    /// One position at least `min_separation` from every `placed` one, or
-    /// `None` when the budget runs out. Without a separation the first sample
-    /// is always taken.
-    fn sample_clear_of(&self, placed: &[Meters3], rng: &mut impl rand::Rng) -> Option<Meters3> {
-        let Some(separation) = self.min_separation.filter(|s| *s > Meters::ZERO) else {
-            return Some(self.region.sample(rng));
-        };
-        let min_sq = separation.squared();
+    /// One position clear of every `placed` body for a candidate whose own
+    /// geometry reaches `reach`, or `None` when the budget runs out.
+    ///
+    /// Clear means at least `max(min_separation, placed reach + candidate
+    /// reach)` from each, so the two rules compose: the pair rule keeps bodies
+    /// from touching whatever their sizes, and an authored `min_separation`
+    /// raises the floor where the field wants more room than that.
+    ///
+    /// A field of bodiless copies with no authored separation has nothing to
+    /// clear, so the first sample is taken - exactly as before.
+    fn sample_clear_of(
+        &self,
+        placed: &[ScatterPlacement],
+        reach: Meters,
+        rng: &mut impl rand::Rng,
+    ) -> Option<Meters3> {
+        let floor = self.min_separation.unwrap_or(Meters::ZERO);
         (0..Self::SEPARATION_ATTEMPTS)
             .map(|_| self.region.sample(rng))
             .find(|candidate| {
-                placed
-                    .iter()
-                    .all(|p| p.get().distance_squared(candidate.get()) >= min_sq)
+                placed.iter().all(|body| {
+                    let clearance = floor.max(body.radius + reach);
+                    clearance <= Meters::ZERO
+                        || body.position.get().distance_squared(candidate.get())
+                            >= clearance.squared()
+                })
             })
+    }
+}
+
+/// How far a scattered object's own body reaches from its centre, meters.
+///
+/// The DERIVED reach, not the authored designation radius: a rock's collider
+/// stands several times its authored radius out, and the whole point of the
+/// pair rule is that two bodies are measured as they will actually be built.
+/// A rock resolves the same seed the spawn does, so the number here is the
+/// number the physics step meets.
+///
+/// A kind with no body - a beacon, a crate, a light, an anchor - reaches
+/// nothing and is placed anywhere an authored `min_separation` allows. A ship
+/// is not measured either: nothing scatters hulls, and a hull's reach needs the
+/// catalogs a command has no access to.
+fn body_reach(kind: &ScenarioObjectKind) -> Meters {
+    match kind {
+        ScenarioObjectKind::Asteroid(rock) => {
+            // The seed is resolved onto the copy before this is asked, so
+            // `unwrap_or_else` is the template's own id only for an unscattered
+            // call.
+            let seed = rock.seed.unwrap_or(0);
+            rock.radius * rock_geometric_factor(seed)
+        }
+        ScenarioObjectKind::Planet(planet) => planet.body_radius(),
+        ScenarioObjectKind::Anchor(_)
+        | ScenarioObjectKind::Spaceship(_)
+        | ScenarioObjectKind::Beacon(_)
+        | ScenarioObjectKind::SalvageCrate(_)
+        | ScenarioObjectKind::Light(_) => Meters::ZERO,
     }
 }
 
@@ -384,6 +450,13 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
         // must keep every position and every radius it already had.
         const KIND_SALT: u64 = 0x00C0_DE0F_A57E_401D;
         let mut kind_rng = rand::rngs::StdRng::seed_from_u64(self.seed ^ KIND_SALT);
+        // A FOURTH, for the same reason and one more: a rock's size is now
+        // known BEFORE its position, because the pair rule measures the body it
+        // is about to place. Drawn from the position stream it would advance
+        // with every rejected attempt, so the same rock would change size
+        // depending on how crowded the field around it happened to be.
+        const RADIUS_SALT: u64 = 0x2A15_ED0B_0D1E_5000;
+        let mut radius_rng = rand::rngs::StdRng::seed_from_u64(self.seed ^ RADIUS_SALT);
         // Always the authored count, never thinned by a graphics-quality
         // tier - scatter is gameplay content (asteroid / debris fields).
         // Bounded, though: `count` is an unvalidated authored u32 driving a
@@ -429,7 +502,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
 
         // Seeded with what earlier scatters placed, so abutting sibling fields
         // (a belt's knots) cannot drop rocks into each other.
-        let mut placed: Vec<Meters3> = world.scatter_placements().to_vec();
+        let mut placed: Vec<ScatterPlacement> = world.scatter_placements().to_vec();
         let mut dropped = 0u32;
         for i in 0..count {
             let mut object = self.template.clone();
@@ -442,6 +515,15 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
             // kind whether or not this scatter is mixed and whether or not an
             // earlier copy was dropped.
             let kind_draw = kind_rng.random_range(0.0f32..1.0);
+            // Drawn per index and before the placement, so the body the pair
+            // rule measures is the body that spawns.
+            let radius_draw = self.asteroid_radius.map(|(lo, hi)| {
+                if lo < hi {
+                    Meters(radius_rng.random_range(lo.get()..hi.get()))
+                } else {
+                    lo
+                }
+            });
             if let ScenarioObjectKind::Asteroid(asteroid) = &mut object.kind {
                 // An authored template seed means "every copy identical" and
                 // is kept; the default is a stable per-rock silhouette.
@@ -451,32 +533,31 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 if let Some(kind) = asteroid_kind_from_mix(&self.asteroid_kinds, kind_draw) {
                     asteroid.material = kind.to_string();
                 }
+                if let Some(radius) = radius_draw {
+                    asteroid.radius = radius;
+                }
             }
-            let Some(position) = self.sample_clear_of(&placed, &mut rng) else {
+            let reach = body_reach(&object.kind);
+            let Some(position) = self.sample_clear_of(&placed, reach, &mut rng) else {
                 dropped += 1;
                 trace!(
-                    "ScatterObjects: dropped '{}{}' - no position clearing the \
-                     {} m separation in {} attempts",
+                    "ScatterObjects: dropped '{}{}' - no position clearing a {} m body \
+                     against a {} m floor in {} attempts",
                     self.id_prefix,
                     i,
+                    reach.get(),
                     self.min_separation.unwrap_or_default().get(),
                     Self::SEPARATION_ATTEMPTS
                 );
                 continue;
             };
-            placed.push(position);
-            world.push_scatter_placement(position);
+            let placement = ScatterPlacement {
+                position,
+                radius: reach,
+            };
+            placed.push(placement);
+            world.push_scatter_placement(placement);
             object.base.position = position;
-
-            if let (Some((lo, hi)), ScenarioObjectKind::Asteroid(asteroid)) =
-                (self.asteroid_radius, &mut object.kind)
-            {
-                asteroid.radius = if lo < hi {
-                    Meters(rng.random_range(lo.get()..hi.get()))
-                } else {
-                    lo
-                };
-            }
 
             // Reuse the ordinary spawn path so scatter and SpawnScenarioObject
             // stay identical in how they build an object.
@@ -877,6 +958,147 @@ mod tests {
         }
     }
 
+    /// The rule the scalar floor could not state: two bodies are measured
+    /// against BOTH their reaches. A shallow belt's 450 m floor clears its own
+    /// rocks and still drops one inside a deep belt's 240 m body, which is the
+    /// field that explodes on its first physics step.
+    #[test]
+    fn a_pair_of_bodies_is_measured_against_both_of_them() {
+        use rand::SeedableRng;
+
+        // Two rocks whose reaches add to more than the authored floor.
+        let floor = Meters(450.0);
+        let standing = ScatterPlacement {
+            position: Meters3::ZERO,
+            radius: Meters(240.0),
+        };
+        let arriving = Meters(300.0);
+        let apart = Meters(500.0);
+        assert!(
+            apart > floor && apart < standing.radius + arriving,
+            "the gap has to pass the scalar rule and fail the pair rule"
+        );
+
+        // A region that can ONLY sample that gap, so the rule is what answers.
+        let config = ScatterObjectsConfig {
+            id_prefix: "rock_".to_string(),
+            count: 1,
+            seed: 7,
+            region: ScatterRegion::Box {
+                min: Meters3::new(apart.get(), 0.0, 0.0),
+                max: Meters3::new(apart.get(), 0.0, 0.0),
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Light(LightConfig::Directional {
+                    illuminance: 1000.0,
+                    color: Color::WHITE,
+                    shadows: false,
+                    aim: None,
+                }),
+            },
+            asteroid_radius: None,
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            min_separation: Some(floor),
+        };
+
+        let mut rng = rand::rngs::StdRng::seed_from_u64(config.seed);
+        assert!(
+            config
+                .sample_clear_of(&[standing], Meters::ZERO, &mut rng)
+                .is_some(),
+            "a bodiless copy clears the scalar floor at {} m",
+            apart.get()
+        );
+        assert!(
+            config
+                .sample_clear_of(&[standing], arriving, &mut rng)
+                .is_none(),
+            "but a {} m body there would stand inside the {} m one already placed",
+            arriving.get(),
+            standing.radius.get()
+        );
+    }
+
+    /// A rock is the size it is drawn at whatever the field around it does.
+    /// The radius comes from its own stream, so the attempts a crowded
+    /// neighbourhood costs cannot resize it - which is what drawing it from the
+    /// position stream did.
+    #[test]
+    fn a_scattered_rock_keeps_its_size_however_crowded_its_field_is() {
+        let field = |count: u32, separation: Option<Meters>| ScatterObjectsConfig {
+            id_prefix: "rock_".to_string(),
+            count,
+            seed: 909,
+            region: ScatterRegion::Box {
+                min: Meters3::new(-3_000.0, -300.0, -3_000.0),
+                max: Meters3::new(3_000.0, 300.0, 3_000.0),
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    material: KIND_ROCK.to_string(),
+                    destroy_sound: None,
+                    radius: Meters(20.0),
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    mass: None,
+                    invulnerable: false,
+                    seed: None,
+                    lock_signature: None,
+                }),
+            },
+            asteroid_radius: Some((Meters(10.0), Meters(60.0))),
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            min_separation: separation,
+        };
+
+        let run = |config: &ScatterObjectsConfig| -> Vec<(String, f32)> {
+            let mut world = World::new();
+            world.init_resource::<NovaEventWorld>();
+            world.init_resource::<GameObjectives>();
+            {
+                let mut event_world = world.resource_mut::<NovaEventWorld>();
+                config.action(&mut event_world, &GameEventInfo::default());
+            }
+            drain(&mut world);
+            let mut query =
+                world.query_filtered::<(&EntityId, &AsteroidRadius), With<AsteroidMarker>>();
+            let mut sizes: Vec<(String, f32)> = query
+                .iter(&world)
+                .map(|(id, radius)| (id.0.clone(), radius.0))
+                .collect();
+            sizes.sort_by(|a, b| a.0.cmp(&b.0));
+            sizes
+        };
+
+        let open = run(&field(12, None));
+        // The same twelve indices, now fighting a floor wide enough to cost
+        // most of them their first samples.
+        let crowded: Vec<(String, f32)> = run(&field(12, Some(Meters(2_000.0))));
+
+        assert!(!crowded.is_empty(), "the crowded field still places rocks");
+        for (id, size) in &crowded {
+            let same = open
+                .iter()
+                .find(|(open_id, _)| open_id == id)
+                .expect("the same ids are drawn either way");
+            assert_eq!(
+                same.1, *size,
+                "'{id}' changed size when its neighbours crowded it"
+            );
+        }
+    }
+
     /// `min_separation` is what keeps a scattered field from spawning inside
     /// itself: uniform sampling WILL put two bodies on top of each other, and
     /// two overlapping dynamic rocks are shoved apart hard enough to destroy
@@ -914,13 +1136,19 @@ mod tests {
                 min_separation,
             };
             let mut rng = rand::rngs::StdRng::seed_from_u64(config.seed);
-            let mut placed: Vec<Meters3> = Vec::new();
+            let mut placed: Vec<ScatterPlacement> = Vec::new();
             for _ in 0..config.count {
-                if let Some(p) = config.sample_clear_of(&placed, &mut rng) {
-                    placed.push(p);
+                if let Some(position) = config.sample_clear_of(&placed, Meters::ZERO, &mut rng) {
+                    placed.push(ScatterPlacement {
+                        position,
+                        radius: Meters::ZERO,
+                    });
                 }
             }
             placed
+                .into_iter()
+                .map(|body| body.position)
+                .collect::<Vec<_>>()
         };
 
         let placed = scatter(12, Some(Meters(400.0)));
@@ -1003,9 +1231,9 @@ mod tests {
         for (i, a) in placed.iter().enumerate() {
             for b in placed.iter().skip(i + 1) {
                 assert!(
-                    a.distance(*b) >= separation,
+                    a.position.distance(b.position) >= separation,
                     "two copies landed {:.1} m apart, under the {:.0} m separation",
-                    a.distance(*b).get(),
+                    a.position.distance(b.position).get(),
                     separation.get()
                 );
             }
@@ -1115,8 +1343,10 @@ mod tests {
     /// the world. Guards the spawn loop that only the windowed example exercised.
     #[test]
     fn scatter_action_spawns_count_objects_in_region() {
-        let region_min = Meters3::new(-100.0, -50.0, -100.0);
-        let region_max = Meters3::new(100.0, 50.0, 100.0);
+        // Room for eight sized bodies: a rock of this template reaches several
+        // times its authored radius, and no two may interpenetrate.
+        let region_min = Meters3::new(-2_000.0, -500.0, -2_000.0);
+        let region_max = Meters3::new(2_000.0, 500.0, 2_000.0);
         let config = ScatterObjectsConfig {
             id_prefix: "rock_".to_string(),
             count: 8,
@@ -1196,8 +1426,8 @@ mod tests {
             count: 6,
             seed: 123,
             region: ScatterRegion::Box {
-                min: Meters3::new(-100.0, -50.0, -100.0),
-                max: Meters3::new(100.0, 50.0, 100.0),
+                min: Meters3::new(-2_000.0, -500.0, -2_000.0),
+                max: Meters3::new(2_000.0, 500.0, 2_000.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
@@ -1271,8 +1501,8 @@ mod tests {
             count: 60,
             seed: 4_711,
             region: ScatterRegion::Box {
-                min: Meters3::new(-400.0, -50.0, -400.0),
-                max: Meters3::new(400.0, 50.0, 400.0),
+                min: Meters3::new(-2_500.0, -200.0, -2_500.0),
+                max: Meters3::new(2_500.0, 200.0, 2_500.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
@@ -1381,8 +1611,8 @@ mod tests {
             count: authored_count,
             seed: 123,
             region: ScatterRegion::Box {
-                min: Meters3::new(-100.0, -50.0, -100.0),
-                max: Meters3::new(100.0, 50.0, 100.0),
+                min: Meters3::new(-2_000.0, -500.0, -2_000.0),
+                max: Meters3::new(2_000.0, 500.0, 2_000.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {

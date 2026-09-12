@@ -147,6 +147,7 @@ fn asteroid_preview_material(kind: &str, texture: Handle<Image>) -> StandardMate
 /// SIZE, that answers a click; what it must not have is an object half-alive.
 pub(crate) fn insert_preview_object(
     entity: &mut EntityCommands,
+    id: &str,
     object: &ObjectNode,
     art: &mut PreviewArt,
     sections: Option<&GameSections>,
@@ -169,8 +170,15 @@ pub(crate) fn insert_preview_object(
         // based several times out from the unit sphere, so a planetoid authored
         // at 24 is a ball a hundred units across and an editor that drew 24
         // would put the whole layout in the wrong place by eye.
+        //
+        // THIS rock's own reach, resolved through the same seed the spawn
+        // resolves - authored, or hashed from the object's id. The 3.5 floor
+        // this replaced is the smallest any rock can be: a flown body reaches
+        // up to 6.0 times its radius, so a belt laid flush by eye came apart on
+        // the first physics step.
         ScenarioObjectKind::Asteroid(rock) => {
-            let radius = (rock.radius * ASTEROID_GEOMETRIC_FACTOR_MIN)
+            let seed = rock.seed.unwrap_or_else(|| asteroid_seed_from_id(id));
+            let radius = (rock.radius * rock_geometric_factor(seed))
                 .to_engine()
                 .max(MIN_OBJECT_RADIUS);
             let texture = rock.texture.resolve(&art.asset_server);
@@ -247,8 +255,16 @@ pub(crate) fn insert_preview_object(
                 .resolve(ships.unwrap_or(&empty))
                 .map(|hull| hull.sections.as_slice())
                 .unwrap_or_default();
-            let extents = hull_extents(placed);
-            entity.insert(Collider::cuboid(extents.x, extents.y, extents.z));
+            let (centre, extents) = hull_bounds(placed, sections);
+            // A COMPOUND of one box, because the merged bounds of a hull are
+            // not centred on its node: a ship whose drive hangs off the stern
+            // has more behind the origin than in front of it, and a bare
+            // `Collider::cuboid` can only be centred.
+            entity.insert(Collider::compound(vec![(
+                centre,
+                Quat::IDENTITY,
+                Collider::cuboid(extents.x, extents.y, extents.z),
+            )]));
             let placed: Vec<SpaceshipSectionConfig> = placed.to_vec();
             entity.with_children(|parent| {
                 for section in &placed {
@@ -311,7 +327,9 @@ pub(crate) fn body_is_drawn_from(kind: &ScenarioObjectKind, path: &[PathStep]) -
 fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
     match kind {
         ScenarioObjectKind::Anchor(_) => &["body_radius"],
-        ScenarioObjectKind::Asteroid(_) => &["radius", "texture", "material"],
+        // The SEED is drawn from too: it picks the silhouette, and with it how
+        // far the body reaches past its authored radius.
+        ScenarioObjectKind::Asteroid(_) => &["radius", "seed", "texture", "material"],
         // Every field the surface is generated from, because the editor draws
         // the real surface: a seed change IS a different world.
         ScenarioObjectKind::Planet(_) => &["radius", "planet_type", "seed", "relief", "sea_level"],
@@ -334,15 +352,40 @@ fn resolve_section<'a>(
     }
 }
 
-/// Full extents of the box that covers a placed hull, from the section poses
-/// alone: every catalog section is a unit cell, so half a cell past the
-/// outermost one covers it. Never smaller than one cell, so an empty hull is
-/// still something a click can reach.
-fn hull_extents(sections: &[SpaceshipSectionConfig]) -> Vec3 {
-    let reach = sections.iter().fold(Vec3::ZERO, |reach, section| {
-        reach.max(section.position.abs())
-    });
-    (reach + Vec3::splat(0.5)) * 2.0
+/// The box that covers a placed hull: its centre, and its full extents.
+///
+/// Every section's OWN authored collider, rotated the way the hull places it
+/// and merged about its position. The half-cell pad this replaced assumed a
+/// 1x1x1 collider, so a 3x3x2 vector thruster or a 5x5x3 capital drive at the
+/// stern was unclickable past its first cell and under-reported to
+/// [`crate::frame::node_bounds`] - which is what the stage frames and lays out
+/// from.
+///
+/// An empty hull, or one whose every prototype a mod overlay dropped, falls
+/// back to the unit cell centred on the node, so it is still something a click
+/// can reach. The extents never go below one cell for the same reason.
+fn hull_bounds(
+    sections: &[SpaceshipSectionConfig],
+    catalog: Option<&GameSections>,
+) -> (Vec3, Vec3) {
+    let mut merged: Option<(Vec3, Vec3)> = None;
+    for section in sections {
+        let Some(config) = resolve_section(&section.source, catalog) else {
+            continue;
+        };
+        let half = config
+            .base
+            .collider
+            .unwrap_or_default()
+            .rotated_aabb_half_extents(section.rotation);
+        let (low, high) = (section.position - half, section.position + half);
+        merged = Some(match merged {
+            Some((min, max)) => (min.min(low), max.max(high)),
+            None => (low, high),
+        });
+    }
+    let (min, max) = merged.unwrap_or((Vec3::splat(-0.5), Vec3::splat(0.5)));
+    ((min + max) * 0.5, (max - min).max(Vec3::ONE))
 }
 
 #[cfg(test)]
@@ -554,5 +597,131 @@ mod tests {
             .spawn(controller_section(ControllerSectionConfig::default()))
             .id();
         assert!(world.get::<PDController>(controller).is_some());
+    }
+
+    /// A section entry standing where it is placed, turned how it is turned.
+    fn placed(source: SectionSource, position: Vec3, rotation: Quat) -> SpaceshipSectionConfig {
+        SpaceshipSectionConfig {
+            id: "section".to_string(),
+            position,
+            rotation,
+            source,
+            modifications: Vec::new(),
+        }
+    }
+
+    /// A hull section with no authored collider: the unit cell.
+    fn unit_hull() -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "cell".to_string(),
+                name: "cell".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        }
+    }
+
+    /// A long section turned off axis has to EXPAND the hull box it is in. The
+    /// half-cell pad this replaced assumed every section was a unit cube, so a
+    /// 3x3x2 vector thruster laid across the stern was unclickable past its
+    /// first cell.
+    #[test]
+    fn a_rotated_multi_cell_section_expands_the_hull_box() {
+        let drive = SectionConfig {
+            base: BaseSectionConfig {
+                id: "drive".to_string(),
+                name: "drive".to_string(),
+                collider: Some(SectionCollider::Cuboid {
+                    size: Vec3::new(3.0, 3.0, 2.0),
+                }),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        let catalog = GameSections(vec![drive]);
+        let stern = |rotation| {
+            vec![placed(
+                SectionSource::Prototype("drive".to_string()),
+                Vec3::new(0.0, 0.0, 4.0),
+                rotation,
+            )]
+        };
+
+        let (centre, square) = hull_bounds(&stern(Quat::IDENTITY), Some(&catalog));
+        assert_eq!(
+            centre,
+            Vec3::new(0.0, 0.0, 4.0),
+            "one section is its own box"
+        );
+        assert_eq!(square, Vec3::new(3.0, 3.0, 2.0), "at its authored size");
+
+        // A quarter turn about Y swaps the section's X and Z reach.
+        let (_, turned) = hull_bounds(
+            &stern(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+            Some(&catalog),
+        );
+        assert!(
+            (turned.x - 2.0).abs() < 1e-4 && (turned.z - 3.0).abs() < 1e-4,
+            "the turn has to reach the box (got {turned:?})"
+        );
+    }
+
+    /// A hull whose box is not centred on its node still gets a collider over
+    /// the whole of it: the box is placed, not assumed to be about the origin.
+    #[test]
+    fn an_off_centre_hull_is_bounded_where_it_actually_stands() {
+        let hull = vec![
+            placed(
+                SectionSource::Inline(unit_hull()),
+                Vec3::ZERO,
+                Quat::IDENTITY,
+            ),
+            placed(
+                SectionSource::Inline(unit_hull()),
+                Vec3::new(0.0, 0.0, -10.0),
+                Quat::IDENTITY,
+            ),
+        ];
+
+        let (centre, extents) = hull_bounds(&hull, None);
+
+        assert_eq!(centre, Vec3::new(0.0, 0.0, -5.0));
+        assert_eq!(extents, Vec3::new(1.0, 1.0, 11.0));
+    }
+
+    /// An empty or unresolved hull is still something a click can reach.
+    #[test]
+    fn a_hull_with_nothing_resolved_keeps_a_unit_cell() {
+        let (centre, extents) = hull_bounds(&[], None);
+
+        assert_eq!(centre, Vec3::ZERO);
+        assert_eq!(extents, Vec3::ONE);
+    }
+
+    /// The stage draws a rock at the size the SPAWN will build it, through the
+    /// seed the spawn will resolve. Drawn at the 3.5 floor, a belt laid flush
+    /// by eye came apart on the first physics step.
+    #[test]
+    fn a_rock_without_an_authored_seed_is_drawn_at_the_reach_its_id_gives_it() {
+        let id = "belt_rock_7";
+        let seed = asteroid_seed_from_id(id);
+        let factor = rock_geometric_factor(seed);
+
+        assert!(
+            (ASTEROID_GEOMETRIC_FACTOR_MIN..=ASTEROID_GEOMETRIC_FACTOR_MAX).contains(&factor),
+            "the reach is inside the bounds the spawn promises (got {factor})"
+        );
+        assert!(
+            factor > ASTEROID_GEOMETRIC_FACTOR_MIN,
+            "and this id's rock is bigger than the floor, which is the bug (got {factor})"
+        );
+        // An AUTHORED seed is the one that is used, exactly as the spawn does.
+        let pinned = 99;
+        assert_ne!(
+            rock_geometric_factor(pinned),
+            factor,
+            "a pinned seed is a different silhouette"
+        );
     }
 }

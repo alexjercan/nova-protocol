@@ -4,7 +4,6 @@
 
 use avian3d::prelude::{Collider, SimpleCollider};
 use bevy::ecs::system::RunSystemOnce;
-use nova_events::units::prelude::*;
 use nova_scenario::prelude::{AnchorConfig, ScenarioObjectKind};
 
 use super::*;
@@ -14,6 +13,7 @@ use crate::node::{EditorNode, NodeView, ObjectNode, ShipNode};
 fn frame_app() -> App {
     let mut app = App::new();
     app.init_resource::<FrameRequest>();
+    app.init_resource::<CameraFraming>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<EditContext>();
     app.insert_resource(SectionChoice::None);
@@ -354,4 +354,36 @@ fn the_camera_gives_up_its_keys_to_every_mode_above_normal() {
         );
         assert!(app.world().get::<ModeHold>(camera).is_none());
     }
+}
+
+/// Framing RECORDS what it framed, which is what the placement ray and the
+/// position drag then measure against.
+#[test]
+fn a_frame_records_the_point_and_the_reach_it_stood_at() {
+    let mut app = frame_app();
+    let eye = camera(&mut app);
+    let at = Vec3::new(0.0, 0.0, -400.0);
+    let node = rock(&mut app, at, 30.0);
+
+    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
+    serve(&mut app);
+
+    let framing = *app.world().resource::<CameraFraming>();
+    let pose = camera_pose(&app, eye);
+    assert_eq!(
+        framing.point, at,
+        "the framed point is the node's own centre"
+    );
+    assert!(
+        (framing.distance.to_engine() - pose.translation.distance(at)).abs() < 1e-3,
+        "and the reach is where the eye actually stood (got {:?})",
+        framing.distance
+    );
+    // A 30 u rock framed with the chrome's room is a long way out: the stock
+    // 11 u default would put a placed object inside it.
+    assert!(
+        framing.distance > Meters::from_engine(50.0),
+        "a big body is framed from far enough back to hold it (got {:?})",
+        framing.distance
+    );
 }

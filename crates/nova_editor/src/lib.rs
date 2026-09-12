@@ -79,7 +79,8 @@ use config::{
     PlacementPose, PlacementPreview, RailTab, SectionChoice, SelectedNode,
 };
 use frame::{
-    apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, FrameRequest,
+    apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, CameraFraming,
+    FrameRequest,
 };
 use generate::{read_seed_field, HullGrammar, HullSeed};
 use gizmo::sync_gizmo;
@@ -90,8 +91,8 @@ use keybind::{
 };
 use node::{
     drop_edited_views, ensure_document, ids_or_parents_moved, rebuild_node_views,
-    report_duplicate_ids, sync_camera_focus, sync_object_views, sync_ship_focus, teardown_document,
-    EditContext, ObjectBodyStale,
+    reflow_auto_ships, report_duplicate_ids, sync_camera_focus, sync_object_views, sync_ship_focus,
+    teardown_document, EditContext, ObjectBodyStale,
 };
 use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
@@ -424,6 +425,7 @@ fn editor_plugin(app: &mut App) {
     // request, and one system serves it. The key is gated like the other single
     // letters - an F typed into an inspector field is not a camera gesture.
     app.init_resource::<FrameRequest>();
+    app.init_resource::<CameraFraming>();
     app.add_systems(
         Update,
         frame_key
@@ -435,7 +437,10 @@ fn editor_plugin(app: &mut App) {
     // context, and a stale request would move the camera straight back off it.
     app.add_systems(
         OnEnter(ExampleStates::Editor),
-        |mut request: ResMut<FrameRequest>| *request = FrameRequest::default(),
+        |mut request: ResMut<FrameRequest>, mut framing: ResMut<CameraFraming>| {
+            *request = FrameRequest::default();
+            *framing = CameraFraming::default();
+        },
     );
 
     // The move/turn handles on the selected node, and the mesh picking backend
@@ -563,6 +568,10 @@ fn editor_plugin(app: &mut App) {
                 sync_play_button,
                 sync_status_line,
                 sync_ship_focus,
+                // BEFORE the framing below: the automatic row decides where a
+                // minted ship stands, and a frame taken before it had moved
+                // would look at the pose the ship is about to leave.
+                reflow_auto_ships,
                 sync_camera_focus,
                 // AFTER the context's own framing: both write the camera, and
                 // a gesture that named a node beats the context having

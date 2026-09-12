@@ -85,7 +85,42 @@ does NOT get an entry - and it is the only place they are written down.
   leaves at over 100 m/s and stays a ghost until it is outside, where it used
   to go solid still standing in the hull.
 
+### Scenarios & Objectives
+- A scenario opens complete: the world is held still while its objects spawn
+  and its art loads, so the first frame you fly is a finished scene at mission
+  time zero, not one that pops in around you.
+- A load that fails, or that stops moving for ten seconds, says FAILED TO START
+  and names the art it could not get. A load that is still arriving is never
+  cut off, however long it takes.
+- A scenario's camera opens behind the player's own hull wherever it spawns: a
+  carrier no longer starts inside its own plate, and a player 5 km out no
+  longer opens on empty space.
+- A scattered field keeps its bodies clear of each other by their real size, so
+  a belt of mixed rocks no longer opens by shoving itself apart.
+  `min_separation` is now spacing ON TOP of that.
+- A planet is meshed at a 20 m facet whatever its size: a 200 m planetoid stops
+  spending a big world's triangles, and a kilometre-wide one is round.
+
 ### Interface & HUD
+- The editor's stage camera covers the same ground at any frame rate, and a
+  held direction builds it from 60 m/s to 32 times that over two seconds, with
+  the lens widening as it goes.
+- Entering a ship in the editor frames the whole hull, and the scenario view
+  frames the whole document, so a 30-cell carrier is framed instead of flown
+  into.
+- A new ship stands 20 m clear of the last one and shuffles as the hulls grow,
+  until you move one by hand - after that it stays where you put it.
+- An editor preview is the size the thing will fly at: a fixed hull merges its
+  sections' real bounds, and a rock is drawn at the reach its own seed gives
+  it.
+- A placed object lands at the distance the camera is framing, and a position
+  drag steps at that same scale, so one gesture works inside a hull and across
+  a 7 km range.
+- The parts gallery fills the window, up to 8 by 5 tiles, and its stage stands
+  clear of whatever the document holds. Paging and the arrow keys follow the
+  same grid.
+- The sandbox locks beacons out to the furthest one you authored, so dragging a
+  beacon out no longer drops it off the list.
 - The velocity and gravity spheres enclose the hull at any size: both are drawn
   5 m and 11 m outside the live hull about its centre of mass, and the speed and
   mode chips park off the outer one.

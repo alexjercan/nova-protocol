@@ -2079,7 +2079,10 @@ fn an_authored_displacement_reads_in_meters_and_writes_one_axis() {
         RowValue::Axes(["10".to_string(), "-25".to_string(), "300".to_string()])
     );
     assert_eq!(position.unit, "m");
-    assert_eq!(position.nudge, POSE_STEP, "and it drags like a node's pose");
+    assert!(
+        position.framed,
+        "and it drags at the scale the camera is framing, like a node's pose"
+    );
 
     let mut axis = position.path.clone();
     axis.push(axis_step(1));

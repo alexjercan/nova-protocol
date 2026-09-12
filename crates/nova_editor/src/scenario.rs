@@ -37,8 +37,9 @@ use nova_gameplay::prelude::{Allegiance, AssetRef, CHANNEL_COMMS};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
-    BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, LIGHT_HULL_SECTION_ID,
-    PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID, REINFORCED_HULL_SECTION_ID,
+    TargetingSettings, BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID,
+    LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
+    REINFORCED_HULL_SECTION_ID,
 };
 
 use crate::{
@@ -225,11 +226,6 @@ const SKY_BEACONS: [SkyBeacon; 2] = [
     },
 ];
 
-/// Lock range a beacon needs to be designatable from the spawn: the radar
-/// gives a signed body `signature_range_per_unit` (30) x this. 300 m buys
-/// 9 km, which covers the deepest beacon.
-const BEACON_LOCK_SIGNATURE: Meters = Meters(300.0);
-
 pub(crate) fn setup_scenario(
     mut commands: Commands,
     context: Res<EditContext>,
@@ -243,12 +239,15 @@ pub(crate) fn setup_scenario(
     // never merged content must still be able to fly the sandbox - it just
     // does not get the retry.
     scenarios: Option<ResMut<GameScenarios>>,
+    targeting: Option<Res<TargetingSettings>>,
 ) {
+    let targeting = targeting.as_deref().cloned().unwrap_or_default();
     let scenario = assets.resolved(sandbox_scenario(
         &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
         world_script(&context, &script),
+        &targeting,
     ));
 
     // Re-register with the ship the editor just built: the boot-time entry
@@ -287,12 +286,15 @@ pub(crate) fn register_sandbox_scenario(
     script: ScriptNodes,
     assets: AssetIndex,
     mut scenarios: ResMut<GameScenarios>,
+    targeting: Option<Res<TargetingSettings>>,
 ) {
+    let targeting = targeting.as_deref().cloned().unwrap_or_default();
     let scenario = assets.resolved(sandbox_scenario(
         &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
         world_script(&context, &script),
+        &targeting,
     ));
     scenarios.insert(scenario.id.clone(), scenario);
 }
@@ -561,6 +563,7 @@ pub(crate) fn range_scenario(
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
+    targeting: &TargetingSettings,
 ) -> ScenarioConfig {
     ScenarioConfig {
         description: settings.description.clone(),
@@ -568,7 +571,7 @@ pub(crate) fn range_scenario(
         hidden: range.hidden,
         events: range_events(
             range.id,
-            sandbox_objects(world, fleet, range.form, range.flight),
+            sandbox_objects(world, fleet, range.form, range.flight, targeting),
             script,
         ),
         ..ScenarioConfig::new(
@@ -635,8 +638,9 @@ pub(crate) fn sandbox_scenario(
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
+    targeting: &TargetingSettings,
 ) -> ScenarioConfig {
-    range_scenario(settings, SANDBOX, world, fleet, script)
+    range_scenario(settings, SANDBOX, world, fleet, script, targeting)
 }
 
 /// Everything the range spawns on start: the world's own objects, then the
@@ -655,7 +659,9 @@ fn sandbox_objects(
     fleet: &LoweredFleet,
     form: HullForm,
     flight: bool,
+    targeting: &TargetingSettings,
 ) -> Vec<ScenarioObjectConfig> {
+    sign_beacons(&mut objects, fleet.player.position, targeting);
     // A document with no player ship still has to be flyable, so Play hands
     // the runtime a bare hull to sit in. Saving one would write a ship node
     // the builder never added.
@@ -845,6 +851,40 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
     }
 }
 
+/// Give every beacon that authored no signature of its own the one the player
+/// spawn needs to designate the FURTHEST beacon on the range.
+///
+/// DERIVED, because both halves move. The builder drags a beacon where they
+/// like, and `signature_range_per_unit` is a live setting a mod may retune. The
+/// hand-derived 300 m this replaced bought 9 km against the deepest beacon the
+/// stock range happened to ship with, so dragging the Veil beacon out dropped
+/// it off the lock list with nothing on screen to say why.
+///
+/// One signature for all of them rather than one each: a beacon nearer than the
+/// furthest is already inside the range this buys, and a range where two nav
+/// marks lock at different distances reads as a bug rather than as a design.
+///
+/// A beacon that DID author a signature keeps it. `None` is the field's
+/// documented "give me the default", and this is the sandbox's answer to it.
+fn sign_beacons(objects: &mut [ScenarioObjectConfig], spawn: Vec3, targeting: &TargetingSettings) {
+    // A ratio of zero is a radar that cannot see a signed body at all. Nothing
+    // this could write would help, and the division would not be a number.
+    if targeting.signature_range_per_unit <= 0.0 {
+        return;
+    }
+    let reach = objects
+        .iter()
+        .filter(|object| matches!(object.kind, ScenarioObjectKind::Beacon(_)))
+        .map(|object| object.base.position.to_engine().distance(spawn))
+        .fold(0.0, f32::max);
+    let signature = Meters::from_engine(reach / targeting.signature_range_per_unit);
+    for object in objects {
+        if let ScenarioObjectKind::Beacon(beacon) = &mut object.kind {
+            beacon.lock_signature.get_or_insert(signature);
+        }
+    }
+}
+
 /// One sky beacon: a lockable nav orb that is its own trigger sphere.
 fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -859,7 +899,9 @@ fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
             radius: Meters(30.0),
             color: beacon.color,
             area_radius: Some(Meters::from_engine(beacon.trip_radius)),
-            lock_signature: Some(BEACON_LOCK_SIGNATURE),
+            // Left to [`sign_beacons`], which measures the range the builder
+            // actually laid out.
+            lock_signature: None,
         }),
     }
 }
@@ -1348,6 +1390,7 @@ mod tests {
             &LoweredFleet::default(),
             HullForm::Inline,
             true,
+            &TargetingSettings::default(),
         )
     }
 
@@ -1419,11 +1462,18 @@ mod tests {
                     &LoweredFleet::default(),
                     HullForm::Inline,
                     false,
+                    &TargetingSettings::default(),
                 ),
             ),
             (
                 "a save whose pickets and beacons were deleted",
-                sandbox_objects(stripped, &flown, HullForm::Inline, false),
+                sandbox_objects(
+                    stripped,
+                    &flown,
+                    HullForm::Inline,
+                    false,
+                    &TargetingSettings::default(),
+                ),
             ),
         ];
 
@@ -1474,6 +1524,7 @@ mod tests {
                         &lower_fleet(&q_ships, &nodes),
                         HullForm::Inline,
                         true,
+                        &TargetingSettings::default(),
                     )
                 },
             )
@@ -2130,7 +2181,13 @@ mod tests {
             ],
         };
 
-        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline, true);
+        let objects = sandbox_objects(
+            default_world_objects(),
+            &fleet,
+            HullForm::Inline,
+            true,
+            &TargetingSettings::default(),
+        );
         let escort = find(&objects, "ship_2");
         assert_eq!(
             escort.base.position,
@@ -2196,7 +2253,13 @@ mod tests {
             }],
         };
 
-        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline, true);
+        let objects = sandbox_objects(
+            default_world_objects(),
+            &fleet,
+            HullForm::Inline,
+            true,
+            &TargetingSettings::default(),
+        );
         assert_eq!(
             find(&objects, PLAYER_ID).base.rotation,
             heading,
@@ -2277,7 +2340,13 @@ mod tests {
                 ..default()
             };
             let player = find(
-                &sandbox_objects(default_world_objects(), &lowered, HullForm::Inline, true),
+                &sandbox_objects(
+                    default_world_objects(),
+                    &lowered,
+                    HullForm::Inline,
+                    true,
+                    &TargetingSettings::default(),
+                ),
                 PLAYER_ID,
             );
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {
@@ -2291,5 +2360,67 @@ mod tests {
                 "the editor's toggle decides whether the flown ship wears a skin"
             );
         }
+    }
+
+    /// The hand-derived 300 m this replaced was sized against the beacon the
+    /// stock range happened to ship with, so dragging one further out dropped
+    /// it off the lock list with nothing on screen to say why.
+    #[test]
+    fn a_beacon_dragged_further_out_still_signs_big_enough_to_lock() {
+        let targeting = TargetingSettings::default();
+        let mut objects = objects();
+        let far = Meters3::new(0.0, 0.0, -12_000.0);
+        let deepest = objects
+            .iter_mut()
+            .filter(|object| matches!(object.kind, ScenarioObjectKind::Beacon(_)))
+            .next_back()
+            .expect("the range ships beacons");
+        deepest.base.position = far;
+        for object in &mut objects {
+            if let ScenarioObjectKind::Beacon(beacon) = &mut object.kind {
+                beacon.lock_signature = None;
+            }
+        }
+
+        sign_beacons(&mut objects, RANGE_ORIGIN, &targeting);
+
+        for object in &objects {
+            let ScenarioObjectKind::Beacon(beacon) = &object.kind else {
+                continue;
+            };
+            let signature = beacon.lock_signature.expect("every beacon is signed");
+            let lock_range = signature.to_engine() * targeting.signature_range_per_unit;
+            let stands_at = object.base.position.to_engine().distance(RANGE_ORIGIN);
+            assert!(
+                lock_range >= stands_at - 1e-3,
+                "'{}' stands {stands_at} out and locks at {lock_range}",
+                object.base.id
+            );
+        }
+    }
+
+    /// `None` is the field's documented "give me the default". A signature the
+    /// builder wrote is not a default.
+    #[test]
+    fn an_authored_signature_survives_the_derivation() {
+        let mut objects = objects();
+        let authored = Meters(7.0);
+        let first = objects
+            .iter_mut()
+            .find(|object| matches!(object.kind, ScenarioObjectKind::Beacon(_)))
+            .expect("the range ships beacons");
+        let ScenarioObjectKind::Beacon(beacon) = &mut first.kind else {
+            unreachable!("filtered on the kind");
+        };
+        beacon.lock_signature = Some(authored);
+        let id = first.base.id.clone();
+
+        sign_beacons(&mut objects, RANGE_ORIGIN, &TargetingSettings::default());
+
+        let signed = find(&objects, &id);
+        let ScenarioObjectKind::Beacon(beacon) = &signed.kind else {
+            unreachable!("it was a beacon going in");
+        };
+        assert_eq!(beacon.lock_signature, Some(authored));
     }
 }

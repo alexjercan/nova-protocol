@@ -31,16 +31,27 @@ pub enum FreezeOwner {
     /// The CRT terminal, in either shell. It owns the freeze for as long as it
     /// is open, so switching shells never unpauses and re-pauses the world.
     Terminal,
+    /// A scenario being built. Held from the moment a scenario loads until its
+    /// queued spawns and required art have all settled, so the first frame the
+    /// player is given is a complete one at scenario time zero - and held
+    /// forever when the load fails, because the alternative is a half-built
+    /// scene the player can fly around in.
+    ScenarioLoad,
 }
 
 impl FreezeOwner {
     /// Every owner, for the fixed-size hold table.
-    const ALL: [FreezeOwner; 2] = [FreezeOwner::PauseMenu, FreezeOwner::Terminal];
+    const ALL: [FreezeOwner; 3] = [
+        FreezeOwner::PauseMenu,
+        FreezeOwner::Terminal,
+        FreezeOwner::ScenarioLoad,
+    ];
 
     fn index(self) -> usize {
         match self {
             FreezeOwner::PauseMenu => 0,
             FreezeOwner::Terminal => 1,
+            FreezeOwner::ScenarioLoad => 2,
         }
     }
 }

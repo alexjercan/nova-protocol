@@ -19,6 +19,7 @@
 
 use std::collections::BTreeMap;
 
+use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
@@ -30,6 +31,7 @@ use crate::{
     bundle::{insert_lifted_ship, lift_objects, DocumentSlot},
     config::{EditorSays, SelectedNode},
     event::lift,
+    frame::{framed_extent, node_bounds, CameraFraming},
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
     scenario::{DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME, DEFAULT_SKY},
@@ -37,9 +39,24 @@ use crate::{
     ExampleStates,
 };
 
-/// How far apart two ship nodes sit on the stage. Wide enough that the biggest
-/// hull anyone builds by hand does not reach its neighbour.
-const SHIP_NODE_SPACING: f32 = 24.0;
+/// How much clear space the stage keeps between two automatically laid out
+/// ships, measured between their COLLIDER BOUNDS rather than their origins.
+///
+/// A fixed origin spacing is the bug this replaces: two carrier designs 24 u
+/// apart interpenetrate on the stage and in the flown sandbox, because
+/// `crate::bundle::lower_ship` hands the node transform straight to the spawn.
+const SHIP_LAYOUT_GAP: Meters = Meters(20.0);
+
+/// A minted ship the stage still lays out for the builder, and where the layout
+/// last put it.
+///
+/// The remembered point is what tells an automatic move from a manual one: the
+/// layout knows exactly what it wrote, so a translation that is not that value
+/// came from the creator - the inspector's Position row, the gizmo, or a stage
+/// drag - and the ship leaves the row for good. One rule rather than a hook in
+/// each of the three gestures, which is what keeps a fourth from being missed.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct AutoLayout(pub(crate) Vec3);
 
 /// The asset paths an object node's config points at.
 ///
@@ -678,6 +695,12 @@ pub(crate) fn sync_ship_focus(
 /// Snap the stage camera to the edit context: entering a ship frames that
 /// ship, and the scenario node frames everything the document holds.
 ///
+/// The frame comes from the context node's whole SUBTREE, the same bounds a
+/// framing request uses. A ship framed on its transform alone put the camera 50
+/// m up and 100 m back from wherever the hull was founded, so entering a 30-cell
+/// carrier landed the eye inside plate; a scenario framed on ship translations
+/// alone gave one carrier at the origin a spread of zero.
+///
 /// The free-fly rig rewrites the camera `Transform` every frame from private
 /// state, so a bare pose write is gone by the next frame. The controller is
 /// therefore removed and re-inserted around the write - the same move the
@@ -689,44 +712,96 @@ pub(crate) fn sync_ship_focus(
 pub(crate) fn sync_camera_focus(
     mut commands: Commands,
     context: Res<EditContext>,
+    mut framing: ResMut<CameraFraming>,
     fresh: Query<(), Added<EditorCamera>>,
-    ships: Query<&Transform, (With<ShipNode>, Without<EditorCamera>)>,
-    camera: Option<Single<(Entity, &mut Transform), (With<EditorCamera>, Without<ShipNode>)>>,
+    q_children: Query<&Children>,
+    q_bounds: Query<&ColliderAabb, Without<Sensor>>,
+    q_poses: Query<&Transform, Without<EditorCamera>>,
+    camera: Option<Single<(Entity, &mut Transform), With<EditorCamera>>>,
     mut shown: Local<Option<Vec<Entity>>>,
 ) {
     if fresh.is_empty() && shown.as_ref() == Some(&context.path) {
         return;
     }
-    // The move is recorded only once it lands: an entered ship or the camera
+    // The move is recorded only once it lands: an entered node or the camera
     // can be a frame away (both are spawned through commands), and a change
     // swallowed while they settle would leave the camera wherever it was.
+    let Some(node) = context.current() else {
+        return;
+    };
+    let Ok(pose) = q_poses.get(node) else {
+        return;
+    };
     let Some(camera) = camera else {
         return;
     };
     let (entity, mut transform) = camera.into_inner();
-    let pose = match context.ship() {
-        Some(ship) => {
-            let Ok(target) = ships.get(ship) else {
-                return;
-            };
-            frame_stage(target.translation, 0.0)
-        }
-        None => {
-            let positions: Vec<Vec3> = ships.iter().map(|ship| ship.translation).collect();
-            let centre = positions.iter().sum::<Vec3>() / positions.len().max(1) as f32;
-            let spread = positions
-                .iter()
-                .map(|position| position.distance(centre))
-                .fold(0.0, f32::max);
-            frame_stage(centre, spread)
-        }
-    };
+    let (centre, spread) = framed_extent(node, pose, &q_children, &q_bounds);
     *shown = Some(context.path.clone());
-    *transform = pose;
+    *transform = frame_stage(centre, spread);
+    *framing = CameraFraming::on(centre, transform.translation);
     commands
         .entity(entity)
         .remove::<WASDCameraController>()
         .insert(WASDCameraController);
+}
+
+/// Keep the automatically laid out ships in a +X row with
+/// [`SHIP_LAYOUT_GAP`] of clear space between their collider bounds.
+///
+/// Run every frame rather than on a bounds change, because a hull's bounds
+/// change for a dozen reasons - a section placed, a part swapped, a generated
+/// hull arriving - and a row that reflowed for only some of them is a row that
+/// is wrong for the rest. The work is one pass over the minted ships.
+///
+/// A ship is dropped from the row the moment anything else writes its
+/// translation, which is what "until the creator positions one manually" means:
+/// see [`AutoLayout`].
+pub(crate) fn reflow_auto_ships(
+    mut commands: Commands,
+    mut ships: Query<(Entity, &NodeId, &mut Transform, &mut AutoLayout), With<ShipNode>>,
+    q_children: Query<&Children>,
+    q_bounds: Query<&ColliderAabb, Without<Sensor>>,
+) {
+    // The ordinal alone orders the row: only a MINTED ship is ever laid out,
+    // and every minted id carries the one stem.
+    let mut row: Vec<(u64, Entity, f32, f32)> = Vec::new();
+    for (entity, id, pose, auto) in &ships {
+        if pose.translation != auto.0 {
+            commands.entity(entity).remove::<AutoLayout>();
+            continue;
+        }
+        let (left, right) = match node_bounds(entity, &q_children, &q_bounds) {
+            Some(bounds) => (
+                bounds.min.x - pose.translation.x,
+                bounds.max.x - pose.translation.x,
+            ),
+            // A ship with no sections yet stands on its own origin. It takes no
+            // width, so the next hull sits one gap along.
+            None => (0.0, 0.0),
+        };
+        row.push((id_order(&id.0).1, entity, left, right));
+    }
+    row.sort_unstable_by_key(|(ordinal, ..)| *ordinal);
+    let gap = SHIP_LAYOUT_GAP.to_engine();
+    // The first ship keeps the ORIGIN, wherever its bounds fall around it: the
+    // stage's stock view is framed on it, and a row that slid its first hull
+    // off centre as it grew would move the camera every time a part landed.
+    let mut edge: Option<f32> = None;
+    for (_, entity, left, right) in row {
+        let x = edge.map_or(0.0, |edge| edge - left);
+        edge = Some(x + right + gap);
+        let Ok((_, _, mut pose, mut auto)) = ships.get_mut(entity) else {
+            continue;
+        };
+        let put = Vec3::new(x, pose.translation.y, pose.translation.z);
+        if pose.translation != put {
+            pose.translation = put;
+        }
+        if auto.0 != put {
+            auto.0 = put;
+        }
+    }
 }
 
 /// How much further back the frame stands than the spread alone asks for.
@@ -1002,10 +1077,10 @@ pub(crate) fn sync_object_views(
     mut art: PreviewArt,
     sections: Option<Res<GameSections>>,
     ships: Option<Res<GameShips>>,
-    nodes: Query<(Entity, &ObjectNode, Option<&Children>)>,
+    nodes: Query<(Entity, &NodeId, &ObjectNode, Option<&Children>)>,
     views: Query<(), With<NodeView>>,
 ) {
-    for (node, object, children) in &nodes {
+    for (node, id, object, children) in &nodes {
         let bodied =
             children.is_some_and(|children| children.iter().any(|child| views.contains(child)));
         if bodied {
@@ -1021,6 +1096,7 @@ pub(crate) fn sync_object_views(
             ));
             insert_preview_object(
                 &mut view,
+                &id.0,
                 object,
                 &mut art,
                 sections.as_deref(),
@@ -1079,8 +1155,9 @@ pub(crate) const MINTED_SHIP_STEM: &str = "ship";
 /// Add an EMPTY ship to the document, and say which node it is.
 ///
 /// Additive: a second "Add Ship" is one more subtree standing beside the first
-/// rather than a reset. Ships are spaced along +X so two of them are two things
-/// on the stage rather than one pile.
+/// rather than a reset. The new ship joins the automatic +X row
+/// ([`reflow_auto_ships`]) so two of them are two things on the stage rather
+/// than one pile, however big either hull grows.
 ///
 /// Entering the new ship is the CALLER's decision, because the two verbs that
 /// mint one disagree about it: a blank ship must be entered - which part it
@@ -1091,7 +1168,6 @@ pub(crate) fn spawn_ship_node(
     commands: &mut Commands,
     ordinals: &mut Query<&mut NextChildOrdinal>,
     context: &EditContext,
-    ships: usize,
     driver: ShipDriver,
 ) -> Option<Entity> {
     let scenario = context.scenario()?;
@@ -1108,7 +1184,8 @@ pub(crate) fn spawn_ship_node(
             Name::new(format!("Ship Node {}", id.0)),
             id,
             NextChildOrdinal::default(),
-            Transform::from_xyz(ships as f32 * SHIP_NODE_SPACING, 0.0, 0.0),
+            Transform::default(),
+            AutoLayout(Vec3::ZERO),
             Visibility::Visible,
             ChildOf(scenario),
         ))
@@ -1354,10 +1431,250 @@ pub(crate) fn report_duplicate_ids(
 
 #[cfg(test)]
 mod tests {
+    use avian3d::prelude::{Collider, SimpleCollider};
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
     use crate::{config::EditorStatus, scenario::default_world_objects};
+
+    /// The half-extent a test ship's collider box carries about its own origin.
+    ///
+    /// Kept on the view so [`settle_bounds`] can put the box back where the
+    /// node now stands - which is what the physics step does between frames,
+    /// and what a reflow reads on the frame after it moved something.
+    #[derive(Component, Clone, Copy)]
+    struct TestHalf(Vec3);
+
+    /// A document with nothing in it, and the context standing on it.
+    fn empty_document() -> App {
+        let mut app = App::new();
+        app.init_resource::<EditContext>();
+        app.init_resource::<CameraFraming>();
+        app.world_mut()
+            .run_system_once(found_empty_document_here)
+            .expect("the document is founded");
+        app
+    }
+
+    /// [`found_empty_document`] as a system, so a test can raise one.
+    fn found_empty_document_here(mut commands: Commands, mut context: ResMut<EditContext>) {
+        found_empty_document(&mut commands, &mut context);
+    }
+
+    /// A minted ship node with one view under it, carrying a collider box of
+    /// `half` about the ship's own origin.
+    fn auto_ship(app: &mut App, ordinal: usize, half: Vec3) -> Entity {
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("a document");
+        let ship = app
+            .world_mut()
+            .spawn((
+                EditorNode,
+                ShipNode::default(),
+                NodeId(format!("{MINTED_SHIP_STEM}_{ordinal}")),
+                Transform::default(),
+                AutoLayout(Vec3::ZERO),
+                ChildOf(scenario),
+            ))
+            .id();
+        app.world_mut().spawn((
+            NodeView,
+            ChildOf(ship),
+            TestHalf(half),
+            Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0)
+                .aabb(Vec3::ZERO, Quat::IDENTITY),
+        ));
+        ship
+    }
+
+    /// Put every test collider box back around the node that owns it - the
+    /// step avian takes between two frames.
+    fn settle_bounds(app: &mut App) {
+        app.world_mut()
+            .run_system_once(
+                |mut views: Query<(&ChildOf, &TestHalf, &mut ColliderAabb)>,
+                 ships: Query<&Transform>| {
+                    for (owner, half, mut bounds) in &mut views {
+                        let at = ships
+                            .get(owner.parent())
+                            .map_or(Vec3::ZERO, |pose| pose.translation);
+                        *bounds = Collider::cuboid(half.0.x * 2.0, half.0.y * 2.0, half.0.z * 2.0)
+                            .aabb(at, Quat::IDENTITY);
+                    }
+                },
+            )
+            .expect("the bounds settle");
+    }
+
+    fn reflow(app: &mut App) {
+        app.world_mut()
+            .run_system_once(reflow_auto_ships)
+            .expect("the row is laid out");
+        settle_bounds(app);
+    }
+
+    fn x_of(app: &App, ship: Entity) -> f32 {
+        app.world()
+            .entity(ship)
+            .get::<Transform>()
+            .expect("a pose")
+            .translation
+            .x
+    }
+
+    /// Two carriers minted one after the other must not share plate - on the
+    /// stage OR in the flown sandbox, since the node transform is what the
+    /// spawn is handed. A fixed 24 u between origins put a 30-cell hull inside
+    /// its neighbour.
+    #[test]
+    fn two_automatic_carriers_stand_clear_of_each_other() {
+        let mut app = empty_document();
+        let first = auto_ship(&mut app, 1, Vec3::new(15.0, 4.0, 30.0));
+        let second = auto_ship(&mut app, 2, Vec3::new(12.0, 4.0, 24.0));
+        reflow(&mut app);
+
+        assert_eq!(x_of(&app, first), 0.0, "the first hull keeps the origin");
+        let clear = (x_of(&app, second) - 12.0) - (x_of(&app, first) + 15.0);
+        assert!(
+            (clear - SHIP_LAYOUT_GAP.to_engine()).abs() < 1e-3,
+            "20 m of clear space between the two boxes, not {clear} u"
+        );
+    }
+
+    /// The row FOLLOWS the hulls: a ship that grows pushes its neighbour along
+    /// rather than growing into it.
+    #[test]
+    fn the_row_reflows_as_a_hull_grows() {
+        let mut app = empty_document();
+        auto_ship(&mut app, 1, Vec3::new(2.0, 2.0, 2.0));
+        let second = auto_ship(&mut app, 2, Vec3::new(2.0, 2.0, 2.0));
+        reflow(&mut app);
+        let near = x_of(&app, second);
+
+        app.world_mut()
+            .query::<&mut TestHalf>()
+            .iter_mut(app.world_mut())
+            .next()
+            .expect("the first hull")
+            .0 = Vec3::new(40.0, 4.0, 40.0);
+        settle_bounds(&mut app);
+        reflow(&mut app);
+
+        assert!(
+            x_of(&app, second) > near + 30.0,
+            "the neighbour stood off the bigger hull (was {near}, now {})",
+            x_of(&app, second)
+        );
+    }
+
+    /// Positioning a ship BY HAND takes it out of the row for good. The row is
+    /// a convenience for hulls nobody has placed yet, not a rule about where a
+    /// ship may stand.
+    #[test]
+    fn moving_a_ship_by_hand_takes_it_out_of_the_row() {
+        let mut app = empty_document();
+        auto_ship(&mut app, 1, Vec3::new(2.0, 2.0, 2.0));
+        let second = auto_ship(&mut app, 2, Vec3::new(2.0, 2.0, 2.0));
+        reflow(&mut app);
+
+        let put = Vec3::new(-300.0, 12.0, 45.0);
+        app.world_mut()
+            .entity_mut(second)
+            .get_mut::<Transform>()
+            .expect("a pose")
+            .translation = put;
+        settle_bounds(&mut app);
+        reflow(&mut app);
+
+        assert!(
+            app.world().entity(second).get::<AutoLayout>().is_none(),
+            "a hand-placed ship is nobody's to move"
+        );
+        assert_eq!(
+            app.world()
+                .entity(second)
+                .get::<Transform>()
+                .expect("a pose")
+                .translation,
+            put,
+            "and it stays exactly where it was put"
+        );
+    }
+
+    /// Entering a carrier has to put the camera OUTSIDE it. Framing a ship on
+    /// its transform alone stood 50 m up and 100 m back from wherever the hull
+    /// was founded, which is inside plate on a 30-cell hull.
+    #[test]
+    fn entering_a_carrier_frames_it_from_outside_its_own_bounds() {
+        let mut app = empty_document();
+        let half = Vec3::new(15.0, 6.0, 40.0);
+        let carrier = auto_ship(&mut app, 1, half);
+        settle_bounds(&mut app);
+        let eye = app
+            .world_mut()
+            .spawn((EditorCamera, WASDCameraController, Transform::default()))
+            .id();
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("a document");
+        app.world_mut().resource_mut::<EditContext>().path = vec![scenario, carrier];
+
+        app.world_mut()
+            .run_system_once(sync_camera_focus)
+            .expect("the context is framed");
+
+        let at = app
+            .world()
+            .entity(eye)
+            .get::<Transform>()
+            .expect("a pose")
+            .translation;
+        assert!(
+            at.x.abs() > half.x || at.y.abs() > half.y || at.z.abs() > half.z,
+            "the camera landed inside the hull at {at:?}"
+        );
+    }
+
+    /// At the SCENARIO context the frame is the whole document, hull size and
+    /// all - not the spread of the ship translations, which is zero when one
+    /// carrier sits on the origin.
+    #[test]
+    fn the_scenario_context_frames_the_whole_document() {
+        let mut app = empty_document();
+        let half = Vec3::new(15.0, 6.0, 40.0);
+        auto_ship(&mut app, 1, half);
+        settle_bounds(&mut app);
+        let eye = app
+            .world_mut()
+            .spawn((EditorCamera, WASDCameraController, Transform::default()))
+            .id();
+
+        app.world_mut()
+            .run_system_once(sync_camera_focus)
+            .expect("the context is framed");
+
+        let at = app
+            .world()
+            .entity(eye)
+            .get::<Transform>()
+            .expect("a pose")
+            .translation;
+        assert!(
+            at.length() > frame_stage(Vec3::ZERO, 0.0).translation.length() * 2.0,
+            "one carrier at the origin is not a spread of zero (got {at:?})"
+        );
+        let framing = *app.world().resource::<CameraFraming>();
+        assert!(
+            framing.distance > Meters::from_engine(half.length()),
+            "and the reach recorded holds the whole document (got {:?})",
+            framing.distance
+        );
+    }
 
     /// The gate in front of `report_duplicate_ids` has to fire on every way a
     /// clash can appear OR go. One it misses leaves the rail silent about a

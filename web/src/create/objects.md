@@ -181,6 +181,11 @@ authored as `Asteroid((radius: 200.0))` drew a body about 1 km across; written
 as a planet it wants `radius: 950.0`, not `200.0`, or every distance around it
 collapses by about five.
 
+The MESH follows the radius too: a world is built to a 20 m facet whatever its
+size, so a small planetoid is no longer paying for a big world's triangles and
+a big one is round. Detail is capped, so a body past about 1.4 km of radius is
+meshed coarser than 20 m rather than without limit.
+
 ### Picking a type
 
 Each type is a palette and a terrain character, not a single look - a seed
