@@ -39,19 +39,23 @@ cargo run --features debug bench play <scenario> --agent 'cmd:python3 my_agent.p
 ```
 
 `<scenario>` is an installed scenario id, or a path ending in `.ron` loaded
-as a loose content file. The bench ships two fixtures under
-`crates/nova_bench/scenarios/`:
+as a loose content file. The bench ships four fixtures under `crates/nova_bench/scenarios/`:
 
 - `hunt.content.ron`: one player gunship, one hostile raider parked 2600 m
   ahead, an objective and both outcomes. The scenario scores itself.
 - `range.content.ron`: an open range with no objective and no victory. A
-  600 m planetoid 7 km ahead, a small rock and a big rock, a nav beacon and
-  an unarmed hostile derelict hauler. The goal comes from `--goal`, the run
-  is bounded by `--ticks` and `--deadline`, and a reader grades the `end`
-  block of the score: "orbit the planetoid", "park on the derelict",
-  "destroy the derelict", "fly to the work mark and stop". The rocks are
-  places to fly to, not targets: a turret round flies through a rock and
-  takes nothing off it, so there is no carving goal.
+  600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile
+  derelict support navigation, orbit, parking, and PDC goals.
+- `slingshot.content.ron`: an offset gravity well, a distant exit mark, and a
+  hostile pursuer that wakes after 45 seconds support gravity-assist, evasion,
+  collision, and route-cheese goals.
+- `arsenal.content.ron`: a player warship with PDCs, torpedoes, and railguns,
+  plus a carvable rock, two inert targets, and a late raider, supports mixed
+  weapons, asteroid carving, NOVA OS, cheat, and protocol-abuse goals.
+
+The three sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
+the `end` block of the score and any recorded footage. Their reusable goal deck
+and red-team rules are in `crates/nova_bench/scenarios/README.md`.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
@@ -345,7 +349,9 @@ tapped Stop at 1.96 km, settled 1.1 km off and broke the hauler up in
 
 ## Not built yet
 
-A `--ui tui` renderer on the same event bus, and `bench run`: a sweep of
-plays over a scenario set with an `index.json`, an HTML report and a
-`--baseline` diff release over release. The design record is
-`tasks/20260824-125933/ARCHITECTURE.md`.
+A `--ui tui` renderer on the same event bus; `bench run`, a sweep of plays over
+a scenario set with an `index.json`, an HTML report and a `--baseline` diff
+release over release; and `bench movie`, an audit-driven compositor that draws
+a compact action rail onto recorded frames before calling the shared encoder.
+The overlay sketch is in `crates/nova_bench/scenarios/README.md`. The run design
+record is `tasks/20260824-125933/ARCHITECTURE.md`.

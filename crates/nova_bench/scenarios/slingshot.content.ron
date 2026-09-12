@@ -1,0 +1,130 @@
+// A loose agent-bench sandbox for gravity-assist and pursuit experiments.
+// It is not installed as game content. Run it with:
+//   cargo run --features debug bench play crates/nova_bench/scenarios/slingshot.content.ron \
+//       --agent pi --seed 7 --ticks 25000 --deadline 1000 --goal "..."
+//
+// The player faces -Z. Kestrel is offset to starboard of the direct route to
+// EXIT, so a close pass can bend the ship back toward the mark. The pursuer
+// wakes after 45 seconds. There is no victory: the goal and final score state
+// are the judge, while player destruction remains a definite loss.
+[
+    Scenario((
+        id: "bench_slingshot",
+        name: "Bench: Slingshot",
+        description: "A gravity-assist course past Kestrel, with a late pursuer and a distant exit mark.",
+        cubemap: "base/textures/cubemap.png",
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "key_light",
+                            name: "Key Light",
+                            position: (-1500.0, 1800.0, -3500.0),
+                            rotation: (-0.24307884, -0.36920026, -0.10068656, 0.8913283),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Courier Seven",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_gunship"),
+                            controller: Player((
+                                input_mapping: {
+                                    "pdc_forward_port": [Keyboard(KeyU)],
+                                    "pdc_forward_starboard": [Keyboard(KeyI)],
+                                    "pdc_aft_port": [Keyboard(KeyJ)],
+                                    "pdc_aft_starboard": [Keyboard(KeyK)],
+                                    "pdc_ventral_port": [Keyboard(KeyN)],
+                                    "pdc_ventral_starboard": [Keyboard(KeyM)],
+                                },
+                                speed_cap: None,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "kestrel",
+                            name: "Kestrel",
+                            position: (1700.0, 0.0, -6000.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Planet((
+                            radius: 700.0,
+                            planet_type: BarrenRock,
+                            seed: 20260912,
+                            mass: Some(50000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "needle",
+                            name: "The Needle",
+                            position: (-900.0, 250.0, -9000.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 35.0,
+                            texture: "base/textures/asteroid.png",
+                            material: "metal",
+                            destroy_sound: Some("base/sounds/destroy_rock.wav"),
+                            mass: Some(12000.0),
+                            invulnerable: false,
+                            seed: Some(20260913),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "exit",
+                            name: "Exit Gate",
+                            position: (0.0, 0.0, -13000.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "EXIT",
+                            radius: 30.0,
+                            color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+                            area_radius: Some(500.0),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pursuer",
+                            name: "Late Fee",
+                            position: (0.0, 0.0, 2500.0),
+                            rotation: (0.0, 1.0, 0.0, 0.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_raider"),
+                            controller: AI((
+                                engage_delay: Some(45.0),
+                                leash: Some(20000.0),
+                            )),
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [Entity((id: Some("player")))],
+                actions: [Outcome((
+                    outcome: Defeat,
+                    message: Some("The courier broke up before reaching the exit."),
+                ))],
+            ),
+        ],
+    )),
+]

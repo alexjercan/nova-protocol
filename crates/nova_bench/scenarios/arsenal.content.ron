@@ -1,0 +1,152 @@
+// A loose agent-bench sandbox for weapon, carving, shell, cheat and abuse
+// experiments. It is not installed as game content. Run it with:
+//   cargo run --features debug bench play crates/nova_bench/scenarios/arsenal.content.ron \
+//       --agent pi --seed 7 --ticks 25000 --deadline 1000 --goal "..."
+//
+// The stolen warship carries railguns, torpedoes and point defence. Quarry is
+// directly ahead, between the player and the inert target barge, so a railgun
+// can cut it without a combat lock. The raider wakes after one minute. No goal
+// is built in: audit.jsonl, score.json and recorded footage are the evidence.
+[
+    Scenario((
+        id: "bench_arsenal",
+        name: "Bench: Arsenal",
+        description: "A mixed-weapon demolition yard with a carvable rock, inert hulks, a late raider and full NOVA OS access.",
+        cubemap: "base/textures/cubemap.png",
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "key_light",
+                            name: "Key Light",
+                            position: (-1600.0, 1800.0, -1800.0),
+                            rotation: (-0.24307884, -0.36920026, -0.10068656, 0.8913283),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 12000.0,
+                            color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Borrowed Authority",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_warship"),
+                            controller: Player((
+                                input_mapping: {
+                                    "railgun_port": [Keyboard(KeyQ)],
+                                    "railgun_starboard": [Keyboard(KeyW)],
+                                    "bay_port_forward": [Keyboard(KeyE)],
+                                    "bay_port_midships": [Keyboard(KeyR)],
+                                    "bay_port_aft": [Keyboard(KeyT)],
+                                    "bay_starboard_forward": [Keyboard(KeyY)],
+                                    "bay_starboard_midships": [Keyboard(KeyU)],
+                                    "bay_starboard_aft": [Keyboard(KeyI)],
+                                    "pdc_forward_port": [Keyboard(KeyA)],
+                                    "pdc_forward_starboard": [Keyboard(KeyS)],
+                                    "pdc_dorsal_port": [Keyboard(KeyD)],
+                                    "pdc_dorsal_starboard": [Keyboard(KeyF)],
+                                    "pdc_aft_port": [Keyboard(KeyG)],
+                                    "pdc_aft_starboard": [Keyboard(KeyH)],
+                                    "pdc_ventral_forward_port": [Keyboard(KeyJ)],
+                                    "pdc_ventral_forward_starboard": [Keyboard(KeyK)],
+                                    "pdc_ventral_aft_port": [Keyboard(KeyL)],
+                                    "pdc_ventral_aft_starboard": [Keyboard(KeyZ)],
+                                },
+                                speed_cap: None,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "quarry",
+                            name: "Quarry",
+                            position: (0.0, 0.0, -1250.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 28.0,
+                            texture: "base/textures/asteroid.png",
+                            material: "rock",
+                            destroy_sound: Some("base/sounds/destroy_rock.wav"),
+                            invulnerable: false,
+                            seed: Some(20260912),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_barge",
+                            name: "Target Barge",
+                            position: (0.0, 0.0, -2600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_hauler"),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "ram_target",
+                            name: "Ram Target",
+                            position: (-1800.0, 0.0, -1900.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_carrier"),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "raider",
+                            name: "Safety Inspector",
+                            position: (2600.0, 300.0, -3100.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("block_raider"),
+                            controller: AI((
+                                engage_delay: Some(60.0),
+                                leash: Some(9000.0),
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "yard_mark",
+                            name: "Yard Mark",
+                            position: (1700.0, 500.0, -1800.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "DO NOT PRESS",
+                            radius: 20.0,
+                            color: Srgba((red: 1.0, green: 0.55, blue: 0.15, alpha: 1.0)),
+                            area_radius: Some(250.0),
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [Entity((id: Some("player")))],
+                actions: [Outcome((
+                    outcome: Defeat,
+                    message: Some("The borrowed warship failed its safety inspection."),
+                ))],
+            ),
+        ],
+    )),
+]
