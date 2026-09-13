@@ -190,6 +190,10 @@ does NOT get an entry - and it is the only place they are written down.
   wreck, rock or torpedo it landed on, not by 60 m of space. A carrier collapse
   is one kick from its middle, not 25.
 
+### Performance
+- Gun rounds confirm hits against the selected collider without a second
+  spatial-tree search. Firing and damage rules are unchanged.
+
 ### Internals & Tooling
 - Agent work defaults to Pair, with code-backed proposals and a required Verify
   workflow for bugs and features. Claude shares the same instructions and skills.

@@ -10,7 +10,13 @@
 //! against - `muzzle_speed`, `slug_speed`, `blast_radius` - are quoted in the
 //! meters a creator reads in the content file.
 
-use avian3d::prelude::*;
+use avian3d::{
+    parry::{
+        math::Pose3,
+        query::{cast_shapes, ShapeCastOptions},
+    },
+    prelude::*,
+};
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::prelude::*;
@@ -430,6 +436,7 @@ struct Sweep {
 #[derive(SystemParam)]
 struct SweepWorld<'w, 's> {
     spatial: SpatialQuery<'w, 's>,
+    sampled_colliders: Query<'w, 's, (&'static Position, &'static Rotation, &'static Collider)>,
     sensors: Query<'w, 's, (), With<Sensor>>,
     collider_of: Query<'w, 's, &'static ColliderOf>,
     body_colliders: Query<'w, 's, &'static RigidBodyColliders>,
@@ -657,7 +664,7 @@ impl<'a> TipWalk<'a> {
 
             let target_velocity = world.body_velocity_of(candidate.entity);
             let Some(impact) = rest_frame_impact(
-                &world.spatial,
+                world,
                 self.shape,
                 candidate.entity,
                 self.origin,
@@ -1091,7 +1098,7 @@ fn collect_rake_contacts(
 /// `None` when the two never converge - a target running exactly with the round
 /// has no relative motion to close.
 fn rest_frame_impact(
-    spatial: &SpatialQuery,
+    world: &SweepWorld,
     shape: &Collider,
     target: Entity,
     origin: Vec3,
@@ -1109,16 +1116,28 @@ fn rest_frame_impact(
     // otherwise every layer after the first is tested as if the round were
     // leading, by up to a full step of target motion.
     let elapsed = dt - remaining;
-    let hit = spatial.cast_shape_predicate(
-        shape,
-        origin - target_velocity * elapsed,
-        Quat::IDENTITY,
-        direction,
-        &ShapeCastConfig::from_max_distance(closing * remaining),
-        &SpatialQueryFilter::default(),
-        &|collider| collider == target,
-    )?;
-    Some(hit.distance / closing)
+    // The candidate is already known. Use the same sampled pose, scaled
+    // shape and narrow-phase options as SpatialQuery, without searching its
+    // trees again. The body's newer pose would change moving-target hits.
+    let (position, rotation, collider) = world.sampled_colliders.get(target).ok()?;
+    let max_distance = closing * remaining;
+    let hit = cast_shapes(
+        &Pose3::from_parts(position.0, rotation.0),
+        Vec3::ZERO,
+        collider.shape_scaled().as_ref(),
+        &Pose3::from_parts(origin - target_velocity * elapsed, Quat::IDENTITY),
+        *direction,
+        shape.shape_scaled().as_ref(),
+        ShapeCastOptions {
+            max_time_of_impact: max_distance,
+            target_distance: 0.0,
+            stop_at_penetration: true,
+            compute_impact_geometry_on_penetration: true,
+        },
+    )
+    .ok()??;
+    // SpatialQuery accepts only a hit strictly before max_distance.
+    (hit.time_of_impact < max_distance).then_some(hit.time_of_impact / closing)
 }
 
 /// The first tangible, non-owner collider on the segment expends an
@@ -1211,6 +1230,8 @@ fn well_pull(
 /// is the one it made before - the mechanism changed, the contract did not.
 #[cfg(test)]
 mod tests {
+    mod exact;
+
     use super::*;
     use crate::test_support::{settle, unfinished_integrity_physics_app_with};
 
