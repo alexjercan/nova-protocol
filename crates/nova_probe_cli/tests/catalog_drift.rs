@@ -168,6 +168,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a touch under the safe speed is free at either hull size",
             "a ram spends hit points on both bodies",
             "the bite grows with the closing speed",
+            "a ram on a rock is paid out of both durabilities",
+            "a destructive ram leaves a wreck",
             "the contact census is recorded",
         ],
     ),
@@ -238,6 +240,61 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "turret tracks the mover",
             "turret invariants hold after reload",
             "the fire gate is the size of what is shot at",
+            "a folded mount has sunk behind shut lids",
+            "the fold is lazier than the raise",
+            "no round leaves a housed mount",
+        ],
+    ),
+    (
+        "system_wreck_lock",
+        &[
+            "an unrelated sever leaves the lock and the pin standing",
+            "severing the pinned section clears the pin and keeps the lock",
+            "the severed fragment is its own close contact",
+            "a fragment is never acquired on its own",
+            "the reticle and the inset follow the acquired fragment",
+            "the same gun hits the fragment it acquired",
+        ],
+    ),
+    (
+        "system_mission_hud",
+        &[
+            "a posted objective reaches the stack in its own chip",
+            "the marker chip stands off its target's projection",
+            "the marker chip carries the live range to its target",
+            "an off-screen mark pins to the edge and points home",
+            "a comms cue reaches the panel in the speaker's own voice",
+            "a bound readout renders its variable in the authored format",
+            "a moved variable moves the readout with it",
+            "the marker chip leaves with its target and the stack stands",
+        ],
+    ),
+    (
+        "system_ship_audio",
+        &[
+            "a burst raking a hull collapses to one report per hull",
+            "an authored cue is heard through the hull it belongs to",
+            "an exterior cue is parked on the listener's bearing to it",
+            "a dead trigger clicks once a pull and not once a frame",
+            "the drive's hum tracks the throttle and leaves at rest",
+        ],
+    ),
+    (
+        "system_hud_scales",
+        &[
+            "every visible indicator lands on the live window",
+            "the markers count one per section until the budget caps them",
+            "the inset frames the capital's whole hull",
+            "the lead pip holds the projected intercept at capital scale",
+        ],
+    ),
+    (
+        "system_torpedo_capital",
+        &[
+            "the fuze stands off the skin of both hull sizes",
+            "the warhead stops on the face, not on the aim point",
+            "the capital pays on the face the warhead reached",
+            "a one-section hull is fuzed, not overflown",
         ],
     ),
     (
@@ -253,6 +310,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "torpedo leads the crosser",
             "a warhead arms clear of the hull that fired it",
             "the ordnance makes its authored cruise",
+        ],
+    ),
+    (
+        "system_railgun_hulls",
+        &[
+            "one lance sits at the same station on both hulls",
+            "recoil moves each hull by its own measured mass",
+            "the off-axis shot spins the hull inside its own limits",
+            "the computer takes the recoil back out of the heading",
+            "the bore sight and the slug agree where the shot went",
         ],
     ),
     (
@@ -728,7 +795,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 333;
+const SYSTEMS_INVARIANTS: usize = 370;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

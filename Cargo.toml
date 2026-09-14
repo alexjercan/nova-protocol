@@ -228,8 +228,32 @@ name = "system_turret_gunnery"
 path = "examples/systems/system_turret_gunnery.rs"
 
 [[example]]
+name = "system_wreck_lock"
+path = "examples/systems/system_wreck_lock.rs"
+
+[[example]]
+name = "system_mission_hud"
+path = "examples/systems/system_mission_hud.rs"
+
+[[example]]
+name = "system_ship_audio"
+path = "examples/systems/system_ship_audio.rs"
+
+[[example]]
+name = "system_hud_scales"
+path = "examples/systems/system_hud_scales.rs"
+
+[[example]]
+name = "system_torpedo_capital"
+path = "examples/systems/system_torpedo_capital.rs"
+
+[[example]]
 name = "system_torpedo_launch"
 path = "examples/systems/system_torpedo_launch.rs"
+
+[[example]]
+name = "system_railgun_hulls"
+path = "examples/systems/system_railgun_hulls.rs"
 
 [[example]]
 name = "system_railgun_lance"

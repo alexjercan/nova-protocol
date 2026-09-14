@@ -773,4 +773,62 @@ mod physics_tests {
             "twice the closing speed must cost more than twice: {harder} against {left}"
         );
     }
+
+    /// A hull is ONE rigid body wearing dozens of health-bearing colliders, and
+    /// they overlap: a section's plates sit inside the section's own shape.
+    /// Nothing about that arrangement may spend a hit point, however hard the
+    /// ship is thrown or spun, because two shapes bolted to the same body never
+    /// approach each other at all.
+    ///
+    /// The pin is on the CONTACT side of the rule rather than on a filter of
+    /// its own: `deal_contact_impact_damage` reads the approach speed the
+    /// solver measured, and for one body that speed is zero however fast the
+    /// body itself is going. Manufacture a second body to stand in for the same
+    /// hull and this says nothing; one body with two overlapping colliders is
+    /// the arrangement a ship actually is.
+    #[test]
+    fn one_body_wearing_two_overlapping_colliders_never_damages_itself() {
+        let mut app = integrity_physics_app();
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default()))
+            .id();
+        // Two spheres a third of a radius apart: deeply interpenetrating, which
+        // is exactly how a plate sits in the section behind it.
+        let plates: Vec<Entity> = [-0.33_f32, 0.33]
+            .into_iter()
+            .map(|at| {
+                app.world_mut()
+                    .spawn((
+                        ChildOf(body),
+                        Transform::from_xyz(at, 0.0, 0.0),
+                        Collider::sphere(1.0),
+                        ColliderDensity(1.0),
+                        Health::new(100.0),
+                    ))
+                    .id()
+            })
+            .collect();
+        settle(&mut app);
+
+        // Thrown at twenty times the safe contact speed and spun with it, so
+        // any reading that came off the BODY's motion rather than the contact's
+        // approach would bite here.
+        let fast = SAFE_CONTACT_SPEED.to_engine() * 20.0;
+        app.world_mut().get_mut::<LinearVelocity>(body).unwrap().0 = Vec3::new(fast, fast, fast);
+        app.world_mut().get_mut::<AngularVelocity>(body).unwrap().0 = Vec3::splat(12.0);
+        for _ in 0..240 {
+            app.update();
+        }
+
+        for plate in plates {
+            assert_eq!(
+                hurt(&app, plate),
+                0.0,
+                "a collider on the same rigid body as its neighbour cost it {} hit points; a \
+                 hull does not grind itself",
+                hurt(&app, plate),
+            );
+        }
+    }
 }

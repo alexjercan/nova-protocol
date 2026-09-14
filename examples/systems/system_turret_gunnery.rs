@@ -24,6 +24,13 @@
 //! - A tuning panel (top-left) of live sliders for the turret's knobs - yaw/pitch
 //!   speed, pitch limits, fire rate, muzzle speed - so you can retune while
 //!   watching the aim-error readout instead of editing the config and re-running.
+//! - The retractable mount: the shipped PDC sits in a housing and only its
+//!   deployed state has a line of fire. The range runs the whole cycle on the
+//!   authored tracks - the cold scene starts shut, the stance raises the gun,
+//!   standing down folds it away again - and grades the three things only a
+//!   live mount can answer: that no round ever leaves a housed gun, that the
+//!   fold is lazier than the raise so a lull cannot fold a battery mid-fight,
+//!   and that the assembly physically sinks behind shut lids.
 //!
 //! Controls: hold right mouse to raise weapons (the safety keeps a lowered
 //! ship cold), Space (or right trigger) fires. Aiming is automatic (tracks the
@@ -114,12 +121,25 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<RangeOutcome>();
         app.init_resource::<HeldInput>();
+        app.init_resource::<StowLog>();
+        // The housed-round count is taken HERE and not by sampling the mount
+        // once a beat: rounds leave on the fixed clock and the stow phase
+        // moves on the same clock, so the only frame at which "was the gun up
+        // when this round left?" has an answer is the frame the round was
+        // born.
         app.add_observer(
-            |_: On<Add, TurretBulletProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
+            |_: On<Add, TurretBulletProjectileMarker>,
+             mut outcome: ResMut<RangeOutcome>,
+             mut stow_log: ResMut<StowLog>,
+             q_stow: Query<&TurretStow, With<TurretSectionMarker>>| {
                 if !outcome.fired {
                     info!("range: first round left the barrel");
                 }
                 outcome.fired = true;
+                stow_log.rounds += 1;
+                if q_stow.iter().any(|stow| !stow.is_deployed()) {
+                    stow_log.rounds_while_housed += 1;
+                }
             },
         );
         // The SOURCE clause is load-bearing: the gates drift into each other
@@ -184,7 +204,16 @@ fn custom_plugin(app: &mut App) {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<AimSettle>();
-        app.add_systems(Update, track_aim_settle);
+        // The stow sampler runs after the input set for the same reason
+        // `range_aim` does: the safety derives `WeaponsHot` there, and an
+        // unordered sampler would time the raise off last frame's stance.
+        app.add_systems(
+            Update,
+            (
+                track_aim_settle,
+                track_stow_cycle.after(SpaceshipInputSystems),
+            ),
+        );
     }
 }
 
@@ -625,6 +654,111 @@ struct RangeOutcome {
     gate_at_round_start: Option<Vec3>,
 }
 
+/// What the run has seen of the retractable mount over the WHOLE walk, not
+/// one round of it.
+///
+/// Deliberately not part of [`RangeOutcome`], which the reload beat wipes: the
+/// housed-round count is a claim about every round the range ever fired, and a
+/// counter reset between passes would forgive a gun that shot through its own
+/// lids on the first load.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct StowLog {
+    /// Every round that left the barrel, housed or not.
+    rounds: u32,
+    /// Rounds that left while the mount was anything but fully deployed. The
+    /// number the range exists to keep at zero.
+    rounds_while_housed: u32,
+    /// Sim seconds from the safety going hot to the mount standing fully up.
+    raise_secs: Option<f32>,
+    /// Sim seconds from the safety going cold to the mount being fully housed.
+    /// Includes the settle the design holds a deployed mount for.
+    fold_secs: Option<f32>,
+    /// When the current raise/fold started, sim seconds.
+    hot_at: Option<f32>,
+    cold_at: Option<f32>,
+    /// How high the muzzle rides in the MOUNT's own frame, deployed and
+    /// stowed. The mount stands on the ship's -Z face under a quarter turn, so
+    /// the sink runs along world +Z and world height says nothing; the
+    /// section's local up is the only axis the lift travels on.
+    deployed_muzzle_up: Option<f32>,
+    stowed_muzzle_up: Option<f32>,
+    /// Last phase and stance seen, so an edge is read as an edge.
+    last_phase: Option<TurretStowPhase>,
+    last_hot: Option<bool>,
+}
+
+/// Sample the stance, the mount and the muzzle once a frame: time the raise
+/// and the fold, and hold the muzzle height each end of the travel.
+///
+/// A sampler rather than assertions: every figure here is MEASURED, and the
+/// claims made of them are comparisons between two of this run's own readings
+/// (the fold against the raise, the stowed muzzle against the deployed one),
+/// never a wall-clock budget.
+#[cfg(feature = "debug")]
+fn track_stow_cycle(
+    time: Res<Time>,
+    mut log: ResMut<StowLog>,
+    q_hot: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
+    q_turret: Query<(&GlobalTransform, &TurretStow), With<TurretSectionMarker>>,
+    q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+) {
+    let now = time.elapsed_secs();
+    let Some((mount, stow)) = q_turret.iter().next() else {
+        return;
+    };
+    let hot = q_hot.iter().next().map(|hot| hot.0);
+    let phase = stow.phase();
+    let muzzle_up = q_muzzle.iter().next().map(|muzzle| {
+        mount
+            .affine()
+            .inverse()
+            .transform_point3(muzzle.translation())
+            .y
+    });
+
+    // Stance edges open a window; the matching phase edge closes it. A window
+    // is only opened on an edge, so a stance held across a whole act times the
+    // travel it actually asked for and nothing else.
+    if log.last_hot != hot {
+        match hot {
+            Some(true) => log.hot_at = Some(now),
+            Some(false) => log.cold_at = Some(now),
+            None => {}
+        }
+        log.last_hot = hot;
+    }
+
+    match phase {
+        TurretStowPhase::Deployed => {
+            // Held while the gun is up AND wanted up, so the reading is the
+            // attitude the mount fights in rather than the tail of a fold.
+            if hot == Some(true) {
+                if let Some(up) = muzzle_up {
+                    log.deployed_muzzle_up = Some(up);
+                }
+            }
+            if log.last_phase != Some(TurretStowPhase::Deployed) {
+                if let Some(hot_at) = log.hot_at.take() {
+                    log.raise_secs = Some(now - hot_at);
+                }
+            }
+        }
+        TurretStowPhase::Stowed => {
+            if let Some(up) = muzzle_up {
+                log.stowed_muzzle_up = Some(up);
+            }
+            if log.last_phase != Some(TurretStowPhase::Stowed) {
+                if let Some(cold_at) = log.cold_at.take() {
+                    log.fold_secs = Some(now - cold_at);
+                }
+            }
+        }
+        TurretStowPhase::Stowing | TurretStowPhase::Deploying => {}
+    }
+    log.last_phase = Some(phase);
+}
+
 /// The inputs the script holds down. A resource re-applied every frame rather
 /// than a one-shot press: `ButtonInput` is a live map the game's own systems
 /// read every frame, and the weapons safety (task 20260713-082337) derives
@@ -776,7 +910,245 @@ fn turret_script() -> Script {
         ))
         .deadline(10.0)
         .add();
-    fire_round(script, RELOADED_ROUND)
+    let script = fire_round(script, RELOADED_ROUND);
+    fold_the_mount(script)
+}
+
+/// The retractable mount's own act, appended once after both firing rounds.
+///
+/// Last on purpose: it stands the ship down, which is the one thing the firing
+/// rounds cannot do without losing the stance they are built on. Running the
+/// fold here also means the housed-round count has both rounds behind it by
+/// the time it is read.
+#[cfg(feature = "debug")]
+fn fold_the_mount(script: Script) -> Script {
+    script
+        .step("stand the ship down")
+        .on_enter(stand_down)
+        .until(weapons_are_cold())
+        .deadline(10.0)
+        .add()
+        // No settle clause and no timed wait: the beat waits for the HOUSING,
+        // so the design's quiet window is measured by the sampler rather than
+        // assumed by the script. A mount that folded instantly would still
+        // pass this beat and fail the assertion below, which is where that
+        // claim belongs.
+        .step("let the battery fold itself away")
+        .until(mount_is(TurretStowPhase::Stowed))
+        .deadline(60.0)
+        .add()
+        .step("assert the mount sank behind shut lids")
+        .on_enter(assert_the_mount_is_housed)
+        .add()
+        .step("assert the fold is lazier than the raise")
+        .on_enter(assert_the_fold_is_lazier_than_the_raise)
+        .add()
+        // Raise it again and shoot: a mount that came back up and fired is
+        // what makes the fold a CYCLE rather than a one-way retirement, and
+        // the rounds it fires are the ones the housed-round count is read on.
+        .step("call the battery back up")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
+        .until(mount_is(TurretStowPhase::Deployed))
+        .deadline(20.0)
+        .add()
+        .step("hold the trigger on the mount that just came back")
+        .on_enter(open_fire)
+        .until(and(range_fired(), elapsed(HIT_SETTLE_SECS)))
+        .deadline(20.0)
+        .add()
+        .step("assert no round ever left a housed mount")
+        .on_enter(assert_no_round_left_a_housed_mount)
+        .add()
+}
+
+/// Drop the stance and the trigger, and clear the fired flag so the act's own
+/// firing beat has to earn a fresh round.
+///
+/// RELEASES both, rather than merely stopping the per-frame re-press: the
+/// stance is a registry action and the trigger a raw key, and both latch. The
+/// reload beat learned this the hard way - see [`reload_range`].
+#[cfg(feature = "debug")]
+fn stand_down(world: &mut World) {
+    {
+        let mut held = world.resource_mut::<HeldInput>();
+        held.combat = false;
+        held.fire = false;
+    }
+    world
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::Space);
+    drive_action(world, "combat_stance", InputPhase::Release);
+    world.resource_mut::<RangeOutcome>().fired = false;
+    info!("range: standing down - the battery folds itself away from here");
+}
+
+/// The player ship's weapons safety has gone cold again.
+#[cfg(feature = "debug")]
+fn weapons_are_cold() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>()
+            .is_some_and(|mut query| query.iter(world).all(|hot| !hot.0))
+    })
+}
+
+/// The range's mount has reached `phase`.
+#[cfg(feature = "debug")]
+fn mount_is(phase: TurretStowPhase) -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<&TurretStow, With<TurretSectionMarker>>()
+            .is_some_and(|mut query| query.iter(world).any(|stow| stow.phase() == phase))
+    })
+}
+
+/// Read a stow cue's live progress off the range's mount, or `None` if the
+/// mount does not author that track at all.
+#[cfg(feature = "debug")]
+fn mount_cue(world: &World, cue: SectionAnimationCue) -> Option<f32> {
+    let mut query = world.try_query_filtered::<&SectionAnimations, With<TurretSectionMarker>>()?;
+    query.iter(world).next()?.cue_progress(cue)
+}
+
+/// The retractable mount really went away: the gun rides LOWER in its own
+/// mount than it did in the fight, and both authored tracks have run to their
+/// stowed end.
+///
+/// The muzzle height is the half a unit test cannot reach. A machine test
+/// drives fabricated tracks and reads the phase it just wrote; what is in
+/// question on a live range is whether the shipped `stow_lift` track is bound
+/// to the joint the shipped joint tree actually names, so that the assembly
+/// the player sees goes down with the state machine. A cue that drove nothing
+/// would report 1 here and leave the gun standing in the open.
+#[cfg(feature = "debug")]
+fn assert_the_mount_is_housed(world: &mut World) {
+    let log = world.resource::<StowLog>();
+    let deployed = log
+        .deployed_muzzle_up
+        .expect("range: the mount must have been seen deployed and hot before it folds");
+    let stowed = log
+        .stowed_muzzle_up
+        .expect("range: the mount must have been seen stowed");
+    let sink = deployed - stowed;
+    assert!(
+        sink > 0.0,
+        "range: the mount reports itself stowed, but its muzzle sits {stowed:.3} u up its own mount \
+         against {deployed:.3} u deployed - the gun did not move, so the stow track is driving no \
+         joint and the housing shut on nothing"
+    );
+    let lift = mount_cue(world, SectionAnimationCue::StowLift)
+        .expect("range: the shipped mount authors a StowLift track");
+    let doors = mount_cue(world, SectionAnimationCue::StowDoors)
+        .expect("range: the shipped mount authors a StowDoors track");
+    assert!(
+        lift == 1.0 && doors == 1.0,
+        "range: a mount that calls itself stowed is sitting at lift {lift:.3} / doors {doors:.3}; a \
+         fold that stops short leaves the gun in a half-shut housing"
+    );
+    let sink_m = Meters::from_engine(sink);
+    info!(
+        "range: the mount is housed - the muzzle dropped {:.1} m ({deployed:.3} -> {stowed:.3} u) \
+         behind shut lids",
+        sink_m.get()
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: a folded mount has sunk behind shut lids",
+        serde_json::json!({
+            "t": elapsed,
+            "muzzle_up_deployed": deployed,
+            "muzzle_up_stowed": stowed,
+            "sink_m": sink_m.get(),
+            "lift": lift,
+            "doors": doors,
+        }),
+    );
+}
+
+/// How many times the fold must outlast the raise.
+///
+/// A RATIO between two of this run's own measurements, not a budget: the two
+/// travels are timed on the same clock on the same box within seconds of each
+/// other, so a slow host moves both together and the comparison survives it.
+/// The design's own words are "deploy is fast and stow is lazy" - the raise is
+/// the lids and the lift back to back, while the fold spends a settle window
+/// on top of the same travel, so the gap is several times over, not a sliver.
+#[cfg(feature = "debug")]
+const FOLD_LAZINESS_FLOOR: f32 = 2.0;
+
+/// The quiet delay is real: standing down does not fold the battery at the
+/// speed raising it lifts it.
+///
+/// This is the live shape of "a lull in a fight must not fold the battery
+/// mid-engagement". Flatten the settle to zero, or price the fold at the
+/// deploy's pace, and a gun that drops out of the fight between two bursts
+/// reads as normal - this says so instead.
+#[cfg(feature = "debug")]
+fn assert_the_fold_is_lazier_than_the_raise(world: &mut World) {
+    let log = world.resource::<StowLog>();
+    let raise = log
+        .raise_secs
+        .expect("range: the mount must have been timed coming up before it is timed folding");
+    let fold = log
+        .fold_secs
+        .expect("range: the mount must have been timed folding");
+    assert!(
+        raise > 0.0,
+        "range: the mount came up in {raise:.2} s of world time - a raise the sampler never saw \
+         travel cannot be compared with anything"
+    );
+    assert!(
+        fold > raise * FOLD_LAZINESS_FLOOR,
+        "range: standing down housed the battery in {fold:.2} s against {raise:.2} s to raise it, \
+         under {FOLD_LAZINESS_FLOOR}x - a fold that keeps pace with the raise is a battery that \
+         folds itself away in the gap between two bursts"
+    );
+    info!(
+        "range: the mount raises in {raise:.2} s and folds in {fold:.2} s ({:.1}x lazier)",
+        fold / raise
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: the fold is lazier than the raise",
+        serde_json::json!({
+            "t": elapsed,
+            "raise_secs": raise,
+            "fold_secs": fold,
+            "ratio": fold / raise,
+            "floor": FOLD_LAZINESS_FLOOR,
+        }),
+    );
+}
+
+/// Nothing shot through the lids, on either round or after the fold.
+///
+/// The count spans the whole walk, and the walk holds the trigger across two
+/// raises and one fold, so it covers the two seams where a gate read at press
+/// time instead of at fire time would leak: the trigger is already latched
+/// when the mount starts coming up.
+#[cfg(feature = "debug")]
+fn assert_no_round_left_a_housed_mount(world: &mut World) {
+    let log = world.resource::<StowLog>();
+    let (rounds, housed) = (log.rounds, log.rounds_while_housed);
+    assert!(
+        rounds > 0,
+        "range: no round left the barrel over the whole walk; a housed-round count of zero out of \
+         zero says nothing about the gate"
+    );
+    assert!(
+        housed == 0,
+        "range: {housed} of {rounds} rounds left a mount that was not fully deployed - a gun inside \
+         its housing has no line of fire, so those rounds went through the lids"
+    );
+    info!("range: {rounds} rounds, none of them from a housed mount");
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: no round leaves a housed mount",
+        serde_json::json!({ "t": elapsed, "rounds": rounds, "rounds_while_housed": housed }),
+    );
 }
 
 /// One full pass of invariants 1-3 and 5, appended to `script`. Called twice -
