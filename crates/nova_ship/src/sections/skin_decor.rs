@@ -38,7 +38,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use avian3d::prelude::Collider;
 use bevy::{platform::collections::HashMap, prelude::*};
-use nova_gameplay::prelude::{destructible_body, AssetRef};
+use nova_gameplay::prelude::{destructible_body, AssetRef, Fnv64};
 
 use crate::sections::{
     fixture::prelude::SectionFixture,
@@ -402,31 +402,24 @@ fn quarter(turns: u8) -> f32 {
     f32::from(turns) * FRAC_PI_2
 }
 
-/// The hash a plate's claim is decided by: FNV-1a over the cell, the face it
+/// The hash a plate's claim is decided by: [`Fnv64`] over the cell, the face it
 /// shows and the fixture's id.
 ///
-/// Written out rather than taken from `DefaultHasher` because this decides what
-/// a SHIP LOOKS LIKE. The standard hasher's output is not promised to be stable
-/// across releases of the standard library, and a ship that comes back wearing
-/// different antennae after a toolchain bump is exactly the failure the whole
-/// derivation exists to avoid.
+/// The shared deterministic hash rather than `DefaultHasher` because this
+/// decides what a SHIP LOOKS LIKE. The standard hasher's output is not promised
+/// to be stable across releases of the standard library, and a ship that comes
+/// back wearing different antennae after a toolchain bump is exactly the
+/// failure the whole derivation exists to avoid.
 ///
 /// The face is in the hash as well as the cell: a corner cell can be clad from
 /// two directions on two different ships, and the two plates are different
 /// places.
 fn cell_hash(cell: IVec3, out: IVec3, salt: &str) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
-    let mut hash = OFFSET;
+    let mut hash = Fnv64::new();
     for value in [cell.x, cell.y, cell.z, out.x, out.y, out.z] {
-        for byte in value.to_le_bytes() {
-            hash = (hash ^ u64::from(byte)).wrapping_mul(PRIME);
-        }
+        hash = hash.write(&value.to_le_bytes());
     }
-    for byte in salt.as_bytes() {
-        hash = (hash ^ u64::from(*byte)).wrapping_mul(PRIME);
-    }
-    hash
+    hash.write(salt.as_bytes()).finish()
 }
 
 /// A hash as a share in `[0, 1)`, off the high bits - the low bits of FNV-1a

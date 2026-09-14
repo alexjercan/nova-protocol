@@ -5,7 +5,7 @@
 
 use nova_probe::prelude::*;
 
-use super::{Check, CheckStatus, NotApplicable, RunArtifacts};
+use super::{capability_gap, Check, CheckStatus, NotApplicable, RunArtifacts, SilentGap};
 use crate::evaluation::prelude::*;
 
 /// Soft FPS gate: the worst same-label mean-frame-time delta against the
@@ -27,47 +27,30 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         detail,
         data: serde_json::Value::Null,
     };
-    let runs = match artifacts.resolve(Capability::FrameTime, artifacts.runs.as_ref()) {
-        Input::Present(runs) => runs,
-        Input::NotDeclared(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
-                "not claimed",
-                format!(
+    let input = artifacts.resolve(Capability::FrameTime, artifacts.runs.as_ref());
+    let runs = match capability_gap(&input, "no capture", SilentGap::Fails) {
+        Ok(runs) => runs,
+        Err((status, value)) => {
+            let detail = match input {
+                Input::NotDeclared(capability) => format!(
                     "the example wires no {} - it makes no frame-cost assertion, \
                      so there is nothing to compare",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::NotArmed(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
-                "not armed",
-                format!(
+                Input::NotArmed(capability) => format!(
                     "the example wires {} but this run took no frame-time pass \
                      (--correctness-only, a sweep, or a run older than the capture)",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::ArmedButAbsent(capability) => {
-            return no_input(
-                CheckStatus::Fail,
-                "armed and silent",
-                format!(
+                Input::ArmedButAbsent(capability) => format!(
                     "the example declares {} and probe armed the capture, but no \
                      frametime.csv was written",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::Unknown(_) => {
-            return no_input(
-                CheckStatus::Skipped,
-                "no capture",
-                "frametime.csv not captured (arm NOVA_PROBE)".into(),
-            )
+                // Unknown; `capability_gap` took Present away.
+                _ => "frametime.csv not captured (arm NOVA_PROBE)".into(),
+            };
+            return no_input(status, value, detail);
         }
     };
     // The operator's half: a baseline is an argument, not a capability.

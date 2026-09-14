@@ -32,20 +32,11 @@ impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
 
         // The id -> Entity lookup needs world access, which push_command's
         // `&mut Commands` does not have - so the command queues a Command
-        // closure that resolves and despawns in one step. The lookup is
-        // gated on ScenarioScopedMarker: spaceship SECTIONS also carry
-        // EntityId (their per-ship section ids like "controller"), and an
-        // unscoped match on such an id would rip that section out of every
-        // ship in the scene.
+        // closure that resolves and despawns in one step. `scoped_entities`
+        // owns the scoping rule this depends on.
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let mut query =
-                    world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
-                let matches: Vec<Entity> = query
-                    .iter(world)
-                    .filter(|(_, entity_id)| entity_id.0 == id)
-                    .map(|(entity, _)| entity)
-                    .collect();
+                let matches = scoped_entities(world, &id);
                 if matches.is_empty() {
                     warn!(
                         "DespawnScenarioObject: no entity with id '{}'; check the scenario \

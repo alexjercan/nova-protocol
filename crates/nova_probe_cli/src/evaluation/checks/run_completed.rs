@@ -7,61 +7,43 @@
 
 use nova_probe::prelude::*;
 
-use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
+use super::{capability_gap, timeline_skip_detail, Check, CheckStatus, RunArtifacts, SilentGap};
 use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "run_end present + AppExit Success + entry count consistent";
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let no_input = |status, value: &str, detail: String| Check {
-        name: "run_completed",
-        status,
-        value: value.into(),
-        threshold: THRESHOLD.into(),
-        detail,
-        data: serde_json::Value::Null,
-    };
-    let timeline = match artifacts.resolve(Capability::Timeline, artifacts.timeline.as_ref()) {
-        Input::Present(timeline) => timeline,
-        Input::NotDeclared(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
-                "not claimed",
-                format!(
+    let input = artifacts.resolve(Capability::Timeline, artifacts.timeline.as_ref());
+    let timeline = match capability_gap(&input, "no timeline", SilentGap::Fails) {
+        Ok(timeline) => timeline,
+        Err((status, value)) => {
+            let detail = match input {
+                Input::NotDeclared(capability) => format!(
                     "the example wires no {} - nothing recorded the run, so there \
                      is no bracket to close",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::NotArmed(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
-                "not armed",
-                format!(
+                Input::NotArmed(capability) => format!(
                     "the example wires {} but this run did not arm it (see the \
                      manifest's armed flags)",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::ArmedButAbsent(capability) => {
-            return no_input(
-                CheckStatus::Fail,
-                "armed and silent",
-                format!(
+                Input::ArmedButAbsent(capability) => format!(
                     "the example declares {} and probe armed it, but no \
                      timeline.jsonl was written - the run recorded nothing",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::Unknown(_) => {
-            return no_input(
-                CheckStatus::Skipped,
-                "no timeline",
-                timeline_skip_detail(artifacts),
-            )
+                // Unknown; `capability_gap` took Present away.
+                _ => timeline_skip_detail(artifacts),
+            };
+            return Check {
+                name: "run_completed",
+                status,
+                value: value.into(),
+                threshold: THRESHOLD.into(),
+                detail,
+                data: serde_json::Value::Null,
+            };
         }
     };
 

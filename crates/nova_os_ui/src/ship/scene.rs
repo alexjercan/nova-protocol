@@ -13,7 +13,6 @@ use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     mesh::PrimitiveTopology,
     prelude::*,
-    render::render_resource::{Extent3d, TextureFormat},
     ui_widgets::{Activate, Button},
 };
 use nova_gameplay::prelude::*;
@@ -22,9 +21,12 @@ use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
 use nova_ui::font::UiFont;
 
 use super::{sections::*, *};
-use crate::terminal::{
-    nova_os_font, nova_os_text_font, NovaOsAppInput, NOVA_OS_AMBER, NOVA_OS_PHOSPHOR,
-    NOVA_OS_PHOSPHOR_MUTED, NOVA_OS_SCREEN, NOVA_OS_TEXT,
+use crate::{
+    terminal::{
+        nova_os_font, nova_os_text_font, NovaOsAppInput, NOVA_OS_AMBER, NOVA_OS_PHOSPHOR,
+        NOVA_OS_PHOSPHOR_MUTED, NOVA_OS_SCREEN, NOVA_OS_TEXT,
+    },
+    viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
 };
 
 /// Dark fill behind the schematic image.
@@ -106,15 +108,6 @@ pub(crate) struct ShipOrbit {
     /// when `ShipRuntime.selected` diverges from this, so the home reframe is
     /// not immediately chased back to the still-selected section.
     pub(crate) centered_on: Option<Entity>,
-}
-
-pub(crate) fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
-    let horizontal = radius * phi.cos();
-    Vec3::new(
-        horizontal * theta.sin(),
-        radius * phi.sin(),
-        horizontal * theta.cos(),
-    )
 }
 
 /// Live state of the running ship app.
@@ -210,7 +203,7 @@ pub(crate) fn manage_ship_scene(
         .fold(2.0_f32, f32::max);
     let radius = (extent * 2.6).clamp(SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
 
-    let image = images.add(new_rtt_image(UVec2::splat(64)));
+    let image = images.add(new_render_target_image(UVec2::splat(64)));
     runtime.image = Some(image.clone());
 
     // A dim, uniform-green fill for every block (status rides the blip bar now),
@@ -336,22 +329,12 @@ pub(crate) fn reconcile_ship_target(
         node.image = image.clone();
     }
     let desired = computed.size().round().as_uvec2().max(UVec2::ONE);
-    let needs_resize = images
-        .get(image)
-        .map(|img| img.size() != desired)
-        .unwrap_or(true);
-    if needs_resize {
-        if let Some(mut img) = images.get_mut(image) {
-            img.resize(Extent3d {
-                width: desired.x,
-                height: desired.y,
-                depth_or_array_layers: 1,
-            });
-        }
-        if let Ok((_, mut projection)) = q_camera.single_mut() {
-            projection.set_changed();
-        }
-    }
+    resize_render_target(
+        images,
+        image,
+        desired,
+        q_camera.single_mut().ok().map(|(_, projection)| projection),
+    );
 }
 
 /// Drive the ship camera transform from its orbit state.
@@ -399,30 +382,17 @@ pub(crate) fn ship_input(
     }
 
     if let Ok(mut orbit) = q_camera.single_mut() {
-        let turn = 1.6 * dt;
-        if input.pressed("novaos_orbit_left") {
-            orbit.theta += turn;
+        // Turn, tilt and RMB-drag are the shared viewer's feel, not the ship's.
+        let gesture = OrbitGesture::read(&input, motion_delta);
+        if !gesture.is_idle() {
+            let (theta, phi) = gesture.apply(dt, orbit.theta, orbit.phi);
+            orbit.theta = theta;
+            orbit.phi = phi;
         }
-        if input.pressed("novaos_orbit_right") {
-            orbit.theta -= turn;
-        }
-        if input.pressed("novaos_orbit_up") {
-            orbit.phi = (orbit.phi + turn).min(1.45);
-        }
-        if input.pressed("novaos_orbit_down") {
-            orbit.phi = (orbit.phi - turn).max(0.12);
-        }
-        // Mouse drag orbits, RIGHT button ONLY. LMB is the blip-select click (the
-        // `Button` widget), so letting it orbit turned a small press-with-motion
-        // into a drag that slid the blip out from under the cursor and ate the
-        // selection.
-        if input.mouse_pressed(MouseButton::Right) {
-            orbit.theta -= motion_delta.x * 0.0024;
-            orbit.phi = (orbit.phi + motion_delta.y * 0.0024).clamp(0.12, 1.45);
-        }
+        // The zoom clamp is the ship's own: a hull has a fixed reach, where the
+        // map's ceiling tracks the live contact spread.
         if wheel_delta != 0.0 {
-            orbit.radius =
-                (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
+            orbit.radius = zoom_radius(orbit.radius, wheel_delta, SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
         }
     }
 
@@ -448,13 +418,9 @@ pub(crate) fn ship_input(
         let current = runtime
             .selected
             .and_then(|sel| list.iter().position(|v| v.entity == sel));
-        let len = list.len();
-        let next = match current {
-            Some(i) if forward => (i + 1) % len,
-            Some(i) => (i + len - 1) % len,
-            None => 0,
-        };
-        runtime.selected = Some(list[next].entity);
+        if let Some(next) = cycle_index(current, list.len(), forward) {
+            runtime.selected = Some(list[next].entity);
+        }
     }
 
     // Reconcile the orbit center after any selection change this frame. This is
@@ -985,22 +951,4 @@ pub(crate) fn cuboid_edges() -> Mesh {
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; count])
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; count])
-}
-
-pub(crate) fn new_rtt_image(size: UVec2) -> Image {
-    Image::new_target_texture(
-        size.x.max(1),
-        size.y.max(1),
-        TextureFormat::Rgba8UnormSrgb,
-        None,
-    )
-}
-
-pub(crate) fn unlit(color: Color) -> StandardMaterial {
-    StandardMaterial {
-        base_color: color,
-        unlit: true,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    }
 }

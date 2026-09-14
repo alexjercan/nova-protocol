@@ -9,7 +9,6 @@
 use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     prelude::*,
-    render::render_resource::{Extent3d, TextureFormat},
     // The activatable Button (fires `Activate` through the forwarded NOVA OS
     // pointer), matching the terminal's own buttons.
     ui_widgets::{Activate, Button},
@@ -20,9 +19,13 @@ use nova_ship::prelude::*;
 use nova_ui::font::UiFont;
 
 use super::{app::*, contacts::*, *};
-use crate::terminal::{
-    nova_os_font, nova_os_text_font, NovaOsAppInput, NOVA_OS_AMBER, NOVA_OS_PHOSPHOR,
-    NOVA_OS_PHOSPHOR_DIM, NOVA_OS_PHOSPHOR_MUTED, NOVA_OS_SCREEN, NOVA_OS_TEXT,
+use crate::{
+    terminal::{
+        nova_os_font, nova_os_text_font, NovaOsAppInput, NOVA_OS_AMBER, NOVA_OS_PHOSPHOR,
+        NOVA_OS_PHOSPHOR_DIM, NOVA_OS_PHOSPHOR_MUTED, NOVA_OS_SCREEN, NOVA_OS_TEXT,
+    },
+    // The viewer the map and the ship apps are two framings of.
+    viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
 };
 
 /// Spawn the schematic scene + camera on map open, tear it down on close.
@@ -74,7 +77,7 @@ pub(crate) fn manage_map_scene(
         .map(|gt| gt.translation())
         .unwrap_or(Vec3::ZERO);
 
-    let image = images.add(new_map_image(UVec2::splat(64)));
+    let image = images.add(new_render_target_image(UVec2::splat(64)));
     runtime.image = Some(image.clone());
 
     // Framed on what is actually out there: a scenario spread over 20 km opens
@@ -184,24 +187,12 @@ pub(crate) fn reconcile_map_target(
         node.image = image.clone();
     }
     let desired = computed.size().round().as_uvec2().max(UVec2::ONE);
-    let needs_resize = images
-        .get(image)
-        .map(|img| img.size() != desired)
-        .unwrap_or(true);
-    if needs_resize {
-        if let Some(mut img) = images.get_mut(image) {
-            img.resize(Extent3d {
-                width: desired.x,
-                height: desired.y,
-                depth_or_array_layers: 1,
-            });
-        }
-        // Force the camera to re-derive its target info after the in-place swap
-        // (`bevy-camera-ignores-runtime-rendertarget-swap`).
-        if let Ok((_, mut projection)) = q_camera.single_mut() {
-            projection.set_changed();
-        }
-    }
+    resize_render_target(
+        images,
+        image,
+        desired,
+        q_camera.single_mut().ok().map(|(_, projection)| projection),
+    );
 }
 
 /// Drive the map camera transform from the orbit output. The orbit `center` is
@@ -306,37 +297,18 @@ pub(crate) fn map_input(
     }
 
     if let Ok((mut orbit, transform)) = q_camera.single_mut() {
-        // Keyed orbit: `novaos_orbit_left`/`_right` turn (yaw),
-        // `novaos_orbit_up`/`_down` tilt (pitch). This is the reliable path -
-        // mouse-drag look is unreliable through the NOVA OS pointer forwarding.
-        // Applied straight to the orbit angles (no smoothing layer).
-        let turn = 1.6 * dt;
-        if input.pressed("novaos_orbit_left") {
-            orbit.theta += turn;
-        }
-        if input.pressed("novaos_orbit_right") {
-            orbit.theta -= turn;
-        }
-        if input.pressed("novaos_orbit_up") {
-            orbit.phi = (orbit.phi + turn).min(1.45);
-        }
-        if input.pressed("novaos_orbit_down") {
-            orbit.phi = (orbit.phi - turn).max(0.12);
-        }
-        // Mouse drag orbits, RIGHT button ONLY. LMB is the contact-select click
-        // (the blip `Button` widget), so letting it orbit turned a small
-        // press-with-motion into a drag that slid the blip out from under the
-        // cursor and ate the selection. Gentle sensitivity so a small drag is a
-        // small turn.
-        if input.mouse_pressed(MouseButton::Right) {
-            orbit.theta -= motion_delta.x * 0.0024;
-            orbit.phi = (orbit.phi + motion_delta.y * 0.0024).clamp(0.12, 1.45);
+        // Turn, tilt and RMB-drag are the shared viewer's feel, not the map's.
+        let gesture = OrbitGesture::read(&input, motion_delta);
+        if !gesture.is_idle() {
+            let (theta, phi) = gesture.apply(dt, orbit.theta, orbit.phi);
+            orbit.theta = theta;
+            orbit.phi = phi;
         }
         // Wheel zooms the focus distance, out to what the live scene needs:
         // a fixed ceiling left a contact 20 km out permanently off the map.
         if wheel_delta != 0.0 {
             let reach = map_radius_max(map_spread(&contacts, orbit.center));
-            orbit.radius = (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(MAP_RADIUS_MIN, reach);
+            orbit.radius = zoom_radius(orbit.radius, wheel_delta, MAP_RADIUS_MIN, reach);
         }
         // The pan actions move the focus RELATIVE TO THE MAP VIEW (the camera's
         // heading on the ground plane), not the ship: forward goes into the
@@ -380,13 +352,9 @@ pub(crate) fn map_input(
             let current = runtime
                 .selected
                 .and_then(|sel| list.iter().position(|c| c.entity == sel));
-            let len = list.len();
-            let next = match current {
-                Some(i) if forward => (i + 1) % len,
-                Some(i) => (i + len - 1) % len,
-                None => 0,
-            };
-            runtime.selected = Some(list[next].entity);
+            if let Some(next) = cycle_index(current, list.len(), forward) {
+                runtime.selected = Some(list[next].entity);
+            }
         }
     }
 
@@ -700,25 +668,5 @@ pub(crate) fn update_map_readout(
             text.0 = "Select a contact for range and bearing.".to_string();
             color.0 = NOVA_OS_PHOSPHOR_MUTED;
         }
-    }
-}
-
-pub(crate) fn new_map_image(size: UVec2) -> Image {
-    Image::new_target_texture(
-        size.x.max(1),
-        size.y.max(1),
-        TextureFormat::Rgba8UnormSrgb,
-        None,
-    )
-}
-
-/// An unlit emissive-ish material so proxy meshes read at full color without a
-/// light on the map layer.
-pub(crate) fn unlit(color: Color) -> StandardMaterial {
-    StandardMaterial {
-        base_color: color,
-        unlit: true,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
     }
 }

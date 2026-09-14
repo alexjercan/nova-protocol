@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_assets::{
     mod_refs::prelude::{rewrite_refs, DepRef, RefScope},
-    prelude::{DownloadedMods, EnabledMods, OptionalBundles},
+    prelude::{enabled_bundles, DownloadedMods, EnabledMods, OptionalBundles},
 };
 use nova_modding::prelude::{BundleAsset, Content, InstalledCatalog};
 use nova_scenario::prelude::ScenarioConfig;
@@ -175,40 +175,34 @@ impl AssetIndex<'_> {
             .flat_map(|(id, bundle)| bundle.resources.iter().map(move |file| (id, file.as_str())))
     }
 
-    /// Every ENABLED bundle, by id.
+    /// Every ENABLED bundle, by id - the merge's own walk.
+    ///
+    /// `nova_assets::enabled_bundles` owns which bundles are active and in what
+    /// order, so the picker offers the set the merge loads. That includes the
+    /// NO-SHADOWING rule: a downloaded id that shadows a shipped one is dropped
+    /// there, and offering its files here would let a creator name content the
+    /// merge resolves against the shipped bundle instead.
     fn bundles(&self) -> impl Iterator<Item = (&str, &BundleAsset)> {
-        let enabled = self.enabled.as_deref().map(|enabled| &enabled.0);
-        // Every catalog asset loaded rather than the one `GameAssets` points
-        // at: there is only ever the one, and reading it this way keeps the
-        // index out of the boot collection, whose thirty handles a picker has
-        // no use for.
-        // An optional mod's handle lives in `OptionalBundles`, not on its
-        // catalog entry - the catalog deliberately does not load one. A rig
-        // without that resource sees the mandatory entries only.
-        let optional = self.optional.as_deref();
-        let shipped = self
+        // The one catalog asset, read out of `Assets` rather than through
+        // `GameAssets`: there is only ever the one, and reading it this way
+        // keeps the index out of the boot collection, whose thirty handles a
+        // picker has no use for.
+        let catalog = self
             .catalogs
             .as_deref()
-            .into_iter()
-            .flat_map(Assets::iter)
-            .flat_map(|(_, catalog)| catalog.entries.iter())
-            .filter_map(move |entry| {
-                let handle = entry
-                    .bundle
-                    .as_ref()
-                    .or_else(|| optional?.handle(&entry.decl.id))?;
-                Some((entry.decl.id.as_str(), handle))
-            });
-        let downloaded = self
-            .downloaded
-            .as_deref()
-            .into_iter()
-            .flat_map(|downloaded| downloaded.0.iter())
-            .map(|installed| (installed.record.id.as_str(), &installed.bundle));
-        shipped
-            .chain(downloaded)
-            .filter(move |(id, _)| enabled.is_none_or(|enabled| enabled.contains(*id)))
-            .filter_map(|(id, handle)| Some((id, self.bundles.as_deref()?.get(handle)?)))
+            .and_then(|catalogs| catalogs.iter().next())
+            .map(|(_, catalog)| catalog);
+        // An optional mod's handle lives in `OptionalBundles`, not on its
+        // catalog entry - the catalog deliberately does not load one. A rig
+        // without that resource sees the mandatory entries only, and one
+        // without `EnabledMods` sees everything installed.
+        enabled_bundles(
+            catalog,
+            self.optional.as_deref(),
+            self.downloaded.as_deref(),
+            self.enabled.as_deref(),
+        )
+        .filter_map(|active| Some((active.id, self.bundles.as_deref()?.get(active.bundle?)?)))
     }
 }
 

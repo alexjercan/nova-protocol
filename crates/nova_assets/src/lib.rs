@@ -53,14 +53,15 @@ pub mod prelude {
     pub use nova_modding::prelude::ModMeta;
 
     pub use super::{
+        enabled_bundles,
         portal::{
             FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus, PendingRemovals,
             PortalConfig, PortalFetchTimeout, RemoteCatalog, RemoteCatalogState,
             UninstallPortalMod,
         },
-        DisabledMod, DownloadedMod, DownloadedMods, EnabledMods, FatalAssetFailure, GameAssets,
-        GameAssetsPlugin, GameAssetsStates, ModCatalog, ModInfo, ModQuarantine, OptionalBundle,
-        OptionalBundles, ReloadContent, RELOAD_KEY,
+        shadows_shipped, DisabledMod, DownloadedMod, DownloadedMods, EnabledBundle, EnabledMods,
+        FatalAssetFailure, GameAssets, GameAssetsPlugin, GameAssetsStates, ModCatalog, ModInfo,
+        ModQuarantine, OptionalBundle, OptionalBundles, ReloadContent, RELOAD_KEY,
     };
 }
 

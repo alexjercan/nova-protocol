@@ -135,27 +135,25 @@ pub fn bind(world: &mut World, action: &str, source: &str) -> CommandResult {
             format!("bind: no action named '{action}'"),
         );
     };
-    // A source belongs to the column of its own device; the registry refuses
-    // the other arrangement, so the command sorts it here rather than letting
-    // a correct request be rejected as malformed.
-    let spec = match wanted {
-        InputSource::Gamepad(_) => BindingSpec {
-            keyboard: current.keyboard,
-            gamepad: vec![wanted],
-        },
-        _ => BindingSpec {
-            keyboard: vec![wanted],
-            gamepad: current.gamepad,
-        },
-    };
-    if !table.rebind(action, spec) {
+    // A source belongs to the column of its own device, and the other column
+    // is kept: the shared rule every rebind surface keeps, so `bind fire
+    // pad:south` moves the pad half and leaves the key alone.
+    let spec = current.captured(wanted);
+    // A source another live action already answers on is refused HERE. Nothing
+    // in this crate writes the store - `nova_menu` persists on change - so an
+    // accepted collision is saved, put back by the next load behind a `warn!`,
+    // and the player is never told their binding went away.
+    let held_by = table
+        .conflict_for(action, wanted)
+        .map(|taken_by| taken_by.label.to_string());
+    if let RebindVerdict::Refuse(line) = rebind_verdict(RebindSurface::Console, wanted, held_by) {
+        return CommandResult::refused("bind", CLASS, format!("bind: {line}"));
+    }
+    if let Err(reason) = table.commit_rebind(action, spec) {
         return CommandResult::refused(
             "bind",
             CLASS,
-            format!(
-                "bind: '{action}' will not take {}; see `bindings {action}`",
-                wanted.readout_label()
-            ),
+            format!("bind: {reason}; see `bindings {action}`"),
         );
     }
     let display = binding_line(world, action);
@@ -344,6 +342,42 @@ mod tests {
             action.keyboard,
             vec![InputSource::parse("K").unwrap()],
             "a pad bind kept the keyboard column"
+        );
+    }
+
+    /// A source another live action already answers on is refused AT THE BIND.
+    ///
+    /// Accepting it was worse than refusing: the value reaches the store, the
+    /// next launch hands it to `apply_overrides`, and `drop_stored_conflicts`
+    /// puts it back behind a `warn!` - so the player set a binding, used it,
+    /// and found it gone after a restart with nothing on screen saying why.
+    #[test]
+    fn a_bind_onto_a_source_another_action_holds_is_refused_by_name() {
+        let mut world = World::new();
+        world.insert_resource(InputBindings::from_actions([
+            ActionBinding::new("fire", "WEAPONS", "Fire")
+                .keyboard([InputSource::parse("Space").expect("Space is bindable")]),
+            ActionBinding::new("main_drive", "FLIGHT", "Main Drive")
+                .keyboard([InputSource::parse("W").expect("W is bindable")]),
+        ]));
+
+        let result = bind(&mut world, "fire", "W");
+
+        assert_eq!(result.status, CommandStatus::Refused, "{}", result.detail);
+        assert!(
+            result.detail.contains("Main Drive"),
+            "the refusal names what holds the source; it read {:?}",
+            result.detail
+        );
+        let table = world.resource::<InputBindings>();
+        assert_eq!(
+            table.get("fire").expect("registered").keyboard,
+            vec![InputSource::parse("Space").unwrap()],
+            "the refused bind left the action alone"
+        );
+        assert!(
+            table.overrides().is_empty(),
+            "and wrote nothing for the next load to take back"
         );
     }
 }

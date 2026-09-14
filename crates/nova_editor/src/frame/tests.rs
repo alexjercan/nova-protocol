@@ -4,6 +4,7 @@
 
 use avian3d::prelude::{Collider, SimpleCollider};
 use bevy::ecs::system::RunSystemOnce;
+use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_scenario::prelude::{AnchorConfig, ScenarioObjectKind};
 
 use super::*;
@@ -75,7 +76,7 @@ fn bounds_of(app: &mut App, node: Entity) -> Option<ColliderAabb> {
     app.world_mut()
         .run_system_once(
             move |q_children: Query<&Children>, q_bounds: Query<&ColliderAabb, Without<Sensor>>| {
-                node_bounds(node, &q_children, &q_bounds)
+                subtree_collider_aabb(node, &q_children, &q_bounds)
             },
         )
         .expect("the system runs")

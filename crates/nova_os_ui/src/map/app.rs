@@ -175,16 +175,6 @@ pub(crate) struct MapOrbit {
     pub(crate) center: Vec3,
 }
 
-/// The camera eye offset from the focus for a given orbit, on a Y-up sphere.
-pub(crate) fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
-    let horizontal = radius * phi.cos();
-    Vec3::new(
-        horizontal * theta.sin(),
-        radius * phi.sin(),
-        horizontal * theta.cos(),
-    )
-}
-
 /// The parent of every spawned map-scene entity (camera + proxy meshes), so the
 /// whole scene tears down with one `despawn`.
 #[derive(Component)]

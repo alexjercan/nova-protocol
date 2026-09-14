@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use nova_probe::{capabilities::timeline::TimelineEvent, contract::Capability};
 
-use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
+use super::{capability_gap, timeline_skip_detail, Check, CheckStatus, RunArtifacts, SilentGap};
 use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "0 violations";
@@ -25,14 +25,6 @@ pub(crate) fn violations_by_name(timeline: &[TimelineEvent]) -> BTreeMap<String,
 }
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let no_input = |status, value: &str, detail: String| Check {
-        name: "invariants_held",
-        status,
-        value: value.into(),
-        threshold: THRESHOLD.into(),
-        detail,
-        data: serde_json::Value::Null,
-    };
     // The invariant evidence rides IN the timeline, so the artifact this
     // capability owes is not the file - it is invariant entries inside it. A
     // timeline with none is exactly as silent as no timeline at all.
@@ -41,50 +33,31 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             .iter()
             .any(|e| e.kind == "invariant" || e.kind == "invariant_summary")
     });
-    let timeline = match artifacts.resolve(Capability::Invariants, evidence) {
-        Input::Present(timeline) => timeline,
-        Input::NotDeclared(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
-                "not claimed",
-                format!(
+    let input = artifacts.resolve(Capability::Invariants, evidence);
+    let timeline = match capability_gap(&input, "no invariant entries", SilentGap::Fails) {
+        Ok(timeline) => timeline,
+        Err((status, value)) => {
+            let detail = match input {
+                Input::NotDeclared(capability) => format!(
                     "the example wires no {} - it asserts no engine-guaranteed \
                      bounds, so there are none to hold",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::NotArmed(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
-                "not armed",
-                format!(
+                Input::NotArmed(capability) => format!(
                     "the example wires {} but this run did not arm it (see the \
                      manifest's armed flags)",
                     capability.wiring()
                 ),
-            )
-        }
-        // Claimed, armed, and no invariant entry in the timeline: the checks
-        // never ran. A coverage gap, not a clean bill of health.
-        Input::ArmedButAbsent(capability) => {
-            return no_input(
-                CheckStatus::Fail,
-                "no invariant entries",
-                format!(
+                // Claimed, armed, and no invariant entry in the timeline: the
+                // checks never ran. A coverage gap, not a clean bill of health.
+                Input::ArmedButAbsent(capability) => format!(
                     "the example declares {} and probe armed it, but the run \
                      recorded no invariant entries - nothing was checked",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::Unknown(_) => {
-            return no_input(
-                CheckStatus::Skipped,
-                "no invariant entries",
-                // No contract to resolve against, so the manifest's armed
-                // flag is the only clue - the pre-contract wording, kept.
-                match artifacts.manifest.as_ref() {
+                // Unknown: no contract to resolve against, so the manifest's
+                // armed flag is the only clue - the pre-contract wording, kept.
+                _ => match artifacts.manifest.as_ref() {
                     Some(m) if m.armed_invariants => format!(
                         "probe armed the checks but {} is not wired with \
                          nova_probe::nova_invariants()",
@@ -93,7 +66,15 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
                     _ if artifacts.timeline.is_none() => timeline_skip_detail(artifacts),
                     _ => "invariants not armed (arm NOVA_PROBE_INVARIANTS)".into(),
                 },
-            );
+            };
+            return Check {
+                name: "invariants_held",
+                status,
+                value: value.into(),
+                threshold: THRESHOLD.into(),
+                detail,
+                data: serde_json::Value::Null,
+            };
         }
     };
 
@@ -166,7 +147,10 @@ mod tests {
     use nova_probe::prelude::*;
 
     use super::*;
-    use crate::evaluation::{checks::evaluate_checks, fixtures::*};
+    use crate::evaluation::{
+        checks::{evaluate_checks, NotApplicable},
+        fixtures::*,
+    };
 
     #[test]
     fn violations_fail_invariants_with_per_name_counts() {

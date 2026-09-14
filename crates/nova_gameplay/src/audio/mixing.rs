@@ -6,7 +6,7 @@
 //! This is the AMPLITUDE half of the mix. The stereo half is `spatial`, which
 //! rides on top as a pure left/right ratio and adds no loudness of its own.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
@@ -137,17 +137,33 @@ pub fn body_middle(
     ))
 }
 
-/// Last-played timestamp per throttle key, in seconds since startup. A key that
-/// is absent has never played, so its first event always fires.
-#[derive(Resource, Default)]
-pub struct SfxThrottle {
-    last: HashMap<ThrottleKey, f32>,
+/// Last-fired timestamp per throttle key, in seconds since startup. A key that
+/// is absent has never fired, so its first event always passes.
+///
+/// ONE budget algorithm for every layer that collapses a burst. The audio
+/// layer's [`SfxThrottle`] and the juice layer's camera-kick budget are two
+/// instances of this type over their own key vocabularies, not two
+/// implementations of the same rule: they already share [`CueGroup`] because a
+/// frame that is one bang has to be one kick, and an `allow` that drifted
+/// between them would split the bang from the kick again. They stay separate
+/// RESOURCES so their intervals and their prune windows tune independently.
+#[derive(Resource)]
+pub struct CueThrottle<K: Copy + Eq + Hash + Send + Sync + 'static> {
+    last: HashMap<K, f32>,
 }
 
-impl SfxThrottle {
-    /// If `key` has not sounded within `min_interval` seconds, stamp it `now`
+impl<K: Copy + Eq + Hash + Send + Sync + 'static> Default for CueThrottle<K> {
+    fn default() -> Self {
+        Self {
+            last: HashMap::new(),
+        }
+    }
+}
+
+impl<K: Copy + Eq + Hash + Send + Sync + 'static> CueThrottle<K> {
+    /// If `key` has not fired within `min_interval` seconds, stamp it `now`
     /// and return true; otherwise false. Each key throttles independently.
-    pub fn allow(&mut self, key: ThrottleKey, now: f32, min_interval: f32) -> bool {
+    pub fn allow(&mut self, key: K, now: f32, min_interval: f32) -> bool {
         let last = self.last.entry(key).or_insert(f32::NEG_INFINITY);
         if now - *last >= min_interval {
             *last = now;
@@ -157,9 +173,9 @@ impl SfxThrottle {
         }
     }
 
-    /// The keys currently being throttled - what has sounded recently and has
+    /// The keys currently being throttled - what has fired recently and has
     /// not yet been pruned. Read-only; `allow` is the only way in.
-    pub fn tracked_keys(&self) -> impl ExactSizeIterator<Item = ThrottleKey> + '_ {
+    pub fn tracked_keys(&self) -> impl ExactSizeIterator<Item = K> + '_ {
         self.last.keys().copied()
     }
 
@@ -169,6 +185,9 @@ impl SfxThrottle {
         self.last.retain(|_, &mut last| now - last < window);
     }
 }
+
+/// The audio layer's cue budget: one timestamp per [`ThrottleKey`].
+pub type SfxThrottle = CueThrottle<ThrottleKey>;
 
 /// Distance rolloff in [0, 1]: full within [`SFX_NEAR_DISTANCE`], zero beyond
 /// [`SFX_FAR_DISTANCE`]. Between them the amplitude decays *geometrically*

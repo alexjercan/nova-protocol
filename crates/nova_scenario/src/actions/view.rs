@@ -162,15 +162,6 @@ pub struct SetCameraAnchorActionConfig {
     pub blend: Option<CameraBlendConfig>,
 }
 
-/// Resolve one scoped scenario id to its entity.
-fn scoped_entity(world: &mut World, id: &str) -> Option<Entity> {
-    let mut query = world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
-    query
-        .iter(world)
-        .find(|(_, entity_id)| entity_id.0 == id)
-        .map(|(entity, _)| entity)
-}
-
 /// Resolve the scenario camera.
 fn scenario_camera(world: &mut World) -> Option<Entity> {
     let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();

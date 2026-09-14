@@ -80,41 +80,42 @@ impl ScenarioPreload {
 /// `AssetServer`. A hull or section prototype that resolves to nothing is
 /// silently skipped: the spawn reports that miss, and `content lint` reports it
 /// before the spawn ever runs.
+///
+/// Through [`EventActionConfig::walk`], so a spawn NESTED inside a `Sequence`
+/// or `Cinematic` step names its art here too. A beat three deep still lands
+/// mid-mission with no time to fetch anything, which is the case the whole
+/// warm-up exists for.
 pub fn scenario_render_meshes(
     scenario: &ScenarioConfig,
     ships: &GameShips,
     sections: &GameSections,
 ) -> Vec<AssetRef<WorldAsset>> {
     let mut meshes = Vec::new();
-    for event in &scenario.events {
-        for action in &event.actions {
+    for action in scenario.events.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| {
             let object = match action {
                 EventActionConfig::SpawnScenarioObject(object) => object,
                 // Every copy a scatter places is a clone of the one template,
                 // so the template names the whole field's art.
                 EventActionConfig::ScatterObjects(scatter) => &scatter.template,
-                _ => continue,
+                _ => return,
             };
             // Ships are the only object kind that names a glTF. The rest build
             // primitives (beacon, salvage crate) or generate their mesh on a
             // worker (asteroid), and a light and an anchor have no mesh at all.
             let ScenarioObjectKind::Spaceship(spaceship) = &object.kind else {
-                continue;
+                return;
             };
             let Some(hull) = spaceship.hull.resolve(ships) else {
-                continue;
+                return;
             };
             for section in &hull.sections {
-                let config = match &section.source {
-                    SectionSource::Inline(config) => config,
-                    SectionSource::Prototype(id) => match sections.get_section(id) {
-                        Some(config) => config,
-                        None => continue,
-                    },
+                let Some(config) = section.source.resolve(Some(sections)) else {
+                    continue;
                 };
                 push_section_meshes(config, &mut meshes);
             }
-        }
+        });
     }
     meshes
 }
@@ -509,6 +510,48 @@ mod tests {
         assert_eq!(
             paths(&scenario_render_meshes(&scenario, &ships, &sections)),
             vec!["art/bay.glb#Scene0", "art/tile.glb#Scene0"]
+        );
+    }
+
+    /// A spawn buried in a `Sequence` beat is exactly the case the warm-up
+    /// exists for: it lands mid-mission with no time to fetch anything. The
+    /// flat read of each handler's own action list walked straight past it,
+    /// so its hull would have popped in late or not at all.
+    #[test]
+    fn the_walk_reaches_a_hull_spawned_from_inside_a_sequence_step() {
+        let sections = GameSections(vec![hull_prototype("late", "art/late.glb#Scene0")]);
+        let ships = GameShips(vec![ShipConfig {
+            id: "late_ship".to_string(),
+            name: "Late".to_string(),
+            hull: ShipHull {
+                sections: vec![section_at(
+                    "a",
+                    SectionSource::Prototype("late".to_string()),
+                )],
+                ..default()
+            },
+        }]);
+
+        let scenario = scenario_with(
+            "chained",
+            vec![event_with(vec![EventActionConfig::Sequence(
+                SequenceActionConfig {
+                    key: "opening".to_string(),
+                    steps: vec![SequenceStepConfig {
+                        after: Some(5.0),
+                        actions: vec![spawn_ship(
+                            "late",
+                            ShipSource::Prototype("late_ship".to_string()),
+                        )],
+                        ..default()
+                    }],
+                },
+            )])],
+        );
+
+        assert_eq!(
+            paths(&scenario_render_meshes(&scenario, &ships, &sections)),
+            vec!["art/late.glb#Scene0"]
         );
     }
 

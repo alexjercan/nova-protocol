@@ -12,6 +12,10 @@
 //! usage, and every parse error). Anything that has to look at the live game is
 //! handed back as a [`CommandInvocation`] for the dispatcher above to run, so
 //! the CRT and the process channel go through one parser and one result shape.
+//!
+//! The parse errors are the one part of this module the OTHER shell shares:
+//! [`CommandError`] is the whole error vocabulary of the CRT, printed by the
+//! NOVA OS shell and by this one, so the same typo cannot read two ways.
 
 use std::sync::OnceLock;
 
@@ -19,10 +23,10 @@ use bevy::prelude::Resource;
 
 use crate::{
     shell::{
-        resolve_command, subcommands_of, CommandArg, CommandArity, CommandDispatch,
+        command_meta, resolve_command, subcommands_of, CommandArg, CommandArity, CommandDispatch,
         ResolvedCommand, TerminalCommandSpec,
     },
-    terminal::{CommandInvocation, TerminalRow, TerminalRowKind},
+    terminal::{command_help_rows, CommandInvocation, ShellKind, TerminalRow, TerminalRowKind},
 };
 
 /// What a command is allowed to touch. The class is the whole permission model:
@@ -607,6 +611,144 @@ pub enum CommandOutcome {
     Invoke(CommandInvocation),
 }
 
+/// A command line that did not resolve, as BOTH shells answer it.
+///
+/// The [`ResolvedCommand`] error arms are one vocabulary: a typo reads the same
+/// after Enter at `nova>`, after Enter at `cmd>`, and under the caret while it
+/// is still being typed. What is NOT shared is the help block printed under the
+/// headline - each shell documents its own catalog, which is what
+/// [`CommandError::rows`] takes a [`ShellKind`] for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandError {
+    /// The command the error is about, or the offending word when nothing
+    /// matched. Not necessarily a registered name: an incomplete parent
+    /// (`ammo`) is a word the catalog spells only inside longer names.
+    pub command: String,
+    /// The `command: reason` sentence the error row carries, and the one-line
+    /// answer a caller with no screen acks.
+    pub headline: String,
+    /// What the live prompt shows under the caret while the line is still being
+    /// typed. `None` when the error has nothing short worth saying: an unknown
+    /// word with no near match would only repeat what the red prompt shows.
+    pub hint: Option<String>,
+    body: CommandErrorBody,
+}
+
+/// What a [`CommandError`] prints UNDER its headline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommandErrorBody {
+    /// The children of a parent word. The parent is not itself a registered
+    /// command - if it were, the line would have resolved - so there is no help
+    /// block of its own to print.
+    Subcommands,
+    /// The command's own help block, as the shell in hand documents it.
+    Usage,
+    /// The optional did-you-mean, then a pointer back at `help` - a real shell
+    /// points at its usage rather than dead-ending on the not-found line.
+    NotFound,
+}
+
+impl CommandError {
+    /// Classify a resolved command line, or `None` when it RESOLVED: `Run`,
+    /// `Usage` and `Version` are not errors and each shell dispatches those
+    /// itself.
+    pub fn from_resolved(
+        resolved: &ResolvedCommand,
+        commands: &[TerminalCommandSpec],
+    ) -> Option<Self> {
+        match resolved {
+            ResolvedCommand::Run { .. }
+            | ResolvedCommand::Usage { .. }
+            | ResolvedCommand::Version => None,
+            ResolvedCommand::Incomplete { name } => {
+                let headline = format!("{name}: incomplete command");
+                Some(Self {
+                    command: (*name).to_string(),
+                    hint: Some(headline.clone()),
+                    headline,
+                    body: CommandErrorBody::Subcommands,
+                })
+            }
+            ResolvedCommand::UnexpectedArguments {
+                command,
+                arity,
+                args,
+            } => {
+                // Past what the command accepts, the next word is a sub-command
+                // that does not exist (`map: unknown subcommand 'v'`). An arity
+                // miss that is NOT an over-run is just an arity miss, whether or
+                // not the command owns sub-commands: a bare `bind` typed
+                // nothing, and `unknown subcommand ''` would blame the player
+                // for a word they never wrote.
+                let subs = subcommands_of(command, commands);
+                let overrun = arity
+                    .overruns(args.len())
+                    .then(|| args[arity.most()].as_str());
+                let headline = match overrun {
+                    Some(bad) if !subs.is_empty() => {
+                        format!("{command}: unknown subcommand '{bad}'")
+                    }
+                    _ => format!("{command}: {}", arity.rejection()),
+                };
+                Some(Self {
+                    command: command.clone(),
+                    hint: Some(headline.clone()),
+                    headline,
+                    body: CommandErrorBody::Usage,
+                })
+            }
+            ResolvedCommand::Unknown {
+                command,
+                suggestion,
+            } => Some(Self {
+                command: command.clone(),
+                headline: format!("command not found: {command}"),
+                // The near match is the half worth repeating under the caret;
+                // the not-found line only restates the red prompt.
+                hint: suggestion.map(|suggestion| format!("did you mean {suggestion}?")),
+                body: CommandErrorBody::NotFound,
+            }),
+        }
+    }
+
+    /// The scrollback rows this error prints in `shell`: the headline, then the
+    /// body. Only the body is per-shell, because the NOVA OS documents the
+    /// registry it was handed and the Command shell its own richer catalog.
+    pub fn rows(&self, shell: ShellKind, commands: &[TerminalCommandSpec]) -> Vec<TerminalRow> {
+        let mut rows = vec![TerminalRow::error(self.headline.clone())];
+        match self.body {
+            CommandErrorBody::Subcommands => {
+                rows.push(TerminalRow::output("Subcommands:"));
+                rows.extend(subcommand_rows(&self.command, commands));
+            }
+            CommandErrorBody::Usage => rows.extend(match shell {
+                ShellKind::NovaOs => command_help_rows(&self.command, commands),
+                ShellKind::Commands => usage_rows(&self.command),
+            }),
+            CommandErrorBody::NotFound => {
+                rows.extend(self.hint.clone().map(TerminalRow::warn));
+                rows.push(TerminalRow::dim("Type 'help' for a list of commands."));
+            }
+        }
+        rows
+    }
+}
+
+/// The children of `name`, aligned and each carrying its summary - what an
+/// incomplete parent word lists instead of dead-ending on "command not found".
+fn subcommand_rows(name: &str, commands: &[TerminalCommandSpec]) -> Vec<TerminalRow> {
+    let subs = subcommands_of(name, commands);
+    let width = subs.iter().map(|sub| sub.len()).max().unwrap_or(0);
+    subs.iter()
+        .map(|sub| {
+            let summary = command_meta(sub, commands)
+                .map(|(summary, _, _)| summary)
+                .unwrap_or_default();
+            TerminalRow::output(format!("  {sub:width$}  {summary}"))
+        })
+        .collect()
+}
+
 /// Parse one command line against `specs` (the Command catalog as the matcher
 /// sees it). This is the ONE entry point both the CRT prompt and the process
 /// channel use, so the two cannot drift.
@@ -645,70 +787,21 @@ pub fn resolve_command_line(line: &str, specs: &[TerminalCommandSpec]) -> Comman
             CommandResult::ok("version", CommandClass::Utility, version_line())
                 .with_rows(vec![TerminalRow::info(version_line())]),
         )),
-        ResolvedCommand::Incomplete { name } => {
-            let subs = subcommands_of(name, specs);
-            let mut rows = vec![TerminalRow::error(format!("{name}: incomplete command"))];
-            rows.push(TerminalRow::output("Subcommands:"));
-            rows.extend(subs.iter().map(|sub| {
-                let summary = command_spec(sub).map(|spec| spec.summary).unwrap_or("");
-                TerminalRow::output(format!("  {sub}  {summary}"))
-            }));
+        error @ (ResolvedCommand::Incomplete { .. }
+        | ResolvedCommand::UnexpectedArguments { .. }
+        | ResolvedCommand::Unknown { .. }) => {
+            // The error vocabulary is shared with the NOVA OS shell, so the
+            // same typo answers the same at either prompt; only the help block
+            // under the headline is this catalog's.
+            let error = CommandError::from_resolved(&error, specs)
+                .expect("the matched arms are exactly the ones that do not resolve");
             CommandOutcome::Answer(Box::new(CommandResult {
-                command: name.to_string(),
-                class: None,
+                class: command_spec(&error.command).map(|spec| spec.class),
                 status: CommandStatus::Error,
-                rows,
-                detail: format!("{name}: incomplete command"),
+                rows: error.rows(ShellKind::Commands, specs),
+                detail: error.headline,
+                command: error.command,
             }))
-        }
-        ResolvedCommand::UnexpectedArguments {
-            command,
-            arity,
-            args,
-        } => {
-            // An OVER-run past a command that owns subcommands is a bad
-            // subcommand and is named as one. An UNDER-run is not: a bare
-            // `bind` typed nothing, and `unknown subcommand ''` blames the
-            // player for a word they never wrote.
-            let subs = subcommands_of(&command, specs);
-            // Past what the command accepts, the next word is a sub-command
-            // that does not exist (`ammo: unknown subcommand 'x'`). An arity
-            // miss that is NOT an overrun is just an arity miss, whether or not
-            // the command owns sub-commands - a bare `bind` is not a bad
-            // sub-command.
-            let overrun = arity
-                .overruns(args.len())
-                .then(|| args[arity.most()].as_str());
-            let headline = match overrun {
-                Some(bad) if !subs.is_empty() => format!("{command}: unknown subcommand '{bad}'"),
-                _ => format!("{command}: {}", arity.rejection()),
-            };
-            let mut result = CommandResult::error(
-                command.clone(),
-                command_spec(&command).map(|spec| spec.class),
-                headline,
-            );
-            result.rows.extend(usage_rows(&command));
-            CommandOutcome::Answer(Box::new(result))
-        }
-        ResolvedCommand::Unknown {
-            command,
-            suggestion,
-        } => {
-            let mut result = CommandResult::error(
-                command.clone(),
-                None,
-                format!("command not found: {command}"),
-            );
-            if let Some(suggestion) = suggestion {
-                result
-                    .rows
-                    .push(TerminalRow::warn(format!("did you mean {suggestion}?")));
-            }
-            result
-                .rows
-                .push(TerminalRow::dim("Type 'help' for a list of commands."));
-            CommandOutcome::Answer(Box::new(result))
         }
     }
 }
@@ -1297,7 +1390,7 @@ mod tests {
 pub mod prelude {
     pub use super::{
         command_intro_rows, command_list_rows, command_registry_count, command_shell_specs,
-        command_spec, resolve_command_line, usage_rows, CommandChannel, CommandClass,
+        command_spec, resolve_command_line, usage_rows, CommandChannel, CommandClass, CommandError,
         CommandOutcome, CommandResult, CommandSource, CommandSpec, CommandStatus, COMMAND_CATALOG,
     };
 }

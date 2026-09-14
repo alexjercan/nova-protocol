@@ -24,11 +24,11 @@ use bevy::{
     },
     prelude::*,
 };
+use nova_gameplay::prelude::subtree_bounding_sphere;
 use nova_ui::theme;
 
 use crate::{
     config::SelectedNode,
-    frame::node_bounds,
     gallery::{EditorCamera, GalleryState},
     node::{EditContext, ObjectBodyStale, ObjectNode, ShipNode},
     ExampleStates,
@@ -355,8 +355,8 @@ impl GizmoReach {
         }
         if self.reach.is_none() || self.settling > 0 {
             self.settling = self.settling.saturating_sub(1);
-            self.reach = node_bounds(node, q_children, q_bounds)
-                .map(|bounds| bounds.size().length() * 0.5 * CLEARANCE)
+            self.reach = subtree_bounding_sphere(node, q_children, q_bounds)
+                .map(|(_, radius)| radius * CLEARANCE)
                 .or(self.reach);
         }
         self.reach.unwrap_or_default()

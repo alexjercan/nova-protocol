@@ -126,6 +126,17 @@ pub fn asteroid_kind_from_mix<S: AsRef<str>>(mix: &[(S, u32)], draw: f32) -> Opt
 /// written in rough spatial order, so the pattern would land as stripes across
 /// the map. The same index always gives the same kind, so the belt is the same
 /// belt on every load and in every chapter that spawns it.
+///
+/// # Not the shared hash, on purpose
+///
+/// A Weyl-seeded xorshift-multiply on its own multiplier, NOT FNV-1a
+/// ([`Fnv32`](nova_gameplay::hash::Fnv32) and its
+/// [`SeedStream`](nova_gameplay::hash::SeedStream)) however much the offset
+/// basis it starts from looks like it. Both spread an index well enough for a
+/// belt, so the only thing a move onto the shared hash would buy is one fewer
+/// mixer - and it would cost a re-deal of every kind every authored belt draws.
+/// The divergence stays, and stays named, so a later reader does not flatten it
+/// by eye.
 pub fn asteroid_kind_at<S: AsRef<str>>(mix: &[(S, u32)], index: usize) -> Option<&str> {
     let mut hash = 0x811c_9dc5u32 ^ (index as u32).wrapping_mul(0x9e37_79b1);
     for _ in 0..3 {

@@ -14,6 +14,7 @@
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::subtree_bounding_sphere;
 use nova_ship::prelude::WASDCameraController;
 use nova_ui::prelude::InputMode;
 
@@ -245,18 +246,16 @@ pub(crate) fn apply_frame_request(
         .insert(WASDCameraController);
 }
 
-/// The point and half-spread to frame `node` on: its subtree's merged collider
-/// box, or its own origin when nothing under it carries a collider yet.
+/// The point and half-spread to frame `node` on: the bounding sphere of its
+/// subtree's merged collider box, or its own origin with no spread when
+/// nothing under it carries a collider yet.
 pub(crate) fn framed_extent(
     node: Entity,
     pose: &Transform,
     q_children: &Query<&Children>,
     q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> (Vec3, f32) {
-    match node_bounds(node, q_children, q_bounds) {
-        Some(bounds) => (bounds.center(), bounds.size().length() * 0.5),
-        None => (pose.translation, 0.0),
-    }
+    subtree_bounding_sphere(node, q_children, q_bounds).unwrap_or((pose.translation, 0.0))
 }
 
 /// Marks the camera whose free-fly rig the mode hold took away, so putting it
@@ -322,35 +321,6 @@ pub(crate) struct FrameSelectionItem;
 /// One preset row, carrying the direction it looks from.
 #[derive(Component)]
 pub(crate) struct ViewPresetItem(pub(crate) ViewAngle);
-
-/// The world-space box `node` and everything under it occupies, or `None` when
-/// nothing in the subtree has a collider.
-///
-/// The whole subtree, because a document node carries no geometry itself: a
-/// ship's size is its sections' views, an object's is its own view. SENSORS are
-/// excluded - a beacon's trigger sphere is tens of units of trigger volume, not
-/// tens of units of beacon, and framing the trigger would put the beacon in the
-/// middle of an empty screen.
-pub(crate) fn node_bounds(
-    node: Entity,
-    q_children: &Query<&Children>,
-    q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
-) -> Option<ColliderAabb> {
-    let mut found: Option<ColliderAabb> = None;
-    let mut stack = vec![node];
-    while let Some(current) = stack.pop() {
-        if let Ok(bounds) = q_bounds.get(current) {
-            found = Some(match found {
-                Some(existing) => existing.merged(*bounds),
-                None => *bounds,
-            });
-        }
-        if let Ok(children) = q_children.get(current) {
-            stack.extend(children.iter());
-        }
-    }
-    found
-}
 
 /// Grey View > Frame Selection when there is nothing to frame.
 ///

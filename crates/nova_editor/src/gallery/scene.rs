@@ -15,12 +15,12 @@ use bevy::{
     ui::{ComputedNode, UiGlobalTransform},
 };
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_ship::prelude::*;
 use nova_ui::theme;
 
 use crate::{
     config::EditorGizmos,
-    frame::node_bounds,
     gallery::{catalog, GalleryState},
     node::EditContext,
     placement::draw_socket,
@@ -67,7 +67,7 @@ pub(crate) fn sync_gallery_stage(
     }
     let top = context
         .scenario()
-        .and_then(|scenario| node_bounds(scenario, &q_children, &q_bounds))
+        .and_then(|scenario| subtree_collider_aabb(scenario, &q_children, &q_bounds))
         .map_or(0.0, |bounds| bounds.max.y);
     let wanted = GalleryStage(Vec3::Y * (top + STAGE_CLEARANCE.to_engine()));
     if *stage != wanted {

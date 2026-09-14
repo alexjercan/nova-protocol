@@ -55,11 +55,10 @@ pub mod prelude {
 use bevy::{
     camera::{ImageRenderTarget, RenderTarget},
     prelude::*,
-    render::render_resource::TextureFormat,
     ui::IsDefaultUiCamera,
     window::PrimaryWindow,
 };
-use nova_gameplay::prelude::GraphicsBudget;
+use nova_gameplay::prelude::{new_render_target_image, GraphicsBudget};
 
 use crate::loader::prelude::ScenarioCameraMarker;
 
@@ -148,7 +147,10 @@ fn reconcile_render_scale(
         None => true,
     };
     if need_new_target {
-        let handle = create_scaled_target(&mut images, desired);
+        // Born through the shared WebGL2-safe recipe, so a reduced-resolution
+        // frame never trips `DownlevelFlags::VIEW_FORMATS` on the weak web GPUs
+        // this lever exists for.
+        let handle = images.add(new_render_target_image(desired));
         state.image = Some(handle);
         state.size = desired;
     }
@@ -276,22 +278,6 @@ fn teardown_render_scale(
     }
     state.image = None;
     state.size = UVec2::ZERO;
-}
-
-/// Create the offscreen render target. Rgba8UnormSrgb with the default view (no
-/// view-format override): the same WebGL2-safe target the HUD inset uses (see
-/// [`crate`]'s `nova_hud::target_inset::create_render_target`), so a
-/// reduced-resolution frame never trips `DownlevelFlags::VIEW_FORMATS` on the
-/// weak web GPUs this lever exists for. `new_target_texture` sets the
-/// RENDER_ATTACHMENT | TEXTURE_BINDING | COPY_DST usages.
-fn create_scaled_target(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
-    let image = Image::new_target_texture(
-        size.x.max(1),
-        size.y.max(1),
-        TextureFormat::Rgba8UnormSrgb,
-        None,
-    );
-    images.add(image)
 }
 
 #[cfg(test)]

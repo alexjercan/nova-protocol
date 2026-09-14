@@ -23,7 +23,7 @@ use nova_ship::prelude::*;
 use crate::{
     collections::GameAssets,
     mod_refs,
-    mod_set::{DownloadedMods, EnabledMods},
+    mod_set::{enabled_bundles, shadows_shipped, DownloadedMods, EnabledMods},
     safe_mode::{catalog_bundle, OptionalBundles},
 };
 
@@ -63,65 +63,55 @@ pub fn register_bundles(
     bundles: Res<Assets<BundleAsset>>,
     contents: Res<Assets<ContentAsset>>,
 ) {
-    // Ordered ENABLED bundle handles: catalog order (base first), keeping only
-    // entries whose id is enabled.
     let catalog = catalogs.get(&game_assets.catalog);
     if catalog.is_none() {
         error!("register_bundles: the mods catalog was not loaded; registering nothing");
     }
-    // Enabled (id, bundle) pairs in catalog order (base first) then downloaded
-    // order - the stable tiebreak the dependency sort keeps below.
-    let mut ordered: Vec<(&str, &Handle<BundleAsset>)> = Vec::new();
-    if let Some(catalog) = catalog {
-        for entry in &catalog.entries {
-            if !enabled.0.contains(&entry.decl.id) {
-                continue;
-            }
-            // An OPTIONAL entry reads through its runtime load, which - like a
-            // downloaded bundle - may still be in flight or may have failed and
-            // been quarantined. Both are handled below by the same
-            // loaded-or-skip rule; only `base` is guaranteed here.
-            let Some(handle) = catalog_bundle(entry, &optional) else {
-                warn!(
-                    "register_bundles: mod '{}' is enabled but its bundle has not started \
-                     loading; it merges when the load completes",
-                    entry.decl.id
-                );
-                continue;
-            };
-            ordered.push((entry.decl.id.as_str(), handle));
-        }
-    }
+    // The merge SAYS what the walk below drops: the cache index is downloaded
+    // input, and a mod that vanishes without a word reaches the player as
+    // missing content. `build_mod_catalog` hides the same records from the rows.
     for m in &downloaded.0 {
-        if !enabled.0.contains(&m.record.id) {
-            continue;
-        }
-        // A downloaded id shadowing a SHIPPED catalog entry is skipped (the
-        // portal generator's no-shadowing rule, enforced again at the merge
-        // because the index is downloaded input) - otherwise one enabled id
-        // would merge two bundles. `build_mod_catalog` hides the same records
-        // from the rows.
-        if catalog.is_some_and(|c| c.entries.iter().any(|e| e.decl.id == m.record.id)) {
+        if enabled.0.contains(&m.record.id)
+            && catalog.is_some_and(|shipped| shadows_shipped(shipped, &m.record.id))
+        {
             warn!(
                 "register_bundles: downloaded mod '{}' shadows a shipped mod id; \
                  skipping the downloaded copy",
                 m.record.id
             );
-            continue;
         }
-        // Unlike the shipped entries above (gated loaded by the collection), a
+    }
+    // Enabled (id, bundle) pairs in merge order - catalog order (base first)
+    // then downloaded order, the stable tiebreak the dependency sort keeps
+    // below. `mod_set::enabled_bundles` owns that walk, so the merge, the mods
+    // rows and the editor's asset index cannot disagree about what is active.
+    let mut ordered: Vec<(&str, &Handle<BundleAsset>)> = Vec::new();
+    for active in enabled_bundles(catalog, Some(&optional), Some(&downloaded), Some(&enabled)) {
+        // An OPTIONAL entry reads through its runtime load, which - like a
+        // downloaded bundle - may still be in flight or may have failed and
+        // been quarantined. Both are handled below by the same loaded-or-skip
+        // rule; only `base` is guaranteed here.
+        let Some(handle) = active.bundle else {
+            warn!(
+                "register_bundles: mod '{}' is enabled but its bundle has not started \
+                 loading; it merges when the load completes",
+                active.id
+            );
+            continue;
+        };
+        // Unlike the shipped entries (gated loaded by the collection), a
         // downloaded bundle may still be in flight; skipping it here is a
         // TRANSIENT state, not the shared "somehow not loaded" error below -
         // the loaded-event re-run merges it in.
-        if bundles.contains(&m.bundle) {
-            ordered.push((m.record.id.as_str(), &m.bundle));
-        } else {
+        if active.downloaded && !bundles.contains(handle) {
             warn!(
                 "register_bundles: downloaded mod '{}' is enabled but its bundle has not \
                  loaded yet; it merges when the load completes",
-                m.record.id
+                active.id
             );
+            continue;
         }
+        ordered.push((active.id, handle));
     }
 
     // Dependency-respecting merge order: a mod's Content overlays its

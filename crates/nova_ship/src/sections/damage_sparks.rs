@@ -23,7 +23,7 @@
 
 use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::prelude::*;
-use nova_gameplay::prelude::{DamageLevel, TempEntity};
+use nova_gameplay::prelude::{unit_sphere_point, DamageLevel, Fnv32, TempEntity};
 
 /// `DamageSparks` and `DamageSparksPlugin`.
 pub mod prelude {
@@ -86,26 +86,15 @@ pub struct DamageSparks {
 /// the global RNG, which nothing here needs to touch.
 ///
 /// The hash is FNV-1a, the same one asteroid seeds use, and the point is placed
-/// by the cylindrical-equal-area map (`z` uniform, angle uniform) so the spread
-/// is even rather than bunched at the poles.
+/// by the shared cylindrical-equal-area rule
+/// ([`unit_sphere_point`](nova_gameplay::hash::unit_sphere_point)) so the
+/// spread is even rather than bunched at the poles.
 fn spark_direction(section: Entity, nth: u32) -> Vec3 {
-    let mut hash: u32 = 0x811c_9dc5;
-    for byte in section
-        .to_bits()
-        .to_le_bytes()
-        .iter()
-        .chain(nth.to_le_bytes().iter())
-    {
-        hash ^= u32::from(*byte);
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
-
-    // Two independent fractions out of the one hash: the high half turns, the
-    // low half picks the height.
-    let turn = (hash >> 16) as f32 / 65_536.0 * std::f32::consts::TAU;
-    let z = ((hash & 0xffff) as f32 / 65_536.0) * 2.0 - 1.0;
-    let ring = (1.0 - z * z).max(0.0).sqrt();
-    Vec3::new(ring * turn.cos(), ring * turn.sin(), z).normalize_or(Vec3::Y)
+    let hash = Fnv32::new()
+        .write(&section.to_bits().to_le_bytes())
+        .write(&nth.to_le_bytes())
+        .finish();
+    unit_sphere_point(hash)
 }
 
 /// The one mesh and one material every spark is drawn with.
@@ -208,6 +197,31 @@ fn throw_damage_sparks(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The aim comes off the SHARED sphere rule and not a local slicing of the
+    /// hash. This module and `impact_spark` once read different bits of the
+    /// same word while both claiming the same rule; the second assertion is
+    /// the one that catches a slide back onto FNV-1a's least-mixed byte.
+    #[test]
+    fn a_spark_is_aimed_by_the_shared_sphere_rule() {
+        let section = Entity::PLACEHOLDER;
+        for nth in 0..8u32 {
+            let hash = Fnv32::new()
+                .write(&section.to_bits().to_le_bytes())
+                .write(&nth.to_le_bytes())
+                .finish();
+            assert_eq!(
+                spark_direction(section, nth),
+                unit_sphere_point(hash),
+                "spark {nth} was not aimed by the shared rule"
+            );
+            assert_eq!(
+                spark_direction(section, nth),
+                unit_sphere_point(hash ^ 0xff),
+                "the least-mixed byte steered spark {nth}"
+            );
+        }
+    }
 
     /// A lightly scratched section is not a failing one, and every fight starts
     /// with a scratch.

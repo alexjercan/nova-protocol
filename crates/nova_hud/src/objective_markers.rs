@@ -7,21 +7,22 @@
 //! language, and a slow alpha breath so it reads in peripheral vision without
 //! strobing.
 //!
+//! The chip SHAPE - layer, pill, label leaf, chevron, despawn and the
+//! label-plus-distance walk - is [`anchored_chip`](super::anchored_chip)'s,
+//! shared with the beacon chips. What is the objective's own lives here: the
+//! gold tone and geometry, the diamond identity glyph, and the breath.
+//!
 //! Chrome tier, like the beacon chips - the same nav-chip family.
 
 use bevy::prelude::*;
-use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipTone};
+use nova_ui::hud::ChipTone;
 
-use super::{screen_indicator::prelude::*, HudTier, OBJECTIVE_GOLD};
+use super::{anchored_chip::prelude::*, screen_indicator::prelude::*, OBJECTIVE_GOLD};
 
-/// The objective marker chip components and `ObjectiveMarkersHudPlugin`.
+/// The objective marker chip layer marker and `ObjectiveMarkersHudPlugin`.
 pub mod prelude {
-    pub use super::{
-        ObjectiveMarkerChipHudMarker, ObjectiveMarkerChipNodeMarker,
-        ObjectiveMarkerChipTargetEntity, ObjectiveMarkerChipTextMarker, ObjectiveMarkersHudPlugin,
-    };
+    pub use super::{ObjectiveMarkerChipHudMarker, ObjectiveMarkersHudPlugin};
 }
 
 /// How the chip stands off its target so the label never sits on the mesh.
@@ -36,13 +37,14 @@ const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: 36.0,
 };
 
-/// Inset (px) from the viewport edges while clamped; the shared HUD frame.
-const EDGE_MARGIN_PX: f32 = 30.0;
-
-/// Chevron stroke geometry, the edge-indicator arrow language at chip scale.
-const ARROW_PX: f32 = 22.0;
-const STROKE_LEN_PX: f32 = 15.0;
-const STROKE_THICK_PX: f32 = 2.5;
+/// The objective chip's chevron: the shared arrow language at marker scale, in
+/// objective gold.
+const CHEVRON: AnchoredChipChevron = AnchoredChipChevron {
+    arrow_px: 22.0,
+    stroke_len_px: 15.0,
+    stroke_thick_px: 2.5,
+    color: OBJECTIVE_GOLD,
+};
 
 /// Diamond glyph: a square border rotated 45 degrees, sitting left of the
 /// label - the marker's identity mark, always visible (the chevron only
@@ -58,28 +60,11 @@ const BREATH_PERIOD_SECS: f32 = 1.25;
 const BREATH_ALPHA_MIN: f32 = 0.7;
 const BREATH_ALPHA_MAX: f32 = 1.0;
 
-/// Marker for one objective marker chip layer (one per marked entity).
+/// Marker for one objective marker chip layer (one per marked entity). The
+/// family tag: every shared chip system is gated on it, so a query that walks
+/// into an objective chip can never reach a beacon's.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ObjectiveMarkerChipHudMarker;
-
-/// The marked entity this chip tracks.
-#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct ObjectiveMarkerChipTargetEntity(pub Entity);
-
-/// Marker for the chip node itself: the bordered pill that carries the
-/// screen-indicator anchor. The label text lives in a CHILD (see
-/// [`ObjectiveMarkerChipTextMarker`]), so this node stays the one thing the
-/// indicator widget positions and `chip_paint` paints.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct ObjectiveMarkerChipNodeMarker;
-
-/// Marker for the chip's text node - a LEAF child of the chip.
-///
-/// The label cannot live on the chip entity itself: taffy only measures leaf
-/// nodes, so a `Text` node that also has children loses its measure and the
-/// pill collapses to its padding.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct ObjectiveMarkerChipTextMarker;
 
 /// Marker for the diamond identity glyph, so tests and future drivers can find
 /// it without matching on its display [`Name`].
@@ -92,69 +77,46 @@ struct ObjectiveMarkerDiamondMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct ObjectiveMarkerBreathMarker;
 
+impl AnchoredChipLabelSource for ObjectiveMarkerTarget {
+    fn chip_label(&self) -> &str {
+        &self.label
+    }
+}
+
 /// UI bundle for one marked entity's chip layer.
 fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
     (
         Name::new("ObjectiveMarkerChipHUD"),
         ObjectiveMarkerChipHudMarker,
-        ObjectiveMarkerChipTargetEntity(target),
-        HudTier::Chrome,
-        screen_indicator_layer(),
+        anchored_chip_layer(target),
         children![(
             Name::new("ObjectiveMarkerChipUI"),
-            ObjectiveMarkerChipNodeMarker,
-            screen_indicator_node(
-                ScreenIndicatorConfig {
-                    anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
-                    // Hugs its text: the objective NAME varies in length and a
-                    // fixed slab would clip it now that the chip is bordered.
-                    size: ScreenIndicatorSize::Content,
-                    offset: Vec2::ZERO,
-                    offscreen: ScreenIndicatorOffscreen::ClampToEdge {
-                        margin_px: EDGE_MARGIN_PX,
-                    },
-                },
-                chip_node(),
-            ),
-            CHIP_CLEARANCE,
             // The objective chip is the amber "do this now" member of the chip
             // family (demo 2 `.obj`).
-            chip_paint(ChipTone::Amber),
-            // The chip is a pure CONTAINER: diamond and label are in-flow flex
-            // items it grows around, the chevron an absolute one it ignores.
-            // Putting the `Text` here instead would take this node off taffy's
-            // leaf path and collapse the pill.
+            anchored_chip_node(Some(target), ChipTone::Amber, CHIP_CLEARANCE),
             children![
                 objective_marker_diamond(),
-                objective_marker_label(),
-                objective_marker_arrow(),
+                (
+                    Name::new("ObjectiveMarkerLabel"),
+                    // The LABEL does not breathe: translucent gold over a
+                    // bright planetoid was unreadable. Constant full gold + a
+                    // tight dark shadow for contrast; the diamond and chevron
+                    // carry the motion.
+                    anchored_chip_label(
+                        LABEL_FONT_PX,
+                        OBJECTIVE_GOLD,
+                        TextShadow {
+                            offset: Vec2::splat(1.0),
+                            color: Color::srgba(0.0, 0.0, 0.0, 0.9),
+                        },
+                    ),
+                ),
+                (
+                    Name::new("ObjectiveMarkerArrow"),
+                    anchored_chip_chevron(CHEVRON, ObjectiveMarkerBreathMarker),
+                ),
             ],
         )],
-    )
-}
-
-/// The label text: a leaf `Text` child so taffy measures it and the pill grows
-/// to hold it.
-fn objective_marker_label() -> impl Bundle {
-    (
-        Name::new("ObjectiveMarkerLabel"),
-        ObjectiveMarkerChipTextMarker,
-        Text::new(""),
-        TextFont::from_font_size(LABEL_FONT_PX),
-        TextLayout {
-            linebreak: LineBreak::NoWrap,
-            ..default()
-        },
-        // The LABEL does not breathe: translucent gold over a bright
-        // planetoid was unreadable.
-        // Constant full gold + a tight dark shadow for contrast; the diamond and
-        // chevron carry the motion.
-        TextColor(OBJECTIVE_GOLD),
-        TextShadow {
-            offset: Vec2::splat(1.0),
-            color: Color::srgba(0.0, 0.0, 0.0, 0.9),
-        },
-        Pickable::IGNORE,
     )
 }
 
@@ -186,63 +148,12 @@ fn objective_marker_diamond() -> impl Bundle {
     )
 }
 
-/// An up-pointing chevron the widget rotates toward the target while the
-/// chip is edge-clamped (the edge-indicator arrow language, chip-sized).
-/// Hidden while the target is on-screen - the widget owns its visibility.
-fn objective_marker_arrow() -> impl Bundle {
-    let stroke = |left: f32, degrees: f32| {
-        (
-            ObjectiveMarkerBreathMarker,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(left),
-                top: Val::Px(ARROW_PX / 2.0 - STROKE_THICK_PX / 2.0),
-                width: Val::Px(STROKE_LEN_PX),
-                height: Val::Px(STROKE_THICK_PX),
-                ..default()
-            },
-            UiTransform {
-                rotation: Rot2::degrees(degrees),
-                ..default()
-            },
-            BackgroundColor(OBJECTIVE_GOLD),
-            Pickable::IGNORE,
-        )
-    };
-
-    (
-        Name::new("ObjectiveMarkerArrow"),
-        ScreenIndicatorArrowMarker,
-        Node {
-            position_type: PositionType::Absolute,
-            // Park the chevron just above the pill and centred on it. Half the
-            // chip's width, then back off half the chevron's own - a plain
-            // `-ARROW_PX / 2` sat near the origin, which only looked centred
-            // while the pill was a collapsed slab.
-            // `update_arrows` writes only `.rotation`, so this translation
-            // survives every frame.
-            left: Val::Percent(50.0),
-            top: Val::Px(-ARROW_PX - 2.0),
-            width: Val::Px(ARROW_PX),
-            height: Val::Px(ARROW_PX),
-            ..default()
-        },
-        UiTransform::from_translation(Val2::px(-ARROW_PX / 2.0, 0.0)),
-        Visibility::Hidden,
-        Pickable::IGNORE,
-        children![
-            stroke(-0.5, -45.0),
-            stroke(ARROW_PX - STROKE_LEN_PX + 0.5, 45.0),
-        ],
-    )
-}
-
 /// Draws one breathing gold chip (diamond glyph + label + edge chevron) per
 /// [`ObjectiveMarkerTarget`] entity - the "do this now" objective cue (Chrome
 /// tier).
 /// Registers [`ObjectiveMarkerTarget`], adds the chip spawn/despawn observers,
-/// and runs `update_objective_marker_labels` and `breathe_objective_markers`
-/// in Update within [`super::NovaHudSystems`].
+/// and runs the shared label updater plus `breathe_objective_markers` in Update
+/// within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ObjectiveMarkersHudPlugin;
 
@@ -253,10 +164,21 @@ impl Plugin for ObjectiveMarkersHudPlugin {
         app.register_type::<ObjectiveMarkerTarget>();
 
         app.add_observer(setup_objective_marker_chip);
-        app.add_observer(remove_objective_marker_chip);
+        app.add_observer(
+            despawn_anchored_chips::<ObjectiveMarkerTarget, ObjectiveMarkerChipHudMarker>,
+        );
         app.add_systems(
             Update,
-            (update_objective_marker_labels, breathe_objective_markers)
+            (
+                // The tag carries the name, so the label source needs no
+                // further gate.
+                update_anchored_chip_labels::<
+                    ObjectiveMarkerChipHudMarker,
+                    ObjectiveMarkerTarget,
+                    (),
+                >,
+                breathe_objective_markers,
+            )
                 .in_set(super::NovaHudSystems),
         );
     }
@@ -267,63 +189,6 @@ fn setup_objective_marker_chip(add: On<Add, ObjectiveMarkerTarget>, mut commands
     let target = add.entity;
     trace!("setup_objective_marker_chip: target {:?}", target);
     commands.spawn(objective_marker_chip_hud(target));
-}
-
-/// The chip layer dies with its tag - explicit detach action or the marked
-/// entity despawning (crate picked up, pirate destroyed, scenario unload).
-fn remove_objective_marker_chip(
-    remove: On<Remove, ObjectiveMarkerTarget>,
-    mut commands: Commands,
-    q_chips: Query<(Entity, &ObjectiveMarkerChipTargetEntity), With<ObjectiveMarkerChipHudMarker>>,
-) {
-    let target = remove.entity;
-    for (chip, chip_target) in &q_chips {
-        if **chip_target == target {
-            trace!("remove_objective_marker_chip: despawning chip {:?}", chip);
-            commands.entity(chip).despawn();
-        }
-    }
-}
-
-/// Label text: the marker's label plus the live distance to the player ship
-/// ("BEACON 1  4.20 km"). Without a player (death gap) the label alone shows.
-fn update_objective_marker_labels(
-    q_chips: Query<&ObjectiveMarkerChipTargetEntity, With<ObjectiveMarkerChipHudMarker>>,
-    // Two hops now: the text is a leaf CHILD of the chip, which is itself a
-    // child of the layer that knows the target.
-    mut q_labels: Query<(&mut Text, &ChildOf), With<ObjectiveMarkerChipTextMarker>>,
-    q_parents: Query<&ChildOf>,
-    q_targets: Query<(&ObjectiveMarkerTarget, &GlobalTransform)>,
-    q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
-) {
-    let player = q_player.iter().next();
-    for (mut text, ChildOf(chip)) in &mut q_labels {
-        let Ok(ChildOf(layer)) = q_parents.get(*chip) else {
-            continue;
-        };
-        let Ok(target) = q_chips.get(*layer) else {
-            continue;
-        };
-        let Ok((marker, target_transform)) = q_targets.get(**target) else {
-            continue;
-        };
-        let next = match player {
-            Some(player_transform) => {
-                let distance = player_transform
-                    .translation()
-                    .distance(target_transform.translation());
-                format!(
-                    "{}  {}",
-                    marker.label,
-                    nova_ui::units::distance(Meters::from_engine(distance))
-                )
-            }
-            None => marker.label.clone(),
-        };
-        if **text != next {
-            **text = next;
-        }
-    }
 }
 
 /// The breath wave at `elapsed` seconds: the alpha every chip color node
@@ -370,13 +235,15 @@ mod tests {
     fn world_with_observers() -> World {
         let mut world = World::new();
         world.add_observer(setup_objective_marker_chip);
-        world.add_observer(remove_objective_marker_chip);
+        world.add_observer(
+            despawn_anchored_chips::<ObjectiveMarkerTarget, ObjectiveMarkerChipHudMarker>,
+        );
         world
     }
 
     fn chips(world: &mut World) -> Vec<(Entity, Entity)> {
         world
-            .query_filtered::<(Entity, &ObjectiveMarkerChipTargetEntity), With<ObjectiveMarkerChipHudMarker>>()
+            .query_filtered::<(Entity, &AnchoredChipTarget), With<ObjectiveMarkerChipHudMarker>>()
             .iter(world)
             .map(|(chip, target)| (chip, **target))
             .collect()
@@ -438,11 +305,17 @@ mod tests {
 
         // No player yet: label alone.
         world
-            .run_system_once(update_objective_marker_labels)
+            .run_system_once(
+                update_anchored_chip_labels::<
+                    ObjectiveMarkerChipHudMarker,
+                    ObjectiveMarkerTarget,
+                    (),
+                >,
+            )
             .unwrap();
         let label_text = |world: &mut World| -> String {
             world
-                .query_filtered::<&Text, With<ObjectiveMarkerChipTextMarker>>()
+                .query_filtered::<&Text, With<AnchoredChipLabelMarker>>()
                 .iter(world)
                 .next()
                 .unwrap()
@@ -456,7 +329,13 @@ mod tests {
             GlobalTransform::from_translation(Vec3::ZERO),
         ));
         world
-            .run_system_once(update_objective_marker_labels)
+            .run_system_once(
+                update_anchored_chip_labels::<
+                    ObjectiveMarkerChipHudMarker,
+                    ObjectiveMarkerTarget,
+                    (),
+                >,
+            )
             .unwrap();
         // 420 world units = 4200 m -> 4.20 km displayed.
         assert_eq!(label_text(&mut world), "BEACON 3  4.20 km");
@@ -481,7 +360,9 @@ mod tests {
         world.run_system_once(breathe_objective_markers).unwrap();
 
         let (label_color, has_shadow) = {
-            let mut q = world.query_filtered::<(&TextColor, Option<&TextShadow>), With<ObjectiveMarkerChipTextMarker>>();
+            let mut q = world
+                .query_filtered::<(&TextColor, Option<&TextShadow>), With<AnchoredChipLabelMarker>>(
+                );
             let (color, shadow) = q.iter(&world).next().expect("label exists");
             (color.0, shadow.is_some())
         };
@@ -526,7 +407,7 @@ mod tests {
             .iter(app.world())
             .next()
             .expect("the marker grew a chip layer");
-        let chip = only_descendant_with::<ObjectiveMarkerChipNodeMarker>(&mut app, layer);
+        let chip = only_descendant_with::<AnchoredChipNodeMarker>(&mut app, layer);
         let text = only_descendant_with::<Text>(&mut app, layer);
         (app, layer, chip, text)
     }

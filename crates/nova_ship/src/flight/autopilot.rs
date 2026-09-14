@@ -13,6 +13,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
+    capability::{ship_grants_verb, LiveFlightComputers},
     guidance::{
         arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
@@ -117,16 +118,10 @@ pub(super) fn autopilot_system(
             Without<SpaceshipRootMarker>,
         ),
     >,
-    // A live flight computer is a controller section that still has its PD
-    // (preview controllers have none) and is not disabled. Its acceleration
-    // limit is the hull's rotation authority, so the planner reads it too.
-    q_computer: Query<
-        (&PDController, &ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
+    // The live flight computers ([`LiveFlightComputers`] says what makes one
+    // live). Their acceleration limit is the hull's rotation authority, so the
+    // planner reads the same rows the verb gate answers from.
+    q_computer: LiveFlightComputers,
     mut q_rotation_input: Query<
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
@@ -757,11 +752,7 @@ pub(super) fn autopilot_system(
         let rcs_cap = rcs_cap_override
             .map(|c| c.0)
             .unwrap_or(settings.rcs_speed_cap);
-        let verb_granted = |verb: FlightVerb| {
-            q_computer.iter().any(|(_, &ChildOf(parent), withheld)| {
-                parent == ship && withheld.is_none_or(|w| w.granted(verb))
-            })
-        };
+        let verb_granted = |verb: FlightVerb| ship_grants_verb(ship, verb, &q_computer);
         let rcs_granted = verb_granted(FlightVerb::Rcs);
         let rcs_capable = rcs_granted && rcs_cap > 0.0 && error_speed > 1e-3;
         // The RCS takes a goal only where it has CLEAR authority over the local

@@ -11,11 +11,16 @@
 //! entity vocabulary the layers above tag with), `lifetime` and `cooldown`
 //! (transient entities and the countdowns that gate actions), `math`,
 //! `relations`, `beacon`, `asset_ref` and `settings` (volume + graphics
-//! presets), `transient_light` (the capped brief lights combat throws) and
-//! `soft_dot` (the round mask every glowing billboard is drawn through). Nova
-//! owns all of it, engine layers included: health, damage and destruction
-//! (`integrity`), the transform rigs, the mesh toolkit and SFX playback were
-//! vendored in from the shared-helpers crate and are nova's to shape now.
+//! presets), `transient_light` (the capped brief lights combat throws),
+//! `soft_dot` (the round mask every glowing billboard is drawn through),
+//! `render_target` (the WebGL2-safe offscreen render-to-texture recipe every
+//! viewer above this crate is born through), `bounds` (how big a body
+//! looks: the solid-collider subtree walk the HUD and the editor both size
+//! from) and `hash` (the reproducible FNV-1a derivation every seeded look is
+//! drawn from). Nova owns all of it, engine layers included: health, damage and
+//! destruction (`integrity`), the transform rigs, the mesh toolkit and SFX
+//! playback were vendored in from the shared-helpers crate and are nova's to
+//! shape now.
 //!
 //! The ship itself - `sections`, `input`, `flight`, `camera`, `physics` and the
 //! ship's soundtrack - is the peer crate `nova_ship`, which depends on this one.
@@ -26,11 +31,13 @@ use bevy::prelude::*;
 pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
+pub mod bounds;
 pub mod cheats;
 pub mod cooldown;
 pub mod damage;
 pub mod freeze;
 pub mod gravity;
+pub mod hash;
 pub mod impact_sound;
 pub mod impact_spark;
 pub mod integrity;
@@ -44,6 +51,7 @@ pub mod objectives;
 pub mod plugin;
 pub mod projectile_hooks;
 pub mod relations;
+pub mod render_target;
 pub mod rounds;
 pub mod settings;
 pub mod shake;
@@ -101,15 +109,15 @@ pub mod prelude {
     // INERT (task 20260802-183403). The glob is gone with the dependency, but
     // the lesson outlives it: adding a name below is a decision.
     pub use super::{
-        asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, cheats::prelude::*,
-        cooldown::prelude::*, damage::prelude::*, freeze::prelude::*, gravity::prelude::*,
-        impact_sound::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
-        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, math::prelude::*,
-        mesh::prelude::*, narrative_channel::prelude::*, objectives::prelude::*,
+        asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
+        cheats::prelude::*, cooldown::prelude::*, damage::prelude::*, freeze::prelude::*,
+        gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
+        integrity::prelude::*, juice::prelude::*, lifetime::prelude::*, markers::prelude::*,
+        math::prelude::*, mesh::prelude::*, narrative_channel::prelude::*, objectives::prelude::*,
         plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
-        rounds::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
-        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
-        PauseStates,
+        render_target::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
+        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, PauseStates,
     };
 }
 

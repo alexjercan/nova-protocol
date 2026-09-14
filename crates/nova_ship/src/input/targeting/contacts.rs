@@ -204,24 +204,6 @@ fn maintain_contacts(ranked: &[Entity], combat_lock: Option<Entity>) -> Vec<Enti
     entries
 }
 
-/// Whether `ship` has a live controller section granting `verb` - the
-/// computer-capability gate (mirrors player.rs's `ship_grants_verb`; the
-/// radar needs it here for the Lock capability).
-pub(super) fn ship_grants_lock(
-    ship: Entity,
-    q_controllers: &Query<
-        (&ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
-) -> bool {
-    q_controllers.iter().any(|(ChildOf(parent), withheld)| {
-        *parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Lock))
-    })
-}
-
 /// Accumulate focus while the COMBAT lock stays on one target; any change
 /// (new target or lock lost) restarts the dwell from zero. Generic over any
 /// ship carrying the components (AI parity).

@@ -7,7 +7,10 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
 use super::flight_rig::AutopilotStopInput;
-use crate::prelude::*;
+use crate::{
+    flight::{ship_grants_verb, LiveFlightComputers},
+    prelude::*,
+};
 
 /// One flight verb's hint state, for the keybind-hint HUD.
 #[derive(Clone, Debug, Default, PartialEq, Reflect)]
@@ -93,14 +96,7 @@ pub(super) fn update_flight_verb_hints(
         ),
         With<PlayerSpaceshipMarker>,
     >,
-    q_computer: Query<
-        (&ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            With<PDController>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
+    q_computer: LiveFlightComputers,
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
     q_rig: Query<(), With<Action<AutopilotStopInput>>>,
     bindings: Option<Res<InputBindings>>,
@@ -140,22 +136,18 @@ pub(super) fn update_flight_verb_hints(
     let flyable = ship.is_some_and(|ship| {
         q_computer
             .iter()
-            .any(|(&ChildOf(parent), _)| parent == ship)
+            .any(|(_, &ChildOf(parent), _)| parent == ship)
             && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
     });
-    // The individual maneuvers are a capability the controller GRANTS: a verb
-    // lights only if some live controller on this ship enables it (union across
-    // controllers), on top of `flyable`. The verb flags are kept SEPARATE from
-    // `flyable` above (which only asks "is there a live controller + engine")
-    // so a controller missing the withheld-verbs component can never brick the
-    // ship - it just falls back to the all-granted default (an absent component
-    // means nothing is withheld). The `SetControllerVerb` action flips these.
+    // The individual maneuvers are a capability the controller GRANTS, asked
+    // through the one shared gate the input observers fire on, so a lit hint
+    // and a firing key can never disagree. Kept SEPARATE from `flyable` above
+    // (which only asks "is there a live controller + engine"): the two answer
+    // different questions, and folding them would make a controller missing
+    // the withheld-verbs component brick the ship instead of falling back to
+    // the all-granted default. The `SetControllerVerb` action flips these.
     let verb_granted = |verb: FlightVerb| -> bool {
-        ship.is_some_and(|ship| {
-            q_computer.iter().any(|(&ChildOf(parent), withheld)| {
-                parent == ship && withheld.is_none_or(|withheld| withheld.granted(verb))
-            })
-        })
+        ship.is_some_and(|ship| ship_grants_verb(ship, verb, &q_computer))
     };
     let engaged = autopilot.is_some();
     let orbiting = matches!(

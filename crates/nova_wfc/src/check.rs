@@ -47,6 +47,12 @@ pub struct Placed<'a> {
 
 /// Resolve a hull's sections against the catalog, or say which id did not
 /// resolve.
+///
+/// Deliberately NOT [`SectionSource::resolve`], which every other consumer
+/// uses: that one accepts an inline config, and a generated hull is prototypes
+/// only - the tiles the collapse placed. An inline section here means the hull
+/// did not come out of the generator, which is a finding, not a section to
+/// measure.
 pub fn place<'a>(ship: &ShipHull, sections: &'a GameSections) -> Result<Vec<Placed<'a>>, String> {
     ship.sections
         .iter()

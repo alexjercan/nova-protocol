@@ -28,8 +28,8 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::source_label;
 use nova_scenario::prelude::{
-    Names, ScenarioObjectKind, SectionSource, VariableConditionNode, VariableExpressionNode,
-    ASTEROID_KIND_SUMMARIES,
+    object_reference_resolves, Names, ScenarioObjectKind, SectionSource, VariableConditionNode,
+    VariableExpressionNode, ASTEROID_KIND_SUMMARIES,
 };
 use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 
@@ -2556,15 +2556,17 @@ impl DocumentNames {
     /// the lowering drops a handler by (see
     /// [`following_the_objects`](crate::scenario)): a variable or a timer is
     /// made by the handler that first writes it, so any key is a key.
+    ///
+    /// An EMPTY field is not wrong either: an unset optional matches anything,
+    /// and a box the author has not typed into yet must not paint as a fault.
+    /// That tolerance is the PANEL's, which is why it is decided here and not
+    /// in [`object_reference_resolves`] - the rule past it, shared with the
+    /// content lint and with the lowering.
     pub(crate) fn resolves(&self, names: Names, text: &str) -> bool {
         if names != Names::Object || text.is_empty() {
             return true;
         }
-        self.objects.iter().any(|id| id == text)
-            || self
-                .prefixes
-                .iter()
-                .any(|prefix| !prefix.is_empty() && text.starts_with(prefix))
+        object_reference_resolves(text, &self.objects, &self.prefixes)
     }
 }
 

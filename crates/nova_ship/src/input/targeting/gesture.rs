@@ -7,10 +7,12 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::{Cancel as ActionCancel, *};
 use nova_gameplay::prelude::*;
 
-use super::contacts::ship_grants_lock;
 #[cfg(test)]
 use super::radar::{lock_dwell_secs, update_radar_search};
-use crate::prelude::*;
+use crate::{
+    flight::{ship_grants_verb, LiveFlightComputers},
+    prelude::*,
+};
 
 /// One radar gesture threshold (seconds), shared by the `Hold` (radar/commit)
 /// and `Tap` (clear) conditions on CTRL - deriving both from one constant is
@@ -31,23 +33,13 @@ pub(crate) struct RadarClearInput;
 /// decided here - it latches at the hold threshold, in the live search
 /// (Q1a). Gated on the computer's Lock capability and, like every intent
 /// observer, on the pause overlay.
-#[expect(
-    clippy::type_complexity,
-    reason = "the controller query filters on two markers at once"
-)]
 pub(super) fn on_radar_start(
     _: On<Start<RadarHoldInput>>,
     mut commands: Commands,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
     mut denied: MessageWriter<RadarDenied>,
-    q_controllers: Query<
-        (&ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
+    q_controllers: LiveFlightComputers,
     q_ship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -59,7 +51,7 @@ pub(super) fn on_radar_start(
         return;
     }
     for ship in &q_ship {
-        if !ship_grants_lock(ship, &q_controllers) {
+        if !ship_grants_verb(ship, FlightVerb::Lock, &q_controllers) {
             // No Lock capability on this computer: the radar does not come
             // on - and says so (deny buzz + adornment flash, F7/Q8a).
             denied.write(RadarDenied);
@@ -293,8 +285,18 @@ mod tests {
             ))
             .id();
         // No WithheldVerbs: an absent component grants every verb (Lock).
-        app.world_mut()
-            .spawn((ControllerSectionMarker, ChildOf(ship)));
+        // The PD is what makes it a LIVE flight computer - without it this is
+        // the editor's preview shape and the gate grants nothing.
+        app.world_mut().spawn((
+            ControllerSectionMarker,
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_angular_acceleration: 40.0,
+                sustained_angular_speed: f32::INFINITY,
+            },
+            ChildOf(ship),
+        ));
 
         // The context registry finalizes in App::finish; run the lifecycle
         // before spawning the rig, like the production app does.

@@ -488,20 +488,25 @@ pub fn lint_target(dir: &Path) -> Vec<(String, LintIssue)> {
 /// material for an `input-overlap` finding. See
 /// `nova_gameplay::flight_rig_reserved_sources` and lesson
 /// `input-mapping-overlays-flight-rig`.
+///
+/// Through [`EventActionConfig::walk`]: the flight rig reserves its sources
+/// whenever the player's ship exists, so a player staged from inside a
+/// `Sequence` or `Cinematic` beat carries the same overlap as one a handler
+/// places itself.
 fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSource, String)> {
     let reserved: HashMap<InputSource, &'static str> =
         flight_rig_reserved_sources().into_iter().collect();
     let mut out = Vec::new();
-    for event in &scenario.events {
-        for action in &event.actions {
+    for action in scenario.events.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| {
             let EventActionConfig::SpawnScenarioObject(config) = action else {
-                continue;
+                return;
             };
             let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
-                continue;
+                return;
             };
             let SpaceshipController::Player(player) = &ship.controller else {
-                continue;
+                return;
             };
             // `input_mapping` is ordered, so the findings - and the report
             // file the CI diff compares - come out the same every run.
@@ -512,7 +517,7 @@ fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSourc
                     }
                 }
             }
-        }
+        });
     }
     out
 }
@@ -772,7 +777,7 @@ mod tests {
         ScenarioEventConfig,
     };
 
-    use super::{lint_bundle, WalkedBundle};
+    use super::{lint_bundle, scenario_input_overlaps, WalkedBundle};
 
     fn scenario(id: &str, cubemap: &str) -> Content {
         Content::Scenario(ScenarioConfig {
@@ -1108,5 +1113,61 @@ mod tests {
                 .any(|m| m.contains("no scheme")),
             "a schemed ref is not flagged as bare"
         );
+    }
+
+    /// The flight rig reserves its sources for as long as the player's ship
+    /// exists, so WHERE the spawn is authored cannot change the answer. A
+    /// player staged from inside a `Sequence` beat was invisible to the flat
+    /// read of each handler's own action list, and a mod could ship a Space
+    /// binding that silently fired the burn as well as the guns.
+    #[test]
+    fn an_input_overlap_is_found_on_a_player_staged_inside_a_sequence_step() {
+        let ron = r#"Scenario((
+            id: "staged_player",
+            name: "Staged Player",
+            description: "",
+            cubemap: "dep://base/textures/cubemap.png",
+            events: [
+                (
+                    name: OnStart,
+                    actions: [
+                        Sequence((
+                            key: "arrival",
+                            steps: [
+                                (
+                                    after: Some(2.0),
+                                    actions: [
+                                        SpawnScenarioObject((
+                                            base: (id: "player", name: "Player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                                            kind: Spaceship((
+                                                controller: Player((
+                                                    input_mapping: {
+                                                        "guns": [ Keyboard(Space) ],
+                                                    },
+                                                )),
+                                                hull: Inline((sections: [])),
+                                            )),
+                                        )),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    ],
+                ),
+            ],
+        ))"#;
+        let Content::Scenario(staged) = ron::from_str::<Content>(ron).expect("scenario parses")
+        else {
+            unreachable!("the fixture is a Scenario");
+        };
+
+        let overlaps = scenario_input_overlaps(&staged);
+
+        assert_eq!(
+            overlaps.len(),
+            1,
+            "the staged player's Space binding still collides with the flight rig: {overlaps:?}"
+        );
+        assert_eq!(overlaps[0].0, "guns");
     }
 }

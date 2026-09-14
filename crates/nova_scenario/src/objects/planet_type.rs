@@ -18,6 +18,7 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::SeedStream;
 
 /// Planet types, their biome palettes, the authored [`PlanetConfig`], and the
 /// seeded [`PlanetSurface`] a type and a seed resolve to.
@@ -529,7 +530,7 @@ impl PlanetSurface {
         let bands = slots
             .iter()
             .map(|slot| {
-                let biome = stream.pick(slot.choices);
+                let biome = pick(&mut stream, slot.choices);
                 let value = 1.0 + stream.signed() * BAND_VALUE_JITTER;
                 let latitude_floor = match slot.latitude_floor > 0.0 {
                     true => (slot.latitude_floor + stream.signed() * CAP_LATITUDE_JITTER)
@@ -576,46 +577,17 @@ impl PlanetSurface {
     }
 }
 
-/// A deterministic stream of draws from one seed.
+/// One draw from a slot's choices, off `stream`.
 ///
-/// FNV-1a with a shift-xor finalizer, the hash this crate already derives
-/// asteroid seeds and axis stretches with. Not a general PRNG and not trying
-/// to be one: it has to be identical in every process and on every platform,
-/// which an integer hash is and a floating-point generator is not.
-struct SeedStream(u32);
-
-impl SeedStream {
-    fn new(seed: u32) -> Self {
-        Self(0x811c_9dc5 ^ seed)
-    }
-
-    fn next_u32(&mut self) -> u32 {
-        self.0 = self.0.wrapping_mul(0x0100_0193);
-        self.0 ^= self.0 >> 15;
-        self.0
-    }
-
-    /// The next draw in `[0, 1)`.
-    fn unit(&mut self) -> f32 {
-        (self.next_u32() >> 8) as f32 / 16_777_216.0
-    }
-
-    /// The next draw in `[-1, 1)`.
-    fn signed(&mut self) -> f32 {
-        self.unit() * 2.0 - 1.0
-    }
-
-    /// One entry of `choices`. Panics on an empty slot, which is an authoring
-    /// error rather than a runtime condition.
-    /// One draw from a slot's choices. A slot with no choices is a hole in
-    /// the palette table, so it fails here rather than drawing a house biome.
-    fn pick<'choices, T>(&mut self, choices: &'choices [T]) -> &'choices T {
-        assert!(
-            !choices.is_empty(),
-            "a biome slot offers no choices; every slot must name at least one"
-        );
-        &choices[self.next_u32() as usize % choices.len()]
-    }
+/// A slot with no choices is a hole in the palette table, so it fails here
+/// rather than drawing a house biome - an authoring error, not a runtime
+/// condition.
+fn pick<'choices, T>(stream: &mut SeedStream, choices: &'choices [T]) -> &'choices T {
+    assert!(
+        !choices.is_empty(),
+        "a biome slot offers no choices; every slot must name at least one"
+    );
+    &choices[stream.next_u32() as usize % choices.len()]
 }
 
 // ---------------------------------------------------------------------------

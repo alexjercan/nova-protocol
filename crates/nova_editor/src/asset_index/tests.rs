@@ -1,6 +1,7 @@
 //! What the picker offers, and what it is willing to call wrong.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_assets::{mod_cache::prelude::InstalledModRecord, prelude::DownloadedMod};
 use nova_gameplay::prelude::AssetRef;
 use nova_modding::prelude::{CatalogEntry, ModEntry, ModMeta};
 
@@ -63,6 +64,79 @@ fn a_picked_model_takes_the_scene_label_a_mesh_ref_needs() {
     assert_eq!(
         offered,
         vec!["dep://base/gltf/hull-01.glb#Scene0".to_string()]
+    );
+}
+
+/// Install a DOWNLOADED mod under `id` in a world from `installed`, shipping
+/// `resources`, and enable it - the cache half of the installed set.
+fn download(world: &mut World, id: &str, resources: &[&str]) {
+    let asset = BundleAsset {
+        content: vec![],
+        meta: ModMeta::default(),
+        new_game_scenario: None,
+        resources: resources.iter().map(|file| (*file).to_string()).collect(),
+        resource_base: format!("mods/{id}"),
+    };
+    let bundle = world.resource_mut::<Assets<BundleAsset>>().add(asset);
+    world.insert_resource(DownloadedMods(vec![DownloadedMod {
+        record: InstalledModRecord {
+            id: id.to_string(),
+            version: "1.0.0".to_string(),
+            bundle: format!("{id}.bundle.ron"),
+        },
+        bundle,
+    }]));
+    world.resource_mut::<EnabledMods>().0.insert(id.to_string());
+}
+
+/// The picker offers what the MERGE loads, and the merge drops a downloaded id
+/// that shadows a shipped one (`nova_assets::shadows_shipped`): one enable key
+/// reads one bundle, the shipped one. Offering the downloaded copy's files
+/// would hand a creator a `dep://` ref that resolves against the SHIPPED bundle
+/// at load - content picked in the editor, missing in the game.
+#[test]
+fn a_downloaded_mod_shadowing_a_shipped_id_offers_nothing() {
+    let mut world = installed("base", &["textures/rock.png"]);
+    download(&mut world, "base", &["textures/impostor.png"]);
+
+    let (offered, impostor) = world
+        .run_system_once(|files: AssetIndex| {
+            (
+                files.offers(AssetSort::Image),
+                files.resolves("dep://base/textures/impostor.png"),
+            )
+        })
+        .expect("the index reads");
+
+    assert_eq!(
+        offered,
+        vec!["dep://base/textures/rock.png".to_string()],
+        "a shadowed id offers the SHIPPED bundle's files only"
+    );
+    assert!(
+        !impostor,
+        "a file only the shadowed downloaded copy declares is one the merge cannot reach"
+    );
+}
+
+/// A downloaded mod with an id of its own is merged like any other enabled
+/// bundle, so its files are offered like any other bundle's - after the shipped
+/// ones, which is the merge's order too.
+#[test]
+fn a_downloaded_mod_with_its_own_id_is_offered() {
+    let mut world = installed("base", &["textures/rock.png"]);
+    download(&mut world, "extra", &["textures/extra.png"]);
+
+    let offered = world
+        .run_system_once(|files: AssetIndex| files.offers(AssetSort::Image))
+        .expect("the index reads");
+
+    assert_eq!(
+        offered,
+        vec![
+            "dep://base/textures/rock.png".to_string(),
+            "dep://extra/textures/extra.png".to_string(),
+        ]
     );
 }
 

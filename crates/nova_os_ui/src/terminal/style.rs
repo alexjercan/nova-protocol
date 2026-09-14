@@ -29,7 +29,6 @@ pub(crate) const NOVA_OS_BOOT_ROW_INTERVAL: f32 = 0.13;
 /// so it is not used to position the caret (that measures the real text width;
 /// see [`super::shell::position_nova_os_block_caret`]).
 pub(crate) const NOVA_OS_CARET_WIDTH_FRACTION: f32 = 0.6;
-pub(crate) const DRAWER_SCROLL_LINE_HEIGHT_PX: f32 = 20.0;
 
 /// Horizontal inset from the viewport edge to the physical monitor casing. Kept
 /// small so the monitor sits almost at the screen edges (the top status-bar

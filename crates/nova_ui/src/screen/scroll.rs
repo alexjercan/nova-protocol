@@ -14,6 +14,11 @@ use crate::{skin::UiSkin, theme};
 ///
 /// Three lines of type, not one: a wheel notch that moved a single line made a
 /// thirty-row inspector a wrist exercise.
+///
+/// One step for every scrolling surface in the game, the NOVA OS drawer
+/// included. A surface that sets its own is a surface where the same notch
+/// travels a different distance, which the player reads as the pane being
+/// broken rather than as a setting.
 const SCROLL_LINE_HEIGHT: f32 = 60.0;
 
 /// How wide a scrollbar's track is, in logical pixels.
@@ -60,16 +65,30 @@ pub fn page_step(node: Option<&ComputedNode>) -> f32 {
 pub struct ScrollViewport;
 
 /// Wheel-scroll every [`ScrollViewport`], clamped at both ends.
+pub fn scroll_viewports(
+    wheel: MessageReader<MouseWheel>,
+    viewports: Query<
+        (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
+        With<ScrollViewport>,
+    >,
+) {
+    drive_wheel_scroll(wheel, viewports);
+}
+
+/// Wheel-scroll every viewport carrying the marker `M`, clamped at both ends.
 ///
 /// A hovered viewport takes the whole wheel delta: with two viewports on screen
 /// the pointer picks which one moves, and only when none is hovered do they all
 /// scroll together.
-pub fn scroll_viewports(
+///
+/// The marker is a parameter because a surface may need its own REGISTRATION -
+/// the NOVA OS drawer answers the wheel only while the monitor owns the screen,
+/// and only once its hover has been mirrored off the sampled image - but never
+/// its own arithmetic, which is how the two copies came to disagree about how
+/// far one notch travels.
+pub fn drive_wheel_scroll<M: Component>(
     mut wheel: MessageReader<MouseWheel>,
-    mut viewports: Query<
-        (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
-        With<ScrollViewport>,
-    >,
+    mut viewports: Query<(&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>), With<M>>,
 ) {
     let dy: f32 = wheel
         .read()
@@ -101,7 +120,23 @@ pub fn scroll_viewports(
 /// measured it, so a SHRINKING content size cannot leave the pane scrolled past
 /// its end.
 pub fn clamp_viewports(
-    mut viewports: Query<(&mut ScrollPosition, &ComputedNode), With<ScrollViewport>>,
+    viewports: Query<(&mut ScrollPosition, &ComputedNode), With<ScrollViewport>>,
+) {
+    clamp_stored_scroll(viewports);
+}
+
+/// Pull every viewport carrying the marker `M` back inside its measured
+/// content.
+///
+/// The STORED offset, not the drawn one: bevy clamps only the value it writes
+/// into [`ComputedNode`], so an offset left past the end - by a content size
+/// that shrank, or by a scroll-to-the-bottom request written before layout had
+/// measured anything - stays in the component and the pane renders blank.
+///
+/// Marker-generic for the same reason as [`drive_wheel_scroll`]: a surface
+/// picks its own schedule slot, not its own clamp.
+pub fn clamp_stored_scroll<M: Component>(
+    mut viewports: Query<(&mut ScrollPosition, &ComputedNode), With<M>>,
 ) {
     for (mut scroll, node) in &mut viewports {
         let clamped = scroll.0.y.clamp(0.0, max_scroll_y(Some(node)));

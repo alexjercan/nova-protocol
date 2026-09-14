@@ -236,11 +236,7 @@ pub fn lint_scenario(
     }
 
     let satisfiable = |target: &str| {
-        declared.spawn_ids.iter().any(|s| s == target)
-            || declared
-                .scatter_prefixes
-                .iter()
-                .any(|p| target.starts_with(p.as_str()))
+        object_reference_resolves(target, &declared.spawn_ids, &declared.scatter_prefixes)
     };
 
     for watch in &scenario.watches {
@@ -657,6 +653,14 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
     }
 }
 
+/// Everything one action owns BEYOND the ids it names: ranges, keys, counts,
+/// controller classes - the half no field attribute can state.
+///
+/// The references are [`check_object_names`], read off the field itself, which
+/// is why the catch-all at the end of the match is not a hole in the name
+/// vocabulary: an action added with a `Names::Object` field is resolved whether
+/// or not anyone writes an arm here. What falls through is an action with
+/// nothing else to check, which is most of them.
 fn check_action(
     action: &EventActionConfig,
     scenario: &str,
@@ -666,6 +670,7 @@ fn check_action(
     used_vars: &mut HashSet<String>,
     issues: &mut Vec<LintIssue>,
 ) {
+    check_object_names(action, scenario, satisfiable, issues);
     match action {
         EventActionConfig::SpawnScenarioObject(config) => {
             check_object_prototypes(config, scenario, catalog.sections, catalog.ships, issues);
@@ -858,63 +863,8 @@ fn check_action(
                 ));
             }
         }
-        EventActionConfig::ObjectiveMarkerAttach(config) => {
-            check_target(
-                &config.target_id,
-                "ObjectiveMarkerAttach",
-                scenario,
-                satisfiable,
-                issues,
-            );
-        }
-        EventActionConfig::ObjectiveMarkerDetach(config) => {
-            check_target(
-                &config.target_id,
-                "ObjectiveMarkerDetach",
-                scenario,
-                satisfiable,
-                issues,
-            );
-        }
-        EventActionConfig::DespawnScenarioObject(config) => {
-            check_target(
-                &config.id,
-                "DespawnScenarioObject",
-                scenario,
-                satisfiable,
-                issues,
-            );
-        }
-        EventActionConfig::SetSpeedCap(config) => {
-            check_target(&config.id, "SetSpeedCap", scenario, satisfiable, issues);
-        }
-        EventActionConfig::SetAllegiance(config) => {
-            check_target(&config.id, "SetAllegiance", scenario, satisfiable, issues);
-        }
-        EventActionConfig::SetCameraAnchor(config) => {
-            check_target(
-                &config.anchor,
-                "SetCameraAnchor",
-                scenario,
-                satisfiable,
-                issues,
-            );
-            // The look-at target is a second scoped id, and it fails the same
-            // way: the shot silently falls back to the anchor and a cinematic
-            // frames the wrong thing.
-            if let CameraLookAtConfig::Object(id) = &config.look_at {
-                check_target(id, "SetCameraAnchor look_at", scenario, satisfiable, issues);
-            }
-        }
         EventActionConfig::MoveShipTo(config) => {
-            check_orderable_ship(
-                &config.ship,
-                "MoveShipTo",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_orderable_ship(&config.ship, "MoveShipTo", scenario, declared, issues);
             check_order_key(&config.order, "MoveShipTo", scenario, issues);
             check_arrival_standoff(
                 config.arrival_standoff,
@@ -924,14 +874,7 @@ fn check_action(
             );
         }
         EventActionConfig::ForceAlign(config) => {
-            check_orderable_ship(
-                &config.ship,
-                "ForceAlign",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_orderable_ship(&config.ship, "ForceAlign", scenario, declared, issues);
             check_order_key(&config.order, "ForceAlign", scenario, issues);
             // A negative or non-finite tolerance can never be met, so the
             // order never completes and every beat chained off it stalls
@@ -948,25 +891,11 @@ fn check_action(
             }
         }
         EventActionConfig::StopShip(config) => {
-            check_orderable_ship(
-                &config.ship,
-                "StopShip",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_orderable_ship(&config.ship, "StopShip", scenario, declared, issues);
             check_order_key(&config.order, "StopShip", scenario, issues);
         }
         EventActionConfig::PatrolShip(config) => {
-            check_orderable_ship(
-                &config.ship,
-                "PatrolShip",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_orderable_ship(&config.ship, "PatrolShip", scenario, declared, issues);
             check_order_key(&config.order, "PatrolShip", scenario, issues);
             // No waypoints is no loop, so the order is refused at runtime and
             // every beat chained off its completion stalls. Catchable here.
@@ -982,36 +911,14 @@ fn check_action(
             }
         }
         EventActionConfig::OrbitShip(config) => {
-            check_orderable_ship(
-                &config.ship,
-                "OrbitShip",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_orderable_ship(&config.ship, "OrbitShip", scenario, declared, issues);
             check_order_key(&config.order, "OrbitShip", scenario, issues);
-            check_target(&config.well, "OrbitShip", scenario, satisfiable, issues);
         }
         EventActionConfig::ClearShipOrder(config) => {
-            check_orderable_ship(
-                &config.ship,
-                "ClearShipOrder",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_orderable_ship(&config.ship, "ClearShipOrder", scenario, declared, issues);
         }
         EventActionConfig::SetAILeash(config) => {
-            check_ai_ship(
-                &config.ship,
-                "SetAILeash",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_ai_ship(&config.ship, "SetAILeash", scenario, declared, issues);
             if let Some(leash) = &config.leash {
                 if !leash.radius.0.is_finite() || leash.radius.0 <= 0.0 {
                     issues.push(LintIssue::error(
@@ -1025,14 +932,7 @@ fn check_action(
             }
         }
         EventActionConfig::SetAIEngageRange(config) => {
-            check_ai_ship(
-                &config.ship,
-                "SetAIEngageRange",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_ai_ship(&config.ship, "SetAIEngageRange", scenario, declared, issues);
             check_ai_range(
                 config.range,
                 "SetAIEngageRange",
@@ -1046,7 +946,6 @@ fn check_action(
                 &config.ship,
                 "SetAIPointDefenseRange",
                 scenario,
-                satisfiable,
                 declared,
                 issues,
             );
@@ -1059,14 +958,7 @@ fn check_action(
             );
         }
         EventActionConfig::ForceRailgunFire(config) => {
-            check_scripted_ship(
-                &config.ship,
-                "ForceRailgunFire",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
+            check_scripted_ship(&config.ship, "ForceRailgunFire", scenario, declared, issues);
             check_ship_section(
                 &config.ship,
                 &config.section,
@@ -1080,21 +972,7 @@ fn check_action(
             );
         }
         EventActionConfig::ForceTorpedoFire(config) => {
-            check_scripted_ship(
-                &config.ship,
-                "ForceTorpedoFire",
-                scenario,
-                satisfiable,
-                declared,
-                issues,
-            );
-            check_target(
-                &config.target,
-                "ForceTorpedoFire",
-                scenario,
-                satisfiable,
-                issues,
-            );
+            check_scripted_ship(&config.ship, "ForceTorpedoFire", scenario, declared, issues);
             check_ship_section(
                 &config.ship,
                 &config.section,
@@ -1104,15 +982,6 @@ fn check_action(
                 catalog.sections,
                 catalog.ships,
                 declared,
-                issues,
-            );
-        }
-        EventActionConfig::SetControllerVerb(config) => {
-            check_target(
-                &config.id,
-                "SetControllerVerb",
-                scenario,
-                satisfiable,
                 issues,
             );
         }
@@ -1137,9 +1006,12 @@ fn check_action(
             // VariableSet ever writes (the engine clock is exempted there).
             used_vars.insert(config.variable.clone());
         }
+        // An action with nothing to check beyond the ids it names, which
+        // `check_object_names` has already resolved.
         _ => {}
     }
 }
+
 fn direct_number_literal(expression: &VariableExpressionNode) -> Option<f64> {
     let VariableExpressionNode::Term(VariableTermNode::Factor(VariableFactorNode::Literal(
         VariableLiteral::Number(value),
@@ -1165,23 +1037,66 @@ fn check_target(
     }
 }
 
-/// A scripted action's actor: the id must resolve, and nothing else may be
-/// driving it.
+/// Every scenario object one action REFERENCES, resolved against what the
+/// scenario spawns.
 ///
-/// The controller half is catchable at AUTHOR time and so is checked here
-/// rather than left to a runtime error: the id is already proven to be spawned
-/// by this scenario, which means its `SpaceshipController` is sitting in the
-/// same file. A ship this scenario does not spawn by name (a scattered one)
-/// gets the id check only - there is nothing static to read.
+/// Read off the [`Names::Object`] attribute the field carries, not off an arm
+/// per action. The arm list was a second copy of the same vocabulary and it had
+/// already fallen behind it: `SetInfiniteAmmo` and `RefillAmmo` each name a
+/// ship, neither was ever mentioned here, and a dangling id in one linted
+/// green and then did nothing at runtime but log a warning nobody reads. There
+/// is no list to fall off now - an action that authors a reference is checked
+/// because the field says it is one.
+///
+/// The finding names the FIELD (`` SetCameraAnchor `look_at` ``) because an
+/// action can hold several references and they fail differently: a bad
+/// `look_at` silently falls back to the anchor and frames the wrong thing,
+/// while a bad `anchor` poses nothing at all.
+///
+/// The two actions the editor draws itself - `Sequence` and `Cinematic` - have
+/// no reflected payload (`inspect: Opaque`). Both name a beat CHAIN and never
+/// an object, and the actions nested in their steps are visited in their own
+/// right by [`EventActionConfig::walk`].
+fn check_object_names(
+    action: &EventActionConfig,
+    scenario: &str,
+    satisfiable: &dyn Fn(&str) -> bool,
+    issues: &mut Vec<LintIssue>,
+) {
+    let Some(payload) = action.payload() else {
+        return;
+    };
+    let tag = action.tag().name();
+    walk_names(payload, &mut |named| {
+        if named.names != Names::Object {
+            return;
+        }
+        check_target(
+            named.text,
+            &format!("{tag} `{}`", named.field),
+            scenario,
+            satisfiable,
+            issues,
+        );
+    });
+}
+
+/// A scripted action's actor: nothing else may be driving it.
+///
+/// The id itself is resolved by [`check_object_names`], which reads the same
+/// `#[reflect(@Names::Object)]` the field carries; what is left here is the
+/// half no attribute can say. The controller is catchable at AUTHOR time and
+/// so is checked rather than left to a runtime error: the id is already proven
+/// to be spawned by this scenario, which means its `SpaceshipController` is
+/// sitting in the same file. A ship this scenario does not spawn by name (a
+/// scattered one) gets the id check only - there is nothing static to read.
 fn check_scripted_ship(
     ship: &str,
     what: &str,
     scenario: &str,
-    satisfiable: &dyn Fn(&str) -> bool,
     declared: &Declared,
     issues: &mut Vec<LintIssue>,
 ) {
-    check_target(ship, what, scenario, satisfiable, issues);
     let Some(spawned) = declared.spawned_ships.get(ship) else {
         return;
     };
@@ -1200,8 +1115,7 @@ fn check_scripted_ship(
     ));
 }
 
-/// A helm order's actor: the id must resolve, and the player must not be
-/// flying it.
+/// A helm order's actor: the player must not be flying it.
 ///
 /// Only the player is refused. An order works the same on a
 /// `SpaceshipController::None` actor and on an AI ship - that is the whole
@@ -1213,11 +1127,9 @@ fn check_orderable_ship(
     ship: &str,
     what: &str,
     scenario: &str,
-    satisfiable: &dyn Fn(&str) -> bool,
     declared: &Declared,
     issues: &mut Vec<LintIssue>,
 ) {
-    check_target(ship, what, scenario, satisfiable, issues);
     let Some(spawned) = declared.spawned_ships.get(ship) else {
         return;
     };
@@ -1234,8 +1146,8 @@ fn check_orderable_ship(
     ));
 }
 
-/// An AI constraint's actor: the id must resolve, and the ship must actually
-/// have judgement to constrain.
+/// An AI constraint's actor: the ship must actually have judgement to
+/// constrain.
 ///
 /// The mirror of [`check_orderable_ship`]. A leash on a `None`-controller
 /// actor installs a component nothing reads, which is silent at runtime and
@@ -1244,11 +1156,9 @@ fn check_ai_ship(
     ship: &str,
     what: &str,
     scenario: &str,
-    satisfiable: &dyn Fn(&str) -> bool,
     declared: &Declared,
     issues: &mut Vec<LintIssue>,
 ) {
-    check_target(ship, what, scenario, satisfiable, issues);
     let Some(spawned) = declared.spawned_ships.get(ship) else {
         return;
     };
@@ -1943,6 +1853,75 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("gone"));
+    }
+
+    /// The proof that the attribute, not an arm, is the table. Neither ammo
+    /// action is named anywhere under `lint/`, and both name a ship: while the
+    /// lint kept its own list they fell through its catch-all, so a typo'd id
+    /// linted green, the editor sandbox dropped the handler, and the game
+    /// logged `no scoped ship with id '...'` and did nothing. Three answers to
+    /// one dangling id.
+    #[test]
+    fn an_ammo_action_naming_a_ship_nothing_spawns_is_an_error() {
+        let s = scenario(
+            vec![
+                EventActionConfig::SetInfiniteAmmo(SetInfiniteAmmoActionConfig {
+                    id: "ghost".to_string(),
+                    enabled: true,
+                }),
+                EventActionConfig::RefillAmmo(RefillAmmoActionConfig {
+                    id: "ghost".to_string(),
+                    section: None,
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 2, "{issues:?}");
+        assert!(errs[0].message.contains("SetInfiniteAmmo"));
+        assert!(errs[1].message.contains("RefillAmmo"));
+        assert!(errs.iter().all(|e| e.message.contains("ghost")));
+    }
+
+    /// A shot names TWO scoped ids and they fail differently: a bad `anchor`
+    /// poses nothing, while a bad `look_at` silently falls back to the anchor
+    /// and frames the wrong thing. The second is authored on an enum VARIANT,
+    /// the shape a walk over struct fields alone would step past, so the
+    /// finding has to name the field the author wrote and not just the action.
+    #[test]
+    fn a_camera_shot_reports_its_anchor_and_its_look_at_by_field() {
+        let s = scenario(
+            vec![EventActionConfig::SetCameraAnchor(
+                SetCameraAnchorActionConfig {
+                    anchor: "ghost_anchor".to_string(),
+                    offset: Meters3::new(0.0, 40.0, 120.0),
+                    frame: CameraOffsetFrame::Local,
+                    look_at: CameraLookAtConfig::Object("ghost_mark".to_string()),
+                    blend: None,
+                },
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 2, "{issues:?}");
+        assert!(errs[0].message.contains("`anchor`"));
+        assert!(errs[0].message.contains("ghost_anchor"));
+        assert!(errs[1].message.contains("`look_at`"));
+        assert!(errs[1].message.contains("ghost_mark"));
     }
 
     /// SetAllegiance references a ship by id like SetSpeedCap does, so a typo'd
@@ -2801,6 +2780,51 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "only the ghost flags: {issues:?}");
         assert!(errs[0].message.contains("ghost"));
+    }
+
+    /// An UNFILLED `id_prefix` answers for nothing. Every string starts with
+    /// the empty prefix, so one blank field used to satisfy every reference in
+    /// the scenario: the whole reference pass went quiet and the scenario
+    /// linted green with a dangling id still in it. The editor's stock Scatter
+    /// is born blank, so this is the shape an author reaches first.
+    #[test]
+    fn an_empty_scatter_prefix_does_not_satisfy_a_dangling_reference() {
+        let s = scenario(
+            vec![EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+                id_prefix: String::new(),
+                count: 3,
+                seed: 1,
+                region: ScatterRegion::Ring {
+                    center: Meters3::ZERO,
+                    inner: Meters(100.0),
+                    outer: Meters(200.0),
+                    y_min: Meters(-10.0),
+                    y_max: Meters(10.0),
+                },
+                template: match spawn_object("rock_") {
+                    EventActionConfig::SpawnScenarioObject(config) => config,
+                    _ => unreachable!(),
+                },
+                asteroid_radius: None,
+                asteroid_kinds: vec![],
+                min_separation: None,
+            })],
+            vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some("ghost".to_string()),
+                ..Default::default()
+            })],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &base_channels(),
+        );
+        assert!(
+            errors(&issues).iter().any(|i| i.message.contains("ghost")),
+            "a blank prefix satisfies nothing, so the dangling id still errors: {issues:?}"
+        );
     }
 
     #[test]

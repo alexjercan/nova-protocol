@@ -80,6 +80,24 @@ pub const MODS_SOURCE: &str = "mods";
 /// settings store's `NOVA_CONFIG_ROOT` is deliberately not one of them.
 pub const MOD_CACHE_ROOT_ENV: &str = "NOVA_MODDING_CACHE_ROOT";
 
+/// The web store's key name for the downloaded-mods index, namespaced by
+/// [`WebStorage::key`](crate::storage::WebStorage::key).
+///
+/// NOT the native file's spelling (`installed.mods.ron`): the two stores were
+/// named separately and a player already has both, so neither may be moved
+/// onto the other. Un-gated so the namespace test in [`crate::storage`] pins
+/// it on the only target CI builds.
+pub const INSTALLED_INDEX_KEY: &str = "installed_mods";
+
+/// The last-good portal catalog store's name, one name for both platforms:
+/// `<data_root>/portal_catalog.json` on native, `nova_protocol.portal_catalog`
+/// in localStorage on the web.
+///
+/// Here rather than with the portal client because this module already decides
+/// WHERE that store lives - see `portal_catalog_store_path` below for why it
+/// sits beside the cache.
+pub const PORTAL_CATALOG_KEY: &str = "portal_catalog";
+
 /// One DOWNLOADED (portal-installed) mod in the local cache index.
 ///
 /// The downloaded half of the installed set - shipped mods stay declared in
@@ -514,7 +532,7 @@ mod backend {
 
     use bevy::log::warn;
 
-    use super::{is_safe_id, is_safe_rel_path, IndexRead, InstalledModRecord};
+    use super::{is_safe_id, is_safe_rel_path, IndexRead, InstalledModRecord, PORTAL_CATALOG_KEY};
 
     /// `<data_root>`: `$NOVA_MODDING_CACHE_ROOT` if set (the test/tooling override,
     /// see the module doc), else `dirs::data_dir()/nova-protocol`.
@@ -537,8 +555,10 @@ mod backend {
     }
 
     /// The last-good portal catalog's store file (see the crate-level wrapper).
+    /// The `.json` suffix is fixed here, as `NativeStorage::path` fixes `.ron`,
+    /// so the on-disk name a player already has stays in one place.
     pub fn portal_catalog_store_path() -> Option<PathBuf> {
-        data_root().map(|d| d.join("portal_catalog.json"))
+        data_root().map(|d| d.join(format!("{PORTAL_CATALOG_KEY}.json")))
     }
 
     pub fn read_index() -> IndexRead {
@@ -775,25 +795,30 @@ mod backend {
     use bevy::log::warn;
     use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
-    use super::{IndexRead, InstalledModRecord};
+    use super::{IndexRead, InstalledModRecord, INSTALLED_INDEX_KEY};
+    use crate::storage::WebStorage;
 
-    /// The localStorage key for the downloaded-mods index.
-    const INDEX_KEY: &str = "nova_protocol.installed_mods";
     /// The IndexedDB database / object store holding the cached file bytes,
     /// keyed `<id>/<path>`.
     const DB_NAME: &str = "nova-protocol";
     const STORE_NAME: &str = "mod-files";
     const DB_VERSION: u32 = 1;
 
-    fn storage() -> Option<web_sys::Storage> {
-        web_sys::window()?.local_storage().ok()?
+    /// The namespaced localStorage key for the index. Derived, never typed:
+    /// `storage` owns the namespace and pins what this produces.
+    ///
+    /// The handle comes from there too, but the reads below stay hand-written:
+    /// the `Storage` trait reports one `None` for "nothing stored" and "could
+    /// not read", and a WRITER here must tell those apart (see [`IndexRead`]).
+    fn index_key() -> String {
+        WebStorage::key(INSTALLED_INDEX_KEY)
     }
 
     pub fn read_index() -> IndexRead {
-        let Some(storage) = storage() else {
+        let Some(storage) = WebStorage::handle() else {
             return IndexRead::Absent;
         };
-        match storage.get_item(INDEX_KEY) {
+        match storage.get_item(&index_key()) {
             Ok(Some(raw)) => match ron::de::from_str::<Vec<InstalledModRecord>>(&raw) {
                 Ok(records) => IndexRead::Loaded(records),
                 Err(e) => IndexRead::Corrupt(e.to_string()),
@@ -804,13 +829,13 @@ mod backend {
     }
 
     pub fn write_index(records: &[InstalledModRecord]) {
-        let Some(storage) = storage() else {
+        let Some(storage) = WebStorage::handle() else {
             warn!("mod cache: no localStorage; the installed-mods index will not persist");
             return;
         };
         match ron::ser::to_string(records) {
             Ok(s) => {
-                if storage.set_item(INDEX_KEY, &s).is_err() {
+                if storage.set_item(&index_key(), &s).is_err() {
                     warn!("mod cache: localStorage write failed; installed-mods index not saved");
                 }
             }

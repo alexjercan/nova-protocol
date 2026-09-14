@@ -53,6 +53,7 @@ use bevy::{
     shader::ShaderRef,
 };
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
+use nova_gameplay::prelude::SeedStream;
 
 use super::asteroid_kind::prelude::AsteroidKindLook;
 
@@ -468,17 +469,13 @@ fn octave_safe_seed(seed: u32) -> u32 {
 
 /// The axis stretch a rock with this seed wears.
 ///
-/// Deterministic (FNV-1a, the hash asteroid seeds already use), and normalized
-/// so the LONGEST axis is always 1: the stretch changes a rock's proportions
-/// without changing how big it is, which is what keeps `AsteroidRadius` meaning
-/// what it says.
+/// Deterministic (the shared [`SeedStream`], the walk asteroid seeds and planet
+/// palettes already draw from), and normalized so the LONGEST axis is always 1:
+/// the stretch changes a rock's proportions without changing how big it is,
+/// which is what keeps `AsteroidRadius` meaning what it says.
 fn seed_stretch(seed: u32) -> Vec3 {
-    let mut hash: u32 = 0x811c_9dc5 ^ seed;
-    let mut next = || {
-        hash = hash.wrapping_mul(0x0100_0193);
-        hash ^= hash >> 15;
-        ROCK_STRETCH_MIN + (hash >> 16) as f32 / 65_536.0 * (1.0 - ROCK_STRETCH_MIN)
-    };
+    let mut stream = SeedStream::new(seed);
+    let mut next = || ROCK_STRETCH_MIN + stream.unit() * (1.0 - ROCK_STRETCH_MIN);
     let stretch = Vec3::new(next(), next(), next());
     stretch / stretch.max_element()
 }
@@ -491,16 +488,16 @@ fn seed_stretch(seed: u32) -> Vec3 {
 /// one kind is a field of one rock, which is most of what "repetitive" means
 /// when the silhouettes already differ.
 ///
-/// The same FNV-1a walk [`seed_stretch`] uses, one step further along, so a
-/// seed's proportions and its surface are drawn from the same stream and
+/// The same [`SeedStream`] walk [`seed_stretch`] uses, one step further along,
+/// so a seed's proportions and its surface are drawn from the same stream and
 /// neither can accidentally track the other.
 fn seed_jitter(seed: u32) -> f32 {
-    let mut hash: u32 = 0x811c_9dc5 ^ seed;
-    for _ in 0..4 {
-        hash = hash.wrapping_mul(0x0100_0193);
-        hash ^= hash >> 15;
+    let mut stream = SeedStream::new(seed);
+    // Past the three draws the stretch spends, to the fourth.
+    for _ in 0..3 {
+        stream.next_u32();
     }
-    (hash >> 16) as f32 / 65_536.0
+    stream.unit()
 }
 
 #[cfg(test)]

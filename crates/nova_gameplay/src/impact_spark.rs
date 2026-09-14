@@ -25,7 +25,7 @@
 use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::prelude::*;
 
-use crate::prelude::TempEntity;
+use crate::prelude::{unit_sphere_point, Fnv32, TempEntity};
 
 /// `ImpactSparks`, `ImpactSparkMarker` and `ImpactSparkPlugin`.
 pub mod prelude {
@@ -88,27 +88,18 @@ const SPARK_EMISSIVE: LinearRgba = LinearRgba::new(9.0, 4.4, 1.1, 1.0);
 /// not known - the damage event names the target, not the shooter - and a hit
 /// throws heat every way in any case. The shards carry the directional cue.
 fn spark_throw(at: Vec3, nth: u32) -> (Vec3, f32) {
-    let mut hash: u32 = 0x811c_9dc5;
-    for byte in
-        at.x.to_bits()
-            .to_le_bytes()
-            .iter()
-            .chain(at.y.to_bits().to_le_bytes().iter())
-            .chain(at.z.to_bits().to_le_bytes().iter())
-            .chain(nth.to_le_bytes().iter())
-    {
-        hash ^= u32::from(*byte);
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
+    let hash = Fnv32::new()
+        .write(&at.x.to_bits().to_le_bytes())
+        .write(&at.y.to_bits().to_le_bytes())
+        .write(&at.z.to_bits().to_le_bytes())
+        .write(&nth.to_le_bytes())
+        .finish();
 
-    // Three independent fractions out of the one hash: the top half turns, the
-    // next byte picks the height, the last byte picks the speed.
-    let turn = (hash >> 16) as f32 / 65_536.0 * std::f32::consts::TAU;
-    let z = ((hash >> 8) & 0xff) as f32 / 256.0 * 2.0 - 1.0;
-    let ring = (1.0 - z * z).max(0.0).sqrt();
+    // Two draws out of the one hash. The sphere rule spends the top three
+    // bytes and leaves the bottom one free precisely so a third fraction like
+    // this one can come off the same word.
+    let direction = unit_sphere_point(hash);
     let speed_t = (hash & 0xff) as f32 / 256.0;
-
-    let direction = Vec3::new(ring * turn.cos(), ring * turn.sin(), z).normalize_or(Vec3::Y);
     let speed = SPARK_SPEED_MIN + (SPARK_SPEED_MAX - SPARK_SPEED_MIN) * speed_t;
     (direction, speed)
 }

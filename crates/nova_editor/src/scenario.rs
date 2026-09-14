@@ -1202,15 +1202,14 @@ fn following_the_objects(
     let prefixes: Vec<String> = named
         .iter()
         .flat_map(|ids| ids.prefixes.iter().cloned())
-        .filter(|prefix| !prefix.is_empty())
         .collect();
     script
         .into_iter()
         .zip(named)
         .filter(|(_, ids)| {
-            ids.referenced.iter().all(|id| {
-                spawned.contains(id) || prefixes.iter().any(|prefix| id.starts_with(prefix))
-            })
+            ids.referenced
+                .iter()
+                .all(|id| object_reference_resolves(id, &spawned, &prefixes))
         })
         .map(|(mut event, _)| {
             retarget_retries(&mut event.actions, SANDBOX_ID, range);

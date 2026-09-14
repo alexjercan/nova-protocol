@@ -92,6 +92,9 @@ does NOT get an entry - and it is the only place they are written down.
   with no launcher rather than firing every tick.
 
 ### Scenarios & Objectives
+- The scenario lint reads the same table the editor does, so an action that
+  names a ship nothing spawns is an error everywhere. `SetInfiniteAmmo` and
+  `RefillAmmo` passed the lint and then did nothing in the game.
 - A scenario opens complete: the world is held still while its objects spawn
   and its art loads, so the first frame you fly is a finished scene at mission
   time zero, not one that pops in around you.
@@ -111,6 +114,9 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- The editor offers the content the game will actually load. A sideloaded mod
+  reusing a shipped bundle id had its files listed in every asset picker while
+  the loader ignored them, so the reference never resolved in play.
 - A mod whose content will not load is switched off automatically and named in
   one MODS DISABLED notice on the menu. Its files stay installed, so the Mods
   screen can update, remove or re-enable it.
@@ -119,6 +125,13 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
+- A mistyped command reads the same at the NOVA OS prompt and in the Commands
+  shell: an incomplete command lists its subcommands in both, the listing is
+  column-aligned, and the hint under the caret names a bad subcommand before
+  you press Enter instead of counting arguments.
+- One wheel notch moves the NOVA OS drawer as far as it moves every other
+  scrolling pane. The drawer stepped a third of that distance, so the same
+  gesture read as a different control depending on what was under the pointer.
 - The desktop build opens borderless fullscreen on a fresh install. Windowed is
   one row away on the Graphics tab, and an install that already chose keeps its
   choice.
@@ -201,6 +214,9 @@ does NOT get an entry - and it is the only place they are written down.
   about 28% of its frame time, 33% at its worst.
 
 ### Internals & Tooling
+- A probe check that was armed for a capability and wrote nothing now reads
+  `armed and silent` in every row that grades it a failure. `invariants_held`
+  used one word for that and for a run with no manifest at all.
 - Agent work defaults to Pair, with code-backed proposals and a required Verify
   workflow for bugs and features. Claude shares the same instructions and skills.
 - The retired code-navigation benchmark tools are removed. The gameplay agent
@@ -216,8 +232,17 @@ does NOT get an entry - and it is the only place they are written down.
 - Every full-screen surface takes its stacking order from one table
   (`nova_ui::layer`), so two modals can no longer share a z and be ordered by
   whatever the UI stack happens to traverse first.
+- Every seeded look draws from one FNV-1a derivation - sparks, asteroid shapes,
+  planet palettes. The two spark sites disagreed on which bits aim them; the
+  well-mixed half now does.
 
 ### Fixes
+- Rebinding a section from the SHIP app keeps its controller trigger. The
+  captured key took over the whole trigger, so one rebind at the desk left a
+  thruster or a tube that no pad button could fire.
+- `bind` refuses an input another action already holds, and says which. It
+  used to accept the bind, work for the session, and drop it at the next
+  launch with nothing said.
 - The command shell on the main menu leaves the backdrop flying: only a shell
   opened over the game freezes it. The monitor still holds the front of the
   screen, so the menu waits behind it.

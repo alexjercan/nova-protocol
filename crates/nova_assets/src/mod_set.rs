@@ -11,9 +11,10 @@ pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::load_downloaded_mods;
     pub use super::{
-        build_mod_catalog, installed_bundles_changed, installed_set_changed, load_enabled_mods,
-        mark_installed_bundles_loaded, save_enabled_mods, seed_enabled_mods, DownloadedMod,
-        DownloadedMods, EnabledMods, ModCatalog, ModInfo,
+        build_mod_catalog, enabled_bundles, installed_bundles_changed, installed_set_changed,
+        load_enabled_mods, mark_installed_bundles_loaded, save_enabled_mods, seed_enabled_mods,
+        shadows_shipped, DownloadedMod, DownloadedMods, EnabledBundle, EnabledMods, ModCatalog,
+        ModInfo,
     };
     #[cfg(target_arch = "wasm32")]
     pub use super::{poll_mod_cache_hydration, start_mod_cache_hydration, ModCacheHydration};
@@ -66,6 +67,84 @@ pub struct DownloadedMods(pub Vec<DownloadedMod>);
 /// `Changed`-watched so a toggle re-runs the merge live.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EnabledMods(pub HashSet<String>);
+
+/// Whether `id` names a SHIPPED catalog entry - so whether a DOWNLOADED mod
+/// carrying that id would shadow one.
+///
+/// The NO-SHADOWING rule. The shipped catalog and the downloaded cache share one
+/// id space (`hidden` entries included) and the id IS the enable key, so a
+/// downloaded copy of a shipped id would make one toggle drive two rows and
+/// merge two bundles. The portal generator refuses to publish such an id and
+/// [`portal::install`](crate::portal) refuses to download one; the cache index
+/// is still downloaded input, so every consumer of the installed set
+/// re-enforces the rule here rather than trusting it.
+pub fn shadows_shipped(catalog: &InstalledCatalog, id: &str) -> bool {
+    catalog.entries.iter().any(|entry| entry.decl.id == id)
+}
+
+/// The empty optional half: what a caller that holds no [`OptionalBundles`] -
+/// a rig, or a frame before `start_optional_loads` - reads, so every entry
+/// still resolves through [`catalog_bundle`] instead of a second spelling of it.
+static NO_OPTIONAL: OptionalBundles = OptionalBundles(Vec::new());
+
+/// One bundle of the ENABLED set, in merge order.
+#[derive(Clone, Debug)]
+pub struct EnabledBundle<'a> {
+    /// The enable key: a catalog declaration's id, or a cache record's.
+    pub id: &'a str,
+    /// The bundle this id reads through - [`catalog_bundle`] for a shipped
+    /// entry, the record's own handle for a downloaded one. `None` only for a
+    /// shipped entry whose optional load has not started.
+    pub bundle: Option<&'a Handle<BundleAsset>>,
+    /// True for a DOWNLOADED bundle. It loads async through `mods://`, outside
+    /// the collection gate, so its ASSET may still be missing from
+    /// `Assets<BundleAsset>` while this handle exists.
+    pub downloaded: bool,
+}
+
+/// Walk the ENABLED bundles in merge order: the shipped catalog first (catalog
+/// order, base first), then the downloaded cache (index order).
+///
+/// ONE answer to "which bundles are active, and in what order", for every
+/// consumer: `register_bundles` merges exactly this list and the editor's asset
+/// index offers exactly what these bundles declare, so what a creator can name
+/// is what will load. A downloaded id that [`shadows_shipped`] is DROPPED here,
+/// where no caller can forget it; a caller that wants to REPORT the skip tests
+/// the predicate itself.
+///
+/// Each absent input stands for nothing rather than for a default: no `catalog`
+/// is no shipped half (and so nothing to shadow), no `optional` is no runtime
+/// load started, no `downloaded` is an empty cache, and no `enabled` is no
+/// selection to filter by - every installed bundle is walked, which is what a
+/// rig that inserts neither resource wants.
+pub fn enabled_bundles<'a>(
+    catalog: Option<&'a InstalledCatalog>,
+    optional: Option<&'a OptionalBundles>,
+    downloaded: Option<&'a DownloadedMods>,
+    enabled: Option<&'a EnabledMods>,
+) -> impl Iterator<Item = EnabledBundle<'a>> {
+    let optional = optional.unwrap_or(&NO_OPTIONAL);
+    let shipped = catalog
+        .into_iter()
+        .flat_map(|catalog| catalog.entries.iter())
+        .filter(move |entry| enabled.is_none_or(|set| set.0.contains(&entry.decl.id)))
+        .map(move |entry| EnabledBundle {
+            id: entry.decl.id.as_str(),
+            bundle: catalog_bundle(entry, optional),
+            downloaded: false,
+        });
+    let cached = downloaded
+        .into_iter()
+        .flat_map(|downloaded| downloaded.0.iter())
+        .filter(move |m| enabled.is_none_or(|set| set.0.contains(&m.record.id)))
+        .filter(move |m| !catalog.is_some_and(|shipped| shadows_shipped(shipped, &m.record.id)))
+        .map(|m| EnabledBundle {
+            id: m.record.id.as_str(),
+            bundle: Some(&m.bundle),
+            downloaded: true,
+        });
+    shipped.chain(cached)
+}
 
 /// One PLAYER-FACING installed mod: the catalog declaration's identity + flags
 /// composed with the mod's [`ModMeta`] self-description from its own bundle.
@@ -151,12 +230,10 @@ pub fn build_mod_catalog(
         })
         .collect();
     for m in &downloaded.0 {
-        // A downloaded id shadowing a SHIPPED catalog entry (hidden ones
-        // included - one id space) is skipped, mirroring the portal generator's
-        // no-shadowing rule; otherwise one toggle would drive two rows/bundles.
-        // `register_bundles` skips the same records, so the pair stays
-        // consistent.
-        if catalog.entries.iter().any(|e| e.decl.id == m.record.id) {
+        // The rows hide what the merge will not load: `register_bundles` and
+        // the editor's asset index drop the same records through
+        // `shadows_shipped`, so a toggle never drives two rows or two bundles.
+        if shadows_shipped(catalog, &m.record.id) {
             warn!(
                 "build_mod_catalog: downloaded mod '{}' shadows a shipped mod id; \
                  hiding the downloaded row",

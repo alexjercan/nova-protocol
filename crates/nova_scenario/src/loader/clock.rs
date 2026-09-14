@@ -18,21 +18,24 @@ pub(super) fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWo
 
 /// Run condition: something in the loaded scenario can READ an entity query.
 ///
-/// [`sample_scenario_queries`] scales with the WORLD and not with the
-/// scenario - it walks every `EntityId` carrying a velocity and allocates two
-/// `String`s per match, every frame, and severing turns each hull section into
-/// another free body. No shipped scenario reads an entity query at all, so
-/// ungated it is dead work in every one of them.
+/// [`sample_scenario_queries`] scales with the scenario's SCOPED objects, and
+/// it still allocates two `String`s per match every frame. No shipped scenario
+/// reads an entity query at all, so ungated it is dead work in every one of
+/// them.
 fn scenario_reads_an_entity_query(world: Res<NovaEventWorld>) -> bool {
     world.reads_entity_queries()
 }
 
 /// Sample every exact-id entity speed once for a coherent query snapshot.
-/// Entities without velocity are outside the `Speed` query domain. In
-/// particular, ship section children carry reusable section-local `EntityId`s;
-/// scanning them would falsely report duplicates across unrelated ships.
+///
+/// [`ScenarioAddressable`] is what keeps ship SECTIONS out: they carry reusable
+/// section-local `EntityId`s, so an unscoped scan would report a section's
+/// speed under a name another ship reuses, and the duplicate-id error below
+/// would fire for a scenario that authored no duplicate. `&LinearVelocity` is
+/// the DATA requirement, not the gate - an entity with no velocity is outside
+/// the `Speed` query domain.
 fn sample_scenario_queries(
-    entities: Query<(&EntityId, &LinearVelocity)>,
+    entities: Query<(&EntityId, &LinearVelocity), ScenarioAddressable>,
     mut world: ResMut<NovaEventWorld>,
 ) {
     let mut speeds = HashMap::new();
@@ -922,6 +925,7 @@ mod tests {
         // An AI ship (root marker, NO player marker) burning fast the whole
         // test: player_speed must never read its velocity (the player-scope pin).
         app.world_mut().spawn((
+            ScenarioScopedMarker,
             SpaceshipRootMarker,
             EntityId::new("scavenger".to_string()),
             LinearVelocity(Vec3::new(30.0, 0.0, 40.0)), // |v| = 50 u/s, 500 m/s
@@ -929,14 +933,17 @@ mod tests {
         let player = app
             .world_mut()
             .spawn((
+                ScenarioScopedMarker,
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 EntityId::new("player_spaceship".to_string()),
                 LinearVelocity(Vec3::new(3.0, 0.0, 4.0)), // |v| = 5 u/s, 50 m/s
             ))
             .id();
-        // Section ids are local to a ship and commonly repeat. They have no
-        // LinearVelocity and must not enter strict entity-speed matching.
+        // Section ids are local to a ship and commonly repeat. Sections are not
+        // scenario-scoped, so they are outside strict entity-speed matching -
+        // see `a_free_hull_section_does_not_answer_an_authored_id` for why the
+        // absence of a velocity is not what keeps them out.
         app.world_mut().spawn(EntityId::new("engine_port"));
         app.world_mut().spawn(EntityId::new("engine_port"));
 
@@ -995,6 +1002,87 @@ mod tests {
             speed(&app),
             0.0,
             "with no player ship, player_speed fails closed to 0.0 (not the AI's 500)"
+        );
+    }
+
+    /// A hull section whose per-ship id happens to spell an authored scenario
+    /// id must not answer that id - the disaster `DespawnScenarioObject`
+    /// documents, in the one family member that used to be open to it.
+    ///
+    /// The sampler gated on `&LinearVelocity` instead of on the scoped marker,
+    /// which held only while every section was a child collider of one body.
+    /// A section that becomes a free body carries its own velocity, and the
+    /// sampler then saw two entities under one id, poisoned the value to
+    /// `None`, and left the watch unavailable while logging a duplicate-id
+    /// error against a scenario that authored no duplicate.
+    ///
+    /// Fail-first: without [`ScenarioAddressable`] on the query, `speed` is
+    /// `None` and the first assert fails.
+    #[test]
+    fn a_free_hull_section_does_not_answer_an_authored_id() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::prelude::{GameObjectives, SectionMarker, SpaceshipRootMarker};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        register_clock_and_pulse(&mut app);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .set_watches(
+                vec![WatchConfig {
+                    variable: "cutter_speed".to_string(),
+                    query: QueryConfig::Entity(EntityQuery {
+                        filter: EntityQueryFilter {
+                            id: "cutter".to_string(),
+                        },
+                        property: EntityProperty::Speed,
+                    }),
+                }],
+                true,
+            );
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+
+        // The authored object: a scoped ship the scenario named "cutter".
+        app.world_mut().spawn((
+            ScenarioScopedMarker,
+            SpaceshipRootMarker,
+            EntityId::new("cutter".to_string()),
+            LinearVelocity(Vec3::new(3.0, 0.0, 4.0)), // |v| = 5 u/s, 50 m/s
+        ));
+        // A hull section off some OTHER ship, severed and now its own body, and
+        // whose per-ship section id collides with the authored one. Not scoped:
+        // sections are spawned under their hull, never as scenario objects.
+        app.world_mut().spawn((
+            SectionMarker,
+            EntityId::new("cutter".to_string()),
+            LinearVelocity(Vec3::new(60.0, 0.0, 80.0)), // |v| = 100 u/s, 1000 m/s
+        ));
+
+        app.update();
+        assert_eq!(
+            match app
+                .world()
+                .resource::<NovaEventWorld>()
+                .get_variable("cutter_speed")
+            {
+                Some(VariableLiteral::Number(n)) => Some(*n),
+                _ => None,
+            },
+            Some(50.0),
+            "an authored id addresses the scoped ship, not a free hull section \
+             that reuses the name"
         );
     }
 }

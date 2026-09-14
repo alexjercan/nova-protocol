@@ -71,9 +71,10 @@ use crate::{
     transient_light::prelude::LightFlash,
 };
 
-/// `PyrePlugin` and the marker its instances carry.
+/// `PyrePlugin`, the marker its instances carry, and the property name every
+/// effect graph inherits its motion through.
 pub mod prelude {
-    pub use super::{PyreEffectMarker, PyrePlugin};
+    pub use super::{PyreEffectMarker, PyrePlugin, BASE_VELOCITY_PROPERTY};
 }
 
 /// Tags a live death fireball, so a range can count them and say what it was
@@ -107,6 +108,16 @@ impl Default for PyreEffectMarker {
 /// gone the frame after they are made.
 #[derive(Component, Clone, Copy, Debug)]
 struct PyreWarmMarker;
+
+/// The name the motion an effect inherits from the body it came off is
+/// written under, in every graph that has one.
+///
+/// One name and not one string per graph: a declaration and the write that
+/// feeds it are paired by this name alone, so a graph that spells it
+/// differently raises nothing at build and nothing at run - it is an effect
+/// left hanging where the body WAS. Death fireballs, torpedo blasts, launch
+/// puffs and muzzle flashes all inherit through it.
+pub const BASE_VELOCITY_PROPERTY: &str = "base_velocity";
 
 /// The name the per-instance spatial scale is written under, in both graphs.
 const PYRE_SCALE_PROPERTY: &str = "hull_scale";
@@ -499,7 +510,7 @@ fn build_pyre_core(core: PyreCore, name: &str) -> EffectAsset {
     // The velocity the wreck carried, written per death. A fireball that does
     // not inherit it hangs where the ship WAS while the pieces fly on out of
     // it, which reads as two unrelated events.
-    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.add_property(BASE_VELOCITY_PROPERTY, Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
     // How much bigger than the hull this graph was cut against the dead one
     // was, written per death. Every LENGTH here is multiplied by it and no
@@ -572,7 +583,7 @@ fn build_pyre_ejecta(ejecta: PyreEjecta, name: &str) -> EffectAsset {
     let init_color = SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
     let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
 
-    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.add_property(BASE_VELOCITY_PROPERTY, Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
     let hull_scale = writer.add_property(PYRE_SCALE_PROPERTY, 1.0f32.into());
     let speed = writer
@@ -976,7 +987,7 @@ fn burn(
     let scale = size.scale();
     for handle in [pair.core.clone(), pair.ejecta.clone()] {
         let mut properties = EffectProperties::default();
-        properties.set("base_velocity", request.drift.into());
+        properties.set(BASE_VELOCITY_PROPERTY, request.drift.into());
         properties.set(PYRE_SCALE_PROPERTY, hull_scale.into());
         commands.spawn((
             Name::new("Pyre Effect"),
@@ -1666,7 +1677,7 @@ mod tests {
                 .world()
                 .get::<EffectProperties>(burst)
                 .expect("a burst carries its properties")
-                .get_stored("base_velocity")
+                .get_stored(BASE_VELOCITY_PROPERTY)
                 .expect("and the drift it inherited");
             assert_eq!(
                 stored,

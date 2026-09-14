@@ -262,10 +262,26 @@ ignore: `crates/nova_scenario/src/actions/view.rs:166-172`,
 would rip that section out of every ship in the scene."
 
 **Already drifted.** `loader/clock.rs` resolves authored ids with no
-`ScenarioScopedMarker` gate, leaning on `&LinearVelocity` to exclude sections,
-while its own doc at `clock.rs:22-24` concedes "severing turns each hull
-section into another free body". Latent only because, per `clock.rs:24`, no
-shipped scenario reads an entity query.
+`ScenarioScopedMarker` gate, leaning on `&LinearVelocity` to exclude sections.
+Latent only because, per `clock.rs:24`, no shipped scenario reads an entity
+query - verified during the fix: the sole `watches:` block in shipped content
+is `assets/mods/example/example.content.ron:237-241`, a `Scenario` property,
+and there is no `QueryConfig::Entity` anywhere in `assets/`.
+
+**CORRECTION - this finding's stated mechanism was wrong, in the safe
+direction.** The finding quoted `clock.rs:22-24`'s own doc, "severing turns
+each hull section into another free body". That is not what severing does.
+`sever_disconnected_structures`
+(`crates/nova_ship/src/sections/integrity.rs:444-472`) spawns ONE
+`RigidBody::Dynamic` wreck per disconnected component, carrying the
+`LinearVelocity`, and re-parents the sections under it with `ChildOf(fragment)`
+and `SectionInactiveMarker` - the sections get no velocity of their own.
+`crates/nova_gameplay/src/integrity/explode.rs:395` states the same invariant:
+"A section is a child of the rigid body rather than the body itself, so this
+walks up for the nearest thing that has a velocity at all." So the velocity
+heuristic was ARMED, not open: it fails the day any pipeline gives a section
+its own body, which is what `clock.rs`'s doc already assumed had happened. The
+fix stands either way; the severity does not rest on a live leak.
 
 ### 9. `render-target-image-recipe`
 
@@ -853,8 +869,15 @@ the audit silently certifies what it is meant to catch.
 
 ### Wave 3 additions to existing families
 
-- Finding 24 (`vfx-base-velocity-property`) has a seventh site at
-  `crates/nova_authoring/src/balance.rs:187-191`.
+- Finding 24 (`vfx-base-velocity-property`): **the wave-3 addition was wrong and
+  is withdrawn.** It claimed a seventh site at
+  `crates/nova_authoring/src/balance.rs:187-191`; that span is a `SectionSource`
+  match, and the string `base_velocity` does not appear anywhere in
+  `crates/nova_authoring`. The ten production sites named in finding 24 stand
+  unchanged - `integrity/pyre.rs:502,575,979`,
+  `torpedo_section/render.rs:322,441,554,714,874`,
+  `turret_section/render.rs:121,598` - plus one more inside `pyre.rs`'s own
+  `#[cfg(test)]` module at `:1669`.
 - Finding 14 (`authored-object-walk`) has a second flat walk in the same file,
   `balance.rs:558-605`.
 

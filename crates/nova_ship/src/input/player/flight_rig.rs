@@ -8,6 +8,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
 use crate::{
+    flight::{ship_grants_verb, LiveFlightComputers},
     input::targeting::{
         ComponentCycleNextInput, ComponentCyclePrevInput, RadarClearInput, RadarHoldInput,
     },
@@ -349,38 +350,11 @@ pub(super) fn on_flight_burn_input_completed(
     intent.burn = 0.0;
 }
 
-/// Query over every live controller section and its (optional) withheld verbs,
-/// shared by the three maneuver observers so they gate execution on the same
-/// controller-provided capability the hint pass shows. `WithheldVerbs` is
-/// optional for the same reason as in the hint pass: a controller missing the
-/// component falls back to the all-granted default rather than becoming
-/// ungovernable.
-type ControllerVerbQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static ChildOf, Option<&'static WithheldVerbs>),
-    (
-        With<ControllerSectionMarker>,
-        With<PDController>,
-        Without<SectionInactiveMarker>,
-    ),
->;
-
-/// Whether some live controller section on `ship` grants `verb` (union across
-/// controllers). Doubles as the controller-present check: no live controller,
-/// no grant. Mirrors the `verb_granted` closure in the hint pass so a lit hint
-/// and a firing key never disagree.
-fn ship_grants_verb(ship: Entity, verb: FlightVerb, q_verbs: &ControllerVerbQuery) -> bool {
-    q_verbs.iter().any(|(&ChildOf(parent), withheld)| {
-        parent == ship && withheld.is_none_or(|w| w.granted(verb))
-    })
-}
-
 pub(super) fn on_autopilot_stop_input(
     _: On<Start<AutopilotStopInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
-    q_verbs: ControllerVerbQuery,
+    q_verbs: LiveFlightComputers,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -415,7 +389,7 @@ pub(super) fn on_autopilot_goto_input(
     _: On<Start<AutopilotGotoInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>, Option<&TravelLock>), With<PlayerSpaceshipMarker>>,
-    q_verbs: ControllerVerbQuery,
+    q_verbs: LiveFlightComputers,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -464,7 +438,7 @@ pub(super) fn on_autopilot_orbit_input(
     _: On<Start<AutopilotOrbitInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
-    q_verbs: ControllerVerbQuery,
+    q_verbs: LiveFlightComputers,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -540,7 +514,7 @@ pub(super) fn on_rcs_modifier_start(
     _: On<Start<RcsModifierInput>>,
     mut commands: Commands,
     ship: Single<Entity, With<PlayerSpaceshipMarker>>,
-    q_verbs: ControllerVerbQuery,
+    q_verbs: LiveFlightComputers,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {

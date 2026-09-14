@@ -29,9 +29,9 @@ use nova_gameplay::{
 use nova_input::prelude::*;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::screen::{max_scroll_y, page_step};
+use nova_ui::screen::{drive_wheel_scroll, max_scroll_y, page_step};
 
-use super::{components::*, content::*, sound::*, style::*};
+use super::{components::*, content::*, sound::*};
 use crate::ship::prelude::SectionCode;
 
 /// `novaos_toggle` opens the shared freeze axis, and its key becomes
@@ -506,36 +506,23 @@ pub(crate) fn handle_nova_os_app_keyboard(
         }
     }
 }
+
+/// Wheel-scroll the NOVA OS panels through the shared driver, so one notch
+/// moves the drawer exactly as far as it moves a menu pane.
+///
+/// A registration of the drawer's own rather than the shared
+/// `nova_ui::screen::ScrollViewport` marker, because the gates differ: the
+/// drawer answers the wheel only while the monitor owns the screen, and only
+/// after `mirror_nova_os_hover` has copied the sampled image's hover onto these
+/// nodes. The arithmetic behind it is the shared one.
 pub(crate) fn scroll_nova_os_panels(
-    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
-    mut q_panels: Query<
-        (&mut ScrollPosition, Option<&Hovered>, Option<&ComputedNode>),
+    wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    q_panels: Query<
+        (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
         With<NovaOsScrollViewportMarker>,
     >,
 ) {
-    use bevy::input::mouse::MouseScrollUnit;
-
-    let dy: f32 = wheel
-        .read()
-        .map(|ev| match ev.unit {
-            MouseScrollUnit::Line => ev.y * DRAWER_SCROLL_LINE_HEIGHT_PX,
-            MouseScrollUnit::Pixel => ev.y,
-        })
-        .sum();
-    if dy == 0.0 {
-        return;
-    }
-
-    let any_hovered = q_panels
-        .iter()
-        .any(|(_, hovered, _)| hovered.is_some_and(Hovered::get));
-
-    for (mut scroll, hovered, computed_node) in &mut q_panels {
-        if any_hovered && !hovered.is_some_and(Hovered::get) {
-            continue;
-        }
-        scroll.0.y = (scroll.0.y - dy).clamp(0.0, max_scroll_y(computed_node));
-    }
+    drive_wheel_scroll(wheel, q_panels);
 }
 
 /// The input surface a NOVA OS app reads: the activity gate, pointer and action
@@ -612,5 +599,75 @@ impl NovaOsAppInput<'_, '_> {
                 .bindings
                 .get(action)
                 .is_some_and(|action| self.sources.just_pressed(action))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::{
+        ecs::system::RunSystemOnce,
+        input::{
+            mouse::{MouseScrollUnit, MouseWheel},
+            touch::TouchPhase,
+        },
+    };
+    use nova_ui::screen::{scroll_viewports, ScrollViewport};
+
+    use super::*;
+
+    /// One wheel notch moves the NOVA OS drawer as far as it moves any other
+    /// scrolling pane.
+    ///
+    /// The drawer carried its own wheel driver off its own step constant and
+    /// travelled a third of the distance the rest of the game does, so the same
+    /// gesture read as a different control depending on which surface was under
+    /// the pointer. Comparing the two drivers side by side is the assertion: a
+    /// number copied into this test would drift the same way the constant did.
+    #[test]
+    fn a_wheel_notch_moves_the_drawer_as_far_as_any_other_pane() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.world_mut().init_resource::<Messages<MouseWheel>>();
+        let drawer = app
+            .world_mut()
+            .spawn((NovaOsScrollViewportMarker, ScrollPosition(Vec2::ZERO)))
+            .id();
+        let pane = app
+            .world_mut()
+            .spawn((ScrollViewport, ScrollPosition(Vec2::ZERO)))
+            .id();
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: -1.0,
+            window: Entity::PLACEHOLDER,
+            phase: TouchPhase::Moved,
+        });
+
+        // Each reader keeps its own cursor, so both drivers see the one notch.
+        app.world_mut()
+            .run_system_once(scroll_nova_os_panels)
+            .expect("the drawer driver runs");
+        app.world_mut()
+            .run_system_once(scroll_viewports)
+            .expect("the shared driver runs");
+
+        let travelled = |entity: Entity| {
+            app.world()
+                .entity(entity)
+                .get::<ScrollPosition>()
+                .expect("a scroll position")
+                .0
+                .y
+        };
+        assert!(
+            travelled(pane) > 0.0,
+            "a notch has to move the shared pane, or this proves nothing"
+        );
+        assert_eq!(
+            travelled(drawer),
+            travelled(pane),
+            "the drawer scrolls by the shared step, not one of its own"
+        );
     }
 }

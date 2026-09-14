@@ -131,7 +131,9 @@ pub(super) fn decode_last_good(bytes: Vec<u8>) -> Option<PortalCatalog> {
 /// the catalog is cached wire data, not a user preference, and the cache
 /// root's `NOVA_MODDING_CACHE_ROOT` override is what keeps the integration rigs
 /// (which fetch localhost catalogs through the real plugin) from writing into
-/// the developer's real store.
+/// the developer's real store. Both halves take the store's NAME from
+/// [`mod_cache::PORTAL_CATALOG_KEY`](crate::mod_cache::PORTAL_CATALOG_KEY), and
+/// the web half namespaces it through `storage::WebStorage`.
 pub(super) mod last_good_store {
     /// Store cap - a cap, not a quota: the whole real catalog is a few KiB, and
     /// a body too large to be worth caching (or a hostile one) is simply not
@@ -214,16 +216,21 @@ pub(super) mod last_good_store {
         use bevy::log::warn;
 
         use super::MAX_LAST_GOOD_BYTES;
+        use crate::{mod_cache::PORTAL_CATALOG_KEY, storage::WebStorage};
 
-        /// The localStorage key; namespaced like the other nova stores.
-        const KEY: &str = "nova_protocol.portal_catalog";
-
-        fn storage() -> Option<web_sys::Storage> {
-            web_sys::window()?.local_storage().ok()?
+        /// The namespaced localStorage key. Derived, never typed: `storage`
+        /// owns the namespace and pins what this produces, and `mod_cache`
+        /// owns the store's name on both platforms.
+        ///
+        /// The handle comes from there too, but the calls below stay
+        /// hand-written: the `Storage` trait has no size cap, and this store
+        /// caps both directions (see [`MAX_LAST_GOOD_BYTES`]).
+        fn key() -> String {
+            WebStorage::key(PORTAL_CATALOG_KEY)
         }
 
         pub fn load() -> Option<Vec<u8>> {
-            let raw = storage()?.get_item(KEY).ok()??;
+            let raw = WebStorage::handle()?.get_item(&key()).ok()??;
             // The read-side cap, mirroring the native load_from: the store
             // is user-writable input (String::len is bytes).
             if raw.len() > MAX_LAST_GOOD_BYTES {
@@ -246,7 +253,7 @@ pub(super) mod last_good_store {
                 );
                 return;
             }
-            let Some(storage) = storage() else {
+            let Some(storage) = WebStorage::handle() else {
                 warn!("portal: no localStorage available; the last-good catalog will not persist");
                 return;
             };
@@ -256,7 +263,7 @@ pub(super) mod last_good_store {
                 warn!("portal: the catalog body is not UTF-8; not persisting");
                 return;
             };
-            if storage.set_item(KEY, text).is_err() {
+            if storage.set_item(&key(), text).is_err() {
                 warn!("portal: localStorage write failed; the last-good catalog was not saved");
             }
         }

@@ -34,15 +34,7 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let mut query = world.query_filtered::<(Entity, &EntityId), (
-                    With<ScenarioScopedMarker>,
-                    With<SpaceshipRootMarker>,
-                )>();
-                let Some(ship) = query
-                    .iter(world)
-                    .find(|(_, entity_id)| entity_id.0 == id)
-                    .map(|(entity, _)| entity)
-                else {
+                let Some(ship) = scoped_ship(world, &id) else {
                     warn!("SetSpeedCap: no scoped ship with id '{}'", id);
                     return;
                 };
@@ -86,15 +78,7 @@ impl EventAction<NovaEventWorld> for SetAllegianceActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let mut query = world.query_filtered::<(Entity, &EntityId), (
-                    With<ScenarioScopedMarker>,
-                    With<SpaceshipRootMarker>,
-                )>();
-                let Some(ship) = query
-                    .iter(world)
-                    .find(|(_, entity_id)| entity_id.0 == id)
-                    .map(|(entity, _)| entity)
-                else {
+                let Some(ship) = scoped_ship(world, &id) else {
                     warn!("SetAllegiance: no scoped ship with id '{}'", id);
                     return;
                 };
@@ -131,15 +115,7 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let mut ships = world.query_filtered::<(Entity, &EntityId), (
-                    With<ScenarioScopedMarker>,
-                    With<SpaceshipRootMarker>,
-                )>();
-                let Some(ship) = ships
-                    .iter(world)
-                    .find(|(_, entity_id)| entity_id.0 == id)
-                    .map(|(entity, _)| entity)
-                else {
+                let Some(ship) = scoped_ship(world, &id) else {
                     warn!("SetControllerVerb: no scoped ship with id '{}'", id);
                     return;
                 };
@@ -1912,18 +1888,6 @@ impl EventAction<NovaEventWorld> for RefillAmmoActionConfig {
             });
         });
     }
-}
-
-/// The scoped scenario ship with this `EntityId`, if one is live.
-fn scoped_ship(world: &mut World, id: &str) -> Option<Entity> {
-    let mut query = world.query_filtered::<(Entity, &EntityId), (
-        With<ScenarioScopedMarker>,
-        With<SpaceshipRootMarker>,
-    )>();
-    query
-        .iter(world)
-        .find(|(_, entity_id)| entity_id.0 == id)
-        .map(|(entity, _)| entity)
 }
 
 /// Every section entity of one ship.

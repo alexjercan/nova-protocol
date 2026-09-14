@@ -131,7 +131,7 @@ pub struct AsteroidConfig {
 }
 
 /// The silhouette seed an asteroid gets when its config authors none: a stable
-/// hash (FNV-1a) of the scenario object's own id.
+/// [`Fnv32`] hash of the scenario object's own id.
 ///
 /// Derived rather than drawn from the global RNG so the rock is BUILT IN THE
 /// SAME COMMAND BATCH as its body - see [`asteroid_scenario_object`] for why
@@ -139,12 +139,7 @@ pub struct AsteroidConfig {
 /// re-run capture and a reloaded save both want. Ids are unique within a
 /// scenario, so rocks in a field still differ from each other.
 pub fn asteroid_seed_from_id(id: &str) -> u32 {
-    let mut hash: u32 = 0x811c_9dc5;
-    for byte in id.as_bytes() {
-        hash ^= *byte as u32;
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
-    hash
+    Fnv32::new().write(id.as_bytes()).finish()
 }
 
 /// What every rock returns to a scanner before its size is counted, in meters.

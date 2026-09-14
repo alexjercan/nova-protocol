@@ -4,7 +4,8 @@ use bevy::prelude::{UVec3, Vec3};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_ship::prelude::{
-    derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
+    candidate_link_point_mates, derive_link_point_graph, section_colliders_overlap,
+    ControllerSectionConfig, LinkPointGraphError, LinkPointRef, PlacedSectionCollider,
     PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig,
     SectionFootprint, SectionKind, SectionReloadConfig, ShipGrammarConfig, TorpedoSectionConfig,
     TurretJoint, TurretSectionConfig, MAX_GRAMMAR_CELLS,
@@ -703,12 +704,19 @@ fn resolved_link_point<'a>(
 
 /// Reject collider AABB interpenetration unless the two sections directly mate.
 ///
-/// Tight primitive colliders conservatively overlap where semantic meshes interlock. An
-/// authored mate makes that interface intentional. Unmated overlap still catches accidental
-/// duplicate or embedded parts. Rotated AABBs make this a broad-phase authoring check rather
-/// than physical narrow-phase geometry.
-const OVERLAP_EPSILON: f32 = 1e-3;
-
+/// The arithmetic and its tolerance are `nova_ship`'s
+/// [`section_colliders_overlap`], shared with the editor's placement refusal so
+/// that a hull a builder is allowed to assemble is a hull this lint accepts.
+///
+/// What is EXEMPT is the pairs that offer each other a socket
+/// ([`candidate_link_point_mates`]), not the pairs the derived ship graph
+/// publishes. An authored mate is what makes an interface intentional, and it
+/// is authored whether or not the hull around it derives: an ambiguous socket,
+/// a disconnected hull or a malformed link point is already reported - by
+/// `check_link_point_graph` and by [`lint_section_config`] - and reading such a
+/// hull's mate set as EMPTY would bury those findings under an overlap error on
+/// every seam the author meant. Interpenetration nothing mates is still
+/// reported, which is what catches accidental duplicate or embedded parts.
 fn check_section_overlaps(
     ship_id: &str,
     ship_sections: &[SpaceshipSectionConfig],
@@ -747,8 +755,7 @@ fn check_section_overlaps(
             link_points: points,
         })
         .collect();
-    let direct_mates = derive_link_point_graph(&placed)
-        .unwrap_or_default()
+    let direct_mates = candidate_link_point_mates(&placed)
         .into_iter()
         .map(|mate| {
             let a = mate.a.section_index.min(mate.b.section_index);
@@ -756,25 +763,24 @@ fn check_section_overlaps(
             (a, b)
         })
         .collect::<std::collections::BTreeSet<_>>();
+    let bounds = |index: usize| PlacedSectionCollider {
+        position: ship_sections[index].position,
+        rotation: ship_sections[index].rotation,
+        collider: resolved[index].0,
+    };
 
     for i in 0..ship_sections.len() {
         for j in (i + 1)..ship_sections.len() {
             let (a, b) = (&ship_sections[i], &ship_sections[j]);
-            let d = a.position - b.position;
-            let sum = resolved[i].0.rotated_aabb_half_extents(a.rotation)
-                + resolved[j].0.rotated_aabb_half_extents(b.rotation);
-            if d.x.abs() + OVERLAP_EPSILON < sum.x
-                && d.y.abs() + OVERLAP_EPSILON < sum.y
-                && d.z.abs() + OVERLAP_EPSILON < sum.z
-                && !direct_mates.contains(&(i, j))
-            {
+            if section_colliders_overlap(bounds(i), bounds(j)) && !direct_mates.contains(&(i, j)) {
+                let separation = bounds(i).half_extents() + bounds(j).half_extents();
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
                         "ship '{ship_id}': unmated sections '{}' at {:?} and '{}' at {:?} \
                          overlap (collider boxes interpenetrate: centers must be >= {:?} apart \
                          on some axis, or the sections must directly mate)",
-                        a.id, a.position, b.id, b.position, sum
+                        a.id, a.position, b.id, b.position, separation
                     ),
                 ));
             }
@@ -1767,6 +1773,89 @@ mod tests {
             &base_channels(),
         );
         assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    /// A hull whose link-point graph does not derive still has AUTHORED mates,
+    /// and a seam the author mated is not an overlap.
+    ///
+    /// The fault such a hull HAS - here a disconnected component - is reported
+    /// once, in the words that name it. Reading the mate set of a hull that
+    /// fails to derive as EMPTY instead reported every intentional interface as
+    /// interpenetration, which is both wrong and the loudest thing the author
+    /// would have seen. What genuinely mates with nothing and is buried anyway
+    /// is still reported.
+    #[test]
+    fn a_hull_that_fails_the_graph_still_exempts_its_authored_mates() {
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, LinkPoint};
+
+        let box_collider = Some(SectionCollider::Cuboid {
+            size: Vec3::splat(2.0),
+        });
+        let mating = |id: &str, normal: Vec3| SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                collider: box_collider,
+                link_points: vec![LinkPoint {
+                    id: "mate".to_string(),
+                    position: normal * 0.25,
+                    normal,
+                }],
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        // No sockets at all: it can mate with nothing, so it stands in a
+        // component of its own and the graph never derives.
+        let loose = SectionConfig {
+            base: BaseSectionConfig {
+                id: "loose".to_string(),
+                collider: box_collider,
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        let configs = [mating("left", Vec3::X), mating("right", Vec3::NEG_X), loose];
+
+        let section = |id: &str, prototype: &str, position: Vec3| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype(prototype.to_string()),
+            modifications: vec![],
+        };
+        let ship = ShipConfig {
+            id: "drifter".to_string(),
+            name: "Drifter".to_string(),
+            hull: ShipHull {
+                sections: vec![
+                    // Mated, and deliberately interlocking: half a cell apart
+                    // with two-cell boxes.
+                    section("left", "left", Vec3::ZERO),
+                    section("right", "right", Vec3::X * 0.5),
+                    // Mated with nothing, and buried in each other.
+                    section("loose_a", "loose", Vec3::X * 50.0),
+                    section("loose_b", "loose", Vec3::X * 50.25),
+                ],
+                ..default()
+            },
+        };
+
+        let issues = lint_ship_config(&ship, &KnownSections::from_configs(&configs), "base");
+        let overlaps: Vec<_> = issues
+            .iter()
+            .filter(|issue| issue.message.contains("overlap"))
+            .collect();
+        assert_eq!(overlaps.len(), 1, "{issues:?}");
+        assert!(
+            overlaps[0].message.contains("'loose_a'") && overlaps[0].message.contains("'loose_b'"),
+            "the mated seam is exempt, the buried pair is not: {issues:?}"
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("disconnected")),
+            "the hull still hears the fault it has: {issues:?}"
+        );
     }
 
     #[test]

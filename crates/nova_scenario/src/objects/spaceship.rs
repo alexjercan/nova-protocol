@@ -302,6 +302,42 @@ pub enum SectionSource {
     Prototype(SectionId),
 }
 
+impl SectionSource {
+    /// The section config this source names: the inline one, or the catalog
+    /// prototype's. `None` when a prototype id resolves to nothing - a mod
+    /// overlay dropped it - and the caller decides what that miss means (the
+    /// spawn logs it and skips the section, the editor draws nothing there).
+    ///
+    /// `sections` is optional because a rig may hold no catalog at all: an
+    /// editor document opened before the mods merged, or a test whose sections
+    /// are all inline. Absent means no prototype resolves; an `Inline` source
+    /// still answers, which is what keeps a self-contained hull drawable
+    /// without a catalog.
+    ///
+    /// This is the ONE resolver. Every consumer - the spawn, the preload walk,
+    /// the opening-frame envelope, the editor's nodes and previews - goes
+    /// through it, so a new source arm or a new lookup rule lands on all of
+    /// them at once. `nova_wfc`'s `place` is the deliberate exception: a
+    /// generated hull is prototypes only and rejects `Inline` outright.
+    pub fn resolve<'a>(&'a self, sections: Option<&'a GameSections>) -> Option<&'a SectionConfig> {
+        match self {
+            SectionSource::Inline(config) => Some(config),
+            SectionSource::Prototype(id) => sections?.get_section(id),
+        }
+    }
+
+    /// The catalog id this source is an instance of: the prototype's id, or the
+    /// inline config's own. What an error names and what the editor's pipette
+    /// arms - available without a catalog, which is why it is not
+    /// [`resolve`](Self::resolve) plus a field read.
+    pub fn prototype_id(&self) -> &str {
+        match self {
+            SectionSource::Inline(config) => &config.base.id,
+            SectionSource::Prototype(id) => id,
+        }
+    }
+}
+
 /// One entry in a ship's authored section list: where a section sits on the
 /// hull, where its config comes from, and any spawn-time modifications.
 #[derive(Clone, Debug, Reflect)]
@@ -506,23 +542,19 @@ fn insert_spaceship_sections(
 
     commands.entity(entity).with_children(|parent| {
         for section in hull.sections.iter() {
-            // Resolve the section's source to an owned SectionConfig: an inline
-            // config is used as-is; a prototype is looked up in the catalog
-            // (missing -> error + skip this section, no panic).
-            let config: SectionConfig = match &section.source {
-                SectionSource::Inline(config) => config.clone(),
-                SectionSource::Prototype(id) => match game_sections.get_section(id) {
-                    Some(config) => config.clone(),
-                    None => {
-                        error!(
-                            "insert_spaceship_sections: unknown section prototype '{}' for \
-                             section '{}'; skipping",
-                            id, section.id
-                        );
-                        continue;
-                    }
-                },
+            // Owned, because the section entity outlives this borrow of the
+            // catalog. A source that resolves to nothing is an error + skip of
+            // this section, no panic.
+            let Some(config) = section.source.resolve(Some(&game_sections)) else {
+                error!(
+                    "insert_spaceship_sections: unknown section prototype '{}' for \
+                     section '{}'; skipping",
+                    section.source.prototype_id(),
+                    section.id
+                );
+                continue;
             };
+            let config: SectionConfig = config.clone();
 
             let mut section_entity = parent.spawn((
                 EntityId::new(section.id.clone()),
@@ -1351,6 +1383,113 @@ mod tests {
         assert!(world
             .entity(entity)
             .contains::<StructuralCollapseThreshold>());
+    }
+
+    /// A prototype resolves out of the catalog and an unknown id resolves to
+    /// nothing - the miss the spawn reports rather than panics on. An inline
+    /// config answers with no catalog at all, which is what lets an editor
+    /// document opened before the mods merged still draw what it carries.
+    #[test]
+    fn a_section_source_resolves_by_id_or_reports_nothing() {
+        let catalog = GameSections(vec![section_prototype("drive")]);
+
+        let worn = SectionSource::Prototype("drive".to_string());
+        assert_eq!(
+            worn.resolve(Some(&catalog))
+                .map(|config| config.base.id.as_str()),
+            Some("drive")
+        );
+        assert!(SectionSource::Prototype("nothing".to_string())
+            .resolve(Some(&catalog))
+            .is_none());
+        // No catalog at all: there is nothing to look an id up in.
+        assert!(worn.resolve(None).is_none());
+
+        let inline = SectionSource::Inline(section_prototype("cell"));
+        assert!(inline.resolve(None).is_some());
+
+        // Either arm names the catalog id it is an instance of, catalog or no.
+        assert_eq!(inline.prototype_id(), "cell");
+        assert_eq!(worn.prototype_id(), "drive");
+    }
+
+    /// Every consumer of a [`SectionSource`] has to land on the SAME section.
+    /// The spawn is the one the others are judged against - a preview that
+    /// draws a hull the spawn does not fly is a creator building against a lie
+    /// - so it is asserted against the resolver itself rather than a written-out
+    /// list of ids: a seventh site that grew its own lookup would disagree here.
+    #[test]
+    fn the_spawn_flies_the_sections_the_resolver_names() {
+        let catalog = GameSections(vec![section_prototype("drive")]);
+        let sources = [
+            SectionSource::Prototype("drive".to_string()),
+            SectionSource::Inline(section_prototype("cell")),
+            // A prototype a mod overlay dropped: the resolver names nothing,
+            // and so the spawn flies nothing.
+            SectionSource::Prototype("gone".to_string()),
+        ];
+
+        let mut world = World::new();
+        world.insert_resource(GameSections(catalog.0.clone()));
+        world.init_resource::<GameShips>();
+        world.add_observer(insert_spaceship_sections);
+
+        let sections = sources
+            .iter()
+            .enumerate()
+            .map(|(index, source)| SpaceshipSectionConfig {
+                id: format!("section_{index}"),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: source.clone(),
+                modifications: vec![],
+            })
+            .collect();
+        let entity = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    hull: ShipSource::Inline(ShipHull {
+                        sections,
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+
+        let children = world.entity(entity).get::<Children>().expect("sections");
+        let flown: Vec<String> = (0..children.len())
+            .filter_map(|index| {
+                world
+                    .entity(children[index])
+                    .get::<EntityTypeName>()
+                    .map(|name| name.0.clone())
+            })
+            .collect();
+        let named: Vec<String> = sources
+            .iter()
+            .filter_map(|source| source.resolve(Some(&catalog)))
+            .map(|config| config.base.id.clone())
+            .collect();
+
+        assert_eq!(
+            flown, named,
+            "the spawn flies exactly the sections the resolver names"
+        );
+    }
+
+    /// A hull section prototype with no authored geometry, under `id`.
+    fn section_prototype(id: &str) -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                name: id.to_string(),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        }
     }
 
     /// The documented strict-RON syntax parses, omitted defaults to None.

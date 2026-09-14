@@ -22,12 +22,7 @@
 //! operands are. A node that kept a copy of what its children hold would be a
 //! second answer to the same question, and a save would have to pick one.
 
-use bevy::{
-    ecs::system::SystemParam,
-    prelude::*,
-    reflect::{ReflectRef, TypeInfo},
-    ui_widgets::Activate,
-};
+use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_scenario::prelude::*;
@@ -1621,74 +1616,6 @@ impl ScriptNodes<'_, '_> {
     }
 }
 
-/// Visit every id `value` names, with what the field said it names.
-///
-/// Reflection and the [`Names`] attribute, rather than a match arm per action:
-/// a check written as a list of action kinds goes stale the day the vocabulary
-/// grows one, silently, in the direction of "this reference is fine".
-///
-/// An `Option` field is visited only when it is `Some` - an unset filter id
-/// matches any entity and names nothing.
-pub(crate) fn walk_names(value: &dyn PartialReflect, visit: &mut impl FnMut(Names, &str)) {
-    match value.reflect_ref() {
-        ReflectRef::Struct(fields) => {
-            let info = match value.get_represented_type_info() {
-                Some(TypeInfo::Struct(info)) => Some(info),
-                _ => None,
-            };
-            for index in 0..fields.field_len() {
-                let Some(field) = fields.field_at(index) else {
-                    continue;
-                };
-                let names = info
-                    .and_then(|info| info.field_at(index))
-                    .and_then(|field| field.get_attribute::<Names>())
-                    .copied();
-                match (names, text_of(field)) {
-                    (Some(names), Some(text)) => visit(names, text),
-                    _ => walk_names(field, visit),
-                }
-            }
-        }
-        ReflectRef::TupleStruct(fields) => {
-            for index in 0..fields.field_len() {
-                if let Some(field) = fields.field(index) {
-                    walk_names(field, visit);
-                }
-            }
-        }
-        ReflectRef::List(items) => {
-            for index in 0..items.len() {
-                if let Some(item) = items.get(index) {
-                    walk_names(item, visit);
-                }
-            }
-        }
-        ReflectRef::Enum(chosen) => {
-            for index in 0..chosen.field_len() {
-                if let Some(field) = chosen.field_at(index) {
-                    walk_names(field, visit);
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-/// The string a field holds - itself, or the payload of a `Some`.
-fn text_of(value: &dyn PartialReflect) -> Option<&str> {
-    if let Some(text) = value.try_downcast_ref::<String>() {
-        return Some(text);
-    }
-    let ReflectRef::Enum(chosen) = value.reflect_ref() else {
-        return None;
-    };
-    chosen
-        .field_at(0)?
-        .try_downcast_ref::<String>()
-        .map(String::as_str)
-}
-
 /// Every name a handler uses, sorted by what the field said it names.
 ///
 /// The object lists are the ones the lowering JUDGES a handler by - a
@@ -1701,7 +1628,9 @@ pub(crate) struct NamedIds {
     /// Ids the handler itself puts on the board.
     pub(crate) declared: Vec<String>,
     /// Id PREFIXES a scatter puts on the board, which satisfy any reference
-    /// that starts with one.
+    /// that starts with one. An UNFILLED prefix rides along like any other
+    /// string - [`object_reference_resolves`] is what refuses it, so every
+    /// surface refuses it the same way.
     pub(crate) prefixes: Vec<String>,
     /// Scenario variable keys.
     pub(crate) variables: Vec<String>,
@@ -1756,19 +1685,23 @@ fn walk_filter_names(filter: &EventFilterConfig, ids: &mut NamedIds) {
 }
 
 /// Sort one config's named ids into the two lists.
+///
+/// The walk is [`nova_scenario`]'s, the same one the content lint resolves its
+/// references through: what a string names is answered once, by the field.
 fn collect(config: &dyn PartialReflect, ids: &mut NamedIds) {
-    walk_names(config, &mut |names, text| {
-        if text.is_empty() {
+    walk_names(config, &mut |named| {
+        if named.text.is_empty() {
             return;
         }
-        match names {
-            Names::Object => ids.referenced.push(text.to_string()),
-            Names::NewObject => ids.declared.push(text.to_string()),
-            Names::Variable => ids.variables.push(text.to_string()),
-            Names::Timer => ids.timers.push(text.to_string()),
-            Names::Objective => ids.objectives.push(text.to_string()),
-            Names::Scenario => ids.scenarios.push(text.to_string()),
-            Names::Cinematic => ids.cinematics.push(text.to_string()),
+        let text = named.text.to_string();
+        match named.names {
+            Names::Object => ids.referenced.push(text),
+            Names::NewObject => ids.declared.push(text),
+            Names::Variable => ids.variables.push(text),
+            Names::Timer => ids.timers.push(text),
+            Names::Objective => ids.objectives.push(text),
+            Names::Scenario => ids.scenarios.push(text),
+            Names::Cinematic => ids.cinematics.push(text),
             // An order key and a section id are not document-wide names: the
             // key is minted by the helm action that installs the order, and
             // the section id only means anything inside the ship named beside
@@ -2250,3 +2183,85 @@ fn spawn_node<T: Component>(
 
 #[cfg(test)]
 mod tests;
+
+/// The panel and the content lint read the SAME [`Names`] attributes, and the
+/// stock values are the only place every action in the vocabulary exists as a
+/// value - which is why this guard lives beside them rather than beside the
+/// lint it is guarding.
+#[cfg(test)]
+mod name_coverage {
+    use std::collections::HashSet;
+
+    use nova_gameplay::prelude::AssetRef;
+    use nova_scenario::prelude::*;
+
+    use super::{ActionChoice, ActionChoiceExt, ActionKind};
+
+    /// Every object an action REFERENCES is resolved by the content lint.
+    ///
+    /// The invariant the fix bought: the lint reads the field attribute, so an
+    /// action authored with a reference is checked without an arm of its own.
+    /// `SetInfiniteAmmo` and `RefillAmmo` are why it is asserted - while the
+    /// lint kept a list of action kinds, both named a ship, neither was on the
+    /// list, and a dangling id in either linted green and then did nothing.
+    ///
+    /// Stock ids are all empty and nothing in a one-action scenario spawns
+    /// anything, so every reference a stock config holds must come back
+    /// unsatisfied. A count that falls short is an action the lint cannot see.
+    #[test]
+    fn every_object_an_action_names_is_resolved_by_the_lint() {
+        for choice in ActionChoice::ALL {
+            // Sequence, Cinematic and VariableSet start life as HEADS whose
+            // innards are nodes beside them; none of the three names an object.
+            let ActionKind::Leaf(action) = choice.stock() else {
+                continue;
+            };
+            let Some(payload) = action.payload() else {
+                continue;
+            };
+            let mut referenced = 0usize;
+            walk_names(payload, &mut |named| {
+                if named.names == Names::Object {
+                    referenced += 1;
+                }
+            });
+            if referenced == 0 {
+                continue;
+            }
+
+            let scenario = ScenarioConfig {
+                description: "name coverage".to_string(),
+                events: vec![ScenarioEventConfig {
+                    label: None,
+                    name: EventConfig::OnStart,
+                    once: false,
+                    filters: Vec::new(),
+                    actions: vec![action.clone()],
+                }],
+                ..ScenarioConfig::new(
+                    "name_coverage".to_string(),
+                    "Name coverage".to_string(),
+                    AssetRef::default(),
+                )
+            };
+            let issues = lint_scenario(
+                &scenario,
+                &KnownSections::default(),
+                &KnownShips::default(),
+                &HashSet::new(),
+                &HashSet::new(),
+            );
+            let dangling = issues
+                .iter()
+                .filter(|issue| issue.message.contains("targets id '"))
+                .count();
+            assert_eq!(
+                dangling,
+                referenced,
+                "{}: the config names {referenced} object(s), the lint resolved \
+                 {dangling} of them: {issues:?}",
+                choice.name()
+            );
+        }
+    }
+}

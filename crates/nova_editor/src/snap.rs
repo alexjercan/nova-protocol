@@ -3,16 +3,12 @@
 //!
 //! Link points are the sole source of structural adjacency, so this module
 //! never invents one from geometry; collider bounds appear only in the overlap
-//! refusal, exactly as the ship lint uses them. Pure over its inputs, so the
-//! ghost the builder sees and the click that commits share one answer.
+//! refusal, which is `nova_ship`'s `section_colliders_overlap` - the same rule
+//! the ship lint judges the saved hull by. Pure over its inputs, so the ghost
+//! the builder sees and the click that commits share one answer.
 
 use bevy::prelude::*;
 use nova_ship::prelude::*;
-
-/// How far two collider boxes must interpenetrate before it counts as overlap.
-/// Mated parts touch exactly, and a float error at the seam must not read as a
-/// collision.
-const OVERLAP_EPSILON: f32 = 1e-3;
 
 /// One section already on the preview ship, in ship-root space.
 #[derive(Clone, Debug)]
@@ -254,10 +250,9 @@ fn refuse(
             _ => None,
         })
         .collect();
-    let overlapping = ship
-        .iter()
-        .enumerate()
-        .any(|(index, section)| !mated.contains(&index) && overlaps(section, &ghost));
+    let overlapping = ship.iter().enumerate().any(|(index, section)| {
+        !mated.contains(&index) && section_colliders_overlap(bounds(section), bounds(&ghost))
+    });
     if overlapping {
         return Some(Refusal::Overlap);
     }
@@ -291,18 +286,13 @@ fn placed(section: &PlacedSection) -> PlacedSectionLinkPoints<'_> {
     }
 }
 
-/// AABB interpenetration after each local collider is turned into ship space.
-/// Editor placement uses quarter turns, so the absolute rotation basis exactly
-/// permutes cuboid extents instead of conservatively widening them on the wrong
-/// axes.
-fn overlaps(a: &PlacedSection, b: &PlacedSection) -> bool {
-    let half_extents =
-        |section: &PlacedSection| section.collider.rotated_aabb_half_extents(section.rotation);
-    let distance = (a.position - b.position).abs();
-    let sum = half_extents(a) + half_extents(b);
-    distance.x + OVERLAP_EPSILON < sum.x
-        && distance.y + OVERLAP_EPSILON < sum.y
-        && distance.z + OVERLAP_EPSILON < sum.z
+/// One placed section as the shared overlap rule reads it.
+fn bounds(section: &PlacedSection) -> PlacedSectionCollider {
+    PlacedSectionCollider {
+        position: section.position,
+        rotation: section.rotation,
+        collider: section.collider,
+    }
 }
 
 #[cfg(test)]
@@ -718,6 +708,92 @@ mod tests {
             !cycled.transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5),
             "one press of the socket key must change the answer"
         );
+    }
+
+    /// A hull the editor lets a builder assemble is a hull the ship lint
+    /// accepts.
+    ///
+    /// The two tests are one rule (`nova_ship`'s `section_colliders_overlap`),
+    /// and this is why they have to be: the editor answers before the click,
+    /// the lint judges the same hull once it is saved, and a builder who only
+    /// hears the refusal from the lint hears it after the work is done. The
+    /// fixture is the hull the two would disagree about first - two-cell boxes
+    /// half a cell apart, interlocking exactly where their sockets mate.
+    #[test]
+    fn a_hull_the_editor_accepts_is_a_hull_the_ship_lint_accepts() {
+        use nova_scenario::prelude::{
+            lint_ship_config, KnownSections, SectionSource, ShipConfig, ShipHull,
+            SpaceshipSectionConfig,
+        };
+
+        let collider = SectionCollider::Cuboid {
+            size: Vec3::splat(2.0),
+        };
+        let socket = |normal: Vec3| {
+            vec![LinkPoint {
+                id: "mate".to_string(),
+                position: normal * 0.25,
+                normal,
+            }]
+        };
+        let prototype = |id: &str, normal: Vec3| SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                collider: Some(collider),
+                link_points: socket(normal),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+
+        // The editor half: the part mates onto the only socket the hull
+        // offers, and the boxes interpenetrate by half a cell at that seam.
+        let ship = [PlacedSection {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            link_points: socket(Vec3::X),
+            collider,
+            exit: None,
+        }];
+        let placement = solve(
+            &ship,
+            0,
+            Vec3::X,
+            &socket(Vec3::NEG_X),
+            collider,
+            None,
+            0,
+            0,
+        );
+        assert_eq!(placement.refusal, None);
+
+        // The lint half: the same two sections, as the save would write them.
+        let configs = [prototype("left", Vec3::X), prototype("right", Vec3::NEG_X)];
+        let saved = ShipConfig {
+            id: "seam".to_string(),
+            name: "Seam".to_string(),
+            hull: ShipHull {
+                sections: vec![
+                    SpaceshipSectionConfig {
+                        id: "left".to_string(),
+                        position: ship[0].position,
+                        rotation: ship[0].rotation,
+                        source: SectionSource::Prototype("left".to_string()),
+                        modifications: vec![],
+                    },
+                    SpaceshipSectionConfig {
+                        id: "right".to_string(),
+                        position: placement.transform.translation,
+                        rotation: placement.transform.rotation,
+                        source: SectionSource::Prototype("right".to_string()),
+                        modifications: vec![],
+                    },
+                ],
+                ..default()
+            },
+        };
+        let issues = lint_ship_config(&saved, &KnownSections::from_configs(&configs), "editor");
+        assert!(issues.is_empty(), "{issues:?}");
     }
 
     /// The source socket wraps, so a caller can count up forever without

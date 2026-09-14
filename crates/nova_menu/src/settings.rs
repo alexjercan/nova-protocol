@@ -982,29 +982,17 @@ pub(crate) fn apply_settings_rebind(
     let Some(source) = captured else {
         return;
     };
-    // The pointer's own button is never taken. Every other control on this
-    // screen is clicked with it, so an armed chip would otherwise eat the next
-    // click a player made anywhere - and a game whose main drive is Left Mouse
-    // cannot be un-bound, because the row that would fix it needs a click.
-    if source == InputSource::Mouse(MouseButton::Left) {
-        rebind.refusal = Some("Left Mouse stays the pointer".to_string());
-        return;
-    }
-
-    if let Some(taken_by) = bindings.conflict_for(action, source) {
-        let reason = format!(
-            "{} is already bound to {}",
-            source.readout_label(),
-            taken_by.label
-        );
-        rebind.refusal = Some(reason);
-        return;
-    }
-    if let Some(taken_by) = section_conflict(bindings.get(action), source, &sections) {
-        rebind.refusal = Some(format!(
-            "{} is already bound to {taken_by}",
-            source.readout_label()
-        ));
+    // What else answers on this source: an action in the same live set, or a
+    // trigger on a live ship section, which the table cannot see. The policy
+    // that turns that into a refusal is `RebindSurface::Settings` - one table
+    // for every rebind surface in the game, so the pointer rule and the
+    // refuse-rather-than-warn rule are stated once.
+    let held_by = bindings
+        .conflict_for(action, source)
+        .map(|taken_by| taken_by.label.to_string())
+        .or_else(|| section_conflict(bindings.get(action), source, &sections));
+    if let RebindVerdict::Refuse(line) = rebind_verdict(RebindSurface::Settings, source, held_by) {
+        rebind.refusal = Some(line);
         return;
     }
 
@@ -1012,15 +1000,11 @@ pub(crate) fn apply_settings_rebind(
         disarm(&mut rebind);
         return;
     };
-    // The whole column moves, not just its first entry: the chip shows one
-    // column and a player who presses one key means that column is now that
-    // key. `Reset Defaults` is what puts a multi-key default back.
-    let mut spec = current.spec();
-    match device {
-        RebindDevice::Desk => spec.keyboard = vec![source],
-        RebindDevice::Pad => spec.gamepad = vec![source],
+    let spec = current.spec().captured(source);
+    if let Err(reason) = bindings.commit_rebind(action, spec) {
+        rebind.refusal = Some(reason);
+        return;
     }
-    bindings.rebind(action, spec);
     disarm(&mut rebind);
 }
 

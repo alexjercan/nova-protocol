@@ -102,7 +102,7 @@ pub use self::{
     bus::{bus_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, MusicVolume, WorldVolume},
     mixing::{
         area_cell, body_middle, cue_body, cue_group, distance_attenuation, listener_position,
-        CueGroup, SfxListenerMarker, SfxThrottle, ThrottleKey, SFX_AREA_CELL,
+        CueGroup, CueThrottle, SfxListenerMarker, SfxThrottle, ThrottleKey, SFX_AREA_CELL,
         SFX_AUDIBLE_THRESHOLD, SFX_FAR_DISTANCE, SFX_NEAR_DISTANCE,
     },
     registry::{sounds_loaded, SoundBank},

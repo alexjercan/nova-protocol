@@ -319,7 +319,7 @@ fn build_default_blast_effect() -> EffectAsset {
     // passing through, which reads as a firework rather than as an impact -
     // and on an intercept, where the closing speed is most of the motion in
     // the frame, it reads as the wrong thing entirely.
-    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.add_property(BASE_VELOCITY_PROPERTY, Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
 
     // Velocity: spherical random burst
@@ -438,7 +438,7 @@ fn build_default_blast_core_effect() -> EffectAsset {
 
     let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
 
-    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.add_property(BASE_VELOCITY_PROPERTY, Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
 
     let rand_x = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
@@ -551,7 +551,7 @@ pub(super) fn insert_particle_effect(
     let at = blast_transform.translation;
     let inherited = momentum.map_or(Vec3::ZERO, |momentum| **momentum);
     let mut properties = EffectProperties::default();
-    properties.set("base_velocity", inherited.into());
+    properties.set(BASE_VELOCITY_PROPERTY, inherited.into());
 
     // An AUTHORED effect replaces the whole detonation look, core included: a
     // mod that wrote its own blast graph did not ask for the built-in fireball
@@ -711,7 +711,7 @@ fn build_default_launch_puff_effect() -> EffectAsset {
     let normal = writer.prop(normal);
 
     // Ship motion the burst rides along with, set per shot.
-    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.add_property(BASE_VELOCITY_PROPERTY, Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
 
     // Forward-biased cone: mostly along the launch normal with a little
@@ -871,7 +871,7 @@ pub(super) fn on_torpedo_launch_effect(
     let base_velocity = owner
         .and_then(|owner| q_ship_velocity.get(**owner).ok())
         .map_or(Vec3::ZERO, |velocity| velocity.0);
-    properties.set("base_velocity", base_velocity.into());
+    properties.set(BASE_VELOCITY_PROPERTY, base_velocity.into());
 
     effect_spawner.reset();
 }

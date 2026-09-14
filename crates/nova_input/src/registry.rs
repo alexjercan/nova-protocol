@@ -109,6 +109,189 @@ pub struct BindingSpec {
     pub gamepad: Vec<InputSource>,
 }
 
+impl BindingSpec {
+    /// This spec with `source` captured for it: the column of the source's OWN
+    /// device becomes exactly that source, and the other column is kept.
+    ///
+    /// Keeping the other column is what every rebind surface owes a player. A
+    /// key pressed at a keyboard chip says nothing about the pad trigger the
+    /// same binding is also on, and a surface that wrote the whole binding
+    /// took a controller away from a player who never touched one.
+    ///
+    /// The column that DOES move moves whole: the chip shows one column, and a
+    /// player who presses one key means that column is now that key. `Reset
+    /// Defaults` is what puts a multi-key default back.
+    #[must_use]
+    pub fn captured(&self, source: InputSource) -> Self {
+        let mut spec = self.clone();
+        match source {
+            InputSource::Gamepad(_) => spec.gamepad = vec![source],
+            InputSource::Keyboard(_) | InputSource::Mouse(_) => spec.keyboard = vec![source],
+        }
+        spec
+    }
+}
+
+/// [`BindingSpec::captured`] over a FLAT source list: a ship section's
+/// authored `input_mapping`, which holds both devices in one vector rather
+/// than in two columns.
+///
+/// The desk half comes back first, so the section's readout still leads with
+/// its key.
+pub fn captured_binds(current: &[InputSource], source: InputSource) -> Vec<InputSource> {
+    let spec = BindingSpec {
+        keyboard: current
+            .iter()
+            .copied()
+            .filter(|held| !matches!(held, InputSource::Gamepad(_)))
+            .collect(),
+        gamepad: current
+            .iter()
+            .copied()
+            .filter(|held| matches!(held, InputSource::Gamepad(_)))
+            .collect(),
+    }
+    .captured(source);
+    spec.keyboard.into_iter().chain(spec.gamepad).collect()
+}
+
+/// Where a rebind is being made from.
+///
+/// Every surface that lets a player rebind an input names itself here and
+/// takes its answers from [`Self::policy`], so a fifth surface declares a
+/// policy beside the other four instead of growing a fifth implementation of
+/// the same ladder. The surfaces do not all want the same answers, and the
+/// differences are deliberate - see [`Self::policy`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RebindSurface {
+    /// The settings screen's keybind rows, in the menu and behind the pause
+    /// overlay (`nova_menu`). Binds a registry action.
+    Settings,
+    /// The NOVA OS SHIP app's section rebind (`nova_os_ui`). Binds the trigger
+    /// of a LIVE ship section, which is not a registry action.
+    ShipPanel,
+    /// The editor's Rebind action on the selected section (`nova_editor`).
+    /// Binds the section NODE's trigger, which the scenario hand-off reads.
+    Editor,
+    /// The `bind` command (`nova_console`). Binds a registry action, typed
+    /// rather than captured.
+    Console,
+}
+
+impl RebindSurface {
+    /// Every surface, so a test can drive the whole set rather than carry one
+    /// hand-written case per surface - which is how four of these drifted.
+    pub const ALL: [Self; 4] = [Self::Settings, Self::ShipPanel, Self::Editor, Self::Console];
+
+    /// What this surface refuses, and what it does about a source something
+    /// else already drives.
+    ///
+    /// Both divergences are deliberate, and each is argued where it was
+    /// decided.
+    ///
+    /// The EDITOR warns where the player-facing surfaces refuse: "the flight
+    /// rig holds Space for the main burn, and the editor used to refuse it -
+    /// which meant a builder who wanted Space to fire their thrusters could
+    /// not have it, on the editor's say-so". Every section action runs with
+    /// `consume_input: false`, so a shared source fires both things, and
+    /// whether that is what you meant is a BUILDER's decision. A player
+    /// rebinding a section of the ship they are flying is not making that
+    /// choice knowingly, so the SHIP app still refuses.
+    ///
+    /// The POINTER is reserved on the two surfaces driven by clicks: an armed
+    /// capture there would eat the next click a player made anywhere, and a
+    /// game whose main drive is Left Mouse cannot be un-bound, because the row
+    /// that would fix it needs a click. The editor waits the arming click out
+    /// and then takes a FRESH Left Mouse press on purpose, and the console is
+    /// typed - neither has a click to lose.
+    pub fn policy(self) -> RebindPolicy {
+        match self {
+            Self::Settings | Self::ShipPanel => RebindPolicy {
+                pointer: PointerRule::Reserved,
+                conflict: ConflictRule::Refuse,
+            },
+            Self::Editor => RebindPolicy {
+                pointer: PointerRule::Bindable,
+                conflict: ConflictRule::Warn,
+            },
+            Self::Console => RebindPolicy {
+                pointer: PointerRule::Bindable,
+                conflict: ConflictRule::Refuse,
+            },
+        }
+    }
+}
+
+/// One rebind surface's answers, from [`RebindSurface::policy`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RebindPolicy {
+    /// Whether the pointer's own button may be bound here.
+    pub pointer: PointerRule,
+    /// What happens when something else already drives the captured source.
+    pub conflict: ConflictRule,
+}
+
+/// Whether a surface may bind the pointer's own button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointerRule {
+    /// Left Mouse stays the pointer.
+    Reserved,
+    /// Left Mouse is an input like any other here.
+    Bindable,
+}
+
+/// What a surface does about a source something else already drives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConflictRule {
+    /// Refuse the capture. Nothing moves and the capture stays armed.
+    Refuse,
+    /// Take it, and say what else the source drives.
+    Warn,
+}
+
+/// What a surface does with a captured source, once its policy is applied.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RebindVerdict {
+    /// Bind it. `Some` is the line to show beside it: what ELSE the source
+    /// drives, on a surface whose policy is to say so rather than refuse.
+    Bind(Option<String>),
+    /// Do not bind it, and show this line. A refusal is a wrong press, not a
+    /// cancelled rebind, so the capture stays armed for the next one.
+    Refuse(String),
+}
+
+/// Apply `surface`'s [`policy`](RebindSurface::policy) to a captured `source`.
+///
+/// `held_by` names what ALREADY drives `source` beside the binding being
+/// captured, or `None` when nothing does. Every surface answers THAT question
+/// differently - a registry action in the same live set, a flight verb a
+/// section is being bound over, a live ship section's own trigger - and
+/// `nova_input` is a leaf below the crates that can answer it, so the surface
+/// asks and this decides what to do with the answer.
+pub fn rebind_verdict(
+    surface: RebindSurface,
+    source: InputSource,
+    held_by: Option<String>,
+) -> RebindVerdict {
+    let policy = surface.policy();
+    if policy.pointer == PointerRule::Reserved && source == InputSource::Mouse(MouseButton::Left) {
+        return RebindVerdict::Refuse("Left Mouse stays the pointer".to_string());
+    }
+    let Some(holder) = held_by else {
+        return RebindVerdict::Bind(None);
+    };
+    match policy.conflict {
+        ConflictRule::Refuse => RebindVerdict::Refuse(format!(
+            "{} is already bound to {holder}",
+            source.readout_label()
+        )),
+        ConflictRule::Warn => RebindVerdict::Bind(Some(format!(
+            "{} also drives {holder}",
+            source.readout_label()
+        ))),
+    }
+}
+
 impl ActionBinding {
     /// A new action with no bindings yet.
     pub fn new(name: &'static str, group: &'static str, label: &'static str) -> Self {
@@ -336,14 +519,51 @@ impl InputBindings {
     /// screen would not have produced are refused loudly and return `false`: a
     /// store written by a build that had an action this one does not, or hand
     /// edited, must not take the whole load down with it.
+    ///
+    /// This is the LOAD path, and it deliberately does NOT refuse a row that
+    /// lands on another action's source: the whole table is checked once every
+    /// stored row is in, by [`Self::drop_stored_conflicts`], so two rows
+    /// trading keys both load. A surface binding ONE row has no such later
+    /// pass and goes through [`Self::commit_rebind`] instead.
     pub fn rebind(&mut self, name: &str, spec: BindingSpec) -> bool {
+        match self.write_binding(name, spec) {
+            Ok(()) => true,
+            Err(reason) => {
+                warn!("InputBindings::rebind: {reason}; ignoring the binding");
+                false
+            }
+        }
+    }
+
+    /// Bind ONE action from a rebind surface, refusing anything the table will
+    /// not keep - and saying why, in a line a player reads.
+    ///
+    /// The collision rule lives here rather than at the surfaces because a
+    /// surface that skips it does not fail: the bind lands, it is persisted,
+    /// and the next launch feeds it to [`Self::drop_stored_conflicts`], which
+    /// puts it back behind a `warn!` nobody sees. A player must not lose a
+    /// binding without being told, so a collision is refused now.
+    pub fn commit_rebind(&mut self, name: &str, spec: BindingSpec) -> Result<(), String> {
+        for source in spec.keyboard.iter().chain(&spec.gamepad) {
+            if let Some(taken_by) = self.conflict_for(name, *source) {
+                return Err(format!(
+                    "{} is already bound to {}",
+                    source.readout_label(),
+                    taken_by.label
+                ));
+            }
+        }
+        self.write_binding(name, spec)
+    }
+
+    /// The write both rebind doors end at: the two rules a stored file did not
+    /// keep, then the action and every shadow that follows it.
+    fn write_binding(&mut self, name: &str, spec: BindingSpec) -> Result<(), String> {
         let Some(&at) = self.index.get(name) else {
-            warn!("InputBindings::rebind: no action named `{name}`; ignoring the binding");
-            return false;
+            return Err(format!("no action named `{name}`"));
         };
         if let Some(reason) = self.refuse_spec(at, &spec) {
-            warn!("InputBindings::rebind: `{name}` {reason}; ignoring the binding");
-            return false;
+            return Err(format!("`{name}` {reason}"));
         }
         let followers: Vec<usize> = self
             .actions
@@ -358,7 +578,7 @@ impl InputBindings {
         }
         self.actions[at].keyboard = spec.keyboard;
         self.actions[at].gamepad = spec.gamepad;
-        true
+        Ok(())
     }
 
     /// Why `spec` cannot be what the action at `at` holds, if it cannot.
@@ -965,6 +1185,154 @@ mod tests {
                 .conflict_for("main_drive", InputSource::Keyboard(KeyCode::KeyW))
                 .is_none(),
             "its own key, and its own shadow, are not a conflict"
+        );
+    }
+
+    /// The drift guard. Four surfaces let a player rebind an input, they each
+    /// used to carry their own ladder, and they each answered these two
+    /// questions differently - one of them by taking a section's pad trigger
+    /// away without saying anything. Driven off [`RebindSurface::ALL`] rather
+    /// than one case per surface, because a hand-written case per surface is
+    /// exactly what let a fifth answer in.
+    #[test]
+    fn no_rebind_surface_takes_a_held_source_silently_or_drops_the_other_column() {
+        let space = InputSource::Keyboard(KeyCode::Space);
+        for surface in RebindSurface::ALL {
+            let said = match rebind_verdict(surface, space, Some("Main Drive".to_string())) {
+                RebindVerdict::Refuse(line) => line,
+                RebindVerdict::Bind(note) => note.unwrap_or_default(),
+            };
+            assert!(
+                said.contains("Main Drive"),
+                "{surface:?} took a source Main Drive already answers on without saying so"
+            );
+            assert!(
+                matches!(
+                    rebind_verdict(surface, space, None),
+                    RebindVerdict::Bind(None)
+                ),
+                "{surface:?} refused a free source"
+            );
+        }
+
+        // The column question has ONE answer for every surface: the captured
+        // source replaces the column of its own device, and the other column
+        // is kept - whether the binding is a registry spec or a section's flat
+        // authored list.
+        let pad = InputSource::Gamepad(GamepadButton::RightTrigger);
+        let key = InputSource::Keyboard(KeyCode::KeyW);
+        let spec = BindingSpec {
+            keyboard: vec![key],
+            gamepad: vec![pad],
+        };
+        assert_eq!(
+            spec.captured(space),
+            BindingSpec {
+                keyboard: vec![space],
+                gamepad: vec![pad],
+            },
+            "a desk capture must not touch the pad column"
+        );
+        assert_eq!(
+            spec.captured(InputSource::Gamepad(GamepadButton::South)),
+            BindingSpec {
+                keyboard: vec![key],
+                gamepad: vec![InputSource::Gamepad(GamepadButton::South)],
+            },
+            "and a pad capture must not touch the desk column"
+        );
+        assert_eq!(
+            captured_binds(&[key, pad], space),
+            vec![space, pad],
+            "the same rule over a section's flat list, desk half first"
+        );
+        assert_eq!(
+            captured_binds(&[key, pad], InputSource::Gamepad(GamepadButton::South)),
+            vec![key, InputSource::Gamepad(GamepadButton::South)]
+        );
+    }
+
+    /// Left Mouse is the pointer on the surfaces a player drives with clicks,
+    /// and an input like any other where there is no click to lose.
+    #[test]
+    fn only_the_click_driven_surfaces_reserve_the_pointer() {
+        let click = InputSource::Mouse(MouseButton::Left);
+        for surface in RebindSurface::ALL {
+            let verdict = rebind_verdict(surface, click, None);
+            match surface.policy().pointer {
+                PointerRule::Reserved => assert_eq!(
+                    verdict,
+                    RebindVerdict::Refuse("Left Mouse stays the pointer".to_string()),
+                    "{surface:?} is driven by clicks and must keep the pointer"
+                ),
+                PointerRule::Bindable => assert_eq!(
+                    verdict,
+                    RebindVerdict::Bind(None),
+                    "{surface:?} has no click to lose"
+                ),
+            }
+        }
+    }
+
+    /// A surface binding ONE row has no later whole-table pass to lean on. A
+    /// collision it accepts is persisted and then put back by the next load
+    /// behind a `warn!`, so the checked door refuses it now instead.
+    #[test]
+    fn a_single_row_bind_onto_a_held_source_is_refused_rather_than_reverted_later() {
+        let mut table = InputBindings::from_actions([
+            ActionBinding::new("burn", "FLIGHT", "Burn")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyW)]),
+            ActionBinding::new("fire", "FLIGHT", "Fire")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyF)]),
+        ]);
+        let onto_burn = BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::KeyW)],
+            gamepad: vec![],
+        };
+
+        let refused = table
+            .commit_rebind("fire", onto_burn)
+            .expect_err("W is Burn's key");
+
+        assert!(
+            refused.contains('W') && refused.contains("Burn"),
+            "the refusal names the source and what holds it; it read {refused:?}"
+        );
+        assert_eq!(
+            table.get("fire").expect("registered").keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyF)],
+            "and the row did not move"
+        );
+        assert!(
+            table.overrides().is_empty(),
+            "so there is nothing for the store to carry and the load to take back"
+        );
+    }
+
+    /// The load keeps the OTHER door for the reason it always had: the whole
+    /// table is checked once every stored row is in, so two rows trading keys
+    /// both load.
+    #[test]
+    fn the_load_path_still_takes_a_row_that_lands_on_a_key_its_swap_partner_is_leaving() {
+        let mut table = InputBindings::from_actions([
+            ActionBinding::new("burn", "FLIGHT", "Burn")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyW)]),
+            ActionBinding::new("fire", "FLIGHT", "Fire")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyF)]),
+        ]);
+        assert!(
+            table.rebind(
+                "fire",
+                BindingSpec {
+                    keyboard: vec![InputSource::Keyboard(KeyCode::KeyW)],
+                    gamepad: vec![],
+                },
+            ),
+            "the load path does not refuse a collision row by row"
         );
     }
 

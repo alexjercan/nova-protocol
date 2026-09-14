@@ -233,8 +233,10 @@ pub(super) fn shoot_spawn_projectile(
             continue;
         }
 
-        // Out of torpedoes: an empty bay launches nothing. A bay with no
-        // `SectionAmmo` (unlimited) is never gated here.
+        // Out of torpedoes: an empty bay launches nothing. A cheap early out
+        // ahead of the pose work, like the turret's; the spend below is the
+        // authority. A bay with no `SectionAmmo` (unlimited) is never gated
+        // here.
         if ammo.as_deref().is_some_and(SectionAmmo::is_empty) {
             continue;
         }
@@ -289,6 +291,21 @@ pub(super) fn shoot_spawn_projectile(
             );
             continue;
         };
+
+        // Spend the round only now that the launch is certain, and refuse the
+        // launch outright if the magazine cannot pay for it - the order the
+        // turret and the lance already fire in. Spending AFTER the spawn left
+        // the refusal with nothing to refuse: the torpedo was already
+        // committed. Unlimited bays carry no `SectionAmmo` and are unaffected.
+        if let Some(ammo) = ammo.as_deref_mut() {
+            if !ammo.try_consume() {
+                continue;
+            }
+            if let Some(reload) = reload.as_deref_mut() {
+                reload.on_shot();
+            }
+        }
+
         let spawner_rotation = rotation.0 * bay_local_rot;
         // The spawner launches along its +Y (the bay's "up", as authored).
         let spawner_direction = spawner_rotation * Vec3::Y;
@@ -537,18 +554,6 @@ pub(super) fn shoot_spawn_projectile(
             projectile_transform.forward().into(),
             TorpedoWeave::phase_for(torpedo),
         ));
-
-        // A torpedo left the bay: spend one round. The empty-bay gate above
-        // already refused to reach here on a spent magazine, so this only ever
-        // fires on a launch that actually happened. Unlimited bays carry no
-        // `SectionAmmo` and are unaffected.
-        if let Some(ammo) = ammo.as_deref_mut() {
-            if ammo.try_consume() {
-                if let Some(reload) = reload.as_deref_mut() {
-                    reload.on_shot();
-                }
-            }
-        }
 
         // Start the next launch wait.
         fire_state.trigger();
@@ -1093,6 +1098,47 @@ mod tests {
             .get::<SectionAmmo>()
             .expect("the bay keeps its magazine");
         assert_eq!(ammo.rounds, 0, "the bay must read empty after firing out");
+    }
+
+    /// The magazine pays for the launch BEFORE the launch happens. A spent bay
+    /// commits nothing at all - no torpedo, no cooldown, no door hold - because
+    /// the round is spent ahead of the spawn and a failed spend refuses the
+    /// shot, exactly as the turret and the lance spend theirs. The spend used
+    /// to run after the torpedo was already in the world, where a refusal had
+    /// nothing left to refuse.
+    #[test]
+    fn a_bay_whose_magazine_cannot_pay_launches_nothing() {
+        let mut app = firing_app(2.0);
+        let section = spawn_firing_bay(&mut app, Some(2));
+        // Hand the bay a spent magazine: `try_consume` is the only thing that
+        // can answer for this launch.
+        app.world_mut().entity_mut(section).insert(SectionAmmo {
+            rounds: 0,
+            capacity: 2,
+        });
+
+        for _ in 0..6 {
+            app.update();
+        }
+
+        assert_eq!(
+            torpedo_count(&mut app),
+            0,
+            "a bay with nothing to spend must put nothing in the world"
+        );
+        assert_eq!(
+            app.world()
+                .entity(section)
+                .get::<SectionAmmo>()
+                .expect("the bay keeps its magazine")
+                .rounds,
+            0,
+            "and the magazine must not go negative or wrap"
+        );
+        assert!(
+            app.world().get::<MuzzleDoorHold>(section).is_none(),
+            "a refused launch holds no door open behind a torpedo that never left"
+        );
     }
 
     #[test]

@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_gameplay::prelude::{subtree_collider_aabb, Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -31,7 +31,7 @@ use crate::{
     bundle::{insert_lifted_ship, lift_objects, DocumentSlot},
     config::{EditorSays, SelectedNode},
     event::lift,
-    frame::{framed_extent, node_bounds, CameraFraming},
+    frame::{framed_extent, CameraFraming},
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
     scenario::{DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME, DEFAULT_SKY},
@@ -250,19 +250,13 @@ impl SectionNode {
         &'a self,
         sections: Option<&'a GameSections>,
     ) -> Option<&'a SectionConfig> {
-        match &self.source {
-            SectionSource::Inline(config) => Some(config),
-            SectionSource::Prototype(id) => sections?.get_section(id),
-        }
+        self.source.resolve(sections)
     }
 
     /// The catalog id this section was built from - what the pipette arms and
     /// what a minted id is named after.
     pub(crate) fn prototype(&self) -> &str {
-        match &self.source {
-            SectionSource::Inline(config) => &config.base.id,
-            SectionSource::Prototype(id) => id,
-        }
+        self.source.prototype_id()
     }
 
     /// Whether this kind of section takes an input binding at all. Hull and
@@ -771,7 +765,7 @@ pub(crate) fn reflow_auto_ships(
             commands.entity(entity).remove::<AutoLayout>();
             continue;
         }
-        let (left, right) = match node_bounds(entity, &q_children, &q_bounds) {
+        let (left, right) = match subtree_collider_aabb(entity, &q_children, &q_bounds) {
             Some(bounds) => (
                 bounds.min.x - pose.translation.x,
                 bounds.max.x - pose.translation.x,

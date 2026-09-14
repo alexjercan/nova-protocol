@@ -39,6 +39,7 @@ use crate::prelude::*;
 
 mod authority;
 mod autopilot;
+mod capability;
 mod guidance;
 mod manual;
 mod navigation;
@@ -76,6 +77,7 @@ use self::{
     state::remove_maneuver_telemetry,
 };
 pub(crate) use self::{
+    capability::{ship_grants_verb, ship_withholds_verb, LiveFlightComputers},
     guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
 };

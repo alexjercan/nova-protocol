@@ -18,12 +18,9 @@ use super::{
 use crate::{
     commands::{
         live,
-        prelude::{resolve_command_line, CommandOutcome, CommandStatus},
+        prelude::{resolve_command_line, CommandError, CommandOutcome, CommandStatus},
     },
-    shell::{
-        resolve_command, subcommands_of, terminal_command_names, CliOutput, CommandDispatch,
-        ResolvedCommand,
-    },
+    shell::{resolve_command, terminal_command_names, CliOutput, CommandDispatch, ResolvedCommand},
 };
 
 /// The semantic result of a [`NovaOsTerminal::submit`], so the bevy layer can
@@ -306,61 +303,18 @@ impl NovaOsTerminal {
                 self.extend_scrollback(nova_os_version_rows());
                 TerminalSubmitOutcome::Ran
             }
-            ResolvedCommand::Incomplete { name } => {
-                self.push_row(TerminalRow {
-                    kind: TerminalRowKind::Error,
-                    text: format!("{name}: incomplete command"),
-                });
-                self.extend_scrollback(command_help_rows(name, &commands));
-                TerminalSubmitOutcome::Errored
-            }
-            ResolvedCommand::UnexpectedArguments {
-                command,
-                arity,
-                args,
-            } => {
-                // A shell-style `command: reason` line, then the command's usage
-                // block so the player sees how to invoke it. When the command owns
-                // subcommands the first overrun word is a bad sub-command; name it
-                // (`map: unknown subcommand 'v'`). Otherwise it took an argument it
-                // does not accept (`help: takes no arguments`).
-                let subs = subcommands_of(&command, &commands);
-                let overrun = arity
-                    .overruns(args.len())
-                    .then(|| args[arity.most()].as_str());
-                let text = match overrun {
-                    Some(bad) if !subs.is_empty() => {
-                        format!("{command}: unknown subcommand '{bad}'")
-                    }
-                    _ => format!("{command}: {}", arity.rejection()),
-                };
-                self.push_row(TerminalRow {
-                    kind: TerminalRowKind::Error,
-                    text,
-                });
-                self.extend_scrollback(command_help_rows(&command, &commands));
-                TerminalSubmitOutcome::Errored
-            }
-            ResolvedCommand::Unknown {
-                command,
-                suggestion,
-            } => {
-                // Shell-style not-found: the error line, the optional did-you-mean,
-                // then a pointer back at `help` (a real shell points at its usage).
-                self.push_row(TerminalRow {
-                    kind: TerminalRowKind::Error,
-                    text: format!("command not found: {command}"),
-                });
-                if let Some(suggestion) = suggestion {
-                    self.push_row(TerminalRow {
-                        kind: TerminalRowKind::Warn,
-                        text: format!("did you mean {suggestion}?"),
-                    });
+            error @ (ResolvedCommand::Incomplete { .. }
+            | ResolvedCommand::UnexpectedArguments { .. }
+            | ResolvedCommand::Unknown { .. }) => {
+                // Shell-style parse errors, in the vocabulary this shell shares
+                // with the Command shell: a `command: reason` line, then the
+                // help this shell can give (a parent word's children, the
+                // command's own usage block, or a pointer back at `help`). Only
+                // that block is per-shell - the sentence above it is not, so a
+                // typo does not read two ways.
+                if let Some(error) = CommandError::from_resolved(&error, &commands) {
+                    self.extend_scrollback(error.rows(ShellKind::NovaOs, &commands));
                 }
-                self.push_row(TerminalRow {
-                    kind: TerminalRowKind::Dim,
-                    text: "Type 'help' for a list of commands.".to_string(),
-                });
                 TerminalSubmitOutcome::Errored
             }
         }
@@ -570,45 +524,22 @@ impl NovaOsTerminal {
             return;
         }
         let commands = self.session().commands.clone();
-        let (status, hint) = match resolve_command(&trimmed, &commands) {
+        let resolved = resolve_command(&trimmed, &commands);
+        let (status, hint) = match CommandError::from_resolved(&resolved, &commands) {
             // A full, arity-valid command (app launch word or CLI command), or a
-            // `<command> help` usage request - all valid input.
-            ResolvedCommand::Run { .. }
-            | ResolvedCommand::Usage { .. }
-            | ResolvedCommand::Version => (TerminalParseStatus::Valid, None),
-            // Trailing words that overrun a command's arity - unless the whole
-            // input is still a prefix of a LONGER command name (e.g. `ship vi`
-            // toward `ship view`), in which case it is a valid prefix, not an
-            // error.
-            ResolvedCommand::UnexpectedArguments { command, arity, .. } => {
-                match self.command_name_starting_with(&trimmed) {
-                    Some(name) => (TerminalParseStatus::ValidPrefix, Some(name)),
-                    None => (
-                        TerminalParseStatus::Invalid,
-                        Some(format!("{command}: {}", arity.rejection())),
-                    ),
-                }
-            }
-            // A parent word on the way to a real command is a prefix, not an
-            // error, exactly like a half-typed name.
-            ResolvedCommand::Incomplete { name } => {
-                match self.command_name_starting_with(&trimmed) {
-                    Some(completion) => (TerminalParseStatus::ValidPrefix, Some(completion)),
-                    None => (
-                        TerminalParseStatus::Invalid,
-                        Some(format!("{name}: incomplete command")),
-                    ),
-                }
-            }
-            ResolvedCommand::Unknown { suggestion, .. } => {
-                match self.command_name_starting_with(&trimmed) {
-                    Some(name) => (TerminalParseStatus::ValidPrefix, Some(name)),
-                    None => (
-                        TerminalParseStatus::Invalid,
-                        suggestion.map(|suggestion| format!("did you mean {suggestion}?")),
-                    ),
-                }
-            }
+            // `<command> help` / `<command> version` request - all valid input.
+            None => (TerminalParseStatus::Valid, None),
+            // A line that did not resolve - unless it is still a prefix of a
+            // LONGER command name (`ship vi` toward `ship view`, or a parent
+            // word on the way to a real command), in which case it is a valid
+            // prefix and the completion is the hint, not an error.
+            //
+            // The hint is the error's OWN one-line form, so what the caret says
+            // while typing and what Enter prints cannot drift apart.
+            Some(error) => match self.command_name_starting_with(&trimmed) {
+                Some(name) => (TerminalParseStatus::ValidPrefix, Some(name)),
+                None => (TerminalParseStatus::Invalid, error.hint),
+            },
         };
         let session = self.session_mut();
         session.parse_status = status;
@@ -649,7 +580,11 @@ impl NovaOsTerminal {
 mod tests {
     use super::*;
     use crate::{
-        commands::{live, prelude::CommandClass},
+        commands::{
+            live,
+            prelude::{command_shell_specs, CommandClass},
+        },
+        shell::prelude::TerminalCommandSpec,
         terminal::{
             fixtures::{app_spec, cli_spec, command_shell, core_with, gameplay_spec, type_text},
             nova_os_welcome_rows, prompt_completion_ghost,
@@ -817,6 +752,83 @@ mod tests {
             "clear rejects its argument with a reason",
         );
     }
+
+    /// The `ammo` tree of the Command catalog, lent to the NOVA OS shell so the
+    /// same malformed line can be typed at both prompts. The two shells parse
+    /// different catalogs; only a shared command tree makes their answers
+    /// comparable row for row.
+    fn ammo_specs() -> Vec<TerminalCommandSpec> {
+        command_shell_specs()
+            .iter()
+            .filter(|spec| spec.name.starts_with("ammo"))
+            .copied()
+            .collect()
+    }
+
+    /// One error vocabulary, two shells: a malformed line answers the same at
+    /// `nova>` and at `cmd>`, because both print the same `CommandError`.
+    #[test]
+    fn both_shells_answer_a_malformed_line_the_same_way() {
+        let answer = |shell: ShellKind, line: &str| {
+            let mut terminal = NovaOsTerminal::default();
+            terminal.set_nova_os_commands(ammo_specs());
+            terminal.switch_shell(shell);
+            let printed = terminal.scrollback().len();
+            type_text(&mut terminal, line);
+            assert_eq!(
+                terminal.submit(&TerminalCommandSnapshot::default()),
+                TerminalSubmitOutcome::Errored,
+                "`{line}` is an error in {shell:?}",
+            );
+            // The echoed input carries the shell's own prompt prefix, so the
+            // comparison starts under it.
+            terminal.scrollback()[printed + 1..].to_vec()
+        };
+
+        // A parent word lists its children in BOTH shells, rather than one
+        // listing them and the other dead-ending on "no help for 'ammo'".
+        let nova_os = answer(ShellKind::NovaOs, "ammo");
+        assert_eq!(
+            nova_os,
+            answer(ShellKind::Commands, "ammo"),
+            "an incomplete command reads the same at either prompt",
+        );
+        assert_eq!(nova_os[0], TerminalRow::error("ammo: incomplete command"));
+        assert_eq!(nova_os[1], TerminalRow::output("Subcommands:"));
+        assert!(
+            nova_os
+                .iter()
+                .any(|row| row.text.starts_with("  ammo refill section")),
+            "{nova_os:?}",
+        );
+
+        // An over-run names the bad sub-command the same way in both. The block
+        // UNDER the headline is each shell's own catalog entry - the NOVA OS
+        // documents the registry it was handed, the Command shell its richer
+        // catalog - so only the headline is compared here.
+        let nova_os = answer(ShellKind::NovaOs, "ammo refill a b c");
+        let command = answer(ShellKind::Commands, "ammo refill a b c");
+        assert_eq!(
+            nova_os[0],
+            TerminalRow::error("ammo refill: unknown subcommand 'b'"),
+        );
+        assert_eq!(nova_os[0], command[0]);
+    }
+
+    /// The prompt hint is the error's own sentence, so a bad sub-command is
+    /// named under the caret and not only after Enter.
+    #[test]
+    fn the_prompt_hint_names_a_bad_subcommand_before_enter() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.set_nova_os_commands(ammo_specs());
+        type_text(&mut terminal, "ammo refill a b c");
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::Invalid);
+        assert_eq!(
+            terminal.completion_hint(),
+            Some("ammo refill: unknown subcommand 'b'"),
+        );
+    }
+
     #[test]
     fn nova_os_subcommand_completion_and_ghost() {
         let mut terminal = NovaOsTerminal::default();

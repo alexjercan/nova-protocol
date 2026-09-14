@@ -71,7 +71,7 @@ pub(crate) fn ensure_nova_os_spawned(
     // (no image/material assets) fall back to the terminal directly on the screen.
     let rtt = match (crt_materials.as_deref_mut(), images.as_deref_mut()) {
         (Some(_), Some(images)) => {
-            let image = images.add(nova_os_new_target_image(UVec2::new(2, 2)));
+            let image = images.add(new_render_target_image(UVec2::new(2, 2)));
             let camera = commands
                 .spawn((
                     Name::new("NovaOsImageCamera"),

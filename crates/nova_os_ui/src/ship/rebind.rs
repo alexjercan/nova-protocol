@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 use nova_events::prelude::EntityId;
-use nova_input::prelude::{ActionContext, InputBindings, InputSource, InputSources};
+use nova_input::prelude::{
+    captured_binds, rebind_verdict, ActionContext, InputBindings, InputSource, InputSources,
+    RebindSurface, RebindVerdict,
+};
 use nova_ship::prelude::*;
 
 use super::ShipRuntime;
@@ -58,53 +61,59 @@ pub(crate) fn apply_ship_rebind(
     let Some(source) = sources.captured_desk() else {
         return;
     };
-    // The pointer's own button is never taken, for the reason the settings
-    // screen refuses it: this panel is driven ENTIRELY by clicks, so an armed
-    // capture would otherwise eat the next click on a blip - and bind the
-    // section to the button every shipped turret already fires on.
-    if source == InputSource::Mouse(MouseButton::Left) {
-        runtime.note = Some(("Left Mouse stays the pointer".to_string(), 2.5));
-        return;
-    }
     let Ok((parent, id, thruster, turret, torpedo, railgun)) = targets.get(target) else {
         runtime.rebinding = None;
         return;
     };
     let ship = parent.parent();
-    if let Some(conflict) = reserved_conflict(&bindings, source) {
-        runtime.note = Some((
-            format!("{} is already used by {conflict}", source.readout_label()),
-            2.5,
-        ));
+    // The pointer's own button, and a source flying the ship already spends:
+    // `RebindSurface::ShipPanel` is where this panel's two refusals stand
+    // against the editor's deliberate warn-instead-of-refuse.
+    let held_by = reserved_conflict(&bindings, source);
+    let verdict = rebind_verdict(RebindSurface::ShipPanel, source, held_by);
+    if let RebindVerdict::Refuse(line) = verdict {
+        runtime.note = Some((line, 2.5));
         return;
     }
 
-    let bindings = vec![source];
-    if thruster.is_some() {
+    // The captured key replaces the DESK half of the trigger and the pad half
+    // is kept. A player at this panel pressed a key, which says nothing about
+    // the controller trigger the same section is also on - and every section
+    // the editor places is written with one.
+    let rebound = |current: &[InputSource]| captured_binds(current, source);
+    let binds = if let Some(thruster) = thruster {
+        let binds = rebound(&thruster.0);
         commands
             .entity(target)
-            .insert(SpaceshipThrusterInputBinding(bindings.clone()));
-    } else if turret.is_some() {
+            .insert(SpaceshipThrusterInputBinding(binds.clone()));
+        binds
+    } else if let Some(turret) = turret {
+        let binds = rebound(&turret.0);
         commands
             .entity(target)
-            .insert(SpaceshipTurretInputBinding(bindings.clone()));
-    } else if torpedo.is_some() {
+            .insert(SpaceshipTurretInputBinding(binds.clone()));
+        binds
+    } else if let Some(torpedo) = torpedo {
+        let binds = rebound(&torpedo.0);
         commands
             .entity(target)
-            .insert(SpaceshipTorpedoInputBinding(bindings.clone()));
-    } else if railgun.is_some() {
+            .insert(SpaceshipTorpedoInputBinding(binds.clone()));
+        binds
+    } else if let Some(railgun) = railgun {
+        let binds = rebound(&railgun.0);
         commands
             .entity(target)
-            .insert(SpaceshipRailgunInputBinding(bindings.clone()));
+            .insert(SpaceshipRailgunInputBinding(binds.clone()));
+        binds
     } else {
         runtime.rebinding = None;
         return;
-    }
+    };
     changed.write(SectionInputBindingChanged {
         spaceship: ship,
         section: target,
         section_id: id.0.clone(),
-        bindings,
+        bindings: binds,
     });
     runtime.rebinding = None;
     runtime.note = Some((format!("Bound {} to {}", id.0, source.readout_label()), 2.5));
@@ -126,12 +135,18 @@ mod tests {
         // The refusal reads the live table, so a rig with none would fail open.
         world.insert_resource(InputBindings::from_actions(flight_bindings()));
         let ship = world.spawn_empty().id();
+        // A key AND a pad trigger, which is the shape a section really has:
+        // the tutorial's `pdc` ships both, and every section the editor places
+        // is written with a pad bind.
         let target = world
             .spawn((
                 ChildOf(ship),
                 EntityId("gun".to_string()),
                 SectionCode("PDC-1".to_string()),
-                SpaceshipTurretInputBinding(vec![KeyCode::KeyF.into()]),
+                SpaceshipTurretInputBinding(vec![
+                    KeyCode::KeyF.into(),
+                    GamepadButton::RightTrigger2.into(),
+                ]),
             ))
             .id();
         world.resource_mut::<ShipRuntime>().rebinding = Some(target);
@@ -180,7 +195,10 @@ mod tests {
 
         assert_eq!(
             world.get::<SpaceshipTurretInputBinding>(target).unwrap().0,
-            vec![InputSource::Keyboard(KeyCode::KeyF)],
+            vec![
+                InputSource::Keyboard(KeyCode::KeyF),
+                InputSource::Gamepad(GamepadButton::RightTrigger2)
+            ],
             "the section keeps what it had"
         );
         assert!(
@@ -214,8 +232,12 @@ mod tests {
             .is_some_and(|(note, _)| note.contains("flight control")));
     }
 
+    /// A key pressed at this panel says nothing about the controller the
+    /// section is also fired on, so the pad half of the trigger stays. This
+    /// panel used to write the whole list, which took a shipped section's
+    /// controller trigger away from a player who never touched a controller.
     #[test]
-    fn successful_rebind_replaces_the_complete_list_and_emits_the_change() {
+    fn a_rebind_replaces_the_key_keeps_the_pad_trigger_and_emits_the_change() {
         let (mut world, target) = rebind_world();
         world
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -223,11 +245,26 @@ mod tests {
 
         world.run_system_once(apply_ship_rebind).unwrap();
 
-        let binding = &world.get::<SpaceshipTurretInputBinding>(target).unwrap().0;
-        assert_eq!(binding.len(), 1);
-        assert_eq!(binding[0], InputSource::Keyboard(KeyCode::KeyK));
+        let binding = world
+            .get::<SpaceshipTurretInputBinding>(target)
+            .unwrap()
+            .0
+            .clone();
+        assert_eq!(
+            binding,
+            vec![
+                InputSource::Keyboard(KeyCode::KeyK),
+                InputSource::Gamepad(GamepadButton::RightTrigger2)
+            ],
+            "the key moved and the pad trigger is still there"
+        );
         assert!(world.resource::<ShipRuntime>().rebinding.is_none());
         let messages = world.resource::<Messages<SectionInputBindingChanged>>();
         assert_eq!(messages.len(), 1);
+        let sent = messages.iter_current_update_messages().next().unwrap();
+        assert_eq!(
+            sent.bindings, binding,
+            "and the rig is told the whole trigger, not just the key"
+        );
     }
 }

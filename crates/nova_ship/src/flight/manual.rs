@@ -11,6 +11,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
+    capability::{ship_grants_verb, LiveFlightComputers},
     state::RcsReference,
     thrusters::{balance_throttles, spool_allocated_thrusters, BalanceEngine},
 };
@@ -280,9 +281,9 @@ pub(super) fn manual_burn_system(
 ///   acts in full. So RCS can only reshuffle velocity inside one sphere of
 ///   radius `cap`, never accumulate speed by spamming it diagonally.
 ///
-/// Gated on the ship granting the `Rcs` verb (same rule as `ship_grants_verb`
-/// in the input layer). Deliberately NOT gated on `Without<Autopilot>`: the
-/// autopilot follow-up drives this very primitive while engaged.
+/// Gated on the ship granting the `Rcs` verb ([`ship_grants_verb`]).
+/// Deliberately NOT gated on `Without<Autopilot>`: the autopilot follow-up
+/// drives this very primitive while engaged.
 pub(super) fn rcs_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -297,14 +298,7 @@ pub(super) fn rcs_burn_system(
         ),
         With<SpaceshipRootMarker>,
     >,
-    q_controllers: Query<
-        (&ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            With<PDController>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
+    q_controllers: LiveFlightComputers,
 ) {
     let dt = time.delta_secs();
     if dt <= 0.0 {
@@ -316,14 +310,10 @@ pub(super) fn rcs_burn_system(
         if intent.0 == Vec3::ZERO {
             continue;
         }
-        // Capability gate: only a ship with a live controller section that
-        // grants RCS fine-adjusts, even if something wrote an intent. Mirrors
-        // `ship_grants_verb` (input/player/flight_rig.rs) so the verb stays
+        // Capability gate: only a ship whose flight computer grants RCS
+        // fine-adjusts, even if something wrote an intent - so the verb stays
         // authoritative no matter who drives the primitive.
-        let granted = q_controllers.iter().any(|(&ChildOf(parent), withheld)| {
-            parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))
-        });
-        if !granted {
+        if !ship_grants_verb(ship, FlightVerb::Rcs, &q_controllers) {
             continue;
         }
 

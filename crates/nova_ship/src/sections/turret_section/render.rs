@@ -118,7 +118,7 @@ pub(super) fn on_projectile_marker_effect(
     let base_velocity = owner
         .and_then(|owner| q_ship_velocity.get(**owner).ok())
         .map_or(Vec3::ZERO, |velocity| velocity.0);
-    properties.set("base_velocity", base_velocity.into());
+    properties.set(BASE_VELOCITY_PROPERTY, base_velocity.into());
 
     // Spawn the particles
     effect_spawner.reset();
@@ -595,7 +595,7 @@ fn build_default_muzzle_effect() -> EffectAsset {
     let normal = writer.add_property("normal", Vec3::ZERO.into());
     let normal = writer.prop(normal);
 
-    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.add_property(BASE_VELOCITY_PROPERTY, Vec3::ZERO.into());
     let base_velocity = writer.prop(base_velocity);
 
     let pos = writer.lit(Vec3::ZERO);

@@ -38,9 +38,10 @@ use bevy::{
     ui_widgets::ButtonPlugin,
     window::{PrimaryWindow, Window, WindowEvent, WindowResolution},
 };
+use nova_gameplay::prelude::new_render_target_image;
 
 use crate::terminal::{
-    forward_nova_os_pointer, nova_os_image_target, nova_os_new_target_image, nova_os_pointer_id,
+    forward_nova_os_pointer, nova_os_image_target, nova_os_pointer_id,
     NovaOsForwardedPointerMarker, NovaOsImageContentRootMarker, NovaOsRtt,
     NovaOsSamplingSurfaceMarker, NOVA_OS_RTT_LAYER,
 };
@@ -267,7 +268,7 @@ pub(super) fn nova_os_pointer_rig() -> NovaOsPointerRig {
     let image = app
         .world_mut()
         .resource_mut::<Assets<Image>>()
-        .add(nova_os_new_target_image(RIG_IMAGE));
+        .add(new_render_target_image(RIG_IMAGE));
     let camera = app
         .world_mut()
         .spawn((

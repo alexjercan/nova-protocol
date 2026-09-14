@@ -34,6 +34,7 @@ use crate::prelude::*;
 
 pub mod allegiance_markers;
 pub mod ammo_readout;
+pub mod anchored_chip;
 pub mod beacon_chips;
 pub mod bore_sight;
 pub mod cinematic_prompt;
@@ -70,18 +71,19 @@ mod chip_layout_rig;
 /// `NovaHudPlugin` with its system sets.
 pub mod prelude {
     pub use super::{
-        allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
-        bore_sight::prelude::*, cinematic_prompt::prelude::*, cinematic_title::prelude::*,
-        comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
-        emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        hull_shell::prelude::*, item_highlights::prelude::*, key_glyphs::prelude::*,
-        keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
-        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        objective_markers::prelude::*, objective_stack::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudContextGate,
-        HudNovaOsExempt, HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier,
-        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        allegiance_markers::prelude::*, ammo_readout::prelude::*, anchored_chip::prelude::*,
+        beacon_chips::prelude::*, bore_sight::prelude::*, cinematic_prompt::prelude::*,
+        cinematic_title::prelude::*, comms_panel::prelude::*, component_lock::prelude::*,
+        edge_indicators::prelude::*, emphasis::prelude::*, flight_status::prelude::*,
+        holo_instruments::prelude::*, hull_shell::prelude::*, item_highlights::prelude::*,
+        key_glyphs::prelude::*, keybind_dock::prelude::*, lock_crosshairs::prelude::*,
+        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
+        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
+        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, HudContextGate, HudNovaOsExempt, HudSelfDrivenVisibility,
+        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 

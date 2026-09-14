@@ -238,13 +238,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
         // handler sees the freshly spawned entity.
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let mut query =
-                    world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
-                let matches: Vec<Entity> = query
-                    .iter(world)
-                    .filter(|(_, entity_id)| entity_id.0 == id)
-                    .map(|(entity, _)| entity)
-                    .collect();
+                let matches = scoped_entities(world, &id);
                 if matches.is_empty() {
                     warn!(
                         "ObjectiveMarkerAttach: no scoped entity with id '{}'; check the \
@@ -290,13 +284,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let mut query =
-                    world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
-                let matches: Vec<Entity> = query
-                    .iter(world)
-                    .filter(|(_, entity_id)| entity_id.0 == id)
-                    .map(|(entity, _)| entity)
-                    .collect();
+                let matches = scoped_entities(world, &id);
                 if matches.is_empty() {
                     // Quieter than attach: detaching an entity that already
                     // despawned (crate picked up) is a legitimate script

@@ -31,9 +31,10 @@ use super::prelude::*;
 /// collider and render-mesh transforms.
 pub mod prelude {
     pub use super::{
-        base_section, preview_section, BaseSectionConfig, DestroySound, GameSections,
-        RenderMeshTransform, SectionCollider, SectionConfig, SectionFootprint, SectionKind,
-        SectionRenderMeshTransform, SectionRenderOf,
+        base_section, preview_section, section_colliders_overlap, BaseSectionConfig, DestroySound,
+        GameSections, PlacedSectionCollider, RenderMeshTransform, SectionCollider, SectionConfig,
+        SectionFootprint, SectionKind, SectionRenderMeshTransform, SectionRenderOf,
+        SECTION_OVERLAP_EPSILON,
     };
 }
 
@@ -146,6 +147,66 @@ impl SectionCollider {
             }
         }
     }
+}
+
+/// One section's authored collider, posed in ship-root space, as the overlap
+/// rule reads it.
+#[derive(Clone, Copy, Debug)]
+pub struct PlacedSectionCollider {
+    /// Section origin in ship-root space.
+    pub position: Vec3,
+    /// Section rotation in ship-root space.
+    pub rotation: Quat,
+    /// The section's authored collider, in the section's own frame.
+    pub collider: SectionCollider,
+}
+
+impl PlacedSectionCollider {
+    /// Half-extents of this section's axis-aligned box in ship-root space.
+    ///
+    /// The separation two sections have to reach on some axis to clear
+    /// [`section_colliders_overlap`] is the sum of the pair's, which is what a
+    /// diagnostic quotes back to the author.
+    pub fn half_extents(self) -> Vec3 {
+        self.collider.rotated_aabb_half_extents(self.rotation)
+    }
+}
+
+/// How far two section collider boxes must interpenetrate before it counts as
+/// an overlap.
+///
+/// Mated parts touch EXACTLY, and float error at the seam must not read as a
+/// collision.
+pub const SECTION_OVERLAP_EPSILON: f32 = 1e-3;
+
+/// Whether two posed section colliders interpenetrate on every axis by more
+/// than [`SECTION_OVERLAP_EPSILON`].
+///
+/// ONE copy, two callers. The ship lint rejects an authored hull whose unmated
+/// sections interpenetrate, and the editor refuses the placement that would
+/// build one. A builder who can assemble a hull the lint then throws out finds
+/// out only after the work is done, so the two cannot hold separate arithmetic
+/// or separate tolerances.
+///
+/// Rotated AABBs, not narrow-phase geometry: this is a broad-phase AUTHORING
+/// check. Tight primitive colliders conservatively overlap wherever semantic
+/// meshes interlock, so each caller exempts the pairs an authored mate makes
+/// intentional and asks this only about the rest; what is left catches
+/// accidental duplicate or embedded parts. WHICH pairs are exempt stays the
+/// caller's: both ask `candidate_link_point_mates`, because what makes an
+/// interface intentional is the authored socket pair, not the derived ship
+/// graph - a hull under assembly and a hull that fails to derive both still
+/// have authored interfaces.
+///
+/// Sections stand on quarter turns, where the absolute rotation basis permutes
+/// a cuboid's extents exactly instead of conservatively widening them onto the
+/// wrong axes, so a turned part is measured at the size it really occupies.
+pub fn section_colliders_overlap(a: PlacedSectionCollider, b: PlacedSectionCollider) -> bool {
+    let distance = (a.position - b.position).abs();
+    let sum = a.half_extents() + b.half_extents();
+    distance.x + SECTION_OVERLAP_EPSILON < sum.x
+        && distance.y + SECTION_OVERLAP_EPSILON < sum.y
+        && distance.z + SECTION_OVERLAP_EPSILON < sum.z
 }
 
 /// Cell dimensions occupied by one section in its local frame.
@@ -654,6 +715,51 @@ mod tests {
         }
         .rotated_aabb_half_extents(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2,))
         .abs_diff_eq(Vec3::new(2.5, 1.5, 2.5), 1e-5));
+    }
+
+    /// The one rule the editor's placement refusal and the ship lint both ask.
+    ///
+    /// Both halves matter: the tolerance is what keeps a flush seam from
+    /// reading as a collision (mated parts touch exactly), and the box a
+    /// section occupies is the ROTATED one, so a bar turned onto another axis
+    /// is measured at the width it really has.
+    #[test]
+    fn flush_sections_clear_the_overlap_rule_and_embedded_ones_do_not() {
+        let posed = |position: Vec3, rotation: Quat, collider| PlacedSectionCollider {
+            position,
+            rotation,
+            collider,
+        };
+        let unit = SectionCollider::default();
+
+        // Face to face at exactly one cell: the seam touches, and touching is
+        // not interpenetration.
+        assert!(!section_colliders_overlap(
+            posed(Vec3::ZERO, Quat::IDENTITY, unit),
+            posed(Vec3::X, Quat::IDENTITY, unit),
+        ));
+
+        // Half a cell in: buried.
+        assert!(section_colliders_overlap(
+            posed(Vec3::ZERO, Quat::IDENTITY, unit),
+            posed(Vec3::X * 0.5, Quat::IDENTITY, unit),
+        ));
+
+        // A three-cell bar reaches 1.5 cells along its own X and buries a
+        // neighbour one cell away; a quarter turn about Y puts that reach on Z
+        // and leaves the same neighbour flush.
+        let bar = SectionCollider::Cuboid {
+            size: Vec3::new(3.0, 1.0, 1.0),
+        };
+        let quarter = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        assert!(section_colliders_overlap(
+            posed(Vec3::ZERO, Quat::IDENTITY, bar),
+            posed(Vec3::X, Quat::IDENTITY, unit),
+        ));
+        assert!(!section_colliders_overlap(
+            posed(Vec3::ZERO, quarter, bar),
+            posed(Vec3::X, Quat::IDENTITY, unit),
+        ));
     }
 
     #[test]

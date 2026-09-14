@@ -12,10 +12,11 @@ use std::collections::BTreeSet;
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::SpaceshipRootMarker;
 
 use crate::{
-    filters::EventFilterConfig, names::Names, variables::VariableExpressionNode,
-    world::NovaEventWorld,
+    filters::EventFilterConfig, loader::prelude::ScenarioScopedMarker, names::Names,
+    variables::VariableExpressionNode, world::NovaEventWorld,
 };
 mod audio;
 mod cinematic;
@@ -46,6 +47,65 @@ pub use view::*;
 /// action to be missing from.
 pub mod prelude {
     pub use super::*;
+}
+
+/// The query filter that decides which live entities an authored scenario id
+/// may address: scenario-SCOPED entities, and nothing else.
+///
+/// Load-bearing, not decoration. Spaceship SECTIONS also carry [`EntityId`] -
+/// their per-ship section ids like "controller" - and an unscoped match on such
+/// an id would rip that section out of every ship in the scene, or answer a
+/// speed query with whichever unrelated hull the iterator reached first.
+///
+/// Every authored-id lookup in this crate goes through this ONE filter: the
+/// three `World` resolutions below, and the sampler's system `Query`. A tenth
+/// site that wants a different class of entity narrows this filter rather than
+/// restating it, so the section rule cannot be forgotten in a copy.
+pub type ScenarioAddressable = With<ScenarioScopedMarker>;
+
+/// Every live entity an authored scenario id addresses.
+///
+/// Plural because an authored id is not unique - a scatter field and a
+/// re-spawn can both put one id on several objects - and the actions that ACT
+/// on an id (despawn, objective-marker attach and detach) are meant to reach
+/// all of them. Callers report the empty case themselves: a miss is a typo for
+/// one action and a legitimate script shape for another.
+pub fn scoped_entities(world: &mut World, id: &str) -> Vec<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), ScenarioAddressable>();
+    query
+        .iter(world)
+        .filter(|(_, entity_id)| entity_id.0 == id)
+        .map(|(entity, _)| entity)
+        .collect()
+}
+
+/// The first live entity an authored scenario id addresses.
+///
+/// The singular variant, for the actions that READ one entity - a camera
+/// anchor and its look-at target, where a second match would mean framing two
+/// shots at once.
+pub fn scoped_entity(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), ScenarioAddressable>();
+    query
+        .iter(world)
+        .find(|(_, entity_id)| entity_id.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// The live spaceship ROOT an authored scenario id addresses.
+///
+/// Narrower than [`scoped_entity`], and deliberately: the ship actions retune a
+/// HULL - a speed cap, an allegiance, a helm order, a magazine - so a scoped
+/// beacon or salvage crate that happens to share the id is not an answer to the
+/// question they ask. Their warnings say "no scoped SHIP with id" for the same
+/// reason.
+pub fn scoped_ship(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world
+        .query_filtered::<(Entity, &EntityId), (ScenarioAddressable, With<SpaceshipRootMarker>)>();
+    query
+        .iter(world)
+        .find(|(_, entity_id)| entity_id.0 == id)
+        .map(|(entity, _)| entity)
 }
 
 registry::scenario_actions! {
@@ -736,6 +796,83 @@ mod table_tests {
         });
         assert!(leaf.payload().is_some());
         assert!(leaf.payload_mut().is_some());
+    }
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use nova_gameplay::prelude::SectionMarker;
+
+    use super::*;
+
+    /// A spaceship SECTION carrying an `EntityId` that spells an authored
+    /// scenario id is addressed by NOTHING: not the plural resolution the
+    /// despawn and the objective marker use, not the singular one the camera
+    /// uses, not the ship one the helm and ammunition actions use, and not the
+    /// filter the per-frame speed sampler runs.
+    ///
+    /// Section ids are local to a hull and reused across unrelated ships, so an
+    /// unscoped match would rip that section out of every ship in the scene.
+    /// Asserted through all four spellings of the rule in one test: a tenth
+    /// call site inherits this pin instead of answering the question a tenth
+    /// way.
+    #[test]
+    fn a_hull_section_never_answers_an_authored_scenario_id() {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                ScenarioScopedMarker,
+                SpaceshipRootMarker,
+                EntityId::new("cutter".to_string()),
+            ))
+            .id();
+        // The collision: a section of that very hull whose per-ship id spells
+        // the authored one. Sections are spawned under their ship and never as
+        // scenario objects, so it carries no ScenarioScopedMarker.
+        world.spawn((
+            ChildOf(ship),
+            SectionMarker,
+            EntityId::new("cutter".to_string()),
+        ));
+
+        assert_eq!(
+            scoped_entities(&mut world, "cutter"),
+            vec![ship],
+            "a despawn or a marker attach reaches the authored object only"
+        );
+        assert_eq!(
+            scoped_entity(&mut world, "cutter"),
+            Some(ship),
+            "a camera anchor frames the authored object, not a section of it"
+        );
+        assert_eq!(
+            scoped_ship(&mut world, "cutter"),
+            Some(ship),
+            "a helm or ammunition action retunes the hull, not a section"
+        );
+
+        let mut sampled = world.query_filtered::<&EntityId, ScenarioAddressable>();
+        assert_eq!(
+            sampled.iter(&world).filter(|id| id.0 == "cutter").count(),
+            1,
+            "the speed sampler sees one entity under an authored id, so it \
+             reports a value instead of a duplicate-id error"
+        );
+    }
+
+    /// `scoped_ship` is the deliberately NARROW variant: the ship actions
+    /// retune a hull, so a scoped object of another kind that happens to share
+    /// the id is not an answer to the question they ask, and their "no scoped
+    /// SHIP with id" warning is the honest report.
+    #[test]
+    fn a_scoped_object_that_is_not_a_ship_answers_no_ship_lookup() {
+        let mut world = World::new();
+        let beacon = world
+            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .id();
+
+        assert_eq!(scoped_entity(&mut world, "beacon_1"), Some(beacon));
+        assert_eq!(scoped_ship(&mut world, "beacon_1"), None);
     }
 }
 

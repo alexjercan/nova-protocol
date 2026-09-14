@@ -21,7 +21,7 @@ use super::{
 use crate::{
     collections::GameAssets,
     mod_cache::{self, InstalledModRecord},
-    mod_set::{DownloadedMods, EnabledMods},
+    mod_set::{shadows_shipped, DownloadedMods, EnabledMods},
 };
 
 /// Trigger: install the portal mod `id` (an entry of the Ready
@@ -454,7 +454,7 @@ pub(super) fn on_install_portal_mod(
         );
         return;
     };
-    if shipped.entries.iter().any(|e| e.decl.id == id) {
+    if shadows_shipped(shipped, &id) {
         fail_install(
             &mut jobs,
             &mut active,

@@ -4,7 +4,10 @@
 //! `apply_section_rebind` consumes the next key or mouse-button press.
 
 use bevy::{prelude::*, ui_widgets::Activate};
-use nova_input::prelude::{source_label, ActionContext, InputBindings, InputSource, InputSources};
+use nova_input::prelude::{
+    captured_binds, rebind_verdict, source_label, ActionContext, InputBindings, InputSource,
+    InputSources, RebindSurface, RebindVerdict,
+};
 use nova_ship::prelude::*;
 use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode, UiText};
 
@@ -322,11 +325,10 @@ pub(crate) fn on_rebind_action(
 
 /// What else `binding` already drives, or `None` when nothing does.
 ///
-/// A WARNING, not a veto. The flight rig holds Space for the main burn, and
-/// the editor used to refuse it - which meant a builder who wanted Space to
-/// fire their thrusters could not have it, on the editor's say-so. Every
-/// section action runs with `consume_input: false`, so a shared key fires both
-/// things, and whether that is what you meant is yours to decide.
+/// A WARNING here, not a veto - that is `RebindSurface::Editor`'s policy, and
+/// the reason is stated with it: the editor used to refuse a key the flight
+/// rig holds, which meant a builder who wanted Space to fire their thrusters
+/// could not have it, on the editor's say-so.
 ///
 /// Two SECTIONS may share a source for the same reason: firing two turrets on
 /// one trigger is a loadout choice, and the content lint does not compare
@@ -390,29 +392,27 @@ pub(crate) fn apply_section_rebind(
 
     // A key the flight rig also drives is TAKEN, and said out loud: both things
     // fire on it, which is a choice a builder is allowed to make.
-    if let Some(taken_by) = binding_conflict(bindings.as_deref(), new_binding) {
-        says.note(format!(
-            "{} also drives {taken_by}",
-            new_binding.readout_label()
-        ));
+    match rebind_verdict(
+        RebindSurface::Editor,
+        new_binding,
+        binding_conflict(bindings.as_deref(), new_binding),
+    ) {
+        RebindVerdict::Bind(Some(note)) => says.note(note),
+        RebindVerdict::Bind(None) => {}
+        RebindVerdict::Refuse(line) => {
+            says.note(line);
+            return;
+        }
     }
-
-    // Replace the PRIMARY input (keyboard OR mouse button), keep gamepad binds.
-    let rebind_binds = |current: &[InputSource]| -> Vec<InputSource> {
-        let mut binds: Vec<InputSource> = current
-            .iter()
-            .filter(|b| !matches!(b, InputSource::Keyboard(_) | InputSource::Mouse(_)))
-            .copied()
-            .collect();
-        binds.insert(0, new_binding);
-        binds
-    };
 
     let Ok((mut node, _)) = q_sections.get_mut(section) else {
         rebind.target = None;
         return;
     };
-    node.binds = rebind_binds(&node.binds);
+    // The PRIMARY input (keyboard OR mouse button) is replaced and the gamepad
+    // bind is kept - the shared column rule every rebind surface keeps.
+    let binds = captured_binds(&node.binds, new_binding);
+    node.binds = binds;
     rebind.target = None;
 }
 

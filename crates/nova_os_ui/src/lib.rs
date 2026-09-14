@@ -20,6 +20,7 @@
 //! | `terminal` | The monitor itself: casing, CRT, shell, input, sound. |
 //! | `map` | The `map` app: a schematic 3D minimap of local space. |
 //! | `ship` | The `ship` app: a schematic 3D viewer of the player ship. |
+//! | `viewer` | The orbit camera and selection cycle both apps run on. |
 
 #![warn(missing_docs)]
 
@@ -27,6 +28,12 @@ pub mod bindings;
 pub mod map;
 pub mod ship;
 pub mod terminal;
+
+/// The 3D viewer the `map` and `ship` apps are two framings of: the orbit
+/// camera's math and feel, the wrapping selection cycle, and the unlit material
+/// their proxy meshes share. Crate-internal - it is how the two apps behave,
+/// not something a consumer configures.
+mod viewer;
 
 /// The pure terminal model this crate renders. Re-exported because the two are
 /// one API to a consumer: asking what the shell is showing, or registering a

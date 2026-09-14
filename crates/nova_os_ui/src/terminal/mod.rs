@@ -120,8 +120,8 @@ pub(crate) use self::{
 #[cfg(test)]
 pub(crate) use self::{
     crt::{
-        nova_os_image_target, nova_os_new_target_image, NovaOsForwardedPointerMarker,
-        NovaOsImageContentRootMarker, NovaOsSamplingSurfaceMarker, NOVA_OS_RTT_LAYER,
+        nova_os_image_target, NovaOsForwardedPointerMarker, NovaOsImageContentRootMarker,
+        NovaOsSamplingSurfaceMarker, NOVA_OS_RTT_LAYER,
     },
     style::{NOVA_OS_CRT_OVERSCAN, NOVA_OS_CRT_WARP},
 };

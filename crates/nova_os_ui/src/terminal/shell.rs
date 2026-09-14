@@ -17,7 +17,7 @@ use nova_gameplay::{
 use nova_hud::prelude::HudNovaOsExempt;
 use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
-use nova_ui::{font::UiFont, theme};
+use nova_ui::{font::UiFont, screen::clamp_stored_scroll, theme};
 
 use super::{casing::*, components::*, content::*, sound::*, style::*};
 
@@ -508,18 +508,14 @@ const SCROLL_TO_BOTTOM: f32 = f32::MAX;
 /// the stored position stays `f32::MAX` for ever - `f32::MAX - page` is still
 /// `f32::MAX` - so the first PageUp after a command did nothing. Runs before the
 /// keyboard and wheel handlers so they subtract from a real number.
+///
+/// The shared clamp in the drawer's own slot: `nova_ui` registers the same
+/// pass in `PostUpdate` after layout, which is a frame too late to hand this
+/// frame's PageUp a real number.
 pub(crate) fn normalize_nova_os_scroll(
-    mut q_panels: Query<(&mut ScrollPosition, &ComputedNode), With<NovaOsScrollViewportMarker>>,
+    q_panels: Query<(&mut ScrollPosition, &ComputedNode), With<NovaOsScrollViewportMarker>>,
 ) {
-    for (mut scroll, computed_node) in &mut q_panels {
-        let clamped = scroll
-            .0
-            .y
-            .clamp(0.0, nova_ui::screen::max_scroll_y(Some(computed_node)));
-        if scroll.0.y != clamped {
-            scroll.0.y = clamped;
-        }
-    }
+    clamp_stored_scroll(q_panels);
 }
 
 /// `Text` is not `PartialEq`, so `set_if_neq` cannot be used on it directly:

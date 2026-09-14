@@ -22,12 +22,12 @@ use std::f32::consts::FRAC_PI_2;
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 use nova_ui::theme;
 
 use crate::{
     config::{EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
-    frame::node_bounds,
     gallery::EditorCamera,
     gizmo::GizmoAxis,
     node::{objects_of, EditContext, ObjectNodes},
@@ -236,7 +236,7 @@ pub(crate) fn draw_world_grid(
     let Ok(pose) = q_poses.get(node) else {
         return;
     };
-    let bounds = node_bounds(node, &q_children, &q_bounds);
+    let bounds = subtree_collider_aabb(node, &q_children, &q_bounds);
     let stand = bounds.map_or_else(|| pose.translation(), |bounds| bounds.center());
     let foot = Vec3::new(stand.x, 0.0, stand.z);
     gizmos.line(stand, foot, PLUMB);
@@ -297,7 +297,9 @@ pub(crate) fn draw_node_marks(
         (selected.0, MARK),
     ];
     for (node, colour) in marks {
-        let Some(bounds) = node.and_then(|node| node_bounds(node, &q_children, &q_bounds)) else {
+        let Some(bounds) =
+            node.and_then(|node| subtree_collider_aabb(node, &q_children, &q_bounds))
+        else {
             continue;
         };
         gizmos.cube(mark_box(bounds), colour);

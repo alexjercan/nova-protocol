@@ -19,10 +19,11 @@ use bevy::{
         },
     },
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderType, TextureFormat},
+    render::render_resource::{AsBindGroup, ShaderType},
     shader::ShaderRef,
     ui_render::prelude::{MaterialNode, UiMaterial},
 };
+use nova_gameplay::prelude::resize_render_target;
 
 use super::{components::*, style::*};
 
@@ -172,15 +173,6 @@ pub(crate) fn nova_os_image_target(image: &Handle<Image>) -> NormalizedRenderTar
     })
 }
 
-pub(crate) fn nova_os_new_target_image(size: UVec2) -> Image {
-    Image::new_target_texture(
-        size.x.max(1),
-        size.y.max(1),
-        TextureFormat::Rgba8UnormSrgb,
-        None,
-    )
-}
-
 /// Keep the offscreen image sized to the screen node's physical pixels and the
 /// content root sized to match, so window resizes / relayouts never show a
 /// stretched frame (mirrors `render_scale.rs`). Deactivate the offscreen pass and
@@ -206,24 +198,15 @@ pub(crate) fn reconcile_nova_os_target(
     let desired = computed.size().round().as_uvec2().max(UVec2::ONE);
     let open = q_openness.iter().next().map(|o| o.0).unwrap_or(0.0);
 
-    let needs_resize = images
-        .get(&rtt.image)
-        .map(|img| img.size() != desired)
-        .unwrap_or(true);
-    if needs_resize {
-        if let Some(mut img) = images.get_mut(&rtt.image) {
-            img.resize(bevy::render::render_resource::Extent3d {
-                width: desired.x,
-                height: desired.y,
-                depth_or_array_layers: 1,
-            });
-        }
-        // Force the camera to re-derive its target info after the swap
-        // (`bevy-camera-ignores-runtime-rendertarget-swap`).
-        if let Ok((_, mut projection)) = q_camera.get_mut(camera) {
-            projection.set_changed();
-        }
-    }
+    resize_render_target(
+        &mut images,
+        &rtt.image,
+        desired,
+        q_camera
+            .get_mut(camera)
+            .ok()
+            .map(|(_, projection)| projection),
+    );
 
     if let Ok((mut cam, _)) = q_camera.get_mut(camera) {
         // No point rendering the offscreen pass when the NOVA OS is fully closed.

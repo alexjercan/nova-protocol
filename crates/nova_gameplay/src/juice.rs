@@ -39,13 +39,11 @@
 //! run cannot exercise (the rendering) is pushed into pure helpers that are
 //! unit-tested.
 
-use std::collections::HashMap;
-
 use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
 
 use crate::{
-    audio::{body_middle, cue_body, cue_group, CueGroup},
+    audio::{body_middle, cue_body, cue_group, CueGroup, CueThrottle},
     prelude::*,
 };
 
@@ -218,41 +216,23 @@ impl JuiceSettings {
     }
 }
 
-/// Per-throttle-key last-fired timestamp, keyed by event kind and by what the
-/// event happened TO, so one structure's burst collapses while distinct
-/// structures each fire. The grouping is the audio layer's [`CueGroup`], shared
-/// deliberately: a frame that is one bang has to be one kick.
+/// What a juice event is throttled against: the event kind and what the event
+/// happened TO, so one structure's burst collapses while distinct structures
+/// each fire. The grouping is the audio layer's [`CueGroup`], shared
+/// deliberately: a frame that is one bang has to be one kick. Spelled apart
+/// from the audio layer's own `ThrottleKey` because the two vocabularies are
+/// not the same - the juice has no per-gun or per-salvo cue to budget.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum ThrottleKey {
+enum JuiceThrottleKey {
     Impact(CueGroup),
     Destroy(CueGroup),
 }
 
-/// Last-fired timestamp per throttle key, seconds since startup. An absent key has
-/// never fired, so its first event always passes.
-#[derive(Resource, Default)]
-struct JuiceThrottle {
-    last: HashMap<ThrottleKey, f32>,
-}
-
-impl JuiceThrottle {
-    /// If `key` has not fired within `min_interval` seconds, stamp it `now` and
-    /// return true; otherwise false. Each key throttles independently.
-    fn allow(&mut self, key: ThrottleKey, now: f32, min_interval: f32) -> bool {
-        let last = self.last.entry(key).or_insert(f32::NEG_INFINITY);
-        if now - *last >= min_interval {
-            *last = now;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Drop keys idle for longer than `window` seconds so the map stays bounded.
-    fn prune(&mut self, now: f32, window: f32) {
-        self.last.retain(|_, &mut last| now - last < window);
-    }
-}
+/// The juice layer's own cue budget, running the shared [`CueThrottle`]
+/// algorithm over [`JuiceThrottleKey`]. A separate RESOURCE from the audio
+/// layer's `SfxThrottle` because the two tune their intervals independently -
+/// `IMPACT_MIN_INTERVAL` here is not the cue interval the sound uses.
+type JuiceThrottle = CueThrottle<JuiceThrottleKey>;
 
 /// Distance attenuation in `[0, 1]`: full within `near`, zero at/beyond `far`, with
 /// a smoothstep ramp between so the falloff eases in and out rather than kinking at
@@ -417,8 +397,8 @@ fn emit_juice(
     }
 
     let (min_interval, throttle_key) = match kind {
-        JuiceEventKind::Impact => (IMPACT_MIN_INTERVAL, ThrottleKey::Impact(group)),
-        JuiceEventKind::Destroy => (DESTROY_MIN_INTERVAL, ThrottleKey::Destroy(group)),
+        JuiceEventKind::Impact => (IMPACT_MIN_INTERVAL, JuiceThrottleKey::Impact(group)),
+        JuiceEventKind::Destroy => (DESTROY_MIN_INTERVAL, JuiceThrottleKey::Destroy(group)),
     };
     if !throttle.allow(throttle_key, now, min_interval) {
         return;
@@ -551,7 +531,7 @@ mod tests {
 
     #[test]
     fn throttle_blocks_one_key_until_the_interval_elapses() {
-        let key = ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO));
+        let key = JuiceThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO));
         let mut state = JuiceThrottle::default();
         // First event of a key always fires (absent -> NEG_INFINITY).
         assert!(state.allow(key, 0.0, 0.04));
@@ -565,35 +545,77 @@ mod tests {
     fn throttle_is_independent_per_key() {
         let mut state = JuiceThrottle::default();
         // Distinct groups of the same kind are independent...
-        assert!(state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04));
-        assert!(state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ONE)), 0.0, 0.04));
-        // ...two bodies are independent of each other and of any cell...
         assert!(state.allow(
-            ThrottleKey::Impact(CueGroup::Body(Entity::from_raw_u32(1).unwrap())),
+            JuiceThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)),
             0.0,
             0.04
         ));
         assert!(state.allow(
-            ThrottleKey::Impact(CueGroup::Body(Entity::from_raw_u32(2).unwrap())),
+            JuiceThrottleKey::Impact(CueGroup::Cell(IVec3::ONE)),
+            0.0,
+            0.04
+        ));
+        // ...two bodies are independent of each other and of any cell...
+        assert!(state.allow(
+            JuiceThrottleKey::Impact(CueGroup::Body(Entity::from_raw_u32(1).unwrap())),
+            0.0,
+            0.04
+        ));
+        assert!(state.allow(
+            JuiceThrottleKey::Impact(CueGroup::Body(Entity::from_raw_u32(2).unwrap())),
             0.0,
             0.04
         ));
         // ...and impact vs destroy on the same group are independent too.
-        assert!(state.allow(ThrottleKey::Destroy(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.06));
+        assert!(state.allow(
+            JuiceThrottleKey::Destroy(CueGroup::Cell(IVec3::ZERO)),
+            0.0,
+            0.06
+        ));
         // Same key again in the window is still blocked.
-        assert!(!state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04));
+        assert!(!state.allow(
+            JuiceThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)),
+            0.0,
+            0.04
+        ));
     }
 
     #[test]
     fn prune_drops_only_idle_keys() {
         let mut state = JuiceThrottle::default();
-        let old = ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO));
-        let fresh = ThrottleKey::Impact(CueGroup::Cell(IVec3::ONE));
+        let old = JuiceThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO));
+        let fresh = JuiceThrottleKey::Impact(CueGroup::Cell(IVec3::ONE));
         state.allow(old, 0.0, 0.04); // last = 0.0
         state.allow(fresh, 9.5, 0.04); // last = 9.5
         state.prune(10.0, 2.0); // keep last > 8.0
-        assert_eq!(state.last.len(), 1);
-        assert!(state.last.contains_key(&fresh));
+        assert!(state.tracked_keys().eq([fresh]));
+    }
+
+    /// The reason the two layers run ONE budget: a frame that is one bang has
+    /// to be one kick. Written against `CueThrottle` itself - the same
+    /// generic code path both resources instantiate - so it cannot be
+    /// satisfied by two implementations that merely happen to agree today.
+    #[test]
+    fn the_juice_and_the_audio_budget_collapse_a_burst_identically() {
+        fn one_burst_then_silence<K: Copy + Eq + std::hash::Hash + Send + Sync + 'static>(
+            key: K,
+            what: &str,
+        ) {
+            let mut budget = CueThrottle::default();
+            assert!(budget.allow(key, 0.0, 0.04), "{what}: the first cue fires");
+            assert!(
+                !budget.allow(key, 0.0, 0.04),
+                "{what}: the rest of the frame collapses into it"
+            );
+            assert!(
+                budget.allow(key, 0.04, 0.04),
+                "{what}: the next window fires again"
+            );
+        }
+
+        let group = CueGroup::Cell(IVec3::ZERO);
+        one_burst_then_silence(JuiceThrottleKey::Impact(group), "the kick");
+        one_burst_then_silence(crate::audio::ThrottleKey::Impact(group), "the bang");
     }
 
     #[test]
@@ -1001,7 +1023,10 @@ mod tests {
         assert_eq!(burst_count(&mut app), 0);
         // A far event must not consume throttle state either, so a near event in
         // the same cell right after still fires.
-        assert!(app.world().resource::<JuiceThrottle>().last.is_empty());
+        assert_eq!(
+            app.world().resource::<JuiceThrottle>().tracked_keys().len(),
+            0
+        );
     }
 
     #[test]

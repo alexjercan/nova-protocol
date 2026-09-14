@@ -33,7 +33,10 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{assignment::TurretDefenseTarget, mount_may_shoot};
-use crate::prelude::*;
+use crate::{
+    flight::{ship_withholds_verb, LiveFlightComputers},
+    prelude::*,
+};
 
 /// How long a mount stays the player's after the player stops using it, before
 /// the computer may take it back.
@@ -124,36 +127,6 @@ pub fn flight_computer_works(
     mount.is_some_and(PointDefenseMount::computer_owns) && assignment.is_some_and(|a| a.is_some())
 }
 
-/// Whether a live controller section on `ship` grants point defence.
-///
-/// FAIL-OPEN on a hull with no controller section at all, unlike
-/// `ship_grants_lock`: those are the bare rigs the examples and the section
-/// ranges fly, and a range whose guns silently stood down would be a worse
-/// failure than one that defends itself. Only an explicit `DisableVerb` /
-/// `SetControllerVerb` takes the capability away.
-fn ship_grants_point_defense(
-    ship: Entity,
-    q_controllers: &Query<
-        (&ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
-) -> bool {
-    let mut computers = 0usize;
-    for (ChildOf(parent), withheld) in q_controllers {
-        if *parent != ship {
-            continue;
-        }
-        computers += 1;
-        if withheld.is_none_or(|w| w.granted(FlightVerb::PointDefense)) {
-            return true;
-        }
-    }
-    computers == 0
-}
-
 /// The precedence itself, as one pure function - the whole rule in one place,
 /// and the one place a future combat mode edits.
 fn mount_authority(locked: bool, raised: bool, granted: bool, regrasp: f32) -> MountAuthority {
@@ -200,13 +173,7 @@ pub(super) fn update_point_defense_ownership(
         (Entity, &CombatLock, Option<&WeaponsRaised>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_controllers: Query<
-        (&ChildOf, Option<&WithheldVerbs>),
-        (
-            With<ControllerSectionMarker>,
-            Without<SectionInactiveMarker>,
-        ),
-    >,
+    q_controllers: LiveFlightComputers,
     mut q_turret: Query<(Entity, &ChildOf, &mut PointDefenseMount), With<TurretSectionMarker>>,
 ) {
     let delta = time.delta_secs();
@@ -227,7 +194,9 @@ pub(super) fn update_point_defense_ownership(
             mount_authority(locked, raised, false, mount.regrasp)
         } else {
             mount.regrasp = (mount.regrasp - delta).max(0.0);
-            let granted = ship_grants_point_defense(ship, &q_controllers);
+            // The FAIL-OPEN read, not `ship_grants_verb`: a hull with no
+            // live flight computer keeps its guns (see `ship_withholds_verb`).
+            let granted = !ship_withholds_verb(ship, FlightVerb::PointDefense, &q_controllers);
             mount_authority(false, false, granted, mount.regrasp)
         };
 
@@ -435,7 +404,19 @@ mod tests {
             .id();
         let computer = app
             .world_mut()
-            .spawn((ControllerSectionMarker, ChildOf(ship)))
+            .spawn((
+                ControllerSectionMarker,
+                // The PD is what makes a controller section a LIVE flight
+                // computer; without it this is the editor's preview shape and
+                // the fail-open read would never see it.
+                PDController {
+                    frequency: 4.0,
+                    damping_ratio: 4.0,
+                    max_angular_acceleration: 40.0,
+                    sustained_angular_speed: f32::INFINITY,
+                },
+                ChildOf(ship),
+            ))
             .id();
         let turret = app
             .world_mut()

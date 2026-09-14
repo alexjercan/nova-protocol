@@ -35,6 +35,7 @@ use bevy::{
     ui::IsDefaultUiCamera,
     window::{PrimaryWindow, WindowRef},
 };
+use nova_gameplay::prelude::new_render_target_image;
 
 /// The armed recorder: the offscreen image the cameras draw into, the
 /// directory the PNGs land in, and the counter that names them. Absent unless
@@ -52,22 +53,24 @@ pub struct ChannelRecorder {
 /// Arm the recorder: create the target image at the virtual window's size,
 /// and install the two retargeting systems. Called from the plugin's `build`,
 /// after the virtual window exists.
+///
+/// The image is born through the shared [`new_render_target_image`] recipe, so
+/// the recorder cannot drift from the format rule the web build depends on, and
+/// a window measuring zero yields a 1x1 target instead of a texture wgpu
+/// refuses to allocate.
 pub(crate) fn setup(app: &mut App, dir: PathBuf) {
     std::fs::create_dir_all(&dir).expect("the --record directory can be created");
     let mut windows = app
         .world_mut()
         .query_filtered::<&Window, With<PrimaryWindow>>();
-    let (width, height) = windows
+    let size = windows
         .single(app.world())
-        .map(|window| (window.physical_width(), window.physical_height()))
+        .map(|window| window.physical_size())
         .expect("the channel's build spawned the primary window before arming the recorder");
-    let image = Image::new_target_texture(
-        width,
-        height,
-        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
-        None,
-    );
-    let image = app.world_mut().resource_mut::<Assets<Image>>().add(image);
+    let image = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(new_render_target_image(size));
     app.insert_resource(ChannelRecorder {
         image,
         dir,
@@ -209,4 +212,52 @@ pub(crate) fn flush_captures(app: &mut App) {
     let mut screenshots = app.world_mut().query_filtered::<(), With<Screenshot>>();
     let pending = screenshots.iter(app.world()).count();
     warn!("nova channel: {pending} frame captures never completed");
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::asset::AssetPlugin;
+
+    use super::*;
+
+    /// wgpu refuses a zero-area texture, so arming the recorder against a
+    /// window that measures zero must still hand it an allocatable target. The
+    /// recorder used to pass the window's size straight through.
+    #[test]
+    fn the_recorder_arms_a_non_zero_target_for_a_zero_sized_window() {
+        let dir = std::env::temp_dir().join(format!(
+            "nova_channel_record_zero_window_{}",
+            std::process::id()
+        ));
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.world_mut().spawn((
+            Window {
+                resolution: (0, 0).into(),
+                ..default()
+            },
+            PrimaryWindow,
+        ));
+
+        setup(&mut app, dir.clone());
+
+        let handle = app.world().resource::<ChannelRecorder>().image.clone();
+        let images = app.world().resource::<Assets<Image>>();
+        let size = images
+            .get(&handle)
+            .expect("record target")
+            .texture_descriptor
+            .size;
+        assert_eq!(
+            size.width, 1,
+            "a zero-wide window still needs a real texture"
+        );
+        assert_eq!(
+            size.height, 1,
+            "a zero-tall window still needs a real texture"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

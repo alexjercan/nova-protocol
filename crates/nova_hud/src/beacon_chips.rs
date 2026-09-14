@@ -5,21 +5,22 @@
 //! game's direction-to-objective cue; the scenario only spawns a beacon and
 //! the HUD does the rest.
 //!
+//! The chip SHAPE - layer, pill, label leaf, chevron, despawn and the
+//! label-plus-distance walk - is [`anchored_chip`](super::anchored_chip)'s.
+//! What is the beacon's own lives here: its cyan-phosphor tone and geometry,
+//! and the one-entity-one-chip hand-off to an objective marker.
+//!
 //! Chrome tier: beacons are guidance, not flight instruments.
 
 use bevy::prelude::*;
-use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipTone};
+use nova_ui::hud::ChipTone;
 
-use super::{screen_indicator::prelude::*, HudTier, NAV_CYAN};
+use super::{anchored_chip::prelude::*, screen_indicator::prelude::*, NAV_CYAN};
 
-/// The beacon chip components and `BeaconChipsHudPlugin`.
+/// The beacon chip layer marker and `BeaconChipsHudPlugin`.
 pub mod prelude {
-    pub use super::{
-        BeaconChipHudMarker, BeaconChipNodeMarker, BeaconChipTargetEntity, BeaconChipTextMarker,
-        BeaconChipsHudPlugin,
-    };
+    pub use super::{BeaconChipHudMarker, BeaconChipsHudPlugin};
 }
 
 /// How the chip stands off the beacon so the label never sits on the orb.
@@ -34,38 +35,28 @@ const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: 28.0,
 };
 
-/// Inset (px) from the viewport edges while clamped. Matches the edge
-/// indicators' frame so clamped beacon chips join the same visual ring.
-const EDGE_MARGIN_PX: f32 = 30.0;
-
-/// Chevron stroke geometry, the edge-indicator arrow language at chip scale.
-const ARROW_PX: f32 = 16.0;
-const STROKE_LEN_PX: f32 = 11.0;
-const STROKE_THICK_PX: f32 = 2.0;
+/// The beacon chip's chevron: the shared arrow language at beacon scale, in
+/// nav cyan.
+const CHEVRON: AnchoredChipChevron = AnchoredChipChevron {
+    arrow_px: 16.0,
+    stroke_len_px: 11.0,
+    stroke_thick_px: 2.0,
+    color: NAV_CYAN,
+};
 
 const LABEL_FONT_PX: f32 = 12.0;
 
-/// Marker for one beacon chip layer (one per beacon).
+/// Marker for one beacon chip layer (one per beacon). The family tag: every
+/// shared chip system is gated on it, so a query that walks into a beacon chip
+/// can never reach an objective marker's.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct BeaconChipHudMarker;
 
-/// The beacon entity this chip tracks.
-#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct BeaconChipTargetEntity(pub Entity);
-
-/// Marker for the chip node itself: the bordered pill carrying the
-/// screen-indicator anchor, which the suppress/restore observers write. The
-/// label text lives in a CHILD (see [`BeaconChipTextMarker`]).
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct BeaconChipNodeMarker;
-
-/// Marker for the chip's text node - a LEAF child of the chip.
-///
-/// The label cannot live on the chip entity itself: taffy only measures leaf
-/// nodes, so a `Text` node that also has children loses its measure and the
-/// pill collapses to its padding.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct BeaconChipTextMarker;
+impl AnchoredChipLabelSource for BeaconLabel {
+    fn chip_label(&self) -> &str {
+        &self.0
+    }
+}
 
 /// UI bundle for one beacon's chip layer. `suppressed` spawns the chip
 /// already yielded (anchor None) for a beacon that carries an objective
@@ -75,101 +66,25 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
     (
         Name::new("BeaconChipHUD"),
         BeaconChipHudMarker,
-        BeaconChipTargetEntity(beacon),
-        HudTier::Chrome,
-        screen_indicator_layer(),
+        anchored_chip_layer(beacon),
         children![(
             Name::new("BeaconChipUI"),
-            BeaconChipNodeMarker,
-            screen_indicator_node(
-                ScreenIndicatorConfig {
-                    anchor: (!suppressed).then_some(ScreenIndicatorAnchorKind::Entity(beacon)),
-                    // The chip hugs its own text: with a visible fill and
-                    // border a fixed footprint would either clip a long beacon
-                    // name or hang an empty slab off a short one.
-                    size: ScreenIndicatorSize::Content,
-                    offset: Vec2::ZERO,
-                    offscreen: ScreenIndicatorOffscreen::ClampToEdge {
-                        margin_px: EDGE_MARGIN_PX,
-                    },
-                },
-                chip_node(),
+            anchored_chip_node(
+                (!suppressed).then_some(beacon),
+                ChipTone::Phosphor,
+                CHIP_CLEARANCE,
             ),
-            CHIP_CLEARANCE,
-            chip_paint(ChipTone::Phosphor),
-            // The chip is a pure CONTAINER: the label is an in-flow leaf child
-            // it grows around, the chevron an absolute one it ignores. Putting
-            // the `Text` here instead would take this node off taffy's leaf
-            // path and collapse the pill.
-            children![beacon_chip_label(), beacon_chip_arrow()],
+            children![
+                (
+                    Name::new("BeaconChipLabel"),
+                    anchored_chip_label(LABEL_FONT_PX, ChipTone::Phosphor.text(), ()),
+                ),
+                (
+                    Name::new("BeaconChipArrow"),
+                    anchored_chip_chevron(CHEVRON, ()),
+                ),
+            ],
         )],
-    )
-}
-
-/// The label text: a leaf `Text` child so taffy measures it and the pill grows
-/// to hold it.
-fn beacon_chip_label() -> impl Bundle {
-    (
-        Name::new("BeaconChipLabel"),
-        BeaconChipTextMarker,
-        Text::new(""),
-        TextFont::from_font_size(LABEL_FONT_PX),
-        TextLayout {
-            linebreak: LineBreak::NoWrap,
-            ..default()
-        },
-        TextColor(ChipTone::Phosphor.text()),
-        Pickable::IGNORE,
-    )
-}
-
-/// An up-pointing chevron the widget rotates toward the beacon while the
-/// chip is edge-clamped (the edge-indicator arrow language, chip-sized).
-/// Hidden while the beacon is on-screen - the widget owns its visibility.
-fn beacon_chip_arrow() -> impl Bundle {
-    let stroke = |left: f32, degrees: f32| {
-        (
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(left),
-                top: Val::Px(ARROW_PX / 2.0 - STROKE_THICK_PX / 2.0),
-                width: Val::Px(STROKE_LEN_PX),
-                height: Val::Px(STROKE_THICK_PX),
-                ..default()
-            },
-            UiTransform {
-                rotation: Rot2::degrees(degrees),
-                ..default()
-            },
-            BackgroundColor(NAV_CYAN),
-            Pickable::IGNORE,
-        )
-    };
-
-    (
-        Name::new("BeaconChipArrow"),
-        ScreenIndicatorArrowMarker,
-        Node {
-            position_type: PositionType::Absolute,
-            // Park the chevron just above the pill and centred on it. Half the
-            // chip's width, then back off half the chevron's own - a plain
-            // `-ARROW_PX / 2` sat near the origin, which only looked centred
-            // while the pill was a collapsed slab.
-            // `update_arrows` writes only `.rotation`, so this translation
-            // survives every frame.
-            left: Val::Percent(50.0),
-            top: Val::Px(-ARROW_PX - 2.0),
-            width: Val::Px(ARROW_PX),
-            height: Val::Px(ARROW_PX),
-            ..default()
-        },
-        UiTransform::from_translation(Val2::px(-ARROW_PX / 2.0, 0.0)),
-        Visibility::Hidden,
-        Pickable::IGNORE,
-        children![
-            stroke(-0.5, -45.0),
-            stroke(ARROW_PX - STROKE_LEN_PX + 0.5, 45.0),
-        ],
     )
 }
 
@@ -177,7 +92,7 @@ fn beacon_chip_arrow() -> impl Bundle {
 /// (label + live distance), yielding the chip to an objective marker when one
 /// shares the beacon (Chrome tier).
 /// Registers [`BeaconMarker`]/[`BeaconLabel`], adds the spawn/despawn and
-/// suppress/restore observers, and runs `update_beacon_chip_labels` in Update
+/// suppress/restore observers, and runs the shared label updater in Update
 /// within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct BeaconChipsHudPlugin;
@@ -190,12 +105,15 @@ impl Plugin for BeaconChipsHudPlugin {
         app.register_type::<BeaconLabel>();
 
         app.add_observer(setup_beacon_chip);
-        app.add_observer(remove_beacon_chip);
+        app.add_observer(despawn_anchored_chips::<BeaconMarker, BeaconChipHudMarker>);
         app.add_observer(suppress_marked_beacon_chip);
         app.add_observer(restore_unmarked_beacon_chip);
         app.add_systems(
             Update,
-            update_beacon_chip_labels.in_set(super::NovaHudSystems),
+            // The name is a component of its own beside the tag, so the label
+            // source is gated on the tag explicitly.
+            update_anchored_chip_labels::<BeaconChipHudMarker, BeaconLabel, With<BeaconMarker>>
+                .in_set(super::NovaHudSystems),
         );
     }
 }
@@ -217,64 +135,6 @@ fn setup_beacon_chip(
     commands.spawn(beacon_chip_hud(beacon, suppressed));
 }
 
-/// The chip layer dies with its beacon (despawn action, scenario unload -
-/// any removal path).
-fn remove_beacon_chip(
-    remove: On<Remove, BeaconMarker>,
-    mut commands: Commands,
-    q_chips: Query<(Entity, &BeaconChipTargetEntity), With<BeaconChipHudMarker>>,
-) {
-    let beacon = remove.entity;
-    for (chip, target) in &q_chips {
-        if **target == beacon {
-            trace!("remove_beacon_chip: despawning chip {:?}", chip);
-            commands.entity(chip).despawn();
-        }
-    }
-}
-
-/// Label text: the beacon's name plus the live distance to the player ship
-/// ("BEACON 1  4.20 km"). Without a player (menu ambience, death gap) the
-/// label alone shows - the chip is still a valid waypoint tag.
-fn update_beacon_chip_labels(
-    q_chips: Query<&BeaconChipTargetEntity, With<BeaconChipHudMarker>>,
-    // Two hops now: the text is a leaf CHILD of the chip, which is itself a
-    // child of the layer that knows the beacon.
-    mut q_labels: Query<(&mut Text, &ChildOf), With<BeaconChipTextMarker>>,
-    q_parents: Query<&ChildOf>,
-    q_beacons: Query<(&BeaconLabel, &GlobalTransform), With<BeaconMarker>>,
-    q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
-) {
-    let player = q_player.iter().next();
-    for (mut text, ChildOf(chip)) in &mut q_labels {
-        let Ok(ChildOf(layer)) = q_parents.get(*chip) else {
-            continue;
-        };
-        let Ok(target) = q_chips.get(*layer) else {
-            continue;
-        };
-        let Ok((label, beacon_transform)) = q_beacons.get(**target) else {
-            continue;
-        };
-        let next = match player {
-            Some(player_transform) => {
-                let distance = player_transform
-                    .translation()
-                    .distance(beacon_transform.translation());
-                format!(
-                    "{}  {}",
-                    **label,
-                    nova_ui::units::distance(Meters::from_engine(distance))
-                )
-            }
-            None => (**label).clone(),
-        };
-        if **text != next {
-            **text = next;
-        }
-    }
-}
-
 /// One entity, one chip: while a beacon carries [`ObjectiveMarkerTarget`]
 /// its gold marker chip supersedes the cyan beacon chip - two clamped chips
 /// on the same target would jitter over each other at the screen edge.
@@ -284,11 +144,14 @@ fn update_beacon_chip_labels(
 /// not a polled system, so the hand-off lands in the SAME command flush as
 /// the marker insert/removal - a polled pass left a schedule-tie-break
 /// frame with two chips (or none) at the edge.
+///
+/// The pill node marker is shared with every other chip family, so the layer
+/// query is what keeps this to beacon chips.
 fn set_beacon_chip_anchor(
     beacon: Entity,
     wanted: Option<ScreenIndicatorAnchorKind>,
-    q_chips: &Query<&BeaconChipTargetEntity, With<BeaconChipHudMarker>>,
-    q_anchors: &mut Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<BeaconChipNodeMarker>>,
+    q_chips: &Query<&AnchoredChipTarget, With<BeaconChipHudMarker>>,
+    q_anchors: &mut Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,
 ) {
     for (mut anchor, ChildOf(layer)) in q_anchors {
         let Ok(target) = q_chips.get(*layer) else {
@@ -304,8 +167,8 @@ fn set_beacon_chip_anchor(
 fn suppress_marked_beacon_chip(
     add: On<Add, ObjectiveMarkerTarget>,
     q_beacon: Query<(), With<BeaconMarker>>,
-    q_chips: Query<&BeaconChipTargetEntity, With<BeaconChipHudMarker>>,
-    mut q_anchors: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<BeaconChipNodeMarker>>,
+    q_chips: Query<&AnchoredChipTarget, With<BeaconChipHudMarker>>,
+    mut q_anchors: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,
 ) {
     if q_beacon.get(add.entity).is_err() {
         return;
@@ -318,8 +181,8 @@ fn suppress_marked_beacon_chip(
 fn restore_unmarked_beacon_chip(
     remove: On<Remove, ObjectiveMarkerTarget>,
     q_beacon: Query<(), With<BeaconMarker>>,
-    q_chips: Query<&BeaconChipTargetEntity, With<BeaconChipHudMarker>>,
-    mut q_anchors: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<BeaconChipNodeMarker>>,
+    q_chips: Query<&AnchoredChipTarget, With<BeaconChipHudMarker>>,
+    mut q_anchors: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,
 ) {
     if q_beacon.get(remove.entity).is_err() {
         return;
@@ -335,8 +198,11 @@ fn restore_unmarked_beacon_chip(
 #[cfg(test)]
 mod tests {
     use super::{
-        super::chip_layout_rig::{
-            assert_chip_backs_its_label, chip_layout_app, measure, only_descendant_with, settle,
+        super::{
+            chip_layout_rig::{
+                assert_chip_backs_its_label, chip_layout_app, measure, only_descendant_with, settle,
+            },
+            objective_markers::prelude::ObjectiveMarkerChipHudMarker,
         },
         *,
     };
@@ -358,14 +224,15 @@ mod tests {
 
         let anchor_of = |world: &mut World, beacon: Entity| -> Option<ScreenIndicatorAnchorKind> {
             let mut q = world
-                .query_filtered::<(&ScreenIndicatorAnchor, &ChildOf), With<BeaconChipNodeMarker>>();
+                .query_filtered::<(&ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>(
+                );
             let layers: Vec<(Option<ScreenIndicatorAnchorKind>, Entity)> = q
                 .iter(world)
                 .map(|(anchor, ChildOf(layer))| (**anchor, *layer))
                 .collect();
             let mut found = None;
             for (anchor, layer) in layers {
-                let target = world.get::<BeaconChipTargetEntity>(layer).unwrap();
+                let target = world.get::<AnchoredChipTarget>(layer).unwrap();
                 if **target == beacon {
                     found = Some(anchor);
                 }
@@ -411,6 +278,50 @@ mod tests {
         let _ = pirate;
     }
 
+    /// A marked beacon carries TWO chip layers naming the same entity, one per
+    /// family. Detaching the marker must take down the objective's layer only.
+    /// The shared [`AnchoredChipTarget`] is not what tells the families apart -
+    /// the layer marker is, and a despawn observer that matched on the target
+    /// alone would take the beacon's chip with it.
+    #[test]
+    fn one_familys_tag_leaving_leaves_the_others_chip_standing() {
+        let mut world = World::new();
+        world.add_observer(setup_beacon_chip);
+        world.add_observer(despawn_anchored_chips::<BeaconMarker, BeaconChipHudMarker>);
+        world.add_observer(
+            despawn_anchored_chips::<ObjectiveMarkerTarget, ObjectiveMarkerChipHudMarker>,
+        );
+
+        let beacon = world
+            .spawn((BeaconMarker, ObjectiveMarkerTarget::new("BEACON 1")))
+            .id();
+        // The objective family's layer, in the shape its own module spawns.
+        world.spawn((ObjectiveMarkerChipHudMarker, anchored_chip_layer(beacon)));
+        world.flush();
+
+        let layers = |world: &mut World| -> (usize, usize) {
+            let beacons = world
+                .query_filtered::<Entity, With<BeaconChipHudMarker>>()
+                .iter(world)
+                .count();
+            let objectives = world
+                .query_filtered::<Entity, With<ObjectiveMarkerChipHudMarker>>()
+                .iter(world)
+                .count();
+            (beacons, objectives)
+        };
+        assert_eq!(layers(&mut world), (1, 1), "one layer per family");
+
+        world.entity_mut(beacon).remove::<ObjectiveMarkerTarget>();
+        world.flush();
+
+        assert_eq!(
+            layers(&mut world),
+            (1, 0),
+            "the objective's layer comes down and the beacon's stays"
+        );
+    }
+
     /// Build the real chip through the real spawn observer and lay it out with
     /// the real taffy + text measurement, then hand back
     /// (layer, chip node, label node).
@@ -430,7 +341,7 @@ mod tests {
             .iter(app.world())
             .next()
             .expect("the beacon grew a chip layer");
-        let chip = only_descendant_with::<BeaconChipNodeMarker>(&mut app, layer);
+        let chip = only_descendant_with::<AnchoredChipNodeMarker>(&mut app, layer);
         let text = only_descendant_with::<Text>(&mut app, layer);
         (app, layer, chip, text)
     }
@@ -475,7 +386,7 @@ mod tests {
         world.entity_mut(beacon).insert(BeaconMarker);
         world.flush();
 
-        let mut q = world.query_filtered::<&ScreenIndicatorAnchor, With<BeaconChipNodeMarker>>();
+        let mut q = world.query_filtered::<&ScreenIndicatorAnchor, With<AnchoredChipNodeMarker>>();
         let anchors: Vec<Option<ScreenIndicatorAnchorKind>> =
             q.iter(&world).map(|anchor| **anchor).collect();
         assert_eq!(

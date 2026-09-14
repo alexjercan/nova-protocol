@@ -15,11 +15,14 @@
 //! Two findings are graded, both static approximations chosen to be
 //! trustworthy rather than clever:
 //!
-//! - ERROR `spawned-dead`: an armed hostile placed by OnStart INSIDE its
-//!   own effective weapon range of the player spawn - the player is under
+//! - ERROR `spawned-dead`: an armed hostile placed by OnStart IMMEDIATELY -
+//!   from the handler's own action list, not down a chain it starts - INSIDE
+//!   its own effective weapon range of the player spawn. The player is under
 //!   accurate fire before they can move.
 //! - WARN `close-spawn`: the same inside-its-own-envelope predicate on a
-//!   TRIGGERED handler. Mid-fight player position is unknowable statically,
+//!   TRIGGERED handler, or on a beat an OnStart handler chains (which lands
+//!   later, so it is a reinforcement rather than an opening shot).
+//!   Mid-fight player position is unknowable statically,
 //!   so the spawn point is the proxy; shipped arenas fight near their
 //!   spawns. Scaling the threshold by the hostile's OWN weapon envelope
 //!   keeps the rule honest at both ends: a light-turret mook 3,950 m out
@@ -39,7 +42,7 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::Allegiance;
 use nova_mod_format::BASE_MOD_ID;
 use nova_scenario::prelude::*;
-use nova_ship::prelude::{SectionConfig, SectionKind};
+use nova_ship::prelude::{RailgunEngineFigures, SectionConfig, SectionKind, TurretEngineFigures};
 
 /// The audit entry points, the graded findings and their acknowledgments, and
 /// the derived per-ship / per-group / per-scenario metrics they are graded on.
@@ -129,8 +132,9 @@ pub struct ShipStats {
     /// Kinetic resistance is 1.0 everywhere in the shipped table, so
     /// authored damage IS applied damage for every catalog turret.
     pub dps: f32,
-    /// The longest effective range among the ship's turrets
-    /// ([`EFFECTIVE_RANGE_MARGIN`] x muzzle_speed x projectile_lifetime).
+    /// The longest effective range among the ship's guns:
+    /// [`EFFECTIVE_RANGE_MARGIN`] x the gun's own reach, read off the engine
+    /// figures the gun fires with rather than re-derived here.
     pub max_effective_range: Meters,
     /// Torpedo tubes are counted, not folded into dps: a tube's threat is
     /// blast area + guidance, not sustained fire.
@@ -212,8 +216,13 @@ pub fn ship_stats(
                 // (the twin splits the gatling's total across two barrels), so
                 // the recursion is what keeps their totals comparable.
                 stats.dps += turret_total_fire_rate(&turret.root) * turret.bullet_damage;
+                // Reach through the gun's own engine figures, not a second
+                // derivation: the AI's fire gate measures against these, so a
+                // retuned reach cannot leave the audit behind. The figures are
+                // world units; the audit reasons in meters.
                 stats.max_effective_range = stats.max_effective_range.max(
-                    turret.muzzle_speed.over(turret.projectile_lifetime) * EFFECTIVE_RANGE_MARGIN,
+                    Meters::from_engine(TurretEngineFigures::of(turret).reach)
+                        * EFFECTIVE_RANGE_MARGIN,
                 );
             }
             SectionKind::Torpedo(_) => stats.torpedo_tubes += 1,
@@ -231,9 +240,12 @@ pub fn ship_stats(
                 if cycle > 0.0 {
                     stats.dps += railgun.slug_damage / cycle;
                 }
-                stats.max_effective_range = stats
-                    .max_effective_range
-                    .max(railgun.slug_speed.over(railgun.slug_lifetime) * EFFECTIVE_RANGE_MARGIN);
+                // Reach off the lance's own engine figures, for the same
+                // reason as the turret above.
+                stats.max_effective_range = stats.max_effective_range.max(
+                    Meters::from_engine(RailgunEngineFigures::of(railgun).reach)
+                        * EFFECTIVE_RANGE_MARGIN,
+                );
             }
             _ => {}
         }
@@ -250,6 +262,15 @@ pub struct HostileAudit {
     pub distance: Meters,
     /// The hostile's derived combat numbers.
     pub stats: ShipStats,
+    /// Whether the handler places this hostile from its OWN action list rather
+    /// than from inside a chain it started.
+    ///
+    /// A chained spawn lands at least a frame behind the handler, and in
+    /// practice behind a delay or a gate - so it is a reinforcement however its
+    /// handler is triggered. Only an immediate spawn can put a gun on the
+    /// player before their first input, which is the whole claim `spawned-dead`
+    /// makes.
+    pub immediate: bool,
 }
 
 /// The hostiles one handler places, labeled by its trigger.
@@ -258,7 +279,9 @@ pub struct SpawnGroupAudit {
     /// A short trigger label ("OnStart", "OnEnter(area)", "OnUpdate", ...).
     pub trigger: String,
     /// Whether the handler fires at scenario start (the spike the TTK rules
-    /// grade hardest - the player has no warning).
+    /// grade hardest - the player has no warning). Qualified per hostile by
+    /// [`HostileAudit::immediate`]: a start handler's CHAINED spawns arrive
+    /// later, so they grade as reinforcements.
     pub on_start: bool,
     /// Every hostile the handler places.
     pub hostiles: Vec<HostileAudit>,
@@ -446,7 +469,7 @@ impl ScenarioAudit {
                 if hostile.distance >= envelope {
                     continue;
                 }
-                if group.on_start {
+                if group.on_start && hostile.immediate {
                     findings.push(BalanceFinding {
                         severity: BalanceSeverity::Error,
                         kind: FindingKind::SpawnedDead,
@@ -535,22 +558,35 @@ fn trigger_label(event: &ScenarioEventConfig) -> String {
 /// Audit one scenario against its resolved catalog. `None` when the
 /// scenario spawns no player-controlled ship (menu backdrops, authoring
 /// demos): there is no one to be unfair to.
+///
+/// Both passes go through [`EventActionConfig::walk`], so a spawn nested in a
+/// `Sequence` or `Cinematic` beat counts: a hostile the opening handler drops
+/// three beats in is still a hostile, and reading only each handler's own
+/// action list scored its guns at zero.
 pub fn audit_scenario(
     scenario: &ScenarioConfig,
     catalog: &SectionCatalog,
     ships: &ShipCatalog,
 ) -> Option<ScenarioAudit> {
+    // Two passes, not one: every hostile's distance is measured FROM the
+    // player spawn, and the player may be authored in a later handler than the
+    // hostiles that open on it. The first pass asks one scenario-wide question
+    // (who is the player, and where do they start); the second asks a
+    // per-handler one (what does this trigger put on the board) and needs the
+    // first answered before it can start.
     let mut player: Option<(Meters3, ShipStats)> = None;
-    for event in &scenario.events {
-        for action in &event.actions {
-            if let EventActionConfig::SpawnScenarioObject(config) = action {
-                if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
-                    if matches!(ship.controller, SpaceshipController::Player(_)) {
-                        player = Some((config.base.position, ship_stats(ship, catalog, ships)));
-                    }
-                }
+    for action in scenario.events.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| {
+            let EventActionConfig::SpawnScenarioObject(config) = action else {
+                return;
+            };
+            let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
+                return;
+            };
+            if matches!(ship.controller, SpaceshipController::Player(_)) {
+                player = Some((config.base.position, ship_stats(ship, catalog, ships)));
             }
-        }
+        });
     }
     let (player_spawn, player_stats) = player?;
 
@@ -559,51 +595,60 @@ pub fn audit_scenario(
     for event in &scenario.events {
         let mut hostiles = Vec::new();
         for action in &event.actions {
-            match action {
-                EventActionConfig::SpawnScenarioObject(config) => match &config.kind {
-                    ScenarioObjectKind::Spaceship(ship)
-                        if matches!(ship.controller, SpaceshipController::AI(_))
-                            && !matches!(
-                                ship.allegiance,
-                                Some(Allegiance::Neutral) | Some(Allegiance::Player)
-                            ) =>
-                    {
-                        hostiles.push(HostileAudit {
-                            id: config.base.id.clone(),
-                            distance: config.base.position.distance(player_spawn),
-                            stats: ship_stats(ship, catalog, ships),
-                        });
+            // `walk` visits an action before anything nested inside it, so the
+            // FIRST visit of each is the one the handler runs itself and every
+            // later one arrived down a chain.
+            let mut immediate = true;
+            action.walk(&mut |action| {
+                let placed_by_the_handler = immediate;
+                immediate = false;
+                match action {
+                    EventActionConfig::SpawnScenarioObject(config) => match &config.kind {
+                        ScenarioObjectKind::Spaceship(ship)
+                            if matches!(ship.controller, SpaceshipController::AI(_))
+                                && !matches!(
+                                    ship.allegiance,
+                                    Some(Allegiance::Neutral) | Some(Allegiance::Player)
+                                ) =>
+                        {
+                            hostiles.push(HostileAudit {
+                                id: config.base.id.clone(),
+                                distance: config.base.position.distance(player_spawn),
+                                stats: ship_stats(ship, catalog, ships),
+                                immediate: placed_by_the_handler,
+                            });
+                        }
+                        ScenarioObjectKind::Asteroid(rock) if rock.invulnerable => {
+                            cover.invulnerable += 1;
+                        }
+                        ScenarioObjectKind::Asteroid(_) => cover.destructible += 1,
+                        // A planet is cover the same way an invulnerable rock
+                        // is, and EVERY planet is invulnerable - `false` is
+                        // refused at lint and at load. The match arm stays
+                        // shaped for the day a destructible one exists.
+                        ScenarioObjectKind::Planet(planet) if planet.invulnerable => {
+                            cover.invulnerable += 1;
+                        }
+                        ScenarioObjectKind::Planet(_) => cover.destructible += 1,
+                        _ => {}
+                    },
+                    EventActionConfig::ScatterObjects(scatter) => {
+                        let hard = matches!(
+                            &scatter.template.kind,
+                            ScenarioObjectKind::Asteroid(rock) if rock.invulnerable
+                        ) || matches!(
+                            &scatter.template.kind,
+                            ScenarioObjectKind::Planet(planet) if planet.invulnerable
+                        );
+                        if hard {
+                            cover.scattered_hard += scatter.count as usize;
+                        } else {
+                            cover.scattered_soft += scatter.count as usize;
+                        }
                     }
-                    ScenarioObjectKind::Asteroid(rock) if rock.invulnerable => {
-                        cover.invulnerable += 1;
-                    }
-                    ScenarioObjectKind::Asteroid(_) => cover.destructible += 1,
-                    // A planet is cover the same way an invulnerable rock is,
-                    // and EVERY planet is invulnerable - `false` is refused at
-                    // lint and at load. The match arm stays shaped for the day
-                    // a destructible one exists.
-                    ScenarioObjectKind::Planet(planet) if planet.invulnerable => {
-                        cover.invulnerable += 1;
-                    }
-                    ScenarioObjectKind::Planet(_) => cover.destructible += 1,
                     _ => {}
-                },
-                EventActionConfig::ScatterObjects(scatter) => {
-                    let hard = matches!(
-                        &scatter.template.kind,
-                        ScenarioObjectKind::Asteroid(rock) if rock.invulnerable
-                    ) || matches!(
-                        &scatter.template.kind,
-                        ScenarioObjectKind::Planet(planet) if planet.invulnerable
-                    );
-                    if hard {
-                        cover.scattered_hard += scatter.count as usize;
-                    } else {
-                        cover.scattered_soft += scatter.count as usize;
-                    }
                 }
-                _ => {}
-            }
+            });
         }
         if !hostiles.is_empty() {
             groups.push(SpawnGroupAudit {
@@ -909,6 +954,89 @@ mod tests {
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert_eq!(findings[0].severity, BalanceSeverity::Error);
         assert!(findings[0].message.contains("bomber"));
+    }
+
+    /// A hostile the opening handler drops from inside a `Sequence` beat is
+    /// audited at all - the flat read of each handler's own action list missed
+    /// it entirely, and a scenario whose whole ambush is chained scored as
+    /// having no hostiles. It grades as the REINFORCEMENT it is: the beat
+    /// lands behind a delay, so the player is not under fire before their
+    /// first input and `spawned-dead` would be a false claim.
+    #[test]
+    fn a_hostile_chained_off_the_opening_handler_is_audited_as_a_reinforcement() {
+        let catalog = SectionCatalog::resolve(&[&[
+            hull("h", 100.0),
+            turret("t", 60.0, 100.0, 4.0, MetersPerSecond(1_000.0)),
+        ]]);
+        let scenario = scenario_of(vec![on_start(vec![
+            spawn_at(
+                "player_spaceship",
+                Meters3::ZERO,
+                ship(player_controller(), &["h"]),
+            ),
+            EventActionConfig::Sequence(SequenceActionConfig {
+                key: "ambush".to_string(),
+                steps: vec![SequenceStepConfig {
+                    after: Some(30.0),
+                    // 1,750 m inside the same 4,500 m envelope the immediate
+                    // spawned-dead pin uses, so only the arrival time differs.
+                    actions: vec![spawn_at(
+                        "gunner",
+                        Meters3::new(0.0, 0.0, -1_750.0),
+                        ship(ai_controller(), &["h", "t"]),
+                    )],
+                    ..Default::default()
+                }],
+            }),
+        ])]);
+
+        let audit = audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[]))
+            .expect("player present");
+
+        let seen: Vec<&str> = audit
+            .groups
+            .iter()
+            .flat_map(|group| &group.hostiles)
+            .map(|hostile| hostile.id.as_str())
+            .collect();
+        assert_eq!(seen, vec!["gunner"], "the chained hostile is counted");
+
+        let findings = audit.findings();
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert_eq!(
+            findings[0].severity,
+            BalanceSeverity::Warn,
+            "a beat 30 s behind the opening handler is a reinforcement"
+        );
+        assert!(findings[0].message.contains("close-spawn"));
+    }
+
+    /// The player is the reference point the whole audit hangs off, so the
+    /// first pass has to find one wherever it is authored. A scenario staging
+    /// its player behind a beat read as "nobody to be unfair to" and was
+    /// skipped by the gate entirely.
+    #[test]
+    fn a_player_chained_off_the_opening_handler_is_still_the_audited_player() {
+        let catalog = SectionCatalog::resolve(&[&[hull("h", 100.0)]]);
+        let scenario = scenario_of(vec![on_start(vec![EventActionConfig::Sequence(
+            SequenceActionConfig {
+                key: "arrival".to_string(),
+                steps: vec![SequenceStepConfig {
+                    after: Some(2.0),
+                    actions: vec![spawn_at(
+                        "player_spaceship",
+                        Meters3::ZERO,
+                        ship(player_controller(), &["h"]),
+                    )],
+                    ..Default::default()
+                }],
+            },
+        )])]);
+
+        let audit = audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[]))
+            .expect("the staged player is the audited player");
+
+        assert_eq!(audit.player.hp, 100.0);
     }
 
     /// A triggered close spawn is a WARN, not an ERROR (static proxy), and

@@ -183,15 +183,19 @@ impl AsteroidField {
     /// Every field of every mark goes in, because a merge changes a radius in
     /// place. Cheap - the list is capped at a couple of dozen - and it does not
     /// have to be collision-free, only different when something changed.
+    ///
+    /// Never persisted and never compared across processes: a signature is only
+    /// ever weighed against another signature taken by this same function in
+    /// this same session, so unlike the seeds and looks [`Fnv64`] also derives,
+    /// the exact value here is free to move with the hash.
     fn signature(marks: &DamageMarks) -> u64 {
-        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut hash = Fnv64::new();
         for mark in &marks.0 {
             for value in [mark.at.x, mark.at.y, mark.at.z, mark.radius] {
-                hash ^= u64::from(value.to_bits());
-                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+                hash = hash.write(&value.to_bits().to_le_bytes());
             }
         }
-        hash
+        hash.finish()
     }
 }
 

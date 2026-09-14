@@ -28,10 +28,7 @@
 //! scope-like player-relative bearing.
 
 use avian3d::prelude::{ColliderAabb, ComputedCenterOfMass, Sensor};
-use bevy::{
-    camera::RenderTarget, light::NotShadowCaster, prelude::*,
-    render::render_resource::TextureFormat,
-};
+use bevy::{camera::RenderTarget, light::NotShadowCaster, prelude::*};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
@@ -39,7 +36,6 @@ use nova_ui::{
     theme::combat,
 };
 
-use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
 
 /// The `target_inset_hud` spawner, the inset camera, caption, highlight and kill-cam components,
@@ -277,25 +273,11 @@ pub fn highlight_material() -> StandardMaterial {
     }
 }
 
-/// Create the offscreen render target. Rgba8UnormSrgb with no view-format
-/// override; `new_target_texture` sets the RENDER_ATTACHMENT | TEXTURE_BINDING
-/// | COPY_DST usages.
-///
-/// Bevy's 3d/render_to_texture example uses Rgba8Unorm storage with an
-/// Rgba8UnormSrgb view instead, but a `Some` view format fills the texture's
-/// `view_formats`, and creating such a texture needs
-/// `DownlevelFlags::VIEW_FORMATS` - absent on WebGL2, where it is a fatal
-/// render validation error the moment the player HUD spawns. An sRGB-format
-/// target with the default view goes through the same Rgba8UnormSrgb view end
-/// to end, so native rendering is unchanged.
+/// Create the inset's offscreen render target at the panel's own resolution.
+/// The WebGL2-safe format rule it is born with lives on
+/// [`nova_gameplay::prelude::new_render_target_image`].
 pub fn create_render_target(images: &mut Assets<Image>) -> Handle<Image> {
-    let image = Image::new_target_texture(
-        INSET_TEXTURE_PX,
-        INSET_TEXTURE_PX,
-        TextureFormat::Rgba8UnormSrgb,
-        None,
-    );
-    images.add(image)
+    images.add(new_render_target_image(UVec2::splat(INSET_TEXTURE_PX)))
 }
 
 /// One armed corner tick: a small bar hugging a panel corner, hidden until
@@ -574,24 +556,20 @@ fn inset_camera_pose(target_anchor: Vec3, player_anchor: Vec3, radius: f32) -> T
 }
 
 /// Framing radius of the target from `anchor`: the distance from the anchor to
-/// the farthest corner of the union of the body's non-sensor collider AABBs
-/// ([`target_world_aabb`], which walks the subtree so a ship's section colliders
-/// and a section-less torpedo/asteroid's own collider are both covered). Falls
-/// back to the section half-extent when the body has no collider AABB (test
-/// entities, or a body that has not built its colliders yet), keeping the pose
-/// finite.
+/// the farthest corner of the body's solid-collider bounding sphere
+/// ([`subtree_bounding_sphere`], which walks the subtree so a ship's section
+/// colliders and a section-less torpedo/asteroid's own collider are both
+/// covered). Falls back to the section half-extent when the body has no
+/// collider AABB (test entities, or a body that has not built its colliders
+/// yet), keeping the pose finite.
 fn zoomable_framing_radius(
     target: Entity,
     anchor: Vec3,
     q_children: &Query<&Children>,
     q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> f32 {
-    match target_world_aabb(target, q_children, q_aabb) {
-        Some(aabb) => {
-            let center = 0.5 * (aabb.min + aabb.max);
-            let half_diagonal = 0.5 * (aabb.max - aabb.min).length();
-            anchor.distance(center) + half_diagonal
-        }
+    match subtree_bounding_sphere(target, q_children, q_aabb) {
+        Some((center, radius)) => anchor.distance(center) + radius,
         None => SECTION_HALF_EXTENT,
     }
 }
@@ -1134,31 +1112,6 @@ mod tests {
 
     // -- render target --
 
-    /// WebGL2-safe invariant of the inset render target (v0.5.0 web crash
-    /// regression): a non-empty `view_formats` needs
-    /// `DownlevelFlags::VIEW_FORMATS`, which WebGL2 lacks, so
-    /// `create_texture` fails validation and Bevy quits the app on game
-    /// start. The target must be born plain sRGB with the default view.
-    #[test]
-    fn render_target_is_webgl2_safe() {
-        let mut images = Assets::<Image>::default();
-        let handle = create_render_target(&mut images);
-        let image = images.get(&handle).expect("render target image exists");
-        assert_eq!(
-            image.texture_descriptor.format,
-            TextureFormat::Rgba8UnormSrgb,
-            "target renders and samples as sRGB"
-        );
-        assert!(
-            image.texture_descriptor.view_formats.is_empty(),
-            "non-empty view_formats is a fatal validation error on WebGL2"
-        );
-        assert!(
-            image.texture_view_descriptor.is_none(),
-            "no view override; the default view already has the sRGB format"
-        );
-    }
-
     /// The inset renders the whole scene a SECOND time. It used to do that at
     /// 512 into a 256 panel: four times the pixels, and the downscale threw
     /// three quarters of them away. Pin the texture to the panel so a later
@@ -1170,6 +1123,47 @@ mod tests {
         let image = images.get(&handle).expect("render target image exists");
         assert_eq!(image.texture_descriptor.size.width, INSET_PANEL_PX as u32);
         assert_eq!(image.texture_descriptor.size.height, INSET_PANEL_PX as u32);
+    }
+
+    // -- framing --
+
+    /// The inset frames what the player SEES. A beacon-shaped body - a small
+    /// solid orb inside a huge authored trigger sphere - must be framed off
+    /// the orb: the shared walk skips sensors, so the pose cannot be pulled
+    /// back to hold a trigger volume the player cannot see.
+    #[test]
+    fn a_trigger_volume_never_sets_the_inset_framing_radius() {
+        let mut world = World::new();
+        // 4 x 4 x 4 of visible orb, wrapped in 100 x 100 x 100 of trigger.
+        let orb = world
+            .spawn(ColliderAabb::from_min_max(
+                Vec3::splat(-2.0),
+                Vec3::splat(2.0),
+            ))
+            .id();
+        let trigger = world
+            .spawn((
+                ColliderAabb::from_min_max(Vec3::splat(-50.0), Vec3::splat(50.0)),
+                Sensor,
+            ))
+            .id();
+        let body = world.spawn_empty().add_children(&[orb, trigger]).id();
+
+        let radius = world
+            .run_system_once(
+                move |q_children: Query<&Children>,
+                      q_aabb: Query<&ColliderAabb, Without<Sensor>>| {
+                    zoomable_framing_radius(body, Vec3::ZERO, &q_children, &q_aabb)
+                },
+            )
+            .expect("the system runs");
+
+        // Anchored on the orb's own centre: half the orb box's diagonal.
+        let orb_radius = (48.0_f32).sqrt() * 0.5;
+        assert!(
+            (radius - orb_radius).abs() < 1e-4,
+            "framed on the orb's {orb_radius}, not the trigger's: {radius}"
+        );
     }
 
     // -- camera lifecycle --

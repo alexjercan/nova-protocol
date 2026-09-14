@@ -38,7 +38,7 @@ pub mod prelude {
         commands::{
             command_intro_rows, command_list_rows, command_registry_count, command_shell_specs,
             command_spec, live, resolve_command_line, usage_rows, CommandChannel, CommandClass,
-            CommandOutcome, CommandResult, CommandSource, CommandSpec, CommandStatus,
+            CommandError, CommandOutcome, CommandResult, CommandSource, CommandSpec, CommandStatus,
             COMMAND_CATALOG,
         },
         shell::{CliOutput, CommandArg, CommandArity},

@@ -6,63 +6,43 @@
 
 use nova_probe::prelude::*;
 
-use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
+use super::{capability_gap, timeline_skip_detail, Check, CheckStatus, RunArtifacts, SilentGap};
 use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "a GameStates transition entered Playing";
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let no_input = |status, value: &str, detail: String| Check {
-        name: "reached_playing",
-        status,
-        value: value.into(),
-        threshold: THRESHOLD.into(),
-        detail,
-        data: serde_json::Value::Null,
-    };
-    let timeline = match artifacts.resolve(Capability::Timeline, artifacts.timeline.as_ref()) {
-        Input::Present(timeline) => timeline,
-        Input::NotDeclared(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
-                "not claimed",
-                format!(
+    let input = artifacts.resolve(Capability::Timeline, artifacts.timeline.as_ref());
+    let timeline = match capability_gap(&input, "no timeline", SilentGap::Fails) {
+        Ok(timeline) => timeline,
+        Err((status, value)) => {
+            let detail = match input {
+                Input::NotDeclared(capability) => format!(
                     "the example wires no {} - it makes no timeline claim, so \
                      reaching Playing is not observable",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::NotArmed(capability) => {
-            return no_input(
-                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
-                "not armed",
-                format!(
+                Input::NotArmed(capability) => format!(
                     "the example wires {} but this run did not arm it (see the \
                      manifest's armed flags)",
                     capability.wiring()
                 ),
-            )
-        }
-        // Claimed it, was armed for it, wrote nothing: the one state the
-        // contract turns from a shrug into a failure.
-        Input::ArmedButAbsent(capability) => {
-            return no_input(
-                CheckStatus::Fail,
-                "armed and silent",
-                format!(
+                Input::ArmedButAbsent(capability) => format!(
                     "the example declares {} and probe armed it, but no \
                      timeline.jsonl was written - the run recorded nothing",
                     capability.wiring()
                 ),
-            )
-        }
-        Input::Unknown(_) => {
-            return no_input(
-                CheckStatus::Skipped,
-                "no timeline",
-                timeline_skip_detail(artifacts),
-            )
+                // Unknown; `capability_gap` took Present away.
+                _ => timeline_skip_detail(artifacts),
+            };
+            return Check {
+                name: "reached_playing",
+                status,
+                value: value.into(),
+                threshold: THRESHOLD.into(),
+                detail,
+                data: serde_json::Value::Null,
+            };
         }
     };
 
@@ -94,7 +74,11 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evaluation::{checks::evaluate_checks, fixtures::*, manifest::RunManifest};
+    use crate::evaluation::{
+        checks::{evaluate_checks, NotApplicable},
+        fixtures::*,
+        manifest::RunManifest,
+    };
 
     #[test]
     fn reached_playing_fails_when_the_run_never_left_loading() {

@@ -1,9 +1,8 @@
 //! Persistent key-value storage, one impl per platform.
 //!
 //! Mirrors `PortalTransport`: the trait exists so the call sites stop carrying
-//! `#[cfg(target_arch = "wasm32")]` and so a test can substitute a fake. Every
-//! platform gate for persisted values lives in THIS module now - [`persist`]
-//! above it is pure codec, and reads the same on both targets.
+//! `#[cfg(target_arch = "wasm32")]` and so a test can substitute a fake.
+//! [`persist`] above it is pure codec, and reads the same on both targets.
 //!
 //! [`persist`]: crate::persist
 //!
@@ -13,6 +12,13 @@
 //! - Native: `<root>/<key>.ron`, root being `$NOVA_CONFIG_ROOT` or
 //!   `dirs::config_dir()/nova-protocol`.
 //! - Wasm: `window.localStorage` under `nova_protocol.<key>`.
+//!
+//! Two stores keep a web half of their own, because they need what this trait
+//! deliberately does not say: the portal catalog caps the value's size in both
+//! directions, and the mod cache index tells "nothing stored" apart from
+//! "unreadable". They still derive their key through [`WebStorage::key`] and
+//! take their handle from `WebStorage::handle`, so the namespace and the
+//! `localStorage` lookup have ONE owner and no key is spelled twice.
 //!
 //! There is no `remove`: nothing in the game deletes a persisted value, and an
 //! unused trait method is a contract no impl is held to.
@@ -163,10 +169,15 @@ impl WebStorage {
     /// The store, or `None` when the browser withholds localStorage (private
     /// mode with storage off).
     pub fn available() -> Option<Self> {
-        Self.storage().map(|_| Self)
+        Self::handle().map(|_| Self)
     }
 
-    fn storage(&self) -> Option<web_sys::Storage> {
+    /// The origin's `localStorage`, or `None` when the browser withholds it.
+    ///
+    /// Public because the portal catalog and the mod cache index keep a web
+    /// half of their own (see the module doc): this is the one place the
+    /// handle is derived, so neither retypes it.
+    pub fn handle() -> Option<web_sys::Storage> {
         // `local_storage()` is `Result<Option<Storage>>`: Err if disabled by
         // the browser, Ok(None) if unavailable.
         web_sys::window()?.local_storage().ok()?
@@ -176,14 +187,13 @@ impl WebStorage {
 #[cfg(target_arch = "wasm32")]
 impl Storage for WebStorage {
     fn read(&self, key: &str) -> Option<Vec<u8>> {
-        let raw = self.storage()?.get_item(&Self::key(key)).ok()??;
+        let raw = Self::handle()?.get_item(&Self::key(key)).ok()??;
         Some(raw.into_bytes())
     }
 
     fn write(&self, key: &str, bytes: &[u8]) -> Result<(), StorageError> {
-        let storage = self
-            .storage()
-            .ok_or_else(|| StorageError("no localStorage available".to_string()))?;
+        let storage =
+            Self::handle().ok_or_else(|| StorageError("no localStorage available".to_string()))?;
         let value = std::str::from_utf8(bytes)
             .map_err(|e| StorageError(format!("value is not utf-8: {e}")))?;
         storage
@@ -255,10 +265,13 @@ pub mod prelude {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::{write_atomic, NativeStorage, Storage, WebStorage};
+    use crate::mod_cache::{INSTALLED_INDEX_KEY, PORTAL_CATALOG_KEY};
 
-    /// The two locations the store inherited from the modules it replaced. A
-    /// change here is a silent data loss for every existing player, so both are
-    /// pinned as literals rather than derived from the code under test.
+    /// Every location a persisted value lands in, including the two keys whose
+    /// stores keep a web half of their own and would otherwise be the only
+    /// ones a namespace change could orphan unwatched. A change here is a
+    /// silent data loss for every existing player, so each is pinned as a
+    /// literal rather than derived from the code under test.
     #[test]
     fn the_storage_locations_match_the_stores_this_replaced() {
         let native = NativeStorage::available().expect("a config dir on the test host");
@@ -277,6 +290,16 @@ mod tests {
             "nova_protocol.enabled_mods"
         );
         assert_eq!(WebStorage::key("settings"), "nova_protocol.settings");
+        assert_eq!(
+            WebStorage::key(PORTAL_CATALOG_KEY),
+            "nova_protocol.portal_catalog"
+        );
+        assert_eq!(
+            WebStorage::key(INSTALLED_INDEX_KEY),
+            "nova_protocol.installed_mods",
+            "the web index key keeps its own spelling - the native file is \
+             installed.mods.ron, and neither may follow the other"
+        );
     }
 
     /// A unique temp root per test; the test cleans it up.

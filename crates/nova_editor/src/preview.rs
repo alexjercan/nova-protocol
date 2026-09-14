@@ -268,7 +268,7 @@ pub(crate) fn insert_preview_object(
             let placed: Vec<SpaceshipSectionConfig> = placed.to_vec();
             entity.with_children(|parent| {
                 for section in &placed {
-                    let Some(config) = resolve_section(&section.source, sections) else {
+                    let Some(config) = section.source.resolve(sections) else {
                         continue;
                     };
                     let mut child = parent.spawn((
@@ -340,26 +340,14 @@ fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
     }
 }
 
-/// The section config a spawned hull's section names: inline, or a catalog
-/// prototype. `None` when a mod overlay dropped the prototype.
-fn resolve_section<'a>(
-    source: &'a SectionSource,
-    sections: Option<&'a GameSections>,
-) -> Option<&'a SectionConfig> {
-    match source {
-        SectionSource::Inline(config) => Some(config),
-        SectionSource::Prototype(id) => sections?.get_section(id),
-    }
-}
-
 /// The box that covers a placed hull: its centre, and its full extents.
 ///
 /// Every section's OWN authored collider, rotated the way the hull places it
 /// and merged about its position. The half-cell pad this replaced assumed a
 /// 1x1x1 collider, so a 3x3x2 vector thruster or a 5x5x3 capital drive at the
 /// stern was unclickable past its first cell and under-reported to
-/// [`crate::frame::node_bounds`] - which is what the stage frames and lays out
-/// from.
+/// [`nova_gameplay::prelude::subtree_collider_aabb`] - which is what the stage
+/// frames and lays out from.
 ///
 /// An empty hull, or one whose every prototype a mod overlay dropped, falls
 /// back to the unit cell centred on the node, so it is still something a click
@@ -370,7 +358,7 @@ fn hull_bounds(
 ) -> (Vec3, Vec3) {
     let mut merged: Option<(Vec3, Vec3)> = None;
     for section in sections {
-        let Some(config) = resolve_section(&section.source, catalog) else {
+        let Some(config) = section.source.resolve(catalog) else {
             continue;
         };
         let half = config

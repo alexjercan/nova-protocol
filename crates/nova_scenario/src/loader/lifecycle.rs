@@ -280,25 +280,38 @@ fn opening_view(
 }
 
 /// The scenario's player spawn, if it has one.
+///
+/// Through [`EventActionConfig::walk`], so a player staged from inside a
+/// `Sequence` or `Cinematic` beat is found as well: a scenario that opens on a
+/// scripted approach still has one ship the camera will end up chasing, and
+/// falling back to [`UNCREWED_VIEW`] would open it somewhere else entirely.
+///
+/// First in WALK order: an action before anything nested inside it, and a whole
+/// top-level action's chain before the next top-level action.
 fn player_spawn(
     scenario: &ScenarioConfig,
 ) -> Option<(&BaseScenarioObjectConfig, &SpaceshipConfig)> {
-    scenario
-        .events
-        .iter()
-        .flat_map(|event| &event.actions)
-        .filter_map(|action| match action {
-            EventActionConfig::SpawnScenarioObject(object) => Some(object),
-            _ => None,
-        })
-        .find_map(|object| match &object.kind {
-            ScenarioObjectKind::Spaceship(spaceship)
-                if matches!(spaceship.controller, SpaceshipController::Player(_)) =>
-            {
-                Some((&object.base, spaceship))
+    let mut found = None;
+    for action in scenario.events.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| {
+            if found.is_some() {
+                return;
             }
-            _ => None,
-        })
+            let EventActionConfig::SpawnScenarioObject(object) = action else {
+                return;
+            };
+            let ScenarioObjectKind::Spaceship(spaceship) = &object.kind else {
+                return;
+            };
+            if matches!(spaceship.controller, SpaceshipController::Player(_)) {
+                found = Some((&object.base, spaceship));
+            }
+        });
+        if found.is_some() {
+            break;
+        }
+    }
+    found
 }
 
 /// How far a hull's furthest section collider reaches from its root, world
@@ -314,10 +327,7 @@ fn hull_envelope(hull: &ShipHull, sections: Option<&GameSections>) -> f32 {
     hull.sections
         .iter()
         .filter_map(|section| {
-            let config = match &section.source {
-                SectionSource::Inline(config) => config,
-                SectionSource::Prototype(id) => sections?.get_section(id)?,
-            };
+            let config = section.source.resolve(sections)?;
             Some(
                 config
                     .base
@@ -772,6 +782,36 @@ mod tests {
         );
     }
 
+    /// A player staged behind a `Sequence` beat is still the player the camera
+    /// opens on. Reading only each handler's own action list found none and
+    /// opened on the uncrewed pose, kilometres from the ship.
+    #[test]
+    fn the_camera_opens_on_a_player_spawned_from_inside_a_sequence_step() {
+        let out_there = Meters3::new(0.0, 0.0, -9_000.0);
+        let staged = player_at(out_there, Quat::IDENTITY, 1);
+        let scenario = scenario_with(
+            "staged_player",
+            vec![event_with(vec![EventActionConfig::Sequence(
+                SequenceActionConfig {
+                    key: "opening".to_string(),
+                    steps: vec![SequenceStepConfig {
+                        after: Some(2.0),
+                        actions: staged.actions,
+                        ..default()
+                    }],
+                },
+            )])],
+        );
+
+        let view = opening_view(&scenario, None, None);
+
+        assert!(
+            view.translation.distance(out_there.to_engine()) < 100.0,
+            "the camera stands with the staged player, not at the uncrewed pose (got {:?})",
+            view.translation
+        );
+    }
+
     /// A big hull pushes the camera out to clear itself. The fixed 200 m this
     /// replaced opened a carrier from inside its own plate.
     #[test]
@@ -798,6 +838,54 @@ mod tests {
         assert!(
             carrier > skiff,
             "and a carrier is framed from further out than a skiff ({carrier} u against {skiff} u)"
+        );
+    }
+
+    /// The opening frame measures the section [`SectionSource::resolve`] names,
+    /// and a prototype no catalog holds contributes nothing - the miss the
+    /// spawn reports and lint reports first. Asserted against the resolver
+    /// rather than a written-out number, so an envelope that grew a lookup of
+    /// its own would disagree here.
+    #[test]
+    fn the_opening_envelope_measures_the_section_the_resolver_names() {
+        let catalog = GameSections(vec![SectionConfig {
+            base: BaseSectionConfig {
+                id: "drive".to_string(),
+                name: "drive".to_string(),
+                collider: Some(SectionCollider::Cuboid {
+                    size: Vec3::new(3.0, 3.0, 2.0),
+                }),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        }]);
+        let source = SectionSource::Prototype("drive".to_string());
+        // Build-grid cells: one cell is one world unit.
+        let stern = Vec3::new(0.0, 0.0, 4.0);
+        let hull = ShipHull {
+            sections: vec![SpaceshipSectionConfig {
+                id: "stern".to_string(),
+                position: stern,
+                rotation: Quat::IDENTITY,
+                source: source.clone(),
+                modifications: vec![],
+            }],
+            ..default()
+        };
+
+        let reach = source
+            .resolve(Some(&catalog))
+            .expect("the catalog holds the prototype")
+            .base
+            .collider
+            .unwrap_or_default()
+            .furthest_distance(stern, Quat::IDENTITY, Vec3::ZERO);
+
+        assert_eq!(hull_envelope(&hull, Some(&catalog)), reach);
+        assert_eq!(
+            hull_envelope(&hull, None),
+            0.0,
+            "a section that resolves to nothing contributes nothing"
         );
     }
 

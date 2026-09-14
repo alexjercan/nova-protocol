@@ -3,8 +3,9 @@
 //!
 //! One check per module, each exposing `evaluate(&RunArtifacts) -> Check` and
 //! owning its own tests. This file holds only what is SHARED: the row type,
-//! the status enum, the skip-detail wording, the verdict fold, and the
-//! `CHECKS` table that names them in report order.
+//! the status enum, the capability gate every check reads a missing input
+//! through, the skip-detail wording, the verdict fold, and the `CHECKS` table
+//! that names them in report order.
 
 /// Glob-import surface for the check roster and its verdicts.
 pub mod prelude {
@@ -27,7 +28,10 @@ pub use fps_within_baseline::FPS_WARN_THRESHOLD_PCT;
 pub(crate) use invariants_held::violations_by_name;
 use nova_probe::prelude::*;
 
-use super::{artifacts::RunArtifacts, manifest::RunManifest};
+use super::{
+    artifacts::{Input, RunArtifacts},
+    manifest::RunManifest,
+};
 
 /// One verdict row.
 #[derive(Debug, Clone, PartialEq)]
@@ -100,6 +104,57 @@ impl CheckStatus {
             CheckStatus::Pass | CheckStatus::Warn | CheckStatus::Fail
         )
     }
+}
+
+/// Who grades "claimed it, armed it, wrote nothing" when two checks share one
+/// capability. Exactly one of them may own it, or a single wiring gap prints
+/// two failure rows for the same silence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SilentGap {
+    /// This check owns the wiring gap.
+    Fails,
+    /// A sibling check on the same capability owns it, so silence reads here
+    /// as no evidence rather than as a second opinion.
+    Defers,
+}
+
+/// The artifact to grade, or the status and the value word the row owes for
+/// not having one.
+///
+/// ONE table for every capability-gated check, because [`overall_verdict`]
+/// folds on [`CheckStatus::graded`]: a check that answered one of these states
+/// its own way would move a whole run's verdict without saying so. Only the
+/// detail sentence stays with the check - it is the only part that knows what
+/// the capability claims.
+///
+/// `absent` is the check's own word for evidence that was never owed ("no
+/// timeline", "no capture"). "armed and silent" is deliberately NOT that word:
+/// the example declared the capability and probe armed it, so the gap is in
+/// the WIRING, and sending the reader after an env var that was set all along
+/// names the wrong thing.
+fn capability_gap<'a, T>(
+    input: &Input<'a, T>,
+    absent: &'static str,
+    silent: SilentGap,
+) -> Result<&'a T, (CheckStatus, &'static str)> {
+    Err(match *input {
+        Input::Present(artifact) => return Ok(artifact),
+        Input::NotDeclared(capability) => (
+            CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
+            "not claimed",
+        ),
+        Input::NotArmed(capability) => (
+            CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
+            "not armed",
+        ),
+        // Claimed it, was armed for it, wrote nothing: the one state the
+        // contract turns from a shrug into a failure.
+        Input::ArmedButAbsent(_) => match silent {
+            SilentGap::Fails => (CheckStatus::Fail, "armed and silent"),
+            SilentGap::Defers => (CheckStatus::Skipped, absent),
+        },
+        Input::Unknown(_) => (CheckStatus::Skipped, absent),
+    })
 }
 
 /// The CSS/class token for a status string as it appears in `checks.json`.
@@ -389,6 +444,109 @@ mod tests {
         assert!(
             !CheckStatus::NotApplicable(NotApplicable::NotDeclared(Capability::Timeline)).graded()
         );
+    }
+
+    /// One table decides whether a run earned a grade, and every
+    /// capability-gated check reads a missing input through it. The fold in
+    /// `overall_verdict` turns on `graded()`, so a check that answers one of
+    /// these states its own way moves a whole run's verdict without saying so
+    /// - and a new check joins this test the moment it joins `CHECKS` with a
+    /// capability.
+    #[test]
+    fn every_capability_gated_check_reads_a_missing_input_from_one_table() {
+        // `capture_simulated` defers the wiring gap to `fps_within_baseline`:
+        // one silent FrameTime capture owes one failure row, not two.
+        const DEFERS_THE_SILENT_GAP: &[&str] = &["capture_simulated"];
+        const DECLARED: [Capability; 3] = [
+            Capability::Timeline,
+            Capability::Invariants,
+            Capability::FrameTime,
+        ];
+
+        // The example wires nothing at all.
+        let not_declared = scratch_run_dir();
+        write_contract(&not_declared, []);
+        write_manifest(&not_declared, &manifest_ok());
+
+        // Wired, and this run armed none of it.
+        let not_armed = scratch_run_dir();
+        write_contract(&not_armed, DECLARED);
+        write_manifest(
+            &not_armed,
+            &RunManifest {
+                armed_timeline: false,
+                armed_invariants: false,
+                armed_fps: false,
+                ..manifest_ok()
+            },
+        );
+
+        // Wired, armed, and nothing written: the wiring gap.
+        let armed_and_silent = scratch_run_dir();
+        write_contract(&armed_and_silent, DECLARED);
+        write_manifest(
+            &armed_and_silent,
+            &RunManifest {
+                armed_fps: true,
+                ..manifest_ok()
+            },
+        );
+
+        // Neither half of the handshake: a run dir that predates the contract.
+        let unknown = scratch_run_dir();
+        for name in ["probe-contract.json", "probe-run.json"] {
+            let _ = std::fs::remove_file(unknown.join(name));
+        }
+        for dir in [&armed_and_silent, &unknown] {
+            for name in ["timeline.jsonl", "frametime.csv"] {
+                let _ = std::fs::remove_file(dir.join(name));
+            }
+        }
+
+        for (name, capability, _) in CHECKS {
+            let Some(capability) = *capability else {
+                continue;
+            };
+            let defers = DEFERS_THE_SILENT_GAP.contains(name);
+            let table = [
+                (
+                    not_declared.as_path(),
+                    CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
+                    Some("not claimed"),
+                ),
+                (
+                    not_armed.as_path(),
+                    CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
+                    Some("not armed"),
+                ),
+                (
+                    armed_and_silent.as_path(),
+                    if defers {
+                        CheckStatus::Skipped
+                    } else {
+                        CheckStatus::Fail
+                    },
+                    (!defers).then_some("armed and silent"),
+                ),
+                // The value word here is the check's own name for evidence it
+                // was never owed ("no timeline", "no capture"), so only the
+                // status is shared.
+                (unknown.as_path(), CheckStatus::Skipped, None),
+            ];
+            for (dir, status, value) in table {
+                let artifacts = RunArtifacts::load(dir, None).expect("run dir loads");
+                let checks = evaluate_checks(&artifacts);
+                let c = check(&checks, name);
+                assert_eq!(c.status, status, "{name} in {}: {c:?}", dir.display());
+                if let Some(value) = value {
+                    assert_eq!(c.value, value, "{name} in {}: {c:?}", dir.display());
+                }
+            }
+        }
+
+        for dir in [not_declared, not_armed, armed_and_silent, unknown] {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 
     /// Every roster row's name must match the name its evaluator stamps on

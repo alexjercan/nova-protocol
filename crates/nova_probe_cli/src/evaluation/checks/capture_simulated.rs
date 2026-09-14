@@ -17,7 +17,7 @@
 
 use nova_probe::prelude::*;
 
-use super::{Check, CheckStatus, NotApplicable, RunArtifacts};
+use super::{capability_gap, Check, CheckStatus, RunArtifacts, SilentGap};
 use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "every captured frame simulated";
@@ -64,40 +64,31 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 
     // No abort line. Whether that is a PASS depends on whether anything was
     // captured at all: a run with no capture has nothing to say either way.
-    match artifacts.resolve(Capability::FrameTime, artifacts.runs.as_ref()) {
-        Input::Present(runs) => row(
+    let input = artifacts.resolve(Capability::FrameTime, artifacts.runs.as_ref());
+    // Armed and silent is `fps_within_baseline`'s failure to report, and this
+    // check has no second opinion about it: the log carries no abort line, so
+    // nothing here saw a refusal.
+    match capability_gap(&input, "no capture", SilentGap::Defers) {
+        Ok(runs) => row(
             CheckStatus::Pass,
             format!("{} capture(s) refused: 0", runs.len()),
             "no capture refused its window".into(),
             serde_json::json!({ "aborted": 0, "captures": [] }),
         ),
-        Input::NotDeclared(capability) => row(
-            CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
-            "not claimed".into(),
-            format!(
-                "the example wires no {} - there is no capture window to refuse",
-                capability.wiring()
-            ),
-            serde_json::Value::Null,
-        ),
-        Input::NotArmed(capability) => row(
-            CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
-            "not armed".into(),
-            format!(
-                "the example wires {} but this run did not arm the capture",
-                capability.wiring()
-            ),
-            serde_json::Value::Null,
-        ),
-        // Armed and silent is `fps_within_baseline`'s failure to report, and
-        // this check has no second opinion about it: the log carries no abort
-        // line, so nothing here saw a refusal.
-        Input::ArmedButAbsent(_) | Input::Unknown(_) => row(
-            CheckStatus::Skipped,
-            "no capture".into(),
-            "no capture window ran, so none could be refused".into(),
-            serde_json::Value::Null,
-        ),
+        Err((status, value)) => {
+            let detail = match input {
+                Input::NotDeclared(capability) => format!(
+                    "the example wires no {} - there is no capture window to refuse",
+                    capability.wiring()
+                ),
+                Input::NotArmed(capability) => format!(
+                    "the example wires {} but this run did not arm the capture",
+                    capability.wiring()
+                ),
+                _ => "no capture window ran, so none could be refused".into(),
+            };
+            row(status, value.into(), detail, serde_json::Value::Null)
+        }
     }
 }
 

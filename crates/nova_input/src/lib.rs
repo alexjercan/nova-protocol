@@ -98,8 +98,9 @@ pub mod prelude {
         dispatch::{DispatchError, DrivenPresses, InputPhase, SynthesizedGamepad},
         poll::InputSources,
         registry::{
-            ActionAxes, ActionBinding, ActionName, BindingChip, BindingSpec, GamepadStick,
-            InputBindings, WheelDirection,
+            captured_binds, rebind_verdict, ActionAxes, ActionBinding, ActionName, BindingChip,
+            BindingSpec, ConflictRule, GamepadStick, InputBindings, PointerRule, RebindPolicy,
+            RebindSurface, RebindVerdict, WheelDirection,
         },
         sensitivity::{
             apply_mouse_sensitivity, mouse_sensitivity, MousePath, MouseSensitivity,

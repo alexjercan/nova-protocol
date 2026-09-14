@@ -14,6 +14,7 @@
 //! while they read it.
 
 use bevy::{color::Mix, picking::Pickable, prelude::*};
+use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ui::{
     prelude::{clear_of, hang_at, Hang, UiSkin, UiText},
@@ -23,7 +24,6 @@ use nova_ui::{
 
 use crate::{
     config::{HoveredNode, SelectedNode},
-    frame::node_bounds,
     gallery::EditorCamera,
     node::{id_order, EditContext, NodeId, ObjectNode, ShipNode},
     ui::{layer, tree_text},
@@ -241,7 +241,7 @@ pub(crate) fn sync_nameplates(
     for (plate, mut node, mut visibility, computed) in plates {
         // Over the TOP of the node, not its middle: a label in the middle of a
         // hull is a label on the hull.
-        let top = node_bounds(plate.0, &q_children, &q_bounds).map_or_else(
+        let top = subtree_collider_aabb(plate.0, &q_children, &q_bounds).map_or_else(
             || q_poses.get(plate.0).ok().map(|pose| pose.translation()),
             |bounds| {
                 Some(Vec3::new(
