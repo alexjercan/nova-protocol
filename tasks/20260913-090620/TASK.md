@@ -157,6 +157,93 @@ replacement. The experiment is complete; see `DIRECT-COLLIDER.md`.
 This does not meet acceptance. Fixed-tick/live-population control, full cost
 attribution, and restoration near the release baseline remain open.
 
+## Samply follow-up
+
+The user requested sampled function stacks at `24cedcf99`, not another
+release comparison. Prior profiling used Bevy spans, not Samply.
+
+The initial preflight was blocked by profiling permissions. The user enabled
+paranoid=1 and mlock_kb=16384; the next preflight passed. Three serial,
+symbolicated 4v4 profiles then completed the capture readiness/liveness gates,
+with draft/gameplay seed 20260816 and display :0. Analysis excludes startup
+and approach. See `SAMPLY.md` for methods, callers, source, and caveats.
+
+- 195,421 CPU samples in three 360-frame combat windows; 730-744 fixed steps.
+- Transform propagation: 34.1-34.6% of all sampled CPU. Disassembly places
+  23.8-24.1% in a worker queue's atomic-lock retry loop, not transform math.
+- Physics broad phase: 11.0-11.5%; mesh extraction/collection: 10.5-11.0%.
+- These inclusive all-thread CPU shares overlap. They are not wall-time
+  budgets or predicted FPS gains. The profiling build inherits dev, not release.
+- The user then approved a temporary 4/8-worker experiment against the
+  16-worker reference. Its completed results are below and in `WORKERS.md`.
+- All owned builds and sampling runs finished. Raw profiles, symbols, scripts,
+  and graphs remain outside Git under
+  `/tmp/nova-perf-20260913/samply-24cedcf99/` and are not durable.
+- Restoring the original sysctls with `sudo -n` was blocked by its password
+  requirement. Values remain 1 and 16384. User action is still needed:
+  `sudo sysctl -w kernel.perf_event_paranoid=2 kernel.perf_event_mlock_kb=516`.
+
+## Worker-cap result
+
+The approved matrix is complete: nine Samply profiles and thirty clean release
+captures, plus six separate correctness runs. See `WORKERS.md`.
+
+- Eight is the fastest tested compute count on this i9-12900F / RTX 3060 Ti.
+- Stock 16 -> 8: mean 18.6946 -> 13.4105 ms (-28.3%), median
+  17.0669 -> 13.6151 ms (-20.2%), p99 41.1763 -> 27.3947 ms (-33.5%).
+- Ceiling 16 -> 8: mean 19.0118 -> 13.1782 ms (-30.7%). The gain remains
+  without catch-up bursts. Zero-step frames and workload differences remain.
+- All six release sets admit 5/5. Mean and p99 ranges for either smaller cap
+  do not overlap the 16-worker reference. No refresh-cap suspicion or refusal.
+- Eight reduces median sampled lock-spin CPU per frame by 81.8%. Four uses
+  still less CPU, but eight has better clean release mean frame time.
+- Eight-ship drafts match; nominal 15-second shot totals remain comparable.
+  This is not exact fixed-tick/live-population control or a new v0.13.2 set.
+- At 16 and 8 workers, `wfc_arena`, `stress_bullets`, and
+  `stress_point_defense` correctness checks pass with zero invariant violations.
+  An eight-worker combat image and the generated report were inspected.
+- Temporary source changes were removed byte-for-byte before captures.
+  The improved binaries remain scratch experiments, not the shipping default.
+- The user approved release stress controls for the eight-worker candidate.
+  Their completed results are below and in `STRESS.md`. No default changed.
+  Task stays OPEN; profiling sysctl restoration still needs the user's sudo.
+
+## Release stress controls
+
+Forty release captures compare default 16 versus eight compute workers in
+saturated `stress_bullets` and `stress_point_defense`, with five repeats per
+arm in stock and fixed-step-ceiling modes. See `STRESS.md` for fixture
+controls, spreads, counts, limitations, and reproduction.
+
+| Stock fixture | 16-worker mean | 8-worker mean | Change |
+|---|---:|---:|---:|
+| Bullets | 3.0000 ms | 2.5130 ms | -16.2% |
+| Point defense | 14.8148 ms | 7.4145 ms | -50.0% |
+
+- Ceiling mean gains remain: -19.5% for bullets, -55.1% for point defense.
+- All eight sets admit 5/5. Mean and p99 ranges do not overlap between arms.
+  No refresh-cap suspicion, capture refusal, or ERROR line occurred.
+- Bullet captures hold firing at saturation, with cached live-count liveness
+  at 1,000 rounds. All reach a peak of 1,616. PD saturation-period means
+  remain about 2,034-2,064 rounds and 103-108 live torpedoes across both arms.
+- Fixed-step totals and whole-period collider peaks differ. This is not
+  exact fixed-tick or wreck-population control. Wreck-specific counts were
+  not collected; an interim attribution to wrecks was corrected.
+- Four separate release correctness runs report OK with zero invariant
+  violations. Both fixtures drain ordnance and complete clean teardown.
+  Two visual-only images and the generated timing report were inspected.
+- Temporary core and fixture changes were removed byte-for-byte before
+  capture. Only preserved experimental binaries use the cap and census.
+- Potential improvement only: set `compute.max_threads = 8` in
+  `AppBuilder`'s task-pool options. The user requested recording this candidate
+  and will run further tests before deciding. Keep the current default;
+  implementation and further agent-run experiments need new approval.
+  Smaller allocations would stay smaller, but other CPUs, larger guided-
+  torpedo stress, and headless throughput remain unverified. A transform-only
+  engine change remains the alternative.
+- No shipping change, new commit, new Samply samples, full workspace tests,
+  or Clippy. Owned processes finished; privileged sysctl cleanup is blocked.
+
 ## Required investigation
 
 1. Reproduce the v0.13.2 versus HEAD result with matched five-repeat release
@@ -192,3 +279,27 @@ attribution, and restoration near the release baseline remain open.
   appearance.
 - Update affected performance documentation and the changelog if the shipped
   behavior or user-visible performance changes.
+
+## In-loop propagation experiment, rejected
+
+The user approved building the review's Finding 3. It was built, proven
+correct, measured, and REVERTED. See `PROPAGATION-PASSES.md`.
+
+- Avian runs a second full-hierarchy propagation per fixed step, behind a
+  dependency default Nova never set. Removing it is mechanically sound:
+  `propagate_parent_transforms` drops 2.039 -> 1.004 calls per frame, and
+  the 1.303 ms pass is replaced by a 0.004 ms root-body sync.
+- The frame does not move. B against A at 16 workers: mean -1.89% with
+  overlapping ranges; one-fixed-step bucket -6.77%, p approx 0.095.
+- `RunFixedMainLoop` falls 7.2% per step while `PostUpdate` RISES 12.8% per
+  frame in 24 of 25 pairs. The fixed-loop pass was pre-cleaning trees for
+  `PostUpdate`. The work is shifted, not removed.
+- The worker cap is NOT made redundant: changed at 8 workers beats changed
+  at 16 by 33.62% mean and 17.18% on the bucket, all ranges disjoint.
+- Correctness was clean throughout and is not the reason for rejection.
+- Working tree restored; `cargo check` passes. Code kept outside Git at
+  `/tmp/nova-bodytx-20260913/rejected-change/`.
+
+This removes "too many propagation passes" as an explanation and leaves the
+cost PER pass - the queue spin - as the contention mechanism. Nova cannot
+quiet that from its own side while ships move.
