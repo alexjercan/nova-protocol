@@ -1,6 +1,6 @@
 # Lifecycle defects: reloads, refused scenarios, failed assets and overlays
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.14.0, bug, menu, scenario, review
 
@@ -330,3 +330,25 @@ At minimum:
 - The affected ranges pass in the `ui` shard three consecutive times.
 - Affected unit/integration checks, docs builds and rendered output inspection
   pass.
+
+## Closed 2026-09-14
+
+Every defect group, invariant and proof range above is complete and in tree:
+`058ce6386` (direct content restart, status-bar ownership, one-shot boot),
+`cd030dd4f` (optional-mod quarantine and fatal base report), `e46818bb1`
+(refused-scenario teardown), `81ac6ff1c` (outcome/pause/focus arbitration),
+`457852b20` (menu ambience fallback), `57e4a162f` (command shell and modal
+layer table), `fb82bdbee` (responsive Settings, window constraints,
+borderless default).
+
+The one unchecked box is not this task's work. `probe run ui` needs the `ui`
+shard spec, which `20260909-213100` still owns and has not created. The seven
+ranges were run directly three times each on the final source instead, all
+OK, recorded in the Proof runs table above. The shard obligation is now
+listed in `20260909-213100`.
+
+Re-verified at HEAD `9cad95b5e`:
+
+- PASS `nix develop --command cargo test -p nova_probe_cli --test catalog_drift`
+  (`catalog_matches_disk`, `systems_ranges_assert_their_invariant_roster`).
+- All seven range files present under `examples/systems/`.

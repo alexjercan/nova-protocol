@@ -80,3 +80,17 @@ lock outliving the dropped App, or the path reused) and pin it.
 
 Cheapening the release `dist` profile or the check job's test split; those
 change the shipped binary or the test contract.
+
+## Ranges waiting on this split
+
+`20260909-214629` closed on 2026-09-14 with one item it could not run: its
+seven ranges have no `ui` shard to run in. They were run directly three times
+each instead. When the `ui` shard lands, it must carry them and they must be
+green three times in a row in it:
+
+`system_session_loop`, `bug_failed_assets`, `bug_refused_scenario`,
+`bug_outcome_pause`, `bug_menu_fallback`, `system_command_shell`,
+`system_pause_settings`.
+
+`20260909-213441` adds `system_scenario_picker` (renamed from
+`bug_menu_picker`) and `system_settings_persist` to the same shard.
