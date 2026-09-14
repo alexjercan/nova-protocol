@@ -13,7 +13,7 @@
 //!
 //! A warhead is not short of that cue. Its own fireball covers the frames in
 //! which the geometry changes, and the crater it opens is permanent evidence
-//! afterwards, so grey cubes on top of the fire add nothing and read as litter.
+//! afterwards, so grey chips on top of the fire add nothing and read as litter.
 //! Nor does a big hit become feedback-less: a warhead that SEVERS a body throws
 //! real severed geometry, meshed off the carve field in the body's own
 //! material, which is a different effect with a different meaning
@@ -21,7 +21,7 @@
 //!
 //! Engine units throughout: chip sizes, crater radii and throw speeds are
 //! world units (one is 10 m) and world units per second, because they are
-//! measured against carve-field geometry and avian velocities.
+//! measured against carve-field geometry.
 //!
 //! # Dust, and only dust
 //!
@@ -40,21 +40,38 @@
 //! mod that wants a puff, sparks, or no debris at all replaces this observer
 //! rather than patching the carve.
 //!
+//! # A chip is a particle, not an entity
+//!
+//! Chips are `bevy_hanabi` particles, and the game is the same without them.
+//! They were once kinematic bodies - a cube mesh, a velocity and a 2.5 s timer
+//! each - and a busy 4v4 held eight thousand of them at a time, nine in every
+//! ten rigid bodies in the world. Every one was a solver body avian integrated
+//! per substep, a candidate every ship's sensor sweep walked every frame, a
+//! mesh instance the renderer extracted and specialised, and a despawn. That
+//! was most of the frame the wider firing cone cost.
+//!
+//! Now a carve AIMS an emitter and the GPU does the rest: the cone, the speed,
+//! the tumble, the cooling and the end of life are all in the effect graph,
+//! and no CPU-side entity stands for a chip. Three things are traded for that.
+//! Particles are unlit, so the cold colours are authored at the value a lit
+//! plate reads at rather than as an albedo. The spray is GPU random rather
+//! than hashed off the crater, so two runs of one fight throw different chips.
+//! And a range counts what was THROWN ([`CarveShardTally`]) rather than what is
+//! in flight, because the flight is on the GPU.
+//!
 //! # What one FRAME may throw
 //!
-//! One carve's worth of chips is never the problem: seven cubes off a crater is
+//! One carve's worth of chips is never the problem: seven chips off a crater is
 //! what a hit looks like. A capital hull opening is a different event - a siege
 //! lance rakes a corridor and hundreds of craters announce themselves in ONE
-//! command flush, each asking for its clamped maximum, and the frame that has
-//! to create them pays for every one at once and then carries them for
-//! [`SHARD_LIFETIME_SECS`].
+//! command flush, each asking for its clamped maximum.
 //!
-//! So the ceiling is on the frame and not on the carve
-//! ([`SHARDS_PER_FRAME`]). Under it nothing is touched, which is every hit in
-//! an ordinary firefight; over it the craters that arrive late in the frame go
-//! unchipped. That is the right thing to drop: a frame over the budget is one
-//! in which hundreds of craters opened together, it is already throwing real
-//! severed geometry, and nobody can count chips in it.
+//! An emitter is aimed at ONE crater a frame, so the ceiling is the pool: a
+//! material has at most [`SHARD_EMITTERS`] emitters, grown on demand and kept,
+//! and the craters that arrive after every one of them has fired this frame go
+//! unchipped. That is the right thing to drop: a frame over the pool is one in
+//! which dozens of craters opened together, it is already throwing real severed
+//! geometry, and nobody can count chips in it.
 //!
 //! # The body says what it is made of
 //!
@@ -72,30 +89,24 @@
 //! Metal is also HOT. A chip is cut, not picked up, so it leaves near-white and
 //! cools to gunmetal in under a second - which is the difference between debris
 //! and litter, and what the cold grey cube got wrong.
-//!
-//! # Why shards are not physical debris
-//!
-//! Shards are `Kinematic` and carry NO collider, exactly as damage sparks do,
-//! and for a stronger reason. They are born INSIDE the body they came off - a
-//! crater's shards start in the hull's own collider - so a dynamic body with a
-//! collider would spawn interpenetrating and the solver would resolve that by
-//! shoving the two apart. A ship would kick itself sideways every time it was
-//! shot, which is a physics bug wearing a costume.
-//!
-//! A chunk has the same problem and solves it differently: it starts kinematic
-//! and grows its collider once it has drifted clear. It can afford to, because
-//! it is meant to still be there when it lands.
 
-use avian3d::prelude::{AngularVelocity, LinearVelocity, RigidBody};
+use std::f32::consts::TAU;
+
 use bevy::{platform::collections::HashMap, prelude::*};
+use bevy_hanabi::prelude::*;
 
 use super::carve::prelude::CarveSpew;
-use crate::{damage::prelude::DamageType, prelude::TempEntity};
+use crate::{
+    damage::prelude::DamageType,
+    settings::prelude::{GraphicsBudget, SettingsSystems},
+};
 
-/// `CarveDebris`, `CarveShardMarker`, `CarveSpewPlugin` and the walk that
-/// reads a body's material.
+/// `CarveDebris`, `CarveShardEmitterMarker`, `CarveShardTally`,
+/// `CarveSpewPlugin` and the walk that reads a body's material.
 pub mod prelude {
-    pub use super::{inherited_material, CarveDebris, CarveShardMarker, CarveSpewPlugin};
+    pub use super::{
+        inherited_material, CarveDebris, CarveShardEmitterMarker, CarveShardTally, CarveSpewPlugin,
+    };
 }
 
 /// What a body is MADE OF, read off the body a carve took material from.
@@ -125,6 +136,9 @@ pub enum CarveDebris {
 }
 
 impl CarveDebris {
+    /// Every material, in the order the warm-up mints them.
+    const ALL: [Self; 2] = [Self::Metal, Self::Rock];
+
     /// How this material spalls, given the weapon class's baseline look.
     fn shape(self, look: ShardLook) -> ShardLook {
         match self {
@@ -145,6 +159,15 @@ impl CarveDebris {
             // Grit off a rock carries less of the round's energy than a cut
             // piece of plate does, and it is what makes rock read as heavy.
             Self::Rock => 0.55,
+        }
+    }
+
+    /// The stem of the effect's name, which is also what a `bevy_hanabi=debug`
+    /// log prints when its shader is minted.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Metal => "metal",
+            Self::Rock => "rock",
         }
     }
 }
@@ -200,9 +223,9 @@ struct ShardLook {
     /// `[0.25, 2.0]`, so its crater runs 0.39 to 0.78 units; the pierce PDC pays
     /// a flat 2 and cuts 0.49. At the fifth of a crater the old rule took, that
     /// whole band is 0.09 to 0.17 units of chip - under a factor of two, on a
-    /// cube thrown at 2 to 6.5 u/s and gone in 2.5 seconds. Nothing reads that
+    /// chip thrown at 2 to 6.5 u/s and gone in 2.5 seconds. Nothing reads that
     /// difference, and the curve's other end did real harm: a ram or a scripted
-    /// mega-hit carves several units, and a fifth of that is a cube the size of
+    /// mega-hit carves several units, and a fifth of that is a chip the size of
     /// the sections it just hit, which is why a ceiling had to be bolted on. A
     /// constant IS the ceiling.
     size: f32,
@@ -281,79 +304,19 @@ const SPEW_SPEED_MAX: f32 = 6.5;
 /// pushed it, and a full dome reads as an explosion.
 const SPEW_CONE: f32 = 0.9;
 
-/// How fast a shard tumbles, in radians per second.
+/// How fast a shard tumbles, in radians per second. On a camera-facing quad
+/// that is a spin in the picture plane, which is what a tumbling chip reads as
+/// from any distance a chip is seen at.
 const SPEW_SPIN: f32 = 7.0;
 
 /// How long a shard lives. Long enough to be seen leaving and to sell the
 /// direction, short enough that a long fight leaves no litter.
 const SHARD_LIFETIME_SECS: f32 = 2.5;
 
-/// The most chips any ONE frame may create, however many craters opened in it.
-///
-/// Clear of what a firefight throws and well under what a collapse asks for.
-/// The widest single carve in the catalog is rock at its ceiling, twelve chips,
-/// so eight simultaneous craters of the worst kind still throw everything they
-/// would have; a capital hull raked by a siege lance opens craters in the
-/// thousands over one collapse and asked for some 10 000 chips before this
-/// existed.
-const SHARDS_PER_FRAME: usize = 128;
-
-/// What is left of this frame's chip allowance.
-///
-/// A FRAME and not a fixed step: several fixed steps can flush into one frame,
-/// and it is the frame that has to create the entities and draw them.
-#[derive(Resource)]
-struct ShardBudget {
-    left: usize,
-}
-
-impl Default for ShardBudget {
-    fn default() -> Self {
-        Self {
-            left: SHARDS_PER_FRAME,
-        }
-    }
-}
-
-/// Hand the frame its chip allowance back.
-///
-/// In `First`, so a carve announced from `FixedUpdate` draws on the same
-/// allowance as one announced from `Update`.
-fn open_the_shard_budget(mut budget: ResMut<ShardBudget>) {
-    budget.left = SHARDS_PER_FRAME;
-}
-
-/// Marks a shard thrown by a carve, so a range can count them.
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct CarveShardMarker;
-
-/// The one mesh and one material every shard is drawn with.
-///
-/// Built once and shared, for the reason the spark assets are: a firefight
-/// carves several craters a second across a formation, and minting a mesh and
-/// material per shard would pile up assets for the rest of the scenario, none
-/// of them ever freed. Shards vary by SCALE on their transform instead.
-///
-/// Built on the FIRST CARVE rather than at plugin build, and that is not
-/// laziness for its own sake: this plugin ships inside `NovaIntegrityPlugin`,
-/// which a headless test app adds without any asset stores at all, and an
-/// `init_resource` here would panic every one of them before a single carve
-/// happened.
-struct ShardAssets {
-    mesh: Handle<Mesh>,
-    /// The cooling ramp, hottest first. One entry means a material that never
-    /// glowed and so never cools.
-    ramp: Vec<Handle<StandardMaterial>>,
-}
-
-/// The shard assets for every material seen so far, minted on first use.
-///
-/// A MAP and not a pair of fields, so a third material is one arm in
-/// [`shard_assets`] rather than an edit here as well - the same shape
-/// `DefaultTorpedoRender` uses to key warhead materials by tint.
-#[derive(Resource, Default)]
-struct DebrisLooks(HashMap<CarveDebris, ShardAssets>);
+/// The last part of a chip's life over which it shrinks away, as a fraction
+/// of [`SHARD_LIFETIME_SECS`]. A chip that stops existing between two frames
+/// pops; one that draws in to nothing has left.
+const SHARD_FADE: f32 = 0.2;
 
 /// Seconds a hot chip takes to reach the cold end of its ramp.
 ///
@@ -362,151 +325,388 @@ struct DebrisLooks(HashMap<CarveDebris, ShardAssets>);
 /// firefly instead.
 const SHARD_COOL_SECS: f32 = 0.8;
 
-/// How many materials the cooling ramp is cut into.
+/// How many keys the cooling ramp is cut into.
 ///
-/// Discrete because the material is SHARED - a per-shard material would mint an
-/// asset per chip and never free it - so cooling is a swap between a handful of
-/// shared handles rather than a value animated per entity. Five is where the
-/// steps stop being visible as pops at [`SHARD_COOL_SECS`].
-const SHARD_COOL_STEPS: usize = 5;
+/// The ramp is a piecewise-linear gradient over the chip's age, and five keys
+/// is where the straight lines between them stop showing against the square
+/// law they approximate.
+const SHARD_COOL_KEYS: usize = 5;
 
-/// How hot a chip is at the instant it is cut. Well past 1.0 so it blooms.
-const SHARD_HOT_EMISSIVE: LinearRgba = LinearRgba::new(7.0, 3.2, 0.9, 1.0);
+/// How hot a chip is at the instant it is cut, ADDED to the cold colour. Well
+/// past 1.0 so it blooms. Zero alpha, so adding it leaves the chip opaque.
+const SHARD_HOT: Vec4 = Vec4::new(7.0, 3.2, 0.9, 0.0);
 
-/// Mint the shared shard assets for one material.
-fn shard_assets(
-    debris: CarveDebris,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-) -> ShardAssets {
-    // A unit cube, scaled per shard. Not a sphere: a chip off a hull is flat
-    // and angular, and the flat-shaded look the rest of the game is built on
-    // has no way to draw a small sphere that does not read as a ball bearing.
-    let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+/// Gunmetal, as the sun lights it. Particles are unlit, so this is the value a
+/// lit plate READS at - a mid grey, faintly blue - and not the albedo the old
+/// material carried, which unlit was a black chip on black space.
+const METAL_COLD: Vec4 = Vec4::new(0.30, 0.30, 0.34, 1.0);
 
-    let ramp = match debris {
-        CarveDebris::Metal => (0..SHARD_COOL_STEPS)
-            .map(|step| {
-                // Squared, so most of the glow is gone in the first step or
-                // two: metal loses heat fastest when it is hottest, and a
-                // linear ramp reads as a chip being dimmed by a knob.
-                let remaining = 1.0 - step as f32 / (SHARD_COOL_STEPS - 1) as f32;
-                let heat = remaining * remaining;
-                materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.30, 0.30, 0.33),
-                    // Channel by channel, and NOT `SHARD_HOT_EMISSIVE * heat`:
-                    // scaling the whole colour scales its alpha too, and the
-                    // cold end of the ramp would be a transparent black rather
-                    // than the ordinary opaque black a material that emits
-                    // nothing carries.
-                    emissive: LinearRgba::new(
-                        SHARD_HOT_EMISSIVE.red * heat,
-                        SHARD_HOT_EMISSIVE.green * heat,
-                        SHARD_HOT_EMISSIVE.blue * heat,
-                        1.0,
-                    ),
-                    perceptual_roughness: 0.9,
-                    metallic: 0.3,
-                    ..default()
-                })
-            })
-            .collect(),
-        CarveDebris::Rock => vec![materials.add(StandardMaterial {
-            base_color: Color::srgb(0.34, 0.29, 0.25),
-            perceptual_roughness: 1.0,
-            metallic: 0.0,
-            ..default()
-        })],
-    };
+/// Rock, on the same terms: the lit value of the asteroid's own brown.
+const ROCK_COLD: Vec4 = Vec4::new(0.24, 0.19, 0.15, 1.0);
 
-    ShardAssets { mesh, ramp }
+/// The most emitters one material keeps, which is the most craters of that
+/// material one FRAME chips.
+///
+/// Clear of what a firefight opens and well under what a collapse asks for. A
+/// hot 4v4 opens some twenty craters a frame at its peak; a capital hull raked
+/// by a siege lance opens them in the thousands over one collapse. The pool is
+/// grown to what the busiest frame so far needed and kept, so a quiet run
+/// never mints most of these.
+const SHARD_EMITTERS: usize = 64;
+
+/// How many emitters a material is warmed WITH, before any crater opens.
+///
+/// More than one, and not for the shader: minting the shader takes one. A lone
+/// gun plinking one rock hits it about once a frame, and one emitter re-aimed
+/// every frame holds a whole lifetime of bursts in its own buffer - so the
+/// first bursts rotate through a few emitters instead of piling into one.
+const SHARD_EMITTER_FLOOR: usize = 4;
+
+/// The buffer each emitter's chips live in.
+///
+/// An emitter is re-aimed as often as the pool rotates back to it, and every
+/// burst it has thrown in the last [`SHARD_LIFETIME_SECS`] is still in this
+/// buffer. At 60 frames a second a single emitter fired every frame holds 150
+/// bursts; at the seven chips of a metal ceiling that is 1050, and a rock's
+/// twelve is 1800. Over the floor the rotation divides that by
+/// [`SHARD_EMITTER_FLOOR`]. A burst that finds the buffer full is clipped
+/// rather than refused, which on a lone rock at a very high frame rate is a
+/// few grit particles fewer.
+const SHARD_CAPACITY: u32 = 1024;
+
+/// The names the per-crater values are written under, in both graphs.
+///
+/// `bevy_hanabi` adds only the emitter's TRANSLATION to a global-space
+/// particle, never its rotation, so the cone's basis is handed to the graph
+/// as three vectors rather than as the emitter's orientation.
+const OUTWARD_PROPERTY: &str = "outward";
+const RIGHT_PROPERTY: &str = "right";
+const UP_PROPERTY: &str = "up";
+/// How far off the crater's centre a chip starts, world units: its lip.
+const LIP_PROPERTY: &str = "lip";
+/// How big a chip is, world units. Per crater and not per graph, so the class
+/// table stays the one place a chip's size is authored.
+const CHIP_PROPERTY: &str = "chip";
+
+/// How many chips carves have asked the GPU for, over the whole run.
+///
+/// The count a range reads, because the chips themselves are on the GPU and
+/// nothing on the CPU stands for one. Cumulative, so a probe takes a mark and
+/// reads the difference; a frame's own share is that difference across one
+/// update.
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CarveShardTally {
+    /// Chips thrown so far. A carve the pool refused adds nothing.
+    pub thrown: u64,
 }
 
-/// A chip still losing its cutting heat. Absent on a material that never
-/// glowed, so [`cool_carve_shards`] does no work for rock.
-#[derive(Component, Clone, Copy, Debug)]
-struct ShardCooling {
-    debris: CarveDebris,
-    age: f32,
-    step: usize,
+/// Marks one of the pooled emitters carves are aimed through, so a range can
+/// count the pool. NOT a chip: chips are particles and have no entity.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct CarveShardEmitterMarker;
+
+/// One material's emitters, and where the rotation through them stands.
+struct ShardPool {
+    /// The graph every emitter in this pool instances.
+    effect: Handle<EffectAsset>,
+    /// The emitters, in the order they were minted. Grown by a carve that
+    /// finds every one of them fired this frame, up to [`SHARD_EMITTERS`], and
+    /// never shrunk.
+    emitters: Vec<Entity>,
+    /// The next emitter to aim. A ROTATION rather than a scan from the front,
+    /// so consecutive frames spread their bursts across the pool instead of
+    /// re-aiming the first emitter every frame and filling its buffer alone.
+    next: usize,
+    /// How many emitters this FRAME has fired. Reset in `First`.
+    fired: usize,
 }
 
-/// Walk every hot chip down its ramp, swapping to the next shared material as
-/// it cools.
-fn cool_carve_shards(
-    time: Res<Time>,
-    looks: Res<DebrisLooks>,
-    mut q_shard: Query<(&mut ShardCooling, &mut MeshMaterial3d<StandardMaterial>)>,
+/// The pool for every material, minted on first use.
+///
+/// A MAP and not a pair of fields, so a third material is one arm in
+/// [`build_shard_effect`] rather than an edit here as well - the same shape
+/// `DefaultTorpedoRender` uses to key warhead materials by tint.
+///
+/// Warmed by [`warm_the_shards`] rather than built by [`FromWorld`], so an app
+/// with no asset store and one running at a graphics tier with particles off
+/// still build nothing.
+#[derive(Resource, Default)]
+struct DebrisLooks(HashMap<CarveDebris, ShardPool>);
+
+impl DebrisLooks {
+    /// The pool for `debris`, building its graph on the first call.
+    fn pool(&mut self, debris: CarveDebris, effects: &mut Assets<EffectAsset>) -> &mut ShardPool {
+        self.0.entry(debris).or_insert_with(|| ShardPool {
+            effect: effects.add(build_shard_effect(debris)),
+            emitters: Vec::new(),
+            next: 0,
+            fired: 0,
+        })
+    }
+}
+
+/// Hand every pool its emitters back.
+///
+/// In `First`, so a carve announced from `FixedUpdate` draws on the same
+/// allowance as one announced from `Update`, and a FRAME rather than a fixed
+/// step because `bevy_hanabi` samples an emitter once a frame: two bursts
+/// aimed through one emitter in one frame are one burst, the second.
+fn open_the_emitter_budget(mut looks: ResMut<DebrisLooks>) {
+    for pool in looks.0.values_mut() {
+        pool.fired = 0;
+    }
+}
+
+/// The cooling ramp, over a chip's normalised age.
+///
+/// Metal starts at [`SHARD_HOT`] over its cold colour and is cold by
+/// [`SHARD_COOL_SECS`], squared so most of the glow is gone in the first step
+/// or two: metal loses heat fastest when it is hottest, and a linear ramp
+/// reads as a chip being dimmed by a knob. Rock is one colour from birth: it
+/// never glowed.
+fn shard_gradient(debris: CarveDebris) -> bevy_hanabi::Gradient<Vec4> {
+    let mut gradient = bevy_hanabi::Gradient::new();
+    match debris {
+        CarveDebris::Metal => {
+            let cool = SHARD_COOL_SECS / SHARD_LIFETIME_SECS;
+            for key in 0..SHARD_COOL_KEYS {
+                let t = key as f32 / (SHARD_COOL_KEYS - 1) as f32;
+                let heat = (1.0 - t) * (1.0 - t);
+                gradient.add_key(cool * t, METAL_COLD + SHARD_HOT * heat);
+            }
+            gradient.add_key(1.0, METAL_COLD);
+        }
+        CarveDebris::Rock => {
+            gradient.add_key(0.0, ROCK_COLD);
+            gradient.add_key(1.0, ROCK_COLD);
+        }
+    }
+    gradient
+}
+
+/// The idle spawner every emitter is minted with: a single burst, held until
+/// a carve resets it. Its count is overwritten per crater.
+fn idle_spawner() -> SpawnerSettings {
+    SpawnerSettings::once(1.0.into()).with_emit_on_start(false)
+}
+
+/// One material's graph.
+///
+/// Everything the old per-shard entity carried is here: the crater's outward
+/// cone, the speed band, the lip a chip starts on, the tumble, the lifetime,
+/// the cooling. The values that change per crater arrive as properties, the
+/// ones that describe the material are literals. Global space, so a chip is
+/// detached from its emitter the instant it is thrown and the emitter can be
+/// aimed at the next crater while it flies.
+fn build_shard_effect(debris: CarveDebris) -> EffectAsset {
+    let writer = ExprWriter::new();
+
+    let outward = writer.prop(writer.add_property(OUTWARD_PROPERTY, Vec3::Y.into()));
+    let right = writer.prop(writer.add_property(RIGHT_PROPERTY, Vec3::X.into()));
+    let up = writer.prop(writer.add_property(UP_PROPERTY, Vec3::Z.into()));
+    let lip = writer.prop(writer.add_property(LIP_PROPERTY, 0.0f32.into()));
+    let chip = writer.add_property(CHIP_PROPERTY, KINETIC_SHARDS.size.into());
+
+    // Three independent draws: the turn about the outward axis, how far off
+    // it to lean, and how hard to throw. The same cone the CPU used to hash
+    // off the crater, in the GPU's random.
+    let turn = writer.rand(ScalarType::Float) * writer.lit(TAU);
+    let lean = writer.rand(ScalarType::Float) * writer.lit(SPEW_CONE);
+    let sideways = (right * turn.clone().cos() + up * turn.sin()) * lean.clone().sin();
+    let direction = outward * lean.cos() + sideways;
+    let speed = writer
+        .lit(SPEW_SPEED_MIN * debris.speed_scale())
+        .uniform(writer.lit(SPEW_SPEED_MAX * debris.speed_scale()));
+
+    // Started at the crater's LIP rather than its centre, so a chip is not
+    // drawn inside the material it supposedly just left.
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, (direction.clone() * lip).expr());
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, (direction * speed).expr());
+    let init_age = SetAttributeModifier::new(Attribute::AGE, writer.lit(0.).expr());
+    let init_lifetime =
+        SetAttributeModifier::new(Attribute::LIFETIME, writer.lit(SHARD_LIFETIME_SECS).expr());
+    let init_color = SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
+    // Which way round the chip starts, so a burst is not seven aligned squares.
+    let init_facing = SetAttributeModifier::new(
+        Attribute::F32_0,
+        (writer.rand(ScalarType::Float) * writer.lit(TAU)).expr(),
+    );
+
+    // One size for the whole flight, drawn in over the last fifth of it.
+    let age = writer.attr(Attribute::AGE) / writer.attr(Attribute::LIFETIME);
+    let remaining = ((writer.lit(1.0) - age) * writer.lit(1.0 / SHARD_FADE)).saturate();
+    let update_size =
+        SetAttributeModifier::new(Attribute::SIZE, (writer.prop(chip) * remaining).expr());
+
+    let spin = (writer.attr(Attribute::F32_0)
+        + writer.attr(Attribute::AGE) * writer.lit(SPEW_SPIN))
+    .expr();
+
+    EffectAsset::new(SHARD_CAPACITY, idle_spawner(), writer.finish())
+        .with_name(format!("carve_shards_{}", debris.name()))
+        .with_simulation_space(SimulationSpace::Global)
+        // Solid. A chip is a piece of something, and an opaque quad depth-tests
+        // against the hull it left instead of blending over it.
+        .with_alpha_mode(bevy_hanabi::AlphaMode::Opaque)
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        .init(init_color)
+        .init(init_facing)
+        .update(update_size)
+        .render(OrientModifier::new(OrientMode::ParallelCameraDepthPlane).with_rotation(spin))
+        .render(ColorOverLifetimeModifier {
+            gradient: shard_gradient(debris),
+            blend: ColorBlendMode::default(),
+            mask: ColorBlendMask::default(),
+        })
+}
+
+/// One crater's burst, as the emitter is aimed at it.
+#[derive(Clone, Copy, Debug)]
+struct Burst {
+    /// The crater's centre, world space.
+    at: Vec3,
+    /// OUT of the body the crater is in.
+    outward: Vec3,
+    /// The crater's lip: how far from `at` a chip starts.
+    lip: f32,
+    /// How big a chip is.
+    chip: f32,
+    /// How many chips.
+    count: usize,
+}
+
+impl Burst {
+    /// Aim an emitter at this crater and arm it. The burst leaves on the
+    /// frame's spawner tick.
+    fn aim(
+        &self,
+        transform: &mut Transform,
+        properties: &mut EffectProperties,
+        spawner: &mut EffectSpawner,
+    ) {
+        transform.translation = self.at;
+        // Any axis not parallel to `outward` builds the basis;
+        // `any_orthonormal_pair` picks one without a degenerate case to guard.
+        let (right, up) = self.outward.any_orthonormal_pair();
+        properties.set(OUTWARD_PROPERTY, self.outward.into());
+        properties.set(RIGHT_PROPERTY, right.into());
+        properties.set(UP_PROPERTY, up.into());
+        properties.set(LIP_PROPERTY, self.lip.into());
+        properties.set(CHIP_PROPERTY, self.chip.into());
+        spawner.settings.set_count((self.count as f32).into());
+        spawner.reset();
+    }
+
+    /// A fresh emitter, already aimed here.
+    fn emitter(&self, effect: Handle<EffectAsset>) -> impl Bundle {
+        let mut transform = Transform::IDENTITY;
+        let mut properties = EffectProperties::default();
+        let mut spawner = EffectSpawner::new(&idle_spawner());
+        self.aim(&mut transform, &mut properties, &mut spawner);
+        (
+            Name::new("Carve Shard Emitter"),
+            CarveShardEmitterMarker,
+            ParticleEffect::new(effect),
+            transform,
+            properties,
+            spawner,
+        )
+    }
+}
+
+/// A fresh emitter aimed at nothing, for the warm-up.
+fn idle_emitter(effect: Handle<EffectAsset>) -> impl Bundle {
+    (
+        Name::new("Carve Shard Emitter"),
+        CarveShardEmitterMarker,
+        ParticleEffect::new(effect),
+        EffectProperties::default(),
+        EffectSpawner::new(&idle_spawner()),
+    )
+}
+
+/// The asset store a chip needs, or nothing at all.
+///
+/// Two refusals with one answer, because they have the same consequence. A
+/// world with no effect store has nothing to build a graph in and nothing that
+/// could see the result: a headless server, or a test app that added the
+/// integrity plugin for its health pipeline alone. A tier with particles off is
+/// the spawn-less low-end mode, which is a policy rather than a limitation. An
+/// ABSENT budget is a settings-less app, which means full quality. Carving
+/// still happens in all three, it just goes unseen. The same gate
+/// [`pyre`](super::pyre) keeps for its fireballs.
+fn drawable<'w>(
+    tier: Option<Res<GraphicsBudget>>,
+    effects: Option<ResMut<'w, Assets<EffectAsset>>>,
+) -> Option<ResMut<'w, Assets<EffectAsset>>> {
+    if !tier.as_deref().is_none_or(|tier| tier.particles) {
+        return None;
+    }
+    effects
+}
+
+/// Mint the graphs, the shaders AND the first emitters before any crater opens.
+///
+/// The graphs are not the expensive half. `bevy_hanabi` generates a WGSL
+/// source from a `CompiledParticleEffect`, and only for spawned INSTANCES, so
+/// without this the first bullet of the first fight would mint its shader
+/// inside the frame the hit lands in. [`pyre`](super::pyre) measured that
+/// shape on its fireballs.
+///
+/// Unlike the pyre's, these instances are not throwaways: they are the first
+/// [`SHARD_EMITTER_FLOOR`] emitters of each pool, visible and idle, and the
+/// first carves are aimed through them. Visible, so the render pipeline is
+/// specialised here too - an emitter with nothing in flight draws nothing and
+/// costs one empty dispatch.
+///
+/// In `Update`, on the first frame that has all three of a cold pool
+/// ([`shards_are_cold`]), a tier that draws particles at all
+/// ([`the_tier_draws_particles`]) and a camera to render from
+/// ([`a_view_exists`]); the pyre states why the last two are conditions
+/// rather than preferences.
+fn warm_the_shards(
+    mut commands: Commands,
+    effects: Option<ResMut<Assets<EffectAsset>>>,
+    mut looks: ResMut<DebrisLooks>,
+    tier: Option<Res<GraphicsBudget>>,
 ) {
-    let delta = time.delta_secs();
-    for (mut cooling, mut material) in &mut q_shard {
-        cooling.age += delta;
-        let Some(assets) = looks.0.get(&cooling.debris) else {
-            continue;
-        };
-        let last = assets.ramp.len().saturating_sub(1);
-        if last == 0 {
-            continue;
-        }
-        let t = (cooling.age / SHARD_COOL_SECS).clamp(0.0, 1.0);
-        let step = shard_cool_step(t, assets.ramp.len());
-        if step != cooling.step {
-            cooling.step = step;
-            material.0 = assets.ramp[step].clone();
+    let Some(mut effects) = drawable(tier, effects) else {
+        return;
+    };
+    for debris in CarveDebris::ALL {
+        let pool = looks.pool(debris, &mut effects);
+        while pool.emitters.len() < SHARD_EMITTER_FLOOR {
+            let emitter = commands.spawn(idle_emitter(pool.effect.clone())).id();
+            pool.emitters.push(emitter);
         }
     }
 }
 
-/// Which ramp entry a chip `t` of the way through its cooling is on.
-///
-/// Pure, so the ramp can be read without a running app.
-fn shard_cool_step(t: f32, steps: usize) -> usize {
-    let last = steps.saturating_sub(1);
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "t is clamped to 0..=1, so the product is inside `last`"
-    )]
-    let step = (t.clamp(0.0, 1.0) * last as f32).round() as usize;
-    step.min(last)
+/// Whether any pool is still under its floor, which is the only state a
+/// re-warm has anything to do in.
+fn shards_are_cold(looks: Res<DebrisLooks>) -> bool {
+    CarveDebris::ALL.iter().any(|debris| {
+        looks
+            .0
+            .get(debris)
+            .is_none_or(|pool| pool.emitters.len() < SHARD_EMITTER_FLOOR)
+    })
 }
 
-/// Which way the `nth` shard off a crater at `at` is thrown.
-///
-/// DETERMINISTIC, like the spark spread and for the same reasons: the same
-/// fight throws the same debris twice, which is what a re-run capture and a
-/// replay both want, and it keeps this off the global RNG.
-///
-/// Spread in a cone about `outward` rather than over a sphere. Material knocked
-/// off a surface goes mostly the way the hit pushed it, and the outward
-/// direction is also the only one that does not fire shards back through the
-/// body they came off.
-fn shard_throw(outward: Vec3, at: Vec3, nth: usize) -> (Vec3, f32) {
-    let mut hash: u32 = 0x811c_9dc5;
-    for byte in
-        at.x.to_bits()
-            .to_le_bytes()
-            .iter()
-            .chain(at.y.to_bits().to_le_bytes().iter())
-            .chain(at.z.to_bits().to_le_bytes().iter())
-            .chain((nth as u32).to_le_bytes().iter())
-    {
-        hash ^= u32::from(*byte);
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
+/// Whether the budget in force draws particles at all. A settings-less app is
+/// full quality.
+fn the_tier_draws_particles(tier: Option<Res<GraphicsBudget>>) -> bool {
+    tier.as_deref().is_none_or(|tier| tier.particles)
+}
 
-    // Three independent fractions out of the one hash: the turn about the
-    // outward axis, how far off it to lean, and how hard to throw.
-    let turn = (hash >> 20) as f32 / 4096.0 * std::f32::consts::TAU;
-    let lean = ((hash >> 8) & 0xfff) as f32 / 4096.0 * SPEW_CONE;
-    let speed = SPEW_SPEED_MIN + (hash & 0xff) as f32 / 256.0 * (SPEW_SPEED_MAX - SPEW_SPEED_MIN);
-
-    // Any axis not parallel to `outward` builds the basis; `any_orthonormal_pair`
-    // picks one without a degenerate case to guard.
-    let (right, up) = outward.any_orthonormal_pair();
-    let direction = (outward * lean.cos() + (right * turn.cos() + up * turn.sin()) * lean.sin())
-        .normalize_or(outward);
-    (direction, speed)
+/// Whether there is a camera for the render world to build a view from. An
+/// inactive camera produces no view, so it does not count.
+fn a_view_exists(cameras: Query<&Camera>) -> bool {
+    cameras.iter().any(|camera| camera.is_active)
 }
 
 /// Throws the chips an impact knocked off.
@@ -516,37 +716,48 @@ impl Plugin for CarveSpewPlugin {
     fn build(&self, app: &mut App) {
         trace!("CarveSpewPlugin: build");
 
-        app.register_type::<CarveShardMarker>();
+        app.register_type::<CarveShardEmitterMarker>();
         app.register_type::<CarveDebris>();
         app.init_resource::<DebrisLooks>();
-        app.init_resource::<ShardBudget>();
+        app.init_resource::<CarveShardTally>();
         app.add_observer(spew_carved_material);
-        app.add_systems(First, open_the_shard_budget);
-        app.add_systems(Update, cool_carve_shards);
+        app.add_systems(First, open_the_emitter_budget);
+        app.add_systems(
+            Update,
+            warm_the_shards
+                .after(SettingsSystems)
+                .run_if(shards_are_cold)
+                .run_if(the_tier_draws_particles)
+                .run_if(a_view_exists),
+        );
     }
 }
 
+/// Aim the next free emitter at the crater.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer aiming a hanabi instance: the pool, the tally, the tier gate, the graph store and the queries that place it and say what it is made of"
+)]
 fn spew_carved_material(
     spew: On<CarveSpew>,
     mut commands: Commands,
     mut looks: ResMut<DebrisLooks>,
-    mut budget: ResMut<ShardBudget>,
-    meshes: Option<ResMut<Assets<Mesh>>>,
-    materials: Option<ResMut<Assets<StandardMaterial>>>,
+    mut tally: ResMut<CarveShardTally>,
+    tier: Option<Res<GraphicsBudget>>,
+    effects: Option<ResMut<Assets<EffectAsset>>>,
     q_body: Query<&GlobalTransform>,
     q_debris: Query<&CarveDebris>,
     q_parents: Query<&ChildOf>,
+    mut q_emitter: Query<
+        (&mut Transform, &mut EffectProperties, &mut EffectSpawner),
+        With<CarveShardEmitterMarker>,
+    >,
 ) {
     // The class decides first, so a warhead costs nothing at all here.
     let Some(look) = shard_look(spew.kind) else {
         return;
     };
-
-    // A world with no asset stores has nothing to draw with and nothing that
-    // could see the result: a headless server, or a test app that added the
-    // integrity plugin for its health pipeline alone. Carving still happens
-    // there, it just goes unseen.
-    let (Some(mut meshes), Some(mut materials)) = (meshes, materials) else {
+    let Some(mut effects) = drawable(tier, effects) else {
         return;
     };
 
@@ -561,73 +772,73 @@ fn spew_carved_material(
     // because a rock says so on its root and is carved on the node beneath it.
     let debris = inherited_material(spew.entity, &q_debris, &q_parents);
     let look = debris.shape(look);
+    let burst = Burst {
+        at: spew.at,
+        outward,
+        lip: spew.radius * 0.5,
+        chip: look.size,
+        count: look.count(spew.radius),
+    };
 
-    // Drawn before anything is minted, so a frame already at its ceiling costs
-    // this observer nothing beyond the lookups above.
-    let count = look.count(spew.radius).min(budget.left);
-    if count == 0 {
+    let pool = looks.pool(debris, &mut effects);
+    if pool.fired < pool.emitters.len() {
+        // The rotation's next emitter has not fired this frame.
+        let index = pool.next % pool.emitters.len();
+        pool.next = (index + 1) % pool.emitters.len();
+        let emitter = pool.emitters[index];
+        match q_emitter.get_mut(emitter) {
+            Ok((mut transform, mut properties, mut spawner)) => {
+                burst.aim(&mut transform, &mut properties, &mut spawner);
+            }
+            // Taken away from under the pool - a scene torn down around it -
+            // so its replacement is minted in its slot, aimed at this crater.
+            Err(_) if commands.get_entity(emitter).is_err() => {
+                pool.emitters[index] = commands.spawn(burst.emitter(pool.effect.clone())).id();
+            }
+            // Minted this frame and not yet applied. The next frame has it.
+            Err(_) => {
+                trace!(
+                    "spew_carved_material: {:?} goes unchipped, its emitter is still being minted",
+                    spew.entity
+                );
+                return;
+            }
+        }
+    } else if pool.emitters.len() < SHARD_EMITTERS {
+        // Every emitter has fired this frame and the pool has room to grow.
+        let emitter = commands.spawn(burst.emitter(pool.effect.clone())).id();
+        pool.emitters.push(emitter);
+        pool.next = 0;
+    } else {
         trace!(
-            "spew_carved_material: {:?} goes unchipped, the frame's chips are spent",
+            "spew_carved_material: {:?} goes unchipped, the frame's emitters are spent",
             spew.entity
         );
         return;
     }
-    budget.left -= count;
-
-    let assets = looks
-        .0
-        .entry(debris)
-        .or_insert_with(|| shard_assets(debris, &mut meshes, &mut materials));
-    let mesh = assets.mesh.clone();
-    let material = assets.ramp[0].clone();
-    let cools = assets.ramp.len() > 1;
+    pool.fired += 1;
+    tally.thrown += burst.count as u64;
 
     trace!(
-        "spew_carved_material: {count} {debris:?} shard(s) off {:?} at {} ({:?})",
+        "spew_carved_material: {} {debris:?} shard(s) off {:?} at {} ({:?})",
+        burst.count,
         spew.entity,
         spew.at,
         spew.kind
     );
-
-    for nth in 0..count {
-        let (direction, speed) = shard_throw(outward, spew.at, nth);
-        let speed = speed * debris.speed_scale();
-        let mut shard = commands.spawn((
-            Name::new("Carve Shard"),
-            CarveShardMarker,
-            Mesh3d(mesh.clone()),
-            MeshMaterial3d(material.clone()),
-            // Started at the crater's LIP rather than its centre, so a shard is
-            // not drawn inside the material it supposedly just left.
-            Transform::from_translation(spew.at + direction * spew.radius * 0.5)
-                .with_scale(Vec3::splat(look.size)),
-            // Kinematic and WITHOUT a collider - see the module docs. It is
-            // born inside the hull it came off, and a dynamic collider there
-            // would shove the ship every time it was shot.
-            RigidBody::Kinematic,
-            LinearVelocity(direction * speed),
-            AngularVelocity(direction.any_orthogonal_vector() * SPEW_SPIN),
-            TempEntity(SHARD_LIFETIME_SECS),
-        ));
-        // Only a material with a ramp carries the cooling: rock never glowed,
-        // so it costs no component and the cooling system skips it entirely
-        // rather than iterating it to do nothing.
-        if cools {
-            shard.insert(ShardCooling {
-                debris,
-                age: 0.0,
-                step: 0,
-            });
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use avian3d::prelude::{Collider, RigidBody};
+
     use super::*;
-    use crate::integrity::{
-        carve::prelude::{DamageMark, DamageMarks},
-        chunk::prelude::{CarvedChunkMarker, CHUNK_MIN_VOLUME},
+    use crate::{
+        integrity::{
+            carve::prelude::{DamageMark, DamageMarks},
+            chunk::prelude::{CarvedChunkMarker, CHUNK_MIN_VOLUME},
+        },
+        settings::prelude::GraphicsQuality,
     };
 
     /// Every class that throws anything, so a new damage type cannot be added
@@ -637,28 +848,91 @@ mod tests {
         (DamageType::Pierce, PIERCE_SHARDS),
     ];
 
+    /// The plugin plus the effect store it builds its graphs in. No render
+    /// app and no camera: an [`EffectAsset`] is data, and what is under test
+    /// is which emitters a carve aims, not how they draw.
     fn spew_app() -> App {
         let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        app.init_asset::<Mesh>();
-        app.init_asset::<StandardMaterial>();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(Assets::<EffectAsset>::default());
         app.add_plugins(CarveSpewPlugin);
         app
     }
 
-    fn shards(app: &mut App) -> Vec<(Vec3, Vec3)> {
+    /// The same with a camera, one frame past the warm-up, for the tests
+    /// about the pool the warm-up seeds.
+    fn viewed_spew_app() -> App {
+        let mut app = spew_app();
+        app.world_mut().spawn(Camera::default());
+        app.update();
+        app
+    }
+
+    /// One emitter as a carve left it: where it stands, which way it throws,
+    /// how big and how many, and whether it is armed to fire at all.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct Aimed {
+        at: Vec3,
+        outward: Vec3,
+        lip: f32,
+        chip: f32,
+        count: f32,
+        armed: bool,
+    }
+
+    fn property<T>(properties: &EffectProperties, name: &str) -> Option<T>
+    where
+        bevy_hanabi::graph::Value: TryInto<T>,
+    {
+        properties
+            .get_stored(name)
+            .and_then(|value| value.try_into().ok())
+    }
+
+    /// Every emitter standing, in pool order of entity.
+    fn emitters(app: &mut App) -> Vec<Entity> {
         app.world_mut()
-            .query_filtered::<(&Transform, &LinearVelocity), With<CarveShardMarker>>()
+            .query_filtered::<Entity, With<CarveShardEmitterMarker>>()
             .iter(app.world())
-            .map(|(transform, velocity)| (transform.translation, velocity.0))
             .collect()
     }
 
-    /// Throw one crater of `radius` off a body at the origin and report the
-    /// shards it left.
-    fn carve(app: &mut App, kind: DamageType, radius: f32) -> Vec<(Vec3, Vec3)> {
+    /// Every emitter a carve has aimed. Armed stays true in these apps: no
+    /// hanabi tick ever completes the burst.
+    fn aimed(app: &mut App) -> Vec<Aimed> {
+        app.world_mut()
+            .query_filtered::<
+                (&Transform, &EffectProperties, &EffectSpawner),
+                With<CarveShardEmitterMarker>,
+            >()
+            .iter(app.world())
+            .filter_map(|(transform, properties, spawner)| {
+                let CpuValue::Single(count) = spawner.settings.count() else {
+                    return None;
+                };
+                Some(Aimed {
+                    at: transform.translation,
+                    outward: property(properties, OUTWARD_PROPERTY)?,
+                    lip: property(properties, LIP_PROPERTY)?,
+                    chip: property(properties, CHIP_PROPERTY)?,
+                    count,
+                    armed: !spawner.has_completed(),
+                })
+            })
+            .filter(|aimed| aimed.armed)
+            .collect()
+    }
+
+    fn thrown(app: &App) -> u64 {
+        app.world().resource::<CarveShardTally>().thrown
+    }
+
+    /// Throw one crater of `radius` off a body at the origin and report how
+    /// many chips it asked for.
+    fn carve(app: &mut App, kind: DamageType, radius: f32) -> u64 {
+        let before = thrown(app);
         carve_body(app, kind, radius, None);
-        shards(app)
+        thrown(app) - before
     }
 
     /// Throw one crater off a body optionally declaring what it is made of.
@@ -679,32 +953,47 @@ mod tests {
         app.update();
     }
 
-    /// Every shard's material handle.
-    fn shard_materials(app: &mut App) -> Vec<Handle<StandardMaterial>> {
+    /// The graph every emitter instances, which is one per material.
+    fn effects(app: &mut App) -> Vec<Handle<EffectAsset>> {
         app.world_mut()
-            .query_filtered::<&MeshMaterial3d<StandardMaterial>, With<CarveShardMarker>>()
+            .query_filtered::<&ParticleEffect, With<CarveShardEmitterMarker>>()
             .iter(app.world())
-            .map(|material| material.0.clone())
+            .map(|effect| effect.handle.clone())
             .collect()
     }
 
-    /// THE ruling this module now implements: chips are an IMPACT effect. A
-    /// bullet of either type chips what it hits; a warhead's own fireball is
-    /// the cue for a blast, so it throws nothing on top of it.
+    fn effect_name(app: &App, handle: &Handle<EffectAsset>) -> String {
+        app.world()
+            .resource::<Assets<EffectAsset>>()
+            .get(handle)
+            .expect("an emitter instances a graph that stands")
+            .name
+            .clone()
+    }
+
+    /// THE ruling this module implements: chips are an IMPACT effect. A bullet
+    /// of either type chips what it hits; a warhead's own fireball is the cue
+    /// for a blast, so it throws nothing on top of it.
     #[test]
     fn a_bullet_chips_what_it_hits_and_a_warhead_does_not() {
         for (kind, _) in THROWING {
             let mut app = spew_app();
             assert!(
-                !carve(&mut app, kind, 0.6).is_empty(),
+                carve(&mut app, kind, 0.6) > 0,
                 "{kind:?} threw nothing off a bullet-sized crater"
             );
+            assert_eq!(aimed(&mut app).len(), 1, "{kind:?} aimed no emitter");
         }
 
         let mut app = spew_app();
-        assert!(
-            carve(&mut app, DamageType::Explosive, 3.0).is_empty(),
+        assert_eq!(
+            carve(&mut app, DamageType::Explosive, 3.0),
+            0,
             "a blast littered its own fireball with chips"
+        );
+        assert!(
+            emitters(&mut app).is_empty(),
+            "a blast minted an emitter it has no use for"
         );
     }
 
@@ -721,6 +1010,7 @@ mod tests {
             carve(&mut kinetic_app, DamageType::Kinetic, 0.6),
             carve(&mut pierce_app, DamageType::Pierce, 0.6)
         );
+        assert_eq!(aimed(&mut kinetic_app), aimed(&mut pierce_app));
     }
 
     /// A bigger crater throws more, and neither end runs away: one chip reads
@@ -745,26 +1035,21 @@ mod tests {
             for radius in [0.15f32, 0.6, 8.0, 50.0] {
                 let mut app = spew_app();
                 assert!(
-                    !carve(&mut app, kind, radius).is_empty(),
+                    carve(&mut app, kind, radius) > 0,
                     "{kind:?} at {radius} threw nothing"
                 );
-                let scales: Vec<f32> = app
-                    .world_mut()
-                    .query_filtered::<&Transform, With<CarveShardMarker>>()
-                    .iter(app.world())
-                    .map(|transform| transform.scale.x)
-                    .collect();
-                for scale in scales {
+                for aimed in aimed(&mut app) {
                     assert!(
-                        (scale - look.size).abs() < 1e-6,
-                        "{kind:?} at radius {radius} drew a {scale}u chip"
+                        (aimed.chip - look.size).abs() < 1e-6,
+                        "{kind:?} at radius {radius} drew a {}u chip",
+                        aimed.chip
                     );
                 }
             }
         }
     }
 
-    /// The line between decoration and material. A shard has no collider and no
+    /// The line between decoration and material. A chip has no collider and no
     /// mass, so it must never reach the size at which a piece is worth
     /// simulating as a body of its own - clearly under the line rather than
     /// beside it, at half the side of that cube and an eighth of its volume. At
@@ -782,9 +1067,9 @@ mod tests {
         }
     }
 
-    /// THE claim: material comes off, and it comes off OUTWARD. A shard thrown
-    /// back through the body it left would read as the hull swallowing its own
-    /// wreckage.
+    /// THE claim: material comes off, and it comes off OUTWARD. The cone is
+    /// built on the GPU about the axis the emitter is handed, so the axis is
+    /// what a test can hold: out of the body, from the crater, off its lip.
     #[test]
     fn every_shard_leaves_the_body_it_came_off() {
         let mut app = spew_app();
@@ -803,18 +1088,20 @@ mod tests {
         });
         app.update();
 
-        let thrown = shards(&mut app);
-        assert!(!thrown.is_empty(), "a carve throws something");
-        for (position, velocity) in thrown {
-            assert!(
-                velocity.dot(Vec3::X) > 0.0,
-                "a shard flew back into the hull: {velocity}"
-            );
-            assert!(
-                position.x >= at.x,
-                "a shard started inside the material it left: {position}"
-            );
-        }
+        let aimed = aimed(&mut app);
+        assert_eq!(aimed.len(), 1, "a carve aims one emitter");
+        let burst = aimed[0];
+        assert!(
+            burst.outward.dot(Vec3::X) > 0.99,
+            "the chips are thrown back into the hull: {}",
+            burst.outward
+        );
+        assert_eq!(burst.at, at, "the emitter stands off the crater");
+        assert!(
+            burst.lip > 0.0 && burst.lip <= 1.0,
+            "a chip starts inside the material it left, or clear of the crater: {}",
+            burst.lip
+        );
     }
 
     /// THE line this module draws. A hole is a hole however deep it goes: a
@@ -833,8 +1120,53 @@ mod tests {
                 .iter(app.world())
                 .count();
             assert_eq!(bodies, 0, "radius {radius} threw {bodies} body(s)");
-            assert!(!thrown.is_empty(), "radius {radius} threw no dust");
+            assert!(thrown > 0, "radius {radius} threw no dust");
         }
+    }
+
+    /// The reason chips are particles. A fight's worth of craters leaves the
+    /// solver, the sensor sweep and the mesh extractor NOTHING: no rigid body,
+    /// no collider, no mesh per chip, and a pool that stops growing.
+    #[test]
+    fn a_fight_of_carves_leaves_the_solver_and_the_renderer_nothing_to_carry() {
+        let mut app = spew_app();
+        let hull = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
+        for frame in 0..40 {
+            for nth in 0..3 {
+                app.world_mut().trigger(CarveSpew {
+                    entity: hull,
+                    at: Vec3::new(3.0 + nth as f32, frame as f32, 0.0),
+                    radius: 0.6,
+                    kind: DamageType::Kinetic,
+                });
+            }
+            app.update();
+        }
+        assert!(thrown(&app) >= 240, "delivery guard: it spewed");
+
+        let bodies = app
+            .world_mut()
+            .query_filtered::<(), With<RigidBody>>()
+            .iter(app.world())
+            .count();
+        let colliders = app
+            .world_mut()
+            .query_filtered::<(), With<Collider>>()
+            .iter(app.world())
+            .count();
+        let meshes = app
+            .world_mut()
+            .query_filtered::<(), With<Mesh3d>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(bodies, 0, "a chip put a body in the solver");
+        assert_eq!(colliders, 0, "a chip put a collider in the broad phase");
+        assert_eq!(meshes, 0, "a chip put a mesh instance in the extractor");
+        assert_eq!(
+            emitters(&mut app).len(),
+            3,
+            "the pool grew past what the busiest frame needed"
+        );
     }
 
     /// Repeated fire pays for more material, so it keeps announcing a carve
@@ -860,36 +1192,13 @@ mod tests {
         assert!(marks.0[0].radius > 1.0);
     }
 
-    /// Shards are debris, not litter: they clear themselves, so a long fight
-    /// cannot leave a cloud of them hanging over the field.
-    #[test]
-    fn every_shard_clears_itself() {
-        let mut app = spew_app();
-        let rock = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
-        app.world_mut().trigger(CarveSpew {
-            entity: rock,
-            at: Vec3::Y * 2.0,
-            radius: 0.8,
-            kind: DamageType::Kinetic,
-        });
-        app.update();
-
-        let mut q = app
-            .world_mut()
-            .query_filtered::<Option<&TempEntity>, With<CarveShardMarker>>();
-        let lifetimes: Vec<_> = q.iter(app.world()).collect();
-        assert!(!lifetimes.is_empty(), "delivery guard: it spewed");
-        for temp in lifetimes {
-            assert!(temp.is_some(), "a shard must despawn itself");
-        }
-    }
-
     /// Announce `craters` carves into one frame, the way a command flush does,
-    /// and report how many chips stand in the world afterwards.
+    /// and report how many chips were asked for.
     ///
     /// Every crater here is wide enough to want the ceiling, so the only thing
-    /// that can hold the count down is the frame's own allowance.
-    fn rake_one_frame(app: &mut App, craters: usize) -> usize {
+    /// that can hold the count down is the pool.
+    fn rake_one_frame(app: &mut App, craters: usize) -> u64 {
+        let before = thrown(app);
         let hull = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
         for nth in 0..craters {
             app.world_mut().trigger(CarveSpew {
@@ -900,64 +1209,143 @@ mod tests {
             });
         }
         app.update();
-        shards(app).len()
+        thrown(app) - before
     }
 
-    /// A lone crater is untouched by the budget, and that is the point of
+    /// A lone crater is untouched by the pool, and that is the point of
     /// putting the ceiling on the frame: what one hit throws is what a hit
-    /// looks like, whatever else is happening.
+    /// looks like, whatever else is happening. And one burst fits its buffer.
     #[test]
     fn one_carve_still_throws_everything_its_crater_is_worth() {
         for (kind, look) in THROWING {
             let mut app = spew_app();
             assert_eq!(
-                carve(&mut app, kind, 100.0).len(),
-                look.most,
+                carve(&mut app, kind, 100.0),
+                look.most as u64,
                 "{kind:?} lost chips off a crater nothing was competing with"
             );
-            assert!(
-                look.most <= SHARDS_PER_FRAME,
-                "{kind:?} cannot spend a whole frame on one crater"
-            );
+            for debris in CarveDebris::ALL {
+                assert!(
+                    debris.shape(look).most as u32 <= SHARD_CAPACITY,
+                    "{kind:?} off {debris:?} cannot fit one burst in an emitter"
+                );
+            }
         }
     }
 
     /// THE ceiling. Hundreds of craters announcing themselves in one command
     /// flush is what a capital hull coming apart does, and the frame that has
-    /// to create their chips is the one that cannot afford them.
+    /// to aim their emitters is the one that cannot afford a pool that size.
     #[test]
-    fn one_frame_cannot_be_made_to_throw_more_than_its_budget() {
+    fn one_frame_cannot_be_made_to_throw_more_than_its_pool() {
         let mut app = spew_app();
         let thrown = rake_one_frame(&mut app, 200);
-        assert_eq!(thrown, SHARDS_PER_FRAME);
+        assert_eq!(thrown, (SHARD_EMITTERS * KINETIC_SHARDS.most) as u64);
+        assert_eq!(emitters(&mut app).len(), SHARD_EMITTERS);
     }
 
-    /// And the allowance comes back: a long fight is a sequence of frames, so
-    /// nothing here starves a firefight of debris.
+    /// And the emitters come back: a long fight is a sequence of frames, so
+    /// nothing here starves a firefight of debris, and the pool does not grow
+    /// past its ceiling to do it.
     #[test]
-    fn the_next_frame_gets_its_chips_back() {
+    fn the_next_frame_gets_its_emitters_back() {
         let mut app = spew_app();
-        assert_eq!(rake_one_frame(&mut app, 200), SHARDS_PER_FRAME);
+        let ceiling = (SHARD_EMITTERS * KINETIC_SHARDS.most) as u64;
+        assert_eq!(rake_one_frame(&mut app, 200), ceiling);
         assert_eq!(
             rake_one_frame(&mut app, 200),
-            SHARDS_PER_FRAME * 2,
+            ceiling,
             "the second frame threw nothing of its own"
+        );
+        assert_eq!(emitters(&mut app).len(), SHARD_EMITTERS);
+    }
+
+    /// Consecutive frames rotate through the pool rather than re-aiming the
+    /// first emitter every time, which is what keeps a lone rock's bursts out
+    /// of one buffer.
+    #[test]
+    fn a_crater_a_frame_rotates_through_the_pool() {
+        let mut app = viewed_spew_app();
+        let hull = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
+        for frame in 0..SHARD_EMITTER_FLOOR {
+            app.world_mut().trigger(CarveSpew {
+                entity: hull,
+                at: Vec3::new(3.0, frame as f32, 0.0),
+                radius: 0.6,
+                kind: DamageType::Kinetic,
+            });
+            app.update();
+        }
+        let aimed = aimed(&mut app);
+        assert_eq!(
+            aimed.len(),
+            SHARD_EMITTER_FLOOR,
+            "one crater a frame wore one emitter out instead of rotating"
+        );
+        let heights: std::collections::BTreeSet<i32> =
+            aimed.iter().map(|burst| burst.at.y as i32).collect();
+        assert_eq!(
+            heights.len(),
+            SHARD_EMITTER_FLOOR,
+            "two frames aimed one emitter"
         );
     }
 
-    /// The same hit throws the same debris twice, which is what a re-run
-    /// capture and a replay both want.
+    /// The warm-up seeds every pool to its floor the moment there is a view,
+    /// idle, and asks the GPU for nothing while it does.
     #[test]
-    fn the_same_crater_throws_the_same_shards() {
-        let once = shard_throw(Vec3::X, Vec3::new(1.0, 2.0, 3.0), 2);
-        let again = shard_throw(Vec3::X, Vec3::new(1.0, 2.0, 3.0), 2);
-        assert_eq!(once, again);
-
-        let elsewhere = shard_throw(Vec3::X, Vec3::new(1.0, 2.0, 3.5), 2);
-        assert_ne!(
-            once, elsewhere,
-            "two different craters must not throw identically"
+    fn the_warm_up_seeds_the_pool_when_a_view_exists() {
+        let mut app = viewed_spew_app();
+        assert_eq!(
+            emitters(&mut app).len(),
+            SHARD_EMITTER_FLOOR * CarveDebris::ALL.len()
         );
+        assert!(aimed(&mut app).is_empty(), "the warm-up armed an emitter");
+        assert_eq!(thrown(&app), 0, "the warm-up counted chips it never threw");
+        app.update();
+        assert_eq!(
+            emitters(&mut app).len(),
+            SHARD_EMITTER_FLOOR * CarveDebris::ALL.len(),
+            "the warm-up ran again over a pool already at its floor"
+        );
+
+        let mut viewless = spew_app();
+        viewless.update();
+        assert!(
+            emitters(&mut viewless).is_empty(),
+            "the warm-up ran with nothing to render from"
+        );
+    }
+
+    /// The spawn-less tier: nothing minted, nothing aimed, nothing counted.
+    #[test]
+    fn a_tier_without_particles_throws_nothing() {
+        let mut app = spew_app();
+        app.insert_resource(GraphicsBudget::for_quality(GraphicsQuality::Low));
+        app.world_mut().spawn(Camera::default());
+        app.update();
+        assert!(emitters(&mut app).is_empty(), "the warm-up ran on Low");
+        assert_eq!(carve(&mut app, DamageType::Kinetic, 0.6), 0);
+        assert!(
+            emitters(&mut app).is_empty(),
+            "a carve minted an emitter on Low"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<EffectAsset>>().len(),
+            0,
+            "a graph was built for a tier that draws none"
+        );
+    }
+
+    /// A headless app - the integrity plugin added for its health pipeline
+    /// alone - carves in silence rather than panicking on a missing store.
+    #[test]
+    fn a_world_without_an_effect_store_carves_in_silence() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(CarveSpewPlugin);
+        assert_eq!(carve(&mut app, DamageType::Kinetic, 0.6), 0);
+        assert!(emitters(&mut app).is_empty());
     }
 
     /// The ruling the owner took: a rock must not throw the hull's chips. Both
@@ -967,27 +1355,58 @@ mod tests {
     fn a_rock_and_a_hull_throw_different_debris() {
         let mut plate = spew_app();
         carve_body(&mut plate, DamageType::Kinetic, 0.6, None);
-        let plate_material = shard_materials(&mut plate);
+        let plate_effects = effects(&mut plate);
 
         let mut rock = spew_app();
         carve_body(&mut rock, DamageType::Kinetic, 0.6, Some(CarveDebris::Rock));
-        let rock_material = shard_materials(&mut rock);
+        let rock_effects = effects(&mut rock);
 
-        assert!(!plate_material.is_empty() && !rock_material.is_empty());
-        let plate_asset = plate.world().resource::<Assets<StandardMaterial>>();
-        let rock_asset = rock.world().resource::<Assets<StandardMaterial>>();
-        let plate_look = plate_asset.get(&plate_material[0]).expect("plate look");
-        let rock_look = rock_asset.get(&rock_material[0]).expect("rock look");
-        assert_ne!(plate_look.base_color, rock_look.base_color);
+        assert_eq!(plate_effects.len(), 1);
+        assert_eq!(rock_effects.len(), 1);
+        assert_eq!(effect_name(&plate, &plate_effects[0]), "carve_shards_metal");
+        assert_eq!(effect_name(&rock, &rock_effects[0]), "carve_shards_rock");
+    }
+
+    /// Metal leaves incandescent and is gunmetal before a third of its life is
+    /// gone; rock is its own brown from the first frame and never blooms.
+    #[test]
+    fn metal_cools_from_white_hot_to_gunmetal_and_rock_never_glows() {
+        let metal = shard_gradient(CarveDebris::Metal);
+        let cut = metal.sample(0.0);
         assert!(
-            plate_look.emissive.red > 0.0,
-            "a freshly cut chip of plate is incandescent"
+            cut.x > 1.0 && cut.y > 1.0,
+            "a freshly cut chip of plate is not incandescent: {cut}"
         );
-        assert_eq!(
-            rock_look.emissive,
-            LinearRgba::BLACK,
-            "rock does not glow when it is hit"
+        let cool = SHARD_COOL_SECS / SHARD_LIFETIME_SECS;
+        assert!(cool < 1.0 / 3.0, "the glow outlasts a third of the flight");
+        let cooled = metal.sample(cool);
+        assert!(
+            (cooled - METAL_COLD).abs().max_element() < 1e-5,
+            "the chip is still glowing at the cold end of its ramp: {cooled}"
         );
+        assert_eq!(metal.sample(1.0), METAL_COLD, "gunmetal does not drift");
+        let mut last = cut.x;
+        for step in 1..=10 {
+            let now = metal.sample(cool * step as f32 / 10.0).x;
+            assert!(now <= last + 1e-5, "the chip warmed back up while flying");
+            last = now;
+        }
+        assert!(
+            (metal.sample(cool * 0.25).x - METAL_COLD.x) < (cut.x - METAL_COLD.x) * 0.6,
+            "the glow leaves slower than a square law: a chip dimmed by a knob"
+        );
+        for key in metal.keys() {
+            assert!(
+                (key.value.w - 1.0).abs() < 1e-6,
+                "a chip of plate went see-through"
+            );
+        }
+
+        let rock = shard_gradient(CarveDebris::Rock);
+        for key in rock.keys() {
+            assert_eq!(key.value, ROCK_COLD, "rock changed colour while flying");
+            assert!(key.value.max_element() <= 1.0, "rock glows when it is hit");
+        }
     }
 
     /// An unmarked body is plate, so every ship that existed before
@@ -1019,7 +1438,8 @@ mod tests {
             0.6,
             Some(CarveDebris::Rock),
         );
-        assert!(shards(&mut rock_app).len() > shards(&mut plate_app).len());
+        assert!(thrown(&rock_app) > thrown(&plate_app));
+        assert!(aimed(&mut rock_app)[0].chip < aimed(&mut plate_app)[0].chip);
     }
 
     /// The split a flat lookup on the spewing entity cannot see, and the one
@@ -1046,85 +1466,42 @@ mod tests {
         let mut plate = spew_app();
         carve_body(&mut plate, DamageType::Kinetic, 0.6, None);
         assert!(
-            shards(&mut rock).len() > shards(&mut plate).len(),
+            thrown(&rock) > thrown(&plate),
             "the crater on the rock threw a plate's chip count",
         );
-
-        let hot = rock
-            .world_mut()
-            .query_filtered::<(), (With<CarveShardMarker>, With<ShardCooling>)>()
-            .iter(rock.world())
-            .count();
-        assert_eq!(hot, 0, "shooting the asteroid sprayed hot gunmetal off it");
+        let effects = effects(&mut rock);
+        assert_eq!(effects.len(), 1);
+        assert_eq!(
+            effect_name(&rock, &effects[0]),
+            "carve_shards_rock",
+            "shooting the asteroid sprayed hot gunmetal off it"
+        );
     }
 
-    /// Only a material with a ramp carries the cooling component, so rock costs
-    /// the cooling system nothing at all.
+    /// An emitter a scene tore down under the pool is replaced in its slot
+    /// rather than aimed at, so a carve after a teardown still chips.
     #[test]
-    fn only_a_hot_chip_carries_its_cooling() {
-        let mut plate = spew_app();
-        carve_body(&mut plate, DamageType::Kinetic, 0.6, None);
-        let hot = plate
-            .world_mut()
-            .query_filtered::<(), (With<CarveShardMarker>, With<ShardCooling>)>()
-            .iter(plate.world())
-            .count();
-        assert!(hot > 0, "a chip of plate cools");
-
-        let mut rock = spew_app();
-        carve_body(&mut rock, DamageType::Kinetic, 0.6, Some(CarveDebris::Rock));
-        let cold = rock
-            .world_mut()
-            .query_filtered::<(), (With<CarveShardMarker>, With<ShardCooling>)>()
-            .iter(rock.world())
-            .count();
-        assert_eq!(cold, 0, "rock never glowed, so it has nothing to cool");
-    }
-
-    /// The ramp starts hot, ends cold, and clamps at both ends.
-    #[test]
-    fn the_cooling_ramp_runs_hot_to_cold_and_clamps() {
-        assert_eq!(shard_cool_step(0.0, 5), 0);
-        assert_eq!(shard_cool_step(1.0, 5), 4);
-        assert_eq!(shard_cool_step(-1.0, 5), 0);
-        assert_eq!(shard_cool_step(2.0, 5), 4);
-        assert!(shard_cool_step(0.25, 5) < shard_cool_step(0.75, 5));
-        // A one-entry ramp has nowhere to go.
-        assert_eq!(shard_cool_step(1.0, 1), 0);
-    }
-
-    /// A hot chip actually swaps material as it flies.
-    ///
-    /// The clock is DRIVEN, not read: `MinimalPlugins` runs `Time` off the real
-    /// wall clock, so forty updates of a test binary advance it by microseconds
-    /// and nothing would ever cool. A warm-up tick goes first because bevy's
-    /// first manual step is dt 0.
-    #[test]
-    fn a_hot_chip_swaps_to_a_cooler_material_as_it_flies() {
+    fn an_emitter_torn_down_under_the_pool_is_replaced() {
         let mut app = spew_app();
-        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
-            std::time::Duration::from_millis(50),
-        ));
+        carve_body(&mut app, DamageType::Kinetic, 0.6, None);
+        let gone = emitters(&mut app);
+        assert_eq!(gone.len(), 1);
+        app.world_mut().despawn(gone[0]);
         app.update();
 
+        let before = thrown(&app);
         carve_body(&mut app, DamageType::Kinetic, 0.6, None);
-        let at_birth = shard_materials(&mut app);
-        assert!(!at_birth.is_empty());
-
-        // Past the far end of the ramp, and still well inside the shard's own
-        // lifetime so there is something left to read.
-        for _ in 0..25 {
-            app.update();
-        }
-
-        let cooled = shard_materials(&mut app);
-        assert!(!cooled.is_empty(), "the shard outlives its cooling");
-        assert_ne!(at_birth[0], cooled[0], "the chip is on a cooler material");
-        let materials = app.world().resource::<Assets<StandardMaterial>>();
-        assert_eq!(
-            materials.get(&cooled[0]).expect("cold look").emissive,
-            LinearRgba::BLACK,
-            "the far end of the ramp is not glowing at all"
+        assert!(
+            thrown(&app) > before,
+            "the carve after the teardown went unchipped"
         );
+        let fresh = emitters(&mut app);
+        assert_eq!(
+            fresh.len(),
+            1,
+            "the pool leaked a slot or grew a second one"
+        );
+        assert_ne!(fresh[0], gone[0]);
+        assert_eq!(aimed(&mut app).len(), 1);
     }
 }

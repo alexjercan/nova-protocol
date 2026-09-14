@@ -98,8 +98,8 @@ const SHED_TICK_CAP: usize = 24;
 /// most of them. [`SHED_TICK_CAP`] bounds the drain in TIME; this bounds what
 /// one frame can be asked to do. Reset in `First`, spent by
 /// [`shed_dead_fixtures`], and a resource rather than a `Local` because the
-/// reset and the drain are different systems - the shape
-/// `integrity::spew::ShardBudget` already uses.
+/// reset and the drain are different systems - the shape `integrity::spew`
+/// uses for the emitters a frame has fired.
 /// `integrity::pyre::PyreBudget` solves the same problem the other way up,
 /// counting spent deaths UP against a cap: its observer admits an integrity
 /// root past that cap and still counts it, so a countdown there would

@@ -191,8 +191,14 @@ does NOT get an entry - and it is the only place they are written down.
   is one kick from its middle, not 25.
 
 ### Performance
+- Bullet chips are GPU particles. A hit no longer spawns kinematic bodies that
+  the solver, every ship's sensor sweep and the renderer carried for 2.5 s; a
+  busy 4v4 held eight thousand of them.
 - Gun rounds confirm hits against the selected collider without a second
   spatial-tree search. Firing and damage rules are unchanged.
+- The game runs at most eight parallel worker threads. Above 16 hardware
+  threads the extra ones only waited on each other, so a busy 4v4 fight gains
+  about 28% of its frame time, 33% at its worst.
 
 ### Internals & Tooling
 - Agent work defaults to Pair, with code-backed proposals and a required Verify

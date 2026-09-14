@@ -20,7 +20,7 @@
 //! | 5 | `outcome: the chain of fires is the size of the collapse` | the frame that condemns 720 cells lights the chain that batch earns, and the fires are spread down the corridor instead of crowded into the frame's first cells |
 //! | 6 | `outcome: one hull coming apart is one kick` | the camera is kicked once for the collapse and once for the hit that caused it, not once per cell of wreck |
 //! | 7 | `outcome: the collapse frame cost is recorded` | RECORD: the worst frame of the collapse window and the fixed steps it paid for |
-//! | 8 | `outcome: the debris the collapse threw is recorded` | RECORD: peak shards, wreck pieces, pieces pending activation, entities |
+//! | 8 | `outcome: the debris the collapse threw is recorded` | RECORD: chips thrown over the window, peak wreck pieces, pieces pending activation, entities |
 //!
 //! Claim 3 is the one a debris BUDGET has to keep. Spreading activation over
 //! frames is safe in the direction the grace exists for - a piece stays
@@ -403,8 +403,11 @@ struct CollapseProbe {
     slow_frames: u32,
     /// Fixed steps since the last rendered frame, for [`WorstFrame::steps`].
     steps_this_frame: u32,
+    /// Chips thrown over the window. Not a peak: chips are GPU particles,
+    /// so `CarveShardTally` is read against its value when the window opened.
+    shards_at_open: u64,
+    shards_thrown: u64,
     /// Peak populations over the window.
-    peak_shards: usize,
     peak_pieces: usize,
     peak_pending: usize,
     peak_entities: u32,
@@ -884,7 +887,7 @@ fn drive_range(world: &mut World) {
         let frames = world.resource::<CollapseProbe>().frames;
         if frames.is_multiple_of(STATUS_EVERY) {
             let cells = live_count::<HullCell>(world);
-            let shards = live_count::<CarveShardMarker>(world);
+            let shards = world.resource::<CarveShardTally>().thrown;
             let pieces = live_count::<DetachedPieceMarker>(world);
             let pending = live_count::<ChunkGrace>(world);
             let probe = world.resource::<CollapseProbe>();
@@ -1081,7 +1084,10 @@ fn sample_the_collapse(world: &mut World) {
             return;
         }
         let now = world.resource::<Time>().elapsed_secs();
-        world.resource_mut::<CollapseProbe>().window_opened = Some(now);
+        let thrown = world.resource::<CarveShardTally>().thrown;
+        let mut probe = world.resource_mut::<CollapseProbe>();
+        probe.window_opened = Some(now);
+        probe.shards_at_open = thrown;
     }
 
     let ms = world.resource::<Time>().delta_secs() * 1000.0;
@@ -1089,7 +1095,7 @@ fn sample_the_collapse(world: &mut World) {
         let probe = world.resource::<CollapseProbe>();
         world.resource::<Time>().elapsed_secs() - probe.window_opened.unwrap_or_default()
     };
-    let shards = live_count::<CarveShardMarker>(world);
+    let shards = world.resource::<CarveShardTally>().thrown;
     let pieces = live_count::<DetachedPieceMarker>(world);
     let pending = live_count::<ChunkGrace>(world);
     let entities: u32 = world
@@ -1107,7 +1113,7 @@ fn sample_the_collapse(world: &mut World) {
     if ms > probe.worst.ms {
         probe.worst = WorstFrame { ms, steps, at };
     }
-    probe.peak_shards = probe.peak_shards.max(shards);
+    probe.shards_thrown = shards - probe.shards_at_open;
     probe.peak_pieces = probe.peak_pieces.max(pieces);
     probe.peak_pending = probe.peak_pending.max(pending);
     probe.peak_entities = probe.peak_entities.max(entities);
@@ -1390,14 +1396,21 @@ fn verify(world: &mut World) {
             probe.worst,
             probe.window_frames,
             probe.slow_frames,
-            probe.peak_shards,
+            probe.shards_thrown,
             probe.peak_pieces,
             probe.peak_pending,
             probe.peak_entities,
         )
     };
-    let (worst, window_frames, slow_frames, peak_shards, peak_pieces, peak_pending, peak_entities) =
-        probe_readings;
+    let (
+        worst,
+        window_frames,
+        slow_frames,
+        shards_thrown,
+        peak_pieces,
+        peak_pending,
+        peak_entities,
+    ) = probe_readings;
 
     nova_probe::probe_marker(
         world,
@@ -1421,7 +1434,7 @@ fn verify(world: &mut World) {
         "outcome: the debris the collapse threw is recorded",
         serde_json::json!({
             "corridor_cells": CORRIDOR_CELLS,
-            "peak_shards": peak_shards,
+            "shards_thrown": shards_thrown,
             "peak_wreck_pieces": peak_pieces,
             "peak_pending_activation": peak_pending,
             "peak_entities": peak_entities,
@@ -1430,8 +1443,8 @@ fn verify(world: &mut World) {
 
     world.resource_mut::<CollapseProbe>().verified = true;
     info!(
-        "hull_collapse: {CORRIDOR_CELLS} corridor cells destroyed, {peak_pieces} wreck pieces and \
-         {peak_shards} shards at peak, {peak_entities} entities"
+        "hull_collapse: {CORRIDOR_CELLS} corridor cells destroyed, {peak_pieces} wreck pieces at \
+         peak, {shards_thrown} chips thrown, {peak_entities} entities"
     );
     info!(
         "hull_collapse: worst collapse frame {:.1} ms over {} fixed steps ({:.1} s into the \

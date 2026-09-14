@@ -249,7 +249,8 @@ impl AppBuilder {
             .set(assets_plugin())
             .set(log_plugin(assembly))
             .set(window_plugin(assembly))
-            .set(render_plugin(assembly));
+            .set(render_plugin(assembly))
+            .set(task_pool_plugin());
 
         if assembly == Assembly::Windowed {
             app.add_plugins(plugins);
@@ -836,6 +837,49 @@ pub fn assets_plugin() -> AssetPlugin {
         meta_check: bevy::asset::AssetMetaCheck::Always,
         ..default()
     }
+}
+
+/// The most threads the compute task pool may take, whatever the host has.
+///
+/// Bevy gives the compute pool every core left after the IO and async-compute
+/// pools take four each, so a 24-thread desktop starts 16 compute workers.
+/// That is more workers than this game's parallel passes have work for, and
+/// they spend the difference fighting each other: `bevy_transform`'s
+/// propagation workers share one queue behind a spin retry
+/// (`bevy_transform-0.19.0/src/systems.rs:574-610`), and in a measured 4v4
+/// `wfc_arena` fight the sampled spin was 23-24% of all CPU at 16 workers
+/// against 8-9% at eight.
+///
+/// Capping at eight took the release mean frame time from 18.69 ms to 13.41
+/// and p99 from 41.18 ms to 27.39 - five repeats per arm, with the per-repeat
+/// ranges disjoint - and moved the same direction in `stress_bullets` and
+/// `stress_point_defense`.
+///
+/// IT BINDS ONLY ABOVE 16 LOGICAL CPUS. Bevy's split leaves compute
+/// `total - 8` threads once the two four-thread pools are full, so a 16-thread
+/// host already lands on eight and a smaller one lands under it. The cap
+/// changes nothing there, and nothing on wasm, where the pool is
+/// single-threaded and the thread count is ignored.
+///
+/// General tuning, NOT the fix for any one regression: v0.13.2 gained MORE
+/// from this same cap than the current build does, so the cap and the
+/// post-v0.13.2 arena regression are separate problems (task 20260913-090620).
+pub const MAX_COMPUTE_WORKERS: usize = 8;
+
+/// The app's task pool policy: [`MAX_COMPUTE_WORKERS`] for compute, bevy's
+/// defaults for IO and async compute. Public so a test can assert the SHIPPED
+/// policy instead of a hand-rolled copy of it.
+///
+/// Reading this value proves nothing about a running app. The three pools are
+/// process-global statics built with `get_or_init`, so the FIRST initializer
+/// in the process wins and every later one is built and dropped without a word
+/// (`bevy_app-0.19.0/src/task_pool_plugin.rs:229-258`). Only
+/// `ComputeTaskPool::get().thread_num()`, read after the app is assembled,
+/// says what the app got.
+pub fn task_pool_plugin() -> TaskPoolPlugin {
+    let mut task_pool_options = TaskPoolOptions::default();
+    task_pool_options.compute.max_threads = MAX_COMPUTE_WORKERS;
+    TaskPoolPlugin { task_pool_options }
 }
 
 /// Run the whole fixed loop on the single-threaded executor.

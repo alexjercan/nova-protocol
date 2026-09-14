@@ -500,6 +500,9 @@ The fixed loop runs on the SINGLE-THREADED executor (`AppBuilder::assemble`), so
 a `FixedUpdate` system gets no parallelism from its neighbours - only from its
 own `par_iter`. That is a deliberate trade for the schedules' size; the number
 behind it is in [Measuring performance](performance.md#the-fixed-loop-is-single-threaded-on-purpose).
+The same method caps the compute task pool at `nova_core::MAX_COMPUTE_WORKERS`
+threads, so the parallelism a `par_iter` or a `PostUpdate` system can reach is
+bounded too ([why](performance.md#the-compute-pool-is-capped-at-eight-workers)).
 
 What breaks if a system lands in the wrong schedule -- worked example: a
 `FixedUpdate` system reading `GlobalTransform`. `thruster_impulse_system` used to

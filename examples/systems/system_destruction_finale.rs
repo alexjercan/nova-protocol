@@ -96,10 +96,7 @@ fn custom_plugin(app: &mut App) {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<PendingDeaths>();
-        app.add_systems(
-            Update,
-            (tally_carved_chunks, tally_shards, settle_body_deaths),
-        );
+        app.add_systems(Update, (tally_carved_chunks, settle_body_deaths));
         app.add_observer(tally_detached_pieces);
         app.add_observer(watch_body_deaths);
     }
@@ -137,8 +134,10 @@ struct FinaleProbe {
     left_by: HashMap<Entity, usize>,
     /// Bodies a carve SEVERED: real geometry that came away, never decoration.
     carved_chunks: usize,
-    /// Shards a carve threw, which is what every carve throws now.
-    shards: usize,
+    /// The chip tally when the current beat opened. Chips are GPU particles,
+    /// so the beat reads `CarveShardTally` against this rather than counting
+    /// entities.
+    shards_mark: u64,
     /// The body the current beat is killing.
     target: Option<Entity>,
 }
@@ -156,12 +155,6 @@ impl FinaleProbe {
 #[cfg(feature = "debug")]
 fn tally_carved_chunks(q_new: Query<(), Added<CarvedChunkMarker>>, mut probe: ResMut<FinaleProbe>) {
     probe.carved_chunks += q_new.iter().count();
-}
-
-/// Count the dust, which is the only thing a carve is guaranteed to throw.
-#[cfg(feature = "debug")]
-fn tally_shards(q_new: Query<(), Added<CarveShardMarker>>, mut probe: ResMut<FinaleProbe>) {
-    probe.shards += q_new.iter().count();
 }
 
 /// Attribute every detached body to the death that left it.
@@ -407,10 +400,11 @@ fn exhaust_asteroid(world: &mut World) {
     let centre = world
         .get::<GlobalTransform>(rock)
         .map_or(Vec3::ZERO, GlobalTransform::translation);
+    let shards_mark = world.resource::<CarveShardTally>().thrown;
     let mut probe = world.resource_mut::<FinaleProbe>();
     probe.mark = (probe.pieces, probe.silent);
     probe.carved_chunks = 0;
-    probe.shards = 0;
+    probe.shards_mark = shards_mark;
     probe.target = Some(rock);
     let mut commands = world.commands();
     apply_damage(
@@ -449,7 +443,7 @@ fn assert_asteroid_exhausted(world: &mut World) {
     let probe = world.resource::<FinaleProbe>();
     let (pieces, silent) = probe.since_mark();
     let chunks = probe.carved_chunks;
-    let shards = probe.shards;
+    let shards = world.resource::<CarveShardTally>().thrown - probe.shards_mark;
     assert_eq!(pieces, 0, "a healthless asteroid detached as a wreck");
     assert_eq!(
         silent, 0,

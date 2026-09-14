@@ -327,9 +327,9 @@ neighbours. The same structure always gives the same skin.
   ship's motion through `inherited_motion`, so cladding does not hang in space
   while the hull flies out from under it. It is the SAME entity, so the meshes
   drawing it and the greebles standing on it come along untouched. Its
-  colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
-  claim `spew` makes for its shards - because a hull wears hundreds of plates
-  and a dynamic body per plate is the cost a dying section already refuses.
+  colliders do not: shed cladding is DEBRIS - kinematic and untouchable -
+  because a hull wears hundreds of plates and a dynamic body per plate is the
+  cost a dying section already refuses.
 - The shed is CAPPED and runs on the FIXED STEP, in the phase the deaths
   arrive in. `SHED_TICK_CAP` bounds it to 24 fixtures a TICK and `ShedBudget`
   bounds it to 48 a FRAME; the rest are deferred, never dropped, because
@@ -879,16 +879,19 @@ for its pressure pass.
 shape, in world space. `kind` is the weapon class that paid for the carve, and
 it is what decides the look: `spew.rs` keys a `ShardLook` off it, one entry per
 `DamageType`. Kinetic and Pierce throw 2 to 7 shards of one fixed size
-(`ShardLook::size`, 0.12 world units - a 1.2 m chip) - kinematic, no collider, `TempEntity(2.5)` - and
+(`ShardLook::size`, 0.12 world units - a 1.2 m chip) that live 2.5 s, and
 hold identical values in two SEPARATE entries, so giving a penetrator its own
 debris is editing a number rather than splitting a branch. Explosive throws nothing: a
 warhead's fireball already covers the frames the geometry changes in, the crater
 is permanent evidence afterwards, and a cut that severs throws real geometry
-anyway. Shards are born INSIDE the body they came off, so a dynamic body with a
-collider would spawn interpenetrating and the solver would shove the two apart -
-a ship kicking itself sideways every time it was shot. An event rather than a
-direct spawn, so a mod that wants a puff or nothing at all replaces the observer
-instead of patching the carve.
+anyway. Shards are `bevy_hanabi` PARTICLES, not entities: a carve aims one of a
+per-material pool of emitters (grown on demand to `SHARD_EMITTERS` per
+material, which is also the most craters one frame chips) and the GPU throws
+the cone, tumbles, cools and ends them. Nothing on the CPU stands for a chip -
+no rigid body, no collider, no mesh - which is what a busy fight paid for when
+they were kinematic bodies; a range reads `CarveShardTally` for what was thrown.
+An event rather than a direct spawn, so a mod that wants a puff or nothing at
+all replaces the observer instead of patching the carve.
 
 Real geometry leaves a body only where a carve actually SEVERED it, and only the
 body being cut knows that. `chunk.rs` is what a severed piece spawns through;

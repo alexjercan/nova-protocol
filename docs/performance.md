@@ -270,6 +270,43 @@ switch applied to them moved no step metric and made the frame tail worse (p99
 36.9 ms against 40.6): the solver's `par_for_each` passes are the one part of a
 fixed step that does saturate threads. Re-measure before moving either boundary.
 
+## The compute pool is capped at eight workers
+
+`AppBuilder::assemble` sets Bevy's `TaskPoolPlugin` with
+`compute.max_threads = nova_core::MAX_COMPUTE_WORKERS`, which is 8.
+
+Bevy's default hands the compute pool every core left after the IO and
+async-compute pools take four each, so it is `total - 8` on any host with
+enough cores to fill them - 16 workers on a 24-thread desktop. **The cap binds
+only above 16 logical CPUs**: a 16-thread host already lands on eight, and a
+smaller one lands under it. On wasm the pool is single-threaded and the number
+is ignored.
+
+The extra workers were not doing extra work. `bevy_transform`'s propagation
+workers share one queue behind a spin retry
+(`bevy_transform-0.19.0/src/systems.rs:574-610`), and in a measured 4v4
+`wfc_arena` fight the sampled spin was 23-24% of all CPU at 16 workers against
+8-9% at eight. Five release repeats per arm, same binary, same seed: the mean
+frame time went 18.69 ms -> 13.41 and p99 41.18 ms -> 27.39, with the
+per-repeat ranges disjoint on both. `stress_bullets` and
+`stress_point_defense` moved the same way. Four workers removed still more
+spin and used less total CPU but was about 4.9% SLOWER than eight on the mean,
+and the two p99 ranges overlap - minimising CPU work is not minimising frame
+latency.
+
+Eight is a measurement on one hybrid i9, not a proven optimum for every CPU.
+Re-measure before moving it.
+
+### Measure at the shipped cap, not above it
+
+A worker count is a contention regime, and the regime is an amplifier. The same
+pair of revisions measured across the same code change read +33.5% at 16
+workers and +10.2% at eight: the busier pool turns a small workload increase
+into a large frame-time increase. A bisection run at the old 16-worker default
+therefore over-attributes cost to whichever commit added work, and its
+boundaries are not comparable with a capped run's. Say which regime a number
+came from, and prefer the shipped cap.
+
 ## The window, and the deadline sized to it
 
 The capture window is the capture crate's full 180/900 baseline unless the
