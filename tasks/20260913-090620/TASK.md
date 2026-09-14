@@ -303,3 +303,28 @@ correct, measured, and REVERTED. See `PROPAGATION-PASSES.md`.
 This removes "too many propagation passes" as an explanation and leaves the
 cost PER pass - the queue spin - as the contention mechanism. Nova cannot
 quiet that from its own side while ships move.
+
+## Probe sweep, master against v0.13.2 at 8 workers, 2026-09-14
+
+Both revisions were swept with `probe run --release --repeat 5` over the
+same examples, v0.13.2 with its pool capped at 8 by an environment patch.
+The owner stopped the sweep after v0.13.2 finished 10 of 18. See
+`PROBE-SWEEP.md` for tables, host conditions, and limits.
+
+- The regression is local to `wfc_arena`. `stress_bullets`,
+  `stress_torpedoes`, `system_player_path` and `system_thrust_and_plume`
+  sit within 0.6% to 6.1% of v0.13.2, on a master host that was running
+  a workspace check. The gap is in what the arena does with ships,
+  weapons, and wrecks, not in the renderer or projectile engine.
+- The probe's `wfc_arena` row (+45%, 3/5 admitted, p99 2.5x) is
+  contaminated. The clean set in `SHARDS.md` (+20.6% mean, +12.5% single
+  fixed step) remains the measured gap.
+- Master's probe captures nothing on six examples: the scenario-load clock
+  hold (`loader/gate.rs`, new since v0.13.2) overlaps the capture window
+  at Playing or on a scenario reload, and the capture aborts as
+  `simulation_stopped`. Harness defect, not fixed.
+- Master-only correctness failures, not performance: `stress_one_structure`
+  panics with a mass of 0 after aggregating 1000 sections (v0.13.2 passes
+  5/5); `system_field_controls` panics on a grip step resolved twice;
+  `system_headless_crt` stalls on `novaos_next`. The last two have no
+  v0.13.2 run.
