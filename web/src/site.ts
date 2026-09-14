@@ -5,7 +5,7 @@
 // pipelines drop the file into `web/src/assets/` (scripts/gen-web-screenshots.py
 // for stills, scripts/capture-web-media.sh for webm loops) and it lights up.
 // `base` is the deploy subpath (trailing slash), and the placeholder name is
-// asset-root-relative (e.g. "assets/feature-gravity.png",
+// asset-root-relative (e.g. "assets/feature-autopilot.png",
 // "assets/loops/torpedo-blast.webm").
 function upgradeFigures(base: string): void {
     const placeholders = document.querySelectorAll<HTMLElement>(

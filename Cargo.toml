@@ -80,6 +80,11 @@ path = "examples/playable/carve_asteroids.rs"
 [[example]]
 name = "wfc_arena"
 path = "examples/playable/wfc_arena.rs"
+# The only example built as a test target. `wfc_arena/stamps.rs` holds the
+# arena-only stern and bow stamps OUTSIDE the grammar, so the shared generator's
+# own suite cannot check them; without this the module's `stamp_tests` compile
+# nowhere and CI's `cargo test --workspace` never sees them.
+test = true
 
 # Then the benches and galleries: a roster held still, and keys to work it.
 #
@@ -417,10 +422,6 @@ path = "examples/systems/stress_hull_collapse.rs"
 # The scene builders they share live in examples/screenshots/shared/.
 
 # The Drydock drift beauty set: a hero gunship over a real gravity well.
-[[example]]
-name = "screenshot_gravity"
-path = "examples/screenshots/screenshot_gravity.rs"
-
 [[example]]
 name = "screenshot_hero_ship"
 path = "examples/screenshots/screenshot_hero_ship.rs"

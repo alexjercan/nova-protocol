@@ -68,6 +68,25 @@ fn fps_deadline_secs(warmup: u32, frames: u32) -> u64 {
     (f64::from(warmup + frames) / FPS_FLOOR).ceil() as u64 + FPS_LOAD_MARGIN_SECS
 }
 
+/// Seconds the supervisor keeps over the in-process deadline, so the
+/// named-laggards log line wins over a SIGKILL. The fps pass raises the
+/// supervisor above its sized deadline; the clean pass has no window to size
+/// from, so it sizes DOWN from the supervisor timeout the operator set.
+const SUPERVISOR_MARGIN_SECS: u64 = 30;
+
+/// The completion deadline (seconds) for a behavioral pass, sized from the
+/// supervisor timeout that pass runs under.
+///
+/// The autopilot's own [`DEFAULT_DEADLINE_SECS`](nova_autopilot::completion::DEFAULT_DEADLINE_SECS)
+/// is a flat 120 s, so raising `--timeout` for a long range used to change
+/// nothing: the child still gave up at 120 s while the supervisor waited out
+/// the rest. Sizing from the timeout makes the one dial the operator has
+/// actually move the budget, and keeps the in-process backstop resolving
+/// first - which is the whole reason the backstop exists.
+fn clean_deadline_secs(timeout_secs: u64) -> u64 {
+    timeout_secs.saturating_sub(SUPERVISOR_MARGIN_SECS).max(1)
+}
+
 /// Env for the fps pass: the operator's capture window when they pinned one,
 /// plus the window-sized [`DEADLINE_ENV`]. Returns the deadline seconds too, so
 /// the caller can raise the supervisor timeout above it. Their [`DEADLINE_ENV`]
@@ -106,11 +125,16 @@ pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
 /// Plus the profile sandbox, so the run cannot read
 /// the operator's mod cache, enabled mods or settings
 /// ([`crate::profile_sandbox`]).
+/// Plus a [`DEADLINE_ENV`] sized from `timeout_secs`, so a long correctness
+/// range is bounded by the timeout the operator asked for rather than by the
+/// autopilot's flat default. Their [`DEADLINE_ENV`] wins (pushed only when
+/// unset).
 pub(crate) fn clean_pass_env(
     root: &Path,
     out: &Path,
     display: &str,
     fps: bool,
+    timeout_secs: u64,
 ) -> Vec<(String, String)> {
     let mut env = profile_sandbox::env(out);
     env.extend(display_env(display));
@@ -127,6 +151,15 @@ pub(crate) fn clean_pass_env(
             out.join("probe-contract.json").display().to_string(),
         ),
     ]);
+    // The behavioral backstop, sized to this pass's supervisor timeout. The
+    // operator's own value wins (pushed only when unset), exactly as the fps
+    // pass does it.
+    if std::env::var_os(DEADLINE_ENV).is_none() {
+        env.push((
+            DEADLINE_ENV.into(),
+            clean_deadline_secs(timeout_secs).to_string(),
+        ));
+    }
     if fps {
         env.push((nova_probe::PROBE_ENV.into(), "1".into()));
         env.push((probe_env(OUT_PARAM), out.display().to_string()));
@@ -400,7 +433,7 @@ mod tests {
         let root = Path::new("/repo");
         let out = Path::new("/repo/probe-runs/x");
         for env in [
-            clean_pass_env(root, out, "", true),
+            clean_pass_env(root, out, "", true, 180),
             trace_pass_env(root, out, ""),
             samply_pass_env(root, out, ""),
         ] {
@@ -409,16 +442,45 @@ mod tests {
                 "no DISPLAY without one: {env:?}"
             );
         }
-        assert!(clean_pass_env(root, out, ":97", true)
+        assert!(clean_pass_env(root, out, ":97", true, 180)
             .iter()
             .any(|(k, v)| k == "DISPLAY" && v == ":97"));
+    }
+
+    /// The behavioral backstop follows the ONE dial the operator has. Before
+    /// this, `--timeout 900` bought nothing: the child still gave up at the
+    /// autopilot's flat 120 s while the supervisor waited out the rest, so a
+    /// correctness range that legitimately runs longer could not be run at all.
+    #[test]
+    fn the_clean_deadline_is_sized_from_the_supervisor_timeout() {
+        if std::env::var_os(DEADLINE_ENV).is_some() {
+            return;
+        }
+        let root = Path::new("/repo");
+        let out = Path::new("/repo/probe-runs/x");
+        let deadline = |timeout: u64| {
+            clean_pass_env(root, out, ":97", false, timeout)
+                .into_iter()
+                .find(|(k, _)| k == DEADLINE_ENV)
+                .map(|(_, v)| v.parse::<u64>().expect("seconds"))
+                .expect("the clean pass sizes a deadline")
+        };
+        // The shipped default, and an operator who asked for a long range.
+        assert_eq!(deadline(180), 150);
+        assert_eq!(deadline(900), 870);
+        for timeout in [1_u64, 30, 60, 180, 900] {
+            assert!(
+                deadline(timeout) < timeout.max(2),
+                "the in-process backstop must resolve before the supervisor kills the run"
+            );
+        }
     }
 
     #[test]
     fn clean_env_arms_only_the_requested_capture_surfaces() {
         let root = Path::new("/repo");
         let out = Path::new("/repo/probe-runs/x");
-        let env = clean_pass_env(root, out, ":97", false);
+        let env = clean_pass_env(root, out, ":97", false, 180);
         let get = |k: &str, e: &[(String, String)]| {
             e.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone())
         };
@@ -430,7 +492,7 @@ mod tests {
         assert_eq!(get("NOVA_PROBE_INVARIANTS", &env).as_deref(), Some("1"));
         assert_eq!(get("NOVA_PROBE", &env), None, "clean pass excludes fps");
 
-        let env = clean_pass_env(root, out, ":97", true);
+        let env = clean_pass_env(root, out, ":97", true, 180);
         assert_eq!(get("NOVA_PROBE", &env).as_deref(), Some("1"));
         assert_eq!(
             get("NOVA_PROBE_OUT", &env).as_deref(),
@@ -439,7 +501,7 @@ mod tests {
         // Rows label by the run-dir name so probe-vs-probe baselines
         // match (the capture's default "scene" matches nothing).
         assert_eq!(get("NOVA_PROBE_LABEL", &env).as_deref(), Some("x"));
-        let env = clean_pass_env(root, out, ":97", false);
+        let env = clean_pass_env(root, out, ":97", false, 180);
         assert_eq!(
             get("NOVA_PROBE_LABEL", &env),
             None,
@@ -466,8 +528,8 @@ mod tests {
         // EVERY builder that feeds run_supervised with a native example:
         // clean (also the sweep + fps passes), profiled, samply.
         for env in [
-            clean_pass_env(root, out, ":97", false),
-            clean_pass_env(root, out, ":97", true),
+            clean_pass_env(root, out, ":97", false, 180),
+            clean_pass_env(root, out, ":97", true, 180),
             trace_pass_env(root, out, ":97"),
             samply_pass_env(root, out, ":97"),
         ] {

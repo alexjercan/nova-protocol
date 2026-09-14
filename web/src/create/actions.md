@@ -603,6 +603,15 @@ load.
 real decision - three seconds long, or the first time only - and not the kind of
 thing that should happen because a field was left out.
 
+**`skippable: true` puts a prompt on the screen.** The HUD prints
+`<KEY>  SKIP SCENE` bottom-centre, above the keybind dock, for as long as the
+scene will take the key; it reads the player's live binding for the
+`cinematic_skip` action, so a rebind is reflected mid-scene and a pad player is
+shown a pad glyph. It appears when the 0.75 s hold-off below expires, not when
+the scene opens, and it goes the moment the scene ends by any path. There is no
+field to suppress it: the prompt IS the promise the flag makes, and it is one
+of the two HUD surfaces the player's own hide-HUD toggle cannot take away.
+
 **A skip cancels the CURSOR.** It never runs the remaining steps at speed: a
 step chain is not a list of world edits, it holds camera moves, comms lines and
 shots the player has just said they do not want. Whatever the world still needs

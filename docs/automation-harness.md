@@ -31,8 +31,9 @@ directly.
 `nova_probe_cli` (the game binary's `probe` subcommand, debug feature only) is the host layer above: it arms the
 harness variables, spawns a subject as a child process and turns the output
 into a correctness and performance report. It arms the variables below -
-including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps pass, which your
-own value overrides. Its in-game half, `nova_probe`, is what the subject
+including a `NOVA_AUTOPILOT_DEADLINE` sized to the capture window for its fps
+pass and to `--timeout` for its behavioral pass, which your own value
+overrides. Its in-game half, `nova_probe`, is what the subject
 wires to collect the evidence.
 
 A harness run is headless, which for these drivers means a SOFTWARE X server,
@@ -520,7 +521,7 @@ NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
   cargo run --example system_scenario_grammar --features debug
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
-  cargo run --example screenshot_gravity --features debug
+  cargo run --example screenshot_hero_ship --features debug
 ```
 
 `crates/nova_autopilot/examples/driven_app.rs` is the end-to-end read: a

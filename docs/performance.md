@@ -318,7 +318,11 @@ ceiling for any shorter one an example declares): probe sets
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
 software rendering - the `stress_*` ranges are the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
-bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
+bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. The behavioral
+(clean) pass has no window to size against, so it sizes from `--timeout`
+instead - 30 s under it, so the named-laggards line still beats the
+supervisor's kill - which is what makes `--timeout` move the budget of a long
+correctness range. Every example's `main`
 returns `AppExit`, so a deadline expiry is a non-zero process exit the
 `process_exit` check reports. See the crate docs for the full knob list
 (`NOVA_PROBE_*`).

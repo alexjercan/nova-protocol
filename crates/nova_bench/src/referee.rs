@@ -384,15 +384,28 @@ impl<G: GameChannel> Referee<G> {
 
 /// The `expand` list of an `observe` request: the body-group keys to open in
 /// full. Absent is the summary view; `all` opens every group.
+///
+/// An empty key is refused rather than ignored. It names no group, so the only
+/// readings left are "open nothing" and "open everything" - and an agent that
+/// sent one meant one of those and has no way to tell which it got. Saying so
+/// is the answer; guessing is how a truncated observation reads as the world.
 fn parse_expand(value: Option<&Value>) -> Result<Vec<String>, String> {
     match value {
         None | Some(Value::Null) => Ok(Vec::new()),
         Some(Value::Array(keys)) => keys
             .iter()
             .map(|key| {
-                key.as_str()
-                    .map(ToString::to_string)
-                    .ok_or_else(|| format!("`expand` takes group keys as strings, not {key}"))
+                let key = key
+                    .as_str()
+                    .ok_or_else(|| format!("`expand` takes group keys as strings, not {key}"))?;
+                if key.is_empty() {
+                    return Err(
+                        "`expand` takes group keys like \"5-10km.astern\", \"bodies\" or \
+                         \"all\", not an empty string"
+                            .to_string(),
+                    );
+                }
+                Ok(key.to_string())
             })
             .collect(),
         Some(other) => Err(format!(
@@ -472,6 +485,30 @@ mod tests {
         }
     }
 
+    /// The observation is a HEADER then a view, in that order: the clock, what
+    /// is left, and whether the run is over come before the world they are
+    /// about. `serde_json::Map` only keeps insertion order under
+    /// `preserve_order`, so this is the pin on that feature - without it the
+    /// map sorts alphabetically and `bodies` lands ahead of `budget_left`.
+    #[test]
+    fn the_observation_leads_with_the_clock_and_the_budget() {
+        let game = Scripted::new(vec![world(600.0, None)]);
+        let mut referee = Referee::new(game, Bus::quiet(), budget(18_000, 300), false);
+        referee.start().unwrap();
+        let view = referee.observe(&[]);
+        let keys: Vec<&str> = view
+            .as_object()
+            .expect("an observation is an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            &keys[..5],
+            &["tick", "game_seconds", "over", "ended_by", "budget_left"],
+            "the header must lead the observation, in the order it is built: {keys:?}"
+        );
+    }
+
     #[test]
     fn the_referee_stamps_ticks_scores_the_world_and_ends_on_the_outcome() {
         let game = Scripted::new(vec![
@@ -492,8 +529,10 @@ mod tests {
         assert_eq!(reply["ok"]["inputs"]["held"], json!(["flight.main_drive"]));
         assert_eq!(reply["ok"]["budget_left"]["turns"], 299);
 
+        // No `ticks`: the referee's own step, which is the shape the pi
+        // extension sends rather than spelling the number a second time.
         let reply = referee.handle(&json!({ "act": { "gestures": [] } }));
-        assert_eq!(reply["ok"]["tick"], 61);
+        assert_eq!(reply["ok"]["tick"], 31 + DEFAULT_ACT_TICKS as i64);
         assert_eq!(reply["ok"]["over"], true);
         assert_eq!(reply["ok"]["ended_by"], "outcome");
         assert!(referee.is_over());
@@ -529,7 +568,13 @@ mod tests {
             .is_some());
         assert!(!referee.is_over());
         assert_eq!(referee.handle(&json!({ "observe": {} }))["ok"]["tick"], 1);
-        assert_eq!(referee.handle(&json!({ "act": {} }))["ok"]["tick"], 31);
+        // The referee owns the step an agent does not name, and the pi
+        // extension leaves `ticks` out rather than spelling the number a
+        // second time - which reaches here as an absent field or as a null.
+        assert_eq!(
+            referee.handle(&json!({ "act": {} }))["ok"]["tick"],
+            1 + DEFAULT_ACT_TICKS as i64
+        );
     }
 
     #[test]
@@ -590,6 +635,17 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("array of group keys"));
+        // An empty key names no group. Read as a key it opens nothing, and the
+        // whole-block test used to read it as "all" - so the same request could
+        // come back as the summary or as every rock in the system.
+        let reply = referee.handle(&json!({ "observe": { "expand": [""] } }));
+        assert!(
+            reply["error"]
+                .as_str()
+                .unwrap()
+                .contains("not an empty string"),
+            "an empty group key is refused: {reply}"
+        );
         assert_eq!(referee.tick(), 1, "neither read moved the clock");
     }
 

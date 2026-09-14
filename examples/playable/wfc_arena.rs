@@ -491,6 +491,7 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     // The staged strike is capture machinery: the counters exist only where a
     // loop is being recorded, and the driven walk is the only thing that ever
     // arms them.
+    #[cfg(feature = "debug")]
     if capturing() {
         app.init_resource::<Strike>();
         app.add_systems(Update, count_strike_hits);
@@ -2418,6 +2419,7 @@ const CINEMA_SLOT: usize = 0;
 /// How near the framed hull a warhead must fuze to count as a hit IN SHOT: one
 /// blast radius. A detonation further out than its own pressure sphere lit
 /// something else and does not belong to this frame.
+#[cfg(feature = "debug")]
 const STRIKE_HIT_RANGE: Meters = Meters(300.0);
 
 /// Where the strike is staged from, engine world units: the mark every other
@@ -2513,6 +2515,7 @@ const STRIKE_ALIGN_ORDER: &str = "arena_strike_align";
 ///
 /// Nothing here is armed outside a capture. A hand-run, a probe pass and the
 /// smoke walk fight exactly as they always did.
+#[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct Strike {
     /// The framed hull, once the walk has picked it.
@@ -2541,6 +2544,7 @@ impl Strike {
 ///
 /// A SYSTEM because `Added` is change detection: read from the plain `&World` a
 /// harness predicate gets, it is silently always false.
+#[cfg(feature = "debug")]
 fn count_strike_hits(
     mut strike: ResMut<Strike>,
     q_blast: Query<&Transform, Added<NovaBlast>>,
@@ -2561,6 +2565,7 @@ fn count_strike_hits(
 }
 
 /// Count a lance discharge the moment the shell leaves.
+#[cfg(feature = "debug")]
 fn count_strike_shots(_: On<RailgunFired>, mut strike: ResMut<Strike>) {
     strike.shots += 1;
 }

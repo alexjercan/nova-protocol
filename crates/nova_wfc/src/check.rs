@@ -135,11 +135,18 @@ fn body_holds((centre, half): (Vec3, Vec3), point: Vec3) -> bool {
 /// post-collapse stamp whose wider face rests flush against tiles that expose
 /// no matching socket, which the game accepts and this stricter check would
 /// otherwise flag.
+///
+/// It is always handed the LOWER section index first. The two passes below
+/// reach their pairs from opposite ends - the contact walk visits `a < b` by
+/// construction, the socket walk finds whatever body the probe landed in - so
+/// without a canonical order a caller would have to write every rule and its
+/// mirror, and a rule written once would hold on one pass and not the other.
 pub fn unmated_contacts(
     placed: &[Placed],
     ship: &ShipHull,
     exempt: &dyn Fn(usize, usize) -> bool,
 ) -> Result<Vec<String>, String> {
+    let exempt = |a: usize, b: usize| exempt(a.min(b), a.max(b));
     let points: Vec<PlacedSectionLinkPoints> = placed
         .iter()
         .map(|section| PlacedSectionLinkPoints {

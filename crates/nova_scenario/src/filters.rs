@@ -592,6 +592,33 @@ mod tests {
         assert_eq!(number(&app, "restored"), Some(1.0));
     }
 
+    /// A Timer filter is not a scene filter. Both payloads used to spell their
+    /// key `key`, so a `Timer((key: "strike"))` hung on an
+    /// `OnCinematicFinished` handler matched the SCENE's key and fired on the
+    /// scene's ending - and it linted clean, because the key it names is a
+    /// real timer somewhere in the scenario. `/create/filters/` promises the
+    /// opposite: "It fails closed on every other event because those events
+    /// carry no timer key."
+    #[test]
+    fn a_timer_filter_does_not_answer_a_cinematic_ending() {
+        let mut app = dispatch_app();
+        set_number(&mut app, "fired", 0.0);
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnCinematicFinished);
+        handler.add_filter(EventFilterConfig::Timer(TimerFilterConfig {
+            key: "strike".to_string(),
+        }));
+        handler.add_action(set_action("fired", num_expr(1.0)));
+        app.world_mut().spawn(handler);
+
+        end_cinematic(&mut app, "strike");
+        assert_eq!(
+            number(&app, "fired"),
+            Some(0.0),
+            "a timer filter must fail closed on a scene ending, whatever the scene is called"
+        );
+    }
+
     /// Fail closed, like every other filter here: an event with no key to read
     /// is a MISMATCH, never a wildcard. A scene-restore handler that fired on
     /// a payload it could not identify would take the camera off a scene that

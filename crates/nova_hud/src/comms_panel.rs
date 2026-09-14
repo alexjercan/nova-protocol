@@ -8,7 +8,11 @@
 //! pushed up and fading. Per-line dwell still defaults
 //! to [`COMMS_DWELL_SECS`] and clamps to
 //! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]. A bounded visible
-//! window paces bursts without dropping the pending transcript.
+//! window paces bursts, and a backlog bounded by [`COMMS_PENDING_CAP`] holds
+//! what is waiting: past that the OLDEST waiting cue goes, because a line the
+//! panel could only reach half a minute of dialogue later is answering a beat
+//! the player has already flown past. The story log keeps every line either
+//! way.
 //!
 //! Scenario teardown clears the event world, the sync writes an empty feed,
 //! and the panel resets instantly - queue dropped, fades cancelled, hidden -
@@ -80,6 +84,25 @@ pub const COMMS_DWELL_MIN_SECS: f32 = 3.0;
 pub const COMMS_DWELL_MAX_SECS: f32 = 30.0;
 /// Visible cards in the bottom-left stack.
 const COMMS_VISIBLE_CAP: usize = 3;
+/// How many lines may WAIT their turn before the oldest is dropped.
+///
+/// Derived from what this panel can put on screen, not picked by taste:
+///
+/// - A slot frees no sooner than `COMMS_DWELL_MIN_SECS + COMMS_FADE_OUT_SECS`
+///   = 3.0 + 0.4 = 3.4 s. That is the shortest life a showing line can have -
+///   an authored dwell clamped to its floor, plus the fade `expired` waits out
+///   - so it is also the fastest a waiting line can be let in.
+/// - [`COMMS_VISIBLE_CAP`] = 3 of those slots run at once, so the panel retires
+///   at most three lines per 3.4 s.
+/// - [`COMMS_DWELL_MAX_SECS`] = 30 s is the longest the panel will hold ONE
+///   line, and therefore the longest it claims a line is still worth reading.
+///   A cue that has waited longer than that is answering a beat the player has
+///   already flown past.
+///
+/// 3 slots x floor(30.0 / 3.4) = 3 x 8 = 24. The last line of a full backlog
+/// comes up after 8 x 3.4 = 27.2 s, inside the window; a twenty-fifth would
+/// come up outside it, which is why it is dropped rather than queued.
+const COMMS_PENDING_CAP: usize = 24;
 /// Fade timings (s): quick in, gentler out. `COMMS_FADE_OUT_SECS` is `pub` so
 /// the scenario pacing layer can wait out the fade tail as well as the dwell
 /// before posting the next objective.
@@ -171,10 +194,53 @@ struct CommsQueue {
     /// The next [`CommsLineId`]. Never reused, so a despawned card's id cannot
     /// be mistaken for a live one.
     next_id: u64,
-    /// Lines waiting their turn, oldest first.
+    /// Lines waiting their turn, oldest first. Bounded by
+    /// [`COMMS_PENDING_CAP`].
     pending: VecDeque<StoryLine>,
     /// Lines currently rendered, oldest first.
     visible: VecDeque<VisibleCommsLine>,
+    /// Whether the overflow episode in progress has already been reported. A
+    /// burst that outruns the panel is ONE line in the log, not one per cue it
+    /// costs: a scenario that posts faster than the panel can read does it by
+    /// the dozen, and the signal worth having is that it happened at all.
+    /// Cleared by [`CommsQueue::settle_backlog`] when the backlog is inside its
+    /// cap again, so a later burst is reported as the new episode it is.
+    warned_overflow: bool,
+}
+
+impl CommsQueue {
+    /// Drop the oldest waiting lines until the backlog fits
+    /// [`COMMS_PENDING_CAP`], reporting the episode once.
+    ///
+    /// The OLDEST go. What is waiting at the back of an overrun queue is the
+    /// scene the player is in; what is at the front was posted half a minute of
+    /// dialogue ago and answers a beat that has already ended. Dropping from
+    /// the front keeps the panel current at the cost of history the story log
+    /// itself still holds.
+    fn trim_backlog(&mut self) {
+        let Some(over) = self.pending.len().checked_sub(COMMS_PENDING_CAP) else {
+            return;
+        };
+        if over == 0 {
+            return;
+        }
+        self.pending.drain(..over);
+        if !self.warned_overflow {
+            self.warned_overflow = true;
+            warn!(
+                "comms backlog is over {COMMS_PENDING_CAP} waiting lines; dropping the oldest.                  A scenario is posting story faster than the panel can show it."
+            );
+        }
+    }
+
+    /// Close an overflow episode once the backlog is inside its cap again, so
+    /// the next burst is reported rather than swallowed by the last one's
+    /// throttle.
+    fn settle_backlog(&mut self) {
+        if self.pending.len() < COMMS_PENDING_CAP {
+            self.warned_overflow = false;
+        }
+    }
 }
 
 /// Drives the comms panel: the paced display queue over [`StoryFeed`] that
@@ -225,8 +291,8 @@ fn spawn_comms_panel(mut commands: Commands) {
     ));
 }
 
-/// Feed changes drive the lossless pending queue; an EMPTIED feed (scenario
-/// teardown) resets everything instantly - the
+/// Feed changes drive the pending queue, bounded by [`COMMS_PENDING_CAP`]; an
+/// EMPTIED feed (scenario teardown) resets everything instantly - the
 /// leaked-line pin.
 ///
 /// The QUEUE is the whole reset. The tree follows from it in the same frame,
@@ -240,12 +306,14 @@ fn enqueue_new_lines(feed: Res<StoryFeed>, mut queue: ResMut<CommsQueue>) {
         queue.seen = 0;
         queue.pending.clear();
         queue.visible.clear();
+        queue.warned_overflow = false;
     }
     let seen = queue.seen;
     for line in feed.0.iter().skip(seen) {
         queue.pending.push_back(line.clone());
     }
     queue.seen = feed.0.len();
+    queue.trim_backlog();
 }
 
 /// Tick visible cards, apply controls, and promote pending lines into open
@@ -285,6 +353,8 @@ fn drive_comms_stack(
             );
         }
     }
+
+    queue.settle_backlog();
 }
 
 /// Spawn the card of a line that has just appeared and despawn the card of a
@@ -772,6 +842,99 @@ mod tests {
         walk::<M>(world, card)
     }
 
+    /// The cap is DERIVED, and this is the arithmetic. If the visible stack
+    /// grows, the dwell floor moves or the fade changes, the number the panel
+    /// can actually show changes with it and the constant has to be re-derived
+    /// rather than left where someone's taste put it.
+    #[test]
+    fn the_waiting_backlog_is_sized_by_what_the_panel_can_show() {
+        let slot_secs = COMMS_DWELL_MIN_SECS + COMMS_FADE_OUT_SECS;
+        let per_slot = (COMMS_DWELL_MAX_SECS / slot_secs).floor() as usize;
+        assert_eq!(
+            COMMS_PENDING_CAP,
+            COMMS_VISIBLE_CAP * per_slot,
+            "{COMMS_VISIBLE_CAP} slots turning over every {slot_secs}s reach \
+             {per_slot} lines each inside the {COMMS_DWELL_MAX_SECS}s a line \
+             stays worth reading"
+        );
+    }
+
+    /// A scenario can post story faster than three cards at a time can read it.
+    /// The backlog is bounded, and what goes is the OLDEST waiting line - the
+    /// one answering a beat the player has already flown past - never the line
+    /// about the fight they are in.
+    #[test]
+    fn a_backlog_past_its_cap_drops_the_oldest_waiting_line() {
+        let mut app = comms_app();
+        app.update();
+        let burst = COMMS_PENDING_CAP + COMMS_VISIBLE_CAP * 2;
+        for index in 0..burst {
+            push_line(&mut app, "MERIDIAN", &format!("line {index}"), None);
+        }
+        app.update();
+
+        let queue = app.world().resource::<CommsQueue>();
+        assert_eq!(
+            queue.pending.len() + queue.visible.len(),
+            COMMS_PENDING_CAP,
+            "the backlog is capped, and promoting into the stack comes out of it"
+        );
+        assert_eq!(
+            queue.pending.back().map(|line| line.text.as_str()),
+            Some(format!("line {}", burst - 1).as_str()),
+            "the newest line is never the one dropped"
+        );
+        let dropped = burst - COMMS_PENDING_CAP;
+        assert_eq!(
+            queue
+                .visible
+                .front()
+                .map(|visible| visible.line.text.as_str()),
+            Some(format!("line {dropped}").as_str()),
+            "the oldest {dropped} lines went, and the stack starts after them"
+        );
+    }
+
+    /// One line in the log per overflow episode, not one per cue it costs. A
+    /// burst that outruns the panel drops lines by the dozen, and a report per
+    /// casualty buries the fact that it happened at all.
+    #[test]
+    fn an_overflow_episode_is_reported_once_and_a_later_one_again() {
+        let mut queue = CommsQueue::default();
+        let line = StoryLine {
+            channel: work_channel(),
+            speaker: "MERIDIAN".to_string(),
+            text: "overrun".to_string(),
+            dwell: None,
+            icon: None,
+        };
+        for _ in 0..COMMS_PENDING_CAP + 4 {
+            queue.pending.push_back(line.clone());
+        }
+        queue.trim_backlog();
+        assert_eq!(queue.pending.len(), COMMS_PENDING_CAP);
+        assert!(queue.warned_overflow, "the episode is reported once");
+
+        // Still over: the same episode, already said.
+        queue.pending.push_back(line.clone());
+        queue.trim_backlog();
+        queue.settle_backlog();
+        assert!(
+            queue.warned_overflow,
+            "a backlog still at its cap is the same episode"
+        );
+
+        // Drained below the cap: the episode is over.
+        queue.pending.pop_front();
+        queue.settle_backlog();
+        assert!(!queue.warned_overflow, "a settled backlog closes it");
+
+        queue.pending.push_back(line.clone());
+        queue.pending.push_back(line);
+        queue.trim_backlog();
+        assert!(queue.warned_overflow, "a later burst is reported again");
+    }
+
     #[test]
     fn the_panel_is_screen_relative_and_the_message_has_two_text_scales() {
         let mut app = comms_app();
@@ -961,9 +1124,10 @@ mod tests {
         );
     }
 
-    /// Bursts larger than the visible window remain lossless in the pending
-    /// queue. Creator-authored dialogue must not disappear because it arrived
-    /// in one frame.
+    /// Bursts larger than the visible window are held in the pending queue.
+    /// Creator-authored dialogue must not disappear because it arrived in one
+    /// frame - only a backlog past [`COMMS_PENDING_CAP`] drops anything, and
+    /// what it drops is the oldest.
     #[test]
     fn the_pending_queue_keeps_every_line_past_the_visible_window() {
         let mut app = comms_app();

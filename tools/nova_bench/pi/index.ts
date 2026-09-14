@@ -92,16 +92,24 @@ export default function (pi: ExtensionAPI) {
     name: "act",
     label: "Act",
     description:
-      "Apply gestures, then run the world `ticks` ticks (60 per second, default 30) and " +
+      "Apply gestures, then run the world `ticks` ticks (60 per second) and " +
       "return the view after. The only way time passes.",
     parameters: Type.Object({
       gestures: Type.Array(Gesture, { description: "Gestures applied on the next tick, in order." }),
       ticks: Type.Optional(
-        Type.Integer({ minimum: 0, description: "Ticks to run after the gestures; 60 is one second." }),
+        Type.Integer({
+          minimum: 0,
+          description:
+            "Ticks to run after the gestures; 60 is one second. Omit for the referee's own step.",
+        }),
       ),
     }),
     async execute(_toolCallId, params) {
-      return reply(await ask({ act: { gestures: params.gestures, ticks: params.ticks ?? 30 } }));
+      // `ticks` is left out rather than defaulted here: the referee owns
+      // DEFAULT_ACT_TICKS, and a second spelling of the number on this side
+      // would go on being sent long after the Rust one changed. `ask`
+      // stringifies the request, which drops an undefined field.
+      return reply(await ask({ act: { gestures: params.gestures, ticks: params.ticks } }));
     },
   });
 

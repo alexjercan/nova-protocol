@@ -17,7 +17,14 @@ clap = { version = "4.5.48", features = ["derive"] }
 # The audit stream and the score are serialized by derive; the snapshot and
 # the wire lines are read as plain values.
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1" }
+# `preserve_order`: the referee BUILDS its observation header in reading order -
+# the clock, then what is left, then the world - and a default `serde_json::Map`
+# is a BTreeMap that sorts that away, landing `bodies` ahead of `budget_left` in
+# the one text the agent reads every turn. The feature is additive across the
+# graph, so it reaches every serde_json user in a `debug` build; key order is
+# presentational in all of them (reports and the wire are parsed, never
+# compared as text).
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [lints]
 workspace = true

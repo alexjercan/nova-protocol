@@ -133,6 +133,9 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
+- The comms backlog holds 24 waiting lines, what three cards can reach while a
+  line is still worth reading. A scenario posting faster drops the oldest cue,
+  not the line about the fight you are in.
 - A mistyped command reads the same at the NOVA OS prompt and in the Commands
   shell: an incomplete command lists its subcommands in both, the listing is
   column-aligned, and the hint under the caret names a bad subcommand before
@@ -245,6 +248,15 @@ does NOT get an entry - and it is the only place they are written down.
   well-mixed half now does.
 
 ### Fixes
+- A travel order given the moment a ship appears is actually flown. The
+  computer read the hull's mass one tick before the physics published it, and
+  reported the trip complete without moving.
+- Rock you shot loose is still cover: a severed island blocks a lock the way
+  the rock it came off does. Only the parent hull stopped radio, so a lock read
+  straight through the piece.
+- An enemy that loses sight of you mid-jink keeps its evade clock. Any exit
+  from a weave used to spend the window, so a hostile skimming a rock edge
+  burned it on a flicker and could not jink again.
 - Rebinding a section from the SHIP app keeps its controller trigger. The
   captured key took over the whole trigger, so one rebind at the desk left a
   thruster or a tube that no pad button could fire.

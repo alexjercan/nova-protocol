@@ -595,9 +595,24 @@ impl Collapse<'_> {
     /// disconnected section graph outright - so they are dropped here rather
     /// than linted about later. Dropping solids only ever turns a mate into an
     /// exposed socket, which no rule forbids, so what survives is still valid.
-    fn keel_component(&self, chosen: &[usize], standing: &[bool]) -> Vec<bool> {
+    ///
+    /// The walk starts at the bow-most surviving cell of the keel COLUMN, not
+    /// at the bow cell itself. [`Self::erode_studs`] spares the whole column,
+    /// but [`Self::erode_blocked_exits`] spares nothing: a seeded bow gun whose
+    /// lane is fouled is dropped like any other part, and this runs a second
+    /// time on what erosion left. Writing the bow cell in unconditionally put
+    /// that gun back into the hull erosion had just taken it out of, and - the
+    /// worse half - let the resurrected block bridge an island onto the spine,
+    /// which is exactly the shape this pass exists to drop.
+    pub(crate) fn keel_component(&self, chosen: &[usize], standing: &[bool]) -> Vec<bool> {
         let mut kept = vec![false; self.grid.cells()];
-        let start = self.grid.index(0, self.keel_row, 0);
+        let column = (0..self.grid.size.z as usize).map(|z| self.grid.index(0, self.keel_row, z));
+        let Some(start) = column
+            .into_iter()
+            .find(|&cell| standing[cell] && self.tiles[chosen[cell]].is_solid())
+        else {
+            return kept;
+        };
         let mut pending = VecDeque::from([start]);
         kept[start] = true;
         while let Some(cell) = pending.pop_front() {

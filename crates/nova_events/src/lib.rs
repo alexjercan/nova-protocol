@@ -84,7 +84,12 @@ pub const ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME: &str = "other_type_name";
 /// Field name for a timer event's scenario-local key.
 pub const TIMER_KEY_FIELD_NAME: &str = "key";
 /// Field name for a cinematic event's scenario-local key.
-pub const CINEMATIC_KEY_FIELD_NAME: &str = "key";
+///
+/// Named for the SUBJECT, like `order` and `kind`, and deliberately not `key`:
+/// a payload field is what a filter reads, so two events spelling two different
+/// identities the same way let a `Timer` filter answer a scene's ending. The
+/// creator reference documents this field as `cinematic`.
+pub const CINEMATIC_KEY_FIELD_NAME: &str = "cinematic";
 /// Field name for a completed ship order's authored key.
 pub const SHIP_ORDER_FIELD_NAME: &str = "order";
 /// Field name for a completed ship order's [`ShipOrderKind`].
@@ -160,7 +165,9 @@ pub struct OnCinematicSkippedEvent;
 /// Payload for [`OnCinematicFinishedEvent`] and [`OnCinematicSkippedEvent`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct CinematicEventInfo {
-    /// Scenario-local key of the cinematic that ended.
+    /// Scenario-local key of the cinematic that ended, carried under
+    /// [`CINEMATIC_KEY_FIELD_NAME`].
+    #[serde(rename = "cinematic")]
     pub key: String,
 }
 

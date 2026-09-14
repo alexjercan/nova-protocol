@@ -258,6 +258,16 @@ pub(super) fn autopilot_system(
             commands.entity(ship).remove::<Autopilot>();
             continue;
         }
+        // Avian publishes a root's mass a tick after its colliders land, and
+        // every plan below divides by it: a massless hull reads zero brake
+        // authority, which collapses the arrival leg's desired velocity to
+        // zero, which is the same shape as "the goal wants rest here and the
+        // ship is at rest" - so the release test completes a leg that never
+        // flew. The hull is still being assembled, not arrived: hold the leg
+        // and wait for the mass rather than commanding or releasing on it.
+        if mass.value() <= 0.0 {
+            continue;
+        }
         let groups = cluster_thrusters(&engines, FORWARD_ALIGNMENT_COS);
 
         // The arrival curve is planned with the group the computer would

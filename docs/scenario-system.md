@@ -413,9 +413,11 @@ position and has the same answer.
 
 `NarrativeCue` writes into a bottom-left comms stack rather than a
 latest-wins line: arrival order, a bounded number of cards visible, and a
-lossless pending queue behind them. The whole log stays in the feed too. That
-is why a burst of lines is survivable - but one line per beat is still the
-style, and the queue is the safety net.
+bounded pending queue behind them. The whole log stays in the feed either way.
+That is why a burst of lines is survivable - but one line per beat is still the
+style, and the queue is the safety net. The backlog holds 24 waiting lines,
+which is what three cards can reach inside the 30 s a line stays worth reading;
+past that the OLDEST waiting line is dropped and the overrun is logged once.
 
 Two consequences for anything that fires story lines:
 

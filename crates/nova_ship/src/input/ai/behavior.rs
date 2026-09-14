@@ -421,15 +421,23 @@ pub(super) fn update_behavior_state(
         // Change-detection hygiene: only write on a real transition.
         if *state != next {
             // The Evade edges arm the cycle: a fresh stock of legs and the
-            // first leg's deadline on entry, the refractory cooldown on ANY
-            // exit (legs flown, authority lost, target loss, a future
-            // retreat).
+            // first leg's deadline on entry, and the refractory cooldown on
+            // the exit of a cycle that was actually FLOWN.
             if next == AIBehaviorState::Evade {
                 evade.legs_left = AI_EVADE_LEGS;
                 evade.leg_deadline.trigger_for(leg.deadline);
                 evade.leg_origin = offset.unwrap_or(Vec3::ZERO);
             }
-            if *state == AIBehaviorState::Evade {
+            // `legs_left == 0` is the whole gate: the window is what the ship
+            // OWES for a weave, so only a weave it got to fly can owe it. Every
+            // other way out of Evade leaves the legs unflown - authority lost
+            // to a drive hit, the leash breaking off the fight, a target gone
+            // behind a rock for one frame - and arming it there charged the
+            // ship for a jink it never made. The flicker is the one that shows:
+            // a hostile skimming a rock edge drops out of the contact list and
+            // comes back, and the hull it was evading spent its evade clock on
+            // the blink.
+            if *state == AIBehaviorState::Evade && evade.legs_left == 0 {
                 // One leg's worth of fighting between weaves. The window has
                 // to scale with the cycle or a hull whose legs take seconds
                 // spends the whole fight weaving and its standoff orbit is
@@ -1186,6 +1194,81 @@ mod behavior_state_tests {
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
             AIBehaviorState::Engage,
             "a hostile appearing pulls Idle back into the fight"
+        );
+    }
+
+    /// The refractory window is what a ship OWES for a weave it flew. A
+    /// hostile skimming a rock edge drops out of the contact list for a frame
+    /// and comes back; the hull evading it leaves Evade with every leg still
+    /// unflown, and charging it the window there burned the evade clock on the
+    /// blink - the jink it was mid-way through never happened and the next one
+    /// was refused.
+    #[test]
+    fn an_evade_cut_short_with_its_legs_unflown_keeps_its_cooldown() {
+        let mut world = crate::input::ai::ai_test_world();
+        world.init_resource::<Time>();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                FlightAuthority {
+                    linear_acceleration: 20.0,
+                    turn_rate: 1.0,
+                    ..default()
+                },
+            ))
+            .id();
+        let hostile = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        // Shot at: Engage breaks into Evade and stocks a fresh cycle.
+        world
+            .entity_mut(ship)
+            .get_mut::<AIThreat>()
+            .unwrap()
+            .record(Some(hostile));
+        crate::input::ai::sense_and_pick(&mut world);
+        world.run_system_once(update_behavior_state).unwrap();
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Evade,
+            "delivery guard: a shot ship with the authority to jink evades"
+        );
+        assert_eq!(
+            world.entity(ship).get::<AIEvade>().unwrap().legs_left,
+            AI_EVADE_LEGS,
+            "delivery guard: the cycle is stocked and none of it is flown"
+        );
+
+        // The target blinks out - cover, or a contact list that flickered -
+        // and the state falls back to the routine with the cycle unflown.
+        world.entity_mut(hostile).despawn();
+        crate::input::ai::sense_and_pick(&mut world);
+        world.run_system_once(update_behavior_state).unwrap();
+        assert_ne!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Evade,
+            "delivery guard: losing the target leaves Evade"
+        );
+        assert!(
+            world.entity(ship).get::<AIEvade>().unwrap().legs_left > 0,
+            "delivery guard: the cycle was cut short, not flown out"
+        );
+        assert!(
+            world
+                .entity(ship)
+                .get::<AIEvade>()
+                .unwrap()
+                .cooldown
+                .ready(),
+            "an evade nobody got to fly owes no refractory window"
         );
     }
 

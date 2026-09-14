@@ -67,6 +67,7 @@ impl Plugin for ScenarioAreaPlugin {
         app.add_observer(wire_area_collisions);
         app.add_observer(forget_body_occupancy);
         app.add_observer(forget_collider_occupancy);
+        app.add_observer(rekey_severed_occupancy);
     }
 }
 
@@ -123,6 +124,54 @@ fn forget_collider_occupancy(despawn: On<Despawn, Collider>, mut occupancy: ResM
         colliders.remove(&despawn.entity);
         !colliders.is_empty()
     });
+}
+
+/// Move a collider's occupancy to the body it now belongs to, when a sever
+/// hands it to a new one.
+///
+/// A ship that breaks up inside an area does not lose its colliders: avian
+/// re-links each severed section to the wreck body the split spawned, and from
+/// then on reports that collider's `CollisionEnd` against the WRECK. The row
+/// filed under the ship still holds it, nothing will ever take it out again,
+/// and the ship can no longer drive its own set to empty - the dead end
+/// [`forget_collider_occupancy`] closes for a section that DIED, reached
+/// instead by one that changed hands.
+///
+/// PRUNE ONLY, like both siblings: no `OnEnter` for the body that gained the
+/// collider and no `OnExit` for the one that lost it. Neither body crossed
+/// anything; the hull came apart around them, and the only `OnEnter`/`OnExit`
+/// are still the collision handlers' own 0 -> 1 and 1 -> 0 transitions.
+///
+/// Global, and it declines on an empty table first, so a scenario with no areas
+/// pays one resource read per collider spawned.
+fn rekey_severed_occupancy(
+    insert: On<Insert, ColliderOf>,
+    mut occupancy: ResMut<AreaOccupancy>,
+    q_collider_of: Query<&ColliderOf>,
+) {
+    if occupancy.0.is_empty() {
+        return;
+    }
+    let collider = insert.entity;
+    let Ok(&ColliderOf { body }) = q_collider_of.get(collider) else {
+        return;
+    };
+
+    let mut moved = Vec::new();
+    occupancy.0.retain(|(area, owner), colliders| {
+        if *owner == body || !colliders.remove(&collider) {
+            return true;
+        }
+        moved.push(*area);
+        !colliders.is_empty()
+    });
+    for area in moved {
+        occupancy
+            .0
+            .entry((area, body))
+            .or_default()
+            .insert(collider);
+    }
 }
 
 /// Arm a fresh area for collision reporting and bind its two handlers TO THAT
@@ -496,6 +545,127 @@ mod tests {
         assert!(
             left(&app),
             "a body that lost a collider inside the area must still fire OnExit"
+        );
+    }
+
+    /// A section SEVERED inside an area moves to a rigid body of its own, and
+    /// the occupancy row has to move with it. avian re-links the collider to
+    /// the wreck and reports that collider's end against the WRECK, so a row
+    /// still filed under the ship keeps an entry nothing can ever remove - the
+    /// same dead end the shed-collider case has, reached by a ship breaking up
+    /// rather than by a section dying.
+    #[test]
+    fn a_section_severed_inside_an_area_leaves_with_the_body_it_joins() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            PhysicsPlugins::default(),
+        ));
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.02,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_plugins(ScenarioAreaPlugin);
+        app.finish();
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(crate::events::EventConfig::OnExit);
+        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("ring".to_string()),
+            other_id: Some("ship".to_string()),
+            ..Default::default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "left".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+        let left = |app: &App| -> bool {
+            matches!(
+                app.world()
+                    .resource::<NovaEventWorld>()
+                    .get_variable("left"),
+                Some(VariableLiteral::Boolean(true))
+            )
+        };
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                EntityId::new("ship".to_string()),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                RigidBody::Dynamic,
+                Transform::IDENTITY,
+            ))
+            .id();
+        let sections: Vec<Entity> = [-0.4_f32, 0.0, 0.4]
+            .into_iter()
+            .map(|dx| {
+                app.world_mut()
+                    .spawn((
+                        Collider::sphere(0.5),
+                        ColliderDensity(1.0),
+                        Transform::from_xyz(dx, 0.0, 0.0),
+                        ChildOf(ship),
+                    ))
+                    .id()
+            })
+            .collect();
+        app.world_mut().spawn((
+            ScenarioAreaMarker,
+            EntityId::new("ring".to_string()),
+            RigidBody::Static,
+            Collider::sphere(50.0),
+            Sensor,
+            Transform::IDENTITY,
+        ));
+        for _ in 0..25 {
+            app.update();
+        }
+        assert!(
+            !app.world().resource::<AreaOccupancy>().0.is_empty(),
+            "delivery guard: the whole body must be counted as inside first"
+        );
+
+        // The hull parts company INSIDE the area: one section becomes the
+        // wreck's collider instead of the ship's, exactly as avian re-links it
+        // when a component detaches.
+        let wreck = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::IDENTITY))
+            .id();
+        app.world_mut()
+            .entity_mut(sections[0])
+            .insert(ChildOf(wreck));
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().get::<ColliderOf>(sections[0]).map(|of| of.body),
+            Some(wreck),
+            "delivery guard: avian has to re-link the severed collider"
+        );
+        assert!(!left(&app), "shedding a section is not leaving");
+
+        // What is left of the ship flies out. The severed collider stays
+        // behind, and its end will be reported against the wreck.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(200.0, 0.0, 0.0)));
+        for _ in 0..60 {
+            app.update();
+        }
+
+        assert!(
+            left(&app),
+            "a body that lost a collider to a sever must still fire OnExit"
         );
     }
 

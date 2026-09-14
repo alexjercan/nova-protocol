@@ -13,8 +13,8 @@ Every ship carries a second seat of control: **NOVA OS**, the ship computer. Pre
         >
         <span class="figure__placeholder-note"
             >Tab: the raster blooms on from a single scan
-            line, the boot report types itself out, and the
-            close collapses the picture to a dying dot.</span
+            line, the boot banner staggers itself out row by
+            row, and `map` launches the chart.</span
         >
     </div>
 </figure>

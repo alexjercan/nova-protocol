@@ -35,13 +35,12 @@ const GOTO_CORRIDOR_M: f64 = 300.0;
 /// The distance ladder a summarised body is filed on, by surface range. Fixed
 /// edges on purpose: a rock changes group only when it crosses one, so two
 /// observations of an unmoved world read the same.
-const BANDS: &[(f64, &str)] = &[
-    (1000.0, "<1km"),
-    (2000.0, "1-2km"),
-    (5000.0, "2-5km"),
-    (10000.0, "5-10km"),
-    (25000.0, "10-25km"),
-];
+///
+/// The ladder starts at [`NEAR_SURFACE_M`] because nothing nearer is ever
+/// summarised: [`is_near`] carries every body inside that range in full. Rungs
+/// below it read as groups an agent can ask to expand and that always come back
+/// empty, which is a promise the format cannot keep.
+const BANDS: &[(f64, &str)] = &[(5000.0, "2-5km"), (10000.0, "5-10km"), (25000.0, "10-25km")];
 /// The band past the end of [`BANDS`].
 const FAR_BAND: &str = ">25km";
 
@@ -49,16 +48,19 @@ const FAR_BAND: &str = ">25km";
 /// has to tell a group from a tier, and a second speller would drift.
 const GROUPS: &str = "groups";
 
-/// Whether an `expand` request opens `key` of `block`.
+/// Whether an `expand` request opens the whole of `block`.
 ///
-/// `all` opens everything and a block's own name opens that whole block, so a
-/// new expandable block asks this rather than re-deciding it - forgetting the
-/// `all` case is how the score's end state, which asks for `all`, would come
-/// back silently truncated.
+/// `all` opens everything and a block's own name opens that block, so a new
+/// expandable block asks this rather than re-deciding it - forgetting the `all`
+/// case is how the score's end state, which asks for `all`, would come back
+/// silently truncated.
+fn expands_block(expand: &[String], block: &str) -> bool {
+    expand.iter().any(|asked| asked == "all" || asked == block)
+}
+
+/// Whether an `expand` request opens `key` of `block`.
 fn expands(expand: &[String], block: &str, key: &str) -> bool {
-    expand
-        .iter()
-        .any(|asked| asked == "all" || asked == block || asked == key)
+    expands_block(expand, block) || expand.iter().any(|asked| asked == key)
 }
 
 /// Condense one snapshot. `held` is what the referee knows is down; `expand`
@@ -281,7 +283,7 @@ fn bodies_view(
     focuses: &[Focus],
     expand: &[String],
 ) -> Value {
-    let everything = expands(expand, "bodies", "");
+    let everything = expands_block(expand, "bodies");
     let mut near = Vec::new();
     let mut in_the_way = Vec::new();
     let mut grouped: std::collections::BTreeMap<String, Vec<Value>> =
@@ -1006,11 +1008,25 @@ mod tests {
         assert_eq!(bearing(&frame, [10.0, 0.0, 0.0])[0].abs(), 180.0);
     }
 
+    /// A body is summarised only when [`is_near`] says no, which needs a
+    /// surface range past [`NEAR_SURFACE_M`]. A rung below that edge is a group
+    /// the report offers, an agent can ask to expand, and nothing is ever filed
+    /// in.
+    #[test]
+    fn every_rung_of_the_distance_ladder_can_hold_a_body() {
+        for (edge, name) in BANDS {
+            assert!(
+                *edge > NEAR_SURFACE_M,
+                "'{name}' ends at {edge} m, inside the range carried in full"
+            );
+        }
+    }
+
     #[test]
     fn the_ladder_and_the_sectors_read_as_a_pilot_would_say_them() {
-        assert_eq!(band(0.0), "<1km");
-        assert_eq!(band(999.9), "<1km");
-        assert_eq!(band(1000.0), "1-2km");
+        assert_eq!(band(NEAR_SURFACE_M + 0.1), "2-5km");
+        assert_eq!(band(4999.0), "2-5km");
+        assert_eq!(band(5000.0), "5-10km");
         assert_eq!(band(24_999.0), "10-25km");
         assert_eq!(band(25_000.0), ">25km");
         assert_eq!(sector(0.0), "bow");

@@ -22,10 +22,10 @@ their lock while the nose swings, so range is what you have to manage.
 
 Lock the destination with the radar while the weapons are LOWERED (that makes
 it a `travel_lock`), then tap `flight.autopilot_goto`. The helm flies there and
-parks a safe margin off - about 300 m from a ship, a clear margin off a body's
-surface - then hands back: `me.autopilot.engaged` reads `null` again with
-`speed_mps` near zero and the target still under `travel_lock`. That is the
-park. A second GOTO tap from there does nothing useful.
+parks a safe margin off - about 500 m of clear space, measured from the hull
+or the surface you flew to and not from its centre - then hands back:
+`me.autopilot.engaged` reads `null` again with `speed_mps` near zero and the
+target still under `travel_lock`. That is the park. A second GOTO tap from there does nothing useful.
 
 Without a travel lock, the tap does nothing at all.
 

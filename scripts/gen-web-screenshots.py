@@ -108,7 +108,6 @@ FIGURES = [
     # name                              example
     # The Drydock drift beauty shots.
     ("wiki-sections.png",               "screenshot_hero_ship"),
-    ("feature-gravity.png",             "screenshot_gravity"),
     # A hull coming apart: the outer sections blowing off a core still firing.
     ("wiki-ships-damage.png",           "loop_damage_sequence"),
     # The part-candidate viewer shows the seven body meshes before functional
@@ -310,7 +309,7 @@ ALIASES = {
     # The gravity chapter asks for a well it can read: a body on black is a
     # rock, and the only frame in the set that SHOWS a well is the orbit shot -
     # the planetoid, the holo ring across it, the radius spoke and the ship on
-    # the far end of that spoke. `screenshot_gravity` no longer tries.
+    # the far end of that spoke. No producer in this set tries.
     "wiki-gravity.png": "tutorial-orbit.png",
 }
 

@@ -808,6 +808,24 @@ fn check_action(
                 ));
             }
         }
+        EventActionConfig::CinematicTitle(config) => {
+            // The hold IS the card: nothing takes a title card down, it expires
+            // on its own age (`NovaEventWorld::cinematic_title`). A zero or
+            // negative hold expires the frame it is posted - an invisible card
+            // and a shot with no title - and a NaN compares false against every
+            // age, so the card NEVER expires and rides into the next scene and
+            // the menu behind it. Neither is a look an author can ask for.
+            if !config.seconds.is_finite() || config.seconds <= 0.0 {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "CinematicTitle '{}' must hold for a positive finite number of \
+                         seconds, got {}",
+                        config.location, config.seconds
+                    ),
+                ));
+            }
+        }
         EventActionConfig::NarrativeCue(config) => {
             // The channel is what the panel draws the card IN - tone, tag and
             // signal strength. An id nothing authored has no card to draw, so
@@ -1661,6 +1679,59 @@ mod tests {
                 .count(),
             4,
             "empty start/cancel/filter keys and zero duration each error: {issues:?}"
+        );
+    }
+
+    /// A title card expires on its own age and nothing takes it down, so the
+    /// hold is the whole card. `0.0` posts one that is gone the frame it
+    /// arrives; `NaN` compares false against every age, so the card outlives
+    /// the scene, the scenario and the menu behind it.
+    #[test]
+    fn a_title_card_must_hold_for_a_positive_finite_time() {
+        let card = |seconds: f32| CinematicTitleActionConfig {
+            corner: ScreenCornerConfig::TopLeft,
+            location: "Meridian".to_string(),
+            date: "2481.114".to_string(),
+            note: String::new(),
+            seconds,
+        };
+        for seconds in [0.0, -2.0, f32::NAN, f32::INFINITY] {
+            let s = scenario(
+                vec![EventActionConfig::CinematicTitle(card(seconds))],
+                Vec::new(),
+            );
+            let issues = lint_scenario(
+                &s,
+                &sections(&[]),
+                &ships(&[]),
+                &known(&[]),
+                &base_channels(),
+            );
+            assert!(
+                issues.iter().any(|issue| {
+                    issue.severity == LintSeverity::Error
+                        && issue.message.contains("CinematicTitle 'Meridian'")
+                }),
+                "a {seconds} hold must refuse the scenario: {issues:?}"
+            );
+        }
+
+        let s = scenario(
+            vec![EventActionConfig::CinematicTitle(card(8.0))],
+            Vec::new(),
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&[]),
+            &base_channels(),
+        );
+        assert!(
+            !issues
+                .iter()
+                .any(|issue| issue.message.contains("CinematicTitle")),
+            "an ordinary hold is clean: {issues:?}"
         );
     }
 

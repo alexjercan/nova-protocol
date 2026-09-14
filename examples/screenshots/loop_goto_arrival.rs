@@ -30,7 +30,11 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(arrival_script());
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
-        app.add_systems(Update, (ring::drive_leg_camera, drive_cut_camera).chain());
+        // The cut INSTALLS a bearing and the rig SOLVES it, so the installer
+        // has to run first. Solving first spent every cut's opening frame on
+        // the bearing it had just left - a montage of ten 0.65 s cuts with a
+        // stale frame at the head of each.
+        app.add_systems(Update, (drive_cut_camera, ring::drive_leg_camera).chain());
     }
 
     app.run()

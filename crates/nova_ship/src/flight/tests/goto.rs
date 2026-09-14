@@ -747,3 +747,40 @@ fn a_goto_engaged_below_the_estimate_floor_burns_toward_the_goal() {
         "the leg must still reach its flip point and brake normally"
     );
 }
+
+/// Avian publishes a root's `ComputedMass` a tick after its colliders land, so
+/// a scenario that engages the computer on the frame the hull appears hands
+/// the planner a massless ship. The arrival leg reads zero brake authority
+/// there, publishes a zero desired velocity, and the release test - "the goal
+/// wants rest here and the ship is at rest" - is satisfied by a leg that never
+/// flew. `loop_goto_arrival` stalled on exactly this: GOTO engaged, one tick
+/// later the computer reported the maneuver complete 8 km short.
+#[test]
+fn a_leg_engaged_before_the_hull_has_mass_is_not_already_complete() {
+    let mut app = flight_app();
+    let (ship, _, _) = spawn_ship(&mut app);
+    let target = app
+        .world_mut()
+        .spawn((
+            Transform::from_xyz(0.0, 0.0, -300.0),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -300.0)),
+        ))
+        .id();
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+    app.update();
+
+    assert!(
+        app.world().get::<Autopilot>(ship).is_some(),
+        "a leg 300u short of its goal must not release on the frame the hull \
+         has no mass yet"
+    );
+
+    settle(&mut app);
+    assert!(
+        app.world().get::<Autopilot>(ship).is_some(),
+        "and it must still be flying once the mass lands"
+    );
+}

@@ -364,9 +364,18 @@ fn torpedo_salvo_in_flight(
 
 /// Advance once the last torpedo is gone - the fuze despawns it and spawns
 /// the blast in the same frame, so this IS the detonation.
+///
+/// Counted on the torpedoes themselves and not through [`torpedo_range`],
+/// which needs a live TARGET to measure from: a salvo whose first hit kills
+/// the target would answer "no torpedo in flight" with the rest of it still
+/// closing, and the loop would cut to the tail before the run was flown.
 #[cfg(feature = "debug")]
 fn no_torpedo_in_flight() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| torpedo_range(world).is_none())
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+            .is_none_or(|mut torpedoes| torpedoes.iter(world).next().is_none())
+    })
 }
 
 /// Advance once the leading torpedo is within `distance` of the target.

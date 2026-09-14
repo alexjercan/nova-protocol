@@ -2,8 +2,16 @@
 //! for the player ship (velocity/flight status, lock crosshairs and dwell rings,
 //! turret lead and torpedo target reticles, ammo readouts, edge/threat
 //! indicators, objective markers, the comms panel and the keybind dock). Each
-//! widget lives in its own submodule and is a [`HudTier`] layer spawned and
-//! despawned with the player ship.
+//! widget lives in its own submodule, and almost every one is a [`HudTier`]
+//! layer: tagged, HUD-managed, and cleared by the level the player's own
+//! hide-HUD toggle sets.
+//!
+//! The two cinematic surfaces are the deliberate exception. The title card
+//! (`cinematic_title`) and the skip prompt (`cinematic_prompt`) spawn untagged
+//! in `Startup` and drive their own visibility, because a shot's title and the
+//! only way out of a scene must not be deletable by a toggle while the scene
+//! keeps playing. Untagged means not HUD-managed - `apply_hud_visibility`
+//! filters `With<HudTier>` - so each module owns its own on-screen rule.
 //!
 //! Touch this crate (or add a module) to change what the player sees.
 //! [`NovaHudPlugin`] adds every widget; the HUD reads gameplay state (locks,

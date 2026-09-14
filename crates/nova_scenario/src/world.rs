@@ -116,6 +116,19 @@ struct CinematicRun {
     ended: bool,
 }
 
+/// What a keyed sequence restart would meet. See
+/// [`NovaEventWorld::sequence_key_state`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SequenceKeyState {
+    /// No run holds the key.
+    Free,
+    /// A live run holds it and is still advancing.
+    Running,
+    /// A run whose step blew its deadline holds it, and keeps it for the rest
+    /// of the scenario.
+    Stopped,
+}
+
 /// A cinematic that ended this frame, waiting for the driver to announce it.
 pub(crate) struct CinematicEnding {
     /// The scene's authored key.
@@ -720,9 +733,19 @@ impl NovaEventWorld {
         cinematic: Option<CinematicRun>,
     ) {
         self.prune_finished_sequences();
-        if self.sequences.iter().any(|run| run.key == key) {
-            error!("sequence '{key}' is already running; ignoring the restart");
-            return;
+        match self.sequence_key_state(&key) {
+            SequenceKeyState::Free => {}
+            SequenceKeyState::Running => {
+                error!("sequence '{key}' is already running; ignoring the restart");
+                return;
+            }
+            SequenceKeyState::Stopped => {
+                error!(
+                    "sequence '{key}' stopped at a step deadline and keeps its key; \
+                     ignoring the restart. Fix the step that could not finish."
+                );
+                return;
+            }
         }
         self.sequences.push(SequenceRun {
             key,
@@ -754,13 +777,20 @@ impl NovaEventWorld {
     }
 
     /// End a named scene from the scenario. Announces a finish, never a skip.
+    ///
+    /// Cancelling a key no scene is playing is a QUIET no-op, which is what
+    /// `/create/actions/` promises: the ordinary shape is a handler that gives
+    /// the scene back whatever it took and cancels it in case it is still
+    /// running, and on every path where it is not, an `error!` would be the
+    /// engine shouting at correct content. A key no `Cinematic` action in the
+    /// scenario plays is caught by lint, where an author can act on it.
     pub(crate) fn cancel_cinematic(&mut self, key: &str) {
         let Some(run) = self
             .sequences
             .iter_mut()
             .find(|run| run.key == key && run.cinematic.is_some())
         else {
-            error!("CancelCinematic: no cinematic '{key}' is running");
+            debug!("CancelCinematic: no cinematic '{key}' is running");
             return;
         };
         run.step = run.steps.len();
@@ -895,6 +925,22 @@ impl NovaEventWorld {
     fn prune_finished_sequences(&mut self) {
         self.sequences
             .retain(|run| run.stopped || run.step < run.steps.len());
+    }
+
+    /// What a restart of `key` would meet.
+    ///
+    /// Two occupied states, not one: a run the deadline STOPPED is finished as
+    /// far as the world is concerned - it advances no further and a cinematic
+    /// has already reported its ending - but it keeps its key on purpose, so an
+    /// authoring bug cannot be papered over by restarting the scene. Calling
+    /// that "already running" told the author to look for a live sequence that
+    /// is not there.
+    pub(crate) fn sequence_key_state(&self, key: &str) -> SequenceKeyState {
+        match self.sequences.iter().find(|run| run.key == key) {
+            None => SequenceKeyState::Free,
+            Some(run) if run.stopped => SequenceKeyState::Stopped,
+            Some(_) => SequenceKeyState::Running,
+        }
     }
 
     /// Which step a sequence is standing on, or `None` when no run holds that
@@ -1637,6 +1683,61 @@ mod tests {
     /// The HUD is told the skip is live only while a scene is offering it, and
     /// which action leaves the scene. A prompt left up after the scene ended
     /// offers the player a key that does nothing.
+    /// A scene whose step blew its deadline is NOT running: it has already
+    /// reported its ending and advances no further. It keeps its key so the
+    /// authoring bug cannot be restarted away, and the refusal has to say which
+    /// of the two it is - "already running" sent the author looking for a live
+    /// sequence that is not there.
+    #[test]
+    fn a_deadlined_scene_refuses_a_restart_as_stopped_not_running() {
+        let mut world = NovaEventWorld::default();
+        assert_eq!(
+            world.sequence_key_state("strike"),
+            SequenceKeyState::Free,
+            "an unused key is free"
+        );
+
+        world.start_cinematic(
+            "strike".to_string(),
+            Arc::new(vec![SequenceStepConfig {
+                until: Some(SequenceGateConfig {
+                    name: EventConfig::OnDestroyed,
+                    filters: Vec::new(),
+                }),
+                deadline: Some(2.0),
+                ..default()
+            }]),
+            false,
+        );
+        assert_eq!(
+            world.sequence_key_state("strike"),
+            SequenceKeyState::Running
+        );
+
+        // The gate never opens, so the deadline stops the run and the scene
+        // reports its one ending.
+        world.advance_scenario_elapsed(3.0);
+        let now = world.scenario_elapsed();
+        assert!(world.take_ready_sequence_step(now).is_none());
+        assert_eq!(
+            world.drain_cinematic_endings().len(),
+            1,
+            "a stuck scene still gives the camera back"
+        );
+        assert_eq!(
+            world.sequence_key_state("strike"),
+            SequenceKeyState::Stopped,
+            "the key stays occupied, but the run is stopped rather than running"
+        );
+
+        world.start_cinematic("strike".to_string(), Arc::new(Vec::new()), false);
+        assert_eq!(
+            world.sequence_key_state("strike"),
+            SequenceKeyState::Stopped,
+            "the restart is still refused, and still refused as a STOPPED run"
+        );
+    }
+
     #[test]
     fn the_skip_prompt_follows_the_scene_that_offers_it() {
         let mut app = App::new();

@@ -4,18 +4,20 @@
 //! so these run without an asset server and fail on a content change rather
 //! than on a missing file.
 
-use bevy::prelude::UVec3;
+use bevy::prelude::{default, Quat, UVec3, Vec3};
 use nova_scenario::prelude::{SectionSource, ShipHull, SpaceshipSectionConfig};
 use nova_ship::prelude::{
-    GameGrammars, GameSections, GrammarGrid, GrammarPart, GrammarZone, ShipGrammarConfig,
+    BaseSectionConfig, GameGrammars, GameSections, GrammarGrid, GrammarPart, GrammarZone,
+    HullSectionConfig, LinkPoint, SectionConfig, SectionKind, ShipGrammarConfig,
     STANDARD_HULL_GRAMMAR_ID,
 };
 
 use crate::{
-    check::{place, unmated_contacts},
-    grid::FACES,
+    check::{place, unmated_contacts, Placed},
+    collapse::Collapse,
+    grid::{Grid, FACES},
     prelude::*,
-    tiles::{compatible, upright_tile, VACUUM},
+    tiles::{compatible, upright_tile, Tile, TileBody, VACUUM},
 };
 
 /// The shipped catalog and the shipped grammar read against each other - the
@@ -651,5 +653,189 @@ fn a_grid_whose_two_seeded_ends_meet_is_refused() {
     assert!(
         refusal.contains("stands on the keel line"),
         "the refusal names what is wrong: {refusal}"
+    );
+}
+
+/// A tile that mates on the named faces and nothing else, standing alone in
+/// its cell.
+fn mating_tile(faces: [bool; 6]) -> Tile {
+    Tile {
+        part: Some(TileBody {
+            prototype: "part".to_string(),
+            rotation: Quat::IDENTITY,
+            offset: Vec3::ZERO,
+        }),
+        family: Some(0),
+        faces,
+        exit: None,
+        aims: None,
+        joints: [None; 6],
+        emits: true,
+        span: UVec3::ONE,
+        seam_flush: false,
+    }
+}
+
+/// `erode_studs` spares the whole keel column, but `erode_blocked_exits` spares
+/// nothing, and the second island walk runs on what erosion left. Starting that
+/// walk at the bow cell and marking it kept before reading it put a dropped bow
+/// gun back on the hull, and carried whatever hung off it back too.
+#[test]
+fn a_bow_cell_erosion_dropped_stays_dropped_and_takes_its_island_with_it() {
+    // x = 0 is the keel column, three cells deep. The stub at (1, 0, 0) mates
+    // ONLY across its -X face, so the bow cell is the only thing holding it on.
+    let tiles = [
+        Tile {
+            part: None,
+            family: None,
+            faces: [false; 6],
+            exit: None,
+            aims: None,
+            joints: [None; 6],
+            emits: false,
+            span: UVec3::ONE,
+            seam_flush: false,
+        },
+        mating_tile([true; 6]),
+        mating_tile([false, true, false, false, false, false]),
+    ];
+    let grid = Grid::starboard_half(2, 1, 3);
+    let collapse = Collapse {
+        tiles: &tiles,
+        families: &[],
+        grid,
+        keel_row: 0,
+        vacuum: nova_ship::prelude::GrammarVacuum::default(),
+        keel: &nova_ship::prelude::GrammarKeel::default(),
+    };
+    let bow = grid.index(0, 0, 0);
+    let stub = grid.index(1, 0, 0);
+    let mut chosen = vec![VACUUM; grid.cells()];
+    for z in 0..3 {
+        chosen[grid.index(0, 0, z)] = 1;
+    }
+    chosen[stub] = 2;
+
+    let whole = collapse.keel_component(&chosen, &vec![true; grid.cells()]);
+    assert!(
+        whole[bow] && whole[stub],
+        "with nothing eroded the stub hangs off the bow: {whole:?}"
+    );
+
+    let mut standing = vec![true; grid.cells()];
+    standing[bow] = false;
+    let kept = collapse.keel_component(&chosen, &standing);
+    assert!(
+        !kept[bow],
+        "erosion dropped the bow cell, so the walk may not write it back: {kept:?}"
+    );
+    assert!(
+        !kept[stub],
+        "the stub was held on by the bow cell alone, so it is an island now: {kept:?}"
+    );
+    assert!(
+        kept[grid.index(0, 0, 1)] && kept[grid.index(0, 0, 2)],
+        "the spine that survived is still the ship: {kept:?}"
+    );
+}
+
+/// `unmated_contacts` reaches its pairs from two ends: the contact walk visits
+/// `(a, b)` with `a < b` by construction, and the socket walk finds whichever
+/// body a probe landed in, in section-list order. A caller writes ONE rule per
+/// pair - the arena stamps do - so a rule that held on one pass and not the
+/// other silently exempted half of what it named.
+#[test]
+fn the_exemption_callback_always_sees_the_lower_section_index_first() {
+    let socket = |id: &str, position: Vec3, normal: Vec3| LinkPoint {
+        id: id.to_string(),
+        position,
+        normal,
+    };
+    let section = |id: &str, points: Vec<LinkPoint>| SectionConfig {
+        base: BaseSectionConfig {
+            id: id.to_string(),
+            link_points: points,
+            ..default()
+        },
+        kind: SectionKind::Hull(HullSectionConfig::default()),
+    };
+    // A big cube with a small block bolted to its flank, and a second small
+    // block stacked on that one. The stack overhangs the cube's +X face, so the
+    // two press sockets below face a body each with nothing to mate.
+    let big = section(
+        "big",
+        vec![
+            socket("mate_x", Vec3::new(0.5, 0.0, 0.0), Vec3::X),
+            socket("press_x", Vec3::new(0.5, 0.35, 0.0), Vec3::X),
+        ],
+    );
+    let lower = section(
+        "lower",
+        vec![
+            socket("mate_x", Vec3::new(-0.25, 0.0, 0.0), Vec3::NEG_X),
+            socket("mate_y", Vec3::new(0.0, 0.25, 0.0), Vec3::Y),
+        ],
+    );
+    let upper = section(
+        "upper",
+        vec![
+            socket("mate_y", Vec3::new(0.0, -0.25, 0.0), Vec3::NEG_Y),
+            socket("press_x", Vec3::new(-0.25, -0.1, 0.0), Vec3::NEG_X),
+        ],
+    );
+    let placed = vec![
+        Placed {
+            config: &big,
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            body: (Vec3::ZERO, Vec3::splat(0.5)),
+        },
+        Placed {
+            config: &lower,
+            position: Vec3::new(0.75, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+            body: (Vec3::new(0.75, 0.0, 0.0), Vec3::splat(0.25)),
+        },
+        Placed {
+            config: &upper,
+            position: Vec3::new(0.75, 0.5, 0.0),
+            rotation: Quat::IDENTITY,
+            body: (Vec3::new(0.75, 0.5, 0.0), Vec3::splat(0.25)),
+        },
+    ];
+    let hull = ShipHull {
+        sections: ["big", "lower", "upper"]
+            .into_iter()
+            .map(|id| SpaceshipSectionConfig {
+                id: id.to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::Prototype(id.to_string()),
+                modifications: vec![],
+            })
+            .collect(),
+        ..default()
+    };
+
+    let asked = std::cell::RefCell::new(Vec::new());
+    let unmated = unmated_contacts(&placed, &hull, &|a, b| {
+        asked.borrow_mut().push((a, b));
+        false
+    })
+    .expect("the fixture derives a graph");
+    let asked = asked.into_inner();
+
+    assert!(
+        asked.contains(&(0, 2)),
+        "the fixture has to reach the socket walk, which presses 'upper' into \
+         'big' and 'big' into 'upper': {asked:?}"
+    );
+    assert!(
+        asked.iter().all(|(a, b)| a < b),
+        "every pair reaches the exemption in one order: {asked:?}"
+    );
+    assert!(
+        unmated.iter().any(|line| line.contains("press_x")),
+        "the fixture leaves a socket pressed into a body: {unmated:?}"
     );
 }

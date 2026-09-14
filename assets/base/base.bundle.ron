@@ -3,19 +3,27 @@
 // shown in the Mods menu); `version` stays empty for base because the GAME
 // version is authoritative here.
 (
+    // This list is NOT a dependency order. Every file loads as a dependency of
+    // this bundle and the merge only routes items into id-keyed registries;
+    // nothing resolves a reference while merging, so a ship may name a section,
+    // a grammar a section and a cue a channel whatever order the files are in.
+    // Those references are answered against the MERGED registries, at lint and
+    // then at load.
+    //
+    // What the order does decide: the section, style and ship catalogs keep it
+    // (they are Vecs, and that is the order a palette or a picker reads), and an
+    // id repeated inside one bundle keeps the FIRST and reports the second as a
+    // conflict. So this is a reading order - the parts, then the paint, then
+    // what is built out of them.
     content: [
         "sections/base.content.ron",
         "styles/base.content.ron",
-        // After the sections it is built from: a ship references section
-        // prototypes by id, so the catalog it reads must merge first.
         "ships/base.content.ron",
         // The impact table: what a round sounds like against what it hit.
         "impacts/base.content.ron",
-        // The generator's taste. After the sections it draws from, for the
-        // ships' reason: a grammar names section prototypes by id.
+        // The generator's taste, drawn from the sections above.
         "grammars/base.content.ron",
-        // The channels a line can be heard on. Before the scenarios, for the
-        // ships' reason: a cue names a channel by id.
+        // The channels a line can be heard on.
         "channels/base.content.ron",
         "scenarios/menu_waystation.content.ron",
         "scenarios/menu_gauntlet.content.ron",

@@ -30,7 +30,7 @@ pub mod prelude {
 ///
 /// Mirrors nova_scenario's `ScreenCornerConfig`, the same split `StoryFeed` and
 /// `HudReadouts` make: the HUD cannot depend on the scenario crate.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ScreenCorner {
     /// Under the status bar, above everything else. The default free corner.
     #[default]
@@ -122,7 +122,6 @@ pub struct CinematicTitlePlugin;
 impl Plugin for CinematicTitlePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CinematicTitle>();
-        app.register_type::<ScreenCorner>();
         app.add_systems(Startup, spawn_cinematic_title);
         app.add_systems(Update, sync_cinematic_title.in_set(super::NovaHudSystems));
     }

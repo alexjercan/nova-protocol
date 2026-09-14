@@ -75,7 +75,7 @@ use bevy::{
 };
 use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::BodyRadius;
+use nova_ship::prelude::{BodyRadius, RadarOccluder};
 
 use super::{
     asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed},
@@ -460,6 +460,15 @@ fn throw_severed_pieces(
         if let Some(material) = parent.material.clone() {
             commands.entity(spawned).insert(material);
         }
+        // Rock stops radio whether or not it is still attached to the rock it
+        // came off. Cover a player shoots loose is still cover, and without
+        // this a lock held through a severed island read straight through it.
+        //
+        // Here and not in `spawn_carved_chunk`: that module also throws metal
+        // off a dying hull, and a ship's debris is not the radar shadow its
+        // hull was. The occluder rides the collider, and the chunk grows its
+        // own on this entity once it is clear of the parent.
+        commands.entity(spawned).insert(RadarOccluder);
         thrown += 1;
     }
 
@@ -1000,6 +1009,54 @@ mod tests {
             expected.distance(Vec3::Z * 5.0) > 1.0,
             "delivery guard: the spin contributes something to measure"
         );
+    }
+
+    /// Cover you shot loose is still cover. A severed island is rock standing
+    /// in the same place it stood a frame ago, and a lock held through it read
+    /// straight through because only the parent's hull wore the occluder.
+    #[test]
+    fn a_severed_island_still_stops_radio() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+
+        let island = SignedField::sample(16, 4.0, |at| at.distance(Vec3::new(2.0, 0.0, 0.0)) - 1.0);
+        let piece = sever_piece(&island, 1.0).expect("the island is a body");
+        assert!(
+            piece.body.is_some(),
+            "delivery guard: the island is a body, not dust"
+        );
+        let mut piece = Some(piece);
+
+        let rock = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .run_system_once(
+                move |mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>| {
+                    throw_severed_pieces(
+                        &mut commands,
+                        &mut meshes,
+                        &Parent {
+                            node: rock,
+                            frame: GlobalTransform::IDENTITY,
+                            centre: Vec3::ZERO,
+                            linear: Vec3::ZERO,
+                            angular: Vec3::ZERO,
+                            material: None,
+                        },
+                        vec![piece.take().expect("the throw runs once")],
+                    );
+                },
+            )
+            .expect("the throw runs");
+
+        let mut q_pieces = app
+            .world_mut()
+            .query_filtered::<Has<RadarOccluder>, With<CarvedChunkMarker>>();
+        let occluding: Vec<bool> = q_pieces.iter(app.world()).collect();
+        assert_eq!(occluding, vec![true], "a thrown island is opaque to radar");
     }
 
     /// The rule that keeps gravity and navigation valid without recomputing

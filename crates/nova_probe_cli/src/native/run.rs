@@ -240,7 +240,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             "run.log".to_string()
         };
         eprintln!("probe: {cell_name} -> {}", out.join(&log_name).display());
-        let mut env = clean_pass_env(&root, &out, &display, sweeping);
+        let mut env = clean_pass_env(&root, &out, &display, sweeping, opts.timeout_secs);
         if opts.correctness_only {
             env.push((
                 nova_probe::PROBE_MODE_ENV.into(),
@@ -318,11 +318,15 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                     // and letting the fps pass rewrite it makes the report's "what the
                     // example wired" half describe the wrong run the moment the two
                     // passes diverge.
-                    let mut env = clean_pass_env(&root, &out, &display, true);
+                    let mut env = clean_pass_env(&root, &out, &display, true, opts.timeout_secs);
                     let clean_only = [
                         probe_env(TIMELINE_PARAM),
                         probe_env(INVARIANTS_PARAM),
                         probe_env(CONTRACT_PARAM),
+                        // The fps pass sizes its own deadline from the capture
+                        // window below; the clean pass's timeout-sized one must
+                        // not ride along beside it.
+                        nova_autopilot::completion::DEADLINE_ENV.to_string(),
                     ];
                     env.retain(|(k, _)| !clean_only.contains(k));
                     if let Some(label) = label {

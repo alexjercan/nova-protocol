@@ -369,8 +369,8 @@ What is on disk today, in reading order:
   onto one script, so a beat that drifted took every frame after it with it.
   Duplication between producers is the accepted price: several stage the same
   set, and the scene builders they share live in `examples/screenshots/shared/`.
-  The stills, by set: the Drydock drift beauty shots (`screenshot_gravity`,
-  `screenshot_hero_ship`), the menu and editor walks (`screenshot_menu`,
+  The stills, by set: the Drydock drift beauty shot (`screenshot_hero_ship`),
+  the menu and editor walks (`screenshot_menu`,
   `screenshot_scenario_picker`, `screenshot_editor`), the section closeups
   (`screenshot_section_frame`, `screenshot_section_weapons`), the Tab ship
   computer (`screenshot_nova_os_terminal`, `screenshot_nova_os_apps`), the Rock
