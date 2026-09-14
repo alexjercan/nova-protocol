@@ -659,16 +659,16 @@
     )),
     // -- 4. MENU BACKDROP ---------------------------------------------------
     // A scenario flagged `menu_backdrop: true` can drive the main-menu ambience:
-    // mods can ship their own menu scene, not just playable levels. `hidden:
-    // true` keeps it out of the player-facing Scenarios picker (it is menu
-    // dressing, not a level you launch). It renders under this mod's own skybox
-    // and uses this mod's own rock texture, all via `self://`.
+    // mods can ship their own menu scene, not just playable levels. That flag is
+    // also what keeps it out of the player-facing Scenarios picker (it is menu
+    // dressing, not a level you launch) - every other scenario a mod ships is a
+    // picker row. It renders under this mod's own skybox and uses this mod's own
+    // rock texture, all via `self://`.
     Scenario((
         id: "example_menu",
         name: "Example Menu Backdrop",
         description: "A menu-ambience scene shipped by the example mod, under its own skybox.",
         cubemap: "self://textures/nebula.png",
-        hidden: true,
         menu_backdrop: true,
         events: [
             (

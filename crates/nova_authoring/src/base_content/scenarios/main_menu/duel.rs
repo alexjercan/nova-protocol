@@ -436,7 +436,6 @@ pub(crate) fn menu_duel(
     ScenarioConfig {
         description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat."
             .to_string(),
-        hidden: true,
         menu_backdrop: true,
         events,
         ..ScenarioConfig::new("menu_duel".to_string(), "Duel Cycle".to_string(), cubemap)

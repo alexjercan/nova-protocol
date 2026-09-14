@@ -243,7 +243,6 @@ fn refused_probe_live(game_assets: &GameAssets, sections: &GameSections) -> Scen
 
     ScenarioConfig {
         description: "A live leg with a chain queued behind it.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_A.to_string(),
@@ -274,7 +273,6 @@ fn refused_probe_broken(game_assets: &GameAssets) -> ScenarioConfig {
 
     ScenarioConfig {
         description: "The leg whose own chain target is gone.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_B.to_string(),

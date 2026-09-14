@@ -209,7 +209,6 @@ pub(crate) fn menu_weave(
 
     ScenarioConfig {
         description: "An AI ship weaves a waypoint circuit through a dense rock band.".to_string(),
-        hidden: true,
         menu_backdrop: true,
         events,
         ..ScenarioConfig::new(

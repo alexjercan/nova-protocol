@@ -82,8 +82,9 @@ pub enum Content {
     /// A [`ScenarioConfig`] - registers into `GameScenarios` keyed by its id.
     Scenario(ScenarioConfig),
     /// A [`CampaignConfig`] - registers into `GameCampaigns` keyed by its id.
-    /// Carries the campaign's ordered member scenario ids (hidden ones
-    /// included) so the picker can group and launch them as a unit.
+    /// Carries the campaign's ordered member scenario ids so the picker can
+    /// group and launch them as a unit. Every member is a player-launchable
+    /// chapter; naming a menu backdrop is a content-lint Error.
     Campaign(CampaignConfig),
     /// A [`ShipStyleConfig`] - registers into `GameStyles` keyed by its id. A
     /// ship names one and its derived skin wears it, so a mod can ship a look
@@ -401,7 +402,7 @@ impl AssetLoader for BundleAssetLoader {
 /// handle for its [`BundleAsset`] when the catalog itself loaded one.
 #[derive(Clone, Debug)]
 pub struct CatalogEntry {
-    /// The catalog declaration (id, bundle path, base/hidden flags).
+    /// The catalog declaration (id, bundle path, deployment flags).
     pub decl: ModEntry,
     /// The bundle handle for a MANDATORY entry, loaded WITH the catalog.
     ///

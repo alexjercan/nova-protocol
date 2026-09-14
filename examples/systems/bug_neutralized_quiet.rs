@@ -340,7 +340,6 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     ScenarioConfig {
         description: "A neutralized hull with a live gun, and a torpedo flying past it."
             .to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_ID.to_string(),

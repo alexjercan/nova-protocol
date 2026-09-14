@@ -92,6 +92,11 @@ does NOT get an entry - and it is the only place they are written down.
   with no launcher rather than firing every tick.
 
 ### Scenarios & Objectives
+- **(breaking)** A scenario's `hidden` flag is gone. The Scenarios list shows
+  every installed scenario except a `menu_backdrop: true` one, so chained
+  chapters are one click away; a file still authoring `hidden` is refused.
+- A campaign member must be a chapter the player can launch: naming a
+  `menu_backdrop` scenario is a content-lint error.
 - The scenario lint reads the same table the editor does, so an action that
   names a ship nothing spawns is an error everywhere. `SetInfiniteAmmo` and
   `RefillAmmo` passed the lint and then did nothing in the game.
@@ -114,6 +119,9 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- **(breaking)** An installed mod's catalog `hidden` flag is gone. Every
+  installed mod has a row in the Mods screen the player can switch off, and a
+  catalog still declaring `hidden` is refused.
 - The editor offers the content the game will actually load. A sideloaded mod
   reusing a shipped bundle id had its files listed in every asset picker while
   the loader ignored them, so the reference never resolved in play.

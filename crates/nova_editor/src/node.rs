@@ -111,8 +111,9 @@ pub(crate) struct NextChildOrdinal(pub(crate) u32);
 /// the lowering.
 ///
 /// What is NOT here is what the BUILD TARGET decides rather than the builder:
-/// the mod id (one save slot, `bundle::MOD_ID`) and `hidden` (the Play sandbox
-/// is always hidden, a saved range never is). See [`crate::scenario::Range`].
+/// the mod id (one save slot, `bundle::MOD_ID`) and the range's own id (the
+/// Play sandbox lowers into the reserved sandbox id, a save into its slot's).
+/// See [`crate::scenario::Range`].
 #[derive(Component, Debug, Clone, Reflect)]
 pub(crate) struct ScenarioNode {
     /// What the scenario is CALLED, in the Scenarios picker and the editor's

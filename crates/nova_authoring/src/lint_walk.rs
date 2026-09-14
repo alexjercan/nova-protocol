@@ -196,6 +196,16 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .flat_map(|b| b.scenarios.iter().map(|s| s.id.clone()))
         .collect();
     known_scenarios.extend(bundle.scenarios.iter().map(|s| s.id.clone()));
+    // The backdrop subset of the same set: a campaign member must be a
+    // launchable chapter, and a backdrop is scenery the picker renders no row
+    // for.
+    let menu_backdrops: HashSet<String> = all
+        .iter()
+        .flat_map(|b| b.scenarios.iter())
+        .chain(bundle.scenarios.iter())
+        .filter(|s| s.menu_backdrop)
+        .map(|s| s.id.clone())
+        .collect();
     // Channels overlay like sections do, not like scenarios: a cue may only
     // name a channel its own bundle can SEE, so a mod cannot lean on a channel
     // some unrelated mod happens to ship.
@@ -293,7 +303,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // known scenario (base + all bundles + this bundle's own), or the picker
     // renders a header row launching nothing.
     for campaign in &bundle.campaigns {
-        for issue in lint_campaign(campaign, &known_scenarios) {
+        for issue in lint_campaign(campaign, &known_scenarios, &menu_backdrops) {
             issues.push((bundle.id.clone(), issue));
         }
     }

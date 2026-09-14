@@ -27,10 +27,10 @@
 //! then switches the player's policy on, which is what makes every pause below
 //! the policy's doing rather than the harness's.
 //!
-//! The fixtures are two `ScenarioConfig` values built in Rust, both
-//! `hidden: true`, registered in [`EditorSandboxSystems`] like the editor's own
-//! sandbox so the `--scenario` membership check in the same transition cannot
-//! run before the id it resolves exists.
+//! The fixtures are two `ScenarioConfig` values built in Rust, registered in
+//! [`EditorSandboxSystems`] like the editor's own sandbox so the `--scenario`
+//! membership check in the same transition cannot run before the id it
+//! resolves exists.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -249,7 +249,6 @@ fn outcome_pause_probe_a(game_assets: &GameAssets, sections: &GameSections) -> S
 
     ScenarioConfig {
         description: "A fight whose defeat takes its own chain after a while.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_A.to_string(),
@@ -290,7 +289,6 @@ fn outcome_pause_probe_b(game_assets: &GameAssets, sections: &GameSections) -> S
 
     ScenarioConfig {
         description: "The chapter the timer chains into, which must not tick.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_B.to_string(),

@@ -148,13 +148,12 @@ fn content_file(id: &str) -> String {
 
 /// The range a save writes: the slot's own id, and hulls by reference.
 ///
-/// NOT hidden, unlike the sandbox Play hands off to: a saved range is content
-/// the builder made, so it belongs in the Scenarios picker once the mod is
-/// enabled.
+/// A saved range is content the builder made, so it belongs in the Scenarios
+/// picker once the mod is enabled - unlike the sandbox Play hands off to,
+/// which the picker skips by its reserved id.
 pub(crate) fn saved_range(id: &str) -> Range<'_> {
     Range {
         id,
-        hidden: false,
         form: HullForm::Prototype,
         flight: false,
     }

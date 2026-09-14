@@ -4,7 +4,6 @@
         name: "Torpedo Gauntlet",
         description: "A gunship\'s doomed point-defense stand against batteries on both flanks.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
         menu_backdrop: true,
         events: [
             (

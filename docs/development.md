@@ -321,9 +321,10 @@ What is on disk today, in reading order:
   (where a screen-projected indicator lands), `system_menu_boot` (the shipped
   boot flow), `bug_menu_fallback` (a menu with no clean backdrop to draw ends
   the scenario it came from and stands on one bare camera) and
-  `bug_menu_picker` (the Scenarios picker, whose pane split must not depend on
-  the selection - real fonts, real taffy, which a headless unit rig cannot
-  measure at all), `bug_sandbox_soak` (the editor sandbox entered and then left
+  `system_scenario_picker` (the Scenarios picker: its pane split must not depend
+  on the selection - real fonts, real taffy, which a headless unit rig cannot
+  measure at all - and the row a pointer selects and plays is the scenario that
+  comes up once the atomic load gate releases), `bug_sandbox_soak` (the editor sandbox entered and then left
   alone, holding one physics step to its own timestep), `bug_carve_apply` (one
   cut that severs a rock, and what the main thread pays to SWAP the result in -
   the range counts grids rather than milliseconds, so it reads the same on
@@ -357,8 +358,8 @@ What is on disk today, in reading order:
   (`nova_os_window_px_showing`), since a node laid out by an offscreen camera
   reports a rect in a space no cursor can be placed in. A driven run that still
   cannot reach a target says so and states its COVERAGE in the verdict -
-  `bug_menu_picker` names any row it gave up on and fails outright below two
-  measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
+  `system_scenario_picker` names any row it gave up on and fails outright below
+  two measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
   subject is the outcome chain, so pixel coordinates would only add layout
   coupling.
 - `screenshots/` - the content producers, and the NAME says what a run makes:
@@ -484,8 +485,9 @@ cargo run -- --scenario nope               # refuses, and lists every id
 ```
 
 - The id is matched against the MERGED registry (base plus every enabled mod),
-  so a mod's scenarios are launchable by id and `hidden` chapters and menu
-  backdrops are too - a superset of the rows the Scenarios picker shows.
+  so a mod's scenarios are launchable by id, and so are the menu backdrops and
+  the editor's own `editor_sandbox` range - a superset of the rows the Scenarios
+  picker shows.
 - An unknown id prints the full id list to stderr and exits non-zero. The check
   happens once the content merge has run, which is after the window opens: the
   merged registry does not exist before that.

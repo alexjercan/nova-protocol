@@ -65,12 +65,26 @@ pub mod prelude {
         ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
         ScenarioStartFailureReport, ScriptedCameraAnchor, ScriptedCameraBlend,
         ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
-        ORBIT_LAP_GRACE_SECS,
+        EDITOR_SANDBOX_SCENARIO_ID, ORBIT_LAP_GRACE_SECS,
     };
 }
 
 /// Type alias for Scenario ID
 pub type ScenarioId = String;
+
+/// The ship editor's Play range, the one id in [`GameScenarios`] that no bundle
+/// publishes.
+///
+/// `nova_editor` registers it at load so the DEFEAT overlay's Retry, the
+/// `--scenario` membership check and `probe scenario` can all name it, and
+/// rewrites it with the open document on every Play. It is the editor's stage,
+/// not installed content, so the Scenarios picker leaves it out - the ONE id
+/// exception to "the picker lists every scenario that is not a menu backdrop".
+///
+/// It lives here rather than in `nova_editor` because `nova_menu` is the other
+/// reader and the two crates do not depend on each other; this is the lowest
+/// crate both already share.
+pub const EDITOR_SANDBOX_SCENARIO_ID: &str = "editor_sandbox";
 
 /// Type alias for Campaign ID (the stable key of a [`CampaignConfig`]).
 pub type CampaignId = String;
@@ -84,9 +98,8 @@ pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
 /// A campaign owns the ORDERED list of its member scenario ids (see
 /// [`CampaignConfig`]); this registry is the single source of truth the
 /// Scenarios picker reads to render collapsible campaign groups and to launch
-/// any member - including `hidden` chapters that the flat picker filters out
-/// but that a campaign lists for replay. Written by the bundle merge from the
-/// merged `Content::Campaign` items, mirroring [`GameScenarios`].
+/// any member. Written by the bundle merge from the merged `Content::Campaign`
+/// items, mirroring [`GameScenarios`].
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
 pub struct GameCampaigns(pub HashMap<CampaignId, CampaignConfig>);
 
@@ -144,17 +157,18 @@ pub struct ScenarioStartFailureReport {
 /// A campaign is a first-class content entity (`Content::Campaign`, in
 /// nova_modding) that owns its full membership - the single source of truth for
 /// which scenarios belong to it and in what order. Membership is the explicit
-/// `scenarios` list, so the order is unambiguous (the Vec order) and a `hidden`
-/// chapter reached only via `NextScenario` chaining can still be LISTED for
-/// replay simply by naming its id here. This replaces the interim per-scenario
+/// `scenarios` list, so the order is unambiguous (the Vec order) and a chapter
+/// reached in play via `NextScenario` chaining is LISTED for replay simply by
+/// naming its id here. This replaces the interim per-scenario
 /// `campaign` metadata: the picker groups and launches from this mapping
 /// instead of reconstructing groups by parsing per-scenario display names.
 ///
 /// `id` is the stable key (e.g. `"nova_protocol"`); `name` is the DISPLAY name
-/// (e.g. `"Nova Protocol"`); `scenarios` are member scenario ids in play order,
-/// hidden members included. In strict RON a campaign content item is authored
+/// (e.g. `"Nova Protocol"`); `scenarios` are member scenario ids in play order.
+/// In strict RON a campaign content item is authored
 /// as `Campaign((id: "nova_protocol", name: "Nova Protocol", scenarios: ["a",
-/// "b"]))`.
+/// "b"]))`. A member must be a player-launchable chapter: naming a
+/// `menu_backdrop` scenario is a lint Error.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CampaignConfig {
@@ -162,22 +176,30 @@ pub struct CampaignConfig {
     pub id: CampaignId,
     /// The campaign's display name, e.g. `"Nova Protocol"`.
     pub name: String,
-    /// The member scenario ids, in play order (chapter 1, 2, 3, ...). May name
-    /// `hidden` scenarios: they are filtered from the flat picker but reachable
-    /// for replay under their campaign header.
+    /// The member scenario ids, in play order (chapter 1, 2, 3, ...). Every
+    /// member is also an ordinary picker row; the campaign header groups them
+    /// in this order. A `menu_backdrop` scenario is not launchable content and
+    /// is refused here by lint.
     pub scenarios: Vec<ScenarioId>,
 }
 
 /// Configuration for a game scenario.
 ///
 /// Build one with [`ScenarioConfig::new`] and fill the optional fields through
-/// struct-update syntax: `ScenarioConfig { hidden: true,
+/// struct-update syntax: `ScenarioConfig { menu_backdrop: true,
 /// ..ScenarioConfig::new(id, name, cubemap) }`. There is deliberately no
 /// `Default`: a defaulted `cubemap` is a handle-backed `AssetRef`, which errors
 /// on serialize (see `AssetRef`), so a fully default `ScenarioConfig` was never
 /// a valid scenario.
+///
+/// STRICT: an unknown key is a load error, not a key quietly dropped. A field
+/// that is silently ignored is a scenario that authors one thing and plays
+/// another - which is what a removed field (`hidden`) and a misspelled one
+/// (`menu_backdrip`) both are. The author gets a refusal naming the key
+/// instead.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ScenarioConfig {
     /// Unique identifier for the scenario
     pub id: ScenarioId,
@@ -214,18 +236,13 @@ pub struct ScenarioConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub thumbnail: Option<AssetRef<Image>>,
-    /// When true the scenario is hidden from the Scenarios picker (backdrops
-    /// like `menu_ambience`, mid-story continuations reached only via
-    /// `NextScenario` chaining). Mirrors the mods-catalog `hidden` flag.
-    /// Serde-defaulted to false, so most scenarios omit it; author a hidden one
-    /// as `hidden: true`.
-    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
-    pub hidden: bool,
     /// When true the scenario is a MENU BACKDROP candidate: on menu entry the
     /// menu collects every registered scenario with this flag and loads one at
     /// random, so several ambience scenes can ship and mods can add their own.
-    /// Backdrops normally also set `hidden: true` (the flags are orthogonal -
-    /// this one opts INTO the menu rotation, `hidden` opts OUT of the picker).
+    /// This is the ONLY reason a scenario is left out of the Scenarios picker:
+    /// a backdrop is scenery, not a chapter a player launches, and lint refuses
+    /// a campaign that names one. It stays loadable by id, by the ambience
+    /// system, by a test and by a tool.
     /// A backdrop POSES ITS OWN CAMERA: it must author a `SetCamera` action
     /// (lint makes a poseless backdrop an Error, and erroring backdrops are
     /// filtered out of the menu draw - the menu derives no pose of its own).
@@ -248,7 +265,7 @@ pub struct ScenarioConfig {
 
 impl ScenarioConfig {
     /// A scenario with only its three REQUIRED fields set: everything else
-    /// (`description`, `thumbnail`, `hidden`, `menu_backdrop`, `events`) takes
+    /// (`description`, `thumbnail`, `menu_backdrop`, `events`) takes
     /// its empty value, to be overridden through struct-update syntax.
     ///
     /// # Panics
@@ -282,7 +299,6 @@ impl ScenarioConfig {
             cubemap,
             skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
             thumbnail: None,
-            hidden: false,
             menu_backdrop: false,
             watches: Vec::new(),
             events: Vec::new(),
@@ -872,18 +888,17 @@ mod tests {
         );
     }
 
-    /// The `thumbnail`/`hidden`/`menu_backdrop`/`skybox_brightness` fields are
-    /// serde-defaulted, so a scenario RON authored before they existed still
-    /// parses, and a scenario carrying them round-trips. Guards the
-    /// back-compat contract the picker, the menu-backdrop rotation and the
-    /// skybox applier depend on.
+    /// The `thumbnail`/`menu_backdrop`/`skybox_brightness` fields are
+    /// serde-defaulted, so a scenario RON that omits them still parses, and a
+    /// scenario carrying them round-trips. Guards the contract the picker, the
+    /// menu-backdrop rotation and the skybox applier depend on.
     #[test]
-    fn thumbnail_and_hidden_default_when_absent_and_round_trip_when_present() {
-        // Legacy shape: none of the optional fields.
-        let legacy = r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
-        let parsed: ScenarioConfig = ron::from_str(legacy).expect("legacy scenario parses");
+    fn optional_scenario_fields_default_when_absent_and_round_trip_when_present() {
+        // Only the required fields.
+        let bare_source =
+            r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
+        let parsed: ScenarioConfig = ron::from_str(bare_source).expect("bare scenario parses");
         assert_eq!(parsed.thumbnail, None, "absent thumbnail defaults to None");
-        assert!(!parsed.hidden, "absent hidden defaults to false");
         assert!(
             !parsed.menu_backdrop,
             "absent menu_backdrop defaults to false"
@@ -901,7 +916,6 @@ mod tests {
             description: "new".to_string(),
             cubemap: AssetRef::from("sky.png"),
             thumbnail: Some(AssetRef::from("thumb.png")),
-            hidden: true,
             menu_backdrop: true,
             skybox_brightness: 250.0,
             watches: vec![],
@@ -910,7 +924,6 @@ mod tests {
         // `ron::to_string` is compact (no spaces after colons).
         let ron = ron::to_string(&configured).expect("configured scenario serializes");
         assert!(ron.contains("thumbnail:Some(\"thumb.png\")"), "ron: {ron}");
-        assert!(ron.contains("hidden:true"), "ron: {ron}");
         assert!(ron.contains("menu_backdrop:true"), "ron: {ron}");
         assert!(ron.contains("skybox_brightness:250"), "ron: {ron}");
         let back: ScenarioConfig = ron::from_str(&ron).expect("configured scenario parses");
@@ -920,21 +933,42 @@ mod tests {
                 .as_deref(),
             Some("thumb.png")
         );
-        assert!(back.hidden);
         assert!(back.menu_backdrop);
         assert_eq!(back.skybox_brightness, 250.0);
 
         // The defaulted form omits the keys.
-        let bare = ron::to_string(&parsed).expect("legacy re-serializes");
+        let bare = ron::to_string(&parsed).expect("bare scenario re-serializes");
         assert!(!bare.contains("thumbnail"), "ron: {bare}");
-        assert!(!bare.contains("hidden"), "ron: {bare}");
         assert!(!bare.contains("menu_backdrop"), "ron: {bare}");
         assert!(!bare.contains("skybox_brightness"), "ron: {bare}");
     }
 
+    /// The `hidden` flag is GONE, and its removal is a format break rather than
+    /// a silently ignored key: a scenario still authoring it must fail to load
+    /// so the author migrates instead of shipping a file the game reads
+    /// differently than it reads. `menu_backdrop: true` is the one way a
+    /// scenario stays out of the picker now.
+    #[test]
+    fn a_scenario_still_authoring_hidden_refuses_to_parse() {
+        let legacy = r#"(
+            id: "legacy",
+            name: "Legacy",
+            description: "old",
+            cubemap: "sky.png",
+            hidden: true,
+        )"#;
+        let err = ron::from_str::<ScenarioConfig>(legacy)
+            .expect_err("a scenario authoring the removed `hidden` field must not parse");
+        let message = err.to_string();
+        assert!(
+            message.contains("hidden"),
+            "the refusal names the removed field: {message}"
+        );
+    }
+
     /// A campaign parses from a HAND-WRITTEN RON string (not just a
-    /// self-authored round-trip) and round-trips, preserving member order
-    /// including hidden ids. A campaign is a first-class content entity, so
+    /// self-authored round-trip) and round-trips, preserving member order. A
+    /// campaign is a first-class content entity, so
     /// this documented author-facing syntax is the contract the picker reads.
     #[test]
     fn campaign_parses_from_authored_ron_and_round_trips() {
@@ -958,7 +992,7 @@ mod tests {
                 "lifeline",
                 "final_tally",
             ],
-            "member ids parse in declared order, hidden ones included"
+            "member ids parse in declared order"
         );
 
         // Round-trips through serialize -> deserialize unchanged.

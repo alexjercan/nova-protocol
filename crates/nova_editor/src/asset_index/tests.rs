@@ -26,7 +26,6 @@ fn installed(id: &str, resources: &[&str]) -> World {
                 bundle: format!("mods/{id}/{id}.bundle.ron"),
                 base: true,
                 enabled_by_default: false,
-                hidden: false,
             },
             bundle: Some(bundle),
         }],

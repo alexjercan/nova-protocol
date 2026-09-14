@@ -294,7 +294,6 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 
     ScenarioConfig {
         description: "An idle player battery answering a torpedo stream on its own.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_ID.to_string(),

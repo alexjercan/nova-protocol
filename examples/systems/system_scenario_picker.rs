@@ -1,4 +1,5 @@
-//! bug_menu_picker: drive the main menu's Scenarios picker and MEASURE it.
+//! system_scenario_picker: drive the main menu's Scenarios picker, MEASURE it,
+//! and prove it starts the row the pointer chose.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
 //! [`editor_app`]), enables the example mod so the picker lists more than the
@@ -13,19 +14,27 @@
 //! panes ("Scenarios List" and "Scenario Details Panel") and, at the end, a
 //! verdict line saying whether those widths held constant across selections.
 //!
-//! This is the rig for task 20260729-211150: the picker's split must NOT depend
-//! on which scenario is selected (a long description or a thumbnail must not
-//! resize the list). Real fonts, real text measure, real taffy - a headless
-//! unit rig measures every text node as zero-width and cannot see this at all.
+//! It then finishes as a player does: it leaves a row that is NOT the one the
+//! picker opened on selected, clicks Play, waits for the atomic load gate
+//! (task 20260909-213559) to release, and asserts the live `CurrentScenario` is
+//! exactly that row. A picker that lays out perfectly and starts the wrong
+//! scenario is still broken, and nothing else in the tree drives that delivery
+//! through real input.
+//!
+//! This range covers the rig for task 20260729-211150: the picker's split must
+//! NOT depend on which scenario is selected (a long description or a thumbnail
+//! must not resize the list). Real fonts, real text measure, real taffy - a
+//! headless unit rig measures every text node as zero-width and cannot see this
+//! at all.
 //!
 //! Run (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example bug_menu_picker --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_scenario_picker --features debug
 //! # look for: `scenarios pane widths:` per row, then
 //! #           `scenarios pane widths HELD` / `... CHANGED`,
-//! #           then `nova harness: reached Playing` and
-//! #           `probe: script complete, exiting` (it finishes by clicking Play
-//! #           on the last selection, so the smoke suite can run it)
+//! #           then `probe: the picker started <id>`,
+//! #           `nova harness: reached Playing` and
+//! #           `probe: script complete, exiting`
 //! ```
 //!
 //! With `NOVA_CAPTURE=1` it also shoots `scenarios-picker-<id>.png` per selection
@@ -40,9 +49,9 @@ use nova_protocol::prelude::*;
 use nova_ui::widget::Selected;
 
 #[derive(Parser)]
-#[command(name = "bug_menu_picker")]
+#[command(name = "system_scenario_picker")]
 #[command(version = "1.0.0")]
-#[command(about = "Drive the Scenarios picker and measure its pane widths. Autopilot-only correctness range", long_about = None)]
+#[command(about = "Drive the Scenarios picker, measure its pane widths and prove it starts the clicked row. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The step DEADLINE, not the pacing budget: the walk is frame-counted (roughly
@@ -134,6 +143,17 @@ struct ScenariosAutopilot {
     /// when the gesture actually went out, so a row that never laid out is
     /// skipped rather than measured against the PREVIOUS selection's panes.
     pending_measure: Option<String>,
+    /// The row the picker had selected ITSELF when it opened, read before the
+    /// walk clicked anything. The delivery claim is only worth something
+    /// against it: a run that plays the default row proves nothing about
+    /// whether the click reached the loader.
+    default_row: Option<String>,
+    /// The non-default row this run leaves selected and plays.
+    target_row: Option<String>,
+    /// The pane verdict has been stated. The walk stays in the closing beat
+    /// for several frames while it re-selects its target, and the verdict is a
+    /// summary of the walk, not of those frames.
+    reported: bool,
     /// The walk is over and Play has been clicked.
     launched: bool,
     /// The launched scenario came up and the completion was reported.
@@ -223,6 +243,12 @@ fn row_placement(world: &mut World, name: &str) -> RowPlacement {
     }
 }
 
+/// What `spawn_scenario_row` (`crates/nova_menu/src/scenarios.rs:350`) names a
+/// row: the prefix, then the scenario id the row launches. Stripping it is how
+/// the walk turns a widget it clicked into the id it expects to be playing.
+#[cfg(feature = "debug")]
+const ROW_PREFIX: &str = "Scenario Row: ";
+
 /// Every scenario row currently in the list, by name, in list order.
 #[cfg(feature = "debug")]
 fn scenario_row_names(world: &mut World) -> Vec<String> {
@@ -230,10 +256,25 @@ fn scenario_row_names(world: &mut World) -> Vec<String> {
     let mut names: Vec<String> = q
         .iter(world)
         .map(|n| n.as_str().to_string())
-        .filter(|n| n.starts_with("Scenario Row: "))
+        .filter(|n| n.starts_with(ROW_PREFIX))
         .collect();
     names.sort();
     names
+}
+
+/// The scenario row the picker currently has selected, if any.
+///
+/// [`Selected`] is the picker's own record - `select_scenario_row` inserts it
+/// on the clicked row and removes it from every other - so this reads the
+/// widget tree rather than the walk's intent. Other widgets carry `Selected`
+/// too, hence the row filter.
+#[cfg(feature = "debug")]
+fn selected_row_name(world: &mut World) -> Option<String> {
+    world
+        .query_filtered::<&Name, With<Selected>>()
+        .iter(world)
+        .map(|name| name.as_str().to_string())
+        .find(|name| name.starts_with(ROW_PREFIX))
 }
 
 /// Open the picker, click each row once, measure the panes after each, report
@@ -253,7 +294,25 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
     // point into a panic, so a walk that outran the window fails loudly as a
     // stall rather than silently as "never reached Playing".
     if playing {
+        // Loading is ATOMIC (task 20260909-213559): `GameStates::Playing` is
+        // entered while the world is still HELD behind the loading panel, and
+        // `CurrentScenario` is only the delivered scenario once the gate lets
+        // go. So the delivery claim waits on the GATE - a condition the loader
+        // owns - and never on a frame count, which would only be a guess at how
+        // long a software renderer takes to warm the scene's art.
+        match world.get_resource::<ScenarioLoadGate>().copied() {
+            Some(ScenarioLoadGate::Failed) => panic!(
+                "the picker's Play never delivered `{}`: the scenario load FAILED, and a                  failed load holds the world for good",
+                state.target_row.as_deref().unwrap_or("<no target row>")
+            ),
+            Some(gate) if gate.is_held() => {
+                world.insert_resource(state);
+                return;
+            }
+            _ => {}
+        }
         if state.launched && !state.finished {
+            assert_the_clicked_row_started(world, &state);
             state.finished = true;
             info!("probe: script complete, exiting");
             world
@@ -353,6 +412,14 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
 
     // Click the next unvisited row.
     let rows = scenario_row_names(world);
+    // The picker's OWN opening selection, read on the first frame the rows
+    // exist and before the walk has touched any of them.
+    if state.default_row.is_none() && state.visited.is_empty() && !rows.is_empty() {
+        state.default_row = selected_row_name(world);
+        if let Some(default_row) = &state.default_row {
+            info!("probe: the picker opened on {default_row}");
+        }
+    }
     let next = rows.iter().find(|n| !state.visited.contains(n)).cloned();
     match next {
         Some(name) => match row_placement(world, &name) {
@@ -382,19 +449,11 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
             RowPlacement::Unreached(reason) => settle_or_skip(&mut state, name, reason),
         },
         None => {
-            report(world, &state);
-            // Finish the way a player does: launch the scenario the picker has
-            // selected. That also gives the smoke suite its reach-Playing
-            // contract, and puts the details pane's Play button - the picker's
-            // whole point - under the harness.
-            if let Some(centre) = ui_node_centre(world, "Scenario Play Button") {
-                click_at(centre, MouseButton::Left)(world);
-                state.pending_release = true;
-                info!("probe: clicked Play on the selected scenario");
-            } else {
-                warn!("probe: no Play button in the details pane to finish on");
+            if !state.reported {
+                report(world, &state);
+                state.reported = true;
             }
-            state.launched = true;
+            play_a_non_default_row(world, &mut state);
         }
     }
 
@@ -425,6 +484,173 @@ fn settle_or_skip(state: &mut ScenariosAutopilot, name: String, reason: &'static
     } else {
         state.settling = Some((name, waited));
     }
+}
+
+/// Leave a NON-DEFAULT row selected and play it.
+///
+/// The picker default-selects its first row
+/// (`refresh_scenarios_list`, `crates/nova_menu/src/scenarios.rs:219`), so a
+/// run that simply pressed Play would start that row whether the walk's clicks
+/// reached the loader or not - it would prove the button, not the picker. The
+/// delivery claim is read against the row the picker opened on: the walk plays
+/// a DIFFERENT one, and the scenario that comes up has to be that one.
+///
+/// Preference goes to the LAST row measured, which is already selected and
+/// whose selecting click `assert_selection_landed` has proven landed. When that
+/// one happens to be the default, an earlier row is re-selected with a fresh
+/// pointer click.
+#[cfg(feature = "debug")]
+fn play_a_non_default_row(world: &mut World, state: &mut ScenariosAutopilot) {
+    let harnessed = std::env::var_os("NOVA_AUTOPILOT").is_some();
+
+    if state.target_row.is_none() {
+        let default_row = state.default_row.clone();
+        let target = state
+            .measured
+            .iter()
+            .rev()
+            .map(|(name, _, _)| name.clone())
+            .find(|name| Some(name.as_str()) != default_row.as_deref());
+        let Some(target) = target else {
+            let detail = format!(
+                "every row the walk measured is the one the picker opened on \
+                 ({default_row:?}), so playing one would prove nothing about the \
+                 click reaching the loader"
+            );
+            if harnessed {
+                panic!("scenarios delivery: NO non-default row to play - {detail}");
+            }
+            warn!("scenarios delivery: no non-default row to play - {detail}");
+            click_play(world, state, "the current selection");
+            return;
+        };
+        info!("probe: playing {target}, which the picker did not open on");
+        state.target_row = Some(target);
+        state.settling = None;
+    }
+    let target = state
+        .target_row
+        .clone()
+        .expect("the target row was just chosen");
+
+    // Select it with a REAL click, unless the walk already left it selected.
+    if selected_row_name(world).as_deref() != Some(target.as_str()) {
+        match row_placement(world, &target) {
+            RowPlacement::OnScreen(centre) => {
+                click_at(centre, MouseButton::Left)(world);
+                state.pending_release = true;
+                state.settling = None;
+            }
+            RowPlacement::PastTheFold(delta) => {
+                if let Some(list) = ui_node_rect(world, "Scenarios List") {
+                    move_cursor(list.center())(world);
+                }
+                scroll_pixels(delta)(world);
+                info!("probe: scrolled {delta:.1}px to reach {target} for launch");
+                state.wait = 1;
+                insist(
+                    world,
+                    state,
+                    &target,
+                    "it stayed past the fold after scrolling",
+                );
+            }
+            RowPlacement::Unreached(reason) => insist(world, state, &target, reason),
+        }
+        return;
+    }
+
+    nova_probe::probe_marker(
+        world,
+        "outcome: the played row is not the picker's default",
+        serde_json::json!({ "row": target, "opened_on": state.default_row }),
+    );
+    click_play(world, state, &target);
+}
+
+/// Insist on the delivery target.
+///
+/// Unlike [`settle_or_skip`], giving up is not an option here: WHICH row is
+/// played is the claim, so a target that never becomes clickable is a failed
+/// run rather than thinner coverage. Interactively it falls back to playing
+/// whatever is selected, so an eyeballing run still ends.
+#[cfg(feature = "debug")]
+fn insist(world: &mut World, state: &mut ScenariosAutopilot, target: &str, reason: &'static str) {
+    let waited = match &state.settling {
+        Some((settling, waited)) if settling == target => waited + 1,
+        _ => 1,
+    };
+    if waited < ROW_SETTLE_FRAMES {
+        state.settling = Some((target.to_string(), waited));
+        return;
+    }
+    state.settling = None;
+    let detail = format!(
+        "`{target}` never became selectable after {ROW_SETTLE_FRAMES} driven attempts \
+         ({reason}), so the run cannot say which row it played"
+    );
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        panic!("scenarios delivery: {detail}");
+    }
+    warn!("scenarios delivery: {detail}");
+    state.target_row = None;
+    click_play(world, state, "the current selection");
+}
+
+/// Press the details pane's Play button - the picker's whole point - with the
+/// pointer, at its own screen position.
+#[cfg(feature = "debug")]
+fn click_play(world: &mut World, state: &mut ScenariosAutopilot, what: &str) {
+    if let Some(centre) = ui_node_centre(world, "Scenario Play Button") {
+        click_at(centre, MouseButton::Left)(world);
+        state.pending_release = true;
+        info!("probe: clicked Play on {what}");
+    } else {
+        warn!("probe: no Play button in the details pane to finish on");
+    }
+    state.launched = true;
+}
+
+/// The scenario that came up is EXACTLY the row the pointer selected and
+/// played.
+///
+/// [`CurrentScenario`] is the LOADER's record of what is live - written by the
+/// scenario loader and read by the HUD, the outcome chain and the pause menu
+/// alike - so this compares the picker's promise against the loader's fact
+/// rather than against the menu's own selection state. It is read on the frame
+/// the atomic load gate releases, which is the first complete frame of the
+/// scene. Fatal under `NOVA_AUTOPILOT` and a warning interactively, exactly as
+/// [`assert_selection_landed`] is: a human at the controls of an unharnessed
+/// run can select something else.
+#[cfg(feature = "debug")]
+fn assert_the_clicked_row_started(world: &mut World, state: &ScenariosAutopilot) {
+    let Some(row) = state.target_row.clone() else {
+        warn!("scenarios delivery: no target row was recorded, so nothing to check");
+        return;
+    };
+    let expected = row.trim_start_matches(ROW_PREFIX).to_string();
+    let live = world
+        .resource::<CurrentScenario>()
+        .0
+        .as_ref()
+        .map(|scenario| scenario.id.clone());
+    if live.as_deref() == Some(expected.as_str()) {
+        info!("probe: the picker started {expected}");
+        nova_probe::probe_marker(
+            world,
+            "outcome: the picker starts the row the player clicked",
+            serde_json::json!({ "row": row, "scenario": expected }),
+        );
+        return;
+    }
+    let detail = format!(
+        "the pointer selected and played `{row}`, and `{live:?}` is what started - \
+         the picker delivered a different scenario than the selected row"
+    );
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        panic!("scenarios delivery: {detail}");
+    }
+    warn!("scenarios delivery: {detail}");
 }
 
 /// The row named `name` must be the selected one before its measurement counts.

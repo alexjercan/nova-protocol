@@ -280,7 +280,6 @@ fn menu_fallback_probe_live(game_assets: &GameAssets, sections: &GameSections) -
 
     ScenarioConfig {
         description: "A live leg the player backs out of.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_A.to_string(),
@@ -297,7 +296,6 @@ fn menu_fallback_probe_live(game_assets: &GameAssets, sections: &GameSections) -
 fn menu_fallback_probe_backdrop(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
         description: "The only backdrop left, and the gate refuses it.".to_string(),
-        hidden: true,
         menu_backdrop: true,
         events: vec![],
         ..ScenarioConfig::new(

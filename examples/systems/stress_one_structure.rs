@@ -206,7 +206,6 @@ fn structure_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scen
 
     ScenarioConfig {
         description: "One ship assembled out of a thousand sections.".to_string(),
-        hidden: true,
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(

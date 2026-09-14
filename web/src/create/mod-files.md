@@ -89,7 +89,10 @@ metadata stays in its own bundle's `meta` block.
 | `bundle` | path | required | The mod's `*.bundle.ron`, relative to the assets root. |
 | `base` | bool | `false` | The base game: enabled by default and locked on in the Mods menu. |
 | `enabled_by_default` | bool | `false` | Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. No shipped mod sets it today. |
-| `hidden` | bool | `false` | Kept out of the Mods menu but still installed and enableable by id, for tooling and test rigs. |
+
+Every cataloged mod gets a row in the Mods menu: there is no way to install
+content the player can neither see nor switch off. A tooling or test rig
+belongs in the example or test that owns it, not in the catalog.
 
 Only `base` is mandatory. The game loads every other cataloged mod on its own,
 beside the boot load: if one of them will not parse or its content will not

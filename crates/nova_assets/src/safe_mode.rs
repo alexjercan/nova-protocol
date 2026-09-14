@@ -364,7 +364,6 @@ mod tests {
                 bundle: "mods/art/art.bundle.ron".to_string(),
                 base: false,
                 enabled_by_default: false,
-                hidden: false,
             },
             bundle: Some(carried.clone()),
         };

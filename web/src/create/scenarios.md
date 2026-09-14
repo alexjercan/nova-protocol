@@ -46,8 +46,7 @@ folder and bundle shape.
 | `description` | string | required | Details shown for the selected scenario. |
 | `cubemap` | asset ref | required | Skybox image, such as `dep://base/textures/cubemap.png` or `self://textures/sky.png`. |
 | `thumbnail` | `Option` asset ref | `None` | Plain 2D menu image, written as `Some("self://thumbnails/x.png")`. Do not use a cubemap. |
-| `hidden` | bool | `false` | `true` removes the scenario from the flat list. Campaign members remain available under their campaign. |
-| `menu_backdrop` | bool | `false` | `true` adds the scenario to the random main-menu backdrop rotation. Backdrops normally also use `hidden: true`. |
+| `menu_backdrop` | bool | `false` | `true` adds the scenario to the random main-menu backdrop rotation, and is the only thing that keeps a scenario out of the Scenarios list. A backdrop poses its own camera and may not be a campaign member. |
 | `watches` | list | `[]` | Read-only queries sampled into auto-updating variables, entries of `(variable: "...", query: ...)`. See [Queries and watched variables](../expressions/#queries-and-watched-variables). |
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
@@ -174,8 +173,10 @@ separate content or design each scenario to start from a complete state.
 A new id adds a scenario. Reusing an existing id replaces the whole scenario;
 it is not a field-level patch. Names and filenames do not affect matching.
 
-Leave `hidden` unset for a scenario players should launch directly. Use a
-campaign or `NextScenario` for hidden continuation chapters.
+Every scenario you add is a row in the Scenarios list, unless it sets
+`menu_backdrop: true`. A continuation chapter is a row too: use a campaign to
+group the chapters under one header, and `NextScenario` to play on into the
+next one.
 
 ## Check it
 
@@ -195,6 +196,8 @@ find. In the game, enable the mod, open Scenarios, and play the visible entry.
 - Optional values require `Some(...)`.
 - Initialize variables before filters read them.
 - Spawn an object before an action targets its id.
-- `hidden` and `menu_backdrop` are separate flags.
+- `menu_backdrop: true` is menu scenery, not a level. It is left out of the
+  Scenarios list, it must pose its own camera with `SetCamera`, and a campaign
+  that names one is a lint error.
 - A mod cannot replace the base New Game selection. Use the Scenarios menu,
   campaigns, or `NextScenario`.

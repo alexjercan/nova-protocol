@@ -4,7 +4,6 @@
         name: "Duel Cycle",
         description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
         menu_backdrop: true,
         events: [
             (

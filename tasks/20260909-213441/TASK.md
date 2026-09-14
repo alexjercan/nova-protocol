@@ -1,6 +1,6 @@
 # Remove hidden content flags and prove settings and picker delivery
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.14.0, testing, examples, ui, modding
 
@@ -27,20 +27,20 @@ It belongs in the `ui` shard from `20260909-213100` once that shard exists.
 
 ## Remove `ScenarioConfig.hidden`
 
-- [ ] Delete `ScenarioConfig.hidden` from the Rust and strict RON format. Do not
+- [x] Delete `ScenarioConfig.hidden` from the Rust and strict RON format. Do not
       retain a serde alias, ignored compatibility field, or replacement generic
       visibility switch.
-- [ ] The picker lists every scenario except one with `menu_backdrop: true`.
+- [x] The picker lists every scenario except one with `menu_backdrop: true`.
       Campaign membership does not override this exclusion.
-- [ ] Lint a campaign that names a menu-backdrop scenario as an Error. A
+- [x] Lint a campaign that names a menu-backdrop scenario as an Error. A
       campaign member is a player-launchable chapter; a backdrop is not.
-- [ ] Previously hidden chained chapters become ordinary picker rows. Campaign
+- [x] Previously hidden chained chapters become ordinary picker rows. Campaign
       members remain grouped in their authored order under their campaign
       header.
-- [ ] Migrate generated base content, webmods, examples, tests, comments and
+- [x] Migrate generated base content, webmods, examples, tests, comments and
       documentation. Menu backdrops keep `menu_backdrop: true` and no longer
       need a second flag.
-- [ ] Treat this as a format break. Old scenario RON that authors `hidden` no
+- [x] Treat this as a format break. Old scenario RON that authors `hidden` no
       longer parses and must migrate. Mark the changelog entry `**(breaking)**`.
 
 `menu_backdrop` excludes a scenario from the picker only. It does not make the
@@ -49,18 +49,18 @@ tool.
 
 ## Remove `ModEntry.hidden`
 
-- [ ] Delete `ModEntry.hidden` from the installed-mod catalog format. Do not
+- [x] Delete `ModEntry.hidden` from the installed-mod catalog format. Do not
       retain an ignored compatibility field or another generic invisible-mod
       switch.
-- [ ] Build the player-facing `ModCatalog` from every installed catalog entry.
+- [x] Build the player-facing `ModCatalog` from every installed catalog entry.
       Base remains visible and locked on. Downloaded mods keep their existing
       behavior.
-- [ ] Remove startup logic that strips hidden non-base IDs from `EnabledMods`
+- [x] Remove startup logic that strips hidden non-base IDs from `EnabledMods`
       and remove the synthetic hidden-mod tests.
-- [ ] Keep dev and test content out of the shipped installed-mod catalog. Put it
+- [x] Keep dev and test content out of the shipped installed-mod catalog. Put it
       in its owning example or test fixture instead of installing content the
       player cannot see or disable.
-- [ ] Migrate catalog examples, constructors, comments and documentation. Treat
+- [x] Migrate catalog examples, constructors, comments and documentation. Treat
       an authored catalog `hidden` field as a format break and document it in
       the same migration and changelog work as the scenario field.
 
@@ -76,12 +76,12 @@ self-description, `Cargo.toml` example block, probe roster and every repository
 reference. The broader `system_` name is now correct because the range proves
 both stable picker layout and scenario delivery, not one regression.
 
-- [ ] Record the non-default scenario row selected through a real pointer click.
-- [ ] Click the existing Play button through real pointer input.
-- [ ] Wait for the atomic scenario-load gate from `20260909-213559` to release;
+- [x] Record the non-default scenario row selected through a real pointer click.
+- [x] Click the existing Play button through real pointer input.
+- [x] Wait for the atomic scenario-load gate from `20260909-213559` to release;
       do not use an arbitrary frame delay.
-- [ ] Assert the resulting `CurrentScenario` ID is exactly the selected row ID.
-- [ ] Add the named outcome marker and roster slug.
+- [x] Assert the resulting `CurrentScenario` ID is exactly the selected row ID.
+- [x] Add the named outcome marker and roster slug.
 
 Campaign grouping and hidden-member launch already have focused menu tests.
 Campaign chaining is already proved by `system_outcomes`. Do not duplicate
@@ -89,22 +89,22 @@ those claims here.
 
 ## `system_settings_persist`
 
-- [ ] Build the shipped `editor_app` on an isolated temporary
+- [x] Build the shipped `editor_app` on an isolated temporary
       `SettingsStoreRoot` with explicit `SettingsStoreAccess::ReadWrite`, since
       `harness_env_active()` otherwise makes the store inert under
       `NOVA_AUTOPILOT`.
-- [ ] Through the real Settings UI, rebind `main_drive` to `J`, set master
+- [x] Through the real Settings UI, rebind `main_drive` to `J`, set master
       volume to `0.4`, and select the `Low` graphics preset. These values are
       test fixtures, not new defaults.
-- [ ] Let the normal save path write the store, inspect the persisted value,
+- [x] Let the normal save path write the store, inspect the persisted value,
       then drop the app and build a second app on the same root.
-- [ ] Assert the relaunched UI and live resources contain the saved values and
+- [x] Assert the relaunched UI and live resources contain the saved values and
       the rebound physical key drives `main_drive` in gameplay.
-- [ ] Reset only the `main_drive` binding. Prove the persisted keybind override
+- [x] Reset only the `main_drive` binding. Prove the persisted keybind override
       is removed rather than only changing the current `InputBindings`
       resource, while the saved `0.4` master volume and `Low` graphics preset
       remain unchanged.
-- [ ] Start another app from a manually authored older partial store and prove
+- [x] Start another app from a manually authored older partial store and prove
       omitted fields load on their serde defaults.
 
 This range proves the composed UI -> store -> new app -> gameplay path. Keep the
@@ -172,3 +172,183 @@ worked mod examples, and migration guidance. Explain that:
 - The picker launches the exact row clicked.
 - `system_settings_persist` is green with isolated writable storage.
 - Affected generated content, lint, checks, docs and probe ranges pass.
+
+## Result
+
+Branch `hidden-flags` off `ec035e45d`. Every checkbox is done.
+
+- `c22e564a9` Remove the scenario hidden flag and list every scenario but a
+  backdrop
+- `98a3c334d` Give every installed mod a player-facing row
+- `68285ef2c` Refuse a campaign that names a menu backdrop
+- `c5354cc03` Migrate every authored scenario off the hidden flag
+- `4322910fe` Document the removal of both hidden flags
+- `bc5ea9b92` Prove the scenario picker starts the row the pointer clicked
+- `8f824bcf7` Prove a setting changed in the UI survives the app
+- `3bca56ea0` Fold the mod seeding branches that say the same thing
+
+### Format break
+
+`ScenarioConfig.hidden` and `ModEntry.hidden` are deleted outright. Both
+structs keep `#[serde(deny_unknown_fields)]`, so a file that still authors
+either field fails to parse. No alias, no ignored field, no replacement
+visibility switch. `nova_menu::scenarios::picker_lists` now filters on
+`!menu_backdrop` alone. `nova_assets::mod_set` builds `ModCatalog` from every
+installed entry and no longer strips IDs out of `EnabledMods`.
+
+Migrated in tree: the four `main_menu` Rust builders, the four generated
+`menu_*.content.ron` files, `assets/mods/example/example.content.ron` and the
+stale `assets/mods.catalog.ron` comment.
+
+### Generated content
+
+`cargo run content gen` then `git status --porcelain`: empty. The only
+generated diff produced by this task was the dropped `hidden: true` line in
+`assets/base/scenarios/menu_{approach,dock,drift,patrol}.content.ron`,
+committed in `c5354cc03` from the edited Rust builders. No
+`assets/base/**/*.content.ron` file was hand edited.
+
+`cargo run content lint`: 0 error(s), 0 warning(s), 0 finding(s), 9
+scenario(s) balance-audited, 1 acked, 14 creative map(s).
+
+### Unit and integration checks
+
+| Command | Result |
+| --- | --- |
+| `cargo test -p nova_scenario --lib loader:: lint::` | 167 passed |
+| `cargo test -p nova_menu --lib scenarios` | 13 passed |
+| `cargo test -p nova_mod_format --lib` | 12 passed |
+| `cargo test -p nova_assets --test example_scenario` | 14 passed |
+| `cargo test -p nova_authoring --lib campaign_membership` | 2 passed |
+| `cargo test -p nova_editor --lib scenario` | 32 passed |
+| `cargo test -p nova_probe_cli --test catalog_drift` | 2 passed |
+| `cargo check --workspace --all-targets --keep-going` | clean |
+| `cargo check -p nova-protocol --features debug --all-targets` | clean |
+| `cargo fmt --all --check` | clean |
+
+Clippy was run on the touched packages only, never as a sweep: the two new
+examples plus `-p nova_menu -p nova_assets -p nova_scenario -p nova_mod_format
+-p nova_editor -p nova_authoring -p nova_probe_cli --all-targets`. Clean apart
+from the two pre-existing lints listed under Owner calls.
+
+A full workspace `cargo test` and a Clippy sweep were deliberately skipped:
+they OOM this box.
+
+### Probe ranges
+
+There is no `ui` shard: `20260909-213100` owns it and is still OPEN, so the CI
+split was not edited here. Following `20260909-214629`, each affected range was
+run directly three consecutive times on the final source (`3bca56ea0`).
+Evidence: `probe-runs/3bca56ea0/<range>/{checks.json,report.html,run.log}`.
+
+`system_scenario_picker`, three consecutive runs:
+
+| Run | Verdict | run_end | Playing | invariants | log_clean | markers |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | OK 6/8 | 175 | 170 | 0 violations | PASS | 6 |
+| 2 | OK 6/8 | 175 | 170 | 0 violations | PASS | 6 |
+| 3 | OK 6/8 | 174 | 169 | 0 violations | PASS | 6 |
+
+Five slugs, one of them emitted twice per run: `the row click selects the row`,
+`two or more rows measured`, `the pane split holds across selections`, `the
+played row is not the picker's default`, `the picker starts the row the player
+clicked`.
+
+`system_settings_persist`, three consecutive runs:
+
+| Run | Verdict | run_end | Playing | invariants | log_clean | markers |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | OK 6/8 | 48 | 44 | 0 violations | PASS | 7/7 |
+| 2 | OK 6/8 | 53 | 49 | 0 violations | PASS | 7/7 |
+| 3 | OK 6/8 | 47 | 43 | 0 violations | PASS | 7/7 |
+
+`process_exit` and `artifacts_loadable` PASS in all six runs.
+`capture_simulated` and `fps_within_baseline` are N/A for both ranges.
+
+Regression ranges: `system_menu_boot` OK, `system_ship_editor` OK.
+`system_headless_rebind` reports UNPROBEABLE ("no timeline") because that range
+never adds `NovaProbePlugin`, so `probe_marker` no-ops. Pre-existing, present
+at `ec035e45d`, not caused here.
+
+### Persistence evidence
+
+The settings run logs the store it wrote before the app is dropped:
+
+```
+PersistedSettings { master_volume: 0.40000004, ..., graphics_quality: Low,
+..., keybinds: {"main_drive": BindingSpec { keyboard: [Keyboard(KeyJ)],
+gamepad: [Gamepad(RightTrigger)] }} }
+```
+
+`0.40000004` is a real pointer click: nova's slider tracks carry no
+`SliderThumb` or `SliderPrecision`, so bevy's `TrackClick::Snap` maps the click
+fraction of the track box straight onto the range. The click lands at
+`rect.min.x + rect.width() * 0.4`.
+
+Three apps run in one process against one temporary root. Phases 1 and 2 write
+`timeline-edit.jsonl` and `timeline-relaunch.jsonl`; phase 3 carries
+`NovaProbePlugin::default()` and owns the graded `timeline.jsonl`.
+`ProbeTimeline::create` truncates and holds a flock, so a shared path would
+have kept only the last app's markers. `artifacts_loadable` ignores the
+siblings.
+
+"Reset only the `main_drive` binding": the Settings UI offers a group-wide
+`Reset Bindings` button only. `main_drive` is the run's only override, so that
+button is a one-row reset in effect, and the assertions prove exactly that -
+`keybinds` empty on disk, `0.4` and `Low` untouched.
+
+### Supporting additions
+
+- `AppBuilder::with_settings_store` in `crates/nova_core/src/lib.rs`. `build()`
+  skips `SettingsStorePlugin::from_env()` when a store plugin is already
+  present, and `with_game_plugins` suppresses the menu under test, so the range
+  needs this to get a writable isolated store on the shipped app.
+- `LOGGER_INSTALLED` atomic in `crates/nova_core/src/lib.rs` disables
+  `LogPlugin` for every app after the first in a process.
+- `EDITOR_SANDBOX_SCENARIO_ID` in `nova_scenario`, consumed by
+  `nova_menu::scenarios::picker_lists` and aliased by
+  `nova_editor::scenario::SANDBOX_ID`.
+- `SYSTEMS_INVARIANTS` in `crates/nova_probe_cli/tests/catalog_drift.rs` moved
+  from 324 to 333.
+
+### Defects
+
+`clippy::if_same_then_else` at `crates/nova_assets/src/mod_set.rs:284`,
+introduced by `98a3c334d` when the `else if entry.decl.hidden` branch was
+removed and the two remaining arms became identical. Found by the targeted
+clippy run, fixed in `3bca56ea0` by folding them into one condition. All
+affected tests reran green afterwards.
+
+### Owner calls
+
+1. The editor sandbox scenario. Removing `hidden` would have leaked a "Saved
+   Range" row into the player-facing picker. It is not a menu backdrop, so
+   `menu_backdrop` could not carry it. Resolved with one named ID exception,
+   `EDITOR_SANDBOX_SCENARIO_ID`, placed in `nova_scenario` as the lowest shared
+   crate. This is a named-ID exception rather than the generic visibility
+   switch the task forbids, but it is still a second reason a row is omitted
+   and the owner may prefer a different home for the sandbox scenario.
+2. Two pre-existing clippy failures are out of this lane and were left alone to
+   avoid a land conflict. Both are present at the branch point `ec035e45d`:
+   `clippy::doc_lazy_continuation` at `crates/nova_gameplay/src/hash.rs:180`
+   and `clippy::filter_next` at `crates/nova_editor/src/scenario.rs:2371`.
+3. The probe-range rename got no changelog entry. It is internal tooling and
+   `[Unreleased]` has no tooling section.
+
+### Documentation
+
+`CHANGELOG.md` gained two `**(breaking)**` entries under `[Unreleased]`, one in
+Scenarios & Objectives and one in Modding & Mod Portal, plus a plain entry for
+the campaign lint. Docs updated in `4322910fe`: `docs/development.md`,
+`docs/scenario-system.md`, `web/src/create/author-a-scenario.md`,
+`web/src/create/base-content.md` (table column `hidden` became `in the picker`,
+values inverted), `web/src/create/campaigns.md`, `web/src/create/mod-files.md`
+(catalog `hidden` row dropped), `web/src/create/publish-a-mod.md`,
+`web/src/create/scenarios.md`, `web/src/wiki/scenarios.md`.
+`crates/nova_debug/src/harness.rs` and `examples/systems/README.md` follow the
+range rename.
+
+### Dropped
+
+Nothing in scope was dropped. The ranges listed under "Work moved out of this
+task" were not implemented here, as instructed.

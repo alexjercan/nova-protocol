@@ -13,7 +13,6 @@
         name: "Bench: Arsenal",
         description: "A mixed-weapon demolition yard with a carvable rock, inert hulks, a late raider and full NOVA OS access.",
         cubemap: "base/textures/cubemap.png",
-        hidden: true,
         events: [
             (
                 name: OnStart,

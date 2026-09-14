@@ -53,9 +53,10 @@ player between missions. Add a
 [`NextScenario`](../actions/#nextscenario) action to a scenario when campaign
 play should continue directly into the next member.
 
-A scenario may set `hidden: true` and still appear under its campaign heading.
-This is useful for continuation chapters that should not appear in the flat
-scenario list.
+Every member is an ordinary row in the Scenarios list as well; the campaign
+heading groups the rows in play order, so a continuation chapter can be
+replayed without flying up to it. A member must be a launchable chapter: naming
+a `menu_backdrop: true` scenario is a lint error.
 
 ```ron
 NextScenario((

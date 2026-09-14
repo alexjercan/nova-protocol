@@ -82,12 +82,11 @@ fn scenarios_list_scrolls_on_wheel_and_clamps() {
 
 // --- Scenarios picker ------------------------------------------------------
 
-fn picker_scenario(id: &str, name: &str, hidden: bool) -> (String, ScenarioConfig) {
+fn picker_scenario(id: &str, name: &str) -> (String, ScenarioConfig) {
     (
         id.to_string(),
         ScenarioConfig {
             description: format!("{name} blurb"),
-            hidden,
             ..ScenarioConfig::new(
                 id,
                 name,
@@ -97,15 +96,21 @@ fn picker_scenario(id: &str, name: &str, hidden: bool) -> (String, ScenarioConfi
     )
 }
 
-/// A registry with a listed story entry, a listed mod scenario, and the
-/// hidden menu backdrop (so `load_menu_ambience` on menu entry still finds
-/// its scenario). The picker must show the two listed ones and drop the
-/// hidden backdrop.
+/// The one kind of scenario the picker leaves out: a menu backdrop.
+fn picker_backdrop(id: &str, name: &str) -> (String, ScenarioConfig) {
+    let (key, mut config) = picker_scenario(id, name);
+    config.menu_backdrop = true;
+    (key, config)
+}
+
+/// A registry with a listed story entry, a listed mod scenario, and the menu
+/// backdrop (so `load_menu_ambience` on menu entry still finds its scenario).
+/// The picker must show the two ordinary ones and drop the backdrop.
 fn picker_scenarios() -> GameScenarios {
     GameScenarios(bevy::platform::collections::HashMap::from([
-        picker_scenario(TEST_START_ID, "Shakedown Run", false),
-        picker_scenario("practice_run", "Practice Run", false),
-        picker_scenario(TEST_BACKDROP_ID, "Menu Ambience", true),
+        picker_scenario(TEST_START_ID, "Shakedown Run"),
+        picker_scenario("practice_run", "Practice Run"),
+        picker_backdrop(TEST_BACKDROP_ID, "Menu Ambience"),
     ]))
 }
 
@@ -172,11 +177,11 @@ fn scenario_details_name(app: &mut App) -> Option<String> {
     app.world().get::<Text>(ent).map(|t| t.0.clone())
 }
 
-/// The picker lists exactly the `!hidden` scenarios: the story entry and the
-/// mod scenario show, the hidden backdrop does not. Fails if the filter is
-/// dropped (menu_ambience would appear).
+/// The picker lists every scenario that is not a menu backdrop: the story
+/// entry and the mod scenario show, the backdrop does not. Fails if the filter
+/// is dropped (menu_ambience would appear).
 #[test]
-fn scenarios_panel_lists_only_unhidden_scenarios() {
+fn scenarios_panel_lists_every_scenario_except_menu_backdrops() {
     let mut app = scenarios_app();
     let ids = scenario_row_ids(&mut app);
     assert!(
@@ -189,23 +194,46 @@ fn scenarios_panel_lists_only_unhidden_scenarios() {
     );
     assert!(
         !ids.contains(&TEST_BACKDROP_ID.to_string()),
-        "the hidden backdrop scenario is NOT listed: {ids:?}"
+        "the menu backdrop is NOT listed: {ids:?}"
+    );
+}
+
+/// The editor's Play range lives in `GameScenarios` so Retry and `--scenario`
+/// can name it, but it is the editor's stage rather than installed content, so
+/// the picker leaves it out. The one id exception to "everything that is not a
+/// backdrop lists".
+#[test]
+fn the_editor_sandbox_range_is_not_a_picker_row() {
+    let mut app = app();
+    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+        picker_scenario("practice_run", "Practice Run"),
+        picker_scenario(EDITOR_SANDBOX_SCENARIO_ID, "Saved Range"),
+    ])));
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+
+    let ids = scenario_row_ids(&mut app);
+    assert_eq!(
+        ids,
+        vec!["practice_run".to_string()],
+        "the editor sandbox never stands next to installed content: {ids:?}"
     );
 }
 
 // --- Collapsible campaign headers ------------------------------------------
 
-/// A registry with a two-chapter "Nova Protocol" campaign (chapter two is
-/// `hidden`, reachable ONLY through the campaign header) plus one
+/// A registry with a two-chapter "Nova Protocol" campaign plus one
 /// uncampaigned standalone. The picker must render the campaign as a
-/// collapsible header over its ordered members, hidden one included, with the
-/// standalone flat below.
+/// collapsible header over its ordered members, with the standalone flat
+/// below.
 fn campaigns_app() -> App {
     let mut app = app();
     app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
-        picker_scenario("chap1", "Chapter One", false),
-        picker_scenario("chap2", "Chapter Two", true),
-        picker_scenario("standalone", "Standalone", false),
+        picker_scenario("chap1", "Chapter One"),
+        picker_scenario("chap2", "Chapter Two"),
+        picker_scenario("standalone", "Standalone"),
     ])));
     app.insert_resource(GameCampaigns(bevy::platform::collections::HashMap::from([
         (
@@ -261,8 +289,8 @@ fn campaign_header(app: &mut App, id: &str) -> Option<Entity> {
 }
 
 /// The picker renders a campaign as an expanded header over its members in
-/// declared order (hidden chapter two included), then the uncampaigned
-/// standalone flat below - the collapsible-grouping contract.
+/// declared order, then the uncampaigned standalone flat below - the
+/// collapsible-grouping contract.
 #[test]
 fn picker_renders_collapsible_campaign_header_over_ordered_members() {
     let mut app = campaigns_app();
@@ -274,8 +302,8 @@ fn picker_renders_collapsible_campaign_header_over_ordered_members() {
             "row:Chapter Two".to_string(),
             "row:Standalone".to_string(),
         ],
-        "expanded header, then members in campaign order (hidden chapter two \
-         listed for replay), then the uncampaigned standalone"
+        "expanded header, then members in campaign order, then the \
+         uncampaigned standalone"
     );
 }
 
@@ -330,7 +358,7 @@ fn campaign_member_rows_are_indented_under_their_header() {
         assert_eq!(
             node.margin.left,
             px(CAMPAIGN_MEMBER_INDENT_PX),
-            "{member} is inset under its header (hidden chapters included)"
+            "{member} is inset under its header"
         );
         // INSET, not shifted: a `list_row`'s `percent(100)` plus an outside
         // margin would make the row wider than the pane and overhang the
@@ -405,27 +433,27 @@ fn two_pane_list_panes_cannot_shrink() {
     }
 }
 
-/// A HIDDEN campaign member is directly selectable and launchable for replay:
-/// selecting chapter two (hidden) feeds the details pane and its Play button
-/// loads chapter two itself - not the earlier chapter, not the canned start.
+/// A mid-campaign chapter is directly selectable and launchable for replay:
+/// selecting chapter two feeds the details pane and its Play button loads
+/// chapter two itself - not the earlier chapter, not the canned start.
 #[test]
-fn a_hidden_campaign_member_is_selectable_and_launchable() {
+fn a_campaign_member_is_selectable_and_launchable() {
     let mut app = campaigns_app();
     observe_load_scenario(&mut app);
 
-    let hidden_row = scenario_row(&mut app, "chap2").expect("hidden member row exists");
-    app.world_mut().trigger(Activate { entity: hidden_row });
+    let member_row = scenario_row(&mut app, "chap2").expect("member row exists");
+    app.world_mut().trigger(Activate { entity: member_row });
     app.update();
 
     assert_eq!(
         selected_scenario(&app).as_deref(),
         Some("chap2"),
-        "the hidden member is selected"
+        "the member is selected"
     );
     assert_eq!(
         scenario_details_name(&mut app).as_deref(),
         Some("Chapter Two"),
-        "the details pane renders the hidden member"
+        "the details pane renders the member"
     );
 
     let play = entity_by_name(&mut app, "Scenario Play Button").expect("play button");
@@ -434,7 +462,47 @@ fn a_hidden_campaign_member_is_selectable_and_launchable() {
     assert_eq!(
         app.world().resource::<LoadedScenario>().0.as_deref(),
         Some("chap2"),
-        "playing the hidden member loads it directly - a mid-campaign replay"
+        "playing the member loads it directly - a mid-campaign replay"
+    );
+}
+
+/// Membership cannot expose a backdrop. The content lint refuses a campaign
+/// that names one (`nova_scenario::lint`), and the picker refuses it a second
+/// time: a header over a backdrop renders no row for it, so a mod that ships
+/// past the lint still cannot put scenery in the player's list.
+#[test]
+fn a_campaign_naming_a_backdrop_still_renders_no_row_for_it() {
+    let mut app = app();
+    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+        picker_scenario("chap1", "Chapter One"),
+        picker_backdrop(TEST_BACKDROP_ID, "Menu Ambience"),
+    ])));
+    app.insert_resource(GameCampaigns(bevy::platform::collections::HashMap::from([
+        (
+            "nova_protocol".to_string(),
+            CampaignConfig {
+                id: "nova_protocol".to_string(),
+                name: "Nova Protocol".to_string(),
+                scenarios: vec!["chap1".to_string(), TEST_BACKDROP_ID.to_string()],
+            },
+        ),
+    ])));
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+
+    assert_eq!(
+        list_display_in_order(&mut app),
+        vec![
+            "header:[-] Nova Protocol".to_string(),
+            "row:Chapter One".to_string(),
+        ],
+        "the header lists its launchable chapter and nothing else"
+    );
+    assert!(
+        !scenario_row_ids(&mut app).contains(&TEST_BACKDROP_ID.to_string()),
+        "and the backdrop is not selectable through its campaign either"
     );
 }
 
@@ -511,18 +579,18 @@ fn play_button_hands_off_and_loads_the_chosen_scenario() {
 }
 
 /// The flat baseline (the interim campaign grouping is superseded by the collapsible-
-/// header UI): the picker lists every `!hidden` scenario sorted by display name, and a
-/// hidden backdrop does not render. Reads the ACTUAL spawned row Text in child order
-/// through the real spawn path, so it would catch a spawn path that ignored the sort or
-/// the hidden filter.
+/// header UI): the picker lists every scenario that is not a backdrop, sorted by
+/// display name, and a backdrop does not render. Reads the ACTUAL spawned row Text in
+/// child order through the real spawn path, so it would catch a spawn path that ignored
+/// the sort or the backdrop filter.
 #[test]
 fn picker_rows_render_flat_name_sorted() {
     let mut app = app();
     app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
-        picker_scenario("shakedown", "Shakedown Run", false),
-        picker_scenario("broadside", "Broadside", false),
-        picker_scenario("drift_yard", "Drift Yard", false),
-        picker_scenario(TEST_BACKDROP_ID, "Menu Ambience", true),
+        picker_scenario("shakedown", "Shakedown Run"),
+        picker_scenario("broadside", "Broadside"),
+        picker_scenario("drift_yard", "Drift Yard"),
+        picker_backdrop(TEST_BACKDROP_ID, "Menu Ambience"),
     ])));
     app.world_mut()
         .resource_mut::<NextState<GameStates>>()
@@ -536,6 +604,6 @@ fn picker_rows_render_flat_name_sorted() {
             "Drift Yard".to_string(),
             "Shakedown Run".to_string(),
         ],
-        "rows render sorted by display name; the hidden backdrop does not render"
+        "rows render sorted by display name; the backdrop does not render"
     );
 }

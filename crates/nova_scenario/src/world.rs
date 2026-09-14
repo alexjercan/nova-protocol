@@ -1237,7 +1237,6 @@ mod tests {
                 description: String::new(),
                 cubemap: "self://sky.png".into(),
                 thumbnail: None,
-                hidden: true,
                 menu_backdrop: false,
                 skybox_brightness: nova_ship::prelude::DEFAULT_SKYBOX_BRIGHTNESS,
                 watches: vec![],

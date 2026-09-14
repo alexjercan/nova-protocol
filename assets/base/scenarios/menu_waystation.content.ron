@@ -4,7 +4,6 @@
         name: "Waystation Traffic",
         description: "A freight waystation going about its day.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
         menu_backdrop: true,
         events: [
             (

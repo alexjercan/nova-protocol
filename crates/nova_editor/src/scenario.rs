@@ -52,9 +52,11 @@ use crate::{
 };
 
 /// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
-/// the DEFEAT overlay's Retry can reload it by id like any other scenario;
-/// `hidden` keeps it out of the Scenarios picker, which lists shipped content.
-pub(crate) const SANDBOX_ID: &str = "editor_sandbox";
+/// the DEFEAT overlay's Retry can reload it by id like any other scenario. It
+/// is the editor's own runtime range rather than installed content, so the
+/// Scenarios picker skips it by this id
+/// ([`nova_scenario::prelude::EDITOR_SANDBOX_SCENARIO_ID`], which this is).
+pub(crate) const SANDBOX_ID: &str = nova_scenario::prelude::EDITOR_SANDBOX_SCENARIO_ID;
 /// The player ship's scenario id, referenced by every handler that scopes to
 /// the player and by the editor's input mapping.
 pub(crate) const PLAYER_ID: &str = "player_spaceship";
@@ -271,8 +273,8 @@ pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> boo
 ///
 /// The sandbox used to register only on the editor's Play hand-off, which made
 /// it the one scenario no id-driven caller could reach: the game binary's
-/// `--scenario` membership check, the picker's hidden launch and the probe's
-/// scenario runner all resolve ids against this registry long before Play. It
+/// `--scenario` membership check and the probe's scenario runner both resolve
+/// ids against this registry long before Play. It
 /// is registered here for the same reason every shipped scenario is registered
 /// at load - an id nothing can name is not content.
 ///
@@ -550,9 +552,9 @@ pub(crate) fn ship_hull(ship: &LoweredShip) -> ShipHull {
 /// the ships the editor just built.
 ///
 /// One body for both readers of the document. `id` and `form` are what they
-/// disagree about: the Play hand-off builds the hidden sandbox with hulls
-/// written out inline, and a SAVE builds a scenario of its own id whose ships
-/// reference the prototypes the same file carries.
+/// disagree about: the Play hand-off builds the sandbox with hulls written out
+/// inline, and a SAVE builds a scenario of its own id whose ships reference the
+/// prototypes the same file carries.
 ///
 /// `settings` is what the BUILDER said and `range` is what the build target
 /// decides, which is why the sky arrives with the first and the id with the
@@ -568,7 +570,6 @@ pub(crate) fn range_scenario(
     ScenarioConfig {
         description: settings.description.clone(),
         skybox_brightness: settings.skybox_brightness,
-        hidden: range.hidden,
         events: range_events(
             range.id,
             sandbox_objects(world, fleet, range.form, range.flight, targeting),
@@ -596,17 +597,14 @@ pub(crate) const DEFAULT_SCENARIO_NAME: &str = "Saved Range";
 pub(crate) const DEFAULT_SCENARIO_DESCRIPTION: &str =
     "A free-flight range: rocks, target hulks, dormant pickets and a planetoid.";
 
-/// Which range a lowering is building: its id, whether the Scenarios picker
-/// lists it, how its ships name their hulls, and whether it may stand in for
-/// what the document has not built yet.
+/// Which range a lowering is building: its id, how its ships name their hulls,
+/// and whether it may stand in for what the document has not built yet.
 ///
 /// The name, description and sky are NOT here: those the builder authors on
 /// the [`ScenarioNode`], and both targets write what they said.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Range<'a> {
     pub(crate) id: &'a str,
-    /// Kept out of the Scenarios picker, which lists shipped content.
-    pub(crate) hidden: bool,
     pub(crate) form: HullForm,
     /// Whether the range may compose a FLIGHT rather than the document.
     ///
@@ -619,11 +617,11 @@ pub(crate) struct Range<'a> {
 }
 
 /// The range Play hands off to: registered so the DEFEAT overlay's Retry can
-/// find it by id, hidden so it never stands next to shipped content, and
-/// carrying its hulls inline because nothing has registered them as prototypes.
+/// find it by id, skipped by the picker because it is the editor's stage rather
+/// than installed content, and carrying its hulls inline because nothing has
+/// registered them as prototypes.
 pub(crate) const SANDBOX: Range<'static> = Range {
     id: SANDBOX_ID,
-    hidden: true,
     form: HullForm::Inline,
     flight: true,
 };
@@ -1224,7 +1222,7 @@ fn following_the_objects(
 /// ITSELF - the seeded death handler offers this range again - and which id
 /// that range answers to is decided by the lowering: `editor_sandbox` on Play,
 /// `editor_save` in a file. Left alone, a saved range's retry would reload a
-/// hidden scenario the saved mod does not contain.
+/// scenario the saved mod does not contain.
 ///
 /// In memory the document always names itself [`SANDBOX_ID`], so this runs
 /// BOTH ways: the lowering points a retry at the range being written, and
@@ -2007,12 +2005,12 @@ mod tests {
 
     /// The retry is only reachable because the sandbox registers itself: the
     /// switch resolves the queued id against `GameScenarios`, and this
-    /// scenario is built at runtime rather than merged from content. It is
-    /// hidden so that registration cannot leak it into the picker.
+    /// scenario is built at runtime rather than merged from content. It is not
+    /// a backdrop either, so registration cannot put it in the menu's ambience
+    /// rotation; the picker leaves it out by its id.
     #[test]
-    fn the_sandbox_registers_itself_hidden_so_the_retry_resolves() {
+    fn the_sandbox_registers_itself_so_the_retry_resolves() {
         let scenario = ScenarioConfig {
-            hidden: true,
             events: vec![],
             ..ScenarioConfig::new(
                 SANDBOX_ID.to_string(),
@@ -2027,12 +2025,14 @@ mod tests {
             .get(SANDBOX_ID)
             .expect("the retry's id resolves against the registry");
         assert!(
-            registered.hidden,
-            "a runtime scenario in the registry must stay out of the picker"
-        );
-        assert!(
             !registered.menu_backdrop,
-            "and out of the menu's backdrop rotation"
+            "a runtime scenario in the registry stays out of the menu's \
+             backdrop rotation"
+        );
+        assert_eq!(
+            SANDBOX_ID,
+            nova_scenario::prelude::EDITOR_SANDBOX_SCENARIO_ID,
+            "and the picker skips exactly this id"
         );
     }
 
@@ -2066,7 +2066,6 @@ mod tests {
                     bundle: "base/base.bundle.ron".to_string(),
                     base: true,
                     enabled_by_default: false,
-                    hidden: false,
                 },
                 bundle: Some(bundle),
             }],

@@ -42,7 +42,6 @@
         // listed for replay under the "The Ledger" campaign header (the campaign
         // mapping, task 20260724-220842, replaced the earlier temporary-visible
         // hack that existed only so the finale could be launched directly).
-        hidden: true,
         events: [
             (
                 name: OnStart,

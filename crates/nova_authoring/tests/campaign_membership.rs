@@ -59,13 +59,13 @@ fn merged_campaign_resolves_members_in_play_order() {
         );
     }
 
-    // Every listed chapter is visible in the flat picker too: nothing in a
-    // campaign is reachable only through the campaign mapping. A chapter
-    // chained from another still gets its own row.
+    // Every member is a player-launchable chapter. A menu backdrop is scenery -
+    // it poses its own camera and hands the player no ship - so naming one is
+    // a lint Error, and the picker would render no row for it either.
     for member in &campaign.scenarios {
         assert!(
-            !outcome.scenarios[member].hidden,
-            "'{member}' is a listed chapter, not a hidden chained wave"
+            !outcome.scenarios[member].menu_backdrop,
+            "'{member}' is a launchable chapter, not a menu backdrop"
         );
     }
 }

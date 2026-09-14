@@ -153,16 +153,16 @@ The fields are documented in [Channels](../channels/).
 ## Scenario ids
 
 What `NextScenario((scenario_id: ...))`, a `Campaign` member list, and the
-Scenarios picker can target. A `hidden` scenario stays off the picker but is
-launchable by id.
+Scenarios picker can target. A `menu_backdrop` scenario stays off the picker
+but is still launchable by id.
 
-| id | display name | hidden | what it is |
+| id | display name | in the picker | what it is |
 |---|---|---|---|
-| `tutorial` | Basic Training | no | the New Game opening: the Fleet gunnery range, a qualification card read over the radio |
-| `menu_waystation` | Waystation Traffic | yes | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
-| `menu_gauntlet` | Torpedo Gauntlet | yes | menu backdrop: a doomed point-defense stand (hands off to the weave) |
-| `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
-| `menu_duel` | Duel Cycle | yes | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
+| `tutorial` | Basic Training | yes | the New Game opening: the Fleet gunnery range, a qualification card read over the radio |
+| `menu_waystation` | Waystation Traffic | no | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
+| `menu_gauntlet` | Torpedo Gauntlet | no | menu backdrop: a doomed point-defense stand (hands off to the weave) |
+| `menu_weave` | Asteroid Weave | no | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
+| `menu_duel` | Duel Cycle | no | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
 
 The base bundle ships no campaign, and no shipped mod carries one today - a
 `Campaign` is a mod's to declare. There are no other content kinds - a content file holds

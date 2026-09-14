@@ -236,5 +236,5 @@ mod cache.
   mod folder.
 - **Unknown dependency** - publish the dependency too or use a shipped id.
 - **Shipped id collision** - choose a new portal id.
-- **No visible scenario** - leave `hidden` unset on at least one scenario that
-  players should launch directly.
+- **No visible scenario** - ship at least one scenario that is not a
+  `menu_backdrop`, or the mod adds no row players can launch.

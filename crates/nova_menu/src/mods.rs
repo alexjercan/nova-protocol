@@ -488,7 +488,7 @@ pub(crate) enum DepStatus {
 }
 
 /// Resolve a dependency id's status against the installed catalog + enabled set.
-/// An enabled id counts as enabled even if hidden (not in `ModCatalog`).
+/// An enabled id counts as enabled even before the catalog rows are built.
 pub(crate) fn dep_status(
     id: &str,
     catalog: Option<&ModCatalog>,

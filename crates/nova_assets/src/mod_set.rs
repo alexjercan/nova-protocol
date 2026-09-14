@@ -72,8 +72,8 @@ pub struct EnabledMods(pub HashSet<String>);
 /// carrying that id would shadow one.
 ///
 /// The NO-SHADOWING rule. The shipped catalog and the downloaded cache share one
-/// id space (`hidden` entries included) and the id IS the enable key, so a
-/// downloaded copy of a shipped id would make one toggle drive two rows and
+/// id space and the id IS the enable key, so a downloaded copy of a shipped id
+/// would make one toggle drive two rows and
 /// merge two bundles. The portal generator refuses to publish such an id and
 /// [`portal::install`](crate::portal) refuses to download one; the cache index
 /// is still downloaded input, so every consumer of the installed set
@@ -179,20 +179,21 @@ impl ModInfo {
 }
 
 /// The PLAYER-FACING installed-mods list, in catalog order - the menu's view of
-/// the [`InstalledCatalog`] asset composed with each mod's bundle [`ModMeta`],
-/// with `hidden: true` entries (dev/tooling mods) filtered out.
+/// the [`InstalledCatalog`] asset composed with each mod's bundle [`ModMeta`].
+///
+/// EVERY installed entry gets a row. Installing content the player can neither
+/// see nor switch off is not a thing the catalog can express: dev-only content
+/// belongs in its owning example or test fixture instead.
 ///
 /// Built once from the loaded catalog at `OnEnter(Processing)` by
 /// [`build_mod_catalog`]. The mods menu reads this (plus [`EnabledMods`]) to render
 /// its list without touching the asset machinery. Empty until the catalog loads.
-/// Hidden mods stay installed and enableable by id (`register_bundles` reads the
-/// full catalog, not this view); they just never reach the menu.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ModCatalog(pub Vec<ModInfo>);
 
 /// Fill [`ModCatalog`] from the loaded [`InstalledCatalog`] asset, composing each
-/// non-`hidden` declaration with its bundle's [`ModMeta`], in catalog order, then
-/// append one row per DOWNLOADED mod ([`DownloadedMods`], cache-index order).
+/// declaration with its bundle's [`ModMeta`], in catalog order, then
+/// append one per DOWNLOADED mod ([`DownloadedMods`], cache-index order).
 /// Runs at `OnEnter(Processing)`, before `seed_enabled_mods`, and re-runs when
 /// `DownloadedMods` changes (install/uninstall, or a downloaded bundle's async
 /// load completing) so the rows track the cache. A missing/unloaded bundle is
@@ -212,7 +213,6 @@ pub fn build_mod_catalog(
     mod_catalog.0 = catalog
         .entries
         .iter()
-        .filter(|e| !e.decl.hidden)
         .map(|e| {
             let meta = catalog_bundle(e, &optional)
                 .and_then(|handle| bundles.get(handle))
@@ -244,23 +244,21 @@ pub fn build_mod_catalog(
         // A downloaded bundle loads ASYNC via mods:// (it is not part of the
         // GameAssets collection gate), so a not-yet-loaded meta is normal here -
         // the row starts decl-only (name = id) and upgrades on the re-run that
-        // `mark_installed_bundles_loaded` triggers. No `hidden`/`base` flags:
-        // downloaded records carry neither concept.
+        // `mark_installed_bundles_loaded` triggers. No `base` flag: a
+        // downloaded record carries no such concept.
         let meta = bundles.get(&m.bundle).map(|b| &b.meta);
         let decl = ModEntry {
             id: m.record.id.clone(),
             bundle: m.record.bundle.clone(),
             base: false,
             enabled_by_default: false,
-            hidden: false,
         };
         mod_catalog.0.push(ModInfo::new(&decl, meta));
     }
 }
 
-/// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in, seed
-/// `enabled_by_default` ids on a fresh install, strip `hidden` (non-base) ids
-/// out.
+/// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in and
+/// seed `enabled_by_default` ids on a fresh install.
 ///
 /// The UNION keeps base enabled regardless of what `load_enabled_mods`
 /// restored - base is locked on in the UI, so it must always be active - while
@@ -268,15 +266,10 @@ pub fn build_mod_catalog(
 /// when nothing was restored: a saved set always carries base, so an EMPTY set
 /// here is a first boot, and that is the one moment a default-enabled mod is
 /// switched on. From then on it is the player's toggle, and a set saved
-/// without it stays without it. The STRIP makes a
-/// hidden (dev/tooling) mod's enablement SESSION-ONLY: without it, an example
-/// run that enables a hidden mod persists the id, and a later normal run would
-/// restore-and-merge a mod the menu has no row to disable. Examples
-/// re-enable by id at `OnEnter(Loaded)`, after this chain, so they are
-/// unaffected; the cleaned set is re-saved on the same change, so a polluted
-/// prefs store self-heals. The `!base` guard keeps a pathological hidden+base
-/// entry force-enabled. Runs at `OnEnter(Processing)`, after
-/// `load_enabled_mods` and before the merge. Idempotent.
+/// without it stays without it. Nothing is stripped: every installed id has a
+/// menu row, so a persisted enablement is always one the player can undo. Runs
+/// at `OnEnter(Processing)`, after `load_enabled_mods` and before the merge.
+/// Idempotent.
 pub fn seed_enabled_mods(
     game_assets: Res<GameAssets>,
     catalogs: Res<Assets<InstalledCatalog>>,
@@ -288,11 +281,10 @@ pub fn seed_enabled_mods(
     };
     let fresh_install = enabled.0.is_empty();
     for entry in &catalog.entries {
-        if entry.decl.base {
-            enabled.0.insert(entry.decl.id.clone());
-        } else if entry.decl.hidden {
-            enabled.0.remove(&entry.decl.id);
-        } else if entry.decl.enabled_by_default && fresh_install {
+        // Two reasons, one action. Base is unioned in on EVERY boot because it
+        // is locked on; a default-enabled mod is switched on once, on the
+        // first boot, and is the player's toggle from then on.
+        if entry.decl.base || (entry.decl.enabled_by_default && fresh_install) {
             enabled.0.insert(entry.decl.id.clone());
         }
     }

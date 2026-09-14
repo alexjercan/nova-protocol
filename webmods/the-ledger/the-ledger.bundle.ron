@@ -1,7 +1,8 @@
 // The Ledger - the alt storyline campaign (task 20260716-123535, spike
-// 20260716-183104). Chapters chained with NextScenario: chapter one is
-// the campaign's entry in the Scenarios picker; everything after is hidden
-// (reached only by playing). Chapter two plays in two acts across two
+// 20260716-183104). Chapters chained with NextScenario: chapter one is where
+// the arc starts, and the later chapters are ordinary picker rows too, so a
+// chapter can be replayed without playing up to it. Chapter two plays in two
+// acts across two
 // scenario files (claim jumpers, then the heavies) so a death retries the
 // current act, not the chapter - the difficulty rework of task
 // 20260717-112630. Chapter five is a REWARD FINALE reached only by the fight

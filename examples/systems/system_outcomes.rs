@@ -8,8 +8,8 @@
 //!
 //! The fixtures are two ~50-line `ScenarioConfig` values built in Rust, not
 //! shipped story RON: the compiler catches scenario-grammar changes, and the
-//! run never needs touching when the campaign is rebalanced. Both are
-//! `hidden: true`, so registering them adds no rows to the Scenarios picker.
+//! run never needs touching when the campaign is rebalanced. Neither is
+//! shipped content, so neither reaches a player's Scenarios picker.
 //!
 //! A CHECKPOINT is not a type. It is `Outcome(Victory)` plus a LINGERING
 //! `NextScenario` queued in the same handler, observable as
@@ -372,7 +372,6 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
 
     ScenarioConfig {
         description: "Die for the Defeat overlay, kill for the Victory checkpoint.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_A.to_string(),
@@ -416,7 +415,6 @@ fn outcome_probe_b(game_assets: &GameAssets) -> ScenarioConfig {
 
     ScenarioConfig {
         description: "The chain target, so the CHECKPOINT's arrival is observable.".to_string(),
-        hidden: true,
         events,
         ..ScenarioConfig::new(
             SCENARIO_B.to_string(),

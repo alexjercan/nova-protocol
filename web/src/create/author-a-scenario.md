@@ -67,8 +67,8 @@ For this tutorial, each field has one job:
 - `cubemap` sets the background image.
 - `events` contains the mission logic.
 
-The complete field table, including thumbnails, hidden scenarios, and menu
-backdrops, is in [Scenario files](../scenarios/).
+The complete field table, including thumbnails and menu backdrops, is in
+[Scenario files](../scenarios/).
 
 ## 3. Plan one short story
 
@@ -272,8 +272,8 @@ nix develop --command cargo run --features dev
 
 When the scenario works, give it its own folder and id with
 [Mod files](../mod-files/), then follow [Publish a mod](../publish-a-mod/) to
-make it installable by other players. Keep `hidden` unset so players can find
-it in the Scenarios menu.
+make it installable by other players. It appears in the Scenarios menu on its
+own: only a `menu_backdrop: true` scene is left out.
 
 ## 9. Common mistakes
 

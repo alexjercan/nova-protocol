@@ -40,9 +40,9 @@ There is no fourth prefix. The obvious candidate was end-to-end player
 JOURNEYS, and the code refuses it: `system_player_path` and `system_outcomes`
 stand up the same `AppBuilder` rig on a code-built `ScenarioConfig` that
 `system_hull_damage` and every `stress_` range does, while the ranges that walk
-the SHIPPED app through `editor_app` - `system_menu_boot`, `bug_menu_picker`,
-`system_ship_editor`, `bug_sandbox_soak` - already straddle two kinds. Fixture
-choice is not a kind of check.
+the SHIPPED app through `editor_app` - `system_menu_boot`,
+`system_scenario_picker`, `system_ship_editor`, `bug_sandbox_soak` - already
+straddle two kinds. Fixture choice is not a kind of check.
 
 ## Every claim is named
 

@@ -614,7 +614,6 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 
     ScenarioConfig {
         description: "A siege lance, and a capital block hull to collapse.".to_string(),
-        hidden: true,
         // The rig lights itself: the engine spawns no light, so a scenario that
         // authors none renders black.
         events: nova_probe::fixtures::spawn_on_start(

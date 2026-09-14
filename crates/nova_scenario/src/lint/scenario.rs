@@ -44,21 +44,27 @@ struct SpawnedShip {
     controller: SpaceshipController,
 }
 
-/// Lint one campaign against the scenario ids the caller knows about
-/// (`known_scenarios`, normally base + all installed bundles). A campaign owns
-/// an ordered `scenarios` list; each member must resolve to a real scenario, or
-/// the picker would render a header row that launches nothing. Findings are
-/// keyed (via [`LintIssue::scenario`]) by the CAMPAIGN id, since a campaign is
-/// the element the finding is about.
+/// Lint one campaign against the scenarios the caller knows about
+/// (`known_scenarios`, normally base + all installed bundles; `menu_backdrops`
+/// is the subset of those ids that author `menu_backdrop: true`). A campaign
+/// owns an ordered `scenarios` list; each member must resolve to a real
+/// scenario, or the picker would render a header row that launches nothing.
+/// Findings are keyed (via [`LintIssue::scenario`]) by the CAMPAIGN id, since a
+/// campaign is the element the finding is about.
 ///
 /// Checks:
 /// - a member id absent from `known_scenarios` is a DANGLING reference (Error) -
 ///   the same class as a `NextScenario` targeting a missing scenario;
+/// - a member id that names a MENU BACKDROP is an Error: a campaign member is a
+///   player-launchable chapter, a backdrop is scenery that poses its own camera
+///   and hands the player no ship. The picker renders no row for one either,
+///   so a header listing one would be a chapter nobody can reach;
 /// - a member id listed more than once in the campaign is a duplicate (Warn) -
 ///   almost certainly an authoring slip, but the campaign still lists.
 pub fn lint_campaign(
     campaign: &CampaignConfig,
     known_scenarios: &HashSet<String>,
+    menu_backdrops: &HashSet<String>,
 ) -> Vec<LintIssue> {
     let id = campaign.id.as_str();
     let mut issues = Vec::new();
@@ -69,6 +75,15 @@ pub fn lint_campaign(
                 id,
                 format!(
                     "campaign '{id}' lists member scenario '{member}', which no bundle provides"
+                ),
+            ));
+        } else if menu_backdrops.contains(member) {
+            issues.push(LintIssue::error(
+                id,
+                format!(
+                    "campaign '{id}' lists member scenario '{member}', which is a menu backdrop \
+                     (`menu_backdrop: true`); a campaign member is a launchable chapter, and the \
+                     Scenarios picker renders no row for a backdrop"
                 ),
             ));
         }
@@ -1700,7 +1715,11 @@ mod tests {
             "nova_protocol",
             &["shakedown_run", "broadside", "final_tally"],
         );
-        let issues = lint_campaign(&c, &known(&["shakedown_run", "broadside", "final_tally"]));
+        let issues = lint_campaign(
+            &c,
+            &known(&["shakedown_run", "broadside", "final_tally"]),
+            &known(&[]),
+        );
         assert!(
             issues.is_empty(),
             "a campaign naming only real scenarios is clean, got {issues:?}"
@@ -1713,7 +1732,7 @@ mod tests {
     #[test]
     fn campaign_flags_dangling_member() {
         let c = campaign("nova_protocol", &["shakedown_run", "ghost_chapter"]);
-        let issues = lint_campaign(&c, &known(&["shakedown_run"]));
+        let issues = lint_campaign(&c, &known(&["shakedown_run"]), &known(&[]));
         let errors: Vec<_> = issues
             .iter()
             .filter(|i| i.severity == LintSeverity::Error)
@@ -1726,12 +1745,36 @@ mod tests {
         );
     }
 
+    /// A campaign member that names a MENU BACKDROP is an Error. A backdrop is
+    /// scenery: it poses its own camera, hands the player no ship, and the
+    /// picker renders no row for it - so a header listing one would offer a
+    /// chapter nobody can start. Membership never overrides the exclusion.
+    #[test]
+    fn campaign_flags_a_member_that_is_a_menu_backdrop() {
+        let c = campaign("nova_protocol", &["shakedown_run", "menu_weave"]);
+        let issues = lint_campaign(
+            &c,
+            &known(&["shakedown_run", "menu_weave"]),
+            &known(&["menu_weave"]),
+        );
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == LintSeverity::Error)
+            .collect();
+        assert_eq!(errors.len(), 1, "exactly the backdrop member errors");
+        assert!(
+            errors[0].message.contains("menu_weave") && errors[0].message.contains("menu backdrop"),
+            "the finding names the member and why: {}",
+            errors[0].message
+        );
+    }
+
     /// A member listed twice is a Warn (authoring slip), not an Error - the
     /// campaign still lists.
     #[test]
     fn campaign_warns_on_duplicate_member() {
         let c = campaign("nova_protocol", &["shakedown_run", "shakedown_run"]);
-        let issues = lint_campaign(&c, &known(&["shakedown_run"]));
+        let issues = lint_campaign(&c, &known(&["shakedown_run"]), &known(&[]));
         assert!(
             issues
                 .iter()

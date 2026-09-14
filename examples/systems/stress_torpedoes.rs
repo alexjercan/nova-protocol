@@ -313,7 +313,6 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 
     ScenarioConfig {
         description: "A rack holding a thousand torpedoes under guidance.".to_string(),
-        hidden: true,
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(

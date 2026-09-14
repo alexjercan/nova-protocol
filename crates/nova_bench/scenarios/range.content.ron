@@ -27,7 +27,6 @@
         name: "Bench: Range",
         description: "An open range: a planetoid, rocks, a mark and a derelict. No objective; the goal is yours.",
         cubemap: "base/textures/cubemap.png",
-        hidden: true,
         events: [
             (
                 name: OnStart,

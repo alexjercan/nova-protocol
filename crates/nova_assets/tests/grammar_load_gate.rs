@@ -127,7 +127,6 @@ fn merge(app: &mut App, bundles: Vec<(&str, Vec<Content>)>) {
                     bundle: format!("{id}/{id}.bundle.ron"),
                     base: index == 0,
                     enabled_by_default: false,
-                    hidden: false,
                 },
                 bundle: Some(bundle),
             }

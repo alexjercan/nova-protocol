@@ -4,12 +4,12 @@
 // overlay namespace), bundle (the mod's `*.bundle.ron`, asset-root-relative),
 // base (true = the base game: enabled by default, locked on in the UI),
 // enabled_by_default (true = switched on by a fresh install with no saved
-// enabled set, and freely toggled from then on), hidden (true = dev/tooling
-// mod: kept out of the player-facing mods list, but still installed and
-// enableable by id - examples do so via EnabledMods). The mod's
-// METADATA (name, description, author, version...) lives in its own bundle's
-// `meta` block; which entries are ENABLED is a runtime concern (EnabledMods,
-// persisted separately).
+// enabled set, and freely toggled from then on). EVERY entry here gets a
+// player-facing row in the Mods screen: dev-only content belongs in its owning
+// example or test fixture, never installed where nobody can see or disable it.
+// The mod's METADATA (name, description, author, version...) lives in its own
+// bundle's `meta` block; which entries are ENABLED is a runtime concern
+// (EnabledMods, persisted separately).
 (mods: [
     (
         id: "base",

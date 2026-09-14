@@ -167,7 +167,6 @@ fn stow_bench(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
 
     ScenarioConfig {
         description: "A point-defence mount deploying and stowing.".to_string(),
-        hidden: true,
         events: fixtures::spawn_on_start(
             [
                 vec![bench],

@@ -1,5 +1,5 @@
 //! The Scenarios picker: a two-pane overlay in the mods-screen style listing
-//! every `!hidden` scenario, grouped under collapsible campaign headers, that
+//! every launchable scenario, grouped under collapsible campaign headers, that
 //! plays the selected one through the New Game handoff.
 
 use bevy::{
@@ -95,15 +95,29 @@ pub(crate) struct ScenarioPlay {
     pub(crate) id: ScenarioId,
 }
 
-/// The scenarios the picker lists: every `!hidden` entry, in a stable order by display
-/// name then id over the HashMap-backed registry.
+/// Whether the picker offers `scenario` as a row at all.
 ///
-/// This is the flat baseline. The collapsible campaign-header UI - which reads the
-/// first-class `GameCampaigns` mapping to group and launch campaign members, hidden
-/// ones included - is the follow-up UI; until it lands the picker lists the flat
-/// `!hidden` set.
+/// Two exclusions, and only two. A `menu_backdrop` is SCENERY: the menu loads
+/// one behind its own buttons, and it poses its own camera rather than handing
+/// the player a ship. The editor's Play range is the editor's STAGE: it is in
+/// [`GameScenarios`] so Retry and `--scenario` can name it, but no bundle
+/// publishes it and its name and contents are whatever the open document says.
+/// Everything else installed is a row, campaign member or not.
+pub(crate) fn picker_lists(scenario: &ScenarioConfig) -> bool {
+    !scenario.menu_backdrop && scenario.id != EDITOR_SANDBOX_SCENARIO_ID
+}
+
+/// The scenarios the picker lists, in a stable order by display name then id
+/// over the HashMap-backed registry.
+///
+/// This is the flat baseline; the collapsible campaign-header UI below groups
+/// the same set under its campaigns' headers.
 pub(crate) fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig> {
-    let mut out: Vec<ScenarioConfig> = scenarios.values().filter(|s| !s.hidden).cloned().collect();
+    let mut out: Vec<ScenarioConfig> = scenarios
+        .values()
+        .filter(|s| picker_lists(s))
+        .cloned()
+        .collect();
     out.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
     out
 }
@@ -145,8 +159,8 @@ pub(crate) fn ordered_campaigns(campaigns: &GameCampaigns) -> Vec<CampaignConfig
     out
 }
 
-/// Every scenario id that appears as a member of SOME campaign (hidden ones
-/// included). Used to keep a campaigned scenario out of the uncampaigned tail.
+/// Every scenario id that appears as a member of SOME campaign. Used to keep a
+/// campaigned scenario out of the uncampaigned tail.
 pub(crate) fn campaign_member_ids(
     campaigns: &GameCampaigns,
 ) -> std::collections::HashSet<ScenarioId> {
@@ -156,33 +170,28 @@ pub(crate) fn campaign_member_ids(
         .collect()
 }
 
-/// Every scenario the picker can SELECT: the flat `!hidden` set plus every
-/// campaign member that resolves to a real scenario (so a `hidden` member listed
-/// under its campaign header is selectable/launchable even though the flat set
-/// excludes it). Selection-repair keeps the current pick only if it is in here.
+/// Every scenario the picker can SELECT: exactly the listed set.
+///
+/// Campaign membership neither adds nor removes anything. A member is an
+/// ordinary row that its campaign's header also groups, and a campaign naming
+/// a menu backdrop is a content-lint Error rather than a way to put a backdrop
+/// on screen. Selection-repair keeps the current pick only if it is in here.
 pub(crate) fn selectable_scenario_ids(
     scenarios: &GameScenarios,
-    campaigns: &GameCampaigns,
 ) -> std::collections::HashSet<ScenarioId> {
-    let mut ids: std::collections::HashSet<ScenarioId> = scenarios
+    scenarios
         .values()
-        .filter(|s| !s.hidden)
+        .filter(|s| picker_lists(s))
         .map(|s| s.id.clone())
-        .collect();
-    for member in campaign_member_ids(campaigns) {
-        if scenarios.contains_key(&member) {
-            ids.insert(member);
-        }
-    }
-    ids
+        .collect()
 }
 
 /// Rebuild the scenario list as collapsible campaign groups: one
 /// [`CampaignHeader`] per campaign (in `ordered_campaigns` order), and - when the
 /// campaign is expanded - one indented [`ScenarioRow`] per member in the
-/// campaign's declared order, resolved against `GameScenarios` (hidden members
-/// included, so a chained chapter is replayable from its header). Uncampaigned
-/// `!hidden` scenarios list flat below the campaigns. A default/repaired
+/// campaign's declared order, resolved against `GameScenarios` (so a chapter
+/// reached in play by chaining is also replayable from its header).
+/// Uncampaigned scenarios list flat below the campaigns. A default/repaired
 /// selection keeps the details pane fed.
 pub(crate) fn refresh_scenarios_list(
     mut commands: Commands,
@@ -203,11 +212,10 @@ pub(crate) fn refresh_scenarios_list(
     let scenarios = scenarios.as_deref().unwrap_or(&empty_scenarios);
     let campaigns = campaigns.as_deref().unwrap_or(&empty_campaigns);
 
-    // The flat, non-hidden sequence still defines the default/fallback pick (a
-    // hidden mid-campaign chapter is never a good default); selection-repair,
-    // though, accepts any selectable id so a hidden member stays selected.
+    // The flat sequence defines the default/fallback pick, and is also the
+    // selectable set: a campaign header groups rows, it does not create them.
     let listed = listed_scenarios(scenarios);
-    let selectable = selectable_scenario_ids(scenarios, campaigns);
+    let selectable = selectable_scenario_ids(scenarios);
     if !selected
         .0
         .as_deref()
@@ -221,7 +229,7 @@ pub(crate) fn refresh_scenarios_list(
 
     let ordered = ordered_campaigns(campaigns);
     let members = campaign_member_ids(campaigns);
-    // Uncampaigned tail: every !hidden scenario not claimed by a campaign, in the
+    // Uncampaigned tail: every listed scenario not claimed by a campaign, in the
     // same flat name order as before.
     let uncampaigned: Vec<&ScenarioConfig> =
         listed.iter().filter(|s| !members.contains(&s.id)).collect();
@@ -245,9 +253,11 @@ pub(crate) fn refresh_scenarios_list(
                 continue;
             }
             for member_id in &campaign.scenarios {
-                let Some(member) = scenarios.get(member_id) else {
-                    // A dangling member id (the content lint flags it) simply does
-                    // not render - the header still lists its resolvable chapters.
+                let Some(member) = scenarios.get(member_id).filter(|m| picker_lists(m)) else {
+                    // A dangling member id, or one naming a menu backdrop - the
+                    // content lint flags both - simply does not render. The
+                    // header still lists its launchable chapters, and
+                    // membership never overrides the backdrop exclusion.
                     continue;
                 };
                 let is_selected = selected.0.as_deref() == Some(member.id.as_str());

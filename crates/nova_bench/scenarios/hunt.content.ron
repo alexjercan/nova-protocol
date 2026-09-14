@@ -13,7 +13,6 @@
         // A loose file registers no `dep://` source; the base pack's cubemap
         // is reachable over the default asset root instead.
         cubemap: "base/textures/cubemap.png",
-        hidden: true,
         events: [
             (
                 name: OnStart,

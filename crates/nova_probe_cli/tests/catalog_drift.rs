@@ -543,11 +543,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "bug_menu_picker",
+        "system_scenario_picker",
         &[
             "the row click selects the row",
             "two or more rows measured",
             "the pane split holds across selections",
+            "the played row is not the picker's default",
+            "the picker starts the row the player clicked",
         ],
     ),
     (
@@ -703,6 +705,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_settings_persist",
+        &[
+            "the run writes an isolated settings store",
+            "the settings UI writes the store",
+            "a new app comes up on the saved settings",
+            "the rebound key drives the verb in gameplay",
+            "the relaunched settings panel shows the saved values",
+            "a reset clears the persisted keybind and nothing else",
+            "an older partial store loads its omitted fields on defaults",
+        ],
+    ),
+    (
         "system_headless_crt",
         &[
             "the forwarded pointer reaches the blip",
@@ -714,7 +728,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 324;
+const SYSTEMS_INVARIANTS: usize = 333;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

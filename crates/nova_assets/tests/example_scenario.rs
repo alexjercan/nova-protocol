@@ -123,12 +123,10 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
 }
 
 /// An app whose `GameAssets.catalog` points at a SYNTHETIC catalog: the real
-/// base + example entries plus a `hidden: true` declaration ("hidden-fixture")
-/// whose bundle handle REUSES the loaded example bundle. No shipped mod is
-/// hidden anymore (the screenshot-reel was unshipped), so the hidden-flag
-/// semantics are pinned against this in-memory catalog - real loaders and real
+/// base + example entries plus one extra declaration ("extra-fixture") whose
+/// bundle handle REUSES the loaded example bundle. Real loaders and real
 /// content still back every handle, no fixture files.
-fn app_with_hidden_fixture() -> App {
+fn app_with_extra_catalog_entry() -> App {
     let mut app = headless_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
     let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
@@ -155,7 +153,7 @@ fn app_with_hidden_fixture() -> App {
             bundle: example_bundle.clone(),
         },
         OptionalBundle {
-            id: "hidden-fixture".to_string(),
+            id: "extra-fixture".to_string(),
             bundle: example_bundle,
         },
     ]));
@@ -166,11 +164,10 @@ fn app_with_hidden_fixture() -> App {
         let mut entries = real.entries.clone();
         entries.push(CatalogEntry {
             decl: ModEntry {
-                id: "hidden-fixture".to_string(),
+                id: "extra-fixture".to_string(),
                 bundle: "mods/example/example.bundle.ron".to_string(),
                 base: false,
                 enabled_by_default: false,
-                hidden: true,
             },
             bundle: None,
         });
@@ -268,9 +265,9 @@ fn every_installed_bundle_loads_recursively() {
 /// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed
 /// mods, in catalog order (base first), composing each entry with the `meta`
 /// block AUTHORED IN ITS OWN BUNDLE - the thin catalog carries no metadata, so
-/// the exact strings below passing proves the plumbing reads the bundle (hidden
-/// filtering is pinned separately by
-/// `hidden_entries_are_filtered_from_mod_catalog`).
+/// the exact strings below passing proves the plumbing reads the bundle. That
+/// EVERY installed entry reaches the list is pinned separately by
+/// `every_installed_catalog_entry_reaches_the_mod_catalog`.
 #[test]
 fn mod_catalog_lists_installed_mods_metadata() {
     let mut app = headless_app();
@@ -314,25 +311,44 @@ fn mod_catalog_lists_installed_mods_metadata() {
     assert_eq!(mods[1].meta.author, "Nova Protocol");
 }
 
-/// `build_mod_catalog` FILTERS `hidden: true` entries out of the player-facing
-/// list (synthetic-catalog rig since no shipped mod is hidden anymore).
+/// `build_mod_catalog` gives EVERY installed declaration a player-facing row,
+/// in catalog order. There is no way to install content the player cannot see
+/// or switch off, so the row count is the entry count - proved against a
+/// catalog carrying one more entry than the shipped one, so a filter that
+/// dropped any class of entry would fail here.
 #[test]
-fn hidden_entries_are_filtered_from_mod_catalog() {
-    let mut app = app_with_hidden_fixture();
+fn every_installed_catalog_entry_reaches_the_mod_catalog() {
+    let mut app = app_with_extra_catalog_entry();
     app.world_mut().init_resource::<ModCatalog>();
     app.world_mut()
         .run_system_once(nova_assets::build_mod_catalog)
         .expect("build mod catalog");
 
-    let mods = &app.world().resource::<ModCatalog>().0;
+    let declared: Vec<String> = {
+        let game_assets = app.world().resource::<GameAssets>();
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        catalogs
+            .get(&game_assets.catalog)
+            .expect("catalog loaded")
+            .entries
+            .iter()
+            .map(|e| e.decl.id.clone())
+            .collect()
+    };
+    let rows: Vec<String> = app
+        .world()
+        .resource::<ModCatalog>()
+        .0
+        .iter()
+        .map(|m| m.id.clone())
+        .collect();
     assert_eq!(
-        mods.len(),
-        2,
-        "only base + example are player-visible (the hidden fixture is filtered)"
+        rows, declared,
+        "every installed entry has a row, in catalog order"
     );
     assert!(
-        !mods.iter().any(|m| m.id == "hidden-fixture"),
-        "the hidden entry must not reach the player-facing list"
+        rows.contains(&"extra-fixture".to_string()),
+        "including one no shipped catalog declares: {rows:?}"
     );
 }
 
@@ -346,7 +362,6 @@ fn mod_info_falls_back_to_id_when_meta_is_missing() {
         bundle: "mods/bare/bare.bundle.ron".to_string(),
         base: false,
         enabled_by_default: false,
-        hidden: false,
     };
     let info = ModInfo::new(&decl, None);
     assert_eq!(info.meta.name, "bare-mod", "missing meta -> name = id");
@@ -358,26 +373,6 @@ fn mod_info_falls_back_to_id_when_meta_is_missing() {
     };
     let info = ModInfo::new(&decl, Some(&authored));
     assert_eq!(info.meta.name, "Bare", "authored meta passes through");
-}
-
-/// Hidden is NOT disabled: a `hidden: true` catalog entry stays installed and merges
-/// through the production `register_bundles` path when its id is enabled by code
-/// (the dev-tooling contract the flag preserves). The hidden fixture's bundle IS
-/// the example bundle, so its content registering proves the merge.
-#[test]
-fn hidden_mod_still_merges_when_enabled_by_id() {
-    let mut app = app_with_hidden_fixture();
-    app.world_mut().insert_resource(EnabledMods(
-        ["hidden-fixture".to_string()].into_iter().collect(),
-    ));
-    app.world_mut()
-        .run_system_once(nova_assets::register_bundles_for_test)
-        .expect("register bundles");
-    let scenarios = app.world().resource::<GameScenarios>();
-    assert!(
-        scenarios.contains_key("example_arena"),
-        "the hidden entry's bundle content must register when its id is enabled"
-    );
 }
 
 /// Run `seed_enabled_mods` with `EnabledMods` pre-set to `preset` and return
@@ -428,15 +423,16 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
     );
 }
 
-/// `seed_enabled_mods` strips restored HIDDEN ids: a hidden mod's enablement is
-/// session-only, so a dev-tool run that persisted a hidden id cannot leave it
-/// stuck-enabled with no menu row to disable it. The visible restored choice
-/// survives. Synthetic-catalog rig (no shipped hidden mod anymore).
+/// `seed_enabled_mods` strips NOTHING. Every installed id has a menu row, so a
+/// restored enablement is always one the player can undo from the Mods screen -
+/// there is no class of id whose enablement has to be forced back off at boot.
+/// Synthetic-catalog rig, so the set restored here names a mod the shipped
+/// catalog does not.
 #[test]
-fn seed_enabled_mods_strips_restored_hidden_ids() {
-    let mut app = app_with_hidden_fixture();
+fn seed_enabled_mods_keeps_every_restored_installed_id() {
+    let mut app = app_with_extra_catalog_entry();
     app.world_mut().insert_resource(EnabledMods(
-        ["example".to_string(), "hidden-fixture".to_string()]
+        ["example".to_string(), "extra-fixture".to_string()]
             .into_iter()
             .collect(),
     ));
@@ -445,13 +441,10 @@ fn seed_enabled_mods_strips_restored_hidden_ids() {
         .expect("seed enabled mods");
     let seeded = &app.world().resource::<EnabledMods>().0;
     assert!(
-        !seeded.contains("hidden-fixture"),
-        "a restored hidden id must be stripped (session-only enablement)"
+        seeded.contains("extra-fixture"),
+        "a restored id survives: the player can switch it off from its own row"
     );
-    assert!(
-        seeded.contains("example"),
-        "visible restored choices survive"
-    );
+    assert!(seeded.contains("example"), "restored choices survive");
     assert!(seeded.contains("base"), "base is still forced on");
 }
 
@@ -728,7 +721,6 @@ fn new_game_declaration_is_honored_only_from_base() {
                     bundle: "base/base.bundle.ron".to_string(),
                     base: true,
                     enabled_by_default: false,
-                    hidden: false,
                 },
                 bundle: Some(base_bundle),
             },
@@ -738,7 +730,6 @@ fn new_game_declaration_is_honored_only_from_base() {
                     bundle: "mods/sneaky/sneaky.bundle.ron".to_string(),
                     base: false,
                     enabled_by_default: false,
-                    hidden: false,
                 },
                 bundle: Some(mod_bundle),
             },
@@ -840,7 +831,6 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
                 bundle: "base/base.bundle.ron".to_string(),
                 base: true,
                 enabled_by_default: false,
-                hidden: false,
             },
             bundle: Some(bundle),
         }],

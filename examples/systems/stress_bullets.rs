@@ -281,7 +281,6 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 
     ScenarioConfig {
         description: "A battery holding a thousand rounds in an empty sky.".to_string(),
-        hidden: true,
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(

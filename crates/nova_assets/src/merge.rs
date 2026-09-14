@@ -303,6 +303,14 @@ pub fn register_bundles(
     let merged_ships = nova_scenario::prelude::KnownShips::from_configs(outcome.ships.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
+    // The backdrop subset, so campaign lint can refuse a member that is scenery
+    // rather than a launchable chapter.
+    let merged_backdrops: std::collections::HashSet<String> = outcome
+        .scenarios
+        .values()
+        .filter(|scenario| scenario.menu_backdrop)
+        .map(|scenario| scenario.id.clone())
+        .collect();
     let merged_channels: std::collections::HashSet<String> = outcome
         .channels
         .iter()
@@ -372,7 +380,8 @@ pub fn register_bundles(
     // merged scenario, or the picker renders a header row that launches nothing.
     // Findings are keyed by the campaign id in the shared ContentIssues channel.
     for campaign in outcome.campaigns.values() {
-        let found = nova_scenario::prelude::lint_campaign(campaign, &merged_scenarios);
+        let found =
+            nova_scenario::prelude::lint_campaign(campaign, &merged_scenarios, &merged_backdrops);
         for issue in &found {
             warn!(
                 "register_bundles: content lint [{:?}] campaign '{}': {}",

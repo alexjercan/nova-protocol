@@ -13,7 +13,6 @@
         name: "Bench: Slingshot",
         description: "A gravity-assist course past Kestrel, with a late pursuer and a distant exit mark.",
         cubemap: "base/textures/cubemap.png",
-        hidden: true,
         events: [
             (
                 name: OnStart,

@@ -266,9 +266,9 @@ pub fn section_gone(id: impl Into<String>) -> Arc<Predicate> {
 ///
 /// Not in `nova_autopilot`'s own vocabulary on purpose: it reads a collector's
 /// state to decide a step. That is the right shape only where the beat list is
-/// not known when the script is BUILT - `bug_menu_picker` walks however many
-/// scenario rows the catalog holds - and the wrong shape everywhere else. A
-/// script with a fixed beat list ends each step on a world predicate and lets
+/// not known when the script is BUILT - `system_scenario_picker` walks however
+/// many scenario rows the catalog holds - and the wrong shape everywhere else.
+/// A script with a fixed beat list ends each step on a world predicate and lets
 /// the driver report done.
 pub fn script_reports_done() -> Arc<Predicate> {
     resource_where::<HarnessCompletion>(|completion| !completion.is_pending(AUTOPILOT))

@@ -140,7 +140,6 @@ pub(crate) fn menu_waystation(
 
     ScenarioConfig {
         description: "A freight waystation going about its day.".to_string(),
-        hidden: true,
         menu_backdrop: true,
         events,
         ..ScenarioConfig::new(

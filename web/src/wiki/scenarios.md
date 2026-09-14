@@ -49,13 +49,14 @@ The public [Story](../../story/) archive presents campaigns as digital comics wi
             its briefing in the detail pane.</span
         >
     </div>
-    <figcaption class="figure__caption">The Scenarios tab lists everything installed that is not hidden. On a base install that is Basic Training.</figcaption>
+    <figcaption class="figure__caption">The Scenarios tab lists every installed scenario that is not menu scenery. On a base install that is Basic Training.</figcaption>
 </figure>
 
 The **Scenarios** tab lists every scenario the installed content offers, and
 launches any of them directly - so a chapter you have already flown is one
 click away for a replay. A fresh install lists Basic Training and nothing else:
-the menu backdrops are marked hidden, and the base game ships no campaign.
+the scenes that drift behind the main menu are scenery rather than levels, and
+the base game ships no campaign.
 
 Install a mod that does and the list grows a second shape. A campaign folds its
 chapters under a collapsible header - click the `[-]`/`[+]` to expand or fold

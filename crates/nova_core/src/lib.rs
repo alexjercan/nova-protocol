@@ -182,6 +182,10 @@ impl Default for AppBuilder {
     }
 }
 
+/// Whether an app in this process has already installed the global logger.
+/// See [`AppBuilder::assemble`], which is the only reader and writer.
+static LOGGER_INSTALLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 impl AppBuilder {
     /// Start a builder with [`DefaultPlugins`] already set up (windowing, logging,
     /// assets, and the `mods://` source registered before `AssetPlugin` lands).
@@ -251,6 +255,18 @@ impl AppBuilder {
             .set(window_plugin(assembly))
             .set(render_plugin(assembly))
             .set(task_pool_plugin());
+        // The FIRST app in the process installs the logger; every app after it
+        // goes without. `LogPlugin` sets the process-global tracing
+        // subscriber, and a second one cannot - it reports that at ERROR,
+        // which is a failed probe range rather than a note. A process that
+        // builds more than one app (`system_settings_persist` builds three, to
+        // prove a setting outlives the app it was changed in) keeps one logger
+        // and every app keeps logging through it.
+        let plugins = if LOGGER_INSTALLED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            plugins.disable::<LogPlugin>()
+        } else {
+            plugins
+        };
 
         if assembly == Assembly::Windowed {
             app.add_plugins(plugins);
@@ -312,6 +328,24 @@ impl AppBuilder {
     pub fn with_game_plugins<M>(mut self, plugins: impl Plugins<M>) -> Self {
         self.app.add_plugins(plugins);
         self.use_default_plugins = false;
+        self
+    }
+
+    /// Supply the settings store in place of the environment-derived one.
+    ///
+    /// [`build`](Self::build) only reaches for
+    /// [`SettingsStorePlugin::from_env`] when the app has none yet, so this is
+    /// how an app keeps the default editor game and its menu while pinning
+    /// WHERE the settings file lands and how far the store reaches. The
+    /// alternative, [`with_game_plugins`](Self::with_game_plugins), also drops
+    /// the menu - and the settings panel is the thing under test.
+    ///
+    /// The one caller is `system_settings_persist`, which has to WRITE a store
+    /// that is not the developer's own: `from_env` makes a scripted run's store
+    /// inert, which is right for every other range and is exactly what a range
+    /// about persistence cannot use.
+    pub fn with_settings_store(mut self, store: SettingsStorePlugin) -> Self {
+        self.app.add_plugins(store);
         self
     }
 
@@ -554,8 +588,8 @@ fn resolve_startup_scenario(
 ///
 /// The list comes from the MERGED registry the Scenarios picker itself reads, so
 /// an enabled mod's ids are in it. It is the full registry rather than the
-/// picker's visible rows: the flag can also launch a `hidden` chapter or a menu
-/// backdrop, which is most of the point of having it.
+/// picker's visible rows: the flag can also launch a menu backdrop or the
+/// editor's own Play range, which is most of the point of having it.
 ///
 /// Printed to stderr rather than logged. This is a command-line refusal and it
 /// must reach the terminal whatever `RUST_LOG` and the release log filter say.
