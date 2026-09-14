@@ -198,30 +198,6 @@ fn scenarios_panel_lists_every_scenario_except_menu_backdrops() {
     );
 }
 
-/// The editor's Play range lives in `GameScenarios` so Retry and `--scenario`
-/// can name it, but it is the editor's stage rather than installed content, so
-/// the picker leaves it out. The one id exception to "everything that is not a
-/// backdrop lists".
-#[test]
-fn the_editor_sandbox_range_is_not_a_picker_row() {
-    let mut app = app();
-    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
-        picker_scenario("practice_run", "Practice Run"),
-        picker_scenario(EDITOR_SANDBOX_SCENARIO_ID, "Saved Range"),
-    ])));
-    app.world_mut()
-        .resource_mut::<NextState<GameStates>>()
-        .set(GameStates::MainMenu);
-    app.update();
-
-    let ids = scenario_row_ids(&mut app);
-    assert_eq!(
-        ids,
-        vec!["practice_run".to_string()],
-        "the editor sandbox never stands next to installed content: {ids:?}"
-    );
-}
-
 // --- Collapsible campaign headers ------------------------------------------
 
 /// A registry with a two-chapter "Nova Protocol" campaign plus one

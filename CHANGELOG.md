@@ -225,6 +225,9 @@ does NOT get an entry - and it is the only place they are written down.
   about 28% of its frame time, 33% at its worst.
 
 ### Internals & Tooling
+- `--scenario editor_sandbox` no longer resolves. The editor's Play range is
+  the open document rather than installed content, so nothing registers it and
+  the only way to it is Play in the editor.
 - A probe check that was armed for a capability and wrote nothing now reads
   `armed and silent` in every row that grades it a failure. `invariants_held`
   used one word for that and for a run with no manifest at all.

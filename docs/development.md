@@ -485,9 +485,10 @@ cargo run -- --scenario nope               # refuses, and lists every id
 ```
 
 - The id is matched against the MERGED registry (base plus every enabled mod),
-  so a mod's scenarios are launchable by id, and so are the menu backdrops and
-  the editor's own `editor_sandbox` range - a superset of the rows the Scenarios
-  picker shows.
+  so a mod's scenarios are launchable by id, and so are the menu backdrops - a
+  superset of the rows the Scenarios picker shows. The editor's own Play range
+  is not in it: it is the open document, not installed content, and the only
+  way to it is Play in the editor.
 - An unknown id prints the full id list to stderr and exits non-zero. The check
   happens once the content merge has run, which is after the window opens: the
   merged registry does not exist before that.

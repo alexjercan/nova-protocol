@@ -21,9 +21,10 @@
 //! The fixture is built in Rust rather than shipped as a broken mod: the menu
 //! filters its draw on `ContentIssues`, and a lint finding put there directly
 //! is the same input a broken mod on disk would produce, held to the same
-//! grammar by the compiler. It is registered in [`EditorSandboxSystems`], the
-//! ordering handle the editor's own sandbox uses, so the merge that publishes
-//! the content has already run - and it re-runs on the content restart that
+//! grammar by the compiler. It is registered in [`RuntimeScenarioSystems`],
+//! the ordering handle for a scenario with no content file behind it, so the
+//! merge that publishes the content has already run - and it re-runs on the
+//! content restart that
 //! backing out of gameplay performs, which is what keeps the backdrops dark
 //! for the menu entry this range is about.
 //!
@@ -106,7 +107,7 @@ fn main() -> bevy::app::AppExit {
         }
         app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
-            register_probe_fixture.in_set(EditorSandboxSystems),
+            register_probe_fixture.in_set(RuntimeScenarioSystems),
         );
         // ...and held there. A live re-merge republishes the content's own
         // scenarios - flags and all - whenever the installed set is touched,
@@ -115,7 +116,7 @@ fn main() -> bevy::app::AppExit {
         app.add_systems(
             PostUpdate,
             hold_the_draw_empty
-                .in_set(EditorSandboxSystems)
+                .in_set(RuntimeScenarioSystems)
                 .run_if(a_backdrop_could_still_draw),
         );
         app.init_resource::<FallbackWatch>();

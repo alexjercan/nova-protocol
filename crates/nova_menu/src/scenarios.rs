@@ -97,14 +97,12 @@ pub(crate) struct ScenarioPlay {
 
 /// Whether the picker offers `scenario` as a row at all.
 ///
-/// Two exclusions, and only two. A `menu_backdrop` is SCENERY: the menu loads
+/// One exclusion, and only one. A `menu_backdrop` is SCENERY: the menu loads
 /// one behind its own buttons, and it poses its own camera rather than handing
-/// the player a ship. The editor's Play range is the editor's STAGE: it is in
-/// [`GameScenarios`] so Retry and `--scenario` can name it, but no bundle
-/// publishes it and its name and contents are whatever the open document says.
-/// Everything else installed is a row, campaign member or not.
+/// the player a ship. Everything else installed is a row, campaign member or
+/// not.
 pub(crate) fn picker_lists(scenario: &ScenarioConfig) -> bool {
-    !scenario.menu_backdrop && scenario.id != EDITOR_SANDBOX_SCENARIO_ID
+    !scenario.menu_backdrop
 }
 
 /// The scenarios the picker lists, in a stable order by display name then id

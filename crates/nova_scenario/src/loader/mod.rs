@@ -61,30 +61,16 @@ pub mod prelude {
         gate::prelude::*, lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live,
         CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues,
         CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
-        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
-        ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
-        ScenarioStartFailureReport, ScriptedCameraAnchor, ScriptedCameraBlend,
-        ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
-        EDITOR_SANDBOX_SCENARIO_ID, ORBIT_LAP_GRACE_SECS,
+        RuntimeScenarioSystems, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig,
+        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker,
+        ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
+        ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform,
+        UnloadScenario, ORBIT_LAP_GRACE_SECS,
     };
 }
 
 /// Type alias for Scenario ID
 pub type ScenarioId = String;
-
-/// The ship editor's Play range, the one id in [`GameScenarios`] that no bundle
-/// publishes.
-///
-/// `nova_editor` registers it at load so the DEFEAT overlay's Retry, the
-/// `--scenario` membership check and `probe scenario` can all name it, and
-/// rewrites it with the open document on every Play. It is the editor's stage,
-/// not installed content, so the Scenarios picker leaves it out - the ONE id
-/// exception to "the picker lists every scenario that is not a menu backdrop".
-///
-/// It lives here rather than in `nova_editor` because `nova_menu` is the other
-/// reader and the two crates do not depend on each other; this is the lowest
-/// crate both already share.
-pub const EDITOR_SANDBOX_SCENARIO_ID: &str = "editor_sandbox";
 
 /// Type alias for Campaign ID (the stable key of a [`CampaignConfig`]).
 pub type CampaignId = String;
@@ -92,6 +78,17 @@ pub type CampaignId = String;
 /// The collection of available game scenarios
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
 pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
+
+/// Ordering handle for anything that writes a scenario into [`GameScenarios`]
+/// at load with no content file behind it.
+///
+/// The bundle merge publishes the installed catalog; a probe range building its
+/// fixture in Rust publishes what no mod on disk should have to carry. Both
+/// land in the same `OnEnter(GameAssetsStates::Loaded)` transition as
+/// `nova_core`'s `--scenario` membership check, which runs AFTER this set so it
+/// cannot refuse an id that is about to exist.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RuntimeScenarioSystems;
 
 /// The collection of available campaigns, keyed by campaign id.
 ///

@@ -39,7 +39,6 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_assets::prelude::{GameAssets, GameAssetsStates};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::prelude::{
@@ -103,7 +102,7 @@ use placement::{
 use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use readout::sync_ship_readout;
-use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
+use scenario::setup_scenario;
 use skin::sync_editor_skin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
@@ -136,18 +135,10 @@ use ui::{
 /// snapshot into scope.
 pub mod prelude {
     pub use super::{
-        cues::EditorCueSystems, EditorPlacement, EditorProbe, EditorSandboxSystems, EditorSection,
-        EditorTool, NovaEditorPlugin,
+        cues::EditorCueSystems, EditorPlacement, EditorProbe, EditorSection, EditorTool,
+        NovaEditorPlugin,
     };
 }
-
-/// Ordering handle for the editor sandbox's registration into `GameScenarios`.
-///
-/// Exists because `nova_core`'s startup-scenario handoff resolves an id against
-/// that registry in the same `OnEnter(GameAssetsStates::Loaded)` transition, and
-/// the sandbox is the one scenario no content file publishes.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EditorSandboxSystems;
 
 /// The spaceship editor plugin.
 ///
@@ -240,28 +231,6 @@ fn editor_plugin(app: &mut App) {
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
     app.init_resource::<EscapeOwner>();
-
-    // The sandbox is registered by id at load, like every shipped scenario,
-    // and repaired whenever the bundle merge replaces the registry: a live
-    // re-merge (an enabled mod changing) rebuilds `GameScenarios` from content
-    // alone, and this entry has no content file to be rebuilt from.
-    // `PostUpdate` on purpose - the re-merge runs in `Update`, and the next
-    // frame's state transitions must not see the id missing.
-    app.add_systems(
-        OnEnter(GameAssetsStates::Loaded),
-        register_sandbox_scenario
-            .in_set(EditorSandboxSystems)
-            .run_if(resource_exists::<GameAssets>)
-            .run_if(resource_exists::<GameScenarios>),
-    );
-    app.add_systems(
-        PostUpdate,
-        register_sandbox_scenario
-            .in_set(EditorSandboxSystems)
-            .run_if(resource_exists::<GameAssets>)
-            .run_if(resource_exists::<GameScenarios>)
-            .run_if(sandbox_unregistered),
-    );
 
     // Escape is a BACK key in the editor and a pause key only when there is
     // nothing to back out of. `PreUpdate` on purpose: `nova_menu`'s pause

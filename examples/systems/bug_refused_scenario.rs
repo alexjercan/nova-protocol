@@ -16,10 +16,11 @@
 //! The fixtures are two small `ScenarioConfig` values built in Rust rather than
 //! a broken mod on disk: the refusal has to be a CONTENT error the gate files,
 //! and the compiler then holds the fixture to the same grammar the game ships.
-//! They are registered in [`EditorSandboxSystems`], the ordering handle the
-//! editor's own sandbox uses, so the `--scenario` membership check in the same
-//! transition cannot run before the id it resolves exists, and a later re-merge
-//! keeps them (a merge replaces only what content publishes).
+//! They are registered in [`RuntimeScenarioSystems`], the ordering handle for a
+//! scenario with no content file behind it, so the `--scenario` membership
+//! check in the same transition cannot run before the id it resolves exists,
+//! and a later re-merge keeps them (a merge replaces only what content
+//! publishes).
 //!
 //! The refusal is the subject, so the loader's own report of it is expected
 //! noise and this range clamps that target out of the log. Nothing here reads a
@@ -111,7 +112,7 @@ fn main() -> bevy::app::AppExit {
         }
         app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
-            register_probe_scenarios.in_set(EditorSandboxSystems),
+            register_probe_scenarios.in_set(RuntimeScenarioSystems),
         );
         // No frame-time claim: the run is a load, a refusal and a menu, and the
         // number that would come out of that window says nothing about the

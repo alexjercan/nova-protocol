@@ -51,12 +51,19 @@ use crate::{
     },
 };
 
-/// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
-/// the DEFEAT overlay's Retry can reload it by id like any other scenario. It
-/// is the editor's own runtime range rather than installed content, so the
-/// Scenarios picker skips it by this id
-/// ([`nova_scenario::prelude::EDITOR_SANDBOX_SCENARIO_ID`], which this is).
-pub(crate) const SANDBOX_ID: &str = nova_scenario::prelude::EDITOR_SANDBOX_SCENARIO_ID;
+/// What the open document calls its own range.
+///
+/// It is not a scenario the game publishes: no bundle carries it, nothing
+/// registers it at load, and the Scenarios picker never sees it. It is the id
+/// the Play hand-off lowers the document into, and the name a seeded retry uses
+/// for "this range again" ([`retarget_retries`] rewrites it to whatever id a
+/// save is written under).
+///
+/// [`setup_scenario`] puts the lowered range in [`GameScenarios`] for the life
+/// of the Play session, because the queued retry resolves its id there. Leaving
+/// gameplay restarts the content merge, which rebuilds the registry from files
+/// alone and drops this id with no help from anything here.
+pub(crate) const SANDBOX_ID: &str = "editor_sandbox";
 /// The player ship's scenario id, referenced by every handler that scopes to
 /// the player and by the editor's input mapping.
 pub(crate) const PLAYER_ID: &str = "player_spaceship";
@@ -252,9 +259,11 @@ pub(crate) fn setup_scenario(
         &targeting,
     ));
 
-    // Re-register with the ship the editor just built: the boot-time entry
-    // (`register_sandbox_scenario`) carries the DEFAULT hull, and the DEFEAT
-    // overlay's Retry resolves the queued `NextScenario` against this registry.
+    // Register the range for the life of this Play session: the DEFEAT
+    // overlay's Retry resolves the queued `NextScenario` against this registry,
+    // and nothing else publishes this id. The content restart that every exit
+    // from gameplay runs rebuilds the registry from files and drops it again,
+    // so the Scenarios picker never sees it.
     if let Some(mut scenarios) = scenarios {
         scenarios.insert(scenario.id.clone(), scenario.clone());
     }
@@ -262,52 +271,13 @@ pub(crate) fn setup_scenario(
     commands.trigger(LoadScenario(scenario));
 }
 
-/// Whether the sandbox is absent from [`GameScenarios`] - the run condition of
-/// the repair pass below.
-pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> bool {
-    scenarios.is_some_and(|scenarios| !scenarios.contains_key(SANDBOX_ID))
-}
-
-/// Put the sandbox in [`GameScenarios`] with the DEFAULT hull, so its id exists
-/// before anything asks for it by name.
-///
-/// The sandbox used to register only on the editor's Play hand-off, which made
-/// it the one scenario no id-driven caller could reach: the game binary's
-/// `--scenario` membership check and the probe's scenario runner both resolve
-/// ids against this registry long before Play. It
-/// is registered here for the same reason every shipped scenario is registered
-/// at load - an id nothing can name is not content.
-///
-/// [`setup_scenario`] overwrites the entry with the built ship on hand-off.
-pub(crate) fn register_sandbox_scenario(
-    context: Res<EditContext>,
-    nodes: SectionNodes,
-    q_objects: ObjectNodes,
-    q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
-    q_settings: Query<&ScenarioNode>,
-    script: ScriptNodes,
-    assets: AssetIndex,
-    mut scenarios: ResMut<GameScenarios>,
-    targeting: Option<Res<TargetingSettings>>,
-) {
-    let targeting = targeting.as_deref().cloned().unwrap_or_default();
-    let scenario = assets.resolved(sandbox_scenario(
-        &world_settings(&context, &q_settings),
-        world_objects(&context, &q_objects),
-        &lower_fleet(&q_ships, &nodes),
-        world_script(&context, &script),
-        &targeting,
-    ));
-    scenarios.insert(scenario.id.clone(), scenario);
-}
-
 /// The world the sandbox spawns: the DOCUMENT's objects once a document exists,
 /// and the stock range before one does.
 ///
 /// Keyed on the document existing, never on it being empty. A builder who
 /// deletes every rock gets an empty range, which is the whole point of the
-/// world being editable; an id registered before the editor has ever opened
-/// still has to name something, because an id nothing can fly is not content.
+/// world being editable; a rig that reaches Play without ever opening a
+/// document still has to be handed something it can fly.
 pub(crate) fn world_objects(
     context: &EditContext,
     q_objects: &ObjectNodes,
@@ -321,8 +291,8 @@ pub(crate) fn world_objects(
 /// What the sandbox is CALLED and comes up under: the DOCUMENT's settings once
 /// a document exists, and the stock ones before one does.
 ///
-/// The same rule [`world_objects`] follows. An id registered before the editor
-/// has ever opened still has to name a range with a sky.
+/// The same rule [`world_objects`] follows: a range with no document behind it
+/// still has to come up under a sky.
 pub(crate) fn world_settings(
     context: &EditContext,
     q_settings: &Query<&ScenarioNode>,
@@ -338,8 +308,8 @@ pub(crate) fn world_settings(
 /// exists, and the stock range's own before one does.
 ///
 /// The same rule [`world_objects`] follows, for the same reason: a document
-/// whose script the builder emptied runs no script, and an id registered
-/// before the editor has ever opened still has to name a range that works.
+/// whose script the builder emptied runs no script, and a range with no
+/// document behind it still has to work.
 pub(crate) fn world_script(
     context: &EditContext,
     script: &ScriptNodes,
@@ -2003,39 +1973,6 @@ mod tests {
         }
     }
 
-    /// The retry is only reachable because the sandbox registers itself: the
-    /// switch resolves the queued id against `GameScenarios`, and this
-    /// scenario is built at runtime rather than merged from content. It is not
-    /// a backdrop either, so registration cannot put it in the menu's ambience
-    /// rotation; the picker leaves it out by its id.
-    #[test]
-    fn the_sandbox_registers_itself_so_the_retry_resolves() {
-        let scenario = ScenarioConfig {
-            events: vec![],
-            ..ScenarioConfig::new(
-                SANDBOX_ID.to_string(),
-                "Editor Sandbox".to_string(),
-                AssetRef::from("base/textures/cubemap.png"),
-            )
-        };
-        let mut scenarios = GameScenarios::default();
-        scenarios.insert(scenario.id.clone(), scenario);
-
-        let registered = scenarios
-            .get(SANDBOX_ID)
-            .expect("the retry's id resolves against the registry");
-        assert!(
-            !registered.menu_backdrop,
-            "a runtime scenario in the registry stays out of the menu's \
-             backdrop rotation"
-        );
-        assert_eq!(
-            SANDBOX_ID,
-            nova_scenario::prelude::EDITOR_SANDBOX_SCENARIO_ID,
-            "and the picker skips exactly this id"
-        );
-    }
-
     /// The Play hand-off is where a PICKED ref stops being a ref. The picker
     /// writes what a save needs - `dep://<bundle>/<file>` - and the sandbox is
     /// merged with nothing, so an unresolved ref reaches the asset server as an
@@ -2091,47 +2028,6 @@ mod tests {
             world.resource::<GameScenarios>()[SANDBOX_ID].cubemap.path(),
             Some("base/textures/cubemap_alt.png"),
             "the sky the builder picked is handed off as a path that loads"
-        );
-    }
-
-    /// The repair trigger. `register_bundles` rebuilds `GameScenarios` from
-    /// content files every time the installed set changes, and this scenario
-    /// has no content file to be rebuilt from - so the id silently leaves the
-    /// registry unless something notices it is gone.
-    #[test]
-    fn a_registry_rebuilt_from_content_reads_as_missing_the_sandbox() {
-        let mut world = World::new();
-        // What a merge produces: every shipped id, and not this one.
-        let mut merged = GameScenarios::default();
-        merged.insert(
-            "some_shipped_scenario".to_string(),
-            ScenarioConfig::new(
-                "some_shipped_scenario".to_string(),
-                "Shipped".to_string(),
-                AssetRef::from("base/textures/cubemap.png"),
-            ),
-        );
-        world.insert_resource(merged);
-        assert!(
-            world
-                .run_system_once(sandbox_unregistered)
-                .expect("the condition runs"),
-            "a merged registry never carries the sandbox"
-        );
-
-        world.resource_mut::<GameScenarios>().insert(
-            SANDBOX_ID.to_string(),
-            ScenarioConfig::new(
-                SANDBOX_ID.to_string(),
-                "Editor Sandbox".to_string(),
-                AssetRef::from("base/textures/cubemap.png"),
-            ),
-        );
-        assert!(
-            !world
-                .run_system_once(sandbox_unregistered)
-                .expect("the condition runs"),
-            "and the repair stops once the id is back"
         );
     }
 

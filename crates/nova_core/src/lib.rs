@@ -112,8 +112,8 @@ pub fn offscreen_app(startup: Option<StartupScenario>) -> App {
 /// What the app boots into instead of the main menu.
 ///
 /// The id form resolves against the merged [`GameScenarios`] registry, so it
-/// reaches shipped content, an enabled mod's content and the editor sandbox
-/// alike. The file form reaches content that is not installed at all: a loose
+/// reaches shipped content and an enabled mod's content alike. The file form
+/// reaches content that is not installed at all: a loose
 /// `*.content.ron` a contributor is authoring or measuring, registered into the
 /// same registry before anything resolves an id against it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -471,13 +471,13 @@ impl AppBuilder {
         // have set Playing, and this hook firing seconds later must not yank the
         // app backwards into the menu.
         //
-        // AFTER the editor's sandbox registration: the sandbox is the one
-        // scenario with no content file behind it, and a membership check that
-        // ran first would refuse the id the editor is about to publish.
+        // AFTER anything that publishes a scenario with no content file behind
+        // it: a membership check that ran first would refuse the id a probe
+        // range is about to register.
         self.app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
             (
-                boot_into_the_game.after(EditorSandboxSystems),
+                boot_into_the_game.after(RuntimeScenarioSystems),
                 setup_status_ui,
             ),
         );
@@ -588,8 +588,8 @@ fn resolve_startup_scenario(
 ///
 /// The list comes from the MERGED registry the Scenarios picker itself reads, so
 /// an enabled mod's ids are in it. It is the full registry rather than the
-/// picker's visible rows: the flag can also launch a menu backdrop or the
-/// editor's own Play range, which is most of the point of having it.
+/// picker's visible rows: the flag can also launch a menu backdrop, which is
+/// most of the point of having it.
 ///
 /// Printed to stderr rather than logged. This is a command-line refusal and it
 /// must reach the terminal whatever `RUST_LOG` and the release log filter say.

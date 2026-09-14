@@ -28,9 +28,9 @@
 //! the policy's doing rather than the harness's.
 //!
 //! The fixtures are two `ScenarioConfig` values built in Rust, registered in
-//! [`EditorSandboxSystems`] like the editor's own sandbox so the `--scenario`
-//! membership check in the same transition cannot run before the id it
-//! resolves exists.
+//! [`RuntimeScenarioSystems`] - the ordering handle for a scenario with no
+//! content file behind it - so the `--scenario` membership check in the same
+//! transition cannot run before the id it resolves exists.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -122,7 +122,7 @@ fn main() -> bevy::app::AppExit {
         }
         app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
-            register_probe_scenarios.in_set(EditorSandboxSystems),
+            register_probe_scenarios.in_set(RuntimeScenarioSystems),
         );
         app.init_resource::<RunningFrames>();
         // In `Last`, so a frame is judged on what the whole frame did rather
