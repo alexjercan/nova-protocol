@@ -1,6 +1,6 @@
 # Restore wfc_arena performance to the v0.13.2 baseline
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.14.0, bug, performance, ai, targeting, projectile, probe
 
