@@ -85,6 +85,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "debug")]
 use std::sync::Arc;
 
+#[cfg(feature = "debug")]
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use clap::Parser;
@@ -104,6 +105,7 @@ struct Cli;
 #[derive(Clone, Copy, Debug)]
 struct Round {
     /// The key this round's reading is filed under.
+    #[cfg(feature = "debug")]
     key: &'static str,
     /// The shipped hull it flies.
     hull: &'static str,
@@ -116,6 +118,7 @@ struct Round {
 
 /// The light hull: the fleet's smallest armed-group hull, 21 sections.
 const LIGHT: Round = Round {
+    #[cfg(feature = "debug")]
     key: "light",
     hull: "block_skiff",
     scenario: "railgun_hulls_light",
@@ -123,6 +126,7 @@ const LIGHT: Round = Round {
 };
 
 /// The heavy hull: the largest hull the base game ships, 2 081 sections.
+#[cfg(feature = "debug")]
 const HEAVY: Round = Round {
     key: "heavy",
     hull: "block_carrier",
@@ -131,6 +135,7 @@ const HEAVY: Round = Round {
 };
 
 /// The rounds, in the order they are flown.
+#[cfg(feature = "debug")]
 const ROUNDS: [Round; 2] = [LIGHT, HEAVY];
 
 /// The shooting ship's scenario id. Shared by both rounds: one scene is up at a

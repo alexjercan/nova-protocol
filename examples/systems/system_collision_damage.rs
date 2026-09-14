@@ -79,6 +79,7 @@ struct Cli;
 /// The safe contact speed the whole range is graded against, mirrored from
 /// `nova_gameplay/src/integrity/core.rs`. Below it a touch is free whatever is
 /// touching; above it, only the excess is spent.
+#[cfg(feature = "debug")]
 const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(5.0);
 
 /// The large reference hull: the campaign's home, and the largest hull the base
@@ -100,6 +101,7 @@ enum Side {
 }
 
 /// Which ledger a staged contact is read out of.
+#[cfg(feature = "debug")]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Reading {
     /// Hit points, both sides. The four speed-threshold pairs.
@@ -125,10 +127,12 @@ struct RamPair {
     /// Scenario id of the side that starts on +x.
     right_id: &'static str,
     /// How fast the two close on each other.
+    #[cfg(feature = "debug")]
     closing: MetersPerSecond,
     /// Where the pair is staged, so no pair's debris reaches another's.
     lane: Meters,
     /// Which ledger this contact is read out of.
+    #[cfg(feature = "debug")]
     reads: Reading,
 }
 
@@ -151,8 +155,10 @@ const PAIRS: [RamPair; 6] = [
         right_id: "dock_carrier_right",
         // The task's own case: 0.32 u/s, well inside what a docking clamp
         // takes, and the approach that used to cost both ships their hulls.
+        #[cfg(feature = "debug")]
         closing: MetersPerSecond(3.2),
         lane: Meters(0.0),
+        #[cfg(feature = "debug")]
         reads: Reading::Hulls,
     },
     RamPair {
@@ -161,8 +167,10 @@ const PAIRS: [RamPair; 6] = [
         right: Side::Hull(SKIFF),
         left_id: "touch_skiff_left",
         right_id: "touch_skiff_right",
+        #[cfg(feature = "debug")]
         closing: MetersPerSecond(4.0),
         lane: Meters(6_000.0),
+        #[cfg(feature = "debug")]
         reads: Reading::Hulls,
     },
     RamPair {
@@ -171,8 +179,10 @@ const PAIRS: [RamPair; 6] = [
         right: Side::Hull(SKIFF),
         left_id: "ram_skiff_left",
         right_id: "ram_skiff_right",
+        #[cfg(feature = "debug")]
         closing: MetersPerSecond(15.0),
         lane: Meters(12_000.0),
+        #[cfg(feature = "debug")]
         reads: Reading::Hulls,
     },
     RamPair {
@@ -181,8 +191,10 @@ const PAIRS: [RamPair; 6] = [
         right: Side::Hull(SKIFF),
         left_id: "hard_skiff_left",
         right_id: "hard_skiff_right",
+        #[cfg(feature = "debug")]
         closing: MetersPerSecond(30.0),
         lane: Meters(18_000.0),
+        #[cfg(feature = "debug")]
         reads: Reading::Hulls,
     },
     RamPair {
@@ -191,8 +203,10 @@ const PAIRS: [RamPair; 6] = [
         right: Side::Rock(ROCK_RADIUS),
         left_id: "rock_ram_skiff",
         right_id: "rock_ram_rock",
+        #[cfg(feature = "debug")]
         closing: MetersPerSecond(30.0),
         lane: Meters(24_000.0),
+        #[cfg(feature = "debug")]
         reads: Reading::Rock,
     },
     RamPair {
@@ -201,8 +215,10 @@ const PAIRS: [RamPair; 6] = [
         right: Side::Hull(CARRIER),
         left_id: "wreck_ram_skiff",
         right_id: "wreck_ram_carrier",
+        #[cfg(feature = "debug")]
         closing: WRECKING_SPEED,
         lane: Meters(30_000.0),
+        #[cfg(feature = "debug")]
         reads: Reading::Wreck,
     },
 ];
@@ -224,6 +240,7 @@ const ROCK_RADIUS: Meters = Meters(40.0);
 /// of overlap alone settles more than a dozen contacts at once and takes whole
 /// sections with it. The claim is that destroyed structure leaves a body
 /// behind, not that this exact speed destroys this exact section.
+#[cfg(feature = "debug")]
 const WRECKING_SPEED: MetersPerSecond = MetersPerSecond(800.0);
 
 /// Index of the carrier pair in [`PAIRS`].

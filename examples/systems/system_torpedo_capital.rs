@@ -68,6 +68,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[cfg(feature = "debug")]
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use clap::Parser;

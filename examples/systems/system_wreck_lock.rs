@@ -75,14 +75,18 @@ const GUNNER_TURRET: &str = "gunner_turret";
 /// this one plate and nothing else. The shipped hull's own geometry decides
 /// that - see `assets/base/ships/base.content.ron` - and the range asserts the
 /// split it got rather than trusting the reading.
+#[cfg(feature = "debug")]
 const PINNED_SECTION: &str = "plate_17";
+#[cfg(feature = "debug")]
 const PINNED_ANCHOR: &str = "plate_14";
 
 /// The UNRELATED cut, at the other end of the hull: `plate_0` at (0, 0, -4)
 /// hangs off `plate_1` alone, seven cells from the pin and pointing away from
 /// the gunner, so the fragment it makes cannot be mistaken for the pinned one
 /// and cannot wander into the shot.
+#[cfg(feature = "debug")]
 const SPARE_ANCHOR: &str = "plate_1";
+#[cfg(feature = "debug")]
 const SPARE_SECTION: &str = "plate_0";
 
 /// Where the gunner sits, in ENGINE units: four cells off the pinned wingtip

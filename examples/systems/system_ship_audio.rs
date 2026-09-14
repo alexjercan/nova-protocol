@@ -91,13 +91,17 @@ const BOGEY_AT: Meters3 = Meters3::new(400.0, 0.0, -200.0);
 /// refs against the base mod, and what this range is about is WHICH sound the
 /// layer picked, not how the mod root spells itself. No two of these are
 /// suffixes of each other.
+#[cfg(feature = "debug")]
 const IMPACT_SOUND: &str = "impact.wav";
+#[cfg(feature = "debug")]
 const TURRET_FIRE_SOUND: &str = "turret_fire.wav";
+#[cfg(feature = "debug")]
 const DRY_FIRE_SOUND: &str = "dry_fire.wav";
 
 /// The `Name` the loop pass gives the drive's hum voice. The marker component
 /// behind it is private to `nova_ship`, and the name is the layer's own public
 /// handle on the voice.
+#[cfg(feature = "debug")]
 const HUM_VOICE_NAME: &str = "Thruster Loop Sfx";
 
 /// Rounds left in the gun when the trigger goes down, so the magazine empties
