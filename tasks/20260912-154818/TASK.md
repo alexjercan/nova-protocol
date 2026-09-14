@@ -24,7 +24,13 @@ Add loose agent-bench sandbox scenarios and a reusable goal catalog. Include gra
 
 - PASS: `nix develop --command cargo test -p nova_assets --test agent_bench_scenarios`
 - PASS: `nix develop --command mdbook build` (existing mdbook-mermaid version warning).
-- BLOCKED: full `cargo run --features dev bench play ...` compile fails in concurrent `crates/nova_core/src/lib.rs` work because `teardown_status_ui` is not in scope.
+- UNBLOCKED 2026-09-14 at HEAD `9cad95b5e`: the concurrent `nova_core` work
+  landed (`teardown_status_ui` is now defined at `crates/nova_core/src/lib.rs:962`
+  and wired at `:455`). PASS `nix develop --command cargo check --features dev`,
+  so the `bench` subcommand builds again.
+- PASS on re-run 2026-09-14: `cargo test -p nova_assets --test agent_bench_scenarios`.
+- NOT DONE: no live `bench play` has been driven against `slingshot` or
+  `arsenal`. The fixtures are proved loadable, not proved playable.
 
 ## Follow-up
 
