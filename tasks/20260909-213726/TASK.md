@@ -1,6 +1,6 @@
 # Systems ranges: flight legs, gravity wells and the AI patrol
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.14.0, testing, examples, flight, ai
 
@@ -101,16 +101,19 @@ not counted as landed proof. Preserve it.
 Stage the shipped app around one well. Run the same composed chain on
 `block_skiff` and `block_carrier`.
 
-- [ ] Drive STOP, GOTO, GotoPos and ORBIT through one condition-driven chain on
-      each reference hull.
-- [ ] Assert each hull completes the full chain through the production
+- [x] Drive STOP, GOTO, GotoPos and ORBIT through one condition-driven chain on
+      each reference hull. `956e891fc`.
+- [x] Assert each hull completes the full chain through the production
       `Autopilot` and real sections. Treat individual arrival, rest and orbit
       checks as delivery guards for this one composed outcome, not as new
-      subsystem contracts.
-- [ ] During the staged unobstructed GOTO, assert one coast-to-brake transition;
-      do not generalize that count to disturbed or replanned flight.
-- [ ] Replace an active `AutopilotAction` with a second action and assert the new
-      action owns the helm on the next flight tick.
+      subsystem contracts. Slug
+      `the composed leg chain completes on both hulls`.
+- [x] During the staged unobstructed GOTO, assert one coast-to-brake transition;
+      do not generalize that count to disturbed or replanned flight. Slug
+      `an unobstructed goto coasts before it brakes`.
+- [x] Replace an active `AutopilotAction` with a second action and assert the new
+      action owns the helm on the next flight tick. Slug
+      `a replacement action owns the helm on the next flight tick`.
 - [x] Do not repeat standalone GOTO/GotoPos arrival, STOP rest, ORBIT lap, or
       gravity-aware park claims from `flight/tests/`.
 - [x] Do not repeat camera handback continuity; `camera/handback.rs` already
@@ -123,14 +126,18 @@ Stage the shipped app around one well. Run the same composed chain on
 Use one piloted shipped hull and production gun rounds. Gravity acceleration is
 mass-independent, so a carrier adds cost without another substrate claim.
 
-- [ ] Cross a production gun round through a live planet SOI beside an otherwise
-      identical no-gravity control trajectory.
-- [ ] Assert the production round curves toward the well while the control path
-      remains straight.
-- [ ] Fly the piloted hull from one overlapping live SOI into another and assert
-      it carries exactly one `DominantWell` at a time.
-- [ ] Assert the incumbent remains through the hysteresis margin and handoff
-      occurs only when the challenger exceeds it.
+- [x] Cross a production gun round through a live planet SOI beside an otherwise
+      identical no-gravity control trajectory. DROPPED as an exact duplicate -
+      see "Dropped duplicates" below.
+- [x] Assert the production round curves toward the well while the control path
+      remains straight. DROPPED as an exact duplicate - see "Dropped
+      duplicates" below.
+- [x] Fly the piloted hull from one overlapping live SOI into another and assert
+      it carries exactly one `DominantWell` at a time. `2139a0582`, slug
+      `a hull inside two wells is owned by one that reaches it`.
+- [x] Assert the incumbent remains through the hysteresis margin and handoff
+      occurs only when the challenger exceeds it. Slug
+      `the incumbent well holds until a challenger clears the margin`.
 - [x] Do not assert that the instantaneous strongest well always wins.
 - [x] Do not repeat inward pull, SOI release, well-removal or orbit-lap proof.
 - [x] Do not assert a lead-pip miss and do not implement gravity-aware lead in
@@ -141,12 +148,17 @@ mass-independent, so a carrier adds cost without another substrate claim.
 Use one armed shipped combatant that can patrol and fight. Do not use
 `block_carrier` for combat lifecycle proof.
 
-- [ ] Let the AI establish an `AIPatrolRoute`, acquire a hostile, fight it, and
-      observe that hostile die or become unavailable.
-- [ ] Assert the same route and next patrol leg resume after the target is gone;
-      do not install a replacement route in the harness.
-- [ ] Pull or lure the combatant beyond an authored leash, then assert it breaks
-      off and physically returns inside the re-engagement band.
+- [x] Let the AI establish an `AIPatrolRoute`, acquire a hostile, fight it, and
+      observe that hostile die or become unavailable. `a7bb65040`, slug
+      `a hostile takes a flying patrol off its leg`.
+- [x] Assert the same route and next patrol leg resume after the target is gone;
+      do not install a replacement route in the harness. Slug
+      `the patrol resumes on the route it kept`. The harness never writes
+      `AIPatrolRoute` or the picket's `Autopilot`; the hostile is taken out of
+      the fight through `HealthApplyDamage` on its bridge.
+- [x] Pull or lure the combatant beyond an authored leash, then assert it breaks
+      off and physically returns inside the re-engagement band. Slug
+      `the leash walks a dragged-out picket home`.
 - [x] Do not repeat patrol leg advancement or sized-body detour proof.
 - [x] Do not add a generic acquisition outcome already held by
       `system_ai_combat`.
@@ -155,11 +167,19 @@ Use one armed shipped combatant that can patrol and fight. Do not use
 
 ### Focused severed-drive allocation test
 
-- [ ] Re-check the flight and thruster tests for an exact live-set update after
-      a drive becomes inactive, destroyed or detached.
-- [ ] If absent, add the cheapest focused test that starts with a balanced
+- [x] Re-check the flight and thruster tests for an exact live-set update after
+      a drive becomes inactive, destroyed or detached. ABSENT: the nearest
+      sibling,
+      `single_drive_on_a_shifted_hull_recruits_a_lateral_to_hold_heading`
+      (`crates/nova_ship/src/flight/tests/manual.rs:156`), covers a hull that
+      never had the second drive, not one that LOSES it.
+- [x] If absent, add the cheapest focused test that starts with a balanced
       multi-group hull, removes one drive from the live allocation set, advances
       one flight tick, and asserts the surviving set is selected and balanced.
+      `ea5bb2605` added
+      `severing_a_drive_reallocates_the_burn_across_the_surviving_live_set`
+      (`crates/nova_ship/src/flight/tests/manual.rs:716`), which severs through
+      the production eligibility seam (`SectionInactiveMarker`).
 - [x] Do not create `system_engine_groups`.
 - [x] Do not repeat cluster selection, torque-nulling, lateral recruitment or
       AI flight-computer migration proof.
@@ -170,13 +190,20 @@ Use a scenario-authored interruptible order. It may mirror the capture's scene,
 but it must own explicit systems-range outcomes and must not turn the screenshot
 producer into a correctness range.
 
-- [ ] Issue a real scenario `ShipHelmOrder` and assert it takes helm authority
-      and physically moves the ordered ship along its directive.
-- [ ] Introduce a real hostile contact and assert the authored interruption
+- [x] Issue a real scenario `ShipHelmOrder` and assert it takes helm authority
+      and physically moves the ordered ship along its directive. `c223887ea`.
+      The order is installed by the real `PatrolShip` scenario action out of the
+      same `OnStart` batch that spawns the hull - not by the harness. Slug
+      `a scenario order takes the helm and flies the hull`.
+- [x] Introduce a real hostile contact and assert the authored interruption
       policy removes order helm authority without replacing the stored
-      directive.
-- [ ] Clear the threat and assert the same directive and leg resume with helm
-      authority restored.
+      directive. Slug
+      `a hostile contact takes the helm and leaves the order alone`. The
+      directive is compared on EVERY interrupted fixed step, not only at the
+      two ends.
+- [x] Clear the threat and assert the same directive and leg resume with helm
+      authority restored. Slug `the cleared sky hands the same leg back`. The
+      threat is cleared through `HealthApplyDamage` on the contact's bridge.
 - [x] Do not add another exactly-once report assertion. Ship-order and scenario
       tracker tests already count each lifecycle report once.
 - [x] Keep `loop_helm_orders` as a capture with no systems outcome roster.
@@ -202,6 +229,110 @@ producer into a correctness range.
 - Documentation and changelog changes are required only for a behavior defect
   found and fixed. Pure proof additions do not need a player-facing changelog
   entry.
+
+## Closing record, 2026-09-15
+
+Branch `world-ranges`, off `master` at `2d11c2e52`.
+
+### Commits
+
+| commit | subject |
+| - | - |
+| `ea5bb2605` | Prove a severed drive leaves the live thrust allocation set |
+| `2139a0582` | Prove one well owns a hull crossing two spheres of influence |
+| `956e891fc` | Prove a composed leg chain flies on two hulls |
+| `9e8498769` | Hold the well crossing's beats to an honest backstop |
+| `a7bb65040` | Prove a patrol keeps its route across a fight and a tether |
+| `c223887ea` | Prove a helm order keeps its leg across a break-off |
+
+### Dropped duplicates
+
+- `system_gravity_wells`, production round curvature against a no-gravity
+  control. DROPPED: `a_round_curves_under_a_well_and_flies_straight_without_one`
+  (`crates/nova_gameplay/src/rounds.rs:2151`, added by `fce8b7619`) already
+  integrates the same production round twice from one seed - once with the well
+  and once without - and asserts the curve against the straight control. The
+  range would have restaged it at far greater cost with no new claim, so
+  `system_gravity_wells` keeps only the two composed well-ownership outcomes.
+
+Nothing was dropped from `system_flight_legs`, `system_ai_patrol` or
+`system_helm_orders`. The nearest existing tests were re-read and are not the
+same claim:
+
+- `a_hostile_in_detection_range_interrupts_the_patrol`
+  (`crates/nova_ship/src/input/ai/passive.rs:1044`) runs a hand-driven pipeline
+  on a synthetic world over a route that was assigned and never flown.
+  `combat_interrupts_the_orbit_and_calm_resumes_it` (same file, line 1299) is
+  the ORBIT routine, not a patrol.
+- `leash_hysteresis_uses_a_reengage_band`
+  (`crates/nova_ship/src/input/ai/behavior.rs:578`) and
+  `the_leash_breaks_off_combat_beyond_its_radius` (same file, line 606) are pure
+  function tests over `leash_exceeded` and `next_behavior_state`. Neither flies
+  a hull out past its tether or back inside the band.
+- `an_interrupted_order_resumes_from_its_own_directive`
+  (`crates/nova_ship/src/flight/order.rs:1108`) calls `interrupt_ship_order` and
+  `resume_ship_order` by hand on a synthetic app: no `AIOrderInterruption`
+  policy, no hostile, no physics. `interrupt_ai_ship_orders`
+  (`crates/nova_ship/src/input/ai/mission.rs`) had no test at all.
+
+### Defects
+
+None. No production behavior changed in this task: the six commits add four
+`examples/systems/` ranges, one focused flight test
+(`crates/nova_ship/src/flight/tests/manual.rs`), their `[[example]]` blocks and
+their roster slugs. `9e8498769` only tightened a range's own step backstop. So
+no changelog entry and no documentation change is owed.
+
+### Shard membership
+
+The probe job shards by EXAMPLE DIRECTORY, not by a hand-kept list
+(`.github/workflows/ci.yaml:218-246`, matrix
+`category: [screenshots, systems, playable]`). All four ranges live in
+`examples/systems/`, so they are already shard members and the split needs no
+edit. The `world` shard proposed when this task was written belongs to
+`20260909-213100`, which is still OPEN and owns that decision; this task
+deliberately did not touch the CI split.
+
+### Three consecutive runs, final source (`c223887ea`)
+
+Run directly, one at a time on a quiet host (load average 0.59 at the start of
+the set), as
+`DISPLAY=:99 cargo run --features debug probe run <range> --correctness-only`.
+Every run: `process_exit` PASS, `run_completed` PASS, `reached_playing` PASS,
+`invariants_held` PASS (0 violations), `log_clean` PASS (0 offending lines),
+`artifacts_loadable` PASS (0 unloadable). `capture_simulated` and
+`fps_within_baseline` are N/A - no range claims a frame cost.
+
+| range | run 1 | run 2 | run 3 |
+| - | - | - | - |
+| `system_helm_orders` | OK 1044f 25s | OK 1039f 25s | OK 1047f 25s |
+| `system_ai_patrol` | OK 3261f 62s | OK 3262f 61s | OK 3264f 62s |
+| `system_gravity_wells` | OK 356f 13s | OK 357f 13s | OK 354f 13s |
+| `system_flight_legs` | OK 4804f 102s | OK 4774f 102s | OK 4822f 102s |
+
+Every cell is a `measured 6/8` verdict; `f` is the frame the run closed its
+bracket on. Seconds and frame counts are reported for a reader. Nothing in
+these ranges grades a time.
+
+### Other checks
+
+- `cargo fmt --all --check`: clean.
+- `cargo test -p nova_probe_cli --test catalog_drift`: 2 passed
+  (`catalog_matches_disk`, `systems_ranges_assert_their_invariant_roster`).
+  `SYSTEMS_INVARIANTS` 377 -> 385 across the four ranges.
+- `cargo test -p nova_ship --lib
+  severing_a_drive_reallocates_the_burn_across_the_surviving_live_set`:
+  1 passed, 969 filtered out.
+- `RUSTFLAGS="-D warnings" cargo check --workspace --all-targets` (CI's
+  `check / default features` job, no `--features debug`): exit 0. It first
+  found four dead-code errors - `CROSS_END` and `CROSS_SPEED` in
+  `system_gravity_wells`, `OUTBOUND_MARK` and `Subject::Carrier` in
+  `system_flight_legs` - all read only from `#[cfg(feature = "debug")]` code.
+  Each declaration now carries the gate its consumer already had.
+- `cargo check --workspace --all-targets --features debug`: exit 0.
+- Deliberately skipped: a full workspace `cargo test` and any Clippy sweep. The
+  full suite exhausts memory on this box, and the repository rule is affected
+  checks only.
 
 ## Done when
 

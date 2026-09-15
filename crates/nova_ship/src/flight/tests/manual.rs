@@ -617,3 +617,169 @@ fn manual_burn_brakes_a_ship_from_above_the_cap_back_inside_it() {
          (got {speed}, cap {CAP})"
     );
 }
+
+/// A balanced twin drive with one surviving lateral: two forward (-Z) engines
+/// at equal and opposite lever arms about the live COM, so the uniform seed is
+/// already torque-free and the lateral is never lit, plus a lateral mounted
+/// forward of the COM that can counter-torque a lone drive. Returns
+/// (ship, port main, starboard main, lateral).
+fn spawn_balanced_twin_drive(app: &mut App) -> (Entity, Entity, Entity, Entity) {
+    let ship = app
+        .world_mut()
+        .spawn((
+            RigidBody::Dynamic,
+            Transform::default(),
+            SpaceshipRootMarker,
+            FlightIntent::default(),
+        ))
+        .id();
+    let mut block = |name: &str, transform: Transform, thruster: bool| -> Entity {
+        let mut entity = app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new(name.to_owned()),
+            transform,
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        if thruster {
+            entity.insert((
+                ThrusterSectionMarker,
+                ThrusterSectionMagnitude(1.0),
+                ThrusterSectionInput(0.0),
+            ));
+        }
+        entity.id()
+    };
+    block("hull", Transform::from_xyz(0.0, 0.0, -1.0), false);
+    let port = block("port main", Transform::from_xyz(-2.0, 0.0, 1.0), true);
+    let starboard = block("starboard main", Transform::from_xyz(2.0, 0.0, 1.0), true);
+    // Thrust toward -X (local -Z rotated +90 degrees about Y), forward of the
+    // COM: the only engine on the hull that can null a lone main's yaw.
+    let lateral = block(
+        "lateral",
+        Transform::from_xyz(0.0, 0.0, -3.0)
+            .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+        true,
+    );
+    app.world_mut().spawn((
+        ChildOf(ship),
+        Name::new("controller"),
+        ControllerSectionMarker,
+        ControllerSectionRotationInput::default(),
+        PDController {
+            frequency: 4.0,
+            damping_ratio: 4.0,
+            max_angular_acceleration: 0.5, // shipped acceleration authority
+            sustained_angular_speed: f32::INFINITY,
+        },
+        PDControllerTarget(ship),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        Collider::cuboid(1.0, 1.0, 1.0),
+        ColliderDensity(1.0),
+    ));
+    (ship, port, starboard, lateral)
+}
+
+fn thruster_input(app: &App, thruster: Entity) -> f32 {
+    **app.world().get::<ThrusterSectionInput>(thruster).unwrap()
+}
+
+/// The yaw torque `engines` currently impose about the ship's live COM, in the
+/// body frame - the quantity the allocation exists to null. Engines the caller
+/// leaves out are not part of the live set and contribute nothing.
+fn live_yaw_torque(app: &App, ship: Entity, engines: &[Entity]) -> f32 {
+    let com = app
+        .world()
+        .get::<ComputedCenterOfMass>(ship)
+        .map_or(Vec3::ZERO, |c| c.0);
+    engines
+        .iter()
+        .map(|&engine| {
+            let transform = app.world().get::<Transform>(engine).unwrap();
+            let magnitude = **app.world().get::<ThrusterSectionMagnitude>(engine).unwrap();
+            let input = thruster_input(app, engine);
+            let thrust = transform.rotation.mul_vec3(Vec3::NEG_Z) * magnitude * input;
+            (transform.translation - com).cross(thrust).y
+        })
+        .sum()
+}
+
+/// Losing a drive updates the LIVE allocation set on the production
+/// eligibility seam (`SectionInactiveMarker`, what neutralize writes and what
+/// the burn query filters on): the severed engine drops out of the allocation
+/// entirely - its input is never written again - and the burn is re-split
+/// across what is left, recruiting the lateral that the intact balanced set
+/// never needed. Focused sibling of
+/// `single_drive_on_a_shifted_hull_recruits_a_lateral_to_hold_heading`, which
+/// covers the same allocation on a hull that never had the second drive.
+#[test]
+fn severing_a_drive_reallocates_the_burn_across_the_surviving_live_set() {
+    const BURN: f32 = 0.4;
+    let mut app = flight_app();
+    let (ship, port, starboard, lateral) = spawn_balanced_twin_drive(&mut app);
+    settle(&mut app);
+    app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = BURN;
+    run(&mut app, 120);
+
+    // The starting set: balanced, multi-group, and already torque-free, so the
+    // seed stands and the lateral group stays dark.
+    let (port_input, starboard_input) =
+        (thruster_input(&app, port), thruster_input(&app, starboard));
+    assert!(
+        (port_input - starboard_input).abs() < 1e-3 && port_input > 0.3,
+        "a balanced twin drive splits the burn evenly (port {port_input}, \
+         starboard {starboard_input})"
+    );
+    assert!(
+        thruster_input(&app, lateral) < 1e-3,
+        "a torque-free firing set recruits nothing (lateral {})",
+        thruster_input(&app, lateral)
+    );
+
+    // Sever the starboard drive the way damage does, and ask for a bigger
+    // burn in the same breath: a drive still in the set would follow the new
+    // demand, so the frozen input below is the set membership, not the ramp.
+    app.world_mut()
+        .entity_mut(starboard)
+        .insert(SectionInactiveMarker);
+    app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 1.0;
+    let severed_at = thruster_input(&app, starboard);
+    app.update();
+
+    assert_eq!(
+        thruster_input(&app, starboard),
+        severed_at,
+        "a severed drive is out of the allocation set, not throttled by it"
+    );
+    assert!(
+        thruster_input(&app, port) > port_input,
+        "the surviving drive carries the whole new demand (port {} was {port_input})",
+        thruster_input(&app, port)
+    );
+    assert!(
+        thruster_input(&app, lateral) > 0.0,
+        "the surviving set recruits its counter-torque on the next flight tick"
+    );
+
+    // And the re-split converges on a balanced surviving set: the live engines
+    // null their own yaw, while the severed drive's frozen input is exactly
+    // the torque the ship would carry if it were still being allocated to.
+    run(&mut app, 120);
+    let live = live_yaw_torque(&app, ship, &[port, lateral]);
+    let lone = live_yaw_torque(&app, ship, &[port]);
+    assert!(
+        live.abs() < 0.05 * lone.abs(),
+        "the surviving live set must balance itself (residual {live}, lone \
+         drive {lone})"
+    );
+    let drift = app
+        .world()
+        .get::<Rotation>(ship)
+        .unwrap()
+        .0
+        .angle_between(Quat::IDENTITY);
+    assert!(
+        drift < 0.15,
+        "and the hull holds its heading on the surviving set ({drift} rad)"
+    );
+}

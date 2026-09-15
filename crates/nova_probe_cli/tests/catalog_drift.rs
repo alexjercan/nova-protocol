@@ -190,6 +190,41 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_ai_patrol",
+        &[
+            "a hostile takes a flying patrol off its leg",
+            "the patrol resumes on the route it kept",
+            "the leash walks a dragged-out picket home",
+            "the beat is recorded",
+        ],
+    ),
+    (
+        "system_gravity_wells",
+        &[
+            "a hull inside two wells is owned by one that reaches it",
+            "the incumbent well holds until a challenger clears the margin",
+            "the well crossing is recorded",
+        ],
+    ),
+    (
+        "system_flight_legs",
+        &[
+            "the composed leg chain completes on both hulls",
+            "an unobstructed goto coasts before it brakes",
+            "a replacement action owns the helm on the next flight tick",
+            "the flown lanes are recorded",
+        ],
+    ),
+    (
+        "system_helm_orders",
+        &[
+            "a scenario order takes the helm and flies the hull",
+            "a hostile contact takes the helm and leaves the order alone",
+            "the cleared sky hands the same leg back",
+            "the order log is recorded",
+        ],
+    ),
+    (
         "system_thrust_and_plume",
         &[
             "burn accelerates",
@@ -795,7 +830,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 370;
+const SYSTEMS_INVARIANTS: usize = 385;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

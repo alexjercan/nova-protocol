@@ -208,6 +208,22 @@ name = "system_ai_evade"
 path = "examples/systems/system_ai_evade.rs"
 
 [[example]]
+name = "system_ai_patrol"
+path = "examples/systems/system_ai_patrol.rs"
+
+[[example]]
+name = "system_gravity_wells"
+path = "examples/systems/system_gravity_wells.rs"
+
+[[example]]
+name = "system_flight_legs"
+path = "examples/systems/system_flight_legs.rs"
+
+[[example]]
+name = "system_helm_orders"
+path = "examples/systems/system_helm_orders.rs"
+
+[[example]]
 name = "system_thrust_and_plume"
 path = "examples/systems/system_thrust_and_plume.rs"
 
