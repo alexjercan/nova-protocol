@@ -219,14 +219,14 @@ fn every_map_contains_a_dense_reproducible_field_planets_and_moving_traffic() {
                 EventActionConfig::SpawnScenarioObject(object) => match &object.kind {
                     ScenarioObjectKind::Planet(_) => planets += 1,
                     ScenarioObjectKind::Asteroid(_) => rocks += 1,
-                    ScenarioObjectKind::Spaceship(ship) => {
-                        if object.base.id.starts_with("traffic_") {
-                            let SpaceshipController::AI(ai) = &ship.controller else {
-                                panic!("traffic needs a driver")
-                            };
-                            assert!(ai.patrol.len() >= 2);
-                            moving += 1;
-                        }
+                    ScenarioObjectKind::Spaceship(ship)
+                        if object.base.id.starts_with("traffic_") =>
+                    {
+                        let SpaceshipController::AI(ai) = &ship.controller else {
+                            panic!("traffic needs a driver")
+                        };
+                        assert!(ai.patrol.len() >= 2);
+                        moving += 1;
                     }
                     _ => {}
                 },
