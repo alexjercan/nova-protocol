@@ -15,7 +15,7 @@ use nova_scenario::prelude::*;
 
 use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
-    base_content::{scenarios::SCATTER_SEED, ships},
+    base_content::{assets::BaseContentAssets, scenarios::SCATTER_SEED, ships},
     scenario_helpers::{entity, entity_pair, number, number_equals, set_number},
 };
 
@@ -29,20 +29,26 @@ const BATTERY_POS: Meters3 = Meters3::new(-9_500.0, 0.0, 0.0);
 /// approach lines cross instead of meeting head-on.
 const VICTOR_SPAWN: Meters3 = Meters3::new(-4_200.0, 250.0, 1_000.0);
 const RIVAL_SPAWN: Meters3 = Meters3::new(4_200.0, -150.0, -1_000.0);
+/// Mirrored center loops, shared by each ship's passive routine and its
+/// scenario helm order. The order owns translation during combat while the AI
+/// keeps acquiring, aiming and firing, so target-relative combat motion cannot
+/// carry the pair out of the camera shot.
+const VICTOR_PATROL: [Meters3; 3] = [
+    Meters3::new(-700.0, 100.0, 500.0),
+    Meters3::new(700.0, 150.0, -500.0),
+    Meters3::new(0.0, 50.0, 700.0),
+];
+const RIVAL_PATROL: [Meters3; 3] = [
+    Meters3::new(700.0, -50.0, -500.0),
+    Meters3::new(-700.0, -100.0, 500.0),
+    Meters3::new(0.0, -150.0, -700.0),
+];
+const VICTOR_PATROL_ORDER: &str = "duel_victor_patrol";
+const RIVAL_PATROL_ORDER: &str = "duel_rival_patrol";
 
-/// The out-of-bounds shell, centered on the fight. A backdrop is a SHOT
-/// before it is a fight, and the AI leash cannot keep it in one: `beyond_leash`
-/// is overridden while a ship is `recently_damaged`
-/// (crates/nova_ship/src/input/ai/behavior.rs), which is exactly the state a
-/// running duel holds both hulls in. So the arena, not the leash, is what keeps
-/// the act on camera - observed live, a winner sat at the left frame edge
-/// firing tracers at a rival that had already left the shot.
-///
-/// 1,800 m is past the widest frame half-width at the fight's depth (~1,410 m
-/// at 16:9, ~1,060 m at 4:3), so a ship reaching the wall is already out of
-/// frame; inside the dressing ring's 2,200 m outer edge, so the boundary has
-/// something drawn on it; and twice the patrol triangle's ~870 m reach, so an
-/// ordinary merge and overshoot never touches it.
+/// The out-of-bounds fail-safe, centered on the ordered fight. The patrol
+/// orders keep ordinary combat inside the shot; this shell still resolves an
+/// act if a collision, blast or crippled drive throws one actor clear.
 const ARENA_ID: &str = "duel_arena";
 const ARENA_RADIUS: Meters = Meters(1_800.0);
 /// The act is decided ONCE - by a defeat or by a forfeit, whichever lands
@@ -52,21 +58,16 @@ const ARENA_RADIUS: Meters = Meters(1_800.0);
 const VAR_DECIDED: &str = "duel_decided";
 
 /// One duelist: a block warship that flies in from off-screen onto an in-frame
-/// patrol triangle. The arrival grace holds the entrance (ships spawn in
-/// the Engage state and hold on ANY acquired target, so an ungraced spawn
-/// would turn and burn from the spawn point instead of flying in); the
-/// leash, anchored on the patrol centroid at the frame's center, pulls a
-/// wandering hull back. The leash is the SOFT bound only - a ship under fire
-/// ignores it - so the arena shell behind it is what actually keeps the act in
-/// shot. With no rock and no gravity anywhere in the scene, every chase line
-/// through the center is clear - the fight happens IN the middle of the frame,
-/// not pinned against a planetoid.
+/// patrol triangle. The arrival grace keeps its guns quiet on the entrance;
+/// the scenario patrol order owns its helm before and during combat. The AI
+/// still acquires, aims and fires under an order, but cannot replace the
+/// centered route with target-relative combat motion.
 fn duelist(
     id: &str,
     name: &str,
     spawn: Meters3,
     patrol: [Meters3; 3],
-    ship: &str,
+    hull: ShipSource,
     allegiance: Option<Allegiance>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -80,12 +81,14 @@ fn duelist(
             allegiance,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
-                // The leash anchors on center-hugging patrol centroids, so
-                // the fight gravitates to the middle of the frame. Wide
-                // enough for real chases, tight enough that the act plays
-                // over the same ground every wave.
+                // The leash anchors on the same center route as a fallback if
+                // an order ends or fails.
                 leash: Some(Meters(2_500.0)),
                 engage_delay: Some(6.0),
+                // Ordered patrols use the ship's arrival standoff, not the AI
+                // route's waypoint slack. Press close to each mark so the
+                // triangles do not shrink by the default 500 m at each corner.
+                arrival_standoff: Some(Meters(100.0)),
                 ..Default::default()
             }),
             // Hardened bridges on BOTH duelists: the tight rings make the
@@ -97,13 +100,23 @@ fn duelist(
             // plays. The block hulls bury their computers under plate, so
             // this is now belt-and-braces rather than the only thing holding
             // the act up - and the exposed guns are what actually decide it.
-            hull: ships::hull(ship),
+            hull,
             modifications: vec![ships::on_section(
                 ships::BLOCK_BRIDGE_SECTION_ID,
                 vec![SectionModification::SetHealth(500.0)],
             )],
         }),
     }
+}
+
+/// One loop of a duelist's scenario-owned center route. `PatrolShip` completes
+/// after a lap, and its completion handler issues this same order again.
+fn ordered_patrol(order: &str, ship: &str, waypoints: [Meters3; 3]) -> EventActionConfig {
+    EventActionConfig::PatrolShip(PatrolShipActionConfig {
+        order: order.to_string(),
+        ship: ship.to_string(),
+        waypoints: waypoints.to_vec(),
+    })
 }
 
 /// A repeating three-act battle behind the menu. Act one: an armoured patrol
@@ -119,10 +132,9 @@ fn duelist(
 /// three: the aftermath drifts for a beat, then the carousel turns to the
 /// next backdrop - the scenario switch is a genuine full reset that clears
 /// wrecks, debris and in-flight ordnance.
-pub(crate) fn menu_duel(
-    cubemap: AssetRef<Image>,
-    asteroid_texture: AssetRef<Image>,
-) -> ScenarioConfig {
+pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
+    let cubemap = assets.cubemap.clone();
+    let asteroid_texture = assets.asteroid_texture.clone();
     let mut stage = Vec::new();
 
     // An OPEN arena: no planetoid (the first cut proved chase lines pin
@@ -203,21 +215,15 @@ pub(crate) fn menu_duel(
         min_separation: None,
     });
 
-    // The victor's routine is a TIGHT ring on the frame center: it is the
-    // fight's center of gravity while the duel runs (the leash anchors on
-    // the patrol centroid), and after the win it parks the victory lap right
-    // where the finisher's torpedo will land - mid-shot, not drifting at the
-    // frame edge.
+    // The victor's TIGHT center loop is both its fallback routine and its
+    // ordered route. The order keeps the live fight and the victory lap where
+    // the finisher's torpedo will land - mid-shot, not at the frame edge.
     let spawn_victor = EventActionConfig::SpawnScenarioObject(duelist(
         "duel_victor",
         "Duel Victor",
         VICTOR_SPAWN,
-        [
-            Meters3::new(-700.0, 100.0, 500.0),
-            Meters3::new(700.0, 150.0, -500.0),
-            Meters3::new(0.0, 50.0, 700.0),
-        ],
-        ships::BLOCK_GUNSHIP_SHIP_ID,
+        VICTOR_PATROL,
+        ships::hull(ships::BLOCK_GUNSHIP_SHIP_ID),
         // The relation model only makes Player<->Enemy hostile: one duelist
         // must fly the player's colors for AI-vs-AI combat to exist. It also
         // makes the Enemy finisher's ordnance hostile to the winner.
@@ -230,14 +236,15 @@ pub(crate) fn menu_duel(
         "duel_rival",
         "Duel Rival",
         RIVAL_SPAWN,
-        [
-            Meters3::new(700.0, -50.0, -500.0),
-            Meters3::new(-700.0, -100.0, 500.0),
-            Meters3::new(0.0, -150.0, -700.0),
-        ],
-        ships::BLOCK_RAIDER_SHIP_ID,
+        RIVAL_PATROL,
+        // One-off copy: the shared raider keeps the fleet's 5% structural
+        // floor, while this doomed set-piece actor comes apart below half of
+        // its built health instead of lingering as a nearly empty hull.
+        ships::inline_raider(assets, 0.5),
         None,
     ));
+    let victor_patrol = ordered_patrol(VICTOR_PATROL_ORDER, "duel_victor", VICTOR_PATROL);
+    let rival_patrol = ordered_patrol(RIVAL_PATROL_ORDER, "duel_rival", RIVAL_PATROL);
 
     let timer = |key: &str, seconds: f64| {
         EventActionConfig::TimerStart(TimerStartActionConfig {
@@ -294,7 +301,38 @@ pub(crate) fn menu_duel(
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_respawn".to_string(),
             })],
-            actions: vec![spawn_victor, spawn_rival],
+            // Actions flush in order, so each patrol resolves the ship spawned
+            // immediately before it in this batch.
+            actions: vec![
+                spawn_victor,
+                spawn_rival,
+                victor_patrol.clone(),
+                rival_patrol.clone(),
+            ],
+        },
+        // A patrol order is one lap. Reissue each named order on completion so
+        // scenario-owned movement holds for the whole duel and finale.
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnShipOrderComplete,
+            once: false,
+            filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+                order: Some(VICTOR_PATROL_ORDER.to_string()),
+                ship: Some("duel_victor".to_string()),
+                kind: Some(ShipOrderKind::Patrol),
+            })],
+            actions: vec![victor_patrol],
+        },
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnShipOrderComplete,
+            once: false,
+            filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+                order: Some(RIVAL_PATROL_ORDER.to_string()),
+                ship: Some("duel_rival".to_string()),
+                kind: Some(ShipOrderKind::Patrol),
+            })],
+            actions: vec![rival_patrol],
         },
         // Act two, armed by the rival's defeat (destroyed OR neutralized -
         // AI stops shooting a neutralized wreck, so waiting for full
@@ -313,11 +351,9 @@ pub(crate) fn menu_duel(
         // is out, and the act resolves as if it had lost. The leaver goes
         // NEUTRAL rather than being despawned - `update_ai_target` re-picks
         // every frame and keeps only HOSTILE candidates, so the hull still in
-        // frame drops its lock the moment the other crosses, its damage memory
-        // lapses, and the leash finally walks it home to the patrol centroid
-        // at the frame's center. Neutral also stops the leaver shooting back,
-        // which is what was overriding the leash. The disqualified ship keeps
-        // flying its own routine and drifts back into shot as a bystander; a
+        // frame drops its lock the moment the other crosses. Neutral also
+        // stops the leaver shooting back. Its scenario patrol order remains,
+        // so the disqualified hull returns through the shot as a bystander; a
         // despawn would pop a ship out of the sky in full view.
         //
         // Both duelists SPAWN outside the arena and fly in, so the entry is
@@ -439,5 +475,95 @@ pub(crate) fn menu_duel(
         menu_backdrop: true,
         events,
         ..ScenarioConfig::new("menu_duel".to_string(), "Duel Cycle".to_string(), cubemap)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_rival_is_a_one_off_half_health_hull() {
+        let assets = BaseContentAssets::from_paths();
+        let scenario = menu_duel(&assets);
+        let rival = scenario
+            .events
+            .iter()
+            .flat_map(|event| &event.actions)
+            .find_map(|action| match action {
+                EventActionConfig::SpawnScenarioObject(object)
+                    if object.base.id == "duel_rival" =>
+                {
+                    let ScenarioObjectKind::Spaceship(ship) = &object.kind else {
+                        panic!("duel_rival must be a ship");
+                    };
+                    Some(ship)
+                }
+                _ => None,
+            })
+            .expect("the duel must spawn its rival");
+        let ShipSource::Inline(hull) = &rival.hull else {
+            panic!("the duel rival must not retune the shared raider prototype");
+        };
+        assert_eq!(
+            hull.collapse_threshold,
+            Some(0.5),
+            "the set-piece rival must collapse below half of its built health"
+        );
+    }
+
+    #[test]
+    fn both_duelists_hold_center_patrol_orders() {
+        let assets = BaseContentAssets::from_paths();
+        let scenario = menu_duel(&assets);
+
+        for (ship, order, route) in [
+            ("duel_victor", VICTOR_PATROL_ORDER, VICTOR_PATROL),
+            ("duel_rival", RIVAL_PATROL_ORDER, RIVAL_PATROL),
+        ] {
+            let matching: Vec<&PatrolShipActionConfig> = scenario
+                .events
+                .iter()
+                .flat_map(|event| &event.actions)
+                .filter_map(|action| match action {
+                    EventActionConfig::PatrolShip(config)
+                        if config.ship == ship && config.order == order =>
+                    {
+                        Some(config)
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                matching.len(),
+                2,
+                "{ship} needs one initial center patrol and one completion-loop patrol"
+            );
+            assert!(
+                matching.iter().all(|config| config.waypoints == route),
+                "{ship}'s ordered route must keep the authored center loop"
+            );
+
+            let repeat_handlers = scenario
+                .events
+                .iter()
+                .filter(|event| {
+                    matches!(event.name, EventConfig::OnShipOrderComplete)
+                        && event.filters.iter().any(|filter| {
+                            matches!(
+                                filter,
+                                EventFilterConfig::ShipOrder(config)
+                                    if config.order.as_deref() == Some(order)
+                                        && config.ship.as_deref() == Some(ship)
+                                        && config.kind == Some(ShipOrderKind::Patrol)
+                            )
+                        })
+                })
+                .count();
+            assert_eq!(
+                repeat_handlers, 1,
+                "{ship}'s completed lap must re-arm only its own patrol"
+            );
+        }
     }
 }

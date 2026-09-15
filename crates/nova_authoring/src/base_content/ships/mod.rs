@@ -168,6 +168,20 @@ pub fn hull(id: &str) -> ShipSource {
     ShipSource::Prototype(id.to_string())
 }
 
+/// A one-off copy of the salvage raider for a set piece that changes an
+/// intrinsic hull property without retuning the shared catalog ship.
+pub(crate) fn inline_raider(assets: &BaseContentAssets, collapse_threshold: f32) -> ShipSource {
+    let design = block::salvage_raider();
+    let style = design.style.to_string();
+    ShipSource::Inline(ShipHull {
+        sections: design.sections(),
+        collapse_threshold: Some(collapse_threshold),
+        skin: true,
+        style: Some(style),
+        collapse_sound: Some(assets.ship_collapse_sound.clone()),
+    })
+}
+
 /// A ONE-OFF hull, authored inline: a scripted battery that is a single tube, a
 /// derelict that is five plates. Anything a second scenario would want gets a
 /// catalog entry instead.

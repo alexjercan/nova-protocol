@@ -92,8 +92,8 @@ does NOT get an entry - and it is the only place they are written down.
   with no launcher rather than firing every tick.
 
 ### Scenarios & Objectives
-- The menu duel now keeps both ships on mirrored center patrols while their AI
-  aims and fires, instead of letting target-relative combat drift out of shot.
+- The menu duel keeps both ships on mirrored center patrols while AI aims and
+  fires, and its doomed raider breaks apart below half health.
 - **(breaking)** A scenario's `hidden` flag is gone. The Scenarios list shows
   every installed scenario except a `menu_backdrop: true` one, so chained
   chapters are one click away; a file still authoring `hidden` is refused.

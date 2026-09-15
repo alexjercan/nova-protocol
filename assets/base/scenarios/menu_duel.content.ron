@@ -301,6 +301,7 @@
                                 ],
                                 leash: Some(2500.0),
                                 engage_delay: Some(6.0),
+                                arrival_standoff: Some(100.0),
                             )),
                             allegiance: Some(Player),
                             modifications: [
@@ -330,7 +331,539 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_raider"),
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "plate_0",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_1",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_2",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_3",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_4",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_5",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_6",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_7",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_8",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_9",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_10",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_11",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_12",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_13",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_14",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_15",
+                                        position: (
+                                            -1.0,
+                                            1.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_16",
+                                        position: (
+                                            -1.0,
+                                            1.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_17",
+                                        position: (
+                                            -1.0,
+                                            1.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_18",
+                                        position: (
+                                            0.0,
+                                            1.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_19",
+                                        position: (
+                                            0.0,
+                                            1.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_20",
+                                        position: (
+                                            1.0,
+                                            1.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_21",
+                                        position: (
+                                            1.0,
+                                            1.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_22",
+                                        position: (
+                                            1.0,
+                                            1.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_23",
+                                        position: (
+                                            -2.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_24",
+                                        position: (
+                                            -2.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_25",
+                                        position: (
+                                            2.0,
+                                            1.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_26",
+                                        position: (
+                                            2.0,
+                                            1.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "plate_27",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -3.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bridge",
+                                        position: (
+                                            0.0,
+                                            1.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "drive_port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            3.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "drive_center",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            3.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "drive_starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            3.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "drive_outrigger",
+                                        position: (
+                                            -2.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "pdc_dorsal",
+                                        position: (
+                                            0.0,
+                                            1.75,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("pdc_kinetic_turret_section"),
+                                    ),
+                                    (
+                                        id: "pdc_boom",
+                                        position: (
+                                            2.0,
+                                            1.75,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                                collapse_threshold: Some(0.5),
+                                skin: true,
+                                style: Some("salvage"),
+                                collapse_sound: Some("self://sounds/destroy_ship.wav"),
+                            )),
                             controller: AI((
                                 patrol: [
                                     (
@@ -351,6 +884,7 @@
                                 ],
                                 leash: Some(2500.0),
                                 engage_delay: Some(6.0),
+                                arrival_standoff: Some(100.0),
                             )),
                             modifications: [
                                 (
@@ -361,6 +895,114 @@
                                 ),
                             ],
                         )),
+                    )),
+                    PatrolShip((
+                        order: "duel_victor_patrol",
+                        ship: "duel_victor",
+                        waypoints: [
+                            (
+                                -700.0,
+                                100.0,
+                                500.0,
+                            ),
+                            (
+                                700.0,
+                                150.0,
+                                -500.0,
+                            ),
+                            (
+                                0.0,
+                                50.0,
+                                700.0,
+                            ),
+                        ],
+                    )),
+                    PatrolShip((
+                        order: "duel_rival_patrol",
+                        ship: "duel_rival",
+                        waypoints: [
+                            (
+                                700.0,
+                                -50.0,
+                                -500.0,
+                            ),
+                            (
+                                -700.0,
+                                -100.0,
+                                500.0,
+                            ),
+                            (
+                                0.0,
+                                -150.0,
+                                -700.0,
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnShipOrderComplete,
+                filters: [
+                    ShipOrder((
+                        order: Some("duel_victor_patrol"),
+                        ship: Some("duel_victor"),
+                        kind: Some(Patrol),
+                    )),
+                ],
+                actions: [
+                    PatrolShip((
+                        order: "duel_victor_patrol",
+                        ship: "duel_victor",
+                        waypoints: [
+                            (
+                                -700.0,
+                                100.0,
+                                500.0,
+                            ),
+                            (
+                                700.0,
+                                150.0,
+                                -500.0,
+                            ),
+                            (
+                                0.0,
+                                50.0,
+                                700.0,
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnShipOrderComplete,
+                filters: [
+                    ShipOrder((
+                        order: Some("duel_rival_patrol"),
+                        ship: Some("duel_rival"),
+                        kind: Some(Patrol),
+                    )),
+                ],
+                actions: [
+                    PatrolShip((
+                        order: "duel_rival_patrol",
+                        ship: "duel_rival",
+                        waypoints: [
+                            (
+                                700.0,
+                                -50.0,
+                                -500.0,
+                            ),
+                            (
+                                -700.0,
+                                -100.0,
+                                500.0,
+                            ),
+                            (
+                                0.0,
+                                -150.0,
+                                -700.0,
+                            ),
+                        ],
                     )),
                 ],
             ),

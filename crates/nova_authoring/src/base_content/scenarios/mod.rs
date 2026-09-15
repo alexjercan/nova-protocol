@@ -20,7 +20,7 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
         main_menu::waystation(cubemap(), texture()),
         main_menu::gauntlet(cubemap(), texture()),
         main_menu::weave(cubemap(), texture()),
-        main_menu::duel(cubemap(), texture()),
+        main_menu::duel(assets),
         tutorial::tutorial(cubemap(), texture()),
     ]
 }
