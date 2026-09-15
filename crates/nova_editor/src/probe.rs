@@ -13,8 +13,10 @@ use nova_ui::prelude::TextFieldFocused;
 
 use crate::{
     config::{EditorStatus, HoveredNode, PlacementPreview, SectionChoice, SelectedNode},
+    frame::CameraFraming,
     gallery::GalleryState,
     gizmo::GizmoRig,
+    inspect::framed_step,
     node::{
         context_nodes, inside_id, sections_of, EditContext, ObjectNodes, SectionNodes, ShipNodes,
     },
@@ -166,6 +168,15 @@ pub struct EditorProbe {
     /// Escape's first rung is spent closing it - so a driven run that opens
     /// one has to be able to see it close again.
     pub open_menu: String,
+    /// How far one pixel of a drag takes a DISTANCE row, in meters, and zero
+    /// outside the editor.
+    ///
+    /// The panel rescales every framed row to what the camera is looking at, so
+    /// there is no fixed number a driven run could hold: the same 40 px pull is
+    /// a centimetre up against a socket and a hundred metres across a range.
+    /// Reported rather than re-derived, because the scale a grip carries is the
+    /// one its panel was last painted with.
+    pub framed_drag_step: f32,
     /// The id of the node the transform handles are ON, or `None` while they
     /// are off screen.
     ///
@@ -196,7 +207,9 @@ pub(crate) fn sync_editor_probe(
     q_ships: ShipNodes,
     q_objects: ObjectNodes,
     q_visibility: Query<&Visibility>,
-    poses: Query<&Transform>,
+    // Tupled for the arity cap: both say where the stage stands, one node by
+    // node and one as the reach the panel scales its distance drags by.
+    stage: (Query<&Transform>, Res<CameraFraming>),
     document: Document,
     // Tupled with the caret for the same reason as `feedback` above.
     chrome: (
@@ -205,6 +218,7 @@ pub(crate) fn sync_editor_probe(
     ),
     mut probe: ResMut<EditorProbe>,
 ) {
+    let (poses, framing) = &stage;
     let (selected, hovered) = &marks;
     let (status, open_menu) = &readouts;
     let (caret, rig) = &chrome;
@@ -269,6 +283,7 @@ pub(crate) fn sync_editor_probe(
             .0
             .map(|menu| menu.label().to_string())
             .unwrap_or_default();
+        snapshot.framed_drag_step = framed_step(framing.distance);
         snapshot.inspector_focused = !caret.is_empty();
         snapshot.inspector = document
             .inspection()
@@ -359,6 +374,7 @@ fn snapshot(
         node_positions: Vec::new(),
         status: String::new(),
         open_menu: String::new(),
+        framed_drag_step: 0.0,
         inspector_focused: false,
         inspector: Vec::new(),
         gizmo_node: None,

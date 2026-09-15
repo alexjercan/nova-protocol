@@ -78,15 +78,10 @@ const RADIUS_GRIP: &str = "Inspector Grip Radius";
 #[cfg(feature = "debug")]
 const FLAG_GRIP: &str = "Inspector Grip Invulnerable";
 
-/// The grip on one axis of a VECTOR row, and the step that row declares. The
-/// axis letter is the grip, because the panel is 240px wide.
+/// The grip on one axis of a VECTOR row. The axis letter is the grip, because
+/// the panel is 240px wide.
 #[cfg(feature = "debug")]
 const POSE_GRIP: &str = "Inspector Grip Position X";
-/// The step the `Position X` row is declared with, in METERS per pixel - the
-/// editor's own `POSE_STEP`, which every quantity row that names no step of its
-/// own inherits.
-#[cfg(feature = "debug")]
-const POSE_STEP: f32 = 0.5;
 
 /// The unit `radius` is declared with, and the step it is dragged by. Meters:
 /// an asteroid's radius is a [`Meters`] on the config, which is what the
@@ -183,21 +178,35 @@ fn the_pose_moved() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predic
         let Some(before) = world.get_resource::<PoseBefore>() else {
             return false;
         };
-        position_of(world).is_some_and(|at| (at.x() - before.0.x()).abs() > Meters(f32::EPSILON))
+        position_of(world).is_some_and(|at| (at.x() - before.at.x()).abs() > Meters(f32::EPSILON))
     })
 }
 
-/// Where the rock sat before the drag that must move it.
+/// Where the rock sat before the drag that must move it, and the step the panel
+/// was scrubbing distances by at that moment.
+///
+/// The step is stamped with the pose rather than read back at the verdict: a
+/// position row is scaled to what the camera frames, and a grip carries the
+/// rule it was painted with, so the number the drag honours is the one that
+/// stood when the drag began.
 #[cfg(feature = "debug")]
 #[derive(Resource, Debug, Clone, Copy)]
-struct PoseBefore(Meters3);
+struct PoseBefore {
+    at: Meters3,
+    step: f32,
+}
 
 /// Stamp the pose the next verdict is read against.
 #[cfg(feature = "debug")]
 fn stamp_the_pose(world: &mut World) {
     let at = position_of(world).expect("the placed rock is selected and has a pose");
-    world.insert_resource(PoseBefore(at));
-    info!("fields: the rock sits at {} m", at.get());
+    let step = world.resource::<EditorProbe>().framed_drag_step;
+    assert!(
+        step > 0.0,
+        "a distance row carries a step to scrub by: the panel reports {step} m a pixel, which is          a grip that has stopped answering"
+    );
+    world.insert_resource(PoseBefore { at, step });
+    info!("fields: the rock sits at {} m, {step} m a pixel", at.get());
 }
 
 /// What the radius read before the drag that must change it.
@@ -401,24 +410,26 @@ fn read_the_scrub_moved_by_its_step(world: &mut World) {
 
 #[cfg(feature = "debug")]
 fn read_the_axis_scrub_moved_by_its_step(world: &mut World) {
-    let before = world.resource::<PoseBefore>().0.x().get();
+    let stamped = *world.resource::<PoseBefore>();
+    let before = stamped.at.x().get();
+    let step = stamped.step;
     let now = position_of(world)
         .expect("the rock still has a pose")
         .x()
         .get();
-    let wanted = before + PULL_PX * POSE_STEP;
+    let wanted = before + PULL_PX * step;
     assert!(
-        (now - wanted).abs() < POSE_STEP,
-        "a grip on one axis moves by the ROW's step: {PULL_PX} px at {POSE_STEP} m is {wanted} m, \
-         and the rock sits at {now} m. A stall here means the step is being resolved a second \
-         time from the axis path, where no declaration matches it"
+        (now - wanted).abs() < step,
+        "a grip on one axis moves by the ROW's step: {PULL_PX} px at {step} m is {wanted} m, and \
+         the rock sits at {now} m. A stall here means the step is being resolved a second time \
+         from the axis path, where no declaration matches it"
     );
     nova_probe::probe_marker(
         world,
         "outcome: a vector axis is scrubbed by its row's step",
-        serde_json::json!({ "before_m": before, "after_m": now, "step_m": POSE_STEP }),
+        serde_json::json!({ "before_m": before, "after_m": now, "step_m": step }),
     );
-    info!("fields: X went {before} m -> {now} m on a {PULL_PX}px pull");
+    info!("fields: X went {before} m -> {now} m on a {PULL_PX}px pull at {step} m a pixel");
 }
 
 #[cfg(feature = "debug")]
