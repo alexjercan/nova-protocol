@@ -45,28 +45,33 @@ Nine SUBJECT shards, 121 examples, no directory left in the matrix. Sized
 off the table above; the estimate is 15.8-21.1 min per shard against 54.6
 today, so the whole run becomes `check`-bound.
 
-Measured on run 34959859343 (2026-09-15), the first run with every shard
-reaching its verdict. `fixed` is the wall the runs do not explain: checkout,
-apt, cache restore, linking.
+Measured on run 34971013563 (2026-09-15), the first fully green run.
+`fixed` is the wall the runs do not explain: checkout, apt, cache restore,
+linking.
 
 | shard | examples | runs | estimated | wall | fixed |
 |-|-|-|-|-|-|
-| worldgen | 13 | 981 s | 21.0 min | 23.7 min | 398 s |
-| ordnance | 11 | 962 s | 19.8 min | 23.4 min | 406 s |
-| flight | 20 | 957 s | 21.1 min | 23.4 min | 380 s |
-| menu | 17 | 854 s | 18.4 min | 21.6 min | 386 s |
-| hud | 14 | 828 s | 15.8 min | 21.3 min | 402 s |
-| hull | 15 | 783 s | 18.6 min | 20.4 min | 390 s |
-| destruction | 8 | 731 s | 18.9 min | 19.5 min | 412 s |
-| gunnery | 16 | 737 s | 20.6 min | 17.9 min | 281 s |
-| editor | 7 | 601 s | 18.0 min | 16.7 min | 374 s |
+| gunnery | 16 | 1229 s | 20.6 min | 27.6 min | 369 s |
+| ordnance | 11 | 943 s | 19.8 min | 23.4 min | 422 s |
+| menu | 17 | 850 s | 18.4 min | 21.6 min | 390 s |
+| flight | 20 | 805 s | 21.1 min | 21.2 min | 398 s |
+| hull | 15 | 778 s | 18.6 min | 20.4 min | 396 s |
+| worldgen | 13 | 676 s | 21.0 min | 17.6 min | 338 s |
+| editor | 7 | 603 s | 18.0 min | 16.4 min | 356 s |
+| hud | 14 | 528 s | 15.8 min | 15.2 min | 333 s |
+| destruction | 8 | 509 s | 18.9 min | 14.7 min | 345 s |
 
-The split holds: 16.7 to 23.7 min against the 54.6 min screenshots used to
-cost, so the sweep is within about three minutes of `check` plus its own
-fixed cost. The estimates ran low on the shards whose ranges had never been
-measured in CI (`hud` by 5.5 min, `worldgen` and `ordnance` by 3 each) and
-high on `gunnery`, which is the one shard that restored a warm cache in 281
-s rather than ~390.
+The split holds: 14.7 to 27.6 min against the 54.6 min screenshots used to
+cost, and `check` ran 22.9 min on the same run, so the sweep is now
+`check`-bound everywhere but `gunnery`.
+
+Read one shard's wall against the estimate with care - the runners vary
+more than the split does. Between runs 34967468116 and 34971013563, at the
+same commit for every range but one, `hud` moved 21.3 -> 15.2 min and
+`ordnance` 23.4 -> 23.4 while its own examples each grew by a third.
+`gunnery` is the one real change: `system_turret_gunnery` used to die in
+its own stall at 208 s and now runs to the end in 361 s, which is the whole
+of that shard's 9.7 min.
 
 - `.github/workflows/ci.yaml`: `matrix.include` carries `shard` plus a
   whitespace-separated `examples` list; the step squeezes that into the comma
@@ -79,12 +84,12 @@ s rather than ~390.
 - `scripts/probe-summary.py` drops the `spec` caption once the spec is a
   list - the row count already says it, and the names were 400 characters.
 
-`editor` carries both editor outliers and came in the CHEAPEST shard, and
-`destruction` cost what the `system_collision_damage` guess said it would,
-so neither needs a reshuffle. `system_collision_damage` will add about 95 s
-to `destruction` once it runs to the end (it was cut off by the sweep's own
-deadline on this run, see below), which leaves that shard near 21 min and
-still short of `worldgen`.
+`editor` carries both editor outliers and came in among the cheapest
+shards, and `destruction` cost less than the `system_collision_damage`
+guess said it would even with that range running to the end (231 s), so
+neither needs a reshuffle. `gunnery` is the one shard worth splitting again
+if the sweep has to come down further: it is 4.7 min over `check`, and its
+own longest range is 361 s of that.
 
 ## Red on the first sharded run (34959859343)
 
@@ -101,6 +106,22 @@ reached its own verdict in a directory job.
   the timeout dial moved nothing, and two carriers coming alongside cost 24
   real seconds per simulated one on a two-core runner. The pin is gone and
   `--timeout` is 510, which sizes the harness deadline to 480 (`168fe4b64`).
+  The range now finishes in 231 s.
+
+Two more came out of the runs after that:
+
+- `nova_editor`'s probe tests (`check`): `sync_editor_probe` reads the
+  camera framing so it can report the step the inspector scrubs distances
+  by, and neither test rig had that resource - ten cases failed validation
+  the first time the workspace suite got past the clippy error in front of
+  it. Both rigs now frame their eye 200 m out (`adc67f61b`).
+- `system_turret_gunnery` (`gunnery`): five per-beat deadlines at their
+  limit at once, one of them past it, all five sized on a desk box against
+  a runner frame that costs about six seconds. The beats that wait on the
+  world now share one bound at about three times the worst measured beat
+  (`70ac2704b`).
+
+Run 34971013563 is green end to end.
 
 ## Flaky, pinned 2026-09-15
 
@@ -140,3 +161,7 @@ there three runs in a row:
 
 `20260909-213441` adds `system_scenario_picker` (renamed from
 `bug_menu_picker`) and `system_settings_persist`, both also in `menu`.
+
+Done: all nine were OK in `probe / menu` on four runs running -
+34959859343, 34963931897, 34967468116 and 34971013563 - with no change to
+any of them in between.
