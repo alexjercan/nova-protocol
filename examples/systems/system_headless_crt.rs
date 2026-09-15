@@ -351,8 +351,17 @@ fn pulse_action(world: &mut World, action: &'static str, frame: u32) {
     }
 }
 
-/// Record the first contact the CRT is SHOWING that the ring is not on as this
-/// run's target, and take a wheel notch out on a frame that shows no such blip.
+/// Record the LONELIEST contact the CRT is showing that the ring is not on as
+/// this run's target, and take a wheel notch out on a frame that shows no such
+/// blip.
+///
+/// Loneliest, not first, because a click resolves to the TOPMOST node under the
+/// pointer and every blip wears a label pill several times its own width. In a
+/// belt of seventy contacts the first plotted one is routinely under a
+/// neighbour's pill, and the aim beat then stalls with the pointer sitting on a
+/// contact that is not the target. Taking the blip with the most window px
+/// between it and its nearest neighbour makes the pick a property of the
+/// picture rather than of the cycling order.
 ///
 /// The beat holds until the pick lands, so this runs every frame of it: the
 /// choice is made ONCE and the later frames cost nothing, which also keeps the
@@ -362,17 +371,34 @@ fn pick_the_target(world: &mut World, _elapsed: f32, frame: u32) {
     if world.get_resource::<GlassTarget>().is_some() {
         return;
     }
+    let shown: Vec<(Entity, String, Vec2)> = plotted_contacts(world)
+        .into_iter()
+        .filter_map(|(contact, code)| {
+            let at = blip_labelled(world, &code).and_then(|blip| window_px_of(world, blip))?;
+            Some((contact, code, at))
+        })
+        .collect();
     let ringed = ringed_code(world);
-    let picked = plotted_contacts(world).into_iter().find(|(_, code)| {
-        ringed.as_deref() != Some(code.as_str())
-            && blip_labelled(world, code)
-                .and_then(|blip| window_px_of(world, blip))
-                .is_some()
-    });
-    match picked {
-        Some((contact, code)) => {
-            info!("headless crt: the target is {code}, with the ring on {ringed:?}");
-            world.insert_resource(GlassTarget { contact, code });
+    let loneliest = shown
+        .iter()
+        .filter(|(_, code, _)| ringed.as_deref() != Some(code.as_str()))
+        .max_by(|(_, _, a), (_, _, b)| {
+            let room = |at: &Vec2| {
+                shown
+                    .iter()
+                    .filter(|(_, _, other)| other != at)
+                    .map(|(_, _, other)| other.distance(*at))
+                    .fold(f32::INFINITY, f32::min)
+            };
+            room(a).total_cmp(&room(b))
+        });
+    match loneliest {
+        Some((contact, code, at)) => {
+            info!("headless crt: the target is {code} at {at:?}, with the ring on {ringed:?}");
+            world.insert_resource(GlassTarget {
+                contact: *contact,
+                code: code.clone(),
+            });
         }
         None if frame % 8 == 1 => scroll_lines(-2.0)(world),
         None => {}
@@ -401,15 +427,16 @@ fn the_target_is_picked() -> Gate {
     Arc::new(|world: &World| world.get_resource::<GlassTarget>().is_some())
 }
 
-/// Whether the target's blip is wearing the selection ring (an amber border on
-/// an otherwise transparent blip). Written by `project_map_blips` every frame,
-/// hidden or not.
+/// Whether the target's blip is wearing the selection ring (an opaque amber
+/// outline on an otherwise quiet blip). Written by `project_map_blips` every
+/// frame, hidden or not - see [`ringed_code_list`] for why the read is an
+/// `Outline` and not a border.
 #[cfg(feature = "debug")]
 fn the_target_is_selected() -> Gate {
     Arc::new(|world: &World| {
         resolve_blip(world)
-            .and_then(|blip| world.get::<BorderColor>(blip))
-            .is_some_and(|border| border.top.alpha() > 0.0)
+            .and_then(|blip| world.get::<Outline>(blip))
+            .is_some_and(|ring| ring.color.alpha() >= 1.0)
     })
 }
 
@@ -467,14 +494,20 @@ fn plotted_codes(world: &World) -> String {
 
 /// Every plotted code whose blip wears the selection ring. One of them, unless
 /// the map has lost track of its own selection.
+///
+/// The ring is an `Outline`, not a border - the map draws it outside the box so
+/// the label beside it still starts at the target's own edge - and the read is
+/// its ALPHA: the map lights the selection opaque and leaves every other
+/// contact's ring quiet. Reading a `BorderColor` here found nothing at all and
+/// reported an empty map for thirty seconds.
 #[cfg(feature = "debug")]
 fn ringed_code_list(world: &World) -> Vec<String> {
     plotted_contacts(world)
         .into_iter()
         .filter(|(_, code)| {
             blip_labelled(world, code)
-                .and_then(|blip| world.get::<BorderColor>(blip))
-                .is_some_and(|border| border.top.alpha() > 0.0)
+                .and_then(|blip| world.get::<Outline>(blip))
+                .is_some_and(|ring| ring.color.alpha() >= 1.0)
         })
         .map(|(_, code)| code)
         .collect()
@@ -546,7 +579,44 @@ fn aim_diagnosis(world: &World) -> String {
                 .collect()
         })
         .unwrap_or_default();
-    format!("{detail}; SELF visible {own_ship:?}; cameras {cameras:?}")
+    format!(
+        "{detail}; aimed at {:?}; the CRT pointer is on {}; SELF visible {own_ship:?}; cameras \
+         {cameras:?}",
+        target_window_px(world),
+        hovered_through_the_glass(world),
+    )
+}
+
+/// What the forwarded CRT pointer is actually over, named the way the picture
+/// names it: the label a hit sits under, or the bare entity when it sits under
+/// none.
+///
+/// The aim beat can fail two ways that look identical from the target's side -
+/// the pointer landed on nothing, or it landed on the wrong contact - and the
+/// warp round-trip is exactly the kind of thing that puts it one blip over.
+#[cfg(feature = "debug")]
+fn hovered_through_the_glass(world: &World) -> String {
+    let Some(hits) = world.resource::<HoverMap>().get(&nova_os_pointer_id()) else {
+        return "nothing (the pointer is not on the glass)".to_string();
+    };
+    let named: Vec<String> = hits
+        .keys()
+        .map(|hit| {
+            std::iter::successors(Some(*hit), |entity| {
+                world.get::<ChildOf>(*entity).map(|child| child.parent())
+            })
+            .find_map(|entity| {
+                let mut labels = world.try_query::<&Text>()?;
+                world
+                    .get::<Children>(entity)
+                    .into_iter()
+                    .flat_map(Children::iter)
+                    .find_map(|child| labels.get(world, child).ok().map(|text| text.0.clone()))
+            })
+            .unwrap_or_else(|| format!("{hit}"))
+        })
+        .collect();
+    format!("{named:?}")
 }
 
 /// The `ui` block's answer to "what can I click on the CRT": every plotted
