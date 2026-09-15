@@ -801,7 +801,7 @@ fn record_pyres(
     probe.pyre_instances_this_frame += 1;
     let at = at.translation;
     // The core and its ejecta burn in the same place; the chain is the places.
-    if !probe.lit.iter().any(|seen| *seen == at) {
+    if !probe.lit.contains(&at) {
         probe.lit.push(at);
     }
 }

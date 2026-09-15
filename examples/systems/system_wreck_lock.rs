@@ -108,9 +108,9 @@ const KILLING_BLOW: f32 = 100_000.0;
 ///
 /// The production pin is a CYCLE PRESS that expires unless it is renewed, so a
 /// range that wrote one deadline far in the future would be testing a state the
-/// game never holds. This is the hold, re-applied while the range is "pressing"
-/// - and it stops the moment production takes the section away, which is what
-/// phase 2 is about.
+/// game never holds. This is the hold, re-applied while the range is
+/// "pressing", and it stops the moment production takes the section away,
+/// which is what phase 2 is about.
 #[cfg(feature = "debug")]
 const PIN_HOLD_SECS: f32 = 1.0;
 
@@ -127,8 +127,8 @@ const SETTLE_SECS: f32 = 3.0;
 
 /// In-step seconds the emptied lock slot is watched before the range fills it.
 ///
-/// Nothing in the game re-locks on its own - a fresh dwell is what takes a lock
-/// - so this window is what turns "the fragment was not acquired" from an
+/// Nothing in the game re-locks on its own (a fresh dwell is what takes a
+/// lock), so this window is what turns "the fragment was not acquired" from an
 /// instantaneous reading into an observation.
 #[cfg(feature = "debug")]
 const UNLOCKED_WATCH_SECS: f32 = 2.0;

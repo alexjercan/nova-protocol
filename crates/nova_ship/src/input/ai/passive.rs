@@ -1360,9 +1360,9 @@ mod patrol_physics_tests {
     };
 
     /// The physics half of avoidance: a rock dead on the first leg, and the
-    /// real autopilot (align + burn + brake on real sections) must round it
-    /// - the ship reaches the waypoint with its own SKIN, not just its
-    /// centre, outside the rock plus the patrol's margin.
+    /// real autopilot (align + burn + brake on real sections) must round it -
+    /// the ship reaches the waypoint with its own SKIN, not just its centre,
+    /// outside the rock plus the patrol's margin.
     ///
     /// Run on both reference hulls, because the hull arm is exactly what the
     /// margin used to spend: a carrier judged against its centre line passes

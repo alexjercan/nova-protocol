@@ -232,10 +232,9 @@ fn blend(image: &mut RgbImage, x: f32, y: f32, color: [u8; 3], alpha: f32) {
     }
     let alpha = alpha.min(1.0);
     let pixel = image.get_pixel_mut(x, y);
-    for channel in 0..3 {
-        let under = f32::from(pixel.0[channel]);
-        let over = f32::from(color[channel]);
-        pixel.0[channel] = under.mul_add(1.0 - alpha, over * alpha).round() as u8;
+    for (under, over) in pixel.0.iter_mut().zip(color) {
+        let mixed = f32::from(*under).mul_add(1.0 - alpha, f32::from(over) * alpha);
+        *under = mixed.round() as u8;
     }
 }
 

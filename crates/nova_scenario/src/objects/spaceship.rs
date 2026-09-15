@@ -1414,10 +1414,10 @@ mod tests {
     }
 
     /// Every consumer of a [`SectionSource`] has to land on the SAME section.
-    /// The spawn is the one the others are judged against - a preview that
-    /// draws a hull the spawn does not fly is a creator building against a lie
-    /// - so it is asserted against the resolver itself rather than a written-out
-    /// list of ids: a seventh site that grew its own lookup would disagree here.
+    /// The spawn is the one the others are judged against (a preview that draws
+    /// a hull the spawn does not fly is a creator building against a lie), so it
+    /// is asserted against the resolver itself rather than a written-out list of
+    /// ids: a seventh site that grew its own lookup would disagree here.
     #[test]
     fn the_spawn_flies_the_sections_the_resolver_names() {
         let catalog = GameSections(vec![section_prototype("drive")]);

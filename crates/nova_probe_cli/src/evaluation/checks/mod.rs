@@ -449,8 +449,8 @@ mod tests {
     /// One table decides whether a run earned a grade, and every
     /// capability-gated check reads a missing input through it. The fold in
     /// `overall_verdict` turns on `graded()`, so a check that answers one of
-    /// these states its own way moves a whole run's verdict without saying so
-    /// - and a new check joins this test the moment it joins `CHECKS` with a
+    /// these states its own way moves a whole run's verdict without saying so -
+    /// and a new check joins this test the moment it joins `CHECKS` with a
     /// capability.
     #[test]
     fn every_capability_gated_check_reads_a_missing_input_from_one_table() {

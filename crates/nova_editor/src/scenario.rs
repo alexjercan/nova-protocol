@@ -2266,8 +2266,7 @@ mod tests {
         let far = Meters3::new(0.0, 0.0, -12_000.0);
         let deepest = objects
             .iter_mut()
-            .filter(|object| matches!(object.kind, ScenarioObjectKind::Beacon(_)))
-            .next_back()
+            .rfind(|object| matches!(object.kind, ScenarioObjectKind::Beacon(_)))
             .expect("the range ships beacons");
         deepest.base.position = far;
         for object in &mut objects {

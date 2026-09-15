@@ -77,12 +77,12 @@ pub struct LegPlan {
 /// within `body radius + clearance` of the leg, measured at the closest point
 /// on the segment.
 ///
-/// Two kinds of body are ignored. One whose clearance already contains `from`
-/// - the mover is inside its bubble, this geometry cannot steer OUT of a
-/// sphere, and calling it a blocker would spin corners around the mover's own
-/// position. And one whose clearance contains `to`, because a fly-at-goal leg
-/// is pushed outside every bubble by [`goal_outside`] before it is planned,
-/// so this only guards degenerate geometry from looping.
+/// Two kinds of body are ignored. One whose clearance already contains `from` -
+/// the mover is inside its bubble, this geometry cannot steer OUT of a sphere,
+/// and calling it a blocker would spin corners around the mover's own position.
+/// And one whose clearance contains `to`, because a fly-at-goal leg is pushed
+/// outside every bubble by [`goal_outside`] before it is planned, so this only
+/// guards degenerate geometry from looping.
 pub fn first_blocker(
     from: Vec3,
     to: Vec3,

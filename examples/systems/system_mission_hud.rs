@@ -462,7 +462,7 @@ fn assert_the_cue_reached_the_panel(world: &mut World) {
     let shown = comms_panel_text(world);
     let header = SPEAKER.to_uppercase();
     assert!(
-        shown.iter().any(|line| *line == header),
+        shown.contains(&header),
         "mission hud: the comms panel should be headed '{header}', showing {shown:?}"
     );
     assert!(

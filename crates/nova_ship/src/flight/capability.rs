@@ -168,10 +168,10 @@ mod tests {
     }
 
     /// The property the copies of this gate were supposed to share and did not:
-    /// a controller section with no `PDController` - the editor's preview ship
-    /// - is not a live flight computer, so EVERY verb answers the same "no".
-    /// The Lock answer used to come from a copy that omitted the PD filter and
-    /// said yes here.
+    /// a controller section with no `PDController` (the editor's preview ship)
+    /// is not a live flight computer, so EVERY verb answers the same "no". The
+    /// Lock answer used to come from a copy that omitted the PD filter and said
+    /// yes here.
     #[test]
     fn a_preview_controller_grants_no_verb_at_all() {
         let mut world = World::new();

@@ -175,10 +175,10 @@ impl SeedStream {
 /// off bits 8..15.
 ///
 /// The bottom byte is deliberately NOT geometry. FNV-1a's low bits are its
-/// least mixed - bit 0 is the parity of the input's low bits and nothing more
-/// - so a height drawn from them tracks whatever the caller counted last. It
-/// is left free instead, for a caller that needs a third fraction out of the
-/// same word: `impact_spark` draws a spark's speed from it.
+/// least mixed (bit 0 is the parity of the input's low bits and nothing more),
+/// so a height drawn from them tracks whatever the caller counted last. It is
+/// left free instead, for a caller that needs a third fraction out of the same
+/// word: `impact_spark` draws a spark's speed from it.
 #[must_use]
 pub fn unit_sphere_point(hash: u32) -> Vec3 {
     let turn = (hash >> 16) as f32 / 65_536.0 * std::f32::consts::TAU;
