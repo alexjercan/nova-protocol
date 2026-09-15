@@ -45,17 +45,28 @@ Nine SUBJECT shards, 121 examples, no directory left in the matrix. Sized
 off the table above; the estimate is 15.8-21.1 min per shard against 54.6
 today, so the whole run becomes `check`-bound.
 
-| shard | examples | runs | estimated wall |
-|-|-|-|-|
-| editor | 7 | 705 s | 18.0 min |
-| menu | 17 | 694 s | 18.4 min |
-| hud | 14 | 550 s | 15.8 min |
-| gunnery | 16 | 828 s | 20.6 min |
-| ordnance | 11 | 799 s | 19.8 min |
-| hull | 15 | 711 s | 18.6 min |
-| destruction | 8 | 753 s | 18.9 min |
-| flight | 20 | 848 s | 21.1 min |
-| worldgen | 13 | 867 s | 21.0 min |
+Measured on run 34959859343 (2026-09-15), the first run with every shard
+reaching its verdict. `fixed` is the wall the runs do not explain: checkout,
+apt, cache restore, linking.
+
+| shard | examples | runs | estimated | wall | fixed |
+|-|-|-|-|-|-|
+| worldgen | 13 | 981 s | 21.0 min | 23.7 min | 398 s |
+| ordnance | 11 | 962 s | 19.8 min | 23.4 min | 406 s |
+| flight | 20 | 957 s | 21.1 min | 23.4 min | 380 s |
+| menu | 17 | 854 s | 18.4 min | 21.6 min | 386 s |
+| hud | 14 | 828 s | 15.8 min | 21.3 min | 402 s |
+| hull | 15 | 783 s | 18.6 min | 20.4 min | 390 s |
+| destruction | 8 | 731 s | 18.9 min | 19.5 min | 412 s |
+| gunnery | 16 | 737 s | 20.6 min | 17.9 min | 281 s |
+| editor | 7 | 601 s | 18.0 min | 16.7 min | 374 s |
+
+The split holds: 16.7 to 23.7 min against the 54.6 min screenshots used to
+cost, so the sweep is within about three minutes of `check` plus its own
+fixed cost. The estimates ran low on the shards whose ranges had never been
+measured in CI (`hud` by 5.5 min, `worldgen` and `ordnance` by 3 each) and
+high on `gunnery`, which is the one shard that restored a warm cache in 281
+s rather than ~390.
 
 - `.github/workflows/ci.yaml`: `matrix.include` carries `shard` plus a
   whitespace-separated `examples` list; the step squeezes that into the comma
@@ -68,10 +79,28 @@ today, so the whole run becomes `check`-bound.
 - `scripts/probe-summary.py` drops the `spec` caption once the spec is a
   list - the row count already says it, and the names were 400 characters.
 
-Still open: re-measure on the first green run after this lands and replace
-the estimate column with what the shards actually cost. Watch `editor`
-(both editor outliers) and `destruction` (the `system_collision_damage`
-guess).
+`editor` carries both editor outliers and came in the CHEAPEST shard, and
+`destruction` cost what the `system_collision_damage` guess said it would,
+so neither needs a reshuffle. `system_collision_damage` will add about 95 s
+to `destruction` once it runs to the end (it was cut off by the sweep's own
+deadline on this run, see below), which leaves that shard near 21 min and
+still short of `worldgen`.
+
+## Red on the first sharded run (34959859343)
+
+Seven of the nine shards came back green. The two that did not were both
+found by the split rather than caused by it - neither range had ever
+reached its own verdict in a directory job.
+
+- `system_headless_crt` (`hud`): the pick named its target off a picture
+  the reframe was still sliding, then aimed at where the settled picture
+  shows that blip - inside a cluster, under a neighbour's label pill. The
+  pick now waits for eight frames of the same layout (`e3699ac3e`).
+- `system_collision_damage` (`destruction`): healthy but long. The sweep
+  pinned `NOVA_AUTOPILOT_DEADLINE` at 280 s under a 300 s `--timeout`, so
+  the timeout dial moved nothing, and two carriers coming alongside cost 24
+  real seconds per simulated one on a two-core runner. The pin is gone and
+  `--timeout` is 510, which sizes the harness deadline to 480 (`168fe4b64`).
 
 ## Flaky, pinned 2026-09-15
 
