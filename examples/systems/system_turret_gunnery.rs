@@ -885,12 +885,13 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 /// reason on [`HIT_SETTLE_SECS`] and the window it is waited through on
 /// [`FIRING_WINDOW_DEADLINE_SECS`].
 ///
-/// The per-step deadlines NAME the beat that stalled. Their sum is past both
-/// `DEFAULT_DEADLINE_SECS` (120s) and the 280s CI runs under, so which of the
-/// two reports a stall depends on where it lands - late enough in the walk and
-/// the run collector wins. That is the price of per-beat bounds loose enough to
-/// survive a software rasterizer, and the run's own log names the beat it was
-/// in either way.
+/// The per-step deadlines NAME the beat that stalled. Their sum is past
+/// `DEFAULT_DEADLINE_SECS` (120s), so on a run that does not raise the
+/// completion deadline - probe sizes it from `--timeout`, and CI's sweep gives
+/// it 480 s - which of the two reports a stall depends on where it lands: late
+/// enough in the walk and the run collector wins. That is the price of
+/// per-beat bounds loose enough to survive a software rasterizer, and the
+/// run's own log names the beat it was in either way.
 #[cfg(feature = "debug")]
 fn turret_script() -> Script {
     let script = Script::new()
