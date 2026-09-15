@@ -146,15 +146,21 @@ const CENTER_TOLERANCE_PX: f32 = 10.0;
 #[cfg(feature = "debug")]
 const STANDOFF_FLOOR_PX: f32 = 36.0;
 
-/// What "the camera has stopped" means: a frame's movement under this much
-/// translation and this much rotation, held for this many consecutive frames.
-/// A rig that is still easing moves far more than this every frame.
+/// What "the camera has stopped" means: a rig moving slower than this in
+/// translation and in turn, held for this long. A rig that is still easing
+/// moves far faster than either.
+///
+/// Per SECOND of the clock the ease runs on, not per frame. A frame's worth of
+/// easing is a frame's worth of clock, so a per-frame figure says "stopped" at
+/// sixty frames a second and "still moving" at six - and on a software
+/// rasteriser the beat waited out its whole deadline while the camera sat
+/// where it had parked eighty seconds earlier.
 #[cfg(feature = "debug")]
-const CAMERA_PARKED_UNITS: f32 = 0.01;
+const CAMERA_PARKED_UNITS_PER_SEC: f32 = 0.6;
 #[cfg(feature = "debug")]
-const CAMERA_PARKED_RAD: f32 = 0.0005;
+const CAMERA_PARKED_RAD_PER_SEC: f32 = 0.03;
 #[cfg(feature = "debug")]
-const CAMERA_PARKED_FRAMES: u32 = 30;
+const CAMERA_PARKED_SECS: f32 = 0.5;
 
 /// The rendered frame this range shoots, so the mission surfaces can be looked
 /// at rather than only measured. Named once: the beat that waits for the write
@@ -409,8 +415,7 @@ fn the_mission_is_on_screen() -> std::sync::Arc<nova_protocol::nova_debug::harne
 /// needs it to have got there.
 #[cfg(feature = "debug")]
 fn the_camera_is_parked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    let last = std::sync::Mutex::new(Option::<(Vec3, Quat)>::None);
-    let still = std::sync::atomic::AtomicU32::new(0);
+    let watch = std::sync::Mutex::new((Option::<(Vec3, Quat)>::None, 0.0_f32));
     std::sync::Arc::new(move |world: &World| {
         let Some(pose) = world
             .try_query_filtered::<&GlobalTransform, With<ScreenIndicatorCamera>>()
@@ -418,19 +423,22 @@ fn the_camera_is_parked() -> std::sync::Arc<nova_protocol::nova_debug::harness::
         else {
             return false;
         };
+        // The ease runs on the game clock, so the rate is read on it too: a
+        // frame that advanced a quarter of a second of world moved a quarter of
+        // a second's worth of camera, however long it took to draw.
+        let dt = world.resource::<Time<Virtual>>().delta_secs();
+        if dt <= 0.0 {
+            return false;
+        }
         let now = (Vec3::from(pose.translation), pose.rotation);
-        let mut last = last.lock().expect("mission hud: camera watch poisoned");
+        let (last, still) = &mut *watch.lock().expect("mission hud: camera watch poisoned");
         let parked = last.is_some_and(|(at, facing)| {
-            at.distance(now.0) < CAMERA_PARKED_UNITS
-                && facing.angle_between(now.1) < CAMERA_PARKED_RAD
+            at.distance(now.0) / dt < CAMERA_PARKED_UNITS_PER_SEC
+                && facing.angle_between(now.1) / dt < CAMERA_PARKED_RAD_PER_SEC
         });
         *last = Some(now);
-        if parked {
-            still.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1 >= CAMERA_PARKED_FRAMES
-        } else {
-            still.store(0, std::sync::atomic::Ordering::Relaxed);
-            false
-        }
+        *still = if parked { *still + dt } else { 0.0 };
+        *still >= CAMERA_PARKED_SECS
     })
 }
 
