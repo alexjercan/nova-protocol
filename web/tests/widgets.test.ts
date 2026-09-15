@@ -65,7 +65,7 @@ import {
     SFX_FAR_DISTANCE,
     SFX_NEAR_DISTANCE,
     SFX_ROLLOFF_FLOOR,
-    SHARDS_PER_FRAME,
+    SHARD_EMITTERS,
     soundAtEars,
     soundCueUrl,
     SOUND_FAMILIES,
@@ -469,8 +469,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
 
     // The frame ceilings the collapse scope prices.
     assert.equal(
-        SHARDS_PER_FRAME,
-        rustNumber(SPEW, /const SHARDS_PER_FRAME: usize = ([0-9]+);/)
+        SHARD_EMITTERS,
+        rustNumber(SPEW, /const SHARD_EMITTERS: usize = ([0-9]+);/)
     );
     assert.equal(
         CHUNK_ACTIVATIONS_PER_FRAME,
@@ -856,17 +856,17 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.ok(commandAllowed("ammo refill", "Cheat", true));
 }
 
-// Ceilings: the walk once, 128 chips, 24 pieces a frame.
+// Ceilings: the walk once, 64 craters chipped, 24 pieces a frame.
 {
     const b = collapseBudget(720, 600);
     assert.equal(b.walksOld, 720);
     assert.equal(b.walksNew, 1);
     assert.equal(b.chipsOld, 4200);
-    assert.equal(b.chipsNew, 128);
-    // 128 chips at 7 to a wide crater: 18 craters carve whole, the 19th gets
-    // the last 2 chips (`count` is clamped to what is left, spew.rs:567-575),
-    // and the 581 after it arrive at an empty budget and throw nothing.
-    assert.equal(b.unchipped, 581);
+    // 64 emitters a material, seven chips to a wide crater. A crater past the
+    // pool is refused whole rather than given the remainder, so the count is
+    // a clean 64 x 7 and the 536 craters after it throw nothing.
+    assert.equal(b.chipsNew, 448);
+    assert.equal(b.unchipped, 536);
     assert.equal(b.piecesOld, 720);
     assert.equal(b.piecesNew, 24);
     assert.equal(b.shedFrames, 30, "720 pieces take 30 frames");

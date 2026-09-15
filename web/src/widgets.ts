@@ -11473,18 +11473,25 @@ function initCommandCatalog(host: HTMLElement): void {
 
 // ---- v0.13.0: three ceilings on one impact --------------------------------
 
-// The per-frame ceilings: 128 carve chips a frame (nova_gameplay/src/
-// integrity/spew.rs:299), 24 wreck-piece activations a frame (integrity/
-// chunk.rs:94), and the pre-cut centre-of-mass walk once per root per frame
-// (nova_ship/src/sections/integrity.rs). A wide crater throws the kinetic and
-// pierce looks' ceiling of seven chips (spew.rs:242,:255, clamped :232).
+// The per-frame ceilings: 64 craters of a material chipped a frame
+// (nova_gameplay/src/integrity/spew.rs `SHARD_EMITTERS`), 24 wreck-piece
+// activations a frame (integrity/chunk.rs), and the pre-cut centre-of-mass
+// walk once per root per frame (nova_ship/src/sections/integrity.rs). A wide
+// crater throws the kinetic and pierce looks' ceiling of seven chips
+// (spew.rs `KINETIC_SHARDS`/`PIERCE_SHARDS`, clamped in `count`).
+//
+// The chip ceiling counts CRATERS, not chips. Chips are GPU particles now, so
+// a crater is a burst out of one pooled emitter, and the pool of a material
+// grows to `SHARD_EMITTERS` and no further - the 65th crater of that material
+// in one frame finds every emitter fired and throws nothing at all. Seven
+// chips to a wide crater puts the frame's metal ceiling at 448.
 //
 // The walk's cost is the stress_hull_collapse range's record: 55.18 ms for
 // the 1088 sections of one siege salvo before, 0.87 ms for 1063 after
 // (tasks/20260904-155338/TASK.md:139-140), scaled here per section. The
 // stress hull is 1296 cells (tasks/20260904-173517/TASK.md:45), and its
 // 720-piece collapse is the activation queue's record (:75,:219).
-export const SHARDS_PER_FRAME = 128;
+export const SHARD_EMITTERS = 64;
 export const CHUNK_ACTIVATIONS_PER_FRAME = 24;
 export const CHIPS_PER_WIDE_CRATER = 7;
 const STRESS_HULL_CELLS = 1296;
@@ -11498,7 +11505,7 @@ export interface CollapseBudget {
     walkMsNew: number;
     chipsOld: number;
     chipsNew: number;
-    /** Craters that arrive with the frame's chip budget already at zero and
+    /** Craters that arrive after the frame's emitters are all spent and
      * throw nothing at all. */
     unchipped: number;
     piecesOld: number;
@@ -11512,24 +11519,20 @@ export function collapseBudget(
     craters: number
 ): CollapseBudget {
     const chipsOld = craters * CHIPS_PER_WIDE_CRATER;
-    const chipsNew = Math.min(chipsOld, SHARDS_PER_FRAME);
+    const chipped = Math.min(craters, SHARD_EMITTERS);
     return {
         walksOld: sections,
         walksNew: 1,
         walkMsOld: sections * WALK_MS_PER_SECTION_OLD,
         walkMsNew: sections * WALK_MS_PER_SECTION_NEW,
         chipsOld,
-        chipsNew,
-        // The budget is spent in CHIPS, not in craters: `count` is the look's
-        // count clamped to what is left, and a crater goes unchipped only when
-        // that leaves zero (spew.rs:567-575). So the last crater the budget
-        // reaches gets a SHORT carve out of the remainder rather than nothing -
-        // 128 chips cover 18 full craters and part of a nineteenth - and it is
-        // the twentieth on that counts as unchipped.
-        unchipped: Math.max(
-            0,
-            craters - Math.ceil(SHARDS_PER_FRAME / CHIPS_PER_WIDE_CRATER)
-        ),
+        chipsNew: chipped * CHIPS_PER_WIDE_CRATER,
+        // The budget is spent in CRATERS, one pooled emitter each: a crater
+        // that finds every emitter of its material already fired this frame
+        // is refused whole (spew.rs, the `else` past `SHARD_EMITTERS`), so
+        // there is no short carve at the end. 64 craters chip in full and the
+        // 65th on throws nothing.
+        unchipped: craters - chipped,
         piecesOld: sections,
         piecesNew: Math.min(sections, CHUNK_ACTIVATIONS_PER_FRAME),
         shedFrames: Math.ceil(sections / CHUNK_ACTIVATIONS_PER_FRAME),
@@ -11695,7 +11698,7 @@ function initCollapseBudget(host: HTMLElement): void {
         pieceStat.textContent = `${b.shedFrames} frame${b.shedFrames === 1 ? "" : "s"}`;
         readout.classList.remove("is-warn");
         const underEvery =
-            s <= CHUNK_ACTIVATIONS_PER_FRAME && b.chipsOld <= SHARDS_PER_FRAME;
+            s <= CHUNK_ACTIVATIONS_PER_FRAME && c <= SHARD_EMITTERS;
         if (underEvery) {
             readout.textContent =
                 `Under every ceiling. ${s} section${s === 1 ? "" : "s"} and ${c} ` +

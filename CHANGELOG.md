@@ -220,6 +220,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Bullet chips are GPU particles. A hit no longer spawns kinematic bodies that
   the solver, every ship's sensor sweep and the renderer carried for 2.5 s; a
   busy 4v4 held eight thousand of them.
+- A frame chips at most 64 craters of each material, seven chips to a wide
+  one. The 0.13.0 ceiling counted 128 chips and gave the last crater a short
+  carve; a crater past the pool now throws nothing.
 - Gun rounds confirm hits against the selected collider without a second
   spatial-tree search. Firing and damage rules are unchanged.
 - The game runs at most eight parallel worker threads. Above 16 hardware
