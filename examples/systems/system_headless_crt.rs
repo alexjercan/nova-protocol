@@ -238,6 +238,34 @@ struct GlassTarget {
     code: String,
 }
 
+/// How far a blip may move between two frames and still count as a picture
+/// that has STOPPED, in window px.
+///
+/// Sub-pixel: the reframe eases per frame, so a picture still sliding moves a
+/// blip by whole pixels a frame and a settled one by nothing at all.
+#[cfg(feature = "debug")]
+const STILL_PX: f32 = 0.5;
+
+/// Frames the picture must hold still before a pick reads it.
+///
+/// More than one, because an input the picture has not answered yet leaves it
+/// looking still: a wheel notch reaches the map a frame or two after the frame
+/// that took it, and a single quiet frame in between would let the pick fire
+/// into the calm before the slide.
+#[cfg(feature = "debug")]
+const STILL_FRAMES: u32 = 8;
+
+/// Where the picture had every plotted blip on the frame before, sorted by
+/// code the way [`plotted_contacts`] sorts, and how many frames running it has
+/// held them there. Lets the pick tell a layout that has settled from one the
+/// reframe is still sliding.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct GlassLayout {
+    at: Vec<(String, Vec2)>,
+    still_frames: u32,
+}
+
 /// The blip the chosen target's code currently labels, freshly resolved.
 #[cfg(feature = "debug")]
 fn resolve_blip(world: &World) -> Option<Entity> {
@@ -351,9 +379,44 @@ fn pulse_action(world: &mut World, action: &'static str, frame: u32) {
     }
 }
 
-/// Record the LONELIEST contact the CRT is showing that the ring is not on as
-/// this run's target, and take a wheel notch out on a frame that shows no such
-/// blip.
+/// Whether the picture has held the same layout for [`STILL_FRAMES`] frames,
+/// remembering this frame's for the next call.
+///
+/// The reframe eases the map into place over several FRAMES, and a pick made
+/// part way through that slide names whichever blip was loneliest in a layout
+/// that no longer exists a frame later. A run with a full-rate frame clock
+/// finishes the slide inside one beat and never sees it; CI runs the same beat
+/// on far fewer frames, and there the pick read `AST-64` at window px the
+/// settled picture puts 600 px away - among neighbours, one of whose pills is
+/// what the pointer then found instead (`AST-71`, run 34959859343).
+///
+/// Frame to frame, not against the layout the run opened on: the map follows
+/// what it is showing, so a picture that has stopped easing can still drift by
+/// a fraction of a pixel a frame, and a drift that never ends is not what this
+/// waits out.
+#[cfg(feature = "debug")]
+fn picture_has_stopped(world: &mut World, shown: &[(Entity, String, Vec2)]) -> bool {
+    let at: Vec<(String, Vec2)> = shown
+        .iter()
+        .map(|(_, code, at)| (code.clone(), *at))
+        .collect();
+    let before = world.remove_resource::<GlassLayout>().unwrap_or_default();
+    let held = !at.is_empty()
+        && at.len() == before.at.len()
+        && at
+            .iter()
+            .zip(&before.at)
+            .all(|((code, now), (was_code, was))| {
+                code == was_code && was.distance(*now) <= STILL_PX
+            });
+    let still_frames = if held { before.still_frames + 1 } else { 0 };
+    world.insert_resource(GlassLayout { at, still_frames });
+    still_frames >= STILL_FRAMES
+}
+
+/// Record the LONELIEST contact a STOPPED picture is showing that the ring is
+/// not on as this run's target, and take a wheel notch out on a frame that
+/// shows no such blip.
 ///
 /// Loneliest, not first, because a click resolves to the TOPMOST node under the
 /// pointer and every blip wears a label pill several times its own width. In a
@@ -362,6 +425,11 @@ fn pulse_action(world: &mut World, action: &'static str, frame: u32) {
 /// contact that is not the target. Taking the blip with the most window px
 /// between it and its nearest neighbour makes the pick a property of the
 /// picture rather than of the cycling order.
+///
+/// Stopped, because that property is only worth having if the picture the pick
+/// reads is the picture the aim will use - see [`picture_has_stopped`]. The
+/// wheel notch waits on the same condition: a net thrown at a sliding picture
+/// would keep it sliding.
 ///
 /// The beat holds until the pick lands, so this runs every frame of it: the
 /// choice is made ONCE and the later frames cost nothing, which also keeps the
@@ -378,6 +446,7 @@ fn pick_the_target(world: &mut World, _elapsed: f32, frame: u32) {
             Some((contact, code, at))
         })
         .collect();
+    let stopped = picture_has_stopped(world, &shown);
     let ringed = ringed_code(world);
     let loneliest = shown
         .iter()
@@ -392,7 +461,7 @@ fn pick_the_target(world: &mut World, _elapsed: f32, frame: u32) {
             };
             room(a).total_cmp(&room(b))
         });
-    match loneliest {
+    match loneliest.filter(|_| stopped) {
         Some((contact, code, at)) => {
             info!("headless crt: the target is {code} at {at:?}, with the ring on {ringed:?}");
             world.insert_resource(GlassTarget {
@@ -400,7 +469,7 @@ fn pick_the_target(world: &mut World, _elapsed: f32, frame: u32) {
                 code: code.clone(),
             });
         }
-        None if frame % 8 == 1 => scroll_lines(-2.0)(world),
+        None if stopped && frame % 8 == 1 => scroll_lines(-2.0)(world),
         None => {}
     }
 }
