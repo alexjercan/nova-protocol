@@ -317,10 +317,6 @@ fn apply_blast_cases(world: &mut World) {
         world.spawn((
             nova_blast(TORPEDO_BLAST_RADIUS, TORPEDO_DAMAGE, DamageType::Explosive),
             Transform::from_translation(at),
-            // The lifetime the shipped detonation gives its blast: long enough
-            // for one fixed tick's overlap set, short enough to be gone before
-            // the row is framed.
-            TempEntity(0.1),
         ));
         world.flush();
     }

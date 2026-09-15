@@ -105,7 +105,6 @@ fn spawn_blast(commands: &mut Commands, at: Vec3, damage: f32) {
     commands.spawn((
         nova_blast(BLAST_RADIUS, damage, DamageType::Explosive),
         Transform::from_translation(at),
-        TempEntity(0.1),
     ));
 }
 

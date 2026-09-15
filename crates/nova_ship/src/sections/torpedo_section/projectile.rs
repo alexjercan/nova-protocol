@@ -318,7 +318,6 @@ pub(super) fn torpedo_detonate_system(
                 // way. The target's motion belongs to the fuze window, not to
                 // where the fireball goes.
                 BlastMomentum(torpedo_velocity),
-                TempEntity(0.1),
             ));
             // The blast inherits the torpedo's owner so the damage it deals
             // stays attributable to the ship that fired the torpedo: nova
@@ -897,7 +896,8 @@ mod tests {
     /// a blast spawned without one belongs to nothing, survives a Retry teardown
     /// and lands its damage in the NEXT scenario (task 20260816-103226). nova_ship
     /// cannot see the loader that depends on this, so the contract is pinned at
-    /// the spawn.
+    /// the spawn. `nova_blast` supplies the component; this asserts the
+    /// detonation path really does go through that bundle.
     #[test]
     fn the_detonation_blast_is_a_transient() {
         let mut app = App::new();

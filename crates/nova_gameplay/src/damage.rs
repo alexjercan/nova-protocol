@@ -537,8 +537,11 @@ pub struct NovaBlast {
 }
 
 /// Bundle for a nova typed blast volume: a Static sensor sphere that owns its
-/// collision events. Spawn with a `Transform` at the centre and a short
-/// `TempEntity` so it cleans itself up after its overlap set is resolved.
+/// collision events. Spawn it with a `Transform` at the centre and nothing
+/// else: the bundle carries both of its own lifetimes - [`BLAST_TICKS`], the
+/// fixed-tick window its overlap set is resolved in, and
+/// [`BLAST_BACKSTOP_SECS`], the wall-clock backstop nova_scenario also scopes
+/// it by.
 pub fn nova_blast(radius: f32, max_damage: f32, kind: DamageType) -> impl Bundle {
     (
         Name::new("NovaBlastArea"),
@@ -552,6 +555,8 @@ pub fn nova_blast(radius: f32, max_damage: f32, kind: DamageType) -> impl Bundle
         Sensor,
         CollisionEventsEnabled,
         Visibility::Visible,
+        BlastTicksLeft(BLAST_TICKS),
+        crate::lifetime::prelude::TempEntity(BLAST_BACKSTOP_SECS),
     )
 }
 
@@ -767,6 +772,54 @@ fn resolve_nova_blast_hits(
     }
 }
 
+/// Fixed ticks a blast volume stays in the world, counted down by
+/// [`retire_spent_blasts`].
+///
+/// TICKS, not seconds. The overlap set a blast is spent on is produced by the
+/// physics tick AFTER it spawns, so the fixed clock that runs those ticks is
+/// the only clock that can promise it lives to see one. A blast used to ride a
+/// 0.1 s `TempEntity`, and that sweep spends its timer in `Update` with the
+/// FRAME delta: on a software rasterizer a frame carries a quarter second of
+/// world, so a warhead that fuzed on the last fixed step of a frame was swept
+/// away before the tick that would have resolved it and dealt nothing at all -
+/// a torpedo onto a 2 081-section capital that left it untouched (CI run
+/// 34950687846, `system_torpedo_capital`).
+///
+/// Eight is an eighth of a second at the shipped 64 Hz, the window the 0.1 s
+/// lifetime it replaces was reaching for: enough for avian to link a freshly
+/// spawned sensor and report its overlaps, short enough that a salvo's volumes
+/// never pile up.
+const BLAST_TICKS: u8 = 8;
+
+/// Wall-clock backstop on a blast volume, and the component nova_scenario
+/// scopes it to its own scenario by (`register_scenario_scoping`: a blast that
+/// outlived a Retry once destroyed the reloaded scenario's asteroid, task
+/// 20260816-103226).
+///
+/// An order of magnitude above the [`BLAST_TICKS`] window, so the tick counter
+/// is always what retires a blast and this only ever catches a volume the fixed
+/// loop stopped running under. The sweep behind it spends the FRAME delta,
+/// which is exactly why it cannot also BE the window.
+const BLAST_BACKSTOP_SECS: f32 = 1.0;
+
+/// Fixed ticks this blast volume has left. Private: the bundle installs it, so
+/// no caller can spawn a blast that outlives or undercuts its overlap set.
+#[derive(Component)]
+struct BlastTicksLeft(u8);
+
+/// Spend one fixed tick of every live blast volume, and take away the spent
+/// ones. See [`BLAST_TICKS`] for why the count is in ticks.
+fn retire_spent_blasts(mut commands: Commands, mut q_blast: Query<(Entity, &mut BlastTicksLeft)>) {
+    for (blast, mut left) in &mut q_blast {
+        left.0 = left.0.saturating_sub(1);
+        if left.0 == 0 {
+            // try_despawn: a scenario teardown can queue the same despawn into
+            // this flush, and the loser of that race warns (`crate::test_log`).
+            commands.entity(blast).try_despawn();
+        }
+    }
+}
+
 /// Ordering handle for [`resolve_nova_blast_hits`], so work that has to see a
 /// blast's casualties can run after it. The sibling of
 /// [`NovaRoundSystems`](crate::rounds::prelude::NovaRoundSystems): between them
@@ -799,7 +852,8 @@ impl Plugin for NovaDamagePlugin {
         app.add_observer(collect_nova_blast_collision);
         app.add_systems(
             FixedPostUpdate,
-            resolve_nova_blast_hits
+            (resolve_nova_blast_hits, retire_spent_blasts)
+                .chain()
                 .after(PhysicsSystems::Last)
                 .in_set(NovaDamageSystems),
         );
@@ -852,7 +906,9 @@ mod tests {
         app.add_observer(collect_nova_blast_collision);
         app.add_systems(
             FixedPostUpdate,
-            resolve_nova_blast_hits.after(PhysicsSystems::Last),
+            (resolve_nova_blast_hits, retire_spent_blasts)
+                .chain()
+                .after(PhysicsSystems::Last),
         );
         app
     }
@@ -1277,6 +1333,94 @@ mod tests {
         assert!(transmitted_pressure(standard, 3) < 200.0);
         assert!(transmitted_pressure(siege, 5) >= 200.0);
         assert!(transmitted_pressure(siege, 6) < 200.0);
+    }
+
+    /// Fixed ticks a blast volume was alive for, and what its target paid, at
+    /// one frame length.
+    fn blast_life_at(frame_secs: f32) -> (usize, f32) {
+        #[derive(Resource, Default)]
+        struct TicksAlive(usize);
+
+        let mut app = blast_app();
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(frame_secs),
+        ));
+        app.init_resource::<TicksAlive>();
+        app.add_systems(
+            FixedPostUpdate,
+            (|q: Query<(), With<NovaBlast>>, mut ticks: ResMut<TicksAlive>| {
+                if !q.is_empty() {
+                    ticks.0 += 1;
+                }
+            })
+            .after(PhysicsSystems::Last)
+            .before(resolve_nova_blast_hits),
+        );
+
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default()))
+            .id();
+        let target = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                Transform::from_xyz(15.0, 0.0, 0.0),
+                Collider::sphere(1.0),
+                ColliderDensity(1.0),
+                Health::new(1000.0),
+                SectionClass::Turret,
+            ))
+            .id();
+        app.world_mut().spawn((
+            nova_blast(30.0, 100.0, DamageType::Explosive),
+            Transform::default(),
+        ));
+
+        // Enough frames for the shortest of them to spend every tick the
+        // volume has, whichever length is under test.
+        for _ in 0..24 {
+            app.update();
+        }
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaBlast>>()
+                .iter(app.world())
+                .next()
+                .is_none(),
+            "a spent blast volume must be taken away"
+        );
+        (app.world().resource::<TicksAlive>().0, health(&app, target))
+    }
+
+    /// A blast is spent on the FIXED clock, so the length of the frame it was
+    /// spawned in cannot decide whether it goes off.
+    ///
+    /// The volume used to ride a 0.1 s `TempEntity`, whose sweep spends its
+    /// timer in `Update` with the frame delta. On a software rasterizer a frame
+    /// carries a quarter second of world - more than the whole lifetime - so a
+    /// warhead that fuzed on the last fixed step of a frame was swept away
+    /// before the physics tick that would have resolved it, and a torpedo onto
+    /// a 2 081-section capital left it untouched (CI run 34950687846,
+    /// `system_torpedo_capital`).
+    #[test]
+    fn a_blast_lives_the_same_fixed_ticks_however_long_the_frame_is() {
+        let (quick_ticks, quick_paid) = blast_life_at(1.0 / 60.0);
+        let (slow_ticks, slow_paid) = blast_life_at(0.25);
+
+        assert_eq!(
+            quick_ticks,
+            slow_ticks,
+            "a blast volume must be spent in fixed ticks, not in frames; a \
+             {:.3}s frame gave it {slow_ticks} and a {:.3}s frame {quick_ticks}",
+            0.25,
+            1.0 / 60.0
+        );
+        assert!(
+            quick_paid < 1000.0 && (quick_paid - slow_paid).abs() < 1e-1,
+            "the same warhead must deal the same damage at either frame length; \
+             got {quick_paid} and {slow_paid} of 1000"
+        );
     }
 
     #[test]

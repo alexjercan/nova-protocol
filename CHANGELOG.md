@@ -271,6 +271,9 @@ does NOT get an entry - and it is the only place they are written down.
   well-mixed half now does.
 
 ### Fixes
+- A torpedo that goes off on a heavy frame still does its damage: the blast
+  volume is now spent in physics ticks, so a slow frame can no longer sweep it
+  away before the tick that resolves what it caught.
 - A travel order given the moment a ship appears is actually flown. The
   computer read the hull's mass one tick before the physics published it, and
   reported the trip complete without moving.
