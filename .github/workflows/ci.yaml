@@ -299,6 +299,7 @@ jobs:
           - shard: hull
             examples: >-
               screenshot_section_frame screenshot_section_gallery
+              screenshot_docking_gallery
               screenshot_section_drives screenshot_section_weapons
               screenshot_section_trials screenshot_hull_juice
               screenshot_damage_levels loop_sections_compare loop_spine_cut

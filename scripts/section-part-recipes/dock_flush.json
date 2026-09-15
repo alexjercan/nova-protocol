@@ -1,0 +1,280 @@
+{
+  "_comment": "DOCKING CANDIDATE (flush): the sealed hatch. Nothing stands proud of the cell at all - one wide steel ring fills the -Z face out to 0.49 and the sleeve's mouth sits flush in it, so a retracted port reads as a hull plate with a ring seam until it is used. Four glow pads set INTO the face ring are the only tell. The sleeve is graphite rather than steel: two dark tubes crossing show the crossing circle far less than two bright ones, which is the cheapest test of whether the overlap seam needs solving at all. Thinnest silhouette of the three.",
+  "frame": "dock",
+  "cells": [
+    1,
+    1,
+    1
+  ],
+  "materials": {
+    "part_steel": {
+      "color": [
+        0.42,
+        0.44,
+        0.47
+      ],
+      "metallic": 0.7,
+      "roughness": 0.45
+    },
+    "part_gunmetal": {
+      "color": [
+        0.18,
+        0.19,
+        0.22
+      ],
+      "metallic": 0.55,
+      "roughness": 0.6
+    },
+    "part_copper": {
+      "color": [
+        0.5,
+        0.26,
+        0.13
+      ],
+      "metallic": 0.8,
+      "roughness": 0.35
+    },
+    "part_cable": {
+      "color": [
+        0.06,
+        0.06,
+        0.075
+      ],
+      "metallic": 0.0,
+      "roughness": 0.95
+    },
+    "part_glow": {
+      "color": [
+        0.25,
+        0.8,
+        0.9
+      ],
+      "metallic": 0.1,
+      "roughness": 0.25
+    },
+    "part_amber": {
+      "color": [
+        0.85,
+        0.55,
+        0.12
+      ],
+      "metallic": 0.4,
+      "roughness": 0.5
+    },
+    "part_throat": {
+      "color": [
+        0.03,
+        0.03,
+        0.04
+      ],
+      "metallic": 0.1,
+      "roughness": 0.9
+    },
+    "part_graphite": {
+      "color": [
+        0.05,
+        0.053,
+        0.062
+      ],
+      "metallic": 0.12,
+      "roughness": 0.82
+    }
+  },
+  "material": "part_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.9,
+        0.9,
+        0.72
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.09
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "sleeve",
+      "radius": 0.49,
+      "bore": 0.355,
+      "height": 0.22,
+      "sides": 12,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -0.37
+      ]
+    },
+    {
+      "primitive": "sleeve",
+      "radius": 0.42,
+      "bore": 0.355,
+      "height": 0.53,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -0.015
+      ]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.34,
+      "thickness": 0.02,
+      "sides": 10,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.235
+      ],
+      "material": "part_throat"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.016
+      ],
+      "at": [
+        0.42,
+        0.0,
+        -0.488
+      ],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.016
+      ],
+      "at": [
+        -0.42,
+        0.0,
+        -0.488
+      ],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.016
+      ],
+      "at": [
+        0.0,
+        0.42,
+        -0.488
+      ],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.016
+      ],
+      "at": [
+        0.0,
+        -0.42,
+        -0.488
+      ],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.04,
+        0.5,
+        0.014
+      ],
+      "at": [
+        0.455,
+        0.0,
+        0.1
+      ],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.24,
+        0.3
+      ],
+      "at": [
+        0.455,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.02,
+        0.02,
+        0.6
+      ],
+      "at": [
+        0.458,
+        -0.26,
+        0.12
+      ],
+      "material": "part_cable"
+    }
+  ],
+  "nodes": [
+    {
+      "name": "dock_tube",
+      "at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parts": [
+        {
+          "primitive": "sleeve",
+          "radius": 0.325,
+          "bore": 0.275,
+          "height": 0.7,
+          "sides": 12,
+          "rotate": [
+            90.0,
+            0.0,
+            0.0
+          ],
+          "at": [
+            0.0,
+            0.0,
+            -0.15
+          ],
+          "radius_top": 0.345,
+          "bore_top": 0.295,
+          "material": "part_graphite"
+        }
+      ]
+    }
+  ]
+}

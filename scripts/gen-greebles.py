@@ -206,6 +206,49 @@ def disc(radius, thickness, sides, material):
     return _tube(radius, radius, thickness, sides, material)
 
 
+def sleeve(radius, bore, height, sides, material, radius_top=None, bore_top=None):
+    """An OPEN-ENDED annular tube around +Y: a length of pipe with a real bore.
+
+    The one primitive `cylinder`/`taper`/`disc` cannot express, and the one a
+    docking tube is: geometry that another tube can slide INSIDE. The caps are
+    annuli rather than discs, so the bore is seen through from either end and
+    a nested part is not hidden behind a lid.
+
+    `radius_top`/`bore_top` default to the bottom pair, which gives a straight
+    pipe; naming them tapers the wall. A monotone taper is what lets two
+    facing sleeves nest - identical mirrored profiles always cross somewhere,
+    and a single smooth taper puts that crossing on ONE clean circle.
+    """
+    if sides < 3:
+        raise ValueError("a sleeve needs at least 3 sides, got %d" % sides)
+    radius_top = radius if radius_top is None else radius_top
+    bore_top = bore if bore_top is None else bore_top
+    for outer, inner in ((radius, bore), (radius_top, bore_top)):
+        if inner <= 0.0 or inner >= outer:
+            raise ValueError(
+                "a sleeve needs 0 < bore < radius, got bore %r radius %r" % (inner, outer)
+            )
+    half = height / 2.0
+    step = 2.0 * math.pi / sides
+
+    def ring(r, y):
+        return [(r * math.cos(i * step), y, r * math.sin(i * step)) for i in range(sides)]
+
+    outer_low, outer_high = ring(radius, -half), ring(radius_top, half)
+    bore_low, bore_high = ring(bore, -half), ring(bore_top, half)
+    tris = []
+    for i in range(sides):
+        j = (i + 1) % sides
+        # Outer wall, wound outward like `_tube`; inner wall reversed, so it
+        # faces the axis and reads as a bore rather than an inside-out pipe.
+        tris += _quad(outer_low[i], outer_high[i], outer_high[j], outer_low[j], material)
+        tris += _quad(bore_low[j], bore_high[j], bore_high[i], bore_low[i], material)
+        # The two annular rims, following `_tube`'s cap winding.
+        tris += _quad(bore_high[i], bore_high[j], outer_high[j], outer_high[i], material)
+        tris += _quad(bore_low[i], outer_low[i], outer_low[j], bore_low[j], material)
+    return tris
+
+
 def ribs(size, count, rib_height, rib_width, across, material):
     """A flat base panel carrying `count` raised ribs.
 
@@ -330,6 +373,16 @@ def build_part(part, material):
             part.get("thickness", 0.015),
             part.get("sides", 12),
             material,
+        )
+    elif kind == "sleeve":
+        tris = sleeve(
+            _require(part, "radius"),
+            _require(part, "bore"),
+            _require(part, "height"),
+            part.get("sides", 12),
+            material,
+            radius_top=part.get("radius_top"),
+            bore_top=part.get("bore_top"),
         )
     elif kind == "ribs":
         tris = ribs(
@@ -557,6 +610,23 @@ def self_test():
     drum = cylinder(0.05, 0.1, 8, grey)
     assert len(drum) == 32, len(drum)  # 8 quads + 2 fanned caps
     assert all(abs(v[1]) <= 0.05 + 1e-9 for t in drum for v in t.verts())
+
+    # A sleeve is a closed annulus: its own winding integrates to the pipe
+    # wall, so the bore is a real hole rather than a reversed outer surface.
+    pipe = sleeve(0.06, 0.04, 0.2, sides, grey)
+    assert len(pipe) == 8 * sides, len(pipe)
+    wall = 0.5 * sides * math.sin(2.0 * math.pi / sides) * (0.06**2 - 0.04**2)
+    assert abs(signed_volume(pipe) - wall * 0.2) < 1e-12, signed_volume(pipe)
+    # A tapered sleeve still closes, and the bore must stay inside the wall.
+    cone_pipe = sleeve(0.06, 0.04, 0.2, sides, grey, radius_top=0.05, bore_top=0.035)
+    assert signed_volume(cone_pipe) > 0.0, signed_volume(cone_pipe)
+    for bad in ((0.06, 0.06), (0.06, 0.0), (0.06, 0.07)):
+        try:
+            sleeve(bad[0], bad[1], 0.2, sides, grey)
+        except ValueError as err:
+            assert "0 < bore < radius" in str(err), str(err)
+        else:
+            raise AssertionError("sleeve bore not checked: %r" % (bad,))
 
     # Ribs land inside their panel and each adds one box.
     panel = ribs((0.3, 0.02, 0.2), 3, 0.03, 0.04, "x", grey)

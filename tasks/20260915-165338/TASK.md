@@ -82,6 +82,10 @@ Spike procedure:
 The visual selection is a required stop. Do not choose a candidate on the
 owner's behalf.
 
+Phase 1 is done. The owner selected `dock_flush` on 2026-09-15. Phase 2 uses
+that mesh; `SPIKE.md` records the candidates, the checked geometry contract and
+the captured frames.
+
 ## Phase 2: baseline docking logic
 
 Start from this model and adjust names only for concrete crate conventions:

@@ -597,6 +597,14 @@ path = "examples/screenshots/screenshot_thruster_gallery.rs"
 name = "screenshot_section_gallery"
 path = "examples/screenshots/screenshot_section_gallery.rs"
 
+# The docking-section mesh spike (task 20260915-165338, phase 1): every
+# candidate port under art/part-candidates/sections shown retracted, extended,
+# and mated with a copy of itself at three face gaps - the overlap the fixed
+# 0.5 travel produces is what the owner picks off.
+[[example]]
+name = "screenshot_docking_gallery"
+path = "examples/screenshots/screenshot_docking_gallery.rs"
+
 # The remodel's acceptance range: both PDC mounts and the two-cell bay under
 # live scripted fire at columns built from the new hull/controller models,
 # with the walk failing unless every weapon demonstrably lands its damage

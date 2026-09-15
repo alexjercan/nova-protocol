@@ -266,6 +266,9 @@ does NOT get an entry - and it is the only place they are written down.
   about 28% of its frame time, 33% at its worst.
 
 ### Internals & Tooling
+- Section parts can carry a sliding sleeve. `gen-section-parts.py` grades a
+  `dock` frame retracted and extended, and `screenshot_docking_gallery` shows
+  each candidate port mated with itself.
 - One resolver builds every ship: the spawn, the content lint, the preload
   walk, the editor preview and the balance audit read the same finished
   sections, so an audit quotes the numbers the ship flies with.

@@ -24,6 +24,11 @@ FRAMES differ while the doctrine holds. A recipe here names one of three:
   centred on the origin, no directional requirement. Cores live UNDER the
   derived skin, so they read as machinery when exposed, and their flanks
   must stay inside the cell box the cladding expects to own.
+- `"frame": "dock"` - a 1x1x1 docking port whose telescoping sleeve is a
+  named node (`dock_tube*`). The port face is the -Z cell face, and the
+  sleeve's mouth sits ON it retracted; sliding the node 0.5 along -Z runs
+  the section's axial depth 1.0 -> 1.5 with the inner end anchored, so two
+  facing ports bridge up to a 1.0 face gap. Graded in BOTH poses.
 
 Run from anywhere (paths are resolved from this file):
 
@@ -86,7 +91,17 @@ MAX_TRIANGLES_PER_CELL = 450
 # headroom, not licence.
 TURRET_PART_BOUND = 1.5
 
-FRAMES = ("bay", "turret", "core")
+# The docking tube's fixed travel along the port's outward axis. Fixed, not
+# fitted to the gap: two ports that each add this much bridge twice it, and at
+# any smaller gap the sleeves overlap on purpose.
+DOCK_EXTENSION = 0.5
+
+# The node-name prefix a docking port's moving sleeve carries. One prefix, so
+# the runtime's authored Translate track names it once however many nodes the
+# art splits the sleeve into.
+DOCK_NODE_PREFIX = "dock_tube"
+
+FRAMES = ("bay", "turret", "core", "dock")
 
 
 def _load_greebles():
@@ -177,10 +192,13 @@ def _build_nodes(recipe, name):
     the NODE'S LOCAL frame (origin on the hinge, X along the hinge axis, by
     convention - the runtime's motion archetypes rotate about local axes),
     and `at`/`rotate` place the node in the section box. Returns
-    (writer_nodes, world_triangles, local_triangles)."""
+    (writer_nodes, world_triangles, local_triangles, placements), where
+    `placements` is [(name, rotate, placed triangles)] - the per-node rest
+    pose a frame check needs to pose the node somewhere else."""
     writer_nodes = []
     world = []
     local = []
+    placements = []
     seen = set()
     for node in recipe.get("nodes", ()):
         node_name = node.get("name")
@@ -196,9 +214,72 @@ def _build_nodes(recipe, name):
         at = tuple(round(float(c), gg.PRECISION) for c in node.get("at", (0.0, 0.0, 0.0)))
         placed = gg.quantize(gg.translate(gg.rotate(triangles, rotate), at))
         writer_nodes.append((node_name, at, _euler_quat(rotate), triangles))
+        placements.append((node_name, tuple(float(d) for d in rotate), placed))
         world.extend(placed)
         local.extend(triangles)
-    return writer_nodes, world, local
+    return writer_nodes, world, local, placements
+
+
+def _check_dock(static, placements, retracted, name):
+    """The dock frame's contract, graded in both poses.
+
+    A docking port is the one section whose REST pose is not the whole story:
+    what the owner judges is a pair of them extended into each other. So the
+    check poses the sleeve as well - travel is authored here, not in the
+    recipe, because two ports that disagree about it cannot mate.
+    """
+    if not placements:
+        raise ValueError(
+            "%s: a dock port needs a `%s*` sleeve node; nothing moves"
+            % (name, DOCK_NODE_PREFIX)
+        )
+    for node_name, rotate, _ in placements:
+        if not node_name.startswith(DOCK_NODE_PREFIX):
+            raise ValueError(
+                "%s: node %r does not start with %r - a dock port's only moving"
+                " parts are its sleeve" % (name, node_name, DOCK_NODE_PREFIX)
+            )
+        if any(rotate):
+            raise ValueError(
+                "%s: node %r is rotated %r - a dock sleeve shares the section's"
+                " frame so one Translate track slides it along -Z"
+                % (name, node_name, rotate)
+            )
+
+    lo, hi = gg.bounds(retracted)
+    face = -0.5 * CELL
+    if abs(lo[2] - face) > 1e-4:
+        raise ValueError(
+            "%s: retracted geometry reaches z=%.4f, not the %.2f port face"
+            % (name, lo[2], face)
+        )
+
+    extended = list(static)
+    for _, _, placed in placements:
+        extended.extend(gg.translate(placed, (0.0, 0.0, -DOCK_EXTENSION)))
+    extended = gg.quantize(extended)
+    lo_out, hi_out = gg.bounds(extended)
+    reach = face - DOCK_EXTENSION
+    if abs(lo_out[2] - reach) > 1e-4:
+        raise ValueError(
+            "%s: extended geometry reaches z=%.4f, not %.2f - the sleeve's mouth"
+            " must sit ON the port face retracted so travel is the whole gain"
+            % (name, lo_out[2], reach)
+        )
+    if abs(hi_out[2] - hi[2]) > 1e-4:
+        raise ValueError(
+            "%s: extending moved the inner end from z=%.4f to %.4f; only the"
+            " outer end may reach" % (name, hi[2], hi_out[2])
+        )
+    for axis, axis_name in ((0, "x"), (1, "y")):
+        half = 0.5 * CELL
+        if lo_out[axis] < -half - gg.EPSILON or hi_out[axis] > half + gg.EPSILON:
+            raise ValueError(
+                "%s: extended %s spans %.4f..%.4f, outside the cell box - the"
+                " sleeve may only grow along the outward axis"
+                % (name, axis_name, lo_out[axis], hi_out[axis])
+            )
+    return extended
 
 
 def build_boxed(recipe, name, frame):
@@ -207,10 +288,16 @@ def build_boxed(recipe, name, frame):
     and never reaches the gallery. The box, budget and muzzle checks grade
     the WORLD-placed rest pose; the glb stores node meshes in local frames."""
     materials, index, triangles = _build_triangles(recipe, recipe.get("parts"), name)
-    writer_nodes, node_world, node_local = _build_nodes(recipe, name)
+    writer_nodes, node_world, node_local, placements = _build_nodes(recipe, name)
     cells = _cells(recipe, name)
     world = triangles + node_world
+    if frame == "dock" and cells != [1, 1, 1]:
+        raise ValueError("%s: a dock port is one 1x1x1 cell, got %r" % (name, cells))
     lo, hi = _check_cell_box(world, cells, name)
+    if frame == "dock":
+        # The extended pose is the one the owner judges, so it is graded too.
+        # Not re-budgeted: extending moves triangles, it does not add any.
+        _check_dock(triangles, placements, world, name)
     if frame == "bay" and lo[2] > -0.25 * cells[2] * CELL:
         # A bay with nothing near -Z has no mouth to launch out of.
         raise ValueError(
@@ -424,6 +511,62 @@ def self_test():
     }
     parts = build_recipe(turret, "probe_gun")
     assert set(parts) == {"probe_gun_yaw", "probe_gun_pitch", "probe_gun_barrel"}, parts.keys()
+
+    # A dock port is graded retracted AND extended: the sleeve's mouth sits on
+    # the port face at rest and the travel is the whole of the depth it gains.
+    dock = {
+        **palette,
+        "frame": "dock",
+        "cells": [1, 1, 1],
+        "parts": [{"primitive": "box", "size": [0.9, 0.9, 0.7], "at": [0.0, 0.0, 0.1]}],
+        "nodes": [
+            {
+                "name": "dock_tube",
+                "at": [0.0, 0.0, -0.15],
+                "parts": [
+                    {
+                        "primitive": "sleeve",
+                        "radius": 0.3,
+                        "bore": 0.24,
+                        "height": 0.7,
+                        "sides": 8,
+                        "rotate": [90.0, 0.0, 0.0],
+                        "material": "throat",
+                    }
+                ],
+            }
+        ],
+    }
+    built_dock = build_recipe(dock, "probe_dock")["probe_dock"]
+    assert b'"name":"dock_tube"' in built_dock[0], "the sleeve node is missing from the glb"
+
+    for bad, why in (
+        # The mouth parked behind the face: the port would gain less than the
+        # travel, and a facing pair would stop short of each other.
+        (
+            {**dock, "nodes": [{**dock["nodes"][0], "at": [0.0, 0.0, -0.1]}]},
+            "port face",
+        ),
+        # A rotated sleeve cannot ride one shared -Z Translate track - not even
+        # the roll a rotationally symmetric part looks free to take.
+        (
+            {**dock, "nodes": [{**dock["nodes"][0], "rotate": [0.0, 0.0, 45.0]}]},
+            "Translate track",
+        ),
+        # Only the sleeve moves on a dock port.
+        (
+            {**dock, "nodes": [{**dock["nodes"][0], "name": "stow_lid"}]},
+            "does not start with",
+        ),
+        ({**dock, "nodes": []}, "nothing moves"),
+        ({**dock, "cells": [1, 1, 2]}, "one 1x1x1 cell"),
+    ):
+        try:
+            build_recipe(bad, "probe_dock")
+        except ValueError as err:
+            assert why in str(err), (why, str(err))
+        else:
+            raise AssertionError("dock check not enforced: %s" % why)
 
     # Budgets are enforced, not advisory.
     for recipe, why in (

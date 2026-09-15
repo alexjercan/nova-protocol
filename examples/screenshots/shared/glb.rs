@@ -92,10 +92,24 @@ pub fn bounds(primitives: &[GlbPrimitive]) -> (Vec3, Vec3) {
 }
 
 /// Decode a `scripts/nova_glb.py` glb: every mesh of scene 0, posed by its
-/// node. Panics on a missing file or a shape the writer never produces -
-/// these are our own generated files, and a gallery silently skipping a
-/// candidate would defeat it.
+/// node at the rest pose the file bakes.
 pub fn read_glb(path: &Path) -> Vec<GlbPrimitive> {
+    read_glb_posed(path, &|_| Vec3::ZERO)
+}
+
+/// [`read_glb`], with each named node displaced by `pose(name)` before its
+/// transform is baked in.
+///
+/// The displacement is NODE-LOCAL and composed exactly as
+/// `SectionAnimationMotion::Translate` composes it at runtime
+/// (`rest.translation + rest.rotation * offset`), so a gallery that poses a
+/// track by hand shows what the section's own animation would show. A node
+/// the writer left unnamed is never offered to `pose`.
+///
+/// Panics on a missing file or a shape the writer never produces - these are
+/// our own generated files, and a gallery silently skipping a candidate would
+/// defeat it.
+pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimitive> {
     let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("glb: read {path:?}: {e}"));
     let word =
         |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().expect("glb header word"));
@@ -190,6 +204,8 @@ pub fn read_glb(path: &Path) -> Vec<GlbPrimitive> {
             node_floats(node, "translation", 3).map_or(Vec3::ZERO, |t| Vec3::new(t[0], t[1], t[2]));
         let rotation = node_floats(node, "rotation", 4)
             .map_or(Quat::IDENTITY, |r| Quat::from_xyzw(r[0], r[1], r[2], r[3]));
+        let translation =
+            translation + rotation * node["name"].as_str().map_or(Vec3::ZERO, |name| pose(name));
 
         for primitive in doc["meshes"][mesh as usize]["primitives"]
             .as_array()
