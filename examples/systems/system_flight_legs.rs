@@ -144,14 +144,32 @@ const LOAD_DEADLINE_SECS: f32 = 30.0;
 /// times its sim length.
 ///
 /// A HANG detector sized at about three times the slowest healthy leg: the
-/// carrier's inbound GOTO and its run to the mark, each 31 s on this software
-/// rasterizer. The SUM of every beat's deadline is far past any run-level
+/// carrier's inbound GOTO and its run to the mark, each 25 s under
+/// [`WALK_MAX_DELTA`] on this software rasterizer. Without that hold they were
+/// past this bound and the clamp, not the flight computer, was what a stall
+/// reported. The SUM of every beat's deadline is far past any run-level
 /// deadline, so which of the two names a stall depends on where the stall
 /// lands - late enough in the walk and the run collector wins. That is the
 /// price of per-beat bounds loose enough to survive a slower runner, and the
 /// run's own log names the beat it was in either way.
 #[cfg(feature = "debug")]
 const LEG_DEADLINE_SECS: f32 = 90.0;
+
+/// How far the game clock may advance in one frame of a harnessed lane.
+///
+/// Bevy clamps `Time<Virtual>` to a quarter second a frame. The carrier lane
+/// flies the largest hull the game ships, and on a software rasterizer one of
+/// its frames costs seconds - the draw count, not the pixels - so the clamp ran
+/// the lane at a fraction of wall speed and the carrier's GOTO outran both its
+/// own beat deadline and the run's. Nothing in this range reads a FRAME: both
+/// censuses sample in `FixedPostUpdate`, so a frame that carries more world
+/// time runs more of the fixed steps they watch, not fewer, and the flight
+/// computer integrates the same steps either way.
+///
+/// A harnessed lane only: an interactive run has a viewer, and a two-second
+/// clock step is a stutter to one.
+#[cfg(feature = "debug")]
+const WALK_MAX_DELTA: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]
@@ -256,6 +274,18 @@ fn range_plugin(app: &mut App) {
                 .after(avian3d::prelude::PhysicsSystems::Last)
                 .run_if(resource_exists::<Legs>),
         );
+        if harness_env_active() {
+            app.add_systems(First, hold_the_lane_clock.before(bevy::time::TimeSystems));
+        }
+    }
+}
+
+/// Held every frame, not set once: a scenario load hands `Time<Virtual>` back
+/// at its default, and this walk loads a lane twice.
+#[cfg(feature = "debug")]
+fn hold_the_lane_clock(mut time: ResMut<Time<Virtual>>) {
+    if time.max_delta() != WALK_MAX_DELTA {
+        time.set_max_delta(WALK_MAX_DELTA);
     }
 }
 
@@ -489,8 +519,16 @@ struct Swap {
     first_verb: Option<Verb>,
     /// Steps on which no autopilot was engaged at all.
     steps_adrift: usize,
-    /// Completions the live lane had reported when the window opened.
+    /// Completions the live lane had reported when the window opened, and the
+    /// ones it reported INSIDE the window.
+    ///
+    /// The second is counted by the census, not read at the verdict: the driver
+    /// polls once a FRAME, and a frame carries as many fixed steps as
+    /// [`WALK_MAX_DELTA`] allows, so a count taken after the window closed
+    /// would charge this claim with legs that finished seconds of world time
+    /// later - the replacement's own STOP among them.
     completions_at_open: usize,
+    completions_in_window: usize,
 }
 
 /// What the live lane has measured at its beat boundaries.
@@ -711,6 +749,7 @@ fn replace_the_live_leg(world: &mut World) {
         first_verb: None,
         steps_adrift: 0,
         completions_at_open,
+        completions_in_window: 0,
     });
 }
 
@@ -726,7 +765,9 @@ fn census_the_swap(mut legs: ResMut<Legs>, q_hull: Query<&Autopilot>) {
         .get(hull)
         .ok()
         .map(|autopilot| Verb::of(&autopilot.action));
+    let completed = legs.completed.len();
     swap.steps += 1;
+    swap.completions_in_window = completed.saturating_sub(swap.completions_at_open);
     match verb {
         Some(verb) => {
             if swap.first_verb.is_none() {
@@ -752,7 +793,7 @@ fn read_the_replacement(world: &mut World) {
     let swap = legs
         .swap
         .expect("flight legs: the replacement census must be open");
-    let completions = legs.completed.len() - swap.completions_at_open;
+    let completions = swap.completions_in_window;
     let hull = legs.subject.ship();
 
     assert_eq!(
