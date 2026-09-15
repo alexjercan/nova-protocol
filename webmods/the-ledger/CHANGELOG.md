@@ -3,6 +3,22 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## [Unreleased] - 2.0.0 preview
+
+### Scenarios
+
+- **(breaking)** Replace the old story and chapter ids with six replayable field
+  trials: racing, arena combat, survey, patrol, convoy escort and assault. Add
+  dense belts, planets and moving traffic. Tighten race gates to 50 m, sound
+  each clearance, and stretch Freight Lane to 8 km with a seeded small-rock
+  cluster, early hostiles and a wingman trailing the player.
+
+### Balance
+
+- Retune the same fleet with twice-1.x sections, protected player gun
+  connections, mod-owned PDCs and 500 m/s player governors. Reduce platform
+  durability, stage reinforcements, and remove gravity from cover rocks.
+
 ## 1.28.0
 
 - The mod now SHIPS the fleet it flies. The Racer, CargoB and CargoA parts,

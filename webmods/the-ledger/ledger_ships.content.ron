@@ -1,12 +1,6 @@
-// The Ledger's own fleet: the assembled Racer, CargoB and CargoA craft built
-// from this mod's section prototypes (`ledger_sections.content.ron`).
-//
-// Moved out of the base game with their parts (task 20260824-125959). The two
-// CargoB entries differ only in which torpedo their pods load, and the raider
-// CargoA only in how quickly its plating and mounts come off: which ship a
-// player meets is a catalog entry, not a spawn-time flag.
-//
-// Hand-authored RON. Collapse sounds are borrowed from base.
+// The same Racer, CargoA, CargoB and cruciform station assets.
+// Patrol craft have weaker plating and guns; the freighter is an unarmed CargoA.
+// Ship-local ids and all mount geometry remain stable.
 [
     Ship((
         id: "racer",
@@ -245,7 +239,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc"),
                 ),
                 (
                     id: "turret_port",
@@ -260,7 +254,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc"),
                 ),
             ],
             collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
@@ -389,7 +383,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc"),
                 ),
                 (
                     id: "turret_port",
@@ -404,7 +398,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc"),
                 ),
             ],
             collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
@@ -533,7 +527,7 @@
                         -0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc"),
                 ),
                 (
                     id: "turret_port",
@@ -548,7 +542,7 @@
                         0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc"),
                 ),
             ],
             collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
@@ -574,7 +568,7 @@
                     ),
                     source: Prototype("cargoa_engine_starboard"),
                     modifications: [
-                        SetHealth(25.0),
+                        SetHealth(90.0),
                     ],
                 ),
                 (
@@ -592,7 +586,7 @@
                     ),
                     source: Prototype("cargoa_engine_port"),
                     modifications: [
-                        SetHealth(25.0),
+                        SetHealth(90.0),
                     ],
                 ),
                 (
@@ -610,7 +604,7 @@
                     ),
                     source: Prototype("cargoa_pod_starboard"),
                     modifications: [
-                        SetHealth(203.0),
+                        SetHealth(250.0),
                     ],
                 ),
                 (
@@ -628,7 +622,7 @@
                     ),
                     source: Prototype("cargoa_pod_port"),
                     modifications: [
-                        SetHealth(203.0),
+                        SetHealth(250.0),
                     ],
                 ),
                 (
@@ -646,7 +640,7 @@
                     ),
                     source: Prototype("cargoa_nose"),
                     modifications: [
-                        SetHealth(104.399994),
+                        SetHealth(200.0),
                     ],
                 ),
                 (
@@ -664,7 +658,7 @@
                     ),
                     source: Prototype("cargoa_tail"),
                     modifications: [
-                        SetHealth(87.0),
+                        SetHealth(160.0),
                     ],
                 ),
                 (
@@ -682,7 +676,7 @@
                     ),
                     source: Prototype("cargoa_fuselage"),
                     modifications: [
-                        SetHealth(140.0),
+                        SetHealth(300.0),
                     ],
                 ),
                 (
@@ -698,9 +692,9 @@
                         -0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc_patrol"),
                     modifications: [
-                        SetHealth(60.0),
+                        SetHealth(120.0),
                     ],
                 ),
                 (
@@ -716,13 +710,209 @@
                         0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("pdc_kinetic_turret_section"),
+                    source: Prototype("ledger_pdc_patrol"),
                     modifications: [
-                        SetHealth(60.0),
+                        SetHealth(120.0),
                     ],
                 ),
             ],
             collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
         ),
     )),
+    Ship((
+        id: "ledger_freighter",
+        name: "Light Freighter",
+        hull: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_engine_port"),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_pod_starboard"),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_pod_port"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.5875,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.8,
+                        0.17500001,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargoa_fuselage"),
+                ),
+            ],
+            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+        ),
+    )),
+    Ship((id: "ledger_platform", name: "Platform", hull: (
+                                sections: [
+                                    (
+                                        id: "core",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_controller_section"), modifications: [SetHealth(600.0)],
+                                    ),
+                                    (
+                                        id: "spine_zp1",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "spine_zp2",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "spine_zm1",
+                                        position: (0.0, 0.0, -1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "spine_zm2",
+                                        position: (0.0, 0.0, -2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "arm_xp1",
+                                        position: (1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "arm_xp2",
+                                        position: (2.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "arm_xm1",
+                                        position: (-1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "arm_xm2",
+                                        position: (-2.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "cap_yp",
+                                        position: (0.0, 1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "cap_ym",
+                                        position: (0.0, -1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                    ),
+                                    (
+                                        id: "turret_zp",
+                                        position: (0.0, 0.75, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("ledger_pdc_patrol"), modifications: [SetHealth(100.0)],
+                                    ),
+                                    (
+                                        id: "turret_zm",
+                                        position: (0.0, 0.75, -2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("ledger_pdc_patrol"), modifications: [SetHealth(100.0)],
+                                    ),
+                                ],
+                            ))),
 ]

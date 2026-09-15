@@ -121,6 +121,9 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- **(breaking)** The Ledger becomes six replayable Field Trials with new
+  scenario ids. Add dense fields, traffic, 500 m/s player caps, lighter hulls,
+  tight race-gate cues, early convoy blockers and a trailing escort.
 - **(breaking)** An installed mod's catalog `hidden` flag is gone. Every
   installed mod has a row in the Mods screen the player can switch off, and a
   catalog still declaring `hidden` is refused.

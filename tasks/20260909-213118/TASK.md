@@ -1,6 +1,6 @@
 # Gameplay feedback ledger: play, record, fix or file
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.14.0, playtest, balance, polish
 

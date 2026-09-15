@@ -1,23 +1,13 @@
-// The Ledger's own section prototypes: the seven-part Racer, CargoB and CargoA
-// craft cut from the Kenney Space Kit (CC0, credited in `credits/CREDITS.md`).
-//
-// These moved OUT of the base game (task 20260824-125959) when the built-in
-// campaign took on its block-built identity. They are the mod's whole point:
-// custom GLB art, custom prototypes and a fleet the base game does not own, so
-// The Ledger reads as a different game from the campaign next to it.
-//
-// Hand-authored RON, not generated - `content -- gen` writes `assets/base/**`
-// and nothing under `webmods/`. Meshes are `self://gltf/parts/<craft>/<part>.glb`
-// in this folder; every sound is borrowed from base with `dep://base/sounds/`.
-// A turret mount is not a prototype here either: a craft names where a gun goes
-// and base's shared `pdc_kinetic_turret_section` is the gun.
+// Modelled Kenney Space Kit parts (CC0); geometry and thrust are unchanged.
+// Twofold structural health buys disengagement time. Campaign PDCs below
+// own their cadence and damage; base assets remain dependency references.
 [
     Section((
         base: (
             id: "racer_engine_starboard",
             name: "Racer // Engine Starboard",
             description: "The Racer\'s engine starboard section.",
-            health: 70.0,
+            health: 140.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -114,7 +104,7 @@
             id: "racer_engine_port",
             name: "Racer // Engine Port",
             description: "The Racer\'s engine port section.",
-            health: 70.0,
+            health: 140.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -211,7 +201,7 @@
             id: "racer_wing_starboard",
             name: "Racer // Wing Starboard",
             description: "The Racer\'s wing starboard section.",
-            health: 180.0,
+            health: 360.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -278,7 +268,7 @@
             id: "racer_wing_port",
             name: "Racer // Wing Port",
             description: "The Racer\'s wing port section.",
-            health: 180.0,
+            health: 360.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -345,7 +335,7 @@
             id: "racer_nose",
             name: "Racer // Nose",
             description: "The Racer\'s nose section.",
-            health: 120.0,
+            health: 240.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -386,7 +376,7 @@
             id: "racer_tail",
             name: "Racer // Tail",
             description: "The Racer\'s tail section.",
-            health: 120.0,
+            health: 240.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -453,7 +443,7 @@
             id: "racer_fuselage",
             name: "Racer // Fuselage",
             description: "The Racer\'s fuselage section.",
-            health: 240.0,
+            health: 480.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -549,7 +539,7 @@
             id: "cargob_engine_starboard",
             name: "CargoB // Engine Starboard",
             description: "The CargoB\'s engine starboard section.",
-            health: 70.0,
+            health: 140.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -633,7 +623,7 @@
             id: "cargob_engine_port",
             name: "CargoB // Engine Port",
             description: "The CargoB\'s engine port section.",
-            health: 70.0,
+            health: 140.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -717,7 +707,7 @@
             id: "cargob_pod_starboard",
             name: "CargoB // Pod Starboard",
             description: "The CargoB\'s pod starboard section.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -828,7 +818,7 @@
             id: "cargob_pod_starboard_lance",
             name: "CargoB // Pod Starboard (Lance)",
             description: "The CargoB\'s pod starboard section. Loaded with straight-running Lance torpedoes.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -939,7 +929,7 @@
             id: "cargob_pod_port",
             name: "CargoB // Pod Port",
             description: "The CargoB\'s pod port section.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1050,7 +1040,7 @@
             id: "cargob_pod_port_lance",
             name: "CargoB // Pod Port (Lance)",
             description: "The CargoB\'s pod port section. Loaded with straight-running Lance torpedoes.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1161,7 +1151,7 @@
             id: "cargob_nose",
             name: "CargoB // Nose",
             description: "The CargoB\'s nose section.",
-            health: 180.0,
+            health: 360.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1202,7 +1192,7 @@
             id: "cargob_tail",
             name: "CargoB // Tail",
             description: "The CargoB\'s tail section.",
-            health: 150.0,
+            health: 300.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1243,7 +1233,7 @@
             id: "cargob_fuselage",
             name: "CargoB // Fuselage",
             description: "The CargoB\'s fuselage section.",
-            health: 300.0,
+            health: 600.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1339,7 +1329,7 @@
             id: "cargoa_engine_starboard",
             name: "CargoA // Engine Starboard",
             description: "The CargoA\'s engine starboard section.",
-            health: 70.0,
+            health: 140.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1423,7 +1413,7 @@
             id: "cargoa_engine_port",
             name: "CargoA // Engine Port",
             description: "The CargoA\'s engine port section.",
-            health: 70.0,
+            health: 140.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1507,7 +1497,7 @@
             id: "cargoa_pod_starboard",
             name: "CargoA // Pod Starboard",
             description: "The CargoA\'s pod starboard section.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1561,7 +1551,7 @@
             id: "cargoa_pod_port",
             name: "CargoA // Pod Port",
             description: "The CargoA\'s pod port section.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1615,7 +1605,7 @@
             id: "cargoa_nose",
             name: "CargoA // Nose",
             description: "The CargoA\'s nose section.",
-            health: 180.0,
+            health: 360.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1682,7 +1672,7 @@
             id: "cargoa_tail",
             name: "CargoA // Tail",
             description: "The CargoA\'s tail section.",
-            health: 150.0,
+            health: 300.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1723,7 +1713,7 @@
             id: "cargoa_fuselage",
             name: "CargoA // Fuselage",
             description: "The CargoA\'s fuselage section.",
-            health: 350.0,
+            health: 700.0,
             destroy_sound: Some("dep://base/sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1812,6 +1802,372 @@
             warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
             warn_hull_fraction: 0.3,
             rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "ledger_pdc",
+            name: "Ledger // Workboat PDC",
+            description: "A low-cadence belt gun. Short bursts leave time to break contact.",
+            health: 300.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh: Some("dep://base/gltf/pdc_housing.glb#Scene0"),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.33,
+                                0.0,
+                            ),
+                            scale: (
+                                0.44,
+                                0.44,
+                                0.44,
+                            ),
+                        )),
+                        name: Some("stow_lift"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.4,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    0.0,
+                                    1.0,
+                                    0.0,
+                                )),
+                                render_mesh: Some("dep://base/gltf/pdc_gatling_yaw.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.2,
+                                            0.0,
+                                        ),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("dep://base/gltf/pdc_gatling_pitch.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.01,
+                                                    -0.05,
+                                                ),
+                                                render_mesh: Some("dep://base/gltf/pdc_gatling_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 35.0,
+                                                        )),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 1000.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+            dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
+            stow_open_sound: Some("dep://base/sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("dep://base/sounds/pdc_stow_close.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "ledger_pdc_patrol",
+            name: "Ledger // Patrol PDC",
+            description: "A low-cadence belt gun. Short bursts leave time to break contact.",
+            health: 200.0,
+            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh: Some("dep://base/gltf/pdc_housing.glb#Scene0"),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.33,
+                                0.0,
+                            ),
+                            scale: (
+                                0.44,
+                                0.44,
+                                0.44,
+                            ),
+                        )),
+                        name: Some("stow_lift"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.4,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    0.0,
+                                    1.0,
+                                    0.0,
+                                )),
+                                render_mesh: Some("dep://base/gltf/pdc_gatling_yaw.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.2,
+                                            0.0,
+                                        ),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("dep://base/gltf/pdc_gatling_pitch.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.01,
+                                                    -0.05,
+                                                ),
+                                                render_mesh: Some("dep://base/gltf/pdc_gatling_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 25.0,
+                                                        )),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 1000.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 2.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+            dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
+            stow_open_sound: Some("dep://base/sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("dep://base/sounds/pdc_stow_close.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
         )),
     )),
 ]

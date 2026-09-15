@@ -1,59 +1,84 @@
-# The Ledger
+# The Ledger: Field Trials
 
-The alt storyline campaign, published on the mod portal (task
-20260716-123535, spike tasks/20260716-183104/SPIKE.md): a salvage crew in
-over its head, told across five chained chapters (six scenario files -
-chapter two plays in two acts, each its own retry point; chapter five is a
-reward finale reached only by fighting the chapter-four ending). Install it
-from the in-game portal (Mods > Explore online), enable it, then expand the "The
-Ledger" campaign header in the Scenarios picker and start "Dead Weight". The
-campaign header lists every chapter in play order - so you can replay any
-chapter, the finale included, straight from there.
+Six short flight and combat activities. No cast, dialogue scenes, or carried
+story state. Fly through dense asteroid belts, survey instruments, patrol
+relays, and fight around working traffic and planetary backdrops.
 
-You fly the salvage tug Kestrel for Mesa Verde Reclamation. A routine
-wreck-strip turns up a sealed military black box nobody logged, and the
-belt starts paying attention.
+This is the **2.0.0 worktree preview**, not a portal publication. It replaces
+the previous campaign. No old progress is required.
 
-1. **Dead Weight** - strip the Ceres Matron for the quota; the fourth ping
-   is not on the manifest.
-2. **Claim Jumpers / The Heavies** - the Magpies come to take it, two
-   waves in two acts; keep them off the Dray Mule. Breaking wave one is a
-   checkpoint: dying to the heavies retries the heavies.
-3. **The Quiet Channel** - run dark to Broker Vesh's yard, threading the
-   NAV drops in order: a real stealth run. Two Magpie pickets patrol the
-   flanks, cold and neutral until provoked - stray into their watch, paint
-   one, or burn too hot (over 80 m/s is noise they hear) and both go hot.
-   Overspeed warns first; push it again and a short countdown starts - hold the
-   burn past it and they wake, ease off in time and the run stays dark. The debris
-   pinch between the first two drops is the blind spot: thread the wrecks
-   slow and slip past unseen for Vesh's quiet-scopes payoff, or wake them and
-   fight it out. The drops are the job either way.
-4. **The Buyer** - sell the box or burn it, decided at two beacons, and the
-   endings diverge. Sell it at Vesh's berth and the sale calls the Auditor
-   down: break the gunship for the payday. Burn it at the buoy and there is
-   nothing left to collect - the Auditor never comes, no fight, but no
-   payout either. Clear, and broke.
-5. **The Raid** - the reward for choosing to fight: the payday buys you a
-   gunship, and you finally fly a capital ship with torpedoes (guns on the
-   left mouse, torpedo tubes on the R key). With two of Vesh's wing on escort, raid
-   the Magpies' forward base among the rocks - a real multi-section station
-   and four fighters. Crack the base and clear the defenders to close the
-   account. Reached only from the sell/fight ending; the burn ending ends
-   the campaign at chapter four.
+## Play this checkout
 
-Authoring notes: hand-written RON. Since 1.28.0 the mod carries its OWN
-fleet - the Racer, CargoB and CargoA parts, ships and GLB meshes under
-`gltf/parts/` (Kenney Space Kit cuts, CC0) - which is what makes it look
-unlike the block-built base game; guns, sounds and skyboxes are still base's
-by `dep://base/`. Every fight, gate, pickup and branch
-uses shipped scenario vocabulary - act-gated handlers, expression-guarded
-OnEnter sequencing, per-id OnDestroyed counting, NarrativeCue comms beats
-(with `dwell` holds), Outcome + NextScenario chaining. Pacing is authored
-too: each chapter opens with a clock-paced briefing conversation, objectives
-lazy-post only once the briefing hands off, and `beat_gate` clock stamps
-space the comms beats a beat apart (announce -> arrive -> confirm ->
-breathe). Each chapter picks a deliberate starting cubemap and uses
-`SetSkybox` to accent key beats (the chapter-one reveal, the chapter-three
-pinch, the chapter-four sell path). The story deliberately carries no state
-across chapters (scenario variables clear at teardown); the two-ending
-branch lives entirely inside chapter four.
+From the repository root:
+
+```sh
+nix develop --command bash scripts/preview-ledger.sh
+```
+
+Pass `2` through `6` to start another activity. The launcher copies this mod
+into a temporary profile and removes that profile when the game exits. It
+does not change your installed mods, settings, or saves.
+
+In the Scenarios picker, expand **The Ledger: Field Trials**. Every activity
+is independently replayable. Victory offers Continue, except at the finale.
+Defeat retries the current activity with a fresh ship. Flight is live at spawn;
+the short corner title does not take the controls.
+
+## Activities
+
+| Activity | Ship | Task |
+| --- | --- | --- |
+| **Drift Run** | Racer | Timed slalom through an asteroid belt. |
+| **Rock Garden** | CargoA | Clear a staged arena fight. |
+| **Blue Survey** | Racer | Scan three sites in any order. |
+| **Cold Patrol** | CargoA | Inspect relays and clear hostile patrols. |
+| **Freight Lane** | CargoA | Screen two transports over 8 km past hostile blockers. |
+| **Siege Line** | CargoB | Assault an outpost with a wingman. |
+
+The objective carries the instructions. Beacons carry short place or gate
+labels. Drift Run starts its clock at START, requires a direct pass through
+each 50 m gate, sounds each clearance, and freezes the clock at FINISH; only
+the next gate is active. Survey sites show a
+countdown while scanning. Leaving
+a site resets that scan, not sites already completed.
+
+## Fleet and environment
+
+- The Racer, CargoA, CargoB, and cruciform platform retain their existing
+  meshes and section layouts. Freighter variants reuse the same hulls.
+- CargoA has two PDCs. CargoB adds two torpedo pods. Guns use left mouse;
+  torpedoes use **R**. The Racer is unarmed.
+- Player ships have a 500 m/s manual-speed governor.
+- Modelled structural sections have twice their 1.x health. Player computers
+  and engines have extra protection. The player's CargoA nose, which connects
+  both guns, also has stronger plating. Raiders remain weaker.
+- Mod-owned PDCs keep this fleet independent of base weapon tuning. The
+  workboat gun fires 35 rounds/s at 4 damage; the patrol gun fires 25 at 2.
+  Both have finite magazines and reloads. Base weapons are unchanged.
+- Every map has two seeded planets, more than 50 mixed-material asteroids,
+  and two AI traffic routes. Cover and open flight routes are authored
+  separately. Asteroids are destructible and have no gravity; planets have
+  real gravity wells away from the objective routes.
+- Combat remains dangerous. Moving across incoming fire is safer than
+  stationary trading. Reinforcements have an arrival grace unless shot.
+
+## Authoring and checks
+
+The RON is authored mod content, not output from `content gen`. GLB parts
+live under `gltf/parts/` (Kenney Space Kit, CC0; see `credits/CREDITS.md` at
+repository root). Effects, sounds, and skies use `dep://base/`. Picker art
+remains generated title-card placeholders.
+
+The six new scenario ids and their order are in `ledger_campaign.content.ron`.
+Old chapter ids are removed. The campaign id remains `the_ledger`.
+
+```sh
+nix develop --command cargo run --features dev -- content lint --target the-ledger
+nix develop --command cargo test -p nova_authoring --test ledger_campaign
+python3 scripts/gen-scenario-thumbnails.py --check
+```
+
+Contract tests cover membership, retries, immediate play, concise beacon
+labels, terrain and traffic, ordered gates, resettable scans, convoy arrivals,
+resources, and health/weapon budgets. They do not prove flight, balance, or
+rendered appearance.

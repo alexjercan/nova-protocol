@@ -51,9 +51,8 @@ encode_png = _SCREENSHOTS.encode_png
 WIDTH = 320
 HEIGHT = 180
 
-# Every picker-visible scenario: the flat `!hidden` set plus the `hidden`
-# campaign members the picker lists indented under their campaign header (The
-# Ledger: chapters 2 to 5 under "The Ledger"). Each entry is
+# Every picker-visible scenario, including independently replayable campaign
+# members grouped beneath their campaign heading. Each entry is
 # (scenario id, picker title, output path relative to the repo root).
 #
 # The path is inside the OWNING mod's asset tree, because a thumbnail is that
@@ -66,19 +65,19 @@ SCENARIOS = [
     ("tutorial", "Basic Training", "assets/base/thumbnails/tutorial.png"),
     # --- webmods/gauntlet ---
     ("gauntlet_run", "Gauntlet Run", "webmods/gauntlet/thumbnails/gauntlet_run.png"),
-    # --- webmods/the-ledger (chapter 1 visible, 2-5 under the campaign header) ---
-    ("ledger_ch1_dead_weight", "Dead Weight",
-     "webmods/the-ledger/thumbnails/ledger_ch1_dead_weight.png"),
-    ("ledger_ch2_claim_jumpers", "Claim Jumpers",
-     "webmods/the-ledger/thumbnails/ledger_ch2_claim_jumpers.png"),
-    ("ledger_ch2b_the_heavies", "The Heavies",
-     "webmods/the-ledger/thumbnails/ledger_ch2b_the_heavies.png"),
-    ("ledger_ch3_quiet_channel", "The Quiet Channel",
-     "webmods/the-ledger/thumbnails/ledger_ch3_quiet_channel.png"),
-    ("ledger_ch4_the_buyer", "The Buyer",
-     "webmods/the-ledger/thumbnails/ledger_ch4_the_buyer.png"),
-    ("ledger_ch5_the_raid", "The Raid",
-     "webmods/the-ledger/thumbnails/ledger_ch5_the_raid.png"),
+    # --- webmods/the-ledger: Field Trials ---
+    ("ledger_01_drift_run", "Drift Run",
+     "webmods/the-ledger/thumbnails/ledger_01_drift_run.png"),
+    ("ledger_02_rock_garden", "Rock Garden",
+     "webmods/the-ledger/thumbnails/ledger_02_rock_garden.png"),
+    ("ledger_03_blue_survey", "Blue Survey",
+     "webmods/the-ledger/thumbnails/ledger_03_blue_survey.png"),
+    ("ledger_04_cold_patrol", "Cold Patrol",
+     "webmods/the-ledger/thumbnails/ledger_04_cold_patrol.png"),
+    ("ledger_05_freight_lane", "Freight Lane",
+     "webmods/the-ledger/thumbnails/ledger_05_freight_lane.png"),
+    ("ledger_06_siege_line", "Siege Line",
+     "webmods/the-ledger/thumbnails/ledger_06_siege_line.png"),
 ]
 
 # The NOVA OS screen: the dark phosphor field these thumbnails sit on

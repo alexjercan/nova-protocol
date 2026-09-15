@@ -507,12 +507,12 @@ A `Sequence` step's `until` gate is a real handler the loader spawns, so it is
 scanned with the authored ones. A gate waiting on `OnUpdate` that was not a
 reason to wake would stall its chain forever.
 
-Measured on a headless run, as the share of frames that queue the event:
-
-| scenario | pulses / frames | why |
-| --- | --- | --- |
-| `ledger_ch1` | 350 / 22500 | milestones plus four scheduled lines |
-| `ledger_ch3` | every frame | a `player_speed` ladder, correctly polling |
+The Ledger's field trials show both patterns. In
+`webmods/the-ledger/ledger_05_freight_lane.content.ron`, the victory gate reads
+`arrived` and `stage`. In `ledger_03_blue_survey.content.ron`, an active scan
+writes `scan_left` for its HUD countdown. That write keeps the pulse awake
+until the scan ends or the player leaves its area. Neither pattern needs
+an authored wake list.
 
 ## Scenario patterns
 
