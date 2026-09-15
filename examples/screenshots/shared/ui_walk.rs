@@ -112,14 +112,21 @@ pub fn assert_gallery_camera_is_parked(world: &mut World) {
         .collect();
     assert!(
         a_camera_is_parked(world),
-        "the open gallery must park its camera away from the preview ship; \
-         the cameras stood at {heights:?}"
+        "the open gallery must park its camera at least {GALLERY_PARK_CLEARANCE:?} above the \
+         build pose, away from the preview ship; the cameras stood at {heights:?} engine units"
     );
 }
 
-/// How high the gallery parks the editor camera above the build area. Read off
-/// the camera Transform, so it is an engine world-unit figure.
-const GALLERY_PARK_HEIGHT: f32 = 1_000.0;
+/// How far above the build pose a camera has to stand before the walk calls it
+/// parked on the gallery's own stage.
+///
+/// Measured from [`EDITOR_EYE`] rather than from the world floor, because the
+/// gallery stands its stage a fixed clearance above whatever the DOCUMENT
+/// holds, not at a fixed altitude: a flat figure went stale the day the stage
+/// started following the document, and the walk then waited thirty seconds for
+/// a camera that had already parked 3.4 km up. A kilometre is far more than any
+/// build reaches and far less than the clearance the editor guarantees.
+const GALLERY_PARK_CLEARANCE: Meters = Meters(1_000.0);
 
 /// Whether a 3D camera stands off the build area.
 ///
@@ -127,12 +134,13 @@ const GALLERY_PARK_HEIGHT: f32 = 1_000.0;
 /// that then states it. Reading the first camera in one and any camera in the
 /// other let the walk advance on one camera and fail on a different one.
 fn a_camera_is_parked(world: &World) -> bool {
+    let floor = (EDITOR_EYE.y() + GALLERY_PARK_CLEARANCE).to_engine();
     world
         .try_query_filtered::<&Transform, With<Camera3d>>()
         .is_some_and(|mut cameras| {
             cameras
                 .iter(world)
-                .any(|camera| camera.translation.y > GALLERY_PARK_HEIGHT)
+                .any(|camera| camera.translation.y > floor)
         })
 }
 
@@ -140,6 +148,19 @@ fn a_camera_is_parked(world: &World) -> bool {
 /// what [`assert_gallery_camera_is_parked`] then states as a claim.
 pub fn the_gallery_camera_is_parked() -> Arc<Predicate> {
     Arc::new(a_camera_is_parked)
+}
+
+/// Whether the gallery is open and where the cameras stand, so a park that
+/// never happens says which half of the gate is missing.
+pub fn gallery_camera_diagnosis(world: &World) -> String {
+    let heights: Vec<f32> = world
+        .try_query_filtered::<&Transform, With<Camera3d>>()
+        .map(|mut cameras| cameras.iter(world).map(|at| at.translation.y).collect())
+        .unwrap_or_default();
+    let open = world
+        .get_resource::<EditorProbe>()
+        .is_some_and(|probe| probe.gallery_open);
+    format!("the gallery is open: {open}; the cameras stand at {heights:?}")
 }
 
 /// Advance once the editor camera has REACHED the scripted build pose.
@@ -382,6 +403,7 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
             .click(&format!("{label}: open the gallery"), "Parts Item")
             .step(format!("{label}: the gallery parked the camera"))
             .until(and(editor_gallery_open(), the_gallery_camera_is_parked()))
+            .diagnose(gallery_camera_diagnosis)
             .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("{label}: verify the gallery camera"))
