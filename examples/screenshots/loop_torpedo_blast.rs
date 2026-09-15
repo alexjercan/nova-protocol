@@ -207,6 +207,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "loop_rock_",
         count: 48,
         seed: 40507,
+        center: Meters3::ZERO,
         distance: (Meters(480.0), Meters(1_300.0)),
         radius: (Meters(12.0), Meters(32.0)),
         y_spread: Meters(460.0),

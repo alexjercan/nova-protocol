@@ -112,15 +112,29 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         kit::catalog_ship(ships, "block_gunship"),
     );
 
-    // The corridor: big rocks spread wide around the beacon, so the shot has
-    // something with parallax in it instead of an empty starfield.
+    // The corridor: big rocks downrange, so the shot has something with
+    // parallax in it instead of an empty starfield.
+    //
+    // LIFTED OFF THE LOOK RAY, and that is the load-bearing part. The radar
+    // commits to whatever lockable body sits CLOSEST TO THE RAY, and a rock is
+    // as lockable as a beacon; the beacon rides 4.3 degrees up (600 m of start
+    // offset over 8 km), so any rock inside that angle takes the lock instead
+    // and the sweep never designates its subject. A ring centred on the origin
+    // and spread 1.6 km either side of the beacon's plane puts rocks AT the
+    // ray's own height, which is how `hollow_far_1` stole the designation.
+    //
+    // Centred 2 km up with a 1 km spread, the nearest rock stands 1.6 km above
+    // the ray, and the farthest one it could still be measured against is
+    // 12 km downrange: 7.6 degrees, comfortably outside the beacon's 4.3. The
+    // set is then a property of the geometry rather than of the seed.
     let corridor = kit::NearField {
         id_prefix: "hollow_far_",
         count: 26,
         seed: 90727,
-        distance: (Meters(2_000.0), Meters(6_400.0)),
+        center: Meters3::new(0.0, 2_000.0, 0.0),
+        distance: (Meters(2_000.0), Meters(4_500.0)),
         radius: (Meters(40.0), Meters(100.0)),
-        y_spread: Meters(1_600.0),
+        y_spread: Meters(1_000.0),
     };
 
     ScenarioConfig {
@@ -226,6 +240,7 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("sweep the nav radar")
         .on_enter(hold_radar)
         .until(travel_locked_on_beacon())
+        .diagnose(radar_diagnosis)
         .deadline(12.0)
         .add();
 
@@ -301,6 +316,38 @@ fn pose(world: &mut World, position: Meters3, look_at: Meters3) {
 #[cfg(feature = "debug")]
 fn hold_radar(world: &mut World) {
     press_action("radar_hold")(world);
+}
+
+/// Why the sweep has not committed: which slot the hold latched, what the cone
+/// is holding, and how far the dwell on it has charged.
+///
+/// A stall here has four distinct causes - the gesture never crossed its hold
+/// threshold, the beacon is outside the cone, the raised stance sent the commit
+/// to the combat slot, or the dwell is longer than the deadline - and they read
+/// the same from outside. This tells them apart in the failure line.
+#[cfg(feature = "debug")]
+fn radar_diagnosis(world: &World) -> String {
+    let Some(player) = player_root_ref(world) else {
+        return "no player ship on stage".to_string();
+    };
+    let Some(radar) = world.get::<RadarState>(player) else {
+        return "the radar gesture is not open: nothing is holding `radar_hold`".to_string();
+    };
+    let named = |entity: Option<Entity>| match entity {
+        None => "nothing".to_string(),
+        Some(entity) => world
+            .get::<EntityId>(entity)
+            .map_or_else(|| format!("{entity}"), |id| id.0.clone()),
+    };
+    format!(
+        "slot {:?}, candidate {}, dwell {:.2}/{:.2}s on {}, travel lock {}",
+        radar.engaged,
+        named(radar.candidate),
+        radar.dwell_secs,
+        radar.dwell_needed,
+        named(radar.dwell_target),
+        named(world.get::<TravelLock>(player).and_then(|lock| lock.0)),
+    )
 }
 
 /// Advance once the travel lock is on the beacon (and not on some rock the aim

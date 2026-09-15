@@ -166,6 +166,7 @@ pub fn the_ring_with_hull(
         id_prefix: "ring_rock_",
         count: 34,
         seed: 71104,
+        center: Meters3::ZERO,
         distance: (Meters(4_200.0), Meters(7_600.0)),
         radius: (Meters(10.0), Meters(30.0)),
         y_spread: Meters(1_100.0),

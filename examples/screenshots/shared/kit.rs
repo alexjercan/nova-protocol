@@ -126,6 +126,11 @@ pub struct NearField {
     pub count: u32,
     /// Layout seed - fixed, so every run of a capture frames the same field.
     pub seed: u64,
+    /// What the ring is drawn around, and what the vertical spread is measured
+    /// from. The origin for a field dressing the subject; lifted or pushed
+    /// aside by a set that has to keep the rocks off something - a look ray a
+    /// radar sweeps down, say.
+    pub center: Meters3,
     /// Ring radii the rocks land between.
     pub distance: (Meters, Meters),
     /// Per-rock radius range.
@@ -140,6 +145,7 @@ impl Default for NearField {
             id_prefix: "near_rock_",
             count: 30,
             seed: 20260805,
+            center: Meters3::ZERO,
             distance: (Meters(250.0), Meters(900.0)),
             radius: (Meters(12.0), Meters(50.0)),
             y_spread: Meters(180.0),
@@ -155,7 +161,7 @@ impl NearField {
             count: self.count,
             seed: self.seed,
             region: ScatterRegion::Ring {
-                center: Meters3::ZERO,
+                center: self.center,
                 inner: self.distance.0,
                 outer: self.distance.1,
                 y_min: -self.y_spread,

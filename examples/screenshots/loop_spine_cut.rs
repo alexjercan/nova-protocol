@@ -184,6 +184,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "loop_rock_",
         count: 12,
         seed: 20260818,
+        center: Meters3::ZERO,
         distance: (Meters(550.0), Meters(1_200.0)),
         radius: (Meters(10.0), Meters(25.0)),
         y_spread: Meters(300.0),

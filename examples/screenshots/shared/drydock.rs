@@ -100,6 +100,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
         id_prefix: "drydock_rock_",
         count: 18,
         seed: 90210,
+        center: Meters3::ZERO,
         distance: (Meters(600.0), Meters(1_650.0)),
         radius: (Meters(15.0), Meters(50.0)),
         y_spread: Meters(700.0),

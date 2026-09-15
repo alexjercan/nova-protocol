@@ -219,6 +219,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "damage_rock_",
         count: 12,
         seed: 20260831,
+        center: Meters3::ZERO,
         distance: (Meters(550.0), Meters(1_200.0)),
         radius: (Meters(10.0), Meters(25.0)),
         y_spread: Meters(300.0),
