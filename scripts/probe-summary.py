@@ -72,11 +72,16 @@ def main() -> int:
     counts = ", ".join(f"{n} {verdict}" for verdict, n in sorted(tally.items()))
     minutes = sum(row.get("duration_secs", 0) for row in rows) / 60
 
+    # A CI shard's spec is its whole example list, and the row count plus the
+    # table below already say what a 400-character line of names would. Keep
+    # the spec while it NAMES something - a category, `--all`, one example -
+    # and drop it once it is a list.
+    spec = str(data.get("spec", "?"))
+    named = "" if "," in spec else f"spec `{spec}`, "
     print(f"## {args.title} - {overall}\n")
     print(
         f"{len(rows)} example{'' if len(rows) == 1 else 's'} ({counts}), "
-        f"{minutes:.1f} min of runs. "
-        f"spec `{data.get('spec', '?')}`, git `{data.get('git_sha', '?')}`.\n"
+        f"{minutes:.1f} min of runs. {named}git `{data.get('git_sha', '?')}`.\n"
     )
 
     # Anything past OK leads, uncollapsed - a red run must not need a click.
