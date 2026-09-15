@@ -733,8 +733,26 @@ mod tests {
 
         // Once the holder is gone the path re-arms - probe reuses a run
         // directory across invocations at the same commit.
+        //
+        // Bounded, not immediate. The lock lives on the open file DESCRIPTION,
+        // and any sibling thread that shells out hands a child a copy of this
+        // process's whole descriptor table: until that child reaches `exec`,
+        // O_CLOEXEC has not fired, the description this line just closed is
+        // still open somewhere, and the flock on it is still held. Timeline's
+        // own `run_start` shells out - `resolve_git_sha` runs `git rev-parse`
+        // once per armed recorder - so the other tests in this module are that
+        // sibling. Measured on two cores with four test threads: 5 failures in
+        // 400 runs, and 0 in 400 with the `git` fork suppressed.
         drop(first);
-        ProbeTimeline::create(path.clone()).expect("re-arms after the holder drops");
+        let mut rearmed = ProbeTimeline::create(path.clone());
+        for _ in 0..200 {
+            if rearmed.is_ok() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rearmed = ProbeTimeline::create(path.clone());
+        }
+        rearmed.expect("re-arms after the holder drops");
 
         let _ = std::fs::remove_file(&path);
     }

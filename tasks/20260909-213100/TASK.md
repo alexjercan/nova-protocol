@@ -73,13 +73,25 @@ the estimate column with what the shards actually cost. Watch `editor`
 (both editor outliers) and `destruction` (the `system_collision_damage`
 guess).
 
-## Flaky, hold down while here
+## Flaky, pinned 2026-09-15
 
 `crates/nova_probe/src/capabilities/timeline.rs`
 `a_second_recorder_on_one_path_is_refused_not_torn` failed once in the check
-job (run 34313476074, 2026-09-09 05:25) at the re-arm after `drop(first)`
-and passed on the next push with no change to the file. Find the race (the
-lock outliving the dropped App, or the path reused) and pin it.
+job (run 34313476074, 2026-09-09 05:25) at the re-arm after `drop(first)`.
+
+Cause: the flock lives on the open file DESCRIPTION, and a sibling thread
+that shells out gives its child a copy of the whole descriptor table. Until
+that child reaches `exec`, O_CLOEXEC has not fired and the description the
+test just closed is still open in the child, so the re-arm gets
+`WouldBlock`. Timeline's own `run_start` is the shell-out: `resolve_git_sha`
+runs `git rev-parse` once per armed recorder, and three sibling tests in the
+module arm one.
+
+Reproduced on two cores (`taskset -c 0,1`, `--test-threads 4`): 5 failures
+in 400 runs, and 0 in 400 with `NOVA_PROBE_SHA` set, which skips the fork.
+The re-arm now retries for up to two seconds; 0 failures in 1200 runs under
+the same pinning. Product is unaffected - a game process arms its recorder
+in `Plugin::build`, before anything has forked.
 
 ## Not in scope
 
