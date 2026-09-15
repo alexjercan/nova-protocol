@@ -303,6 +303,14 @@ struct WreckLog {
     fragment: Option<Entity>,
     /// The pinned section's health when the trigger opened.
     health_before_fire: Option<f32>,
+    /// The LOWEST reading the fragment held while the gun was firing.
+    ///
+    /// A low-water mark rather than a reading taken at the verdict, because the
+    /// gun keeps firing through the beat that watches it and a wingtip worth a
+    /// few hit points can be gone by the next frame - on a slow host it was,
+    /// and the verdict found no section to read at all. What the round spent is
+    /// the evidence; whether the plate survived spending it is not the claim.
+    health_while_firing: Option<f32>,
 }
 
 /// Re-apply the pin for this frame, exactly while production still has the
@@ -402,10 +410,12 @@ fn wreck_script() -> Script {
         .add()
         .step("open fire on the fragment")
         .on_enter(open_fire)
+        .each(watch_the_fragment_bleed)
         .until(the_fragment_is_bleeding())
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("assert the same gun reached it")
+        .on_enter(cease_fire)
         .on_enter(assert_the_gun_reaches_the_fragment)
         .add()
 }
@@ -521,14 +531,44 @@ fn the_reticle_follows_the_fragment(
 #[cfg(feature = "debug")]
 fn the_fragment_is_bleeding() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
-        let Some(before) = world
-            .get_resource::<WreckLog>()
-            .and_then(|log| log.health_before_fire)
-        else {
+        let Some(log) = world.get_resource::<WreckLog>() else {
             return false;
         };
-        section_health(world, PINNED_SECTION).is_some_and(|health| health < before)
+        match (log.health_before_fire, log.health_while_firing) {
+            (Some(before), Some(lowest)) => lowest < before,
+            _ => false,
+        }
     })
+}
+
+/// Keep the fragment's lowest reading while the gun is firing.
+///
+/// Runs every frame of the trigger beat: the verdict is made against this
+/// rather than against a fresh read, so a plate that is destroyed the frame
+/// after it bleeds still reports what the round spent on it.
+#[cfg(feature = "debug")]
+fn watch_the_fragment_bleed(world: &mut World, _elapsed: f32, _frame: u32) {
+    let Some(now) = section_health(world, PINNED_SECTION) else {
+        return;
+    };
+    let mut log = world.resource_mut::<WreckLog>();
+    if log.health_while_firing.is_none_or(|lowest| now < lowest) {
+        log.health_while_firing = Some(now);
+    }
+}
+
+/// Take the gunner's finger off the trigger.
+#[cfg(feature = "debug")]
+fn cease_fire(world: &mut World) {
+    let turrets: Vec<Entity> = world
+        .try_query_filtered::<Entity, With<TurretSectionMarker>>()
+        .map(|mut query| query.iter(world).collect())
+        .unwrap_or_default();
+    for turret in turrets {
+        if let Some(mut input) = world.entity_mut(turret).get_mut::<TurretSectionInput>() {
+            **input = false;
+        }
+    }
 }
 
 /// What the combat reticle is anchored to right now.
@@ -943,8 +983,10 @@ fn assert_the_gun_reaches_the_fragment(world: &mut World) {
         .resource::<WreckLog>()
         .health_before_fire
         .expect("wreck lock: the trigger beat records what the fragment was worth");
-    let after = section_health(world, PINNED_SECTION)
-        .expect("wreck lock: the severed wingtip keeps its hit points");
+    let after = world
+        .resource::<WreckLog>()
+        .health_while_firing
+        .expect("wreck lock: the trigger beat reads the fragment every frame it fires");
     let spent = before - after;
     assert!(
         spent > 0.0,
