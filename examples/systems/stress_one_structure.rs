@@ -121,6 +121,18 @@ fn main() -> bevy::app::AppExit {
                     .until(the_hull_is_up())
                     .deadline(SPAWN_DEADLINE_SECS)
                     .add()
+                    // The sections exist, but the loader still holds the
+                    // clocks, and avian aggregates child mass inside the
+                    // physics schedule the hold stops. Waiting for the hold to
+                    // drop is what puts a stepped simulation behind the
+                    // aggregation claim below; without it the root reads a mass
+                    // of 0 because nothing has computed one yet.
+                    .step("the load hands the world back")
+                    .until(resource_where::<ClockFreeze>(|freeze| {
+                        !freeze.is_held_by(FreezeOwner::ScenarioLoad)
+                    }))
+                    .deadline(SPAWN_DEADLINE_SECS)
+                    .add()
                     // The scene is live again: close the reload interval so a
                     // frame capture excludes it. A no-op on the first cycle.
                     .step("close the reload interval")
