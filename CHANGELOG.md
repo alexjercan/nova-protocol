@@ -246,6 +246,9 @@ does NOT get an entry - and it is the only place they are written down.
 - `bench movie <audit> --frames <dir>` remakes that movie from frames already on
   disk, `--plain` skips the rail, and the rail is composited in the bench with
   ffmpeg left as the codec.
+- A movie of a run the game marked as cheated says CHEATED in amber across its
+  header from the tick of the mark, so no clip of it can be lifted out of the
+  run looking clean.
 - Debug section gizmos are measured: a barrel line runs the mount's authored
   reach, and round and drive stubs one interval of their own flight or burn.
 - The app holds exactly one seeded global RNG, pinned by an assembly test: a

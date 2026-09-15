@@ -14,7 +14,7 @@ use std::path::Path;
 use ab_glyph::{point, Font, FontVec, PxScale, ScaleFont};
 use image::RgbImage;
 
-use super::rail::{wrap, Cue, Film};
+use super::rail::{wrap, At, Cue, Film, Lane};
 
 /// The width the layout constants are written for; every size scales from it.
 const REFERENCE_WIDTH: f32 = 1280.0;
@@ -89,28 +89,35 @@ impl Overlay {
         Ok(Self { font, metrics })
     }
 
-    /// Draw the rail's state at `frame` onto that frame.
-    pub fn draw(&self, image: &mut RgbImage, film: &Film, frame: u64) {
+    /// Draw the rail's state at `at` onto that frame.
+    pub fn draw(&self, image: &mut RgbImage, film: &Film, at: At) {
         let m = self.metrics;
         let body_height = m.pad * 2.0 + m.line_height * BODY_LINES as f32;
         let top = 20.0 * m.scale;
 
-        fill(image, m.margin, top, m.width, m.header_height, HEADER, 0.14);
+        // A marked run says so in its own header, in the cheat lane's amber,
+        // for every frame from the mark on. No clip of it reads as clean.
+        let tint = if film.cheated(at.rail) {
+            Lane::Cheat.color()
+        } else {
+            HEADER
+        };
+        fill(image, m.margin, top, m.width, m.header_height, tint, 0.14);
         let baseline = top + m.header_height - m.pad * 0.7;
         self.text(
             image,
             m.margin + m.pad,
             baseline,
             m.header_size,
-            HEADER,
+            tint,
             1.0,
-            &header_line(film, frame),
+            &header_line(film, at),
         );
 
         let body_top = top + m.header_height;
         fill(image, m.margin, body_top, m.width, body_height, PLATE, 0.66);
 
-        let view = film.view(frame, TEXT_COLS, BODY_LINES);
+        let view = film.view(at.rail, TEXT_COLS, BODY_LINES);
         let newest = view.len().saturating_sub(1);
         let mut y = body_top + m.pad + m.body_size;
         for (index, cue) in view.iter().enumerate() {
@@ -174,13 +181,18 @@ impl Overlay {
 
 /// The header strip's line: what ran, where the movie stands, whose turn it
 /// is. A clip lifted out of the run still says which run it came from.
-fn header_line(film: &Film, frame: u64) -> String {
+fn header_line(film: &Film, at: At) -> String {
     format!(
-        "{}   {}   tick {}   turn {}",
+        "{}   {}   tick {}   turn {}{}",
         film.head.identity(),
-        clock(frame),
-        Film::tick(frame),
-        film.turn(frame)
+        clock(at.clock),
+        Film::tick(at.clock),
+        film.turn(at.rail),
+        if film.cheated(at.rail) {
+            "   CHEATED"
+        } else {
+            ""
+        }
     )
 }
 
@@ -235,19 +247,22 @@ mod tests {
     use crate::audit::BenchEvent;
 
     fn film() -> Film {
-        super::super::rail::film(&[
-            BenchEvent::RunStart {
-                scenario: "slingshot.content.ron".into(),
-                agent: "pi-gpt-5.6-sol-medium".into(),
-                goal: "Reach EXIT".into(),
-                seed: Some(7),
-                budget: json!({}),
-                run_dir: "/runs/1".into(),
-            },
-            BenchEvent::AgentRequest {
-                request: json!({ "act": { "gestures": [{ "press": "flight.main_drive" }], "ticks": 9 } }),
-            },
-        ])
+        super::super::rail::film(
+            &[
+                BenchEvent::RunStart {
+                    scenario: "slingshot.content.ron".into(),
+                    agent: "pi-gpt-5.6-sol-medium".into(),
+                    goal: "Reach EXIT".into(),
+                    seed: Some(7),
+                    budget: json!({}),
+                    run_dir: "/runs/1".into(),
+                },
+                BenchEvent::AgentRequest {
+                    request: json!({ "act": { "gestures": [{ "press": "flight.main_drive" }], "ticks": 9 } }),
+                },
+            ],
+            2000,
+        )
     }
 
     #[test]
@@ -257,9 +272,24 @@ mod tests {
         assert_eq!(clock(1500), "00:25.00");
         assert_eq!(clock(4932), "01:22.20");
         assert_eq!(
-            header_line(&film, 1500),
+            header_line(&film, At::live(1500)),
             "slingshot   pi-gpt-5.6-sol-medium   seed 7   00:25.00   tick 1501   turn 1"
         );
+        let held = At {
+            rail: 4000,
+            clock: 1500,
+        };
+        assert!(
+            header_line(&film, held).contains("00:25.00   tick 1501"),
+            "a held tail keeps the clock at the last frame the game drew"
+        );
+
+        let marked = Film {
+            cheated_from: Some(1400),
+            ..film
+        };
+        assert!(!header_line(&marked, At::live(1399)).contains("CHEATED"));
+        assert!(header_line(&marked, At::live(1400)).ends_with("   CHEATED"));
     }
 
     #[test]

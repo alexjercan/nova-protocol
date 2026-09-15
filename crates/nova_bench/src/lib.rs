@@ -139,12 +139,6 @@ fn make_movie(options: &cli::MovieOptions) -> Result<ExitCode, String> {
             },
         )?
     };
-    println!(
-        "{} ({} frames, {:.1} s{})",
-        movie.path.display(),
-        movie.frames,
-        movie.seconds(),
-        if movie.railed { ", action rail" } else { "" }
-    );
+    println!("{}", movie.line());
     Ok(ExitCode::SUCCESS)
 }

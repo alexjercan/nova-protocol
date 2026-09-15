@@ -25,7 +25,7 @@ use image::RgbImage;
 
 use crate::{
     audit::{BenchEvent, Bus},
-    movie::overlay::Overlay,
+    movie::{overlay::Overlay, rail::At},
     paths::repo_root,
 };
 
@@ -44,16 +44,38 @@ pub const FONT: &str = "assets/fonts/SGr-IosevkaTerm-Medium.ttf";
 pub struct Movie {
     /// The file.
     pub path: PathBuf,
-    /// How many frames went in.
+    /// How many recorded frames went in.
     pub frames: usize,
+    /// Held frames added after them so the rail could finish.
+    pub tail: usize,
     /// Whether the action rail was drawn over them.
     pub railed: bool,
 }
 
 impl Movie {
-    /// Seconds of real time the movie runs.
+    /// Seconds of real time the movie runs, held tail included.
     pub fn seconds(&self) -> f64 {
-        self.frames as f64 / f64::from(FRAMES_PER_SECOND)
+        (self.frames + self.tail) as f64 / f64::from(FRAMES_PER_SECOND)
+    }
+
+    /// The line a command prints about this movie.
+    pub fn line(&self) -> String {
+        let tail = if self.tail == 0 {
+            String::new()
+        } else {
+            format!(
+                ", {:.1} s held",
+                self.tail as f64 / f64::from(FRAMES_PER_SECOND)
+            )
+        };
+        format!(
+            "{} ({} frames, {:.1} s{}{})",
+            self.path.display(),
+            self.frames,
+            self.seconds(),
+            tail,
+            if self.railed { ", action rail" } else { "" }
+        )
     }
 }
 
@@ -159,6 +181,7 @@ pub fn stitch(frames: &Path) -> Result<Movie, String> {
     Ok(Movie {
         path: movie_path(frames),
         frames: count,
+        tail: 0,
         railed: false,
     })
 }
@@ -179,7 +202,7 @@ pub fn compose(
     if total == 0 {
         return Err(format!("no frames under {}", frames.display()));
     }
-    let film = rail::film(&rail::read(audit)?);
+    let film = rail::film(&rail::read(audit)?, total as u64);
     let first = read_frame(&files[0])?;
     let (width, height) = (first.width(), first.height());
     let overlay = Overlay::new(font, width)?;
@@ -197,7 +220,9 @@ pub fn compose(
         .take()
         .ok_or_else(|| "ffmpeg gave the composer no stdin".to_string())?;
 
+    let tail = film.tail(total as u64);
     let mut image = first;
+    let mut last = None;
     for (index, file) in files.iter().enumerate() {
         if index > 0 {
             image = read_frame(file)?;
@@ -210,10 +235,32 @@ pub fn compose(
                 image.height()
             ));
         }
-        overlay.draw(&mut image, &film, index as u64);
+        if index + 1 == total && tail > 0 {
+            last = Some(image.clone());
+        }
+        overlay.draw(&mut image, &film, At::live(index as u64));
         sink.write_all(image.as_raw())
             .map_err(|error| format!("ffmpeg stopped reading frames: {error}"))?;
         progress(index + 1, total);
+    }
+
+    // The footage has run out but the rail has not. Hold the last frame the
+    // game drew, its clock with it, while the remaining rows scroll past.
+    if let Some(last) = last {
+        let frozen = total as u64 - 1;
+        for held in 0..tail {
+            let mut image = last.clone();
+            overlay.draw(
+                &mut image,
+                &film,
+                At {
+                    rail: total as u64 + held,
+                    clock: frozen,
+                },
+            );
+            sink.write_all(image.as_raw())
+                .map_err(|error| format!("ffmpeg stopped reading frames: {error}"))?;
+        }
     }
     drop(sink);
 
@@ -226,6 +273,7 @@ pub fn compose(
     Ok(Movie {
         path: out.to_path_buf(),
         frames: total,
+        tail: tail as usize,
         railed: true,
     })
 }
@@ -252,13 +300,7 @@ pub fn report(bus: &Bus, frames: &Path, audit: &Path) -> String {
         stitch(frames)
     });
     let line = match made {
-        Ok(movie) => format!(
-            "movie                {} ({} frames, {:.1} s{})",
-            movie.path.display(),
-            movie.frames,
-            movie.seconds(),
-            if movie.railed { ", action rail" } else { "" }
-        ),
+        Ok(movie) => format!("movie                {}", movie.line()),
         Err(error) => format!("movie                none: {error}"),
     };
     bus.emit(BenchEvent::Note { text: line.clone() });
@@ -281,9 +323,16 @@ mod tests {
         let movie = Movie {
             path: movie_path(frames),
             frames: 661,
+            tail: 0,
             railed: true,
         };
         assert!((movie.seconds() - 11.016).abs() < 0.001);
+        let held = Movie { tail: 300, ..movie };
+        assert!((held.seconds() - 16.016).abs() < 0.001);
+        assert_eq!(
+            held.line(),
+            "/runs/rec-1.mp4 (661 frames, 16.0 s, 5.0 s held, action rail)"
+        );
     }
 
     #[test]

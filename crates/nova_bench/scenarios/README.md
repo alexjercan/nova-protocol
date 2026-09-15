@@ -99,7 +99,8 @@ movie of frames already on disk without replaying anything:
 cargo run --features dev bench movie <run dir>/audit.jsonl --frames <dir>
 ```
 
-The rail reads the audit, so a red-team run shows its own evidence: `cheat`
-lines in amber, refusals in red, `nova` shell lines apart from helm `act`
-lines. Grade the footage against those rows, not against the agent's report.
+The rail reads the audit, so a red-team run shows its own evidence: refusals
+in red, `nova` shell lines apart from helm `act` lines, and - when the game
+itself marks the run - an amber `CHEATS ARMED` row and a `CHEATED` header from
+that tick on. Grade the footage against those rows, not against the report.
 See [the bench guide](../../../docs/agent-bench.md#the-action-rail).

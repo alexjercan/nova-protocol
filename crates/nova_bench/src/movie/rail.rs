@@ -26,6 +26,15 @@ use crate::{
 /// Frames between two rows that would otherwise share one frame: 0.35 s.
 pub const MIN_GAP: u64 = 21;
 
+/// Frames the last row stays on screen after it appears: 2 s to read it.
+pub const HOLD: u64 = 120;
+
+/// The most held frames a movie may grow by so its rail can finish: 30 s. A
+/// command-heavy run writes more rows than its footage has seconds - the NOVA
+/// OS shell spends almost no ticks - and truncating the end of the log is the
+/// one thing the rail must not do.
+pub const MAX_TAIL: u64 = 1800;
+
 /// Which lane a row belongs to. The lane picks the label and the colour, and
 /// is the whole reason the rail is not a JSON dump: a refusal must not read
 /// like a plan, and an armed cheat must not read like an ordinary command.
@@ -123,6 +132,27 @@ impl Head {
     }
 }
 
+/// Where the movie stands. The two differ only in the tail a short, chatty
+/// run needs to finish scrolling: there the footage has run out, so the rail
+/// goes on while the clock stays at the last tick the game drew.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct At {
+    /// The frame the rail is at.
+    pub rail: u64,
+    /// The frame the header's clock and tick read from.
+    pub clock: u64,
+}
+
+impl At {
+    /// Inside the footage, the rail and the clock are the same frame.
+    pub fn live(frame: u64) -> Self {
+        Self {
+            rail: frame,
+            clock: frame,
+        }
+    }
+}
+
 /// A run's whole rail: what to say about it, and every row in frame order.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Film {
@@ -130,6 +160,10 @@ pub struct Film {
     pub head: Head,
     /// Every row, by ascending frame.
     pub cues: Vec<Cue>,
+    /// The frame from which the run carries NOVA OS's cheat mark, when it
+    /// ever does. The header says so from there on, so no clip of a marked
+    /// run can be lifted out looking clean.
+    pub cheated_from: Option<u64>,
 }
 
 impl Film {
@@ -163,6 +197,21 @@ impl Film {
     pub fn tick(frame: u64) -> u64 {
         frame + 1
     }
+
+    /// Whether the run was already marked at `frame`.
+    pub fn cheated(&self, frame: u64) -> bool {
+        self.cheated_from.is_some_and(|from| frame >= from)
+    }
+
+    /// Held frames to add after `frames` of footage so the last row appears
+    /// and stays readable. Zero for a run whose rail drained long ago.
+    pub fn tail(&self, frames: u64) -> u64 {
+        self.cues
+            .last()
+            .map_or(0, |last| last.frame + HOLD)
+            .saturating_sub(frames.saturating_sub(1))
+            .min(MAX_TAIL)
+    }
 }
 
 /// Read an audit file into its events. A truncated final line - a crash mid
@@ -177,12 +226,13 @@ pub fn read(path: &Path) -> Result<Vec<BenchEvent>, String> {
         .collect())
 }
 
-/// Build the rail from a run's events.
-pub fn film(events: &[BenchEvent]) -> Film {
+/// Build the rail from a run's events, over a recording `frames` long.
+pub fn film(events: &[BenchEvent], frames: u64) -> Film {
     let mut head = Head::default();
     let mut tick = 1;
     let mut turn = 0;
     let mut rows: Vec<(u64, u64, Row)> = Vec::new();
+    let mut marked: Option<u64> = None;
     for event in events {
         match event {
             BenchEvent::RunStart {
@@ -207,9 +257,26 @@ pub fn film(events: &[BenchEvent]) -> Film {
                 ));
             }
             BenchEvent::ChannelIn {
-                tick: at, errors, ..
+                tick: at,
+                observation,
+                errors,
+                ..
             } => {
                 tick = *at;
+                // The world declares the mark, not the shape of a command:
+                // `speed-cap player off` is an ordinary shell line until the
+                // game says the run is marked.
+                if marked.is_none() && observation["cheats_marked"] == true {
+                    marked = Some(tick);
+                    rows.push((
+                        tick,
+                        turn,
+                        Row {
+                            lane: Lane::Cheat,
+                            text: "CHEATS ARMED: this run is marked".into(),
+                        },
+                    ));
+                }
                 for error in errors {
                     rows.push((tick, turn, refusal(error)));
                 }
@@ -243,11 +310,13 @@ pub fn film(events: &[BenchEvent]) -> Film {
                 }
             }
             BenchEvent::Refusal { detail } => rows.push((tick, turn, refusal(detail))),
+            // The goal lane bookends the run: it opens with what was asked
+            // and closes with how it ended.
             BenchEvent::RunEnd { reason, .. } => rows.push((
                 tick,
                 turn,
                 Row {
-                    lane: Lane::Act,
+                    lane: Lane::Goal,
                     text: format!("run ended: {reason}"),
                 },
             )),
@@ -260,24 +329,42 @@ pub fn film(events: &[BenchEvent]) -> Film {
     }
     Film {
         head,
-        cues: place(rows),
+        cues: place(&rows, frames),
+        // The header marks the frame the game declared it, not the frame the
+        // rail scrolls the row into view: the transcript may lag the world,
+        // the mark may not.
+        cheated_from: marked.map(|tick| tick.saturating_sub(1)),
     }
 }
 
-/// Spread the rows over frames: a row lands on its own tick's frame, or
-/// [`MIN_GAP`] after the row before it, whichever is later.
-fn place(rows: Vec<(u64, u64, Row)>) -> Vec<Cue> {
+/// Spread the rows over the movie at the widest gap that still fits.
+///
+/// A row lands on its own tick's frame, or `gap` frames after the row before
+/// it, whichever is later. [`MIN_GAP`] is what a reader wants; a rail that
+/// would then outlive the footage by more than [`MAX_TAIL`] tightens until it
+/// fits, because losing the end of the log is worse than reading it quickly.
+fn place(rows: &[(u64, u64, Row)], frames: u64) -> Vec<Cue> {
+    let room = frames.saturating_sub(1) + MAX_TAIL;
+    (1..=MIN_GAP)
+        .rev()
+        .map(|gap| spread(rows, gap))
+        .find(|placed| placed.last().is_none_or(|last| last.frame + HOLD <= room))
+        .unwrap_or_else(|| spread(rows, 1))
+}
+
+/// Place every row at one gap.
+fn spread(rows: &[(u64, u64, Row)], gap: u64) -> Vec<Cue> {
     let mut placed: Vec<Cue> = Vec::with_capacity(rows.len());
     for (tick, turn, row) in rows {
         let own = tick.saturating_sub(1);
         let frame = placed
             .last()
-            .map_or(own, |previous| own.max(previous.frame + MIN_GAP));
+            .map_or(own, |previous| own.max(previous.frame + gap));
         placed.push(Cue {
             frame,
-            tick,
-            turn,
-            row,
+            tick: *tick,
+            turn: *turn,
+            row: row.clone(),
         });
     }
     placed
@@ -331,17 +418,14 @@ fn request_rows(request: &Value) -> Vec<Row> {
     Vec::new()
 }
 
-/// One gesture as a row. The shell lines carry their own lane so a cheat
-/// cannot pass for an ordinary command, and drop the `command` prefix: the
-/// lane already said it.
+/// One gesture as a row. A shell line gets its own lane, apart from the helm,
+/// and drops the `command` prefix: the lane already said it. No command name
+/// is read for cheats here - only the game's own mark colours a run, so a
+/// cheat the game does not admit cannot dress itself in the cheat lane.
 fn gesture_row(gesture: &Gesture) -> Row {
     match gesture {
         Gesture::Command(line) => Row {
-            lane: if line.split_whitespace().next() == Some("cheats") {
-                Lane::Cheat
-            } else {
-                Lane::Nova
-            },
+            lane: Lane::Nova,
             text: line.clone(),
         },
         other => Row {
@@ -383,9 +467,14 @@ fn headers(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// One line, single spaced: the rail has no room for the model's paragraphs.
+/// One line, single spaced, with markdown bold dropped: the model writes
+/// prose for a chat window, and `**a name**` on the rail is two literal
+/// asterisks. The rail has no room for its paragraphs either.
 fn flatten(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
+    text.replace("**", "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Wrap to `cols` columns on word boundaries. The face is monospaced, so a
@@ -434,14 +523,14 @@ mod tests {
                 text: "**Planning the assist**\n\n**Picking the offset**".into(),
             },
             BenchEvent::AgentText {
-                text: "I will aim 35 degrees starboard.".into(),
+                text: "I will aim **35 degrees** starboard.".into(),
             },
             BenchEvent::AgentRequest {
                 request: json!({ "act": { "gestures": [{ "press": "flight.main_drive" }], "ticks": 180 } }),
             },
             BenchEvent::ChannelIn {
                 tick: 313,
-                observation: json!({}),
+                observation: json!({ "cheats_marked": true }),
                 raw: None,
                 errors: vec![json!({ "error": "tick 4 is in the past", "line": 9 })],
             },
@@ -453,7 +542,7 @@ mod tests {
 
     #[test]
     fn every_lane_of_a_run_lands_on_the_frame_its_tick_drew() {
-        let film = film(&events());
+        let film = film(&events(), 1000);
         assert_eq!(film.head.scenario, "slingshot");
         assert_eq!(
             film.head.identity(),
@@ -477,22 +566,52 @@ mod tests {
                     0
                 ),
                 (Lane::Act, "press flight.main_drive", MIN_GAP * 4, 1),
-                (Lane::Error, "tick 4 is in the past (line 9)", 312, 1),
-                (Lane::Cheat, "cheats arm", 333, 2),
+                (Lane::Cheat, "CHEATS ARMED: this run is marked", 312, 1),
+                (Lane::Error, "tick 4 is in the past (line 9)", 333, 1),
+                (Lane::Nova, "cheats arm", 354, 2),
             ]
         );
+        assert_eq!(film.cheated_from, Some(312));
+        assert!(!film.cheated(311) && film.cheated(312));
     }
 
     #[test]
     fn the_view_shows_the_newest_rows_that_fit_and_the_turn_beside_them() {
-        let film = film(&events());
-        assert!(film.view(0, 60, 6).is_empty() || film.view(0, 60, 6).len() == 1);
+        let film = film(&events(), 1000);
+        let opening = film.view(0, 60, 6);
+        assert_eq!(opening.len(), 1);
+        assert_eq!(opening[0].row.lane, Lane::Goal);
         let late = film.view(400, 60, 3);
         assert_eq!(late.len(), 3);
-        assert_eq!(late[2].row.lane, Lane::Cheat);
+        assert_eq!(late[2].row.lane, Lane::Nova);
         assert_eq!(film.turn(400), 2);
         assert_eq!(film.turn(0), 0);
         assert_eq!(Film::tick(0), 1);
+    }
+
+    #[test]
+    fn a_rail_longer_than_its_footage_tightens_instead_of_losing_its_end() {
+        let mut long = events();
+        long.extend((0..200).map(|beat| BenchEvent::AgentThinking {
+            text: format!("beat {beat}"),
+        }));
+        let roomy = film(&events(), 1000);
+        assert_eq!(roomy.cues[1].frame, MIN_GAP);
+        assert_eq!(roomy.tail(1000), 0);
+
+        let tight = film(&long, 60);
+        assert_eq!(tight.cues.len(), roomy.cues.len() + 200);
+        assert_eq!(roomy.cheated_from, Some(312));
+        let last = tight.cues.last().expect("rows").frame;
+        assert!(
+            last + HOLD <= 59 + MAX_TAIL,
+            "the whole rail fits the footage plus its held tail"
+        );
+        assert!(
+            tight.cues[1].frame < MIN_GAP,
+            "the gap tightened rather than dropping the end of the log"
+        );
+        assert_eq!(tight.tail(60), last + HOLD - 59);
     }
 
     #[test]

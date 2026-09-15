@@ -333,8 +333,14 @@ fading:
 
 One lane per kind of line, each its own colour: `goal` (once, at the head),
 `think`, `say`, `look` (`observe` and `page`, which spend no tick), `act`,
-`nova` for a command shell line, `cheat` for a shell line that touches
-cheats, and `err` in red for a refusal.
+`nova` for a command shell line, `cheat`, and `err` in red for a refusal.
+
+The `cheat` lane is the world's word, not the shape of a command. The first
+snapshot that carries `cheats_marked` puts `CHEATS ARMED: this run is marked`
+on the rail in amber, and from that frame on the header says `CHEATED` and
+turns amber too. A clip cut from a marked run cannot be read as clean, and a
+cheat the game does not mark does not colour the rail - which is the point of
+the "cheat without getting marked" red-team goal.
 
 Placement is arithmetic, not a guess. The recorder captures one frame per
 stepped tick and numbers from zero, so **frame = tick - 1**. `channel_in`
@@ -344,6 +350,12 @@ that would share one frame are spread 21 frames apart - a first turn can
 produce ten rows, and all ten on frame zero is a wall of text. That spread is
 why the opening rows can trail the world by a second or two; the rail is a
 log of the run, not a caption track.
+
+A short run can talk for longer than it flies. When the spread rows would run
+past the last frame, the gap tightens until they fit, and if even a one-frame
+gap is too tight the movie holds the last frame the game drew - up to 30 s -
+while the remaining rows scroll past. The header clock freezes with the
+picture, so a held tail never claims ticks the run did not take.
 
 ## Measured on the hunt fixture, seed 7
 
