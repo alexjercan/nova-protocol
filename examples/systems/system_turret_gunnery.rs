@@ -839,6 +839,19 @@ const GATE_TRAVEL_BEAT_MARGIN: Meters = Meters(SWEEP_AMPLITUDE.get() * SWEEP_RAT
 #[cfg(feature = "debug")]
 const HIT_SETTLE_SECS: f32 = 4.0;
 
+/// Real seconds a firing window gets, against the [`HIT_SETTLE_SECS`] of GAME
+/// time it waits through.
+///
+/// A `deadline` counts `Time<Real>`; `elapsed` counts the game clock, and
+/// `Time<Virtual>`'s clamp lets a frame carry at most a quarter second of world
+/// however long it took to draw. The second round fires into a range already
+/// full of rounds and carved rock, so its four settle seconds are the slowest:
+/// 14 real ones under `--render sw` on a desk box, and the CI runner was still
+/// short of them when the old 15 s bound expired (run 34950687846). A HANG
+/// detector at about three times that software floor, not a budget.
+#[cfg(feature = "debug")]
+const FIRING_WINDOW_DEADLINE_SECS: f32 = 45.0;
+
 /// How fast the aim error may still be moving and count as steady, in degrees
 /// per SECOND. A rate, not a per-frame delta: the joints slew via
 /// `SmoothLookRotation`, whose `speed` is rad/s, so a per-frame delta means a
@@ -869,11 +882,15 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 /// depends on - `WeaponsHot`, the first round leaving the barrel, the live aim
 /// error - so a slow load or a slow slew delays the walk instead of truncating
 /// it. No beat reads a quantity an assertion decides; the one settle states its
-/// reason on [`HIT_SETTLE_SECS`]. The
-/// per-step deadlines NAME the beat that stalled; their runtime sum
-/// (15 + 36 + 10 + 36 = 97s, counting `fire_round`'s beats once per CALL rather
-/// than once per source line) stays under `DEFAULT_DEADLINE_SECS` (120s) so a
-/// named stall wins the race against the generic collector deadline.
+/// reason on [`HIT_SETTLE_SECS`] and the window it is waited through on
+/// [`FIRING_WINDOW_DEADLINE_SECS`].
+///
+/// The per-step deadlines NAME the beat that stalled. Their sum is past both
+/// `DEFAULT_DEADLINE_SECS` (120s) and the 280s CI runs under, so which of the
+/// two reports a stall depends on where it lands - late enough in the walk and
+/// the run collector wins. That is the price of per-beat bounds loose enough to
+/// survive a software rasterizer, and the run's own log names the beat it was
+/// in either way.
 #[cfg(feature = "debug")]
 fn turret_script() -> Script {
     let script = Script::new()
@@ -954,7 +971,7 @@ fn fold_the_mount(script: Script) -> Script {
         .step("hold the trigger on the mount that just came back")
         .on_enter(open_fire)
         .until(and(range_fired(), elapsed(HIT_SETTLE_SECS)))
-        .deadline(20.0)
+        .deadline(FIRING_WINDOW_DEADLINE_SECS)
         .add()
         .step("assert no round ever left a housed mount")
         .on_enter(assert_no_round_left_a_housed_mount)
@@ -1171,7 +1188,7 @@ fn fire_round(script: Script, round: &'static str) -> Script {
         .step("hold the trigger")
         .on_enter(open_fire)
         .until(and(range_fired(), elapsed(HIT_SETTLE_SECS)))
-        .deadline(15.0)
+        .deadline(FIRING_WINDOW_DEADLINE_SECS)
         .add()
         .step("assert the range fired and connected")
         .on_enter(move |world: &mut World| assert_fired_and_connected(world, round))
