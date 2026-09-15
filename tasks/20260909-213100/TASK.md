@@ -1,6 +1,6 @@
 # Split the probe matrix into balanced shards
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.14.0, ci, probe, tooling
 
