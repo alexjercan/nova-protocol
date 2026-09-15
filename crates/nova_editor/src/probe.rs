@@ -424,6 +424,21 @@ mod tests {
         }
     }
 
+    /// Where the rig's eye stands: 20 engine units from what it frames, which
+    /// is 200 m.
+    const RIG_EYE: Vec3 = Vec3::new(0.0, 0.0, 20.0);
+
+    /// The distance step a framed inspector row gets under [`RIG_EYE`]: 200 m
+    /// of reach across the 200 px a panel-wide drag covers, so one metre a
+    /// pixel.
+    ///
+    /// Carried by every snapshot below and the subject of none of them - the
+    /// scaling claim itself is `system_field_controls`, which reads this same
+    /// field off a live camera. A rig with no framing at all would say more
+    /// about `Res` than about the probe: the snapshot reports what the panel
+    /// is scrubbing by, and a panel always has a camera.
+    const RIG_DRAG_STEP: f32 = 1.0;
+
     /// A world in the editor state, with the resources the snapshot reads.
     ///
     /// The edit context is empty: these cases are about the TOOL and the
@@ -433,6 +448,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(State::new(state));
         world.insert_resource(SectionChoice::None);
+        world.insert_resource(CameraFraming::on(Vec3::ZERO, RIG_EYE));
         world.init_resource::<PlacementPreview>();
         world.init_resource::<GalleryState>();
         world.init_resource::<EditContext>();
@@ -730,7 +746,13 @@ mod tests {
     #[test]
     fn the_probe_reports_the_armed_tool_and_the_solved_placement() {
         let mut world = world(ExampleStates::Editor);
-        assert_eq!(sync(&mut world), EditorProbe::default());
+        assert_eq!(
+            sync(&mut world),
+            EditorProbe {
+                framed_drag_step: RIG_DRAG_STEP,
+                ..default()
+            }
+        );
 
         let target = world.spawn_empty().id();
         world.insert_resource(SectionChoice::Section("hull".to_string()));
@@ -744,6 +766,7 @@ mod tests {
                     prototype: "hull".to_string(),
                     target,
                 },
+                framed_drag_step: RIG_DRAG_STEP,
                 ..default()
             }
         );
@@ -860,6 +883,7 @@ mod tests {
         app.init_resource::<EditorOverlays>();
         app.init_resource::<OpenMenu>();
         app.init_resource::<EditorProbe>();
+        app.insert_resource(CameraFraming::on(Vec3::ZERO, RIG_EYE));
         app.add_systems(
             Update,
             (
