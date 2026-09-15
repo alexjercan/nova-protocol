@@ -8,13 +8,15 @@ use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig,
     EventActionConfig, EventConfig, LightConfig, Names, NarrativeCueActionConfig,
-    ScenarioAreaConfig, ScenarioObjectKind, SectionSource, ShipSource, SpaceshipConfig,
+    ScenarioAreaConfig, ScenarioObjectKind, SectionSource, ShipDesignSource, SpaceshipConfig,
     SpaceshipController, TimerFilterConfig, ASTEROID_KINDS, KIND_ICE, KIND_ROCK,
 };
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, MuzzleConfig, RailgunSectionConfig, SectionConfig,
-    SectionKind, SectionReloadConfig, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
-    ThrusterSectionConfig, TorpedoSectionConfig, TurretJoint, TurretSectionConfig,
+    AmmoCapacity, BaseSectionConfig, GameSections, MuzzleConfig, MuzzleConfigPatch,
+    RailgunSectionConfig, ReloadConfig, SectionConfig, SectionKind, SectionKindPatch,
+    SectionReloadConfig, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
+    ThrusterSectionConfig, ThrusterSectionConfigPatch, TorpedoSectionConfig, TurretJoint,
+    TurretSectionConfig, TurretSectionConfigPatch,
 };
 
 use super::*;
@@ -80,7 +82,6 @@ fn thruster_node(magnitude: f32) -> SectionNode {
                 ..default()
             }),
         }),
-        modifications: vec![],
         binds: vec![],
     }
 }
@@ -105,7 +106,6 @@ fn thruster_with_exhaust(geometry: ThrusterExhaustShape) -> SectionNode {
                 ..default()
             }),
         }),
-        modifications: vec![],
         binds: vec![],
     }
 }
@@ -127,6 +127,7 @@ fn turret_with_muzzle(fire_rate: f32) -> SectionNode {
     };
     let muzzle = joint(
         Some(MuzzleConfig {
+            id: "main".to_string(),
             fire_rate,
             muzzle_effect: None,
         }),
@@ -143,7 +144,6 @@ fn turret_with_muzzle(fire_rate: f32) -> SectionNode {
                 ..default()
             }),
         }),
-        modifications: vec![],
         binds: vec![],
     }
 }
@@ -181,6 +181,39 @@ fn stock_asteroid() -> AsteroidConfig {
     }
 }
 
+/// The row of this name holding a NUMBER. A payload enum draws two rows under
+/// one name - the variant it is, then the number inside it - and a test that
+/// asks about a unit or a floor is asking about the number.
+fn number_row<'a>(rows: &'a [InspectorRow], label: &str) -> &'a InspectorRow {
+    rows.iter()
+        .find(|row| row.label == label && matches!(row.value, RowValue::Number(_)))
+        .unwrap_or_else(|| {
+            panic!(
+                "no number row {label:?}; found {:?}",
+                rows.iter().map(|row| &row.label).collect::<Vec<_>>()
+            )
+        })
+}
+
+/// Write into a SECTION the way the Inspector's edit routing does: through
+/// [`edit_section`], so an inline part is written in place and a prototype
+/// reference keeps its id and carries a patch.
+fn write_section(
+    node: &mut SectionNode,
+    catalog: Option<&GameSections>,
+    row: &InspectorRow,
+    text: &str,
+) -> Result<(), String> {
+    edit_section(node, catalog, |config| {
+        write_field(
+            section_config_mut(&mut config.kind),
+            &row.path,
+            row.optional,
+            text,
+        )
+    })
+}
+
 /// Write into an object's kind config the way `apply_inspector_edits` does.
 fn write(
     object: &mut ObjectNode,
@@ -212,15 +245,9 @@ fn typing_a_number_writes_it_into_the_config() {
     let rows = section_rows(&node, None);
     let magnitude = row(&rows, "Magnitude").clone();
 
-    let config = editable_config(&mut node, None).expect("an inline section");
-    write_field(
-        section_config_mut(&mut config.kind),
-        &magnitude.path,
-        magnitude.optional,
-        "250.5",
-    )
-    .expect("a number the field takes");
+    write_section(&mut node, None, &magnitude, "250.5").expect("a number the field takes");
 
+    let config = node.patched(None).expect("an inline section");
     let SectionKind::Thruster(tuned) = &config.kind else {
         panic!("still a thruster");
     };
@@ -233,23 +260,21 @@ fn a_value_the_field_refuses_leaves_the_config_alone() {
     let rows = section_rows(&node, None);
     let magnitude = row(&rows, "Magnitude").clone();
 
-    let config = editable_config(&mut node, None).expect("an inline section");
-    let refused = write_field(
-        section_config_mut(&mut config.kind),
-        &magnitude.path,
-        magnitude.optional,
-        "fast",
-    );
+    let refused = write_section(&mut node, None, &magnitude, "fast");
 
     assert!(refused.is_err(), "'fast' is not a number");
+    let config = node.patched(None).expect("an inline section");
     let SectionKind::Thruster(untouched) = &config.kind else {
         panic!("still a thruster");
     };
     assert!((untouched.magnitude - 120.0).abs() < f32::EPSILON);
 }
 
+/// What a prototype instance writes: a PATCH on the reference, not a copy of
+/// the part. The document keeps naming the catalog entry, so a later change to
+/// that entry still reaches every field this placement did not touch.
 #[test]
-fn editing_a_catalog_section_copies_it_inline_first() {
+fn editing_a_catalog_section_patches_the_reference() {
     let catalog = GameSections(vec![SectionConfig {
         base: BaseSectionConfig {
             id: "thruster".to_string(),
@@ -261,8 +286,7 @@ fn editing_a_catalog_section_copies_it_inline_first() {
         }),
     }]);
     let mut node = SectionNode {
-        source: SectionSource::Prototype("thruster".to_string()),
-        modifications: vec![],
+        source: SectionSource::prototype("thruster"),
         binds: vec![],
     };
     // The prototype's fields are readable before any of this.
@@ -271,16 +295,27 @@ fn editing_a_catalog_section_copies_it_inline_first() {
         "40"
     );
 
-    let config = editable_config(&mut node, Some(&catalog)).expect("a copy of the prototype");
-    let SectionKind::Thruster(copied) = &config.kind else {
-        panic!("the copy is still a thruster");
+    let magnitude = row(&section_rows(&node, Some(&catalog)), "Magnitude").clone();
+    write_section(&mut node, Some(&catalog), &magnitude, "95").expect("a number the field takes");
+
+    let SectionSource::Prototype { id, patch } = &node.source else {
+        panic!("the reference is kept: {:?}", node.source);
     };
-    assert!((copied.magnitude - 40.0).abs() < f32::EPSILON);
-    assert!(
-        matches!(node.source, SectionSource::Inline(_)),
-        "an edit to the id would be an edit to every ship that names it"
+    assert_eq!(id, "thruster", "still the catalog part it names");
+    assert_eq!(
+        patch.kind,
+        Some(SectionKindPatch::Thruster(ThrusterSectionConfigPatch {
+            magnitude: Some(95.0),
+        })),
+        "and the edit is the delta on it"
     );
-    // The catalog entry is untouched by the copy.
+    // The row a builder reads is the patched one.
+    assert_eq!(
+        text_of(&section_rows(&node, Some(&catalog)), "Magnitude"),
+        "95"
+    );
+    // The catalog entry is untouched: an edit to the id would be an edit to
+    // every ship that names it.
     assert!(matches!(
         &catalog.get_section("thruster").expect("still listed").kind,
         SectionKind::Thruster(entry) if (entry.magnitude - 40.0).abs() < f32::EPSILON
@@ -658,14 +693,16 @@ fn weapons_open_on_valid_ammo_and_reload_controls() {
     let SectionKind::Turret(turret) = &mut config.kind else {
         panic!("the fixture is a turret");
     };
-    turret.ammo_capacity = Some(12);
-    turret.reload = Some(SectionReloadConfig {
+    turret.ammunition = AmmoCapacity::Limited(12);
+    turret.reload = ReloadConfig::Batch(SectionReloadConfig {
         delay: 1.5,
         amount: 3,
     });
 
     let rows = curated_section_rows(&node, None);
-    let capacity = row(&rows, "Ammo Capacity");
+    // A magazine is an `AmmoCapacity`, so it draws two rows: WHICH kind of
+    // magazine it is, and - on a limited one - how many rounds are in it.
+    let capacity = number_row(&rows, "Ammunition");
     assert_eq!(capacity.unit, "rounds");
     assert_eq!(capacity.nudge, 1.0);
     assert_eq!(capacity.limit, Limit::AtLeast(1.0));
@@ -694,19 +731,18 @@ fn weapons_open_on_valid_ammo_and_reload_controls() {
                 ..default()
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
-                ammo_capacity: Some(6),
-                reload: Some(SectionReloadConfig {
+                ammunition: AmmoCapacity::Limited(6),
+                reload: ReloadConfig::Batch(SectionReloadConfig {
                     delay: 10.0,
                     amount: 1,
                 }),
                 ..default()
             }),
         }),
-        modifications: vec![],
         binds: vec![],
     };
     let bay_rows = curated_section_rows(&bay, None);
-    for label in ["Ammo Capacity", "Delay", "Amount"] {
+    for label in ["Ammunition", "Delay", "Amount"] {
         assert!(
             bay_rows.iter().any(|row| row.label == label),
             "a torpedo bay exposes {label} on its first screen"
@@ -779,7 +815,7 @@ fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
     let picket = ObjectNode {
         name: "Picket Warden".to_string(),
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Prototype("block_gunship".to_string()),
+            design: ShipDesignSource::prototype("block_gunship"),
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             ..default()
         }),
@@ -792,8 +828,8 @@ fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
         .collect();
 
     assert!(
-        said.contains(&("Hull".to_string(), "block_gunship".to_string())),
-        "the hull it flies, by catalog id: {said:?}"
+        said.contains(&("Id".to_string(), "block_gunship".to_string())),
+        "the design it flies, by catalog id: {said:?}"
     );
     assert!(
         said.contains(&("Controller".to_string(), "AI".to_string())),
@@ -811,7 +847,7 @@ fn a_picked_level_keeps_the_heading_its_fields_sit_under() {
     let picket = ObjectNode {
         name: "Picket Warden".to_string(),
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Prototype("block_gunship".to_string()),
+            design: ShipDesignSource::prototype("block_gunship"),
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             ..default()
         }),
@@ -1104,7 +1140,6 @@ fn a_rotation_inside_a_config_reads_in_degrees() {
                 ..default()
             }),
         }),
-        modifications: vec![],
         binds: vec![],
     };
     let rows = section_rows(&node, None);
@@ -2156,4 +2191,204 @@ fn every_action_and_filter_offers_the_sentence_it_was_documented_with() {
             choice.label()
         );
     }
+}
+
+/// A twin point-defense mount: two barrels off one root, told apart by the
+/// ids a patch and an inspector row both address them by.
+fn twin_pdc() -> SectionConfig {
+    let barrel = |id: &str, fire_rate: f32| TurretJoint {
+        name: None,
+        offset: Vec3::ZERO,
+        axis: None,
+        speed: 0.0,
+        min: None,
+        max: None,
+        render_mesh: None,
+        render_mesh_transform: None,
+        muzzle: Some(MuzzleConfig {
+            id: id.to_string(),
+            fire_rate,
+            muzzle_effect: None,
+        }),
+        children: Vec::new(),
+    };
+    SectionConfig {
+        base: BaseSectionConfig {
+            id: "pdc".to_string(),
+            ..default()
+        },
+        kind: SectionKind::Turret(TurretSectionConfig {
+            root: TurretJoint {
+                children: vec![barrel("left", 10.0), barrel("right", 10.0)],
+                ..barrel("unused", 0.0)
+            },
+            bullet_damage: 12.0,
+            ..default()
+        }),
+    }
+}
+
+/// The turret's own root carries no muzzle; the helper above builds one to
+/// clone the joint's shape from.
+fn pdc_catalog() -> GameSections {
+    let mut config = twin_pdc();
+    let SectionKind::Turret(turret) = &mut config.kind else {
+        panic!("a turret");
+    };
+    turret.root.muzzle = None;
+    GameSections(vec![config])
+}
+
+fn pdc_node() -> SectionNode {
+    SectionNode {
+        source: SectionSource::prototype("pdc"),
+        binds: vec![],
+    }
+}
+
+/// The three states one row can be in, on the one section that has them: a
+/// prototype instance shows the resolved value, an edited field is marked, and
+/// every other field still inherits.
+#[test]
+fn a_patched_row_is_marked_and_its_neighbours_still_inherit() {
+    let catalog = pdc_catalog();
+    let mut node = pdc_node();
+
+    let inherited = section_rows(&node, Some(&catalog));
+    assert_eq!(text_of(&inherited, "Bullet Damage"), "12");
+    assert!(
+        inherited.iter().all(|row| !row.overridden),
+        "nothing is patched yet, so nothing is marked"
+    );
+
+    let damage = row(&inherited, "Bullet Damage").clone();
+    write_section(&mut node, Some(&catalog), &damage, "7").expect("a number the field takes");
+
+    let rows = section_rows(&node, Some(&catalog));
+    assert_eq!(
+        text_of(&rows, "Bullet Damage"),
+        "7",
+        "the row shows the RESOLVED value, which is the patched one"
+    );
+    assert!(row(&rows, "Bullet Damage").overridden, "and is marked");
+    assert!(
+        !row(&rows, "Muzzle Speed").overridden,
+        "a field nobody touched still inherits"
+    );
+}
+
+/// Reset is the other half: it takes the patch FIELD away, so a later change
+/// to the catalog part reaches the row again. Copying today's prototype value
+/// into the document would look the same on screen and be the opposite.
+#[test]
+fn reset_removes_the_patch_field_rather_than_copying_the_value() {
+    let catalog = pdc_catalog();
+    let mut node = pdc_node();
+    let damage = row(&section_rows(&node, Some(&catalog)), "Bullet Damage").clone();
+    write_section(&mut node, Some(&catalog), &damage, "7").expect("a number the field takes");
+
+    reset_field(&mut node, Some(&catalog), &damage.path).expect("an inherited value to go back to");
+
+    let SectionSource::Prototype { id, patch } = &node.source else {
+        panic!("still a reference: {:?}", node.source);
+    };
+    assert_eq!(id, "pdc");
+    assert!(
+        patch.is_empty(),
+        "the patch field is GONE, not set to the prototype's value: {patch:?}"
+    );
+    let rows = section_rows(&node, Some(&catalog));
+    assert_eq!(text_of(&rows, "Bullet Damage"), "12");
+    assert!(!row(&rows, "Bullet Damage").overridden);
+}
+
+/// A twin's two barrels carry the same fields, and the curated view drops the
+/// joint tree that used to tell them apart. The ID is what the heading says -
+/// and what the patch is keyed by, so re-parenting a barrel cannot move an
+/// authored rate onto the other gun.
+#[test]
+fn a_twin_shows_and_patches_its_barrels_by_id() {
+    let catalog = pdc_catalog();
+    let mut node = pdc_node();
+
+    let rows = curated_section_rows(&node, Some(&catalog));
+    let rates: Vec<Vec<String>> = rows
+        .iter()
+        .filter(|row| row.label == "Fire Rate")
+        .map(|row| row.group.clone())
+        .collect();
+    assert_eq!(
+        rates,
+        vec![
+            vec!["Left Muzzle".to_string()],
+            vec!["Right Muzzle".to_string()]
+        ],
+        "one row per barrel, each under the id it answers to"
+    );
+
+    let left = rows
+        .iter()
+        .find(|row| row.label == "Fire Rate" && row.group == vec!["Left Muzzle".to_string()])
+        .expect("the left barrel's rate")
+        .clone();
+    write_section(&mut node, Some(&catalog), &left, "50").expect("a number the field takes");
+
+    let SectionSource::Prototype { patch, .. } = &node.source else {
+        panic!("still a reference: {:?}", node.source);
+    };
+    assert_eq!(
+        patch.kind,
+        Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
+            muzzles: [(
+                "left".to_string(),
+                MuzzleConfigPatch {
+                    fire_rate: Some(50.0)
+                }
+            )]
+            .into_iter()
+            .collect(),
+            ..default()
+        })),
+        "by id, and the twin is left inheriting"
+    );
+    let rows = curated_section_rows(&node, Some(&catalog));
+    let marked: Vec<(Vec<String>, bool)> = rows
+        .iter()
+        .filter(|row| row.label == "Fire Rate")
+        .map(|row| (row.group.clone(), row.overridden))
+        .collect();
+    assert_eq!(
+        marked,
+        vec![
+            (vec!["Left Muzzle".to_string()], true),
+            (vec!["Right Muzzle".to_string()], false)
+        ]
+    );
+}
+
+/// The boundary, at the panel. A joint OFFSET is the prototype's geometry and
+/// no patch can say it, so the placement keeps the whole config instead - and
+/// the edit still lands, which is what the panel offered.
+#[test]
+fn an_edit_a_patch_cannot_say_keeps_the_whole_config_instead() {
+    let catalog = pdc_catalog();
+    let mut node = pdc_node();
+    let offset = row(&section_rows(&node, Some(&catalog)), "Offset").clone();
+
+    let mut path = offset.path.clone();
+    path.push(PathStep::Field("y".to_string()));
+    edit_section(&mut node, Some(&catalog), |config| {
+        write_field(section_config_mut(&mut config.kind), &path, false, "2")
+    })
+    .expect("a number the field takes");
+
+    assert!(
+        matches!(node.source, SectionSource::Inline(_)),
+        "geometry is outside the patch boundary: {:?}",
+        node.source
+    );
+    assert_eq!(
+        text_of(&section_rows(&node, Some(&catalog)), "Offset"),
+        "0, 2, 0"
+    );
 }

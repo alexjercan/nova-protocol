@@ -97,7 +97,7 @@ fn spawn_directionless_thruster(app: &mut App, ship: Entity) -> Entity {
 fn a_thruster_with_a_degenerate_authored_rotation_does_not_poison_the_burn() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     spawn_directionless_thruster(&mut app, ship);
     settle(&mut app);
     app.world_mut()
@@ -126,7 +126,7 @@ fn a_thruster_with_a_degenerate_authored_rotation_does_not_poison_the_burn() {
 fn a_ship_whose_only_engine_is_directionless_disengages() {
     let mut app = flight_app();
     let (ship, thruster, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     app.world_mut()
         .entity_mut(thruster)
         .insert(SectionInactiveMarker);
@@ -155,7 +155,7 @@ fn a_ship_whose_only_engine_is_directionless_disengages() {
 fn autopilot_commands_editor_bound_thrusters() {
     let mut app = flight_app();
     let (ship, thruster, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     app.world_mut()
         .entity_mut(thruster)
         .insert(SpaceshipThrusterInputBinding(vec![]));

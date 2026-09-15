@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn a_hull_the_editor_accepts_is_a_hull_the_ship_lint_accepts() {
         use nova_scenario::prelude::{
-            lint_ship_config, KnownSections, SectionSource, ShipConfig, ShipHull,
+            lint_ship_design_config, KnownSections, SectionSource, ShipDesign, ShipDesignPrototype,
             SpaceshipSectionConfig,
         };
 
@@ -769,30 +769,29 @@ mod tests {
 
         // The lint half: the same two sections, as the save would write them.
         let configs = [prototype("left", Vec3::X), prototype("right", Vec3::NEG_X)];
-        let saved = ShipConfig {
+        let saved = ShipDesignPrototype {
             id: "seam".to_string(),
             name: "Seam".to_string(),
-            hull: ShipHull {
+            design: ShipDesign {
                 sections: vec![
                     SpaceshipSectionConfig {
                         id: "left".to_string(),
                         position: ship[0].position,
                         rotation: ship[0].rotation,
-                        source: SectionSource::Prototype("left".to_string()),
-                        modifications: vec![],
+                        source: SectionSource::prototype("left"),
                     },
                     SpaceshipSectionConfig {
                         id: "right".to_string(),
                         position: placement.transform.translation,
                         rotation: placement.transform.rotation,
-                        source: SectionSource::Prototype("right".to_string()),
-                        modifications: vec![],
+                        source: SectionSource::prototype("right"),
                     },
                 ],
                 ..default()
             },
         };
-        let issues = lint_ship_config(&saved, &KnownSections::from_configs(&configs), "editor");
+        let issues =
+            lint_ship_design_config(&saved, &KnownSections::from_configs(&configs), "editor");
         assert!(issues.is_empty(), "{issues:?}");
     }
 

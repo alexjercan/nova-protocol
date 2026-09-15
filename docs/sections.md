@@ -25,7 +25,7 @@ readings](#damage-is-two-readings)).
 |--------------|--------------|
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
-| `Controller` | Attitude controller (`steering_lag`, `max_torque`); lag derives the internal PD gains, torque feeds the hull's attitude envelope (see below). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop. |
+| `Controller` | Attitude controller (`steering_lag`, `max_torque`); lag derives the internal PD gains, torque feeds the hull's attitude envelope (see below). Attitude hardware only - what a ship is PERMITTED to do is `ShipCapabilities` on its root. A ship needs one to be steerable; several SHARE one attitude loop. |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 | `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
@@ -269,17 +269,20 @@ the unit-cube defaults:
 ## Building a ship
 
 A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
-`controller` (`None`, `Player`, or `AI`), an `allegiance`, an optional
-`collapse_threshold` (below), a `skin` flag (the
-[derived cladding](#the-derived-skin)), and a list of
-`SpaceshipSectionConfig`, each placing one section at a `position` + `rotation`
-relative to the ship root. That `position` is the one authored vector that is
-not a distance: it is a BUILD-GRID CELL, so it stays a bare `Vec3` of engine
-world units and sections stack by whole cells of 10 m. It comes with a `source`
-(`Inline` /
-`Prototype`) and optional `modifications`. The player
-config carries the input mapping (section id -> key/gamepad bindings) plus
-`speed_cap`; the AI config carries `patrol`/`orbit`/`leash`/`engage_delay`.
+`controller` (`None`, `Player`, or `AI`), an `allegiance`, a `capabilities` set
+(what this spawn is permitted to do) and a `design`: a `ShipDesignSource`, which
+is either an `Inline` `ShipDesign` or a `Prototype` naming a catalog design by
+id with this spawn's own `section_patches` over it. The design carries the
+`integrity` (the optional `collapse_threshold`, below), the `presentation` (the
+[derived cladding](#the-derived-skin), the style and the cockpit voice) and a
+list of `SpaceshipSectionConfig`, each placing one section at a `position` +
+`rotation` relative to the ship root. That `position` is the one authored vector
+that is not a distance: it is a BUILD-GRID CELL, so it stays a bare `Vec3` of
+engine world units and sections stack by whole cells of 10 m. It comes with a
+`source` (`Inline`, or `Prototype` with its own `SectionConfigPatch`). The
+player config carries the input mapping (section id -> key/gamepad bindings)
+plus `speed_cap`; the AI config carries
+`patrol`/`orbit`/`leash`/`engage_delay`.
 
 Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer
@@ -295,7 +298,15 @@ and `webmods/the-ledger/ledger_ships.content.ron` for hand-authored ships built
 out of modelled parts a mod brings with it.
 The editor (`crates/nova_editor`) assembles ships interactively using
 `preview_section`, which has no health or rigid body and never enters the
-damage pipeline.
+damage pipeline. A part placed from the gallery is a `Prototype` reference from
+the moment it lands (`spawn_section_node`), and stays one when it is tuned:
+`inspect::edit_section` applies the current patch, hands the edit a whole
+config, then asks `SectionConfigPatch::between` for the delta back and keeps the
+`Prototype` source with that patch. `between` is the checked inverse of `apply`
+- it re-applies its own result and compares - and returns `None` when the edit
+is outside what a patch can say (a different kind, a muzzle the prototype does
+not carry), which is the only case that falls back to an `Inline` copy. So the
+editor never keeps a second list of which fields the patch reaches.
 
 ### The derived skin
 
@@ -373,8 +384,8 @@ Two things it does differently from the spawner:
 
 Both readings go through `read_structure` (`shell_skin.rs`), so the lattice the
 editor clads on and the lattice the flown ship clads on cannot drift - and the
-build state carries the toggle into the `SpaceshipConfig` the scenario spawns,
-so what you see in the editor is what you fly.
+build state carries the toggle into the `ShipDesign`'s `presentation` the
+scenario spawns, so what you see in the editor is what you fly.
 
 #### The plate vocabulary and skin styles
 

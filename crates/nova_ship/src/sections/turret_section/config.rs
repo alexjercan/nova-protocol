@@ -9,9 +9,18 @@ use nova_gameplay::prelude::*;
 use crate::prelude::*;
 
 /// A fire point on a turret: where bullets leave. A joint carries at most one.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MuzzleConfig {
+    /// This muzzle's stable id, unique within the turret: `main` on a single
+    /// barrel, `left` and `right` on a twin.
+    ///
+    /// The addressable handle a patch and an editor row use, so a twin's two
+    /// fire rates are told apart by NAME rather than by their position in the
+    /// joint tree - re-parenting a barrel must not silently move an authored
+    /// rate onto the other gun. Duplicates within one turret are a content
+    /// lint error.
+    pub id: String,
     /// Rounds per second for THIS muzzle.
     pub fire_rate: f32,
     /// Muzzle effect (flash) asset; None = no flash.
@@ -48,7 +57,7 @@ fn is_default_joint_speed(speed: &f32) -> bool {
 /// the tree base(fixed) -> yaw(axis Y) -> pitch(axis X) -> barrel(fixed) ->
 /// muzzle(fixed, has `muzzle`). Arbitrary arm count / multi-hinge = wider/deeper
 /// trees.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TurretJoint {
     /// Local translation from the parent joint (section origin for the root).
@@ -121,7 +130,7 @@ pub struct TurretJoint {
 }
 
 /// Configuration for a turret section of a spaceship.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TurretSectionConfig {
     /// The turret's kinematic joint tree (base -> ... -> muzzle). Replaces the
@@ -212,22 +221,16 @@ pub struct TurretSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub stow_close_sound: Option<AssetRef<AudioSource>>,
-    /// Magazine size in rounds. `None` fires without limit (the pre-ammo
-    /// behavior); `Some(n)` gives the turret a [`SectionAmmo`] of `n` rounds
-    /// that depletes one per bullet and blocks firing once empty.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub ammo_capacity: Option<u32>,
-    /// Idle batch reload for the magazine. Each successful shot resets its
-    /// delay; each completed delay restores the authored amount until full.
-    /// Requires `ammo_capacity`; an unlimited turret never reloads.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub reload: Option<SectionReloadConfig>,
+    /// How many rounds this turret holds: `Unlimited`, or `Limited(n)` for a
+    /// [`SectionAmmo`] of `n` that depletes one per shot and blocks firing
+    /// once empty.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub ammunition: AmmoCapacity,
+    /// Idle batch reload. Each successful shot resets its delay; each
+    /// completed delay restores the authored amount until full. `Batch` on an
+    /// `Unlimited` turret is a content lint error - there is nothing to refill.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub reload: ReloadConfig,
 }
 
 /// The stock muzzle speed [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
@@ -293,6 +296,7 @@ impl Default for TurretSectionConfig {
                                 render_mesh: None,
                                 render_mesh_transform: None,
                                 muzzle: Some(MuzzleConfig {
+                                    id: "main".to_string(),
                                     fire_rate: 100.0,
                                     muzzle_effect: None,
                                 }),
@@ -315,8 +319,8 @@ impl Default for TurretSectionConfig {
             dry_fire_sound: None,
             stow_open_sound: None,
             stow_close_sound: None,
-            ammo_capacity: None,
-            reload: None,
+            ammunition: AmmoCapacity::Unlimited,
+            reload: ReloadConfig::Disabled,
         }
     }
 }

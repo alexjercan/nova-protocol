@@ -50,7 +50,7 @@ pub const PLANETOID_RADIUS: Meters = Meters(300.0);
 pub const PLANETOID_MASS: f32 = 6_000.0;
 
 /// The set: planetoid, near-field belt, hero gunship, two drifting hulls.
-pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     // The hero: a patrol gunship at the origin, turned three-quarters and tipped
     // off the horizontal so it reads as a ship parked in a yard rather than a
     // model on a shelf. The fleet's most detailed silhouette, which is what a
@@ -181,7 +181,7 @@ pub fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    hull: ShipHull,
+    hull: ShipDesign,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -193,7 +193,7 @@ pub fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(hull),
+            design: ShipDesignSource::Inline(hull),
             ..default()
         }),
     })

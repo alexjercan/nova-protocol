@@ -489,7 +489,7 @@ fn self_record(me: &Value, frame: Option<&Frame>) -> Value {
     let angular = vec3(&me["angular_velocity"]);
     let (sections, plates) = sections_and_plates(&me["sections"]);
     json!({
-        "withheld_verbs": withheld_verbs(&me["sections"]),
+        "withheld_capabilities": withheld_capabilities(&me["capabilities"]),
         "id": me["id"],
         "name": me["name"],
         "position_m": scale(vec3(&me["position"])),
@@ -510,24 +510,32 @@ fn self_record(me: &Value, frame: Option<&Frame>) -> Value {
     })
 }
 
-/// The flight verbs the ship is not allowed to use right now, named as the
-/// scenario withheld them: `Goto`, `Lock`, `Orbit`, `Rcs`, `Stop`.
+/// The capabilities the ship is not allowed to use right now, named as the
+/// scenario withheld them: `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`,
+/// `Stop`.
 ///
-/// A tutorial hands the verbs over one lesson at a time, and a player sees
-/// that on the hint strip. Without it the pilot cannot tell "I pressed it
+/// A tutorial hands the capabilities over one lesson at a time, and a player
+/// sees that on the hint strip. Without it the pilot cannot tell "I pressed it
 /// wrong" from "this ship cannot do that yet" - the radar acquires nothing at
 /// all while `Lock` is withheld, whatever the gesture looks like.
-fn withheld_verbs(sections: &Value) -> Vec<Value> {
-    let mut verbs: Vec<Value> = sections
-        .as_array()
-        .into_iter()
-        .flatten()
-        .flat_map(|section| section["modifications"].as_array().into_iter().flatten())
-        .filter_map(|modification| modification.get("DisableVerb").cloned())
-        .collect();
-    verbs.sort_by_key(ToString::to_string);
-    verbs.dedup();
-    verbs
+///
+/// Read from the SHIP, not from its sections: a capability is a property of
+/// the hull the scenario spawned, so losing the flight computer does not
+/// change the answer. Everything is granted when the snapshot names nothing,
+/// which is the spawn default.
+fn withheld_capabilities(capabilities: &Value) -> Vec<Value> {
+    [
+        ("goto", "Goto"),
+        ("lock", "Lock"),
+        ("orbit", "Orbit"),
+        ("point_defense", "PointDefense"),
+        ("rcs", "Rcs"),
+        ("stop", "Stop"),
+    ]
+    .into_iter()
+    .filter(|(key, _)| capabilities[*key] == json!(false))
+    .map(|(_, name)| json!(name))
+    .collect()
 }
 
 /// The sections a pilot reads by name (mounts, bridge, drives) and the
@@ -797,9 +805,9 @@ mod tests {
                         { "id": "turret_port", "class": "Turret", "health": { "current": 50, "max": 50 }, "alive": true, "disabled": false,
                           "weapon": { "kind": "turret", "firing": false, "on_target": false, "ammo": { "rounds": 40, "capacity": 40 }, "charge": null, "reload": null } },
                         { "id": "hull", "class": "Hull", "health": { "current": 100, "max": 100 }, "alive": true, "disabled": false, "weapon": null },
-                        { "id": "bridge", "class": "Controller", "health": { "current": 300, "max": 300 }, "alive": true, "disabled": false, "weapon": null,
-                          "modifications": [{ "SetHealth": 300.0 }, { "DisableVerb": "Orbit" }, { "DisableVerb": "Lock" }] }
-                    ]
+                        { "id": "bridge", "class": "Controller", "health": { "current": 300, "max": 300 }, "alive": true, "disabled": false, "weapon": null }
+                    ],
+                    "capabilities": { "stop": true, "goto": true, "orbit": false, "lock": false, "rcs": true, "point_defense": true }
                 },
                 {
                     "id": "raider_1", "name": "Raider", "controller": "AI", "allegiance": "Hostile",
@@ -845,7 +853,10 @@ mod tests {
         assert_eq!(view["me"]["speed_mps"], 20.0);
         assert_eq!(view["me"]["velocity_bearing_deg"], json!([0.0, 0.0]));
         assert_eq!(view["me"]["sections"].as_array().unwrap().len(), 2);
-        assert_eq!(view["me"]["withheld_verbs"], json!(["Lock", "Orbit"]));
+        assert_eq!(
+            view["me"]["withheld_capabilities"],
+            json!(["Lock", "Orbit"])
+        );
         assert_eq!(view["me"]["sections"][0]["weapon"]["ammo"]["rounds"], 40);
         assert_eq!(
             view["me"]["hull_plates"],

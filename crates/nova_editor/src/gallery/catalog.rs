@@ -170,12 +170,13 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             (
                 "Ammo".to_string(),
                 turret
-                    .ammo_capacity
+                    .ammunition
+                    .rounds()
                     .map_or_else(|| "unlimited".to_string(), |ammo| format!("{ammo}")),
             ),
             (
                 "Reload".to_string(),
-                turret.reload.map_or_else(
+                turret.reload.batch().map_or_else(
                     || "none".to_string(),
                     |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
                 ),
@@ -197,12 +198,13 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             (
                 "Ammo".to_string(),
                 torpedo
-                    .ammo_capacity
+                    .ammunition
+                    .rounds()
                     .map_or_else(|| "unlimited".to_string(), |ammo| format!("{ammo}")),
             ),
             (
                 "Reload".to_string(),
-                torpedo.reload.map_or_else(
+                torpedo.reload.batch().map_or_else(
                     || "none".to_string(),
                     |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
                 ),
@@ -229,7 +231,7 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             ),
             (
                 "Reload".to_string(),
-                railgun.reload.map_or_else(
+                railgun.reload.batch().map_or_else(
                     || "none".to_string(),
                     |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
                 ),

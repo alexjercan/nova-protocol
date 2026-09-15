@@ -198,7 +198,6 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let player = SpaceshipConfig {
@@ -206,7 +205,7 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             input_mapping: BTreeMap::new(),
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(PLAYER_HELM, "basic_controller_section", Vec3::ZERO),
                 at(
@@ -229,7 +228,6 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     // the hull's graph disconnected and the scenario refuses.
                     rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
                     source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
-                    modifications: vec![],
                 },
             ],
             ..default()
@@ -241,7 +239,7 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     // can be asked to draw a component overlay over.
     let drone = SpaceshipConfig {
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![at(DRONE_SECTION, "basic_controller_section", Vec3::ZERO)],
             ..default()
         }),
@@ -250,7 +248,7 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 
     let carrier = SpaceshipConfig {
         controller: SpaceshipController::None,
-        hull: ShipSource::Prototype(CARRIER_HULL.to_string()),
+        design: ShipDesignSource::prototype(CARRIER_HULL),
         ..default()
     };
 

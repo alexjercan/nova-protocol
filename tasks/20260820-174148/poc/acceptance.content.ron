@@ -27,7 +27,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            design: Prototype(id: "cargoa"),
                             controller: Player((
                                 input_mapping: {
                                     "turret_port": [
@@ -50,7 +50,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa_raider"),
+                            design: Prototype(id: "cargoa_raider"),
                             controller: AI((
                                 engage_delay: Some(600.0),
                             )),

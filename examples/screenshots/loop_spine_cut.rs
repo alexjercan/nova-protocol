@@ -152,13 +152,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(sever_range(&game_assets, &ships)));
 }
 
 /// The set: one gunship, three-quarter to the lens, a near rock field for
 /// depth and the photo rig.
-fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn sever_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: SUBJECT_ID.to_string(),
@@ -176,7 +176,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             // section death severs the whole hull into loose wrecks. The kit
             // reads the ship catalog now, so the cut severs exactly what hangs
             // off the cut section.
-            hull: ShipSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
             ..default()
         }),
     });
@@ -239,7 +239,7 @@ fn spin_subject(world: &mut World) {
 /// The id the cut section carries on the spawned hull.
 #[cfg(feature = "debug")]
 fn cut_section(world: &mut World) -> String {
-    let ships = world.resource::<GameShips>().clone();
+    let ships = world.resource::<GameShipDesigns>().clone();
     kit::cell_section(&ships, SUBJECT_HULL, CUT_CELL)
 }
 

@@ -235,9 +235,6 @@ pub(crate) struct SectionNode {
     /// [`SectionNode::resolve`] rather than being dropped, which is what the old
     /// rebuild path did to it.
     pub(crate) source: SectionSource,
-    /// Data-only deltas applied at spawn. Carried so a lifted section keeps
-    /// them; the editor authors none yet.
-    pub(crate) modifications: Vec<SectionModification>,
     /// The inputs this section fires on. Document data rather than a component
     /// on the view: the view is render-only, and a binding that lived out there
     /// would be a second copy to keep in step across a despawn.
@@ -252,6 +249,28 @@ impl SectionNode {
         sections: Option<&'a GameSections>,
     ) -> Option<&'a SectionConfig> {
         self.source.resolve(sections)
+    }
+
+    /// The section as it is FLOWN: the config it resolves to with this
+    /// placement's own patch applied.
+    ///
+    /// What every reader of a VALUE wants - the inspector's rows, the readout's
+    /// stats - because a prototype reference that trims its engine's health
+    /// says so in its patch and nowhere else. Readers of STRUCTURE (the kind,
+    /// the collider, the link points, the art) take
+    /// [`resolve`](Self::resolve) instead: a patch can move none of those, and
+    /// they would pay a clone per frame for an answer that cannot change.
+    ///
+    /// Owned rather than borrowed, because a patched config is one nothing
+    /// holds until it is asked for. `None` for the same reason `resolve` is:
+    /// the prototype is not in the catalog. A patch the resolved section
+    /// refuses - a kind that disagrees, a muzzle id that is not there - leaves
+    /// the section at its prototype values rather than dropping it, and the
+    /// content lint is where that is reported.
+    pub(crate) fn patched(&self, sections: Option<&GameSections>) -> Option<SectionConfig> {
+        let mut config = self.resolve(sections)?.clone();
+        let _ = self.source.patch().apply(&mut config);
+        Some(config)
     }
 
     /// The catalog id this section was built from - what the pipette arms and
@@ -1071,7 +1090,7 @@ pub(crate) fn sync_object_views(
     mut commands: Commands,
     mut art: PreviewArt,
     sections: Option<Res<GameSections>>,
-    ships: Option<Res<GameShips>>,
+    ships: Option<Res<GameShipDesigns>>,
     nodes: Query<(Entity, &NodeId, &ObjectNode, Option<&Children>)>,
     views: Query<(), With<NodeView>>,
 ) {
@@ -1281,6 +1300,12 @@ pub(crate) fn resume_ordinals(
 }
 
 /// Add a section to `ship` at `transform`, and give it a view to be seen by.
+///
+/// `config` is a CATALOG part, resolved by the caller from the id the gallery
+/// armed - so the node NAMES it rather than copying it, and everything the
+/// builder tunes on it afterwards is a patch over the part
+/// (`inspect::edit_section`). A copy would be a part that stopped following the
+/// one it was built from the moment it was placed.
 pub(crate) fn spawn_section_node(
     commands: &mut Commands,
     ordinals: &mut Query<&mut NextChildOrdinal>,
@@ -1306,8 +1331,10 @@ fn insert_section_node(
         .spawn((
             EditorNode,
             SectionNode {
-                source: SectionSource::Inline(config.clone()),
-                modifications: vec![],
+                source: SectionSource::Prototype {
+                    id: config.base.id.clone(),
+                    patch: SectionConfigPatch::EMPTY,
+                },
                 binds,
             },
             Name::new(format!("Section Node {}", id.0)),
@@ -1826,7 +1853,6 @@ mod tests {
                 EditorNode,
                 SectionNode {
                     source,
-                    modifications: vec![],
                     binds: vec![],
                 },
                 NodeId("hull_1".to_string()),
@@ -1893,7 +1919,7 @@ mod tests {
     fn a_prototype_sourced_section_is_rebuilt_from_the_catalog() {
         let mut world = World::new();
         world.insert_resource(GameSections(vec![hull("hull")]));
-        document(&mut world, SectionSource::Prototype("hull".to_string()));
+        document(&mut world, SectionSource::prototype("hull"));
 
         world
             .run_system_once(rebuild_node_views)
@@ -1908,7 +1934,7 @@ mod tests {
     fn a_missing_prototype_keeps_the_section_and_shows_nothing() {
         let mut world = World::new();
         world.insert_resource(GameSections(vec![]));
-        let (_, section) = document(&mut world, SectionSource::Prototype("gone".to_string()));
+        let (_, section) = document(&mut world, SectionSource::prototype("gone"));
 
         world
             .run_system_once(rebuild_node_views)
@@ -2000,6 +2026,45 @@ mod tests {
             world.get::<Visibility>(section),
             Some(&Visibility::Inherited),
             "an explicit Visible would override the hidden ship above it"
+        );
+    }
+
+    /// A part placed from the gallery NAMES the catalog part it came from.
+    ///
+    /// The placement is the moment the choice is made, and copying the config
+    /// in here would be a part that stopped following the one it was built
+    /// from before the builder had touched it - and would leave every tuned
+    /// field of every new ship saved as an inline config.
+    #[test]
+    fn a_placed_section_names_the_catalog_part_it_was_built_from() {
+        let mut world = World::new();
+        let ship = world
+            .spawn((ShipNode::default(), NextChildOrdinal::default()))
+            .id();
+        let section = world
+            .run_system_once(move |mut commands: Commands| {
+                insert_section_node(
+                    &mut commands,
+                    ship,
+                    NodeId("hull_1".to_string()),
+                    &hull("block_hull"),
+                    Transform::default(),
+                    vec![],
+                )
+            })
+            .expect("the section spawner runs");
+
+        let node = world
+            .get::<SectionNode>(section)
+            .expect("the placement spawned a section node");
+        assert!(
+            matches!(
+                &node.source,
+                SectionSource::Prototype { id, patch }
+                    if id == "block_hull" && patch.is_empty()
+            ),
+            "a reference with nothing of its own yet: {:?}",
+            node.source
         );
     }
 

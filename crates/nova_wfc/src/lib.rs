@@ -19,7 +19,7 @@
 //!
 //! # What comes out
 //!
-//! A [`ShipHull`] of catalog prototypes: exactly what an authored ship carries,
+//! A [`ShipDesign`] of catalog prototypes: exactly what an authored ship carries,
 //! so a generated hull is content and not a special case. It can be spawned,
 //! saved into a mod bundle, or lifted into the editor's document and edited by
 //! hand.
@@ -45,7 +45,9 @@ mod tiles;
 mod tests;
 
 use bevy::prelude::*;
-use nova_scenario::prelude::{SectionSource, ShipHull, SpaceshipSectionConfig};
+use nova_scenario::prelude::{
+    SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
+};
 use nova_ship::prelude::{
     GameGrammars, GameSections, GameStyles, GrammarGrid, SectionFootprint, ShipGrammarConfig,
     MAX_GRAMMAR_CELLS,
@@ -296,7 +298,7 @@ impl TileSet {
     ///
     /// The HULL only - who flies it and which side it fights for are the
     /// caller's decisions, not the generator's.
-    pub fn hull(&self, seed: u64, clad: bool, style: StyleId) -> Result<ShipHull, String> {
+    pub fn hull(&self, seed: u64, clad: bool, style: StyleId) -> Result<ShipDesign, String> {
         let collapse = Collapse {
             tiles: &self.tiles,
             families: &self.families,
@@ -319,38 +321,43 @@ impl TileSet {
             };
             let (x, y, z) = self.grid.coords(cell);
             let position = self.grid.centre(cell) + part.offset;
-            let source = SectionSource::Prototype(part.prototype.clone());
+            // Generated placements are plain prototype references: the
+            // collapse chooses PARTS, and a tuned instance is an authoring
+            // decision no generator gets to make.
+            let source = SectionSource::prototype(part.prototype.clone());
             sections.push(SpaceshipSectionConfig {
                 id: format!("starboard_{x}_{y}_{z}"),
                 position,
                 rotation: part.rotation,
                 source: source.clone(),
-                modifications: vec![],
             });
             sections.push(SpaceshipSectionConfig {
                 id: format!("port_{x}_{y}_{z}"),
                 position: Vec3::new(-position.x, position.y, position.z),
                 rotation: mirrored(part.rotation),
                 source,
-                modifications: vec![],
             });
         }
 
         // A one-off hull: the collapse builds a new one every seed, so there is
         // nothing for a catalog id to name - the caller inlines it.
-        Ok(ShipHull {
+        Ok(ShipDesign {
             sections,
             // The whole of the skin, from this side. The plates, their shapes
             // and where they stand are the game's business, derived from the
             // sections above at spawn - which is what makes a clad hull
             // evidence rather than a picture of what this crate already
             // decided.
-            skin: clad,
-            // The look, by id, out of the MERGED content - never a literal. A
-            // clad ship wears whatever style the content shipped, so nothing
-            // here names a greeble, a rule or a cell, and a mod that overlays
-            // the style changes the ship without changing the generator.
-            style: clad.then_some(style).flatten().map(str::to_string),
+            presentation: ShipPresentationConfig {
+                skin: clad,
+                // The look, by id, out of the MERGED content - never a
+                // literal. A clad ship wears whatever style the content
+                // shipped, so nothing here names a greeble, a rule or a cell,
+                // and a mod that overlays the style changes the ship without
+                // changing the generator.
+                style: clad.then_some(style).flatten().map(str::to_string),
+                ..default()
+            },
             ..default()
         })
     }

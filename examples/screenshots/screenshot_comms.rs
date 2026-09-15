@@ -72,7 +72,7 @@ fn load_scene(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
 ) {
     commands.trigger(LoadScenario(hollow::ambush_hollow(
         &game_assets,

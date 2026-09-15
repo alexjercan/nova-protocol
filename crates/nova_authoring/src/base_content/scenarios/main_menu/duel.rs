@@ -57,6 +57,9 @@ const ARENA_RADIUS: Meters = Meters(1_800.0);
 /// in the air, the doubling the 20 s re-arm exists to prevent.
 const VAR_DECIDED: &str = "duel_decided";
 
+/// What a duelist's bridge is built to take, so the act runs its length.
+const DUELIST_BRIDGE_HEALTH: f32 = 500.0;
+
 /// One duelist: a block warship that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace keeps its guns quiet on the entrance;
 /// the scenario patrol order owns its helm before and during combat. The AI
@@ -67,7 +70,7 @@ fn duelist(
     name: &str,
     spawn: Meters3,
     patrol: [Meters3; 3],
-    hull: ShipSource,
+    design: ShipDesignSource,
     allegiance: Option<Allegiance>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -100,11 +103,12 @@ fn duelist(
             // plays. The block hulls bury their computers under plate, so
             // this is now belt-and-braces rather than the only thing holding
             // the act up - and the exposed guns are what actually decide it.
-            hull,
-            modifications: vec![ships::on_section(
+            design: ships::patched_section(
+                design,
                 ships::BLOCK_BRIDGE_SECTION_ID,
-                vec![SectionModification::SetHealth(500.0)],
-            )],
+                ships::section_health(DUELIST_BRIDGE_HEALTH),
+            ),
+            ..Default::default()
         }),
     }
 }
@@ -164,12 +168,11 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
-            hull: ships::inline_hull(vec![SpaceshipSectionConfig {
+            design: ships::inline_design(vec![SpaceshipSectionConfig {
                 id: "siege_bay".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                source: SectionSource::Prototype("heavy_torpedo_section".to_string()),
-                modifications: vec![],
+                source: SectionSource::prototype("heavy_torpedo_section"),
             }]),
             ..Default::default()
         }),
@@ -223,7 +226,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         "Duel Victor",
         VICTOR_SPAWN,
         VICTOR_PATROL,
-        ships::hull(ships::BLOCK_GUNSHIP_SHIP_ID),
+        ships::design(ships::BLOCK_GUNSHIP_SHIP_ID),
         // The relation model only makes Player<->Enemy hostile: one duelist
         // must fly the player's colors for AI-vs-AI combat to exist. It also
         // makes the Enemy finisher's ordnance hostile to the winner.
@@ -502,11 +505,11 @@ mod tests {
                 _ => None,
             })
             .expect("the duel must spawn its rival");
-        let ShipSource::Inline(hull) = &rival.hull else {
+        let ShipDesignSource::Inline(design) = &rival.design else {
             panic!("the duel rival must not retune the shared raider prototype");
         };
         assert_eq!(
-            hull.collapse_threshold,
+            design.integrity.collapse_threshold,
             Some(0.5),
             "the set-piece rival must collapse below half of its built health"
         );

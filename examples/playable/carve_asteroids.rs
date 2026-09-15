@@ -828,15 +828,13 @@ fn firing_ship() -> ScenarioObjectConfig {
             id: "controller".to_string(),
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype("basic_controller_section".to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype("basic_controller_section"),
         },
         SpaceshipSectionConfig {
             id: "hull".to_string(),
             position: Vec3::Z,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype("reinforced_hull_section".to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype("reinforced_hull_section"),
         },
         SpaceshipSectionConfig {
             id: "pdc".to_string(),
@@ -851,8 +849,7 @@ fn firing_ship() -> ScenarioObjectConfig {
             // turret to meet them.
             position: Vec3::Y * 0.75,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype("pdc_kinetic_turret_section".to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype("pdc_kinetic_turret_section"),
         },
     ];
     ScenarioObjectConfig {
@@ -863,7 +860,7 @@ fn firing_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections,
                 ..default()
             }),

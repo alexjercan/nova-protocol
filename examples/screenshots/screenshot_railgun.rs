@@ -307,7 +307,7 @@ fn setup_range(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
 ) {
     commands.trigger(LoadScenario(lance_range(&game_assets, &sections, &ships)));
 }
@@ -333,7 +333,6 @@ fn boat_hull(sections: &GameSections) -> Vec<SpaceshipSectionConfig> {
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
     let hull = |id: &str, position: Vec3| at(id, REINFORCED_HULL_SECTION_ID, position);
 
@@ -389,7 +388,6 @@ fn siege_bench(sections: &GameSections) -> ScenarioObjectConfig {
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     ScenarioObjectConfig {
@@ -404,7 +402,7 @@ fn siege_bench(sections: &GameSections) -> ScenarioObjectConfig {
             controller: SpaceshipController::None,
             // Unclad, like the gunboat: this rig is a product photo OF the
             // section, and a skin would photograph the plate over it.
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![
                     at(
                         "siege_lance",
@@ -429,7 +427,7 @@ fn siege_bench(sections: &GameSections) -> ScenarioObjectConfig {
 fn lance_range(
     game_assets: &GameAssets,
     sections: &GameSections,
-    ships: &GameShips,
+    ships: &GameShipDesigns,
 ) -> ScenarioConfig {
     let boat = ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -455,7 +453,7 @@ fn lance_range(
             // five framings here are of the gun itself - the closeup and the
             // siege card - and a finished hull would hide exactly the thing
             // being shown. Same call, same reason, as `shared/showcase.rs`.
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: boat_hull(sections),
                 ..default()
             }),
@@ -476,7 +474,7 @@ fn lance_range(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Enemy),
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(kit::catalog_ship(ships, TARGET_HULL)),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, TARGET_HULL)),
             ..default()
         }),
     };

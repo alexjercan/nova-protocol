@@ -406,7 +406,7 @@ fn wfc_row(
                 // Scenery: these are subjects, not craft. Nothing flies them
                 // and nothing shoots them - `wfc_arena` is where they fight.
                 controller: SpaceshipController::None,
-                hull: ShipSource::Inline(
+                design: ShipDesignSource::Inline(
                     tiles
                         .hull(seed, roster.clad, style)
                         .unwrap_or_else(|error| panic!("wfc_ships: {error}")),

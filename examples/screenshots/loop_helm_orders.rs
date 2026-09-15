@@ -72,7 +72,7 @@ fn load_orders(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
 ) {
     let scenario = orders(&game_assets);
     refuse_broken(&scenario, &sections, &ships);
@@ -120,7 +120,7 @@ fn gunship() -> ScenarioObjectConfig {
                 ..default()
             }),
             allegiance: Some(Allegiance::Player),
-            hull: hull(BLOCK_GUNSHIP_SHIP_ID),
+            design: design(BLOCK_GUNSHIP_SHIP_ID),
             ..default()
         }),
     }
@@ -139,18 +139,18 @@ fn crosser() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
-            hull: hull(BLOCK_SKIFF_SHIP_ID),
+            design: design(BLOCK_SKIFF_SHIP_ID),
             ..default()
         }),
     }
 }
 
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShips) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShipDesigns) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::from_configs(ships.iter()),
+        &KnownShipDesigns::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
         &build_channels()
             .into_iter()

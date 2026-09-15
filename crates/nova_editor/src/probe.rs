@@ -8,6 +8,7 @@
 //! `PostUpdate` and never read back by the editor itself.
 
 use bevy::prelude::*;
+use nova_scenario::prelude::SectionSource;
 use nova_ship::prelude::GameSections;
 use nova_ui::prelude::TextFieldFocused;
 
@@ -75,6 +76,14 @@ pub struct EditorSection {
     pub position: Vec3,
     /// How it is turned, in the ship's frame.
     pub rotation: Quat,
+    /// Whether this section still NAMES its catalog part and keeps its own
+    /// changes as a patch over it.
+    ///
+    /// The difference a driven run has to be able to see: a tuned reference
+    /// still follows the part it names, and an inline copy has stopped. Both
+    /// report the same `prototype`, so nothing else in the snapshot separates
+    /// them.
+    pub tuned: bool,
 }
 
 /// The editor's outward state, refreshed once a frame.
@@ -155,6 +164,13 @@ pub struct EditorProbe {
     /// took it, and a readout that agreed with a stale document would say yes
     /// either way.
     pub inspector: Vec<(String, String)>,
+    /// The labels of the inspector rows whose value is this ship's rather than
+    /// the part's, in the order the panel draws them.
+    ///
+    /// The mark and its reset control hang off exactly these rows, so a run
+    /// that tunes a field waits on this to know the panel agreed, and a run
+    /// that resets one waits on it emptying again.
+    pub overridden: Vec<String>,
     /// What the status line reads right now, or the empty string while it is
     /// blank.
     ///
@@ -285,14 +301,19 @@ pub(crate) fn sync_editor_probe(
             .unwrap_or_default();
         snapshot.framed_drag_step = framed_step(framing.distance);
         snapshot.inspector_focused = !caret.is_empty();
-        snapshot.inspector = document
+        let rows = document
             .inspection()
-            .map(|(_, rows)| {
-                rows.into_iter()
-                    .map(|row| (row.label, row.value.reading()))
-                    .collect()
-            })
+            .map(|(_, rows)| rows)
             .unwrap_or_default();
+        snapshot.overridden = rows
+            .iter()
+            .filter(|row| row.overridden)
+            .map(|row| row.label.clone())
+            .collect();
+        snapshot.inspector = rows
+            .into_iter()
+            .map(|row| (row.label, row.value.reading()))
+            .collect();
         snapshot
     } else {
         EditorProbe::default()
@@ -316,6 +337,10 @@ fn edited_ship(context: &EditContext, nodes: &SectionNodes) -> Vec<EditorSection
             prototype: section.prototype().to_string(),
             position: transform.translation,
             rotation: transform.rotation,
+            tuned: matches!(
+                &section.source,
+                SectionSource::Prototype { patch, .. } if !patch.is_empty()
+            ),
         })
         .collect()
 }
@@ -377,6 +402,7 @@ fn snapshot(
         framed_drag_step: 0.0,
         inspector_focused: false,
         inspector: Vec::new(),
+        overridden: Vec::new(),
         gizmo_node: None,
     }
 }
@@ -385,7 +411,6 @@ fn snapshot(
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_events::units::prelude::*;
-    use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionConfig, SectionKind};
 
     use super::*;
@@ -500,7 +525,6 @@ mod tests {
                         },
                         kind: SectionKind::Hull(HullSectionConfig::default()),
                     }),
-                    modifications: vec![],
                     binds: vec![],
                 },
                 NodeId(id.to_string()),
@@ -518,6 +542,83 @@ mod tests {
         );
         assert_eq!(reported[0].prototype, "hull");
         assert_eq!(reported[1].position, Vec3::new(0.0, 0.0, 1.0));
+    }
+
+    /// A tuned reference is reported as one, and so is the row it tuned.
+    ///
+    /// Both facts are invisible in the rest of the snapshot: a tuned reference
+    /// and an inline copy report the same `prototype`, and a row reads the
+    /// same number whether it inherits it or owns it. A driven run that tunes
+    /// a field and resets it has nothing else to wait on.
+    #[test]
+    fn the_probe_reports_what_a_placement_tuned_for_itself() {
+        use nova_ship::prelude::{
+            SectionConfigPatch, SectionKindPatch, ThrusterSectionConfig, ThrusterSectionConfigPatch,
+        };
+
+        use crate::node::{EditorNode, NodeId, SectionNode};
+
+        let mut world = world(ExampleStates::Editor);
+        world.insert_resource(GameSections(vec![SectionConfig {
+            base: BaseSectionConfig {
+                id: "drive".to_string(),
+                name: "drive".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
+        }]));
+        let ship = world.spawn(crate::node::ShipNode::default()).id();
+        let reference = |patch: SectionConfigPatch| SectionNode {
+            source: SectionSource::Prototype {
+                id: "drive".to_string(),
+                patch,
+            },
+            binds: vec![],
+        };
+        let section = world
+            .spawn((
+                EditorNode,
+                reference(SectionConfigPatch::EMPTY),
+                NodeId("drive_1".to_string()),
+                Transform::default(),
+                ChildOf(ship),
+            ))
+            .id();
+        world.resource_mut::<EditContext>().path = vec![Entity::PLACEHOLDER, ship];
+        world.resource_mut::<SelectedNode>().0 = Some(section);
+
+        let inherited = sync(&mut world);
+        assert!(
+            !inherited.ship[0].tuned,
+            "a reference with no patch owns nothing of its own"
+        );
+        assert!(
+            inherited.overridden.is_empty(),
+            "so no row is marked: {:?}",
+            inherited.overridden
+        );
+
+        world
+            .entity_mut(section)
+            .insert(reference(SectionConfigPatch {
+                health: None,
+                kind: Some(SectionKindPatch::Thruster(ThrusterSectionConfigPatch {
+                    magnitude: Some(77.0),
+                })),
+            }));
+
+        let tuned = sync(&mut world);
+        assert!(
+            tuned.ship[0].tuned,
+            "a patch over the part it names is what tuned means"
+        );
+        assert_eq!(tuned.ship[0].prototype, "drive", "and it still names it");
+        assert_eq!(
+            tuned.overridden,
+            vec!["Magnitude".to_string()],
+            "the marked row is the patched one and no other: {:?}",
+            tuned.overridden
+        );
     }
 
     /// The marked node's inspector rows travel with the snapshot.
@@ -641,7 +742,6 @@ mod tests {
                     },
                     kind: SectionKind::Hull(HullSectionConfig::default()),
                 }),
-                modifications: vec![],
                 binds: vec![],
             },
             NodeId("hull_1".to_string()),

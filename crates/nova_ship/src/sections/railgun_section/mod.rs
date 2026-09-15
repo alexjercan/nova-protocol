@@ -77,7 +77,7 @@ pub mod prelude {
 }
 
 /// Authorable config for a spinal railgun section.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RailgunSectionConfig {
     /// The render mesh of the lance, defaults to a cuboid of size 1x1x1.
@@ -166,20 +166,16 @@ pub struct RailgunSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub reload_sound: Option<AssetRef<AudioSource>>,
-    /// Shells the gun carries. `None` is unlimited - the bare-rig default every
-    /// weapon section shares.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub ammo_capacity: Option<u32>,
-    /// The reload, which for a one-shell magazine IS the gun's cadence: the
-    /// authored delay is the silence between shots.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub reload: Option<SectionReloadConfig>,
+    /// How many shells this gun holds: `Unlimited`, or `Limited(n)` for a
+    /// [`SectionAmmo`] of `n` that depletes one per shot and blocks firing
+    /// once empty.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub ammunition: AmmoCapacity,
+    /// Idle batch reload. Each successful shot resets its delay; each
+    /// completed delay restores the authored amount until full. `Batch` on an
+    /// `Unlimited` gun is a content lint error - there is nothing to refill.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub reload: ReloadConfig,
 }
 
 impl RailgunSectionConfig {
@@ -214,8 +210,8 @@ impl Default for RailgunSectionConfig {
             fire_sound: None,
             charge_sound: None,
             reload_sound: None,
-            ammo_capacity: None,
-            reload: None,
+            ammunition: AmmoCapacity::Unlimited,
+            reload: ReloadConfig::Disabled,
         }
     }
 }

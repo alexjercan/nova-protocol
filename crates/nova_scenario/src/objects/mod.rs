@@ -23,7 +23,6 @@ pub mod beacon;
 /// Light scenario object: the authored directional and point lights a scene
 /// lights itself with.
 pub mod light;
-pub mod modification;
 /// The authored planet OBJECT: the components a spawned world carries, the
 /// gravity well it becomes, and the plugin that draws it.
 pub mod planet;
@@ -34,8 +33,9 @@ pub mod planet_surface;
 /// draw from, and the seeded draw that turns one into the other.
 pub mod planet_type;
 pub mod salvage;
-/// The ship CONTENT kind: a hull authored once and spawned by id.
-pub mod ship;
+/// The SHIP DESIGN content kind: an assembled section list authored once and
+/// spawned by id.
+pub mod ship_design;
 /// Spaceship scenario object: player/AI ships built from a section list.
 pub mod spaceship;
 
@@ -44,9 +44,8 @@ pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
-        light::prelude::*, modification::prelude::*, planet::prelude::*,
-        planet_surface::prelude::*, planet_type::prelude::*, salvage::prelude::*, ship::prelude::*,
-        spaceship::prelude::*, ScenarioObjectsPlugin,
+        light::prelude::*, planet::prelude::*, planet_surface::prelude::*, planet_type::prelude::*,
+        salvage::prelude::*, ship_design::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 

@@ -6,7 +6,7 @@ use super::*;
 /// Seed a spawned lance with its magazine.
 ///
 /// The reload rides on the magazine, exactly as it does for the turret and the
-/// bay: a lance with no `ammo_capacity` is unlimited and never reloads, which
+/// bay: a lance authored `ammunition: Unlimited` never reloads, which
 /// is what a bare headless rig wants.
 pub(super) fn insert_railgun_section(
     add: On<Add, RailgunSectionMarker>,
@@ -24,11 +24,11 @@ pub(super) fn insert_railgun_section(
         return;
     };
 
-    let Some(capacity) = config.ammo_capacity else {
+    let Some(capacity) = config.ammunition.rounds() else {
         return;
     };
     commands.entity(entity).insert(SectionAmmo::new(capacity));
-    if let Some(reload) = config.reload {
+    if let Some(reload) = config.reload.batch() {
         commands
             .entity(entity)
             .insert(SectionReload::from_config(reload));

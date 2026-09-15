@@ -130,14 +130,14 @@ pub const STEADY_SECS: f32 = 2.0;
 
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
 /// path, and the player's ship parked on the ring radius.
-pub fn the_ring(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+pub fn the_ring(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     the_ring_with_hull(game_assets, ships, "block_cutter")
 }
 
 /// The ring with a selected catalog hull for visual capture variants.
 pub fn the_ring_with_hull(
     game_assets: &GameAssets,
-    ships: &GameShips,
+    ships: &GameShipDesigns,
     hull: &str,
 ) -> ScenarioConfig {
     let player = ship(
@@ -290,7 +290,7 @@ pub fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    hull: ShipHull,
+    hull: ShipDesign,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -302,7 +302,7 @@ pub fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(hull),
+            design: ShipDesignSource::Inline(hull),
             ..default()
         }),
     })

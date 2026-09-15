@@ -77,7 +77,9 @@ use self::{
     state::remove_maneuver_telemetry,
 };
 pub(crate) use self::{
-    capability::{ship_grants_verb, ship_withholds_verb, LiveFlightComputers},
+    capability::{
+        ship_capabilities, ship_has_attitude_authority, LiveFlightComputers, ShipCapabilityQuery,
+    },
     guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
 };
@@ -87,8 +89,8 @@ pub(crate) use self::{
 /// `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        cancel_ship_order, interrupt_ship_order, orbit_radius_band, plan_leg,
-        resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
+        cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
+        plan_leg, resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
         FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, FlightSpeedCap,
         LegPlan, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,

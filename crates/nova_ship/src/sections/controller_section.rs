@@ -5,7 +5,7 @@
 //! into one hull-wide ceiling (see [`update_controller_stack_tuning`]).
 
 use avian3d::prelude::*;
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{
     AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker,
@@ -17,33 +17,18 @@ use crate::prelude::{
     SectionRenderMeshTransform, SectionRenderOf,
 };
 
-/// The controller-section spawners, its config, authored tuning and rotation input, and the
-/// flight verbs it withholds.
+/// The controller-section spawners, its config, authored tuning, and rotation
+/// input.
 pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,
         ControllerSectionPlugin, ControllerSectionRenderMarker, ControllerSectionRotationInput,
-        ControllerSectionSystems, ControllerSectionTuning, FlightVerb, WithheldVerbs,
-        DEFAULT_WARN_HULL_FRACTION,
+        ControllerSectionSystems, ControllerSectionTuning,
     };
 }
 
-/// The hull fraction a flight computer warns at when nothing is authored.
-///
-/// Thirty percent of the built hull: late enough that an ordinary skirmish
-/// does not trip it, and six times the structural-collapse floor, so the alarm
-/// still leaves a pilot room to break off.
-pub const DEFAULT_WARN_HULL_FRACTION: f32 = 0.30;
-
-/// Serde's default for [`ControllerSectionConfig::warn_hull_fraction`], so a
-/// content file written before the field existed still loads.
-#[cfg(feature = "serde")]
-fn default_warn_hull_fraction() -> f32 {
-    DEFAULT_WARN_HULL_FRACTION
-}
-
 /// Configuration for a controller section.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ControllerSectionConfig {
     /// Approximate time the hull trails a continuously moving steering command, in seconds.
@@ -70,150 +55,6 @@ pub struct ControllerSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
-    /// The radar/lock and weapons-safety cues this computer plays, as
-    /// authorable [`AssetRef<AudioSource>`]s like the render mesh: the
-    /// controller IS the ship's computer (it grants the Lock capability), so its
-    /// feedback ticks are its own authorable voice. Snapshotted (unresolved)
-    /// into
-    /// `ControllerSectionSounds`; the audio cues resolve the PLAYER ship's
-    /// controller's refs. AUTHORED-OR-SILENT: `None` plays nothing; base
-    /// controllers author all of them via gen_content.
-    ///
-    /// Lock acquired (once per radar gesture).
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub lock_on_sound: Option<AssetRef<AudioSource>>,
-    /// Lock cleared (tap-clear).
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub lock_off_sound: Option<AssetRef<AudioSource>>,
-    /// Radar hold denied (no Lock capability).
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub radar_deny_sound: Option<AssetRef<AudioSource>>,
-    /// Held radar gesture re-designated to a new target.
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub radar_retarget_sound: Option<AssetRef<AudioSource>>,
-    /// Weapons safety re-engaged (hot -> cold edge).
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub safety_on_sound: Option<AssetRef<AudioSource>>,
-    /// A hostile has this ship in its combat lock - the threat alarm, on the
-    /// rising edge of "somebody is aiming at me". The computer OWNS it because
-    /// knowing you are locked is a sensor capability, not a property of the
-    /// hull: a ship built without a controller flies blind and gets no warning.
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub warn_lock_sound: Option<AssetRef<AudioSource>>,
-    /// A magazine ran dry - the GAUGE, inside the cockpit, as distinct from the
-    /// gun's own dead-trigger click out on the mount
-    /// ([`TurretSectionConfig::dry_fire_sound`]). The two fire on the same edge
-    /// and are meant to be heard as one event from two places; the gun's is
-    /// per-turret, this one is per-SHIP.
-    ///
-    /// [`TurretSectionConfig::dry_fire_sound`]: crate::sections::turret_section::TurretSectionConfig::dry_fire_sound
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub ammo_dry_sound: Option<AssetRef<AudioSource>>,
-    /// The hull is critical - ONE alarm, on the falling edge through
-    /// [`warn_hull_fraction`](Self::warn_hull_fraction). The gravest thing the
-    /// computer says, and the only integrity feedback the game gives a pilot
-    /// today.
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub warn_hull_sound: Option<AssetRef<AudioSource>>,
-    /// The fraction of the hull this ship was BUILT with, below which the
-    /// computer sounds [`warn_hull_sound`](Self::warn_hull_sound). Same
-    /// quantity structural collapse is priced in, so the two are directly
-    /// comparable: collapse defaults to 0.05 and this to
-    /// [`DEFAULT_WARN_HULL_FRACTION`] - the alarm is well clear of the wreckage
-    /// floor, which is the point of having it.
-    ///
-    /// A COMPUTER decision, not a hull one, and the reason it is authored at
-    /// all: a cheap civilian flight computer may warn late, or (at `0.0`) never
-    /// warn until there is nothing left. Clamped to `0..=1` when it is read.
-    #[cfg_attr(feature = "serde", serde(default = "default_warn_hull_fraction"))]
-    pub warn_hull_fraction: f32,
-    /// RCS fine-adjust LOOP: plays continuously while this controller is burning
-    /// the RCS primitive - whether the player is holding SHIFT or the autopilot
-    /// is trimming an ORBIT / settling a STOP. Unlike the five one-shot cues
-    /// above this is a sustained loop, resolved and volume-
-    /// tracked by the audio module (one loop per distinct handle), exactly like a
-    /// thruster's `loop_sound`. AUTHORED-OR-SILENT: `None` plays nothing.
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub rcs_loop_sound: Option<AssetRef<AudioSource>>,
-}
-
-/// The controller's authored feedback sounds, snapshotted UNRESOLVED from
-/// [`ControllerSectionConfig`] by the [`controller_section`] bundle (one
-/// component for the whole set - they share the same consumers). The audio
-/// module reads the PLAYER ship's controller and resolves per cue.
-/// `pub(crate)` for the audio module.
-#[derive(Component, Clone, Debug, Default, Reflect)]
-pub(crate) struct ControllerSectionSounds {
-    #[reflect(ignore)]
-    pub lock_on: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub lock_off: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub radar_deny: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub radar_retarget: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub safety_on: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub warn_lock: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub ammo_dry: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub warn_hull: Option<AssetRef<AudioSource>>,
-    #[reflect(ignore)]
-    pub rcs_loop: Option<AssetRef<AudioSource>>,
-}
-
-impl ControllerSectionSounds {
-    fn from_config(config: &ControllerSectionConfig) -> Self {
-        Self {
-            lock_on: config.lock_on_sound.clone(),
-            lock_off: config.lock_off_sound.clone(),
-            radar_deny: config.radar_deny_sound.clone(),
-            radar_retarget: config.radar_retarget_sound.clone(),
-            safety_on: config.safety_on_sound.clone(),
-            warn_lock: config.warn_lock_sound.clone(),
-            ammo_dry: config.ammo_dry_sound.clone(),
-            warn_hull: config.warn_hull_sound.clone(),
-            rcs_loop: config.rcs_loop_sound.clone(),
-        }
-    }
 }
 
 impl ControllerSectionConfig {
@@ -230,30 +71,12 @@ impl Default for ControllerSectionConfig {
             max_torque: DEFAULT_MAX_TORQUE,
             render_mesh: None,
             render_mesh_transform: None,
-            lock_on_sound: None,
-            lock_off_sound: None,
-            radar_deny_sound: None,
-            radar_retarget_sound: None,
-            safety_on_sound: None,
-            warn_lock_sound: None,
-            ammo_dry_sound: None,
-            warn_hull_sound: None,
-            warn_hull_fraction: DEFAULT_WARN_HULL_FRACTION,
-            rcs_loop_sound: None,
         }
     }
 }
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct ControllerSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
-
-/// The hull fraction this computer warns at, snapshotted from
-/// [`ControllerSectionConfig::warn_hull_fraction`] and clamped. Apart from
-/// [`ControllerSectionSounds`] because it is a threshold, not a sound, and the
-/// two are read by the same cue only by coincidence of this being the first
-/// integrity instrument the ship has. `pub(crate)` for the audio module.
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-pub(crate) struct ControllerSectionHullWarning(pub(crate) f32);
 
 /// Helper function to create a controller section entity bundle.
 pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
@@ -264,8 +87,6 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         steering_lag: config.steering_lag,
         max_torque: config.max_torque,
     };
-    let sounds = ControllerSectionSounds::from_config(&config);
-    let hull_warning = ControllerSectionHullWarning(config.warn_hull_fraction.clamp(0.0, 1.0));
     (
         preview_controller_section(config),
         tuning,
@@ -281,8 +102,6 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             sustained_angular_speed: f32::INFINITY,
         },
         ControllerSectionRotationInput::default(),
-        sounds,
-        hull_warning,
     )
 }
 
@@ -538,71 +357,6 @@ pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundl
     )
 }
 
-/// One of the autopilot flight verbs the controller section grants. These are
-/// the maneuvers the flight computer can fly (STOP/GOTO/ORBIT); CANCEL is not
-/// listed because it only ever disengages an already-running maneuver and stays
-/// available so a disabled verb can never strand an engaged autopilot. The enum
-/// is the addressable handle used by [`WithheldVerbs`] and the
-/// `SetControllerVerb` scenario action.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum FlightVerb {
-    /// STOP: kill all velocity.
-    Stop,
-    /// GOTO: fly to the locked target and come to rest.
-    Goto,
-    /// ORBIT: circularize and station-keep in a gravity well.
-    Orbit,
-    /// LOCK: the targeting radar - deliberate hold-to-search locking. Not a
-    /// maneuver, but the same computer-provided capability model: a ship
-    /// without it cannot lock.
-    Lock,
-    /// RCS: reaction-control fine translation - the hold-to-nudge docking mode
-    /// that pushes the hull along its local axes without exceeding a small
-    /// speed cap. Not a planned maneuver but the same capability model: a ship
-    /// without it cannot fine-adjust. Drives the
-    /// shared `RcsIntent` / `rcs_burn_system` primitive the flight layer owns.
-    Rcs,
-    /// POINT DEFENSE: the computer works the IDLE turrets against inbound
-    /// ordnance on its own - the autonomous half of the battery. Not a
-    /// maneuver and not a key: it has no gesture at all, because it is the
-    /// fallback behaviour of a battery the player is not using. The same
-    /// capability model as the rest - a ship whose computer withholds it
-    /// answers a salvo only by hand - which is what makes it the teaching
-    /// lever (`DisableVerb` at spawn, `SetControllerVerb` mid-scenario).
-    PointDefense,
-}
-
-/// The set of flight verbs WITHHELD on a controller section: computer-provided
-/// capabilities (autopilot maneuvers plus the targeting radar) that this
-/// controller does NOT grant, while the controller is otherwise alive. A verb
-/// is available only if the ship has a live controller section that does NOT
-/// withhold it (layered on top of the existing physical `flyable` gate - a live
-/// controller plus a live thruster). An empty set (or an absent component) means
-/// every verb is granted. Populated at spawn by the `DisableVerb` section
-/// modification and flipped at runtime by the `SetControllerVerb` scenario
-/// action.
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct WithheldVerbs(pub HashSet<FlightVerb>);
-
-impl WithheldVerbs {
-    /// Whether the given verb is currently granted (i.e. NOT withheld).
-    pub fn granted(&self, verb: FlightVerb) -> bool {
-        !self.0.contains(&verb)
-    }
-
-    /// Withhold the given verb (remove the grant).
-    pub fn withhold(&mut self, verb: FlightVerb) {
-        self.0.insert(verb);
-    }
-
-    /// Grant the given verb (remove it from the withheld set).
-    pub fn grant(&mut self, verb: FlightVerb) {
-        self.0.remove(&verb);
-    }
-}
-
 /// The desired rotation of the controller section, in world space. Written by
 /// the player's mouse command, the AI brain, or the autopilot
 /// (the flight layer) - whoever currently holds rotation authority.
@@ -644,10 +398,7 @@ impl Plugin for ControllerSectionPlugin {
         // (and the flight-feel retune) can see and edit them.
         app.register_type::<ControllerSectionMarker>()
             .register_type::<ControllerSectionRotationInput>()
-            .register_type::<ControllerSectionTuning>()
-            .register_type::<ControllerSectionHullWarning>()
-            .register_type::<WithheldVerbs>()
-            .register_type::<FlightVerb>();
+            .register_type::<ControllerSectionTuning>();
 
         app.add_observer(insert_controller_section_target);
 

@@ -1,7 +1,7 @@
-//! Cockpit cues: the lock/safety chirps the flight computer answers
-//! with, and the dry-fire click on an empty trigger pull. All resolve
-//! the PLAYER controller's authored sounds, so a ship without them is
-//! silent rather than borrowing another hull's voice.
+//! Cockpit cues: the lock/safety chirps the ship answers with, and the
+//! dry-fire click on an empty trigger pull. All resolve the PLAYER ship's own
+//! authored sounds, so a ship without them is silent rather than borrowing
+//! another hull's voice.
 //!
 //! All on [`AudioRoute::Hull`]: these are the player's own computer talking to
 //! them, so they ride the world track with everything else their ship makes,
@@ -16,40 +16,31 @@ use super::{
     AMMO_DRY_VOLUME, DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME,
     RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, WARN_HULL_VOLUME, WARN_LOCK_VOLUME,
 };
-use crate::{
-    prelude::*,
-    sections::{
-        controller_section::{ControllerSectionHullWarning, ControllerSectionSounds},
-        turret_section::TurretSectionDryFireSound,
-    },
-};
+use crate::{prelude::*, sections::turret_section::TurretSectionDryFireSound};
 
 /// The lock-gesture UI cues (non-positional one-shots, like the objective
 /// cues): LockOn once per radar gesture ([`RadarLockAcquired`] already fires
 /// acquire-only), LockOff per cleared lock, the capability deny buzz
 /// ([`RadarDenied`]), and the subtle retarget tick ([`RadarRetargeted`]). One
 /// cue per kind per frame - a staged double-clear in one frame plays one
-/// LockOff, not a chord. The PLAYER ship's controller sounds: the first
-/// controller section whose `ChildOf` parent carries [`PlayerSpaceshipMarker`].
-/// The radar/lock/safety messages are player-scoped (no entity payload), so
-/// this lookup names the computer whose authored voice plays them. `None` when
-/// no player controller exists (menu, editor, tests) - the cues stay silent,
-/// and readers must still drain.
-fn player_controller_sounds<'a>(
-    q_controller: &'a Query<(&ControllerSectionSounds, &ChildOf)>,
-    q_player: &Query<(), With<PlayerSpaceshipMarker>>,
-) -> Option<&'a ControllerSectionSounds> {
-    q_controller
-        .iter()
-        .find(|(_, ChildOf(ship))| q_player.contains(*ship))
-        .map(|(sounds, _)| sounds)
+/// LockOff, not a chord. The PLAYER ship's own sounds, read off the root that
+/// carries [`PlayerSpaceshipMarker`]. The radar/lock/safety messages are
+/// player-scoped (no entity payload), so this lookup names the ship whose
+/// authored voice plays them. `None` when no player ship exists (menu, editor,
+/// tests) - the cues stay silent, and readers must still drain.
+fn player_ship_sounds<'a>(q_player: &'a PlayerShipSounds) -> Option<&'a ShipFeedbackSounds> {
+    q_player.iter().next()
 }
+
+/// The player ship's own feedback sounds. One row at most: the cues are
+/// player-scoped, and the marker is unique.
+type PlayerShipSounds<'w, 's> =
+    Query<'w, 's, &'static ShipFeedbackSounds, With<PlayerSpaceshipMarker>>;
 
 pub(super) fn play_lock_cues(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
-    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_player_sounds: PlayerShipSounds,
     mut acquired: MessageReader<RadarLockAcquired>,
     mut retargeted: MessageReader<RadarRetargeted>,
     mut cleared: MessageReader<LockClearedToast>,
@@ -57,18 +48,18 @@ pub(super) fn play_lock_cues(
 ) {
     // DRAIN each reader unconditionally (count, not next): a leftover unread
     // message would replay the cue on the NEXT frame - and with no player
-    // controller (menu, editor, headless tests) the cues are silent but the
-    // cursors must still advance (the old no-bank drain, same reason).
+    // ship (menu, editor, headless tests) the cues are silent but the cursors
+    // must still advance (the old no-bank drain, same reason).
     let acquired_now = acquired.read().count() > 0;
     let retargeted_now = retargeted.read().count() > 0;
     let cleared_now = cleared.read().count() > 0;
     let denied_now = denied.read().count() > 0;
-    let Some(sounds) = player_controller_sounds(&q_controller, &q_player) else {
+    let Some(sounds) = player_ship_sounds(&q_player_sounds) else {
         return;
     };
-    // AUTHORED-OR-SILENT: each cue plays the player controller's own authored
-    // ref, resolved here; an unauthored cue is silent. Base controllers author
-    // all of them via gen_content.
+    // AUTHORED-OR-SILENT: each cue plays the player ship's own authored ref,
+    // resolved here; an unauthored cue is silent. Base designs author all of
+    // them via gen_content.
     let mut play = |ref_opt: &Option<AssetRef<AudioSource>>, volume: f32| {
         if let Some(handle) = ref_opt.as_ref().map(|r| r.resolve(&asset_server)) {
             commands.play_sfx(handle, AudioRoute::Hull, volume);
@@ -99,8 +90,7 @@ pub(super) fn play_lock_cues(
 pub(super) fn play_safety_engaged_cue(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
-    q_player_sounds: Query<(), With<PlayerSpaceshipMarker>>,
+    q_player_sounds: PlayerShipSounds,
     q_player: Query<Ref<WeaponsHot>, (With<PlayerSpaceshipMarker>, Changed<WeaponsHot>)>,
     mut was_hot: Local<bool>,
 ) {
@@ -115,9 +105,9 @@ pub(super) fn play_safety_engaged_cue(
             continue;
         }
         if *was_hot && !is_hot {
-            // AUTHORED-OR-SILENT: the click is the player controller's own
-            // authored safety_on ref (the weapons computer's voice).
-            if let Some(handle) = player_controller_sounds(&q_controller, &q_player_sounds)
+            // AUTHORED-OR-SILENT: the click is the player ship's own
+            // authored safety_on ref.
+            if let Some(handle) = player_ship_sounds(&q_player_sounds)
                 .and_then(|sounds| sounds.safety_on.as_ref())
                 .map(|r| r.resolve(&asset_server))
             {
@@ -157,8 +147,7 @@ pub(super) fn play_dry_fire_cue(
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
-    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
-    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_player_sounds: PlayerShipSounds,
     q_ship: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
     mut latched: Local<HashMap<Entity, bool>>,
 ) {
@@ -199,7 +188,7 @@ pub(super) fn play_dry_fire_cue(
     if !any_ran_dry {
         return;
     }
-    let Some(handle) = player_controller_sounds(&q_controller, &q_player)
+    let Some(handle) = player_ship_sounds(&q_player_sounds)
         .and_then(|sounds| sounds.ammo_dry.as_ref())
         .map(|r| r.resolve(&asset_server))
     else {
@@ -226,7 +215,7 @@ pub(super) fn play_dry_fire_cue(
 pub(super) fn play_threat_lock_cue(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
+    q_player_sounds: PlayerShipSounds,
     q_player: Query<(Entity, Option<&Allegiance>), With<PlayerSpaceshipMarker>>,
     q_lockers: Query<(&CombatLock, Option<&Allegiance>)>,
     mut latched: Local<bool>,
@@ -244,10 +233,8 @@ pub(super) fn play_threat_lock_cue(
     if !locked || was {
         return;
     }
-    let Some(handle) = q_controller
-        .iter()
-        .find(|(_, ChildOf(ship))| *ship == player)
-        .and_then(|(sounds, _)| sounds.warn_lock.as_ref())
+    let Some(handle) = player_ship_sounds(&q_player_sounds)
+        .and_then(|sounds| sounds.warn_lock.as_ref())
         .map(|r| r.resolve(&asset_server))
     else {
         return;
@@ -289,23 +276,18 @@ pub(super) fn play_hull_warning_cue(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     q_player: Query<
-        (Entity, &Health),
+        (Entity, &Health, &ShipFeedbackSounds, &ShipHullWarning),
         (
             With<PlayerSpaceshipMarker>,
             With<SpaceshipRootMarker>,
             Without<StructuralCollapseMarker>,
         ),
     >,
-    q_controller: Query<(
-        &ControllerSectionSounds,
-        &ControllerSectionHullWarning,
-        &ChildOf,
-    )>,
     mut latched: Local<Option<(Entity, bool)>>,
 ) {
     // Keyed by the ship, not a bare flag: a new scenario is a new hull, and a
     // latch left over from the last one would swallow its first warning.
-    let Some((player, health)) = q_player.iter().next() else {
+    let Some((player, health, sounds, warn_at)) = q_player.iter().next() else {
         return;
     };
     // A root mid-spawn has no sections counted yet. Reading it as "zero of
@@ -313,12 +295,6 @@ pub(super) fn play_hull_warning_cue(
     if health.max <= 0.0 {
         return;
     }
-    let Some((sounds, warn_at, _)) = q_controller
-        .iter()
-        .find(|(_, _, ChildOf(ship))| *ship == player)
-    else {
-        return;
-    };
     let fraction = health.current / health.max;
     let was = latched.and_then(|(ship, warned)| (ship == player).then_some(warned));
     let warned = match was {
@@ -342,10 +318,10 @@ mod tests {
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};
 
-    /// App rig for the lock/safety controller cues: the real systems with a
-    /// `PlaySfx` capture. No bank - the cues resolve the player controller's
-    /// authored refs (authored-or-silent).
-    fn controller_cue_app() -> App {
+    /// App rig for the lock/safety cues: the real systems with a `PlaySfx`
+    /// capture. No bank - the cues resolve the player ship's own authored refs
+    /// (authored-or-silent).
+    fn ship_cue_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
@@ -361,23 +337,20 @@ mod tests {
         app
     }
 
-    /// A player ship carrying a controller with the given sounds; returns the
-    /// ship entity.
-    fn spawn_player_controller(app: &mut App, sounds: ControllerSectionSounds) -> Entity {
-        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
-        app.world_mut().spawn((sounds, ChildOf(ship)));
-        ship
+    /// A player ship carrying the given feedback sounds; returns the ship
+    /// entity.
+    fn spawn_player_ship(app: &mut App, sounds: ShipFeedbackSounds) -> Entity {
+        app.world_mut().spawn((PlayerSpaceshipMarker, sounds)).id()
     }
 
     #[test]
-    fn lock_cue_plays_the_player_controllers_authored_sound() {
-        // The controller-owned cue path: a lock acquire plays the PLAYER
-        // controller's authored lock_on ref. Delivery guard for the silent
-        // cases below.
-        let mut app = controller_cue_app();
-        spawn_player_controller(
+    fn lock_cue_plays_the_player_ships_authored_sound() {
+        // The root-owned cue path: a lock acquire plays the PLAYER ship's
+        // authored lock_on ref. Delivery guard for the silent cases below.
+        let mut app = ship_cue_app();
+        spawn_player_ship(
             &mut app,
-            ControllerSectionSounds {
+            ShipFeedbackSounds {
                 lock_on: Some(AssetRef::from("mods/x/sounds/chirp.wav")),
                 ..default()
             },
@@ -392,29 +365,29 @@ mod tests {
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
             Some(expected),
-            "the player controller's authored lock_on must play"
+            "the player ship's authored lock_on must play"
         );
     }
 
     #[test]
-    fn lock_cues_are_silent_without_a_player_controller_and_still_drain() {
-        // No player controller (menu/editor/headless): silent, but the reader
-        // cursors MUST advance - a message sent while controller-less must not
-        // replay once a controller appears.
-        let mut app = controller_cue_app();
+    fn lock_cues_are_silent_without_a_player_ship_and_still_drain() {
+        // No player ship (menu/editor/headless): silent, but the reader
+        // cursors MUST advance - a message sent while shipless must not
+        // replay once a ship appears.
+        let mut app = ship_cue_app();
         app.world_mut()
             .write_message(RadarLockAcquired { combat: true });
         app.update();
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
             None,
-            "no player controller -> silent"
+            "no player ship -> silent"
         );
 
-        // Controller arrives AFTER the message was drained: no stale replay.
-        spawn_player_controller(
+        // The ship arrives AFTER the message was drained: no stale replay.
+        spawn_player_ship(
             &mut app,
-            ControllerSectionSounds {
+            ShipFeedbackSounds {
                 lock_on: Some(AssetRef::from("mods/x/sounds/chirp.wav")),
                 ..default()
             },
@@ -423,10 +396,10 @@ mod tests {
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
             None,
-            "a drained message must not replay when the controller appears"
+            "a drained message must not replay when the ship appears"
         );
 
-        // And an unauthored cue on an existing controller stays silent while a
+        // And an unauthored cue on an existing ship stays silent while a
         // different authored cue plays (per-cue authorship, not
         // all-or-nothing).
         app.world_mut().write_message(RadarDenied);
@@ -446,11 +419,11 @@ mod tests {
     }
 
     #[test]
-    fn safety_cue_plays_the_controllers_authored_click_on_hot_to_cold() {
-        let mut app = controller_cue_app();
-        let ship = spawn_player_controller(
+    fn safety_cue_plays_the_ships_authored_click_on_hot_to_cold() {
+        let mut app = ship_cue_app();
+        let ship = spawn_player_ship(
             &mut app,
-            ControllerSectionSounds {
+            ShipFeedbackSounds {
                 safety_on: Some(AssetRef::from("base/sounds/safety_on.wav")),
                 ..default()
             },
@@ -471,7 +444,7 @@ mod tests {
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
             Some(expected),
-            "the hot -> cold edge plays the controller's authored click"
+            "the hot -> cold edge plays the ship's authored click"
         );
     }
 
@@ -610,15 +583,15 @@ mod tests {
         let mut app = dry_fire_app();
         let player = app
             .world_mut()
-            .spawn((PlayerSpaceshipMarker, WeaponsHot(true)))
+            .spawn((
+                PlayerSpaceshipMarker,
+                WeaponsHot(true),
+                ShipFeedbackSounds {
+                    ammo_dry: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
+                    ..default()
+                },
+            ))
             .id();
-        app.world_mut().spawn((
-            ControllerSectionSounds {
-                ammo_dry: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
-                ..default()
-            },
-            ChildOf(player),
-        ));
         for _ in 0..8 {
             app.world_mut().spawn((
                 TurretSectionMarker,
@@ -652,20 +625,18 @@ mod tests {
         app
     }
 
-    /// The player's ship with an authored `warn_lock` on its flight computer.
+    /// The player's ship with an authored `warn_lock` on the root.
     fn spawn_warned_player(app: &mut App) -> Entity {
-        let ship = app
-            .world_mut()
-            .spawn((PlayerSpaceshipMarker, Allegiance::Player))
-            .id();
-        app.world_mut().spawn((
-            ControllerSectionSounds {
-                warn_lock: Some(AssetRef::from("base/sounds/warn_lock.wav")),
-                ..default()
-            },
-            ChildOf(ship),
-        ));
-        ship
+        app.world_mut()
+            .spawn((
+                PlayerSpaceshipMarker,
+                Allegiance::Player,
+                ShipFeedbackSounds {
+                    warn_lock: Some(AssetRef::from("base/sounds/warn_lock.wav")),
+                    ..default()
+                },
+            ))
+            .id()
     }
 
     #[test]
@@ -735,26 +706,21 @@ mod tests {
         app
     }
 
-    /// The player's ship at full health, with a computer that warns at
-    /// `warn_at` and (optionally) authors the alarm.
+    /// The player's ship at full health, with a design that warns at `warn_at`
+    /// and (optionally) authors the alarm.
     fn spawn_hull(app: &mut App, warn_at: f32, authored: bool) -> Entity {
-        let ship = app
-            .world_mut()
+        app.world_mut()
             .spawn((
                 PlayerSpaceshipMarker,
                 SpaceshipRootMarker,
                 Health::new(100.0),
+                ShipFeedbackSounds {
+                    warn_hull: authored.then(|| AssetRef::from("base/sounds/warn_hull.wav")),
+                    ..default()
+                },
+                ShipHullWarning(warn_at),
             ))
-            .id();
-        app.world_mut().spawn((
-            ControllerSectionSounds {
-                warn_hull: authored.then(|| AssetRef::from("base/sounds/warn_hull.wav")),
-                ..default()
-            },
-            ControllerSectionHullWarning(warn_at),
-            ChildOf(ship),
-        ));
-        ship
+            .id()
     }
 
     /// Take the hull down to `fraction` of what it was built with and run a
@@ -863,7 +829,7 @@ mod tests {
             .spawn((PlayerSpaceshipMarker, Allegiance::Player))
             .id();
         app.world_mut()
-            .spawn((ControllerSectionSounds::default(), ChildOf(ship)));
+            .spawn((ShipFeedbackSounds::default(), ChildOf(ship)));
         app.world_mut()
             .spawn((Allegiance::Enemy, CombatLock(Some(ship))));
         app.update();

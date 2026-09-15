@@ -184,13 +184,13 @@ fn range_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(scaling_range(&game_assets, &ships)));
 }
 
 /// The range: the two reference hulls parked far apart in flat space, neither
 /// flown, neither steered.
-fn scaling_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn scaling_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let hull = |id: &str, name: &str, catalog: &str, x: Meters| {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -202,7 +202,7 @@ fn scaling_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig 
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                 controller: SpaceshipController::None,
                 allegiance: None,
-                hull: ShipSource::Inline(kit::catalog_ship(ships, catalog)),
+                design: ShipDesignSource::Inline(kit::catalog_ship(ships, catalog)),
                 ..default()
             }),
         })

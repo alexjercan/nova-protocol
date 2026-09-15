@@ -175,7 +175,7 @@ type ObserverQuery<'w, 's> = Query<
         Option<&'static CombatLock>,
         Option<&'static RadarState>,
     ),
-    (With<SpaceshipRootMarker>, Without<SensorsDark>),
+    With<SpaceshipRootMarker>,
 >;
 
 /// How far `observer` can see this body, world units.

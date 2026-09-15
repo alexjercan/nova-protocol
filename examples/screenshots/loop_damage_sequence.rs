@@ -191,13 +191,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(damage_range(&game_assets, &ships)));
 }
 
 /// The set: one gunship three-quarter to the lens with its port flank open,
 /// a near rock field for parallax, and the photo rig.
-fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn damage_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: SUBJECT_ID.to_string(),
@@ -211,7 +211,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             // The whole shipped gunship, turrets included: the sequence needs
             // a turret to disable and a real mate graph to sever along, and
             // both come from the catalog rather than from a hand-typed copy.
-            hull: ShipSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
             ..default()
         }),
     });
@@ -404,7 +404,7 @@ fn spin_subject(world: &mut World) {
 /// hull cracks underneath.
 #[cfg(feature = "debug")]
 fn spread_cracks(world: &mut World) {
-    let ships = world.resource::<GameShips>().clone();
+    let ships = world.resource::<GameShipDesigns>().clone();
     for cell in BROADSIDE_CELLS {
         let section = kit::cell_section(&ships, SUBJECT_HULL, cell);
         let Some(node) = kit::section_health(world, SUBJECT_ID, &section) else {
@@ -453,7 +453,7 @@ fn disable_turret(world: &mut World) {
 /// Kill the port aft deck plate, which frees the mount standing on it.
 #[cfg(feature = "debug")]
 fn sever_pod(world: &mut World) {
-    let ships = world.resource::<GameShips>().clone();
+    let ships = world.resource::<GameShipDesigns>().clone();
     let section = kit::cell_section(&ships, SUBJECT_HULL, SEVERED_CELL);
     kill_section(world, &section);
 }

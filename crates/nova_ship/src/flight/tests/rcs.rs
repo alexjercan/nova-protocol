@@ -169,22 +169,22 @@ fn rcs_holds_the_cap_forward_but_reverses_freely() {
     );
 }
 
-/// RCS is a controller verb: a ship whose controller withholds `Rcs` does
-/// not move, even with an intent written on it.
+/// RCS is a ROOT capability: a ship without it does not move, even with an
+/// intent written on it.
 #[test]
-fn rcs_does_nothing_without_the_verb() {
+fn rcs_does_nothing_without_the_capability() {
     let mut app = flight_app();
-    let (ship, controller) = spawn_rcs_ship(&mut app, 2.0);
-    app.world_mut()
-        .entity_mut(controller)
-        .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+    let (ship, _controller) = spawn_rcs_ship(&mut app, 2.0);
+    disable_capabilities(&mut app, ship, |capabilities| {
+        capabilities.rcs_enabled = false;
+    });
     set_rcs(&mut app, ship, Vec3::X);
     for _ in 0..300 {
         app.update();
     }
     assert!(
         velocity_of(&app, ship).length() < 1e-3,
-        "no RCS verb, no fine-adjust"
+        "no RCS capability, no fine-adjust"
     );
 }
 
@@ -443,16 +443,16 @@ fn rcs_settled_autopilot_leaves_the_ship_at_rest_after_disengage() {
     );
 }
 
-/// Without the `Rcs` verb the autopilot must NOT write `RcsIntent`; the same
-/// STOP settles on the main drive instead (the mainline-campaign path while
-/// RCS is disabled pending rework).
+/// Without the RCS capability the autopilot must NOT write `RcsIntent`; the
+/// same STOP settles on the main drive instead (the mainline-campaign path
+/// while RCS is disabled pending rework).
 #[test]
-fn stop_terminal_without_rcs_verb_uses_the_main_drive() {
+fn stop_terminal_without_the_rcs_capability_uses_the_main_drive() {
     let mut app = flight_app();
-    let (ship, _thruster, controller) = spawn_ship(&mut app);
-    app.world_mut()
-        .entity_mut(controller)
-        .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+    let (ship, _thruster, _controller) = spawn_ship(&mut app);
+    disable_capabilities(&mut app, ship, |capabilities| {
+        capabilities.rcs_enabled = false;
+    });
     settle(&mut app);
     app.world_mut()
         .entity_mut(ship)

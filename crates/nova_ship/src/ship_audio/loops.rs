@@ -22,8 +22,7 @@ use super::{
 use crate::{
     prelude::*,
     sections::{
-        controller_section::ControllerSectionSounds, railgun_section::RailgunSectionChargeSound,
-        thruster_section::ThrusterSectionLoopSound,
+        railgun_section::RailgunSectionChargeSound, thruster_section::ThrusterSectionLoopSound,
     },
 };
 
@@ -155,47 +154,40 @@ pub(super) fn drive_thruster_loops(
 
 /// Drive the RCS hiss from how hard each ship is fine-adjusting.
 ///
-/// CONTROLLER-based and DRIVER-agnostic: the `RcsIntent` on the ship root is
-/// written by the player's modal and by the autopilot both, so both make the
-/// same sound. Gated on the controller granting [`FlightVerb::Rcs`], mirroring
+/// ROOT-based and DRIVER-agnostic: the `RcsIntent` on the ship root is written
+/// by the player's modal and by the autopilot both, so both make the same
+/// sound. Gated on the ship's `rcs_enabled` capability, mirroring
 /// `rcs_burn_system` - a hull that cannot RCS makes no RCS hiss.
 pub(super) fn drive_rcs_loops(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    q_controllers: Query<
+    q_ships: Query<
         (
             Entity,
-            &ChildOf,
-            &ControllerSectionSounds,
-            Option<&WithheldVerbs>,
+            &ShipFeedbackSounds,
+            &RcsIntent,
+            Option<&ShipCapabilities>,
             Option<&CachedLoopSound>,
         ),
-        (
-            With<ControllerSectionMarker>,
-            Without<SectionInactiveMarker>,
-        ),
+        With<SpaceshipRootMarker>,
     >,
-    q_intent: Query<&RcsIntent>,
     q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     q_loops: Query<(Entity, &RcsLoopSfx, &mut SfxVoice)>,
 ) {
     let mut targets: HashMap<(Entity, Handle<AudioSource>), f32> = HashMap::new();
-    for (controller, &ChildOf(root), sounds, withheld, cached) in &q_controllers {
-        if !withheld.is_none_or(|w| w.granted(FlightVerb::Rcs)) {
+    for (root, sounds, intent, capabilities, cached) in &q_ships {
+        if !capabilities.copied().unwrap_or_default().rcs_enabled {
             continue;
         }
-        // AUTHORED-OR-SILENT: a controller with no rcs_loop makes no sound.
+        // AUTHORED-OR-SILENT: a ship with no rcs_loop makes no sound.
         let Some(handle) = loop_handle(
             &mut commands,
             &asset_server,
-            controller,
+            root,
             sounds.rcs_loop.as_ref(),
             cached,
         ) else {
-            continue;
-        };
-        let Ok(intent) = q_intent.get(root) else {
             continue;
         };
         let effort = intent.0.length();
@@ -682,28 +674,26 @@ mod tests {
         );
     }
 
-    /// A ship with an RCS-authoring controller child, carrying `intent` on the
-    /// root. `deny_rcs` withholds the verb.
+    /// A ship carrying `intent` and its RCS voice on the ROOT. `deny_rcs`
+    /// turns the root capability off.
     fn spawn_rcs_ship(app: &mut App, intent: Vec3, deny_rcs: bool) -> Entity {
-        let root = app
-            .world_mut()
-            .spawn((
-                SpaceshipRootMarker,
-                GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
-                RcsIntent(intent),
-            ))
-            .id();
-        let sounds = ControllerSectionSounds {
+        let sounds = ShipFeedbackSounds {
             rcs_loop: Some(AssetRef::from(RIG_RCS)),
             ..Default::default()
         };
-        let mut controller =
-            app.world_mut()
-                .spawn((ControllerSectionMarker, sounds, ChildOf(root)));
+        let mut root = app.world_mut().spawn((
+            SpaceshipRootMarker,
+            GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
+            RcsIntent(intent),
+            sounds,
+        ));
         if deny_rcs {
-            controller.insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+            root.insert(ShipCapabilities {
+                rcs_enabled: false,
+                ..default()
+            });
         }
-        root
+        root.id()
     }
 
     #[test]

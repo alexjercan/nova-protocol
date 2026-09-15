@@ -167,32 +167,35 @@ pub(super) fn size_hull(app: &mut App, root: Entity, radius: f32) {
     ));
 }
 
-/// Withhold the RCS verb on every controller of `ship`. The legacy autopilot
-/// tests predate RCS and assert the MAIN-DRIVE arrival (flip + retro burn);
-/// with the verb granted (the production default) the autopilot would settle
-/// their terminal via RCS instead. Disabling RCS here keeps them exercising the
-/// behavior they were written for - the same opt-out the mainline campaign uses
-/// while RCS is off pending rework.
-pub(super) fn withhold_rcs(app: &mut App, ship: Entity) {
-    withhold_verbs(app, ship, &[FlightVerb::Rcs]);
+/// Turn RCS off on `ship`. The legacy autopilot tests predate RCS and assert
+/// the MAIN-DRIVE arrival (flip + retro burn); with the capability on (the
+/// production default) the autopilot would settle their terminal via RCS
+/// instead. Turning it off here keeps them exercising the behavior they were
+/// written for - the same opt-out the mainline campaign uses while RCS is off
+/// pending rework.
+pub(super) fn disable_rcs(app: &mut App, ship: Entity) {
+    disable_capabilities(app, ship, |capabilities| capabilities.rcs_enabled = false);
 }
 
-/// Withhold `verbs` on every controller of `ship`: the same gate a scenario
-/// installs with the `DisableVerb` spawn modification (the training range
-/// withholds ORBIT until its lesson).
-pub(super) fn withhold_verbs(app: &mut App, ship: Entity, verbs: &[FlightVerb]) {
-    let controllers: Vec<Entity> = app
-        .world_mut()
-        .query_filtered::<(Entity, &ChildOf), With<ControllerSectionMarker>>()
-        .iter(app.world())
-        .filter(|(_, ChildOf(parent))| *parent == ship)
-        .map(|(entity, _)| entity)
-        .collect();
-    for controller in controllers {
-        app.world_mut()
-            .entity_mut(controller)
-            .insert(WithheldVerbs(verbs.iter().copied().collect()));
-    }
+/// Turn capabilities off on `ship`'s ROOT: the same gate a scenario installs
+/// with a `SetShipCapability*` action (the training range turns ORBIT off
+/// until its lesson).
+///
+/// Reads the root's current value so several calls compose, and defaults when
+/// the component is absent - a ship with no authored capabilities can do
+/// everything, which is what the production spawn path means by omitting it.
+pub(super) fn disable_capabilities(
+    app: &mut App,
+    ship: Entity,
+    disable: impl FnOnce(&mut ShipCapabilities),
+) {
+    let mut capabilities = app
+        .world()
+        .get::<ShipCapabilities>(ship)
+        .copied()
+        .unwrap_or_default();
+    disable(&mut capabilities);
+    app.world_mut().entity_mut(ship).insert(capabilities);
 }
 
 /// Mount an extra engine on the hull with a section-local attitude

@@ -76,9 +76,11 @@ fn plate(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: plate_sections(sections),
-                collapse_threshold: Some(0.0),
+                integrity: ShipIntegrityConfig {
+                    collapse_threshold: Some(0.0),
+                },
                 ..default()
             }),
             ..default()
@@ -140,7 +142,6 @@ fn section(sections: &GameSections, id: &str, kind: &str, cell: Vec3) -> Spacesh
                 .unwrap_or_else(|| panic!("loop_death_compare: no section '{kind}' in the catalog"))
                 .clone(),
         ),
-        modifications: vec![],
     }
 }
 

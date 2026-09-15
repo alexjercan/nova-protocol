@@ -27,7 +27,21 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_picket"),
+                            design: Prototype(
+                                id: "block_picket",
+                                section_patches: {
+                                    "bridge": (
+                                        config: (
+                                            health: Some(1300.0),
+                                        ),
+                                    ),
+                                    "pdc": (
+                                        config: (
+                                            health: Some(1300.0),
+                                        ),
+                                    ),
+                                },
+                            ),
                             controller: Player((
                                 input_mapping: {
                                     "pdc": [
@@ -37,25 +51,13 @@
                                 },
                                 speed_cap: Some(150.0),
                             )),
-                            modifications: [
-                                (
-                                    section: "bridge",
-                                    modifications: [
-                                        SetHealth(1300.0),
-                                        DisableVerb(Stop),
-                                        DisableVerb(Rcs),
-                                        DisableVerb(Lock),
-                                        DisableVerb(Goto),
-                                        DisableVerb(Orbit),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc",
-                                    modifications: [
-                                        SetHealth(1300.0),
-                                    ],
-                                ),
-                            ],
+                            capabilities: (
+                                stop_enabled: false,
+                                goto_enabled: false,
+                                orbit_enabled: false,
+                                lock_enabled: false,
+                                rcs_enabled: false,
+                            ),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -99,7 +101,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "spine",
@@ -114,7 +116,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "bow",
@@ -129,7 +133,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "stern",
@@ -144,7 +150,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "port",
@@ -159,7 +167,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "starboard",
@@ -174,9 +184,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                         )),
@@ -198,7 +212,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "spine",
@@ -213,7 +227,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "bow",
@@ -228,7 +244,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "stern",
@@ -243,7 +261,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "port",
@@ -258,7 +278,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "starboard",
@@ -273,9 +295,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                         )),
@@ -297,7 +323,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "spine",
@@ -312,7 +338,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "bow",
@@ -327,7 +355,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "stern",
@@ -342,7 +372,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "port",
@@ -357,7 +389,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "starboard",
@@ -372,9 +406,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                         )),
@@ -396,7 +434,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "spine",
@@ -411,7 +449,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "bow",
@@ -426,7 +466,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "stern",
@@ -441,7 +483,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "port",
@@ -456,7 +500,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "starboard",
@@ -471,9 +517,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                         )),
@@ -495,7 +545,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "spine",
@@ -510,7 +560,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "bow",
@@ -525,7 +577,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "stern",
@@ -540,7 +594,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "port",
@@ -555,7 +611,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "starboard",
@@ -570,9 +628,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("light_hull_section"),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                         )),
@@ -594,188 +656,163 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_picket"),
+                            design: Prototype(
+                                id: "block_picket",
+                                section_patches: {
+                                    "bridge": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "drive_port": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "drive_starboard": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "pdc": (
+                                        config: (
+                                            health: Some(24.0),
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(150)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "plate_0": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_1": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_10": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_11": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_12": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_13": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_14": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_15": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_16": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_17": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_18": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_19": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_2": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_20": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_21": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_22": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_23": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_24": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_3": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_4": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_5": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_6": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_7": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_8": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_9": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                },
+                            ),
                             controller: AI((
                                 leash: Some(3500.0),
                             )),
                             allegiance: Some(Neutral),
-                            modifications: [
-                                (
-                                    section: "plate_0",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_1",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_2",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_3",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_4",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_5",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_6",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_7",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_8",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_9",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_10",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_11",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_12",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_13",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_14",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_15",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_16",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_17",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_18",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_19",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_20",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_21",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_22",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_23",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_24",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "bridge",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "drive_port",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "drive_starboard",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                        SetAmmo(150),
-                                    ],
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -795,188 +832,163 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_picket"),
+                            design: Prototype(
+                                id: "block_picket",
+                                section_patches: {
+                                    "bridge": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "drive_port": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "drive_starboard": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "pdc": (
+                                        config: (
+                                            health: Some(24.0),
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(150)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "plate_0": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_1": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_10": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_11": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_12": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_13": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_14": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_15": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_16": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_17": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_18": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_19": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_2": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_20": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_21": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_22": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_23": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_24": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_3": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_4": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_5": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_6": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_7": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_8": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "plate_9": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                },
+                            ),
                             controller: AI((
                                 leash: Some(3500.0),
                             )),
                             allegiance: Some(Neutral),
-                            modifications: [
-                                (
-                                    section: "plate_0",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_1",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_2",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_3",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_4",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_5",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_6",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_7",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_8",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_9",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_10",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_11",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_12",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_13",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_14",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_15",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_16",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_17",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_18",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_19",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_20",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_21",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_22",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_23",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "plate_24",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "bridge",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "drive_port",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "drive_starboard",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc",
-                                    modifications: [
-                                        SetHealth(24.0),
-                                        SetAmmo(150),
-                                    ],
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -1402,9 +1414,8 @@
                                         key: "beat",
                                         expression: Term(Factor(Literal(Number(2.0)))),
                                     )),
-                                    SetControllerVerb((
+                                    SetShipCapabilityStop((
                                         id: "trainer",
-                                        verb: Stop,
                                         enabled: true,
                                     )),
                                     Objective((
@@ -1455,9 +1466,8 @@
                                         key: "beat",
                                         expression: Term(Factor(Literal(Number(3.0)))),
                                     )),
-                                    SetControllerVerb((
+                                    SetShipCapabilityRcs((
                                         id: "trainer",
-                                        verb: Rcs,
                                         enabled: true,
                                     )),
                                     Objective((
@@ -1566,9 +1576,8 @@
                                         key: "beat",
                                         expression: Term(Factor(Literal(Number(4.0)))),
                                     )),
-                                    SetControllerVerb((
+                                    SetShipCapabilityLock((
                                         id: "trainer",
-                                        verb: Lock,
                                         enabled: true,
                                     )),
                                     Objective((
@@ -1646,9 +1655,8 @@
                                         key: "beat",
                                         expression: Term(Factor(Literal(Number(5.0)))),
                                     )),
-                                    SetControllerVerb((
+                                    SetShipCapabilityGoto((
                                         id: "trainer",
-                                        verb: Goto,
                                         enabled: true,
                                     )),
                                     Objective((
@@ -1700,9 +1708,8 @@
                                         key: "beat",
                                         expression: Term(Factor(Literal(Number(6.0)))),
                                     )),
-                                    SetControllerVerb((
+                                    SetShipCapabilityOrbit((
                                         id: "trainer",
-                                        verb: Orbit,
                                         enabled: true,
                                     )),
                                     Objective((

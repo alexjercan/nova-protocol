@@ -374,7 +374,6 @@ mod tests {
         app.world_mut().spawn((
             SectionNode {
                 source: SectionSource::Inline(hull("hull")),
-                modifications: vec![],
                 binds: vec![],
             },
             NodeId(format!("hull_{index}")),

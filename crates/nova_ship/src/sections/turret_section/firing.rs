@@ -804,6 +804,7 @@ mod tests {
             render_mesh: None,
             render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
+                id: "main".to_string(),
                 fire_rate: 10.0,
                 muzzle_effect: None,
             }),
@@ -823,7 +824,7 @@ mod tests {
         };
         let config = TurretSectionConfig {
             root: barrel,
-            ammo_capacity: Some(3),
+            ammunition: AmmoCapacity::Limited(3),
             ..default()
         };
 

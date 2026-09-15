@@ -170,14 +170,14 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(blast_range(&game_assets, &ships)));
 }
 
 /// The set: the parked target, the boat above its quarter, the proven rock
 /// shell around them and the photo rig. Both ships are `Controller::None` -
 /// nothing here flies itself, so the capture is deterministic.
-fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn blast_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     // The whole shipped gunship at catalog health, turrets and cladding
     // included. Nothing here is tuned for the shot: what the warhead does to
     // this hull is what it does to the same hull in a fight.
@@ -241,7 +241,7 @@ fn ship(
     position: Meters3,
     rotation: Quat,
     allegiance: Option<Allegiance>,
-    hull: ShipHull,
+    hull: ShipDesign,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -253,7 +253,7 @@ fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance,
-            hull: ShipSource::Inline(hull),
+            design: ShipDesignSource::Inline(hull),
             ..default()
         }),
     })

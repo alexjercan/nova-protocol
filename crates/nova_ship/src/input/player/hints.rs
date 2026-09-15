@@ -8,7 +8,9 @@ use nova_input::prelude::*;
 
 use super::flight_rig::AutopilotStopInput;
 use crate::{
-    flight::{ship_grants_verb, LiveFlightComputers},
+    flight::{
+        ship_capabilities, ship_has_attitude_authority, LiveFlightComputers, ShipCapabilityQuery,
+    },
     prelude::*,
 };
 
@@ -97,6 +99,7 @@ pub(super) fn update_flight_verb_hints(
         With<PlayerSpaceshipMarker>,
     >,
     q_computer: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
     q_rig: Query<(), With<Action<AutopilotStopInput>>>,
     bindings: Option<Res<InputBindings>>,
@@ -134,21 +137,19 @@ pub(super) fn update_flight_verb_hints(
     // engine or it disengages on its next tick; a hint below that bar
     // would light a key that visibly does nothing.
     let flyable = ship.is_some_and(|ship| {
-        q_computer
-            .iter()
-            .any(|(_, &ChildOf(parent), _)| parent == ship)
+        ship_has_attitude_authority(ship, &q_computer)
             && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
     });
-    // The individual maneuvers are a capability the controller GRANTS, asked
-    // through the one shared gate the input observers fire on, so a lit hint
-    // and a firing key can never disagree. Kept SEPARATE from `flyable` above
-    // (which only asks "is there a live controller + engine"): the two answer
-    // different questions, and folding them would make a controller missing
-    // the withheld-verbs component brick the ship instead of falling back to
-    // the all-granted default. The `SetControllerVerb` action flips these.
-    let verb_granted = |verb: FlightVerb| -> bool {
-        ship.is_some_and(|ship| ship_grants_verb(ship, verb, &q_computer))
-    };
+    // The individual maneuvers are the SHIP's own capabilities, read from the
+    // same root the input observers read, so a lit hint and a firing key can
+    // never disagree. Kept SEPARATE from `flyable` above (which only asks "is
+    // there a live controller + engine"): the two answer different questions -
+    // hardware versus permission - and folding them would let a hulk's dead
+    // attitude loop silently erase what the ship was configured to do. The
+    // `SetShipCapability*` actions flip these.
+    let capabilities = ship
+        .map(|ship| ship_capabilities(ship, &q_capabilities))
+        .unwrap_or_default();
     let engaged = autopilot.is_some();
     let orbiting = matches!(
         autopilot.map(|ap| ap.action),
@@ -158,20 +159,17 @@ pub(super) fn update_flight_verb_hints(
     let next = FlightVerbHints {
         stop: VerbHint {
             key: label("autopilot_stop"),
-            available: flyable && verb_granted(FlightVerb::Stop),
+            available: flyable && capabilities.stop_enabled,
             anchor: None,
         },
         goto: VerbHint {
             key: label("autopilot_goto"),
-            available: flyable && verb_granted(FlightVerb::Goto) && travel.is_some(),
+            available: flyable && capabilities.goto_enabled && travel.is_some(),
             anchor: travel,
         },
         orbit: VerbHint {
             key: label("autopilot_orbit"),
-            available: flyable
-                && verb_granted(FlightVerb::Orbit)
-                && dominant.is_some()
-                && !orbiting,
+            available: flyable && capabilities.orbit_enabled && dominant.is_some() && !orbiting,
             anchor: dominant.map(|well| **well),
         },
         cancel: VerbHint {
@@ -199,13 +197,13 @@ pub(super) fn update_flight_verb_hints(
         },
         radar: VerbHint {
             key: label("radar_hold"),
-            available: verb_granted(FlightVerb::Lock),
+            available: capabilities.lock_enabled,
             anchor: None,
         },
         rcs: VerbHint {
             // Shown only while the computer grants RCS.
             key: label("rcs_modifier"),
-            available: verb_granted(FlightVerb::Rcs),
+            available: capabilities.rcs_enabled,
             anchor: None,
         },
         engaged,
@@ -279,27 +277,28 @@ mod tests {
     }
 
     /// The RCS hint carries the fixed "SHIFT" label and is available only while
-    /// the controller grants the `Rcs` verb - so the cluster row shows only when
-    /// RCS is enabled (the mainline campaign, which withholds it, never shows it).
+    /// the ROOT enables RCS - so the cluster row shows only when RCS is on (the
+    /// mainline campaign, which turns it off, never shows it).
     #[test]
-    fn rcs_hint_shows_shift_only_when_the_verb_is_granted() {
+    fn rcs_hint_shows_shift_only_when_the_capability_is_on() {
         let mut world = hint_world();
-        let (_, controller) = spawn_flyable_ship(&mut world);
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
 
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>();
         assert_eq!(hints.rcs.key, "ShiftLeft");
-        assert!(hints.rcs.available, "granted RCS lights the SHIFT hint");
+        assert!(hints.rcs.available, "enabled RCS lights the SHIFT hint");
 
-        // Withhold RCS (the mainline path): the hint goes unavailable and the
+        // Turn RCS off (the mainline path): the hint goes unavailable and the
         // renderer drops the row.
-        world
-            .entity_mut(controller)
-            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        world.entity_mut(ship).insert(ShipCapabilities {
+            rcs_enabled: false,
+            ..default()
+        });
         world.run_system_once(update_flight_verb_hints).unwrap();
         assert!(
             !world.resource::<FlightVerbHints>().rcs.available,
-            "withheld RCS hides the SHIFT hint"
+            "RCS off hides the SHIFT hint"
         );
     }
 
@@ -400,42 +399,42 @@ mod tests {
     }
 
     #[test]
-    fn controller_verb_flags_gate_the_hints_independently_of_lock_and_well() {
+    fn root_capabilities_gate_the_hints_independently_of_lock_and_well() {
         let mut world = hint_world();
-        let (ship, controller) = spawn_flyable_ship(&mut world);
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
 
-        // A lock and a dominant well are present, so absent the flags GOTO and
-        // ORBIT would both light (as the neighbor test proves).
+        // A lock and a dominant well are present, so absent the capabilities
+        // GOTO and ORBIT would both light (as the neighbor test proves).
         let lock = world.spawn_empty().id();
         let well = world.spawn_empty().id();
         world
             .entity_mut(ship)
             .insert((TravelLock(Some(lock)), DominantWell(well)));
 
-        // Withhold GOTO and ORBIT on the controller; STOP stays granted.
-        world.entity_mut(controller).insert(WithheldVerbs(
-            [FlightVerb::Goto, FlightVerb::Orbit].into_iter().collect(),
-        ));
+        // Turn GOTO and ORBIT off on the root; STOP stays on.
+        world.entity_mut(ship).insert(ShipCapabilities {
+            goto_enabled: false,
+            orbit_enabled: false,
+            ..default()
+        });
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
-        assert!(hints.stop.available, "STOP is still granted");
+        assert!(hints.stop.available, "STOP is still on");
         assert!(
             !hints.goto.available,
-            "GOTO withheld by the controller despite a live lock"
+            "GOTO off on the root despite a live lock"
         );
         assert!(
             !hints.orbit.available,
-            "ORBIT withheld by the controller despite a dominant well"
+            "ORBIT off on the root despite a dominant well"
         );
 
-        // Granting them lights both (the lock/well are unchanged) - proves the
-        // withheld set, not some other condition, was the gate.
-        world
-            .entity_mut(controller)
-            .insert(WithheldVerbs::default());
+        // Turning them back on lights both (the lock/well are unchanged) -
+        // proves the capabilities, not some other condition, were the gate.
+        world.entity_mut(ship).insert(ShipCapabilities::default());
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
-        assert!(hints.goto.available, "GOTO lights once granted");
-        assert!(hints.orbit.available, "ORBIT lights once granted");
+        assert!(hints.goto.available, "GOTO lights once enabled");
+        assert!(hints.orbit.available, "ORBIT lights once enabled");
     }
 }

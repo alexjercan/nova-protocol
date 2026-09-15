@@ -84,7 +84,7 @@ Nothing pierces a rock while its collider remains: an asteroid or a planetoid st
 
 A magazine is a rate limit, not a budget - every weapon refills, and the rule is the same for all three (see [Magazines](../../combat-weapons/#magazines)). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.
 
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammo_capacity 500 :503, reload delay 3.0 :505 / amount 200 :506, fire_rate 100; bay ammo_capacity 6 :1226, reload delay 10.0 :1238 / amount 1, fire_rate 1.0; railgun ammo_capacity 1 :982, reload delay 12.0 :987 / amount 1, charge 1.5 :928) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :136, a whole batch lands at the delay :171-174, clamped at capacity :156, empty pulls never reset :134). The sustained column is sections/mod.rs:202's own formula, amount / (delay + batch fire time). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammunition Limited(500) :518, reload delay 3.0 :520 / amount 200 :521, fire_rate 100; bay ammunition Limited(6) :1285, reload delay 10.0 :1297 / amount 1, fire_rate 1.0 :1248; railgun ammunition Limited(1) :1183, reload delay 12.0 :1188 / amount 1, charge 1.5 :1161) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :217, each completed delay restores one batch :252-259, clamped at capacity :237, empty trigger pulls never call on_shot :216). The sustained column is this page's own arithmetic, amount / (delay + batch fire time). -->
 
 | Weapon | Magazine | Cyclic rate | One batch | Quiet, empty to full | Sustained |
 | --- | --- | --- | --- | --- | --- |
@@ -194,5 +194,5 @@ Four turrets ship on two mounts. The gatlings put one barrel on the compact asse
 </table>
 </div>
 
-<!-- raider mount health: 60, a SetHealth modification on the mount rather than a separate prototype -->
+<!-- raider mount health: 60, a health patch on the mount rather than a separate prototype -->
 Raider hulls mount the same guns from the same catalog. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.

@@ -3319,7 +3319,6 @@ mod tests {
                         },
                         kind: SectionKind::Hull(HullSectionConfig::default()),
                     }),
-                    modifications: vec![],
                     binds: vec![],
                 },
                 NodeId(id.to_string()),
@@ -4760,7 +4759,6 @@ mod tests {
                 },
                 kind,
             }),
-            modifications: vec![],
             binds: vec![],
         };
 

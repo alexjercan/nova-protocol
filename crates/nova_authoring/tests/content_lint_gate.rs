@@ -70,10 +70,10 @@ fn target_mode_lints_one_mod_in_repo_or_external() {
                         base: (id: "ship", name: "Ship", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: AI(()),
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
-                                    (id: "a", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "b", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("imaginary_hull")),
+                                    (id: "a", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "basic_controller_section")),
+                                    (id: "b", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "imaginary_hull")),
                                 ],
                             )),
                         )),
@@ -203,10 +203,10 @@ const ACKED_SCENARIO_RON: &str = r#"[
                         base: (id: "player", name: "Player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: Player(()),
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
-                                    (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "guns", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("pdc_kinetic_turret_section")),
+                                    (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "basic_controller_section")),
+                                    (id: "guns", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "pdc_kinetic_turret_section")),
                                 ],
                             )),
                         )),
@@ -225,10 +225,10 @@ const ACKED_SCENARIO_RON: &str = r#"[
                         base: (id: "hostile_1", name: "Hostile One", position: (0.0, 0.0, -30.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: AI(()),
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
-                                    (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "turret", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("pdc_kinetic_turret_section")),
+                                    (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "basic_controller_section")),
+                                    (id: "turret", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "pdc_kinetic_turret_section")),
                                 ],
                             )),
                         )),

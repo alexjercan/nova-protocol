@@ -10,7 +10,7 @@ use nova_ship::prelude::{
 };
 
 use crate::{
-    lint::{KnownSections, KnownShips},
+    lint::{KnownSections, KnownShipDesigns},
     prelude::*,
 };
 
@@ -115,25 +115,24 @@ pub(crate) fn grammar() -> ShipGrammarConfig {
 }
 
 /// A catalog of known ships, each one unit-cube hull section named `hull`.
-pub(crate) fn ships(ids: &[&str]) -> KnownShips {
+pub(crate) fn ships(ids: &[&str]) -> KnownShipDesigns {
     let configs: Vec<_> = ids
         .iter()
-        .map(|id| ShipConfig {
+        .map(|id| ShipDesignPrototype {
             id: (*id).to_string(),
             name: (*id).to_string(),
-            hull: ShipHull {
+            design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "hull".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype("hull".to_string()),
-                    modifications: vec![],
+                    source: SectionSource::prototype("hull"),
                 }],
                 ..default()
             },
         })
         .collect();
-    KnownShips::from_configs(&configs)
+    KnownShipDesigns::from_configs(&configs)
 }
 
 pub(crate) fn spawn_object(id: &str) -> EventActionConfig {
@@ -164,13 +163,12 @@ pub(crate) fn spawn_ship(id: &str, proto: &str) -> EventActionConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig::default()),
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "hull".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype(proto.to_string()),
-                    modifications: vec![],
+                    source: SectionSource::prototype(proto),
                 }],
                 ..default()
             }),
@@ -199,7 +197,6 @@ pub(crate) fn spawn_armed_ship(id: &str, controller: SpaceshipController) -> Eve
                 },
                 kind,
             }),
-            modifications: vec![],
         }
     };
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -211,7 +208,7 @@ pub(crate) fn spawn_armed_ship(id: &str, controller: SpaceshipController) -> Eve
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![
                     section(
                         "nose",

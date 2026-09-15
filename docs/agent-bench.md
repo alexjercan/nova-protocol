@@ -148,8 +148,8 @@ second and degrees:
   (`engaged`: action, target and phase, or null; `completed`: the last action
   that finished), `gravity_well` (the dominant well's id), `sections` (the
   bridge, the drives, each mount with its `weapon`: kind, ammo, `on_target`,
-  `firing`), `hull_plates` as `{total, damaged, lost}` and `withheld_verbs`
-  (flight verbs the scenario has not granted yet).
+  `firing`), `hull_plates` as `{total, damaged, lost}` and
+  `withheld_capabilities` (what the scenario has not granted yet).
 - `contacts`: every other ship with `allegiance` (`Enemy`, `Player`,
   `Neutral`), `distance_m`, `bearing_deg`, `closing_mps`, `health`,
   `defeated`, `weapons_hot`, `ai_target`.

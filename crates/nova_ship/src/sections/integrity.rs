@@ -97,7 +97,7 @@ pub struct StructuralCollapseMarker {
 }
 
 /// The hull's authored collapse sound, snapshotted UNRESOLVED onto the ship
-/// root at spawn from `ShipHull::collapse_sound`.
+/// root at spawn from `ShipDesign::collapse_sound`.
 ///
 /// On the ROOT and not on any section, because the thing it voices is the whole
 /// ship: the audio layer answers [`StructuralCollapseMarker`] landing, which is

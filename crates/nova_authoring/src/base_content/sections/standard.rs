@@ -130,6 +130,13 @@ struct TurretArt<'a> {
     muzzles_at: &'a [Vec3],
 }
 
+/// The barrel id a single-barrel mount answers to.
+pub const MUZZLE_MAIN: &str = "main";
+/// The port barrel of a multi-barrel mount.
+pub const MUZZLE_LEFT: &str = "left";
+/// The starboard barrel of a multi-barrel mount.
+pub const MUZZLE_RIGHT: &str = "right";
+
 /// The gatling's one fire point, just past its barrel tip (the barrel part
 /// reaches z -0.9 from its root).
 const GATLING_MUZZLES: [Vec3; 1] = [Vec3::new(0.0, 0.0, -0.95)];
@@ -195,6 +202,21 @@ fn twin_art(meshes: &BaseContentAssets) -> TurretArt<'_> {
 ///
 /// Every shipped caller is a PDC, which passes its own half-size and its own
 /// size: the mount, the sockets and the gun agree by construction.
+/// The id one barrel answers to in a patch: a single-barrel mount is `main`,
+/// and a multi-barrel mount names its tubes by the side they sit on. The id is
+/// what content aims a [`MuzzleConfigPatch`] at, so it has to read like the
+/// gun and stay put when the art moves.
+fn muzzle_id(muzzles_at: &[Vec3], muzzle_at: Vec3) -> String {
+    if muzzles_at.len() == 1 {
+        return MUZZLE_MAIN.to_string();
+    }
+    if muzzle_at.x < 0.0 {
+        MUZZLE_LEFT.to_string()
+    } else {
+        MUZZLE_RIGHT.to_string()
+    }
+}
+
 fn turret_joint_tree(
     art_spec: &TurretArt<'_>,
     fire_rate: f32,
@@ -222,6 +244,7 @@ fn turret_joint_tree(
             render_mesh: None,
             render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
+                id: muzzle_id(art_spec.muzzles_at, muzzle_at),
                 fire_rate,
                 muzzle_effect: None,
             }),
@@ -492,8 +515,8 @@ fn pdc_turret_prototype(
             // - so every mount that can fold has a voice for folding.
             stow_open_sound: Some(meshes.turret_stow_open_sound.clone()),
             stow_close_sound: Some(meshes.turret_stow_close_sound.clone()),
-            ammo_capacity: Some(500),
-            reload: Some(SectionReloadConfig {
+            ammunition: AmmoCapacity::Limited(500),
+            reload: ReloadConfig::Batch(SectionReloadConfig {
                 delay: 3.0,
                 amount: 200,
             }),
@@ -715,27 +738,16 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // its metal allows and a capital that has lost a computer does
                 // not. Small hulls are structure-bound either way.
                 max_torque: 9760.0,
-                // Full flight-verb loadout by default (no WithheldVerbs on the
-                // built controller). Scenarios withhold a verb via a
-                // `DisableVerb` section modification or the `SetControllerVerb`
-                // action (the shakedown's GOTO-off intro) rather than baking it
-                // into this shared catalog entry, which the pirate reuses too.
+                // Attitude hardware and nothing else. What the ship is
+                // PERMITTED to do is `capabilities` on the spawn, and the
+                // voice it speaks with is the design's presentation config -
+                // neither is a property of the box that turns the hull.
                 //
                 // The cable-wrapped computer cell: the first controller with a
                 // body of its own instead of an invisible cube. Every face
                 // carries the same signal pattern, so its rotation never shows.
                 render_mesh: Some(meshes.controller_core.clone()),
                 render_mesh_transform: None,
-                lock_on_sound: Some(meshes.controller_lock_on_sound.clone()),
-                lock_off_sound: Some(meshes.controller_lock_off_sound.clone()),
-                radar_deny_sound: Some(meshes.controller_radar_deny_sound.clone()),
-                radar_retarget_sound: Some(meshes.controller_radar_retarget_sound.clone()),
-                safety_on_sound: Some(meshes.controller_safety_on_sound.clone()),
-                warn_lock_sound: Some(meshes.controller_warn_lock_sound.clone()),
-                ammo_dry_sound: Some(meshes.controller_ammo_dry_sound.clone()),
-                warn_hull_sound: Some(meshes.controller_warn_hull_sound.clone()),
-                warn_hull_fraction: DEFAULT_WARN_HULL_FRACTION,
-                rcs_loop_sound: Some(meshes.controller_rcs_loop_sound.clone()),
             }),
         },
         SectionConfig {
@@ -1006,8 +1018,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // defense visibly hammers it and still loses.
                 projectile_health: 5000.0,
                 torpedo_type: ordnance::breaker(),
-                ammo_capacity: Some(6),
-                reload: Some(SectionReloadConfig {
+                ammunition: AmmoCapacity::Limited(6),
+                reload: ReloadConfig::Batch(SectionReloadConfig {
                     delay: 10.0,
                     amount: 1,
                 }),
@@ -1168,11 +1180,11 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             // One shell in the air per gun, ever. The magazine IS the design: a
             // lance that could queue a second shot would be a turret with a
             // long fire rate.
-            ammo_capacity: Some(1),
+            ammunition: AmmoCapacity::Limited(1),
             // The tempo. Twelve quiet seconds return the shell, so a lance
             // fires roughly every thirteen and a half - and every one of those
             // is a decision rather than a trigger pull.
-            reload: Some(SectionReloadConfig {
+            reload: ReloadConfig::Batch(SectionReloadConfig {
                 delay: 12.0,
                 amount: 1,
             }),
@@ -1270,7 +1282,7 @@ fn torpedo_bay_prototype(
             // seconds at the fire rate above. Saturation is what beats
             // point defense - attrition never does - so the burst is the
             // attacker's weapon and the reload below is only its floor.
-            ammo_capacity: Some(6),
+            ammunition: AmmoCapacity::Limited(6),
             // Idle batch reload, not a hard magazine. Every launch resets the
             // delay; ten quiet seconds return one torpedo. A six-round rack is
             // therefore the alpha strike, followed by visible rearm cadence.
@@ -1281,7 +1293,7 @@ fn torpedo_bay_prototype(
             // this bay's 0.1/s idle supply. The attacker wins by mounting more
             // bays than the defender has PDCs, never by waiting one mount out.
             // `no_torpedo_bay_out_sustains_a_point_defense_mount` pins it.
-            reload: Some(SectionReloadConfig {
+            reload: ReloadConfig::Batch(SectionReloadConfig {
                 delay: 10.0,
                 amount: 1,
             }),
@@ -1341,10 +1353,10 @@ mod tests {
         assert_eq!(siege.slug_speed, standard.slug_speed);
         assert_eq!(siege.slug_lifetime, standard.slug_lifetime);
         assert_eq!(siege.recoil_impulse, standard.recoil_impulse);
-        assert_eq!(siege.ammo_capacity, standard.ammo_capacity);
+        assert_eq!(siege.ammunition, standard.ammunition);
         assert_eq!(
-            siege.reload.as_ref().map(|reload| reload.delay),
-            standard.reload.as_ref().map(|reload| reload.delay)
+            siege.reload.batch().map(|reload| reload.delay),
+            standard.reload.batch().map(|reload| reload.delay)
         );
     }
 
@@ -1576,13 +1588,14 @@ mod tests {
                 continue;
             };
             assert_eq!(
-                railgun.ammo_capacity,
-                Some(1),
+                railgun.ammunition,
+                AmmoCapacity::Limited(1),
                 "`{}` can queue a second lance shot",
                 section.base.id,
             );
             let reload = railgun
                 .reload
+                .batch()
                 .unwrap_or_else(|| panic!("`{}` never gets its shell back", section.base.id));
             assert_eq!(reload.amount, 1);
             assert!(

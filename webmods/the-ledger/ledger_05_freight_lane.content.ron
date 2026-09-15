@@ -22,18 +22,20 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            design: Prototype(
+                                id: "cargoa",
+                                section_patches: {
+                                    "fuselage": (config: (health: Some(1200.0))),
+                                    "engine_port": (config: (health: Some(300.0))),
+                                    "engine_starboard": (config: (health: Some(300.0))),
+                                    "nose": (config: (health: Some(1200.0))),
+                                },
+                            ),
                             controller: Player((
                                 input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)]},
                                 speed_cap: Some(500.0),
                             )),
                             allegiance: Some(Player),
-                            modifications: [
-                                (section: "fuselage", modifications: [SetHealth(1200.0)]),
-                                (section: "engine_port", modifications: [SetHealth(300.0)]),
-                                (section: "engine_starboard", modifications: [SetHealth(300.0)]),
-                                (section: "nose", modifications: [SetHealth(1200.0)]),
-                            ],
                         )),
                     )),
                     VariableSet((key: "stage", expression: Term(Factor(Literal(Number(0.0)))))),
@@ -203,7 +205,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("racer"),
+                            design: Prototype(id: "racer"),
                             controller: AI((
                                 engage_delay: Some(10.0),
                                 standoff_clearance: Some(1250.0),
@@ -217,7 +219,6 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
-                            modifications: [],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -228,7 +229,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("ledger_freighter"),
+                            design: Prototype(id: "ledger_freighter"),
                             controller: AI((
                                 engage_delay: Some(10.0),
                                 standoff_clearance: Some(1250.0),
@@ -238,7 +239,6 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
-                            modifications: [],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -249,10 +249,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("ledger_freighter"),
+                            design: Prototype(id: "ledger_freighter"),
                             controller: None,
                             allegiance: Some(Player),
-                            modifications: [],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -263,14 +262,16 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("racer"),
+                            design: Prototype(
+                                id: "racer",
+                                section_patches: {
+                                    "fuselage": (config: (health: Some(1000.0))),
+                                    "engine_port": (config: (health: Some(300.0))),
+                                    "engine_starboard": (config: (health: Some(300.0))),
+                                },
+                            ),
                             controller: None,
                             allegiance: Some(Player),
-                            modifications: [
-                                (section: "fuselage", modifications: [SetHealth(1000.0)]),
-                                (section: "engine_port", modifications: [SetHealth(300.0)]),
-                                (section: "engine_starboard", modifications: [SetHealth(300.0)]),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -281,10 +282,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("ledger_platform"),
+                            design: Prototype(id: "ledger_platform"),
                             controller: None,
                             allegiance: Some(Neutral),
-                            modifications: [],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -295,7 +295,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            design: Prototype(id: "cargoa"),
                             controller: AI((
                                 engage_delay: Some(10.0),
                                 standoff_clearance: Some(1250.0),
@@ -308,7 +308,6 @@
                                 ],
                             )),
                             allegiance: Some(Player),
-                            modifications: [],
                         )),
                     )),
                     Objective((
@@ -398,14 +397,13 @@
                                             rotation: (0.0, 0.0, 0.0, 1.0),
                                         ),
                                         kind: Spaceship((
-                                            hull: Prototype("cargoa_raider"),
+                                            design: Prototype(id: "cargoa_raider"),
                                             controller: AI((
                                                 engage_delay: Some(5.0),
                                                 standoff_clearance: Some(1250.0),
                                                 engage_range: Some(4400.0),
                                             )),
                                             allegiance: Some(Enemy),
-                                            modifications: [],
                                         )),
                                     )),
                                     SpawnScenarioObject((
@@ -416,14 +414,13 @@
                                             rotation: (0.0, 0.0, 0.0, 1.0),
                                         ),
                                         kind: Spaceship((
-                                            hull: Prototype("cargoa_raider"),
+                                            design: Prototype(id: "cargoa_raider"),
                                             controller: AI((
                                                 engage_delay: Some(5.0),
                                                 standoff_clearance: Some(1250.0),
                                                 engage_range: Some(4400.0),
                                             )),
                                             allegiance: Some(Enemy),
-                                            modifications: [],
                                         )),
                                     )),
                                 ],

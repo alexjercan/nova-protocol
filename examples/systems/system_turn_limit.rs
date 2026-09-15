@@ -201,7 +201,6 @@ fn hull_action(sections: &GameSections, id: &str, name: &str, y: Meters) -> Even
             position: Vec3::new(0.0, 0.0, cell as f32),
             rotation: Quat::IDENTITY,
             source: SectionSource::Inline(section(kind)),
-            modifications: vec![],
         })
         .collect();
 
@@ -215,14 +214,18 @@ fn hull_action(sections: &GameSections, id: &str, name: &str, y: Meters) -> Even
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: None,
-            hull: ShipSource::Inline(ShipHull {
-                sections: hull,
-                skin: true,
-                style: Some("industrial".to_string()),
-                // The shortened hull must SURVIVE losing two of nine cells:
+            design: ShipDesignSource::Inline(ShipDesign {
+                sections: hull, // The shortened hull must SURVIVE losing two of nine cells:
                 // this range is about what a damaged hull flies like, not
                 // about when one comes apart.
-                collapse_threshold: Some(0.0),
+                integrity: ShipIntegrityConfig {
+                    collapse_threshold: Some(0.0),
+                },
+                presentation: ShipPresentationConfig {
+                    skin: true,
+                    style: Some("industrial".to_string()),
+                    ..default()
+                },
                 ..default()
             }),
             ..default()

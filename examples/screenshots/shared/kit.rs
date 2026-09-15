@@ -48,11 +48,11 @@ use nova_protocol::prelude::*;
 ///
 /// Private: structure alone is not a ship a scene should spawn. Take a whole
 /// catalog entry with [`catalog_ship`], or clad your own cells with [`clad`].
-fn catalog_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
+fn catalog_hull(ships: &GameShipDesigns, hull: &str) -> Vec<SpaceshipSectionConfig> {
     ships
-        .get_ship(hull)
+        .get_design(hull)
         .unwrap_or_else(|| panic!("catalog_hull: unknown ship '{hull}'"))
-        .hull
+        .design
         .sections
         .clone()
 }
@@ -61,18 +61,18 @@ fn catalog_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
 /// says about it - the derived skin, the style that skin wears, its collapse
 /// threshold and its collapse sound.
 ///
-/// This is what a scene should spawn. A `ShipHull { sections, ..default() }`
+/// This is what a scene should spawn. A `ShipDesign { sections, ..default() }`
 /// around a bare section list spawns a
 /// ship with `skin: false`: the cladding every block ship in the fleet wears
 /// is DERIVED at spawn from `ShipSkin`/`ShipStyle` on the root, so a hull that
 /// leaves those at their defaults renders as bare cells. The game ships no
 /// such ship; a screenshot of one is a screenshot of something the player
 /// never sees.
-pub fn catalog_ship(ships: &GameShips, hull: &str) -> ShipHull {
+pub fn catalog_ship(ships: &GameShipDesigns, hull: &str) -> ShipDesign {
     ships
-        .get_ship(hull)
+        .get_design(hull)
         .unwrap_or_else(|| panic!("catalog_ship: unknown ship '{hull}'"))
-        .hull
+        .design
         .clone()
 }
 
@@ -83,12 +83,63 @@ pub fn catalog_ship(ships: &GameShips, hull: &str) -> ShipHull {
 /// shipped one. The style is required rather than defaulted, because an
 /// unnamed style is the undressed derivation - plate colours and no greebles -
 /// and that is a look no shipped ship has.
-pub fn clad(sections: Vec<SpaceshipSectionConfig>, style: &str) -> ShipHull {
-    ShipHull {
+pub fn clad(sections: Vec<SpaceshipSectionConfig>, style: &str) -> ShipDesign {
+    ShipDesign {
         sections,
-        skin: true,
-        style: Some(style.to_string()),
+        presentation: ShipPresentationConfig {
+            skin: true,
+            style: Some(style.to_string()),
+            ..default()
+        },
         ..default()
+    }
+}
+
+/// Give every weapon section of `design` a hard magazine of nothing: the guns
+/// are on the ship and they are dry.
+///
+/// Read off the design's own section list rather than written out by id, so a
+/// re-armed catalog ship arrives here dry as well.
+pub fn dry_magazines(design: &mut ShipDesign, sections: &GameSections) {
+    for section in &mut design.sections {
+        let Some(kind) = section
+            .source
+            .resolve(Some(sections))
+            .and_then(|config| empty_magazine(&config.kind))
+        else {
+            continue;
+        };
+        let patch = SectionConfigPatch {
+            kind: Some(kind),
+            ..default()
+        };
+        match &mut section.source {
+            SectionSource::Prototype { patch: on_ref, .. } => *on_ref = patch,
+            SectionSource::Inline(config) => patch
+                .apply(config)
+                .expect("the patch is built from the section's own kind"),
+        }
+    }
+}
+
+/// The empty-magazine patch for one weapon kind, or `None` for a section that
+/// carries no gun at all.
+fn empty_magazine(kind: &SectionKind) -> Option<SectionKindPatch> {
+    let dry = Some(AmmoCapacity::Limited(0));
+    match kind {
+        SectionKind::Turret(_) => Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
+            ammunition: dry,
+            ..default()
+        })),
+        SectionKind::Torpedo(_) => Some(SectionKindPatch::Torpedo(TorpedoSectionConfigPatch {
+            ammunition: dry,
+            ..default()
+        })),
+        SectionKind::Railgun(_) => Some(SectionKindPatch::Railgun(RailgunSectionConfigPatch {
+            ammunition: dry,
+            ..default()
+        })),
+        SectionKind::Hull(_) | SectionKind::Thruster(_) | SectionKind::Controller(_) => None,
     }
 }
 
@@ -101,7 +152,7 @@ pub fn clad(sections: Vec<SpaceshipSectionConfig>, style: &str) -> ShipHull {
 /// the coordinate the hull is actually authored in.
 ///
 /// Cells are BUILD-GRID cells: one cell is one world unit is 10 m.
-pub fn cell_section(ships: &GameShips, hull: &str, cell: Vec3) -> String {
+pub fn cell_section(ships: &GameShipDesigns, hull: &str, cell: Vec3) -> String {
     catalog_hull(ships, hull)
         .into_iter()
         .find(|section| section.position.abs_diff_eq(cell, 1e-3))

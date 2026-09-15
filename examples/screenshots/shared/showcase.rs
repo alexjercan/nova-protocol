@@ -45,7 +45,6 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
         position,
         rotation,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
     let upright = Quat::IDENTITY;
     // The turret stands on the right flank: one quarter turn about Z puts the
@@ -58,7 +57,7 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     "controller",

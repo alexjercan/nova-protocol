@@ -1362,6 +1362,7 @@ mod tests {
                         vec![fixed(
                             Vec3::new(0.0, 0.0, -1.2),
                             Some(MuzzleConfig {
+                                id: "main".to_string(),
                                 fire_rate: 10.0,
                                 muzzle_effect: None,
                             }),
@@ -1607,6 +1608,7 @@ mod tests {
                         render_mesh: None,
                         render_mesh_transform: None,
                         muzzle: Some(MuzzleConfig {
+                            id: "main".to_string(),
                             fire_rate: 10.0,
                             muzzle_effect: None,
                         }),
@@ -1667,6 +1669,7 @@ mod tests {
             render_mesh: None,
             render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
+                id: "main".to_string(),
                 fire_rate: 10.0,
                 muzzle_effect: None,
             }),

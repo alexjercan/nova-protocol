@@ -27,7 +27,12 @@ never panics a scenario). All 46 at a glance:
 | [`Outcome`](#outcome) | [flow](#flow-outcomes-transitions) | show the VICTORY / DEFEAT banner and freeze the sim behind it |
 | [`NextScenario`](#nextscenario) | [flow](#flow-outcomes-transitions) | queue a switch to another scenario by id |
 | [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
-| [`SetControllerVerb`](#setcontrollerverb) | [ship state](#ship-state) | grant or withhold one flight verb on a ship's controller |
+| [`SetShipCapabilityStop`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold STOP on a ship |
+| [`SetShipCapabilityGoto`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold GOTO on a ship |
+| [`SetShipCapabilityOrbit`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold ORBIT on a ship |
+| [`SetShipCapabilityLock`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold the radar LOCK on a ship |
+| [`SetShipCapabilityRcs`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold RCS on a ship |
+| [`SetShipCapabilityPointDefense`](#ship-capabilities) | [ship state](#ship-state) | let a ship's turrets answer incoming ordnance, or stand them down |
 | [`SetAllegiance`](#setallegiance) | [ship state](#ship-state) | overwrite a ship's side at runtime |
 | [`MoveShipTo`](#moveshipto) | [ship state](#ship-state) | fly an ordered ship to a mark and report when it arrives |
 | [`ForceAlign`](#forcealign) | [ship state](#ship-state) | turn an ordered ship's nose onto a point and hold it there |
@@ -392,7 +397,8 @@ HintEmphasisSet((verb: "RADAR")),
 
 The dock normally hides verbs the player cannot use yet, so emphasizing an
 unavailable verb REVEALS its chip dimmed and pulses it. Emphasis never
-grants the verb ([`SetControllerVerb`](#setcontrollerverb) does).
+grants the capability (the
+[`SetShipCapability*`](#ship-capabilities) actions do).
 
 </details>
 
@@ -787,16 +793,20 @@ MANUAL burn reads it; the autopilot plans its own deceleration.
 
 </details>
 
-### SetControllerVerb
+### Ship capabilities
 
-Grant or withhold one flight verb on a scoped ship's controller - the
-tutorial-progression primitive (Basic Training starts with every verb withheld
-and grants one per beat, `Goto` after the cadet's first lock).
+Grant or withhold one capability on a scoped SHIP - the tutorial-progression
+primitive (Basic Training starts with everything but the guns withheld and
+grants one per beat, GOTO after the cadet's first lock).
+
+One action per capability: `SetShipCapabilityStop`, `SetShipCapabilityGoto`,
+`SetShipCapabilityOrbit`, `SetShipCapabilityLock`, `SetShipCapabilityRcs`,
+`SetShipCapabilityPointDefense`. All six take the same two fields.
 
 ```ron
-SetControllerVerb((id: "player_spaceship", verb: Goto, enabled: true)),
+SetShipCapabilityGoto((id: "player_spaceship", enabled: true)),
 // The battery answers a salvo by itself - until this takes it away.
-SetControllerVerb((id: "player_spaceship", verb: PointDefense, enabled: false)),
+SetShipCapabilityPointDefense((id: "player_spaceship", enabled: false)),
 ```
 
 <details class="explain">
@@ -805,11 +815,15 @@ SetControllerVerb((id: "player_spaceship", verb: PointDefense, enabled: false)),
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | scoped ship root |
-| `verb` | verb | required | `Stop` / `Goto` / `Orbit` / `Lock` / `Rcs` / `PointDefense` (bare enum, no quotes). Convention: never withhold `Stop` - an engaged autopilot should always be cancelable |
 | `enabled` | bool | required | `true` grants, `false` withholds |
 
-The spawn-time twin is the `DisableVerb` section modification (see
-[Spaceship](../objects/#spaceship)); this action is its runtime mirror.
+The capability lands on the ship ROOT, not on its flight computer: a hull that
+loses every controller section loses its steering, never its permissions. Never
+withhold STOP by convention - an engaged autopilot should always be cancelable.
+
+The spawn-time twin is the
+[`capabilities`](../objects/#capabilities) block on the spaceship object; these
+actions are its runtime mirror.
 
 </details>
 

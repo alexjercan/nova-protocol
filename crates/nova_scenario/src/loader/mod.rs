@@ -748,7 +748,7 @@ mod tests {
         };
 
         use crate::objects::{
-            ship::prelude::{ShipHull, ShipSource},
+            ship_design::prelude::{ShipDesign, ShipDesignSource},
             spaceship::{
                 PlayerControllerConfig, SpaceshipConfig, SpaceshipController,
                 SpaceshipSectionConfig,
@@ -767,7 +767,7 @@ mod tests {
                 input_mapping,
                 speed_cap: Some(MetersPerSecond(1_000.0)),
             }),
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "thruster".to_string(),
                     position: Vec3::ZERO,
@@ -779,7 +779,6 @@ mod tests {
                         },
                         kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
                     }),
-                    modifications: vec![],
                 }],
                 ..default()
             }),

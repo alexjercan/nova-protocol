@@ -9,8 +9,50 @@
 
 use std::collections::{BTreeSet, HashSet};
 
+use nova_ship::prelude::*;
+
 use super::*;
 use crate::base_content::{assets::BaseContentAssets, ships};
+
+/// The capability one action hands back, by the name the card teaches it
+/// under, or `None` when the action is not a grant at all.
+fn granted_capability(action: &EventActionConfig) -> Option<&'static str> {
+    match action {
+        EventActionConfig::SetShipCapabilityStop(grant) if grant.enabled => Some("Stop"),
+        EventActionConfig::SetShipCapabilityRcs(grant) if grant.enabled => Some("Rcs"),
+        EventActionConfig::SetShipCapabilityLock(grant) if grant.enabled => Some("Lock"),
+        EventActionConfig::SetShipCapabilityGoto(grant) if grant.enabled => Some("Goto"),
+        EventActionConfig::SetShipCapabilityOrbit(grant) if grant.enabled => Some("Orbit"),
+        _ => None,
+    }
+}
+
+/// Every capability the trainer spawns WITHOUT, by the same names.
+fn withheld_capabilities(capabilities: ShipCapabilities) -> BTreeSet<String> {
+    [
+        ("Stop", capabilities.stop_enabled),
+        ("Rcs", capabilities.rcs_enabled),
+        ("Lock", capabilities.lock_enabled),
+        ("Goto", capabilities.goto_enabled),
+        ("Orbit", capabilities.orbit_enabled),
+    ]
+    .into_iter()
+    .filter(|(_, enabled)| !enabled)
+    .map(|(name, _)| name.to_string())
+    .collect()
+}
+
+/// The health one spawn patch gives a named section, or `None` when the spawn
+/// leaves that section as the design built it.
+fn patched_health(ship: &SpaceshipConfig, section: &str) -> Option<f32> {
+    let ShipDesignSource::Prototype {
+        section_patches, ..
+    } = &ship.design
+    else {
+        return None;
+    };
+    section_patches.get(section)?.config.health
+}
 
 fn config() -> ScenarioConfig {
     tutorial(AssetRef::default(), AssetRef::default())
@@ -87,9 +129,9 @@ fn the_opening_panel_stays_empty_until_the_briefing_hands_over() {
 }
 
 #[test]
-fn every_lesson_grants_its_verb_in_the_same_step_as_its_card() {
-    // A verb granted at the line arms the lesson's handler before its card
-    // exists; a verb granted after the card leaves a cadet reading an order
+fn every_lesson_grants_its_capability_in_the_same_step_as_its_card() {
+    // A capability granted at the line arms the lesson's handler before its
+    // card exists; one granted after the card leaves a cadet reading an order
     // they cannot follow. The grant rides the card's step.
     let config = config();
     let mut grants_beside_cards = 0;
@@ -97,7 +139,7 @@ fn every_lesson_grants_its_verb_in_the_same_step_as_its_card() {
         for group in event.action_groups() {
             let grants = group
                 .iter()
-                .filter(|a| matches!(a, EventActionConfig::SetControllerVerb(_)))
+                .filter(|a| granted_capability(a).is_some())
                 .count();
             if grants == 0 {
                 continue;
@@ -106,7 +148,7 @@ fn every_lesson_grants_its_verb_in_the_same_step_as_its_card() {
                 group
                     .iter()
                     .any(|a| matches!(a, EventActionConfig::Objective(_))),
-                "a verb is granted in a step that posts no card"
+                "a capability is granted in a step that posts no card"
             );
             grants_beside_cards += grants;
         }
@@ -118,29 +160,17 @@ fn every_lesson_grants_its_verb_in_the_same_step_as_its_card() {
 }
 
 #[test]
-fn every_withheld_verb_the_card_teaches_is_handed_back() {
+fn every_withheld_capability_the_card_teaches_is_handed_back() {
     let config = config();
     let trainer = spawned(&config, ID_TRAINER).expect("the trainer spawns");
     let ScenarioObjectKind::Spaceship(ship) = trainer.kind else {
         panic!("the trainer is a spaceship");
     };
-    let withheld: BTreeSet<String> = ship
-        .modifications
-        .iter()
-        .flat_map(|section| section.modifications.iter())
-        .filter_map(|m| match m {
-            SectionModification::DisableVerb(verb) => Some(format!("{verb:?}")),
-            _ => None,
-        })
-        .collect();
+    let withheld = withheld_capabilities(ship.capabilities);
     let granted: BTreeSet<String> = all_actions(&config)
-        .into_iter()
-        .filter_map(|action| match action {
-            EventActionConfig::SetControllerVerb(grant) if grant.enabled => {
-                Some(format!("{:?}", grant.verb))
-            }
-            _ => None,
-        })
+        .iter()
+        .filter_map(granted_capability)
+        .map(str::to_string)
         .collect();
     let taught: BTreeSet<String> = ["Stop", "Rcs", "Lock", "Goto", "Orbit"]
         .into_iter()
@@ -148,12 +178,12 @@ fn every_withheld_verb_the_card_teaches_is_handed_back() {
         .collect();
     assert_eq!(
         granted, taught,
-        "the card grants exactly the verbs it teaches"
+        "the card grants exactly the capabilities it teaches"
     );
     assert_eq!(
         withheld, taught,
-        "every verb withheld at spawn is taught, and every taught verb is withheld so its \
-         lesson cannot be finished early"
+        "every capability withheld at spawn is taught, and every taught capability is \
+         withheld so its lesson cannot be finished early"
     );
 }
 
@@ -169,18 +199,12 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
         let wanted = format!("{filter:?}");
         event.filters.iter().any(|f| format!("{f:?}") == wanted)
     };
-    let grants = |event: &ScenarioEventConfig| -> Vec<FlightVerb> {
-        let mut verbs = Vec::new();
+    let grants = |event: &ScenarioEventConfig| -> Vec<&'static str> {
+        let mut capabilities = Vec::new();
         for action in &event.actions {
-            action.walk(&mut |action| {
-                if let EventActionConfig::SetControllerVerb(grant) = action {
-                    if grant.enabled {
-                        verbs.push(grant.verb);
-                    }
-                }
-            });
+            action.walk(&mut |action| capabilities.extend(granted_capability(action)));
         }
-        verbs
+        capabilities
     };
     let handler = |name: &str, filter: EventFilterConfig| -> ScenarioEventConfig {
         config
@@ -192,9 +216,9 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
     };
 
     let travel_lock = handler("OnTravelLockStart", trainer_at(ID_PLANETOID));
-    assert_eq!(grants(&travel_lock), vec![FlightVerb::Goto]);
+    assert_eq!(grants(&travel_lock), vec!["Goto"]);
     let parked = handler("OnGotoComplete", trainer_at(ID_PLANETOID));
-    assert_eq!(grants(&parked), vec![FlightVerb::Orbit]);
+    assert_eq!(grants(&parked), vec!["Orbit"]);
     let stable = handler("OnOrbitStable", trainer_at(ID_PLANETOID));
     let raises_charlie = all_actions(&ScenarioConfig {
         events: vec![stable],
@@ -396,24 +420,34 @@ fn the_drones_are_handicapped_and_the_trainer_cannot_be_shot_dry_of_its_gun() {
         let ScenarioObjectKind::Spaceship(ship) = drone.kind else {
             panic!("{id} is a spaceship");
         };
+        let ShipDesignSource::Prototype {
+            section_patches, ..
+        } = &ship.design
+        else {
+            panic!("{id} flies a catalog design with spawn patches");
+        };
         let mut softened = BTreeSet::new();
         let mut magazines = Vec::new();
-        for modification in &ship.modifications {
-            for delta in &modification.modifications {
-                match delta {
-                    SectionModification::SetHealth(health) => {
-                        assert!(
-                            *health <= DRONE_SECTION_HEALTH,
-                            "{id}: '{}' is softened to {health}",
-                            modification.section
-                        );
-                        softened.insert(modification.section.clone());
-                    }
-                    SectionModification::SetAmmo(rounds) => {
-                        magazines.push((modification.section.clone(), *rounds));
-                    }
-                    other => panic!("{id}: unexpected spawn delta {other:?}"),
+        for (section, patch) in section_patches {
+            let health = patch
+                .config
+                .health
+                .unwrap_or_else(|| panic!("{id}: '{section}' is not softened"));
+            assert!(
+                health <= DRONE_SECTION_HEALTH,
+                "{id}: '{section}' is softened to {health}"
+            );
+            softened.insert(section.clone());
+            match &patch.config.kind {
+                None => {}
+                Some(SectionKindPatch::Turret(turret)) => {
+                    let rounds = turret
+                        .ammunition
+                        .and_then(AmmoCapacity::rounds)
+                        .unwrap_or_else(|| panic!("{id}: '{section}' patches no magazine"));
+                    magazines.push((section.clone(), rounds));
                 }
+                Some(other) => panic!("{id}: unexpected spawn patch {other:?}"),
             }
         }
         assert_eq!(
@@ -432,14 +466,7 @@ fn the_drones_are_handicapped_and_the_trainer_cannot_be_shot_dry_of_its_gun() {
         panic!("the trainer is a spaceship");
     };
     let armour = |section: &str| -> f32 {
-        ship.modifications
-            .iter()
-            .filter(|m| m.section == section)
-            .flat_map(|m| m.modifications.iter())
-            .find_map(|delta| match delta {
-                SectionModification::SetHealth(health) => Some(*health),
-                _ => None,
-            })
+        patched_health(&ship, section)
             .unwrap_or_else(|| panic!("the trainer's '{section}' is armoured"))
     };
     let catalog = ships::ship_catalog(&BaseContentAssets::from_paths());
@@ -447,9 +474,9 @@ fn the_drones_are_handicapped_and_the_trainer_cannot_be_shot_dry_of_its_gun() {
     let gun_prototype = catalog
         .iter()
         .find(|entry| entry.id == ships::BLOCK_PICKET_SHIP_ID)
-        .and_then(|entry| entry.hull.sections.iter().find(|s| s.id == TRAINER_GUN))
+        .and_then(|entry| entry.design.sections.iter().find(|s| s.id == TRAINER_GUN))
         .map(|s| match &s.source {
-            SectionSource::Prototype(id) => id.clone(),
+            SectionSource::Prototype { id, .. } => id.clone(),
             other => panic!("the picket's gun is a prototype, not {other:?}"),
         })
         .expect("the picket carries the gun");
@@ -571,18 +598,18 @@ fn the_trainer_fires_a_gun_its_hull_actually_carries() {
     let SpaceshipController::Player(player) = ship.controller else {
         panic!("the trainer is the player's");
     };
-    let ShipSource::Prototype(hull_id) = &ship.hull else {
-        panic!("the trainer flies a catalog hull");
+    let ShipDesignSource::Prototype { id: design_id, .. } = &ship.design else {
+        panic!("the trainer flies a catalog design");
     };
     let catalog = ships::ship_catalog(&BaseContentAssets::from_paths());
-    let hull = catalog
+    let design = catalog
         .iter()
-        .find(|entry| entry.id == *hull_id)
-        .expect("the trainer's hull is in the catalog");
+        .find(|entry| entry.id == *design_id)
+        .expect("the trainer's design is in the catalog");
     for section in player.input_mapping.keys() {
         assert!(
-            hull.hull.sections.iter().any(|s| s.id == *section),
-            "input mapping names section '{section}' which '{hull_id}' does not carry"
+            design.design.sections.iter().any(|s| s.id == *section),
+            "input mapping names section '{section}' which '{design_id}' does not carry"
         );
     }
     assert!(

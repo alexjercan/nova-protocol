@@ -118,7 +118,7 @@ fn goto_into_a_well_stops_at_the_standoff_instead_of_crashing() {
         ))
         .id();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     app.world_mut()
         .entity_mut(ship)
         .insert(Transform::from_xyz(0.0, 0.0, 500.0));
@@ -636,17 +636,19 @@ fn a_goto_that_parks_into_orbit_still_reports_its_arrival() {
     }
 }
 
-/// ORBIT is a VERB, and the park is ORBIT: a controller withholding it (Basic
+/// ORBIT is a CAPABILITY, and the park is ORBIT: a ship without it (Basic
 /// Training, until the lesson that hands it over) must get its ship back at the
 /// standoff instead of the computer quietly flying a maneuver the cadet has not
 /// been given - which is also what left the cadet parked in an orbit the card
 /// was still waiting to teach.
 #[test]
-fn goto_at_a_well_hands_the_ship_back_when_orbit_is_withheld() {
+fn goto_at_a_well_hands_the_ship_back_when_orbit_is_off() {
     let mut app = orbit_app();
     let well = spawn_range_planetoid(&mut app, 10_000.0);
     let ship = spawn_trainer(&mut app);
-    withhold_verbs(&mut app, ship, &[FlightVerb::Orbit]);
+    disable_capabilities(&mut app, ship, |capabilities| {
+        capabilities.orbit_enabled = false
+    });
 
     let held = ticks_held_after_arriving(&mut app, ship, well, 6000);
     assert!(
@@ -655,7 +657,7 @@ fn goto_at_a_well_hands_the_ship_back_when_orbit_is_withheld() {
     );
     assert!(
         app.world().get::<Autopilot>(ship).is_none(),
-        "a withheld ORBIT releases the ship instead of parking it"
+        "a ship that cannot ORBIT is released instead of parked"
     );
     assert_eq!(
         app.world().get::<PlayerAutopilotCompleted>(ship),

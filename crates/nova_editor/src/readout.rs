@@ -173,8 +173,11 @@ pub(crate) fn sync_ship_readout(
             sections_of(ship, &nodes)
                 .into_iter()
                 .filter_map(|(_, _, section, transform)| {
-                    let config = section.resolve(Some(&sections))?;
-                    Some((transform.translation, transform.rotation, config.clone()))
+                    // PATCHED: the stat block counts the ship as it will fly,
+                    // and a design that mounts its engine at half health says
+                    // so in the reference's patch and nowhere else.
+                    let config = section.patched(Some(&sections))?;
+                    Some((transform.translation, transform.rotation, config))
                 })
                 .collect()
         })

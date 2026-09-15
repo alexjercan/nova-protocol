@@ -13,7 +13,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
-    capability::{ship_grants_verb, LiveFlightComputers},
+    capability::{ship_capabilities, LiveFlightComputers, ShipCapabilityQuery},
     guidance::{
         arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
@@ -119,9 +119,10 @@ pub(super) fn autopilot_system(
         ),
     >,
     // The live flight computers ([`LiveFlightComputers`] says what makes one
-    // live). Their acceleration limit is the hull's rotation authority, so the
-    // planner reads the same rows the verb gate answers from.
+    // live). Their acceleration limit is the hull's rotation authority - the
+    // PHYSICAL half, kept apart from what the ship is permitted to do.
     q_computer: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     mut q_rotation_input: Query<
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
@@ -194,8 +195,8 @@ pub(super) fn autopilot_system(
         let Some(turn_rate) = ship_turn_rate(
             q_computer
                 .iter()
-                .filter(|(_, &ChildOf(parent), _)| parent == ship)
-                .map(|(pd, _, _)| pd.max_angular_acceleration),
+                .filter(|(_, &ChildOf(parent))| parent == ship)
+                .map(|(pd, _)| pd.max_angular_acceleration),
             &settings,
         ) else {
             debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");
@@ -206,8 +207,8 @@ pub(super) fn autopilot_system(
         // plan: the slowest loop's, when several disagree.
         let tracking_lag = q_computer
             .iter()
-            .filter(|(_, &ChildOf(parent), _)| parent == ship)
-            .map(|(pd, _, _)| pd.tracking_lag())
+            .filter(|(_, &ChildOf(parent))| parent == ship)
+            .map(|(pd, _)| pd.tracking_lag())
             .fold(0.0f32, f32::max);
 
         // The velocity error the leg treats as a crumb. Legs that END AT REST
@@ -756,14 +757,14 @@ pub(super) fn autopilot_system(
         //   does the work exactly as before.
         //
         // Both hand the burn to the torque-free RCS COM push and spool the main
-        // drive down; both are gated on the ship granting the `Rcs` verb, so a
-        // hull without it (the mainline campaign, RCS disabled pending rework)
+        // drive down; both are gated on the ship's `rcs_enabled` capability, so
+        // a hull without it (the mainline campaign, RCS disabled pending rework)
         // keeps the exact main-drive behavior.
         let rcs_cap = rcs_cap_override
             .map(|c| c.0)
             .unwrap_or(settings.rcs_speed_cap);
-        let verb_granted = |verb: FlightVerb| ship_grants_verb(ship, verb, &q_computer);
-        let rcs_granted = verb_granted(FlightVerb::Rcs);
+        let capabilities = ship_capabilities(ship, &q_capabilities);
+        let rcs_granted = capabilities.rcs_enabled;
         let rcs_capable = rcs_granted && rcs_cap > 0.0 && error_speed > 1e-3;
         // The RCS takes a goal only where it has CLEAR authority over the local
         // gravity: its `rcs_accel` push must comfortably exceed the inward
@@ -1015,7 +1016,7 @@ pub(super) fn autopilot_system(
             // unchanged. Everything else - GotoPos, well-less targets, STOP, a
             // withheld verb, a bandless well - releases as before.
             if let AutopilotAction::Goto { target } = autopilot.action {
-                if goto_arrived && verb_granted(FlightVerb::Orbit) {
+                if goto_arrived && capabilities.orbit_enabled {
                     if let Ok((well_position, well_data)) = q_wells.get(target) {
                         let well = band_well(target, well_data);
                         let r_vec = com_world - well_position.0;

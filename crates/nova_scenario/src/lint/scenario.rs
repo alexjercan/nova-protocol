@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use nova_gameplay::prelude::SectionClass;
 
-use super::{ship::check_object_prototypes, KnownSections, KnownShips, LintIssue};
+use super::{ship::check_object_prototypes, KnownSections, KnownShipDesigns, LintIssue};
 use crate::prelude::*;
 
 /// Everything a scenario's actions can DECLARE, collected in one pass:
@@ -33,14 +33,14 @@ struct Declared {
 /// only borrow.
 struct Catalog<'a> {
     sections: &'a KnownSections,
-    ships: &'a KnownShips,
+    ships: &'a KnownShipDesigns,
     scenarios: &'a HashSet<String>,
     channels: &'a HashSet<String>,
 }
 
 /// What the lint knows about one ship a spawn declares.
 struct SpawnedShip {
-    hull: ShipSource,
+    design: ShipDesignSource,
     controller: SpaceshipController,
 }
 
@@ -106,7 +106,7 @@ pub fn lint_campaign(
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
     sections: &KnownSections,
-    ships: &KnownShips,
+    ships: &KnownShipDesigns,
     known_scenarios: &HashSet<String>,
     known_channels: &HashSet<String>,
 ) -> Vec<LintIssue> {
@@ -622,7 +622,7 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
                 declared.spawned_ships.insert(
                     config.base.id.clone(),
                     SpawnedShip {
-                        hull: ship.hull.clone(),
+                        design: ship.design.clone(),
                         controller: ship.controller.clone(),
                     },
                 );
@@ -1390,7 +1390,7 @@ fn check_ship_section(
     what: &str,
     scenario: &str,
     sections: &KnownSections,
-    ships: &KnownShips,
+    ships: &KnownShipDesigns,
     declared: &Declared,
     issues: &mut Vec<LintIssue>,
 ) {
@@ -1401,31 +1401,31 @@ fn check_ship_section(
         ));
         return;
     }
-    // A ship this scenario does not spawn by name, or a catalog hull the
+    // A ship this scenario does not spawn by name, or a catalog design the
     // caller cannot see, leaves nothing to resolve the section against.
     let Some(spawned) = declared.spawned_ships.get(ship) else {
         return;
     };
-    let hull = match &spawned.hull {
-        ShipSource::Inline(hull) => hull,
-        ShipSource::Prototype(id) => match ships.get(id) {
-            Some(hull) => hull,
+    let design = match &spawned.design {
+        ShipDesignSource::Inline(design) => design,
+        ShipDesignSource::Prototype { id, .. } => match ships.get(id) {
+            Some(design) => design,
             None => return,
         },
     };
-    let Some(placed) = hull.sections.iter().find(|placed| placed.id == section) else {
+    let Some(placed) = design.sections.iter().find(|placed| placed.id == section) else {
         issues.push(LintIssue::error(
             scenario,
             format!("{what} names section '{section}', which ship '{ship}' does not carry"),
         ));
         return;
     };
-    // An unresolvable prototype is already an error where the hull is linted;
+    // An unresolvable prototype is already an error where the design is linted;
     // saying so twice from here would only add noise.
     let class = match &placed.source {
         SectionSource::Inline(config) => config.kind.class(),
-        SectionSource::Prototype(proto) => match sections.get(proto) {
-            Some(known) => known.class,
+        SectionSource::Prototype { id: proto, .. } => match sections.get(proto) {
+            Some(known) => known.kind.class(),
             None => return,
         },
     };

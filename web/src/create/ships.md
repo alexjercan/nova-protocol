@@ -1,13 +1,14 @@
 # Ships for mods
 
-A `Ship` is a whole HULL, authored once and spawned by id. It owns the section
-layout, whether the hull is clad, and how far it must be dismantled before it
-collapses. A [Spaceship](../objects/#spaceship) spawn names it and adds
-everything that differs per spawn: where it sits, who flies it, which side it is
-on.
+A `Ship` is a whole DESIGN, authored once and spawned by id. It owns the
+section layout, whether the hull is clad, how far it must be dismantled before
+it collapses, and the voice it speaks to its pilot with. A
+[Spaceship](../objects/#spaceship) spawn names it and adds everything that
+differs per spawn: where it sits, who flies it, which side it is on, what it is
+permitted to do.
 
 Ships are content like sections, scenarios and styles. Create a new id to add a
-hull, or reuse a base id to rebuild every scenario's corvette at once.
+design, or reuse a base id to rebuild every scenario's corvette at once.
 
 This page is the field-by-field ship reference. For general RON spelling rules
 such as double parentheses, `Some(...)`, and asset schemes, see
@@ -27,13 +28,13 @@ can replace it for every scenario that names it.
     Ship((
         id: "my_corvette",
         name: "My Corvette",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "fuselage",
                     position: (0.0, 0.0, 0.0),
                     rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype("basic_controller_section"),
+                    source: Prototype(id: "basic_controller_section"),
                 ),
                 // ... hull, thruster, and weapon sections ...
             ],
@@ -44,21 +45,38 @@ can replace it for every scenario that names it.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | what a spawn names this hull by. A mod reusing a base id REPLACES that hull everywhere |
+| `id` | string | required | what a spawn names this design by. A mod reusing a base id REPLACES that design everywhere |
 | `name` | string | required | the name a picker shows. Not used at spawn - a spawned ship is named by the scenario object that placed it |
-| `hull` | hull | required | the hull itself (below) |
+| `design` | design | required | the design itself (below) |
 
-### The hull
+### The design
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `sections` | list | `[]` | the hull/thruster/gun/controller layout: one entry per section, each with a ship-local `id`, a `position` in BUILD CELLS (one cell is 10 m) and a `rotation`, both relative to the ship root, a `source` (`Prototype("<section id>")` or `Inline((..))`), and optional `modifications` |
+| `sections` | list | `[]` | the hull/thruster/gun/controller layout: one entry per section, each with a ship-local `id`, a `position` in BUILD CELLS (one cell is 10 m) and a `rotation`, both relative to the ship root, and a `source` (`Prototype(id: "<section id>")`, with an optional `patch` over it, or `Inline((..))`) |
+| `integrity` | integrity | all default | when the design comes apart (below) |
+| `presentation` | presentation | all default | what it looks like and sounds like (below) |
+
+`integrity` fields:
+
+| field | type | default | meaning |
+|---|---|---|---|
 | `collapse_threshold` | `Option` number | `None` | structural collapse: the fraction of the health the ship was BUILT with below which whatever is left comes apart and the ship is destroyed. Strict RON `Some(0.1)`; omitted = the engine default `0.05`. Lower = the ship must be dismantled further (a capital), `Some(0.0)` = strip every last section. Clamped to `0..=1` |
-| `collapse_sound` | `Option` asset ref | `None` | the sound the hull makes when it COLLAPSES - the moment it stops being a ship and becomes wreckage, which is ONE event however many frames the sections then take to peel away. Strict RON `Some("dep://base/sounds/destroy_ship.wav")`. Authored on the hull because a spine going is not a section failing loudly; omitted, the ship comes apart to the sound of its own sections |
+
+`presentation` fields:
+
+| field | type | default | meaning |
+|---|---|---|---|
 | `skin` | bool | `false` | clad the ship: the game DERIVES an outer skin from the sections at spawn - destructible plates, nothing authored, no id to reference (see [Cladding](../base-content/#cladding-not-a-prototype)). For hulls built out of the unit-cell sections; modelled parts are their own sizes and do not stand on that lattice |
 | `style` | `Option` string | `None` | the LOOK the cladding wears, by [style](../styles/) id: plate materials plus the destructible decoration scattered over them. Strict RON `Some("raider")`; omitted = built-in plate colours and no decoration. An id nothing authored leaves the ship clad and bare rather than falling back to another look |
+| `collapse_sound` | `Option` asset ref | `None` | the sound the design makes when it COLLAPSES - the moment it stops being a ship and becomes wreckage, which is ONE event however many frames the sections then take to peel away. Strict RON `Some("dep://base/sounds/destroy_ship.wav")`. Authored on the design because a spine going is not a section failing loudly; omitted, the ship comes apart to the sound of its own sections |
+| the cockpit voice | `Option` asset refs | `None` | `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`, `radar_retarget_sound`, `safety_on_sound`, `warn_lock_sound`, `ammo_dry_sound`, `warn_hull_sound`, `rcs_loop_sound` - the feedback the hull gives its pilot. Authored-or-silent: a sound nobody names plays nothing |
+| `warn_hull_fraction` | number | `0.3` | the hull fraction the critical alarm fires at, once, on the way down. `0.0` never warns |
 
-Section entries are the same records a hull carried when it was inlined - see
+The voice is the DESIGN's, not its flight computer's: a hull that loses every
+controller section still knows how to warn about its own structure.
+
+Section entries are the same records a design carried when it was inlined - see
 [section prototypes](../base-content/#section-prototypes) for the ids the base
 game ships.
 
@@ -74,33 +92,40 @@ SpawnScenarioObject((
     ),
     kind: Spaceship((
         controller: AI((engage_delay: Some(8.0))),
-        hull: Prototype("my_corvette"),
+        design: Prototype(id: "my_corvette"),
     )),
 )),
 ```
 
-## Changing one hull for one spawn
+## Changing one design for one spawn
 
 A scenario that wants a harder flight computer or a fixed magazine does NOT need
-its own ship. `modifications` on the spawn aims the same data-only deltas a
-section carries at a section of the resolved hull, and they are applied after
-the hull's own, so the spawn wins:
+its own ship. `section_patches` on the spawn aims the same typed deltas a
+section reference carries at a section of the resolved design, and they are
+applied after the design's own, so the spawn wins:
 
 ```ron
 kind: Spaceship((
     controller: AI(()),
-    hull: Prototype("my_corvette"),
-    modifications: [
-        (section: "fuselage", modifications: [SetHealth(500.0)]),
-        (section: "turret_port", modifications: [SetAmmo(900)]),
-    ],
+    design: Prototype(
+        id: "my_corvette",
+        section_patches: {
+            "fuselage": (config: (health: Some(500.0))),
+            "turret_port": (config: (kind: Some(Turret((
+                ammunition: Some(Limited(900)),
+                reload: Some(Disabled),
+            ))))),
+        },
+    ),
 )),
 ```
 
-A `section` id the hull does not carry does nothing at runtime, so the content
-lint reports it as an error.
+A `section_patches` key the design does not carry does nothing at runtime, so
+the content lint reports it as an error, and so does a patch that argues with
+the section's kind. The full patch surface is in
+[the sections list](../objects/#the-sections-list).
 
-Reach for a second ship id instead when the difference is what the hull IS - the
+Reach for a second ship id instead when the difference is what the design IS - the
 base game ships `block_gunship` and `block_raider` as separate hulls because
 thinner plating, mismatched drives and guns welded where they fitted are a
 different ship to fight, not a tweak. The Ledger does the same with its two
@@ -108,45 +133,47 @@ hauler loads, `cargob` and `cargob_lance`: which torpedo TYPE the pods carry
 decides whether a defender's point defense can answer the salvo at all, and that
 is the ship, not a tweak to it.
 
-## One-off hulls
+## One-off designs
 
-A hull nothing else will ever spawn can stay on the spawn:
+A design nothing else will ever spawn can stay on the spawn:
 
 ```ron
 kind: Spaceship((
     controller: None,
-    hull: Inline((
+    design: Inline((
         sections: [
             (
                 id: "bay",
                 position: (0.0, 0.0, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
-                source: Prototype("torpedo_section"),
+                source: Prototype(id: "torpedo_section"),
             ),
         ],
     )),
 )),
 ```
 
-`Inline((..))` takes the same fields as a ship's `hull`. Use it for a scripted
-battery that is a single tube or a derelict that is five plates; anything a
-second scenario would spawn belongs in the catalog.
+`Inline((..))` takes the same fields as a ship's `design`. Use it for a
+scripted battery that is a single tube or a derelict that is five plates;
+anything a second scenario would spawn belongs in the catalog. It takes no
+`section_patches`: it is already this spawn's own.
 
 ## Overlay and lint
 
-- A mod ship with a base id REPLACES the base hull, so every scenario naming it
-  flies the mod's - the same last-wins overlay sections and styles follow.
+- A mod ship with a base id REPLACES the base design, so every scenario naming
+  it flies the mod's - the same last-wins overlay sections and styles follow.
 - The same id twice in ONE bundle is a conflict: the first wins and the
   duplicate is skipped.
-- A hull is linted where it is AUTHORED, not where it is spawned: its section
-  prototypes must resolve, its sections must not interpenetrate, and its
-  link-point graph must be connected.
+- A design is linted where it is AUTHORED, not where it is spawned: its section
+  prototypes must resolve, its own patches must apply, its sections must not
+  interpenetrate, and its link-point graph must be connected. A spawn's
+  `section_patches` are linted where the spawn is.
 - A spawn naming a ship no bundle provides is a lint error, and at runtime it
   spawns an empty root and logs rather than crashing.
 
 ## Base ships
 
-Every base hull is BUILT: cells on a build grid, clad by the derived skin and
+Every base design is BUILT: cells on a build grid, clad by the derived skin and
 painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
 
 | id | what it is |

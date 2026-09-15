@@ -86,7 +86,7 @@ event spawns is therefore cold when its beat arrives: both of `menu_duel`'s
 corvettes appeared in placeholder art and dressed themselves a moment later.
 
 `preload::scenario_render_meshes` walks the loaded config for `SpawnScenarioObject`
-and `ScatterObjects` actions, resolves each ship's `ShipSource` and every
+and `ScatterObjects` actions, resolves each ship's `ShipDesignSource` and every
 section's `SectionSource` against the two catalogs, and collects the render
 meshes. That walk is possible at all because a spawn action carries its object's
 WHOLE config inline rather than an id looked up at spawn time, so what a

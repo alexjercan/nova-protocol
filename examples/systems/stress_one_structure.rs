@@ -212,8 +212,8 @@ fn structure_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scen
     // The skin is part of the load: the derivation reads the whole structure as
     // unit cells and lays a plate over every exposed face, which is the cost
     // this range exists to hold at a thousand cells.
-    if let ShipSource::Inline(hull) = &mut ship.hull {
-        hull.skin = true;
+    if let ShipDesignSource::Inline(design) = &mut ship.design {
+        design.presentation.skin = true;
     }
 
     ScenarioConfig {

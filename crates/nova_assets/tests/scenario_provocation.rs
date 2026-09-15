@@ -60,7 +60,7 @@ const SCENARIO_RON: &str = r#"[
                         base: (id: "spaceship_1", name: "Ship One", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: Player(()),
-                            hull: Inline((sections: [])),
+                            design: Inline((sections: [])),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -68,7 +68,7 @@ const SCENARIO_RON: &str = r#"[
                         kind: Spaceship((
                             controller: AI((patrol: [(600.0, 0.0, -800.0), (1000.0, 100.0, -1400.0)])),
                             allegiance: Some(Neutral),
-                            hull: Inline((sections: [])),
+                            design: Inline((sections: [])),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -76,7 +76,7 @@ const SCENARIO_RON: &str = r#"[
                         kind: Spaceship((
                             controller: AI((patrol: [(-600.0, 0.0, -1600.0), (-200.0, 100.0, -2200.0)])),
                             allegiance: Some(Neutral),
-                            hull: Inline((sections: [])),
+                            design: Inline((sections: [])),
                         )),
                     )),
                     CreateScenarioArea((id: "area_1", name: "Watch Zone", position: (800.0, 0.0, -1100.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 240.0)),

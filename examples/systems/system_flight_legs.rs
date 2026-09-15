@@ -289,7 +289,7 @@ fn hold_the_lane_clock(mut time: ResMut<Time<Virtual>>) {
     }
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(lane(&game_assets, &ships, Subject::Skiff)));
 }
 
@@ -300,7 +300,7 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
 /// production seam a scenario reads a finished errand off - is published for
 /// the player's ship. ONE hull per lane for the same reason: two player ships
 /// in one world is not a shape the game ships.
-fn lane(game_assets: &GameAssets, ships: &GameShips, subject: Subject) -> ScenarioConfig {
+fn lane(game_assets: &GameAssets, ships: &GameShipDesigns, subject: Subject) -> ScenarioConfig {
     let well = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: WELL_ID.to_string(),
@@ -338,7 +338,7 @@ fn lane(game_assets: &GameAssets, ships: &GameShips, subject: Subject) -> Scenar
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Inline(kit::catalog_ship(ships, subject.ship())),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, subject.ship())),
             controller: SpaceshipController::Player(PlayerControllerConfig::default()),
             allegiance: Some(Allegiance::Player),
             ..default()
@@ -644,7 +644,7 @@ fn lane_staged(subject: Subject) -> Arc<nova_protocol::nova_debug::harness::Pred
 fn open_lane(world: &mut World, subject: Subject) {
     let config = {
         let game_assets = world.resource::<GameAssets>();
-        let ships = world.resource::<GameShips>();
+        let ships = world.resource::<GameShipDesigns>();
         lane(game_assets, ships, subject)
     };
     {

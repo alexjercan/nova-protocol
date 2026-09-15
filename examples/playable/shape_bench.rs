@@ -320,8 +320,7 @@ fn subject_ship(subject: &Subject, roster: Roster, style: StyleId) -> SpaceshipC
             id: format!("hull_{index}"),
             position: cell.as_vec3() - centre,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype("reinforced_hull_section".to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype("reinforced_hull_section"),
         });
     }
     for (index, fitting) in subject.fittings.iter().enumerate() {
@@ -329,8 +328,7 @@ fn subject_ship(subject: &Subject, roster: Roster, style: StyleId) -> SpaceshipC
             id: format!("fitting_{index}"),
             position: fitting.cell.as_vec3() + fitting.offset - centre,
             rotation: fitting.rotation,
-            source: SectionSource::Prototype(fitting.prototype.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(fitting.prototype),
         });
     }
 
@@ -338,13 +336,15 @@ fn subject_ship(subject: &Subject, roster: Roster, style: StyleId) -> SpaceshipC
         allegiance: None,
         // Scenery: these are subjects, not craft. Nothing flies them.
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
-            sections,
-            // The whole of the skin is the game's business, derived from the
+        design: ShipDesignSource::Inline(ShipDesign {
+            sections, // The whole of the skin is the game's business, derived from the
             // sections above at spawn - which is what makes the clad frame
             // evidence rather than a picture of what this file decided.
-            skin: roster.clad,
-            style: roster.clad.then_some(style).flatten().map(str::to_string),
+            presentation: ShipPresentationConfig {
+                skin: roster.clad,
+                style: roster.clad.then_some(style).flatten().map(str::to_string),
+                ..default()
+            },
             ..default()
         }),
         ..default()
@@ -463,7 +463,7 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::default(),
+        &KnownShipDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         // The bench authors geometry, never dialogue: no cue, so no channel
         // has to resolve.

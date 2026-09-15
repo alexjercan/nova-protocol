@@ -168,44 +168,17 @@ fn range_plugin(app: &mut App) {
 fn setup_range(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
     sections: Res<GameSections>,
 ) {
     commands.trigger(LoadScenario(combat_range(&game_assets, &ships, &sections)));
-}
-
-/// Every weapon section on `hull`, given a hard magazine of nothing.
-///
-/// Read off the hull's own section list rather than written out by id, so a
-/// re-armed catalog ship arrives here dry as well instead of quietly shooting
-/// the range's target apart again.
-fn dry_magazines(hull: &ShipHull, sections: &GameSections) -> Vec<ShipSectionModification> {
-    hull.sections
-        .iter()
-        .filter(|section| {
-            let config = match &section.source {
-                SectionSource::Inline(config) => Some(config),
-                SectionSource::Prototype(id) => sections.get_section(id),
-            };
-            config.is_some_and(|config| {
-                matches!(
-                    config.kind,
-                    SectionKind::Turret(_) | SectionKind::Torpedo(_) | SectionKind::Railgun(_)
-                )
-            })
-        })
-        .map(|section| ShipSectionModification {
-            section: section.id.clone(),
-            modifications: vec![SectionModification::SetAmmo(0)],
-        })
-        .collect()
 }
 
 /// The range: two fights in flat space, each an AI mover closing on a parked
 /// hostile of its own scale.
 fn combat_range(
     game_assets: &GameAssets,
-    ships: &GameShips,
+    ships: &GameShipDesigns,
     sections: &GameSections,
 ) -> ScenarioConfig {
     let ship = |id: &str,
@@ -215,7 +188,8 @@ fn combat_range(
                 rotation: Quat,
                 spec: SpaceshipConfig| {
         let hull = kit::catalog_ship(ships, catalog);
-        let modifications = dry_magazines(&hull, sections);
+        let mut hull = hull;
+        kit::dry_magazines(&mut hull, sections);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
@@ -224,8 +198,7 @@ fn combat_range(
                 rotation,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                hull: ShipSource::Inline(hull),
-                modifications,
+                design: ShipDesignSource::Inline(hull),
                 ..spec
             }),
         })

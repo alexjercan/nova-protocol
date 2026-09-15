@@ -220,7 +220,7 @@ fn capital_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 
     let drone = SpaceshipConfig {
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![SpaceshipSectionConfig {
                 id: DRONE_SECTION.to_string(),
                 position: Vec3::ZERO,
@@ -231,7 +231,6 @@ fn capital_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
                         .expect("section 'basic_controller_section' not found")
                         .clone(),
                 ),
-                modifications: vec![],
             }],
             ..default()
         }),
@@ -240,7 +239,7 @@ fn capital_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 
     let capital = SpaceshipConfig {
         controller: SpaceshipController::None,
-        hull: ShipSource::Prototype(CAPITAL_HULL.to_string()),
+        design: ShipDesignSource::prototype(CAPITAL_HULL),
         ..default()
     };
 

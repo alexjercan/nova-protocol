@@ -20,15 +20,18 @@
 //!   (task 20260820-174148).
 //! - `ships` - every [`SpaceshipRootMarker`]: identity, transform, velocity,
 //!   aggregate health, mass, the collapse/defeat/neutralize flags, weapon
-//!   locks, its `skin`, and its `sections`.
+//!   locks, its `capabilities`, its `skin`, and its `sections`.
+//! - `ships[].capabilities` - what the root is permitted to do (stop, goto,
+//!   orbit, lock, rcs, point_defense), as the flight gate reads it. A root
+//!   carrying no component is the all-enabled default.
 //! - `ships[].skin` - the DERIVED SKIN as a whole, for a clad ship: the relief
 //!   histogram, how many plates have a flat top rather than a cone, how many
 //!   are the diagonal saddle, the mean flat area, the per-rule decoration
 //!   tally, and every cell the derivation refused to clad with the reason. Null
 //!   for a ship wearing none.
 //! - `ships[].sections` - every [`SectionMarker`] child: id, prototype, class,
-//!   local pose, health, alive/disabled, the `modifications` applied to it, its
-//!   `weapon` state when it carries one, and its `fixtures`.
+//!   local pose, health, alive/disabled, its `weapon` state when it carries
+//!   one, and its `fixtures`.
 //! - `ships[].sections[].fixtures` - every [`SectionFixture`] hanging off that
 //!   section (skin plates, decor), with health and alive. A skin plate also
 //!   carries `plate`: the eight boundary samples, the relief they read as, and
@@ -131,8 +134,7 @@ use nova_os_ui::{
 use nova_scenario::{
     prelude::{
         AsteroidInvulnerable, AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetInvulnerable,
-        PlanetMarker, SectionAmmoOverride, SectionHealthOverride, SectionRename,
-        SpaceshipController,
+        PlanetMarker, SpaceshipController,
     },
     world::NovaEventWorld,
 };
@@ -141,11 +143,11 @@ use nova_ship::prelude::{
     skin_report, skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock,
     GameStyles, PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
     RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
-    SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle,
-    SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
-    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
-    TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionTargetInput,
-    TurretSectionTargetRadius, WeaponsHot, WithheldVerbs,
+    SectionLinkPoints, SectionReload, ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker,
+    ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
+    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock,
+    TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
+    TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -921,6 +923,7 @@ fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "defeated": world.get::<DefeatedMarker>(entity).is_some(),
         "neutralized": world.get::<NeutralizedMarker>(entity).is_some(),
         "weapons_hot": world.get::<WeaponsHot>(entity).map(|hot| hot.0),
+        "capabilities": capabilities(world, entity),
         "travel_lock": label_of(world, world.get::<TravelLock>(entity).and_then(|lock| lock.0)),
         "combat_lock": label_of(world, world.get::<CombatLock>(entity).and_then(|lock| lock.0)),
         "ai_target": label_of(world, world.get::<AITarget>(entity).and_then(|target| target.0)),
@@ -1153,37 +1156,29 @@ fn section_record(
         // Dead but still holding the ship together: it stopped working without
         // cutting the integrity graph.
         "disabled": world.get::<IntegrityDisabledMarker>(entity).is_some(),
-        "modifications": modifications(world, entity),
         "weapon": weapon(world, entity, class),
         "fixtures": fixtures(world, entity, skin),
     });
     (key(&record["id"]), record)
 }
 
-/// The live components a `SectionModification` leaves behind, back in the
-/// authored spelling. Reading the components rather than the ship's authored
-/// list is deliberate: a snapshot reports the WORLD, and the two disagree the
-/// moment anything else writes one of them.
-fn modifications(world: &World, entity: Entity) -> Vec<serde_json::Value> {
-    let mut applied = Vec::new();
-    if let Some(health) = world.get::<SectionHealthOverride>(entity) {
-        applied.push(serde_json::json!({ "SetHealth": num(health.0) }));
-    }
-    if let Some(name) = world.get::<SectionRename>(entity) {
-        applied.push(serde_json::json!({ "Rename": name.0.clone() }));
-    }
-    if let Some(ammo) = world.get::<SectionAmmoOverride>(entity) {
-        applied.push(serde_json::json!({ "SetAmmo": ammo.0 }));
-    }
-    if let Some(withheld) = world.get::<WithheldVerbs>(entity) {
-        // A HashSet: sort the spellings, never the iteration order.
-        let mut verbs: Vec<String> = withheld.0.iter().map(|verb| format!("{verb:?}")).collect();
-        verbs.sort();
-        for verb in verbs {
-            applied.push(serde_json::json!({ "DisableVerb": verb }));
-        }
-    }
-    applied
+/// What the ship is permitted to do, as the gate reads it. A root carrying no
+/// [`ShipCapabilities`] at all can do everything, so the record reports the
+/// all-enabled default rather than null: a dump has to answer the question the
+/// gate answers, not the one the spawn happened to author.
+fn capabilities(world: &World, entity: Entity) -> serde_json::Value {
+    let capabilities = world
+        .get::<ShipCapabilities>(entity)
+        .copied()
+        .unwrap_or_default();
+    serde_json::json!({
+        "stop": capabilities.stop_enabled,
+        "goto": capabilities.goto_enabled,
+        "orbit": capabilities.orbit_enabled,
+        "lock": capabilities.lock_enabled,
+        "rcs": capabilities.rcs_enabled,
+        "point_defense": capabilities.point_defense_enabled,
+    })
 }
 
 /// How far a turret's PRIMARY muzzle points off its own aim point, in degrees,

@@ -129,15 +129,16 @@ fn subject(sections: &GameSections, id: &str, section: &str, at: Meters3) -> Sce
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "subject".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
                     source: SectionSource::Inline(config),
-                    modifications: vec![],
                 }],
-                collapse_threshold: Some(0.0),
+                integrity: ShipIntegrityConfig {
+                    collapse_threshold: Some(0.0),
+                },
                 ..default()
             }),
             ..default()

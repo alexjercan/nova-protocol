@@ -491,7 +491,7 @@ fn cross_velocity_burn_keeps_the_hull_steady_at_high_speed() {
 fn manual_burn_accelerates_and_is_ignored_while_engaged() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
 
     // Manual: analog burn accelerates along the nose.

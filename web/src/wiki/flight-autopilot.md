@@ -83,4 +83,4 @@ The cap is on the whole velocity vector, measured relative to whatever the maneu
 
 </details>
 
-RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.
+RCS is a capability granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.

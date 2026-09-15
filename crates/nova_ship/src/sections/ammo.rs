@@ -6,10 +6,10 @@
 //! round per shot, so the two weapons share a single ammo concept instead of
 //! each growing a bespoke counter.
 //!
-//! Absence of the component means unlimited ammo - exactly the pre-ammo
-//! behavior - so opting in is per weapon config ([`TurretSectionConfig`] /
-//! [`TorpedoSectionConfig`] `ammo_capacity`). That default also keeps every
-//! headless firing test that never asked for ammo firing forever, unchanged.
+//! Absence of the component means unlimited ammo, which is what
+//! [`AmmoCapacity::Unlimited`] on the weapon config ([`TurretSectionConfig`] /
+//! [`TorpedoSectionConfig`] `ammunition`) asks for. That default also keeps
+//! every headless firing test that never asked for ammo firing forever.
 //!
 //! A section may also carry a [`SectionReload`] (seeded from a
 //! [`SectionReloadConfig`] on the weapon config). Every successful shot resets
@@ -29,8 +29,8 @@ use nova_gameplay::prelude::SectionInactiveMarker;
 /// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
     pub use super::{
-        SectionAmmo, SectionReload, SectionReloadComplete, SectionReloadConfig,
-        SuspendedSectionAmmo,
+        AmmoCapacity, ReloadConfig, SectionAmmo, SectionReload, SectionReloadComplete,
+        SectionReloadConfig, SuspendedSectionAmmo,
     };
 }
 
@@ -98,17 +98,70 @@ impl SectionAmmo {
 pub struct SuspendedSectionAmmo {
     /// The authored magazine size to restore, full.
     pub capacity: u32,
-    /// The reload cycle to restore with it, if the section had one.
-    pub reload: Option<SectionReloadConfig>,
+    /// The reload cycle to restore with it.
+    pub reload: ReloadConfig,
+}
+
+/// How much a weapon section can hold.
+///
+/// A domain mode rather than an `Option<u32>`: "this gun never runs out" is a
+/// DECISION about the weapon, not a missing number, and an author reading
+/// `ammunition: Unlimited` is told which of the two it is. The editor shows
+/// the same two choices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum AmmoCapacity {
+    /// No magazine at all: the weapon fires without limit and never reloads.
+    /// The section gets neither [`SectionAmmo`] nor [`SectionReload`].
+    #[default]
+    Unlimited,
+    /// A magazine of exactly this many rounds.
+    Limited(u32),
+}
+
+impl AmmoCapacity {
+    /// The magazine size, or `None` when the weapon is unlimited.
+    pub fn rounds(self) -> Option<u32> {
+        match self {
+            AmmoCapacity::Unlimited => None,
+            AmmoCapacity::Limited(rounds) => Some(rounds),
+        }
+    }
+}
+
+/// Whether a weapon section restores rounds on its own, and how.
+///
+/// The same reasoning as [`AmmoCapacity`]: a gun that is dry for good is an
+/// authored decision, and `Disabled` says so where an absent field could only
+/// imply it. A `Batch` on an [`AmmoCapacity::Unlimited`] weapon is a content
+/// lint error - there is nothing to refill.
+#[derive(Clone, Copy, Debug, PartialEq, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ReloadConfig {
+    /// Spent rounds never come back. Once the magazine is empty the section is
+    /// dry for the rest of its life.
+    #[default]
+    Disabled,
+    /// One batch returns after each idle delay.
+    Batch(SectionReloadConfig),
+}
+
+impl ReloadConfig {
+    /// The authored batch, or `None` when reloading is off.
+    pub fn batch(self) -> Option<SectionReloadConfig> {
+        match self {
+            ReloadConfig::Disabled => None,
+            ReloadConfig::Batch(config) => Some(config),
+        }
+    }
 }
 
 /// Authored reload parameters for a weapon section's magazine.
 ///
-/// Attached to a section's config ([`TurretSectionConfig`] /
-/// [`TorpedoSectionConfig`] `reload`); when the section is built WITH a
-/// magazine (`ammo_capacity = Some`) a [`SectionReload`] is seeded from this.
-/// A weapon with no magazine (`ammo_capacity = None`) gets neither, so the
-/// "no [`SectionAmmo`] = unlimited" invariant is untouched.
+/// Carried by [`ReloadConfig::Batch`] on a section's config; when the section
+/// is built with an [`AmmoCapacity::Limited`] magazine a [`SectionReload`] is
+/// seeded from this. An [`AmmoCapacity::Unlimited`] weapon gets neither, so
+/// the "no [`SectionAmmo`] = unlimited" invariant is untouched.
 ///
 /// [`TurretSectionConfig`]: super::turret_section::TurretSectionConfig
 /// [`TorpedoSectionConfig`]: super::torpedo_section::TorpedoSectionConfig

@@ -3,8 +3,12 @@
 //! A ship's [`LockSignature`] is published here every tick from its LIVE
 //! sections, the way [`HullRadius`](super::hull_radius::HullRadius) is: a hull
 //! returns on its metal and on the machinery it is running. Lose sections and
-//! it shrinks; lose the last flight computer and the hull stops SEEING as well
-//! ([`SensorsDark`]), because the scanner is the computer's.
+//! it shrinks.
+//!
+//! Seeing is NOT derived here. A controller section is attitude hardware, and
+//! standing in for a scanner it does not have is how a hulk used to go blind;
+//! sensor reach is the root's own `SensorRange`, and a scenario that wants a
+//! blind ship authors `sensor_range: Some(0.0)`.
 //!
 //! The target's half of the range model lives here; the observer's half is
 //! [`SensorRange`](crate::prelude::SensorRange), and the pass that puts them
@@ -18,8 +22,8 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{
-    ControllerSectionMarker, RailgunSectionMarker, SectionInactiveMarker, SectionMarker,
-    SpaceshipRootMarker, TorpedoSectionMarker, TurretSectionMarker,
+    RailgunSectionMarker, SectionInactiveMarker, SectionMarker, SpaceshipRootMarker,
+    TorpedoSectionMarker, TurretSectionMarker,
 };
 
 use super::{
@@ -29,9 +33,9 @@ use super::{
 };
 use crate::prelude::LockSignature;
 
-/// The `SensorsDark` marker and the signature terms.
+/// The signature terms.
 pub mod prelude {
-    pub use super::{ship_lock_signature, SensorsDark, SIGNATURE_BASE, SIGNATURE_PER_ARM};
+    pub use super::{ship_lock_signature, SIGNATURE_BASE, SIGNATURE_PER_ARM};
 }
 
 /// What a hull returns before anything is installed on it, in meters.
@@ -56,22 +60,6 @@ pub const SIGNATURE_PER_ARM: f32 = 5.5;
 /// adds far less than the first, and the fortieth adds almost nothing. A
 /// capital is loud because it is big, not because it is full.
 const SIGNATURE_PER_SYSTEM: Meters = Meters(100.0);
-
-/// Present on a ship root that cannot SEE: it carries flight computers and not
-/// one of them is live, so the hull has no scanner however much of it is still
-/// there.
-///
-/// HAD one and lost it, the same test `integrity/neutralize.rs` applies to the
-/// guns: a hull built without a computer at all is not a hulk, it is a hull
-/// whose sensors are somebody else's business, and a scenario that wants it
-/// blind authors `sensor_range: Some(0.0)`.
-///
-/// A hulk is still a target - it keeps a [`LockSignature`] - and simply stops
-/// being an observer. Derived every tick beside the signature, never
-/// authored.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct SensorsDark;
 
 /// One hull's radar signature, in meters, from what is live on it.
 ///
@@ -108,36 +96,25 @@ pub(crate) struct Installed {
     controllers: f32,
     /// Live weapon sections: turrets, bays and railguns together.
     weapons: f32,
-    /// Whether any flight computer is still live.
-    lit: bool,
-    /// Whether the hull carries a flight computer at all, live or dead.
-    helm: bool,
 }
 
-/// Publish every ship's [`LockSignature`] and its [`SensorsDark`] state from
-/// its live sections.
+/// Publish every ship's [`LockSignature`] from its live sections.
 ///
 /// ONE pass over every live section rather than one per hull, for the reason
 /// `publish_hull_radii` gives: re-filtering the section query per hull is
 /// quadratic in a busy scene.
 ///
-/// A root with nothing live left on it answers with the base alone and goes
-/// DARK: a beaten hull is still metal, so it is still a contact, and there is
-/// nothing running aboard it either to be loud with or to see with. A root
-/// avian has not measured yet has no arm, which reads as a point and is the
-/// honest answer while its colliders are still being linked.
+/// A root with nothing live left on it answers with the base alone: a beaten
+/// hull is still metal, so it is still a contact. A root avian has not
+/// measured yet has no arm, which reads as a point and is the honest answer
+/// while its colliders are still being linked.
 pub(crate) fn publish_ship_signatures(
     // Reused across ticks: this runs for every hull on every fixed tick and
     // must not allocate per ship per tick.
     mut installed: Local<EntityHashMap<Installed>>,
     mut commands: Commands,
     mut q_root: Query<
-        (
-            Entity,
-            Option<&HullRadius>,
-            Option<&mut LockSignature>,
-            Has<SensorsDark>,
-        ),
+        (Entity, Option<&HullRadius>, Option<&mut LockSignature>),
         With<SpaceshipRootMarker>,
     >,
     q_section: Query<
@@ -146,7 +123,6 @@ pub(crate) fn publish_ship_signatures(
             Has<SectionInactiveMarker>,
             Option<&ThrusterSectionMagnitude>,
             Option<&ControllerSectionTuning>,
-            Has<ControllerSectionMarker>,
             Has<TurretSectionMarker>,
             Has<TorpedoSectionMarker>,
             Has<RailgunSectionMarker>,
@@ -155,14 +131,11 @@ pub(crate) fn publish_ship_signatures(
     >,
 ) {
     installed.clear();
-    for (&ChildOf(root), inactive, thrust, tuning, is_controller, turret, bay, railgun) in
-        &q_section
-    {
+    for (&ChildOf(root), inactive, thrust, tuning, turret, bay, railgun) in &q_section {
         if q_root.get(root).is_err() {
             continue;
         }
         let entry = installed.entry(root).or_default();
-        entry.helm |= is_controller;
         if inactive {
             continue;
         }
@@ -172,13 +145,12 @@ pub(crate) fn publish_ship_signatures(
         if let Some(tuning) = tuning {
             entry.controllers += tuning.max_torque.max(0.0) / DEFAULT_MAX_TORQUE;
         }
-        entry.lit |= is_controller;
         if turret || bay || railgun {
             entry.weapons += 1.0;
         }
     }
 
-    for (root, arm, signature, dark) in &mut q_root {
+    for (root, arm, signature) in &mut q_root {
         let live = installed.get(&root).copied().unwrap_or_default();
         // Engine boundary: the arm is measured off avian colliders, so it
         // arrives in world units and the formula wants meters.
@@ -199,21 +171,13 @@ pub(crate) fn publish_ship_signatures(
                 commands.entity(root).try_insert(published);
             }
         }
-        match (live.helm && !live.lit, dark) {
-            (true, false) => {
-                commands.entity(root).try_insert(SensorsDark);
-            }
-            (false, true) => {
-                commands.entity(root).try_remove::<SensorsDark>();
-            }
-            _ => {}
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_gameplay::prelude::ControllerSectionMarker;
 
     use super::*;
 
@@ -296,18 +260,9 @@ mod tests {
             ship_lock_signature(Meters(50.0), 1.0, 1.0, 0.0),
             "the published signature is the model read off the live sections"
         );
-        assert!(
-            !world.entity(ship).contains::<SensorsDark>(),
-            "a hull with a working computer can see"
-        );
-
         world.entity_mut(computer).insert(SectionInactiveMarker);
         world.run_system_once(publish_ship_signatures).unwrap();
 
-        assert!(
-            world.entity(ship).contains::<SensorsDark>(),
-            "losing the last flight computer blinds the hull"
-        );
         let beaten = world
             .get::<LockSignature>(ship)
             .copied()

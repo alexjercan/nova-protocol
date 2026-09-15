@@ -259,10 +259,45 @@ registry::scenario_actions! {
         effect: Injection,
         inspect: Reflect,
     },
-    /// Enable or disable one flight verb on a scoped ship's controller by id.
-    SetControllerVerb(SetControllerVerbActionConfig) {
-        label: "Set Flight Verb",
-        stem: "verb",
+    /// Enable or disable the STOP maneuver on a scoped ship by id.
+    SetShipCapabilityStop(SetShipCapabilityStopActionConfig) {
+        label: "Set Stop Capability",
+        stem: "capstop",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Enable or disable the GOTO maneuver on a scoped ship by id.
+    SetShipCapabilityGoto(SetShipCapabilityGotoActionConfig) {
+        label: "Set Goto Capability",
+        stem: "capgoto",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Enable or disable the ORBIT maneuver on a scoped ship by id.
+    SetShipCapabilityOrbit(SetShipCapabilityOrbitActionConfig) {
+        label: "Set Orbit Capability",
+        stem: "caporbit",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Enable or disable target LOCK on a scoped ship by id.
+    SetShipCapabilityLock(SetShipCapabilityLockActionConfig) {
+        label: "Set Lock Capability",
+        stem: "caplock",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Enable or disable RCS fine-adjust on a scoped ship by id.
+    SetShipCapabilityRcs(SetShipCapabilityRcsActionConfig) {
+        label: "Set RCS Capability",
+        stem: "caprcs",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Enable or disable automatic POINT DEFENSE on a scoped ship by id.
+    SetShipCapabilityPointDefense(SetShipCapabilityPointDefenseActionConfig) {
+        label: "Set Point Defense Capability",
+        stem: "cappd",
         effect: Injection,
         inspect: Reflect,
     },

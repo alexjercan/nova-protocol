@@ -18,7 +18,7 @@ const MATCHED: f32 = 0.4;
 fn a_commanded_velocity_is_flown_to_and_then_held() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
 
     let commanded = Vec3::new(0.0, 0.0, -3.0);
@@ -51,7 +51,7 @@ fn a_commanded_velocity_is_flown_to_and_then_held() {
 fn a_held_velocity_never_completes_itself() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
 
     // The easiest possible goal: hold the rest the ship is already at. A leg
@@ -84,7 +84,7 @@ fn a_held_velocity_never_completes_itself() {
 fn a_held_velocity_publishes_no_leg_for_the_instruments() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
 
     app.world_mut()
@@ -106,7 +106,7 @@ fn a_held_velocity_publishes_no_leg_for_the_instruments() {
 fn the_nose_goes_where_it_was_asked_once_the_velocity_is_held() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
 
     // Already on the commanded velocity, so the drive has nothing to ask the
@@ -137,7 +137,7 @@ fn the_nose_goes_where_it_was_asked_once_the_velocity_is_held() {
 fn a_velocity_error_worth_turning_for_takes_the_hull_off_its_facing() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
 
     // The facing and the burn are 90 degrees apart, and the ship has one

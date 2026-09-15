@@ -533,7 +533,6 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let ship = SpaceshipConfig {
@@ -542,7 +541,7 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
         // camera, which frames the ship it is following rather than the row -
         // the gallery needs the scenario's own free camera, posed by hand.
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     "controller",
@@ -567,7 +566,6 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
                     position: Vec3::new(0.75, 0.0, 0.0),
                     rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
                     source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
-                    modifications: vec![],
                 },
                 at(
                     "thruster",
@@ -575,11 +573,16 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
                     Vec3::new(0.0, 0.0, 2.0),
                 ),
             ],
-            // Clad in every column but the last - see `CLAD`.
-            skin: CLAD[level_index],
             // Nothing may collapse out from under the camera while it is being
             // looked at, and the worst column sits at 0.9 of its health gone.
-            collapse_threshold: Some(0.0),
+            integrity: ShipIntegrityConfig {
+                collapse_threshold: Some(0.0),
+            },
+            presentation: ShipPresentationConfig {
+                // Clad in every column but the last - see `CLAD`.
+                skin: CLAD[level_index],
+                ..default()
+            },
             ..default()
         }),
         ..default()

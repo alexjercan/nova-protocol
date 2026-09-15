@@ -42,7 +42,9 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::Allegiance;
 use nova_mod_format::BASE_MOD_ID;
 use nova_scenario::prelude::*;
-use nova_ship::prelude::{RailgunEngineFigures, SectionConfig, SectionKind, TurretEngineFigures};
+use nova_ship::prelude::{
+    GameSections, RailgunEngineFigures, SectionConfig, SectionKind, TurretEngineFigures,
+};
 
 /// The audit entry points, the graded findings and their acknowledgments, and
 /// the derived per-ship / per-group / per-scenario metrics they are graded on.
@@ -77,46 +79,66 @@ pub const TORPEDO_ENVELOPE: Meters = nova_ship::prelude::AI_TORPEDO_MAX_RANGE;
 /// stands either way: a dependency can silently rebalance a base section
 /// by id (mod-dependency-overrides-are-load-bearing), so the audit joins
 /// through the overlay, never through base alone.
-pub struct SectionCatalog(HashMap<String, SectionConfig>);
+pub struct SectionCatalog(GameSections);
 
 impl SectionCatalog {
     /// Join the layers last-wins by section id, base first.
     pub fn resolve(layers: &[&[SectionConfig]]) -> Self {
-        let mut map = HashMap::new();
+        let mut map: HashMap<&str, &SectionConfig> = HashMap::new();
+        let mut order = Vec::new();
         for layer in layers {
             for section in *layer {
-                map.insert(section.base.id.clone(), section.clone());
+                if map.insert(&section.base.id, section).is_none() {
+                    order.push(section.base.id.as_str());
+                }
             }
         }
-        Self(map)
+        Self(GameSections(
+            order.into_iter().map(|id| map[id].clone()).collect(),
+        ))
     }
 
     /// The resolved prototype for a section id, or `None` if unknown.
     pub fn get(&self, id: &str) -> Option<&SectionConfig> {
-        self.0.get(id)
+        self.0.get_section(id)
+    }
+
+    /// The joined catalog, as the shared design resolver reads it.
+    pub fn catalog(&self) -> &GameSections {
+        &self.0
     }
 }
 
 /// The ship view a scenario's spawns resolve against: the last-wins overlay of
 /// base -> declared dependencies -> the bundle's own ships, joined exactly like
 /// [`SectionCatalog`] beside it and for the same reason.
-pub struct ShipCatalog(HashMap<String, ShipConfig>);
+pub struct ShipCatalog(GameShipDesigns);
 
 impl ShipCatalog {
     /// Join the layers last-wins by ship id, base first.
-    pub fn resolve(layers: &[&[ShipConfig]]) -> Self {
-        let mut map = HashMap::new();
+    pub fn resolve(layers: &[&[ShipDesignPrototype]]) -> Self {
+        let mut map: HashMap<&str, &ShipDesignPrototype> = HashMap::new();
+        let mut order = Vec::new();
         for layer in layers {
             for ship in *layer {
-                map.insert(ship.id.clone(), ship.clone());
+                if map.insert(&ship.id, ship).is_none() {
+                    order.push(ship.id.as_str());
+                }
             }
         }
-        Self(map)
+        Self(GameShipDesigns(
+            order.into_iter().map(|id| map[id].clone()).collect(),
+        ))
     }
 
-    /// The hull one ship id resolves to, or `None` if unknown.
-    pub fn get(&self, id: &str) -> Option<&ShipHull> {
-        self.0.get(id).map(|ship| &ship.hull)
+    /// The design one ship id resolves to, or `None` if unknown.
+    pub fn get(&self, id: &str) -> Option<&ShipDesign> {
+        self.0.get_design(id).map(|ship| &ship.design)
+    }
+
+    /// The joined catalog, as the shared design resolver reads it.
+    pub fn catalog(&self) -> &GameShipDesigns {
+        &self.0
     }
 }
 
@@ -181,34 +203,14 @@ pub fn ship_stats(
         max_effective_range: Meters::ZERO,
         torpedo_tubes: 0,
     };
-    let hull = match &ship.hull {
-        ShipSource::Inline(hull) => Some(hull),
-        ShipSource::Prototype(id) => ships.get(id),
-    };
-    let Some(hull) = hull else {
-        return stats;
-    };
-    for section in &hull.sections {
-        let resolved: Option<&SectionConfig> = match &section.source {
-            SectionSource::Prototype(id) => catalog.get(id),
-            SectionSource::Inline(config) => Some(config),
-        };
-        let Some(config) = resolved else { continue };
-        // An authored SetHealth override wins over the prototype (last one
-        // wins, like the runtime observers applying the list in order), and a
-        // SPAWN override wins over the hull's own for the same reason.
-        let hp_override = ship
-            .modifications
-            .iter()
-            .filter(|m| m.section == section.id)
-            .flat_map(|m| m.modifications.iter())
-            .chain(section.modifications.iter())
-            .rev()
-            .find_map(|m| match m {
-                SectionModification::SetHealth(hp) => Some(*hp),
-                _ => None,
-            });
-        stats.hp += hp_override.unwrap_or(config.base.health);
+    // Resolve exactly as the spawn does - catalog design, the design's own
+    // section patches, then this spawn's - so the audit reads the numbers the
+    // ship will actually fly with. Unknown ids resolve to nothing and the
+    // errors are content_lint's to report; the audit stays total.
+    let (design, _) = resolve_ship_design(&ship.design, ships.catalog(), catalog.catalog());
+    for section in &design.sections {
+        let config = &section.config;
+        stats.hp += config.base.health;
         match &config.kind {
             SectionKind::Turret(turret) => {
                 // Fire rate is per-muzzle; burst DPS sums every muzzle leaf in
@@ -235,8 +237,8 @@ pub fn ship_stats(
                 // and swamp every ship in the audit, so decline instead: the
                 // shot still counts for reach, and the audit compares cadences
                 // it can actually price.
-                let cycle =
-                    railgun.charge_seconds + railgun.reload.map_or(0.0, |reload| reload.delay);
+                let cycle = railgun.charge_seconds
+                    + railgun.reload.batch().map_or(0.0, |reload| reload.delay);
                 if cycle > 0.0 {
                     stats.dps += railgun.slug_damage / cycle;
                 }
@@ -689,7 +691,7 @@ pub fn audit_bundles_to_audits(
         .get(BASE_MOD_ID)
         .map(|b| b.sections.as_slice())
         .unwrap_or(&[]);
-    let base_ships: &[ShipConfig] = by_id
+    let base_ships: &[ShipDesignPrototype] = by_id
         .get(BASE_MOD_ID)
         .map(|b| b.ships.as_slice())
         .unwrap_or(&[]);
@@ -709,7 +711,7 @@ pub fn audit_bundles_to_audits(
         layers.push(bundle.sections.as_slice());
         let catalog = SectionCatalog::resolve(&layers);
         // The same overlay again for the ships a scenario spawns by id.
-        let mut ship_layers: Vec<&[ShipConfig]> = vec![base_ships];
+        let mut ship_layers: Vec<&[ShipDesignPrototype]> = vec![base_ships];
         for dep in &bundle.dependencies {
             if dep != BASE_MOD_ID {
                 if let Some(dep_bundle) = by_id.get(dep.as_str()) {
@@ -767,6 +769,7 @@ mod tests {
             render_mesh: None,
             render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
+                id: "main".to_string(),
                 fire_rate,
                 muzzle_effect: None,
             }),
@@ -791,7 +794,7 @@ mod tests {
     fn ship(controller: SpaceshipController, prototypes: &[&str]) -> SpaceshipConfig {
         SpaceshipConfig {
             controller,
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: prototypes
                     .iter()
                     .enumerate()
@@ -799,8 +802,7 @@ mod tests {
                         id: format!("s{i}"),
                         position: Vec3::ZERO,
                         rotation: bevy::math::Quat::IDENTITY,
-                        source: SectionSource::Prototype(p.to_string()),
-                        modifications: vec![],
+                        source: SectionSource::prototype(*p),
                     })
                     .collect(),
                 ..Default::default()

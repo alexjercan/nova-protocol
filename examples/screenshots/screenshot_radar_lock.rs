@@ -87,13 +87,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(nav_approach(&game_assets, &ships)));
 }
 
 /// The set: a parked corvette, a beacon 7.5 km downrange and a corridor of
 /// rocks between them.
-fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn nav_approach(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -189,7 +189,7 @@ fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    hull: ShipHull,
+    hull: ShipDesign,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -201,7 +201,7 @@ fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(hull),
+            design: ShipDesignSource::Inline(hull),
             ..default()
         }),
     })

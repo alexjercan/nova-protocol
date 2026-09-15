@@ -1,6 +1,6 @@
 //! Actions that drive or retune a live scenario ship: the helm-order family,
-//! the two force-fire verbs, the AI constraints, and the older speed cap,
-//! allegiance and per-verb controller flags.
+//! the two force-fire verbs, the AI constraints, and the older speed cap and
+//! allegiance levers, plus the six root capability switches.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -88,79 +88,109 @@ impl EventAction<NovaEventWorld> for SetAllegianceActionConfig {
     }
 }
 
-/// Enable or disable one flight verb on a scenario ship's controller section(s)
-/// by id. Flight verbs (STOP/GOTO/ORBIT) are a capability the controller
-/// grants; this flips a single verb at runtime - the shakedown withholds GOTO
-/// until the first objective is complete. Scoped-only lookup, same rule as
-/// SetSpeedCap; writes every controller section on the ship so the union the
-/// input layer reads matches.
-#[derive(Clone, Debug, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SetControllerVerbActionConfig {
-    /// The `EntityId` of the scoped ship whose controller sections to edit.
-    #[reflect(@Names::Object)]
-    pub id: String,
-    /// The flight verb (STOP/GOTO/ORBIT/LOCK/RCS/POINT DEFENSE) to toggle.
-    pub verb: FlightVerb,
-    /// Whether the verb is enabled (true) or disabled (false).
-    pub enabled: bool,
-}
+/// The shared body of the six `SetShipCapability*` actions: look the scoped
+/// ship up and flip ONE bool on its root [`ShipCapabilities`].
+///
+/// Private and shared because the six differ only in which field they write -
+/// but the AUTHORED variants stay explicit, so a scenario says
+/// `SetShipCapabilityGoto` rather than naming a verb the editor would have to
+/// offer as a second dropdown.
+///
+/// A root carrying no `ShipCapabilities` can do everything, so the component
+/// is materialized from its default before the field is written: a disable on
+/// a fresh ship has to have something to write into.
+fn set_ship_capability(
+    world: &mut NovaEventWorld,
+    action: &'static str,
+    id: &str,
+    enabled: bool,
+    write: fn(&mut ShipCapabilities, bool),
+) {
+    let id = id.to_string();
+    debug!("{}: '{}' -> {}", action, id, enabled);
 
-impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
-    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
-        let id = self.id.clone();
-        let verb = self.verb;
-        let enabled = self.enabled;
-        debug!("SetControllerVerb: '{}' {:?} -> {}", id, verb, enabled);
-
-        world.push_command(move |commands| {
-            commands.queue(move |world: &mut World| {
-                let Some(ship) = scoped_ship(world, &id) else {
-                    warn!("SetControllerVerb: no scoped ship with id '{}'", id);
-                    return;
-                };
-
-                // Every controller section on this ship (active or not - the
-                // flag persists across (de)activation), so the union the hint
-                // pass and observers read reflects the change.
-                let mut controllers =
-                    world.query_filtered::<(Entity, &ChildOf), With<ControllerSectionMarker>>();
-                let targets: Vec<Entity> = controllers
-                    .iter(world)
-                    .filter(|(_, &ChildOf(parent))| parent == ship)
-                    .map(|(entity, _)| entity)
-                    .collect();
-                if targets.is_empty() {
-                    warn!("SetControllerVerb: ship '{}' has no controller section", id);
-                    return;
-                }
-                for controller in targets {
-                    // `WithheldVerbs` is absent on a fresh controller (all
-                    // granted); a disable must materialize it first. An enable
-                    // on an absent component is already a no-op (nothing is
-                    // withheld), so only insert-if-absent when disabling.
-                    if world.get::<WithheldVerbs>(controller).is_none() {
-                        if !enabled {
-                            world
-                                .entity_mut(controller)
-                                .insert(WithheldVerbs::default());
-                        } else {
-                            continue;
-                        }
-                    }
-                    let mut withheld = world
-                        .get_mut::<WithheldVerbs>(controller)
-                        .expect("WithheldVerbs present: it was just inserted or already existed");
-                    if enabled {
-                        withheld.grant(verb);
-                    } else {
-                        withheld.withhold(verb);
-                    }
-                }
-            });
+    world.push_command(move |commands| {
+        commands.queue(move |world: &mut World| {
+            let Some(ship) = scoped_ship(world, &id) else {
+                warn!("{}: no scoped ship with id '{}'", action, id);
+                return;
+            };
+            let mut capabilities = world
+                .get::<ShipCapabilities>(ship)
+                .copied()
+                .unwrap_or_default();
+            write(&mut capabilities, enabled);
+            world.entity_mut(ship).insert(capabilities);
         });
-    }
+    });
 }
+
+/// Declare one `SetShipCapability*` action: its config struct, its docs, and
+/// the one field it writes.
+macro_rules! ship_capability_action {
+    ($config:ident, $name:literal, $field:ident, $doc:literal) => {
+        #[doc = $doc]
+        ///
+        /// Scoped-only lookup, same rule as SetSpeedCap. Writes the ship
+        /// ROOT: a capability is a decision about the SHIP, so losing a
+        /// controller section cannot take it away and gaining one cannot hand
+        /// it back.
+        #[derive(Clone, Debug, Reflect)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        pub struct $config {
+            /// The `EntityId` of the scoped ship to retune.
+            #[reflect(@Names::Object)]
+            pub id: String,
+            /// Whether the capability is enabled (true) or disabled (false).
+            pub enabled: bool,
+        }
+
+        impl EventAction<NovaEventWorld> for $config {
+            fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+                set_ship_capability(world, $name, &self.id, self.enabled, |capabilities, on| {
+                    capabilities.$field = on;
+                });
+            }
+        }
+    };
+}
+
+ship_capability_action!(
+    SetShipCapabilityStopActionConfig,
+    "SetShipCapabilityStop",
+    stop_enabled,
+    "Enable or disable the STOP maneuver on a scoped ship by id."
+);
+ship_capability_action!(
+    SetShipCapabilityGotoActionConfig,
+    "SetShipCapabilityGoto",
+    goto_enabled,
+    "Enable or disable the GOTO maneuver on a scoped ship by id - the      shakedown withholds it until the first objective is complete."
+);
+ship_capability_action!(
+    SetShipCapabilityOrbitActionConfig,
+    "SetShipCapabilityOrbit",
+    orbit_enabled,
+    "Enable or disable the ORBIT maneuver on a scoped ship by id."
+);
+ship_capability_action!(
+    SetShipCapabilityLockActionConfig,
+    "SetShipCapabilityLock",
+    lock_enabled,
+    "Enable or disable target LOCK on a scoped ship by id."
+);
+ship_capability_action!(
+    SetShipCapabilityRcsActionConfig,
+    "SetShipCapabilityRcs",
+    rcs_enabled,
+    "Enable or disable RCS fine-adjust on a scoped ship by id."
+);
+ship_capability_action!(
+    SetShipCapabilityPointDefenseActionConfig,
+    "SetShipCapabilityPointDefense",
+    point_defense_enabled,
+    "Enable or disable automatic POINT DEFENSE on a scoped ship by id."
+);
 
 /// Fly an ordered ship to an authored mark with the real autopilot.
 ///
@@ -892,108 +922,90 @@ fn ai_ship(world: &mut World, id: &str, what: &str) -> Option<Entity> {
 mod tests {
     use super::*;
 
-    /// SetControllerVerb flips exactly the addressed ship's controller verb,
-    /// leaving other verbs on that controller and other ships untouched; and
+    /// `SetShipCapability*` flips exactly the addressed ship's capability,
+    /// leaving its other capabilities and every other ship untouched; and
     /// re-enabling restores it. If the action did not scope by ship id, the
-    /// bystander ship's controller would flip too and this test would fail.
+    /// bystander would flip too and this test would fail.
     #[test]
-    fn set_controller_verb_flips_only_the_scoped_ship() {
+    fn a_capability_action_flips_only_the_scoped_ship() {
         use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
         world.init_resource::<GameObjectives>();
 
-        // The target ship and a bystander ship, each a scoped root with a
-        // controller section carrying no WithheldVerbs (all granted, the
-        // production default - disabling must materialize the component).
-        let player = world
-            .spawn((
-                ScenarioScopedMarker,
-                SpaceshipRootMarker,
-                EntityId::new("player".to_string()),
-            ))
-            .id();
-        let player_ctrl = world.spawn((ChildOf(player), ControllerSectionMarker)).id();
-        let bystander = world
-            .spawn((
-                ScenarioScopedMarker,
-                SpaceshipRootMarker,
-                EntityId::new("bystander".to_string()),
-            ))
-            .id();
-        let bystander_ctrl = world
-            .spawn((ChildOf(bystander), ControllerSectionMarker))
-            .id();
-
-        // Disable GOTO on the player only.
-        let disable = SetControllerVerbActionConfig {
-            id: "player".to_string(),
-            verb: FlightVerb::Goto,
-            enabled: false,
+        // Two scoped roots carrying no `ShipCapabilities` at all - the
+        // production default, all enabled - so disabling has to materialize
+        // the component.
+        let ship = |world: &mut World, id: &str| {
+            world
+                .spawn((
+                    ScenarioScopedMarker,
+                    SpaceshipRootMarker,
+                    EntityId::new(id.to_string()),
+                ))
+                .id()
         };
-        let mut event_world = world.resource_mut::<NovaEventWorld>();
-        disable.action(&mut event_world, &GameEventInfo::default());
-        NovaEventWorld::state_to_world_system(&mut world);
+        let player = ship(&mut world, "player");
+        let bystander = ship(&mut world, "bystander");
 
-        let pv = world.get::<WithheldVerbs>(player_ctrl).unwrap();
+        let goto = |enabled: bool| SetShipCapabilityGotoActionConfig {
+            id: "player".to_string(),
+            enabled,
+        };
+        let run = |world: &mut World, action: SetShipCapabilityGotoActionConfig| {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            action.action(&mut event_world, &GameEventInfo::default());
+            NovaEventWorld::state_to_world_system(world);
+        };
+
+        run(&mut world, goto(false));
+
+        let capabilities = world.get::<ShipCapabilities>(player).copied().unwrap();
         assert!(
-            !pv.granted(FlightVerb::Goto),
-            "GOTO disabled on the addressed ship"
+            !capabilities.goto_enabled,
+            "GOTO disabled on the named ship"
         );
         assert!(
-            pv.granted(FlightVerb::Stop) && pv.granted(FlightVerb::Orbit),
-            "other verbs on that controller untouched"
+            capabilities.stop_enabled && capabilities.orbit_enabled,
+            "the ship's other capabilities are untouched"
         );
         assert!(
             world
-                .get::<WithheldVerbs>(bystander_ctrl)
-                .is_none_or(|w| w.granted(FlightVerb::Goto)),
-            "the bystander ship's controller is untouched (still grants GOTO)"
+                .get::<ShipCapabilities>(bystander)
+                .is_none_or(|capabilities| capabilities.goto_enabled),
+            "the bystander still has GOTO"
         );
 
-        // Re-enable restores it.
-        let enable = SetControllerVerbActionConfig {
-            id: "player".to_string(),
-            verb: FlightVerb::Goto,
-            enabled: true,
-        };
-        let mut event_world = world.resource_mut::<NovaEventWorld>();
-        enable.action(&mut event_world, &GameEventInfo::default());
-        NovaEventWorld::state_to_world_system(&mut world);
+        run(&mut world, goto(true));
         assert!(
-            world
-                .get::<WithheldVerbs>(player_ctrl)
-                .unwrap()
-                .granted(FlightVerb::Goto),
-            "GOTO re-enabled on the addressed ship"
+            world.get::<ShipCapabilities>(player).unwrap().goto_enabled,
+            "GOTO re-enabled on the named ship"
         );
     }
 
-    /// SetControllerVerb writes EVERY controller section on the ship, so the
-    /// union the input layer reads (verb available if ANY live controller
-    /// grants it) reflects the change no matter which controller it samples.
+    /// A capability is a decision about the SHIP: it lands on the root, so a
+    /// ship with no controller section at all still takes the write and every
+    /// consumer reads the same answer.
     #[test]
-    fn set_controller_verb_writes_all_controllers_on_the_ship() {
+    fn a_capability_lands_on_the_root_not_on_a_controller() {
         use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
         world.init_resource::<GameObjectives>();
 
-        let ship = world
+        let root = world
             .spawn((
                 ScenarioScopedMarker,
                 SpaceshipRootMarker,
-                EntityId::new("twin".to_string()),
+                EntityId::new("bare".to_string()),
             ))
             .id();
-        let ctrl_a = world.spawn((ChildOf(ship), ControllerSectionMarker)).id();
-        let ctrl_b = world.spawn((ChildOf(ship), ControllerSectionMarker)).id();
+        let section = world.spawn((ChildOf(root), ControllerSectionMarker)).id();
 
-        let disable = SetControllerVerbActionConfig {
-            id: "twin".to_string(),
-            verb: FlightVerb::Stop,
+        let disable = SetShipCapabilityStopActionConfig {
+            id: "bare".to_string(),
             enabled: false,
         };
         let mut event_world = world.resource_mut::<NovaEventWorld>();
@@ -1001,18 +1013,12 @@ mod tests {
         NovaEventWorld::state_to_world_system(&mut world);
 
         assert!(
-            !world
-                .get::<WithheldVerbs>(ctrl_a)
-                .unwrap()
-                .granted(FlightVerb::Stop),
-            "first controller written"
+            !world.get::<ShipCapabilities>(root).unwrap().stop_enabled,
+            "STOP stood down on the root"
         );
         assert!(
-            !world
-                .get::<WithheldVerbs>(ctrl_b)
-                .unwrap()
-                .granted(FlightVerb::Stop),
-            "second controller written too"
+            world.get::<ShipCapabilities>(section).is_none(),
+            "nothing is written to the controller section"
         );
     }
 
@@ -1919,9 +1925,11 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) ->
         };
         let reload = entity
             .get::<SectionReload>()
-            .map(|reload| SectionReloadConfig {
-                delay: reload.delay,
-                amount: reload.amount,
+            .map_or(ReloadConfig::Disabled, |reload| {
+                ReloadConfig::Batch(SectionReloadConfig {
+                    delay: reload.delay,
+                    amount: reload.amount,
+                })
             });
         entity.insert(SuspendedSectionAmmo {
             capacity: ammo.capacity,
@@ -1934,7 +1942,7 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) ->
             return false;
         };
         entity.insert(SectionAmmo::new(suspended.capacity));
-        if let Some(reload) = suspended.reload {
+        if let ReloadConfig::Batch(reload) = suspended.reload {
             entity.insert(SectionReload::from_config(reload));
         }
         entity.remove::<SuspendedSectionAmmo>();

@@ -67,4 +67,4 @@ That is why the health column below is not the order you want when you are choos
 </table>
 </div>
 
-Enemy-grade ships thin these same cells down with per-ship health modifications rather than separate prototypes.
+Enemy-grade ships thin these same cells down with per-ship health patches rather than separate prototypes.

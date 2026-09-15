@@ -18,8 +18,8 @@ use nova_scenario::prelude::{
     SpaceshipController, KIND_ROCK,
 };
 use nova_ship::prelude::{
-    BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
-    TurretJoint, TurretSectionConfig,
+    BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, SectionKindPatch,
+    ThrusterSectionConfig, ThrusterSectionConfigPatch, TurretJoint, TurretSectionConfig,
 };
 
 use super::*;
@@ -286,8 +286,8 @@ fn a_seeded_hull_is_inspected_as_a_ship() {
     );
     let names = row_names(&mut app);
     assert!(
-        names.contains(&"Hull".to_string()),
-        "which hull is the whole point of a seeded ship: {names:?}"
+        names.contains(&"Design".to_string()),
+        "which design is the whole point of a seeded ship: {names:?}"
     );
 }
 
@@ -785,7 +785,6 @@ fn pressing_the_key_row_arms_the_rebind() {
                         ..default()
                     }),
                 }),
-                modifications: vec![],
                 binds: vec![],
             },
             NodeId("thruster_section_1".to_string()),
@@ -858,6 +857,7 @@ fn a_nested_group_is_drawn_one_level_at_a_time() {
                             None,
                             vec![joint(
                                 Some(MuzzleConfig {
+                                    id: "main".to_string(),
                                     fire_rate: 4.0,
                                     muzzle_effect: None,
                                 }),
@@ -867,7 +867,6 @@ fn a_nested_group_is_drawn_one_level_at_a_time() {
                         ..default()
                     }),
                 }),
-                modifications: vec![],
                 binds: vec![],
             },
             NodeId("turret_1".to_string()),
@@ -899,8 +898,11 @@ fn a_nested_group_is_drawn_one_level_at_a_time() {
     );
 }
 
+/// A typed edit on a prototype instance lands as the reference's own PATCH:
+/// the panel writes what the builder sees, and the document keeps naming the
+/// catalog part.
 #[test]
-fn a_catalog_section_is_copied_inline_before_the_first_edit_lands() {
+fn an_edit_on_a_catalog_section_lands_as_the_references_patch() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
     let ship = app
@@ -929,8 +931,7 @@ fn a_catalog_section_is_copied_inline_before_the_first_edit_lands() {
         .spawn((
             EditorNode,
             SectionNode {
-                source: SectionSource::Prototype("thruster".to_string()),
-                modifications: vec![],
+                source: SectionSource::prototype("thruster"),
                 binds: vec![],
             },
             NodeId("thruster_1".to_string()),
@@ -947,13 +948,16 @@ fn a_catalog_section_is_copied_inline_before_the_first_edit_lands() {
         .world()
         .get::<SectionNode>(section)
         .expect("the section");
-    let SectionSource::Inline(config) = &node.source else {
-        panic!("the edit copied the prototype inline");
+    let SectionSource::Prototype { id, patch } = &node.source else {
+        panic!("the reference is kept: {:?}", node.source);
     };
-    let SectionKind::Thruster(tuned) = &config.kind else {
-        panic!("still a thruster");
-    };
-    assert!((tuned.magnitude - 77.0).abs() < f32::EPSILON);
+    assert_eq!(id, "thruster");
+    assert_eq!(
+        patch.kind,
+        Some(SectionKindPatch::Thruster(ThrusterSectionConfigPatch {
+            magnitude: Some(77.0),
+        }))
+    );
 }
 
 /// Drag the row's NAME and the number under it moves. The one control the
@@ -1752,4 +1756,97 @@ fn installed_bundle(app: &mut App, id: &str, resources: &[&str]) {
     app.world_mut().insert_resource(catalogs);
     app.world_mut()
         .insert_resource(EnabledMods([id.to_string()].into_iter().collect()));
+}
+
+/// The panel's half of the patch model: a tuned field is marked, the mark is
+/// the control that takes the tuning off, and the row goes back to what the
+/// part says.
+///
+/// Headless, so this asserts the WIDGETS and the document - what the chip is,
+/// which row it stands on, and what pressing it writes - not how it looks.
+#[test]
+fn an_overridden_row_wears_a_reset_chip_that_puts_it_back() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut()
+        .insert_resource(GameSections(vec![SectionConfig {
+            base: BaseSectionConfig {
+                id: "thruster".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Thruster(ThrusterSectionConfig {
+                magnitude: 40.0,
+                ..default()
+            }),
+        }]));
+    let section = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            SectionNode {
+                source: SectionSource::prototype("thruster"),
+                binds: vec![],
+            },
+            NodeId("thruster_1".to_string()),
+            Transform::default(),
+            ChildOf(ship),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    select(&mut app, section);
+    assert!(
+        reset_chip_of(&mut app, "Magnitude").is_none(),
+        "an inherited row wears no mark"
+    );
+
+    submit(&mut app, "Magnitude", "77");
+    let chip = reset_chip_of(&mut app, "Magnitude").expect("the tuned row is marked");
+
+    app.world_mut().trigger(Activate { entity: chip });
+    app.update();
+
+    let node = app
+        .world()
+        .get::<SectionNode>(section)
+        .expect("the section");
+    let SectionSource::Prototype { patch, .. } = &node.source else {
+        panic!("still a reference: {:?}", node.source);
+    };
+    assert!(patch.is_empty(), "reset removed the patch field: {patch:?}");
+    assert_eq!(
+        app.world_mut()
+            .query::<(&Name, &TextFieldValue)>()
+            .iter(app.world())
+            .find(|(name, _)| name.as_str() == "Inspector Field Magnitude")
+            .expect("the box")
+            .1
+             .0,
+        "40",
+        "and the box went back to the part's own value"
+    );
+    assert!(
+        reset_chip_of(&mut app, "Magnitude").is_none(),
+        "with the mark gone: the row inherits again"
+    );
+}
+
+/// The reset chip of the row called `label`, or `None` where the row carries
+/// no mark.
+fn reset_chip_of(app: &mut App, label: &str) -> Option<Entity> {
+    let wanted = format!("Inspector Reset {label}");
+    app.world_mut()
+        .query_filtered::<(Entity, &Name), With<InspectorReset>>()
+        .iter(app.world())
+        .find(|(_, name)| name.as_str() == wanted)
+        .map(|(entity, _)| entity)
 }

@@ -21,8 +21,7 @@ fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSect
         id,
         position,
         rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype(prototype.to_string()),
-        modifications: vec![],
+        source: SectionSource::prototype(prototype),
     }
 }
 
@@ -33,7 +32,7 @@ fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSect
 /// arena only needs a deterministic fleet for judging one capital drive against
 /// two or three vector drives.
 pub fn stamp_large_drives(
-    hull: &mut ShipHull,
+    hull: &mut ShipDesign,
     seed: u64,
     sections: &GameSections,
     grid: GrammarGrid,
@@ -120,7 +119,7 @@ pub fn stamp_large_drives(
         Vec3::new(beam_half_x, 0.5, 0.5),
     );
     hull.sections.retain(|section| {
-        let SectionSource::Prototype(id) = &section.source else {
+        let SectionSource::Prototype { id, .. } = &section.source else {
             panic!("wfc_arena: every generated section is a catalog prototype");
         };
         let config = sections
@@ -169,7 +168,7 @@ mod stamp_tests {
     /// matching socket. The game accepts that contact; the generator's own
     /// stricter check would flag it, so those drive-to-random-tile pairs are
     /// exempted here and every stamped BEAM mate is still checked.
-    fn refuse_unmated_contacts(hull: &ShipHull, sections: &GameSections) {
+    fn refuse_unmated_contacts(hull: &ShipDesign, sections: &GameSections) {
         let drive = |index: usize| {
             hull.sections[index].id.starts_with("large_drive_")
                 && !hull.sections[index].id.starts_with("large_drive_support_")
@@ -206,13 +205,13 @@ mod stamp_tests {
             (1, "vector_thruster_section", 2),
             (2, "vector_thruster_section", 3),
         ] {
-            let mut hull = ShipHull::default();
+            let mut hull = ShipDesign::default();
             stamp_large_drives(&mut hull, seed, &sections, tiles.grid());
             assert_eq!(
                 hull.sections
                     .iter()
                     .filter(|section| {
-                        matches!(&section.source, SectionSource::Prototype(id) if id == prototype)
+                        matches!(&section.source, SectionSource::Prototype { id, .. } if id == prototype)
                     })
                     .count(),
                 count,
@@ -290,7 +289,7 @@ mod stamp_tests {
     #[test]
     fn arena_stamp_replaces_only_the_central_support_beam() {
         let (sections, tiles) = catalog_tiles();
-        let mut hull = ShipHull {
+        let mut hull = ShipDesign {
             sections: vec![
                 stamped_section(
                     "old_support_cell".to_string(),

@@ -390,7 +390,6 @@ fn lower_ship(
                 position: transform.translation,
                 rotation: transform.rotation,
                 source: section.source.clone(),
-                modifications: section.modifications.clone(),
             })
             .collect(),
         inputs: placed
@@ -495,25 +494,29 @@ pub(crate) enum HullForm {
     Prototype,
 }
 
-/// The hull a lowered ship spawns, in the form asked for.
+/// The design a lowered ship spawns, in the form asked for.
 ///
 /// A design with no node behind it falls back to `Inline` whatever was asked:
-/// a prototype reference to nothing spawns nothing, and the empty hull an
-/// untouched editor hands over has to stay an empty hull.
-fn hull_of(ship: &LoweredShip, form: HullForm) -> ShipSource {
+/// a prototype reference to nothing spawns nothing, and the empty design an
+/// untouched editor hands over has to stay an empty design.
+fn hull_of(ship: &LoweredShip, form: HullForm) -> ShipDesignSource {
     match form {
-        HullForm::Prototype if !ship.id.is_empty() => ShipSource::Prototype(ship.id.clone()),
-        _ => ShipSource::Inline(ship_hull(ship)),
+        HullForm::Prototype if !ship.id.is_empty() => ShipDesignSource::prototype(ship.id.clone()),
+        _ => ShipDesignSource::Inline(ship_design(ship)),
     }
 }
 
-/// The design itself: what is intrinsic to the hull, apart from any one spawn.
-pub(crate) fn ship_hull(ship: &LoweredShip) -> ShipHull {
-    ShipHull {
+/// The design itself: what is intrinsic to the design, apart from any one
+/// spawn.
+pub(crate) fn ship_design(ship: &LoweredShip) -> ShipDesign {
+    ShipDesign {
         sections: ship.sections.clone(),
-        skin: ship.skin,
-        style: ship.style.clone(),
-        collapse_sound: Some(AssetRef::from(SHIP_COLLAPSE_SOUND)),
+        presentation: ShipPresentationConfig {
+            skin: ship.skin,
+            style: ship.style.clone(),
+            collapse_sound: Some(AssetRef::from(SHIP_COLLAPSE_SOUND)),
+            ..default()
+        },
         ..default()
     }
 }
@@ -684,8 +687,7 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
         id: id.to_string(),
         position: offset,
         rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype(prototype.to_string()),
-        modifications: vec![],
+        source: SectionSource::prototype(prototype),
     };
 
     ScenarioObjectConfig {
@@ -697,7 +699,7 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![
                     hull("spine", Vec3::ZERO, REINFORCED_HULL_SECTION_ID),
                     hull("bow", Vec3::new(0.0, 0.0, -1.0), LIGHT_HULL_SECTION_ID),
@@ -729,8 +731,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
             id: id.to_string(),
             position: offset,
             rotation,
-            source: SectionSource::Prototype(prototype.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(prototype),
         };
 
     ScenarioObjectConfig {
@@ -751,7 +752,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                 // gives the player a beat before the guns bear.
                 ..default()
             }),
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![
                     section(
                         "controller",
@@ -906,7 +907,7 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             // What the builder saw is what they fly. The editor shows the same
             // derived skin over the same structure, so the flown ship must not
             // come up bare (or skinned) against it.
-            hull: hull_of(player, form),
+            design: hull_of(player, form),
             ..default()
         }),
     }
@@ -937,7 +938,7 @@ fn standing_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: ship.allegiance,
             controller,
-            hull: hull_of(ship, form),
+            design: hull_of(ship, form),
             ..default()
         }),
     }
@@ -1743,13 +1744,13 @@ mod tests {
                 hulk.base.id
             );
             assert_eq!(ship.allegiance, None, "'{}' takes no side", hulk.base.id);
-            let ShipSource::Inline(hull) = &ship.hull else {
+            let ShipDesignSource::Inline(hull) = &ship.design else {
                 panic!("'{}' authors its hull inline", hulk.base.id);
             };
             assert!(
                 hull.sections.iter().all(|section| matches!(
                     &section.source,
-                    SectionSource::Prototype(id) if id.contains("hull")
+                    SectionSource::Prototype { id, .. } if id.contains("hull")
                 )),
                 "'{}' is hull only",
                 hulk.base.id
@@ -1781,13 +1782,13 @@ mod tests {
                 "'{}' carries a live AI pilot while dormant",
                 picket.id
             );
-            let ShipSource::Inline(hull) = &ship.hull else {
+            let ShipDesignSource::Inline(hull) = &ship.design else {
                 panic!("'{}' authors its hull inline", picket.id);
             };
             assert!(
                 hull.sections.iter().any(|section| matches!(
                     &section.source,
-                    SectionSource::Prototype(id) if id.contains("turret")
+                    SectionSource::Prototype { id, .. } if id.contains("turret")
                 )),
                 "'{}' has something to fight with once woken",
                 picket.id
@@ -1856,12 +1857,12 @@ mod tests {
             let ScenarioObjectKind::Spaceship(ship) = &find(&objects, picket.id).kind else {
                 panic!("'{}' should be a spaceship", picket.id);
             };
-            let ShipSource::Inline(hull) = &ship.hull else {
+            let ShipDesignSource::Inline(hull) = &ship.design else {
                 panic!("'{}' authors its hull inline", picket.id);
             };
             let mounts = |prototype: &str| {
                 hull.sections.iter().any(|section| {
-                    matches!(&section.source, SectionSource::Prototype(id) if id == prototype)
+                    matches!(&section.source, SectionSource::Prototype { id, .. } if id == prototype)
                 })
             };
 
@@ -2042,8 +2043,7 @@ mod tests {
             id: "hull_1".to_string(),
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype(LIGHT_HULL_SECTION_ID.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(LIGHT_HULL_SECTION_ID),
         };
         let fleet = LoweredFleet {
             player: LoweredShip::default(),
@@ -2127,8 +2127,7 @@ mod tests {
             id: "hull_1".to_string(),
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype(LIGHT_HULL_SECTION_ID.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(LIGHT_HULL_SECTION_ID),
         };
         let heading = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         let listing = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
@@ -2246,11 +2245,11 @@ mod tests {
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {
                 panic!("the player object is a spaceship");
             };
-            let ShipSource::Inline(hull) = &ship.hull else {
-                panic!("the editor hands off an inline hull");
+            let ShipDesignSource::Inline(design) = &ship.design else {
+                panic!("the editor hands off an inline design");
             };
             assert_eq!(
-                hull.skin, skinned,
+                design.presentation.skin, skinned,
                 "the editor's toggle decides whether the flown ship wears a skin"
             );
         }

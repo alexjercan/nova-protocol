@@ -52,7 +52,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_gunship"),
+                            design: Prototype(id: "block_gunship"),
                             controller: Player((
                                 input_mapping: {
                                     "pdc_forward_port": [Keyboard(KeyU)],
@@ -133,7 +133,7 @@
                             rotation: (0.0, 0.38268343, 0.0, 0.92387953),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_hauler"),
+                            design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                         )),

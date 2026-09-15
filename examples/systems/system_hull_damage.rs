@@ -354,7 +354,6 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let ship = SpaceshipConfig {
@@ -366,7 +365,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // A four-section spine plus one side-mounted hull. This established
         // range keeps a simple leaf removal for its COM assertions; the
         // `system_section_severing` range owns interior cuts and wreck-body motion.
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     "controller",

@@ -151,7 +151,7 @@ pub(crate) fn insert_preview_object(
     object: &ObjectNode,
     art: &mut PreviewArt,
     sections: Option<&GameSections>,
-    ships: Option<&GameShips>,
+    ships: Option<&GameShipDesigns>,
 ) {
     match &object.kind {
         // Translucent, because an anchor has no body at all: what is drawn is
@@ -247,15 +247,18 @@ pub(crate) fn insert_preview_object(
         // not one per section: the object is edited as a unit, and a hit has to
         // land on a view whose parent is the node.
         ScenarioObjectKind::Spaceship(spaceship) => {
-            // An empty catalog to resolve against, so a rig with no `GameShips`
-            // still draws the hulls that carry their own sections inline.
-            let empty = GameShips::default();
-            let placed = spaceship
-                .hull
-                .resolve(ships.unwrap_or(&empty))
-                .map(|hull| hull.sections.as_slice())
-                .unwrap_or_default();
-            let (centre, extents) = hull_bounds(placed, sections);
+            // Empty catalogs to resolve against, so a rig with no
+            // `GameShipDesigns` still draws the designs that carry their own
+            // sections inline. Resolved exactly as the spawn will build it,
+            // patches included: a patch can move a section, and the box has to
+            // reach where the section will actually stand.
+            let (no_designs, no_sections) = (GameShipDesigns::default(), GameSections::default());
+            let (design, _) = resolve_ship_design(
+                &spaceship.design,
+                ships.unwrap_or(&no_designs),
+                sections.unwrap_or(&no_sections),
+            );
+            let (centre, extents) = hull_bounds(&design.sections);
             // A COMPOUND of one box, because the merged bounds of a hull are
             // not centred on its node: a ship whose drive hangs off the stern
             // has more behind the origin than in front of it, and a bare
@@ -265,18 +268,14 @@ pub(crate) fn insert_preview_object(
                 Quat::IDENTITY,
                 Collider::cuboid(extents.x, extents.y, extents.z),
             )]));
-            let placed: Vec<SpaceshipSectionConfig> = placed.to_vec();
             entity.with_children(|parent| {
-                for section in &placed {
-                    let Some(config) = section.source.resolve(sections) else {
-                        continue;
-                    };
+                for section in &design.sections {
                     let mut child = parent.spawn((
                         Transform::from_translation(section.position)
                             .with_rotation(section.rotation),
                         Visibility::Inherited,
                     ));
-                    insert_preview_section(&mut child, config, PreviewRole::Display);
+                    insert_preview_section(&mut child, &section.config, PreviewRole::Display);
                 }
             });
         }
@@ -352,16 +351,11 @@ fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
 /// An empty hull, or one whose every prototype a mod overlay dropped, falls
 /// back to the unit cell centred on the node, so it is still something a click
 /// can reach. The extents never go below one cell for the same reason.
-fn hull_bounds(
-    sections: &[SpaceshipSectionConfig],
-    catalog: Option<&GameSections>,
-) -> (Vec3, Vec3) {
+fn hull_bounds(sections: &[ResolvedSection]) -> (Vec3, Vec3) {
     let mut merged: Option<(Vec3, Vec3)> = None;
     for section in sections {
-        let Some(config) = section.source.resolve(catalog) else {
-            continue;
-        };
-        let half = config
+        let half = section
+            .config
             .base
             .collider
             .unwrap_or_default()
@@ -588,13 +582,12 @@ mod tests {
     }
 
     /// A section entry standing where it is placed, turned how it is turned.
-    fn placed(source: SectionSource, position: Vec3, rotation: Quat) -> SpaceshipSectionConfig {
-        SpaceshipSectionConfig {
+    fn placed(config: SectionConfig, position: Vec3, rotation: Quat) -> ResolvedSection {
+        ResolvedSection {
             id: "section".to_string(),
             position,
             rotation,
-            source,
-            modifications: Vec::new(),
+            config,
         }
     }
 
@@ -627,16 +620,9 @@ mod tests {
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
         };
-        let catalog = GameSections(vec![drive]);
-        let stern = |rotation| {
-            vec![placed(
-                SectionSource::Prototype("drive".to_string()),
-                Vec3::new(0.0, 0.0, 4.0),
-                rotation,
-            )]
-        };
+        let stern = |rotation| vec![placed(drive.clone(), Vec3::new(0.0, 0.0, 4.0), rotation)];
 
-        let (centre, square) = hull_bounds(&stern(Quat::IDENTITY), Some(&catalog));
+        let (centre, square) = hull_bounds(&stern(Quat::IDENTITY));
         assert_eq!(
             centre,
             Vec3::new(0.0, 0.0, 4.0),
@@ -645,10 +631,7 @@ mod tests {
         assert_eq!(square, Vec3::new(3.0, 3.0, 2.0), "at its authored size");
 
         // A quarter turn about Y swaps the section's X and Z reach.
-        let (_, turned) = hull_bounds(
-            &stern(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
-            Some(&catalog),
-        );
+        let (_, turned) = hull_bounds(&stern(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)));
         assert!(
             (turned.x - 2.0).abs() < 1e-4 && (turned.z - 3.0).abs() < 1e-4,
             "the turn has to reach the box (got {turned:?})"
@@ -660,19 +643,11 @@ mod tests {
     #[test]
     fn an_off_centre_hull_is_bounded_where_it_actually_stands() {
         let hull = vec![
-            placed(
-                SectionSource::Inline(unit_hull()),
-                Vec3::ZERO,
-                Quat::IDENTITY,
-            ),
-            placed(
-                SectionSource::Inline(unit_hull()),
-                Vec3::new(0.0, 0.0, -10.0),
-                Quat::IDENTITY,
-            ),
+            placed(unit_hull(), Vec3::ZERO, Quat::IDENTITY),
+            placed(unit_hull(), Vec3::new(0.0, 0.0, -10.0), Quat::IDENTITY),
         ];
 
-        let (centre, extents) = hull_bounds(&hull, None);
+        let (centre, extents) = hull_bounds(&hull);
 
         assert_eq!(centre, Vec3::new(0.0, 0.0, -5.0));
         assert_eq!(extents, Vec3::new(1.0, 1.0, 11.0));
@@ -681,7 +656,7 @@ mod tests {
     /// An empty or unresolved hull is still something a click can reach.
     #[test]
     fn a_hull_with_nothing_resolved_keeps_a_unit_cell() {
-        let (centre, extents) = hull_bounds(&[], None);
+        let (centre, extents) = hull_bounds(&[]);
 
         assert_eq!(centre, Vec3::ZERO);
         assert_eq!(extents, Vec3::ONE);

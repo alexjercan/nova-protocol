@@ -234,10 +234,10 @@ fn gunner(sections: &GameSections) -> SpaceshipConfig {
 fn derelict(sections: &GameSections) -> SpaceshipConfig {
     let _ = sections;
     SpaceshipConfig {
-        hull: ShipSource::Prototype("block_skiff".to_string()),
+        design: ShipDesignSource::prototype("block_skiff"),
         controller: SpaceshipController::None,
         allegiance: Some(Allegiance::Neutral),
-        modifications: vec![],
+        ..default()
     }
 }
 

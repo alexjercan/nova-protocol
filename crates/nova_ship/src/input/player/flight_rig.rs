@@ -8,7 +8,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
 use crate::{
-    flight::{ship_grants_verb, LiveFlightComputers},
+    flight::{ship_capabilities, ShipCapabilityQuery},
     input::targeting::{
         ComponentCycleNextInput, ComponentCyclePrevInput, RadarClearInput, RadarHoldInput,
     },
@@ -354,7 +354,7 @@ pub(super) fn on_autopilot_stop_input(
     _: On<Start<AutopilotStopInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
-    q_verbs: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -364,23 +364,24 @@ pub(super) fn on_autopilot_stop_input(
 
     let (entity, autopilot) = ship.into_inner();
     match autopilot.map(|ap| ap.action) {
-        // Toggle off an active STOP... (disengage stays ungated so a verb
-        // disabled mid-maneuver can never strand the ship braking).
+        // Toggle off an active STOP... (disengage stays ungated so a
+        // capability withdrawn mid-maneuver can never strand the ship
+        // braking).
         Some(AutopilotAction::Stop) => {
             debug!("on_autopilot_stop_input: disengaging STOP");
             commands.entity(entity).remove::<Autopilot>();
         }
         //...but braking overrides any other maneuver (or engages fresh) -
-        // only if a live controller on this ship grants STOP. No controller,
-        // or STOP withheld, and the press is a no-op (matches the dark hint).
-        _ if ship_grants_verb(entity, FlightVerb::Stop, &q_verbs) => {
+        // only if this ship has STOP. Withheld, and the press is a no-op
+        // (matches the dark hint).
+        _ if ship_capabilities(entity, &q_capabilities).stop_enabled => {
             debug!("on_autopilot_stop_input: engaging STOP");
             commands
                 .entity(entity)
                 .insert(Autopilot::engage(AutopilotAction::Stop));
         }
         _ => {
-            debug!("on_autopilot_stop_input: STOP not granted by a controller");
+            debug!("on_autopilot_stop_input: STOP is not enabled on this ship");
         }
     }
 }
@@ -389,7 +390,7 @@ pub(super) fn on_autopilot_goto_input(
     _: On<Start<AutopilotGotoInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>, Option<&TravelLock>), With<PlayerSpaceshipMarker>>,
-    q_verbs: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -411,11 +412,11 @@ pub(super) fn on_autopilot_goto_input(
         return;
     }
 
-    // GOTO is granted by the controller: no live controller enabling it (the
-    // shakedown withholds it until the first objective) and the press is a
-    // no-op, matching the dark hint.
-    if !ship_grants_verb(entity, FlightVerb::Goto, &q_verbs) {
-        debug!("on_autopilot_goto_input: GOTO not granted by a controller");
+    // GOTO is the ship's own capability: withheld (the tutorial holds it
+    // back until the first lesson) and the press is a no-op, matching the
+    // dark hint.
+    if !ship_capabilities(entity, &q_capabilities).goto_enabled {
+        debug!("on_autopilot_goto_input: GOTO is not enabled on this ship");
         return;
     }
 
@@ -438,7 +439,7 @@ pub(super) fn on_autopilot_orbit_input(
     _: On<Start<AutopilotOrbitInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
-    q_verbs: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -449,7 +450,8 @@ pub(super) fn on_autopilot_orbit_input(
     let (entity, autopilot, dominant) = ship.into_inner();
 
     // Already orbiting? O toggles the parking off. Disengage stays ungated so
-    // a verb disabled mid-orbit can never strand the ship station-keeping.
+    // a capability withdrawn mid-orbit can never strand the ship
+    // station-keeping.
     if let Some(Autopilot {
         action: AutopilotAction::Orbit { .. },
         ..
@@ -460,10 +462,10 @@ pub(super) fn on_autopilot_orbit_input(
         return;
     }
 
-    // ORBIT is granted by the controller: no live controller enabling it and
-    // the press is a no-op, matching the dark hint.
-    if !ship_grants_verb(entity, FlightVerb::Orbit, &q_verbs) {
-        debug!("on_autopilot_orbit_input: ORBIT not granted by a controller");
+    // ORBIT is the ship's own capability: withheld and the press is a no-op,
+    // matching the dark hint.
+    if !ship_capabilities(entity, &q_capabilities).orbit_enabled {
+        debug!("on_autopilot_orbit_input: ORBIT is not enabled on this ship");
         return;
     }
 
@@ -507,14 +509,14 @@ pub(super) fn on_autopilot_off_input(
 }
 
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
-/// grants the RCS verb, mark it [`RcsActive`] (the modal gate the helm, camera
+/// has the RCS capability, mark it [`RcsActive`] (the modal gate the helm, camera
 /// and scroll all read) and disengage any autopilot - entering RCS is a flight
 /// input, exactly like grabbing the throttle (`on_flight_burn_input`).
 pub(super) fn on_rcs_modifier_start(
     _: On<Start<RcsModifierInput>>,
     mut commands: Commands,
     ship: Single<Entity, With<PlayerSpaceshipMarker>>,
-    q_verbs: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -522,8 +524,8 @@ pub(super) fn on_rcs_modifier_start(
         return;
     }
     let entity = *ship;
-    if !ship_grants_verb(entity, FlightVerb::Rcs, &q_verbs) {
-        debug!("on_rcs_modifier_start: RCS not granted by a controller");
+    if !ship_capabilities(entity, &q_capabilities).rcs_enabled {
+        debug!("on_rcs_modifier_start: RCS is not enabled on this ship");
         return;
     }
     debug!("on_rcs_modifier_start: entering RCS fine-adjust");
@@ -800,10 +802,10 @@ mod tests {
 
     /// End-to-end through the REAL flight rig and EnhancedInputPlugin: a GOTO
     /// keypress engages the autopilot only when a live controller grants GOTO.
-    /// With the verb withheld the press is a no-op even with a valid lock; the
-    /// gate deleted, the first press would engage and this test would fail.
+    /// With the capability off the press is a no-op even with a valid lock;
+    /// the gate deleted, the first press would engage and this test would fail.
     #[test]
-    fn goto_keypress_is_gated_by_the_controller_verb_flag() {
+    fn goto_keypress_is_gated_by_the_ship_capability() {
         use bevy::input::InputPlugin;
 
         let mut app = App::new();
@@ -814,11 +816,12 @@ mod tests {
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_autopilot_goto_input);
 
-        // A player ship whose controller withholds GOTO, plus a valid lock.
-        let (ship, controller) = spawn_flyable_ship(app.world_mut());
-        app.world_mut()
-            .entity_mut(controller)
-            .insert(WithheldVerbs([FlightVerb::Goto].into_iter().collect()));
+        // A player ship that cannot GOTO, plus a valid lock.
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut().entity_mut(ship).insert(ShipCapabilities {
+            goto_enabled: false,
+            ..default()
+        });
         let target = app.world_mut().spawn_empty().id();
         app.world_mut()
             .entity_mut(ship)
@@ -832,7 +835,7 @@ mod tests {
         spawn_flight_rig(&mut app);
         app.update();
 
-        // Press G with GOTO withheld: nothing engages.
+        // Press G with GOTO off: nothing engages.
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyG);
@@ -840,17 +843,17 @@ mod tests {
         app.update();
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
-            "GOTO withheld: the keypress must not engage the autopilot"
+            "GOTO off: the keypress must not engage the autopilot"
         );
 
-        // Release, grant GOTO, press again: now it engages on the lock.
+        // Release, turn GOTO back on, press again: now it engages on the lock.
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .release(KeyCode::KeyG);
         app.update();
         app.world_mut()
-            .entity_mut(controller)
-            .insert(WithheldVerbs::default());
+            .entity_mut(ship)
+            .insert(ShipCapabilities::default());
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyG);
@@ -861,7 +864,7 @@ mod tests {
                 app.world().get::<Autopilot>(ship).map(|ap| ap.action),
                 Some(AutopilotAction::Goto { target: t }) if t == target
             ),
-            "GOTO granted: the keypress engages GOTO on the lock"
+            "GOTO on: the keypress engages GOTO on the lock"
         );
     }
 
@@ -1004,11 +1007,11 @@ mod tests {
         );
     }
 
-    /// RCS is a controller verb: SHIFT on a ship whose controller withholds
-    /// `Rcs` does not enter the mode. Deleting the `ship_grants_verb` gate would
-    /// engage it here and fail the test.
+    /// RCS is a ROOT capability: SHIFT on a ship without it does not enter the
+    /// mode. Deleting the `ship_capabilities` gate would engage it here and
+    /// fail the test.
     #[test]
-    fn rcs_shift_is_gated_by_the_controller_verb() {
+    fn rcs_shift_is_gated_by_the_ship_capability() {
         use bevy::input::InputPlugin;
 
         let mut app = App::new();
@@ -1018,10 +1021,11 @@ mod tests {
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_rcs_modifier_start);
 
-        let (ship, controller) = spawn_flyable_ship(app.world_mut());
-        app.world_mut()
-            .entity_mut(controller)
-            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut().entity_mut(ship).insert(ShipCapabilities {
+            rcs_enabled: false,
+            ..default()
+        });
 
         app.finish();
         app.cleanup();
@@ -1036,7 +1040,7 @@ mod tests {
         app.update();
         assert!(
             app.world().get::<RcsActive>(ship).is_none(),
-            "RCS withheld: SHIFT must not enter fine-adjust"
+            "RCS off: SHIFT must not enter fine-adjust"
         );
     }
 
@@ -1251,17 +1255,17 @@ mod tests {
         );
     }
 
-    /// A controller with no `WithheldVerbs` component must stay flyable and
-    /// grant every verb - the withheld set is decoupled from `flyable`, so a
-    /// missing component falls back to the all-granted default and never bricks
-    /// the ship. This is the production default (a controller carries
-    /// `WithheldVerbs` only once a `DisableVerb`/`SetControllerVerb` touches it).
+    /// A root with no `ShipCapabilities` component must stay flyable and offer
+    /// every maneuver - capability is decoupled from `flyable`, so a missing
+    /// component falls back to the all-enabled default and never bricks the
+    /// ship. This is the production default (a root carries `ShipCapabilities`
+    /// only once the content authors one or a `SetShipCapability*` action runs).
     /// Guards the fail-closed hazard.
     #[test]
-    fn controller_without_verb_flags_is_flyable_and_grants_all_verbs() {
+    fn a_root_without_capabilities_is_flyable_and_offers_every_maneuver() {
         let mut world = hint_world();
-        // A live controller WITHOUT WithheldVerbs, plus a thruster: the
-        // production default, matching a controller no modification has touched.
+        // A live controller and a thruster, and NO ShipCapabilities on the
+        // root: the production default for content that authors none.
         let ship = world.spawn(PlayerSpaceshipMarker).id();
         world.spawn((
             ChildOf(ship),
@@ -1282,9 +1286,15 @@ mod tests {
 
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
-        assert!(hints.stop.available, "flyable despite no flags component");
-        assert!(hints.goto.available, "GOTO defaults on without flags");
-        assert!(hints.orbit.available, "ORBIT defaults on without flags");
+        assert!(hints.stop.available, "flyable despite no capabilities");
+        assert!(
+            hints.goto.available,
+            "GOTO defaults on without capabilities"
+        );
+        assert!(
+            hints.orbit.available,
+            "ORBIT defaults on without capabilities"
+        );
     }
 
     /// The RCS sensitivity scales the MOUSE half of fine-adjust and nothing

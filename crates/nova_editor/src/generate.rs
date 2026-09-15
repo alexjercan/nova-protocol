@@ -17,7 +17,7 @@
 //! made the player's.
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
-use nova_scenario::prelude::ShipHull;
+use nova_scenario::prelude::ShipDesign;
 use nova_ship::prelude::{
     GameGrammars, GameSections, GameStyles, GrammarGrid, GrammarPart, GrammarZone,
     SectionFootprint, SectionKind, ShipGrammarConfig, STANDARD_HULL_GRAMMAR_ID,
@@ -219,7 +219,6 @@ pub(crate) fn generate_ship(
     for section in hull.sections {
         let bare = SectionNode {
             source: section.source,
-            modifications: section.modifications,
             binds: vec![],
         };
         // The keys the flight HUD names, on the parts that answer to them. A
@@ -403,7 +402,7 @@ fn collapse(
     seed: u64,
     clad: bool,
     wears: Option<&str>,
-) -> Result<ShipHull, String> {
+) -> Result<ShipDesign, String> {
     let tiles = TileSet::build(sections, grammar)?;
     // Resolved the way the build view resolves it (`skin::editor_style`): the
     // ship's own style, or the first the content merge loaded where the ship

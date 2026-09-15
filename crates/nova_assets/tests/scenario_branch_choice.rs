@@ -57,7 +57,7 @@ const SCENARIO_RON: &str = r#"[
                         base: (id: "spaceship_1", name: "Ship One", position: (0.0, 0.0, 400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: Player(()),
-                            hull: Inline((sections: [])),
+                            design: Inline((sections: [])),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -87,7 +87,7 @@ const SCENARIO_RON: &str = r#"[
                         base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 300.0, -2600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: AI((engage_delay: Some(8.0))),
-                            hull: Inline((sections: [])),
+                            design: Inline((sections: [])),
                         )),
                     )),
                 ],

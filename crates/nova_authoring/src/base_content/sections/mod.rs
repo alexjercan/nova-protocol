@@ -156,8 +156,10 @@ mod ordnance_tests {
                         bay.projectile_lifetime,
                         bay.projectile_health,
                         bay.fire_rate,
-                        bay.ammo_capacity,
-                        bay.reload.map(|reload| (reload.delay, reload.amount)),
+                        bay.ammunition,
+                        bay.reload
+                            .batch()
+                            .map(|reload| (reload.delay, reload.amount)),
                     )
                 };
                 assert_eq!(
@@ -244,7 +246,7 @@ mod ammunition_tests {
     /// Ammunition here is a RATE LIMIT, not a budget. A weapon that carries a
     /// magazine and no way to refill it leaves a ship alive with nothing to
     /// fight with, which strands an engagement rather than resolving it.
-    /// Unlimited (`ammo_capacity: None`) is a separate, deliberate authoring
+    /// Unlimited (`ammunition: AmmoCapacity::Unlimited`) is a separate, deliberate authoring
     /// choice and is not what this grades.
     #[test]
     fn every_authored_magazine_refills() {
@@ -252,15 +254,17 @@ mod ammunition_tests {
         let mut graded = 0;
         for section in section_catalog(&assets) {
             let (capacity, reload) = match &section.kind {
-                SectionKind::Turret(turret) => (turret.ammo_capacity, turret.reload),
-                SectionKind::Torpedo(bay) => (bay.ammo_capacity, bay.reload),
-                SectionKind::Railgun(lance) => (lance.ammo_capacity, lance.reload),
+                SectionKind::Turret(turret) => (turret.ammunition, turret.reload),
+                SectionKind::Torpedo(bay) => (bay.ammunition, bay.reload),
+                SectionKind::Railgun(lance) => (lance.ammunition, lance.reload),
                 _ => continue,
             };
-            let Some(capacity) = capacity else { continue };
+            let Some(capacity) = capacity.rounds() else {
+                continue;
+            };
             graded += 1;
             assert!(
-                reload.is_some(),
+                reload.batch().is_some(),
                 "'{}' carries {capacity} rounds and no reload - once they are \
                  gone the section is dead weight that still flies",
                 section.base.id
@@ -294,9 +298,9 @@ mod ammunition_tests {
                     return None;
                 };
                 let rounds = sustained_per_second(
-                    turret.ammo_capacity?,
+                    turret.ammunition.rounds()?,
                     tree_fire_rate(&turret.root),
-                    &turret.reload?,
+                    &turret.reload.batch()?,
                 );
                 Some((
                     section.base.id.as_str(),
@@ -313,7 +317,8 @@ mod ammunition_tests {
             };
             // Unlimited authoring or testing bays have no sustained reload
             // cadence to grade here.
-            let (Some(capacity), Some(reload)) = (bay.ammo_capacity, bay.reload) else {
+            let (Some(capacity), Some(reload)) = (bay.ammunition.rounds(), bay.reload.batch())
+            else {
                 continue;
             };
             graded += 1;

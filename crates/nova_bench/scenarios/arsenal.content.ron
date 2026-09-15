@@ -38,7 +38,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_warship"),
+                            design: Prototype(id: "block_warship"),
                             controller: Player((
                                 input_mapping: {
                                     "railgun_port": [Keyboard(KeyQ)],
@@ -88,7 +88,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_hauler"),
+                            design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                         )),
@@ -101,7 +101,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_carrier"),
+                            design: Prototype(id: "block_carrier"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                         )),
@@ -114,7 +114,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_raider"),
+                            design: Prototype(id: "block_raider"),
                             controller: AI((
                                 engage_delay: Some(60.0),
                                 leash: Some(9000.0),

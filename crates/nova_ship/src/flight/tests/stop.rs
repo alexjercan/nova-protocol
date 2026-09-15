@@ -11,7 +11,7 @@ use crate::prelude::*;
 fn stop_flips_the_hull_and_kills_velocity_with_no_external_force() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
     // Coasting sideways: the nose (-Z) must physically swing ~90 degrees
     // to point retrograde before the drive can brake anything.
@@ -93,7 +93,7 @@ fn scratch_scenario_built_ship_autopilot_thrusts() {
         ))
         .id();
     settle(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
 
     // Diagnose the exact conditions the autopilot's thruster query needs.
     println!(
@@ -146,7 +146,7 @@ fn scratch_scenario_built_ship_autopilot_thrusts() {
 fn high_speed_stop_settles_without_tumbling() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
     app.world_mut()
         .entity_mut(ship)
@@ -187,7 +187,7 @@ fn high_speed_stop_settles_without_tumbling() {
 fn retro_group_brakes_a_small_overspeed_without_flipping() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     spawn_extra_thruster(
         &mut app,
         ship,
@@ -223,7 +223,7 @@ fn retro_group_brakes_a_small_overspeed_without_flipping() {
 fn large_burn_still_flips_to_the_main_drive() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     spawn_extra_thruster(
         &mut app,
         ship,
@@ -255,7 +255,7 @@ fn large_burn_still_flips_to_the_main_drive() {
 fn side_thruster_kills_a_lateral_crumb_in_the_deadband() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     // Thrust toward -X (local -Z rotated +90 degrees about Y).
     spawn_extra_thruster(
         &mut app,
@@ -292,7 +292,7 @@ fn side_thruster_kills_a_lateral_crumb_in_the_deadband() {
 fn a_dead_retro_falls_back_to_the_flip() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     let retro = spawn_extra_thruster(
         &mut app,
         ship,
@@ -335,7 +335,7 @@ fn a_dead_retro_falls_back_to_the_flip() {
 fn stop_accepts_a_crumb_without_pirouetting() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
-    withhold_rcs(&mut app, ship);
+    disable_rcs(&mut app, ship);
     settle(&mut app);
     // Slow lateral creep, inside the crumb band; killing it would need a
     // ~90 degree pirouette. ABOVE the telemetry publish gate

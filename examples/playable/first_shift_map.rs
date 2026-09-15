@@ -151,7 +151,7 @@ fn load_map(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
     pilot: Res<Pilot>,
 ) {
     let scenario = map_scenario(&game_assets, *pilot);
@@ -374,7 +374,7 @@ fn ship_object(
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
-            hull: hull(ship),
+            design: design(ship),
             ..default()
         }),
     }
@@ -429,12 +429,12 @@ fn crate_object(index: usize, position: Meters3) -> ScenarioObjectConfig {
     }
 }
 
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShips) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShipDesigns) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::from_configs(ships.iter()),
+        &KnownShipDesigns::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
         &build_channels()
             .into_iter()

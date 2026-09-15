@@ -83,24 +83,24 @@ pub struct BaseContentAssets {
     /// four separable events so a pilot can hear how far through it is.
     pub railgun_reload_sound: AssetRef<AudioSource>,
 
-    /// The controller's radar/lock/safety feedback cues.
-    pub controller_lock_on_sound: AssetRef<AudioSource>,
-    pub controller_lock_off_sound: AssetRef<AudioSource>,
-    pub controller_radar_deny_sound: AssetRef<AudioSource>,
-    pub controller_radar_retarget_sound: AssetRef<AudioSource>,
-    pub controller_safety_on_sound: AssetRef<AudioSource>,
+    /// The ship's radar/lock/safety feedback cues, spoken from the root.
+    pub ship_lock_on_sound: AssetRef<AudioSource>,
+    pub ship_lock_off_sound: AssetRef<AudioSource>,
+    pub ship_radar_deny_sound: AssetRef<AudioSource>,
+    pub ship_radar_retarget_sound: AssetRef<AudioSource>,
+    pub ship_safety_on_sound: AssetRef<AudioSource>,
     /// The threat alarm: a hostile has this ship in its combat lock.
-    pub controller_warn_lock_sound: AssetRef<AudioSource>,
+    pub ship_warn_lock_sound: AssetRef<AudioSource>,
     /// The magazine gauge inside the cockpit, alongside the gun's own
     /// dead-trigger click out on the mount.
-    pub controller_ammo_dry_sound: AssetRef<AudioSource>,
+    pub ship_ammo_dry_sound: AssetRef<AudioSource>,
     /// The hull alarm. Everything `warn_lock` is, an octave down and half the
     /// speed - slower is more serious, which is the opposite of how alarms
     /// usually escalate and is why this one lands.
-    pub controller_warn_hull_sound: AssetRef<AudioSource>,
-    /// The controller's RCS fine-adjust loop: plays while the RCS primitive
-    /// burns, player- or autopilot-driven.
-    pub controller_rcs_loop_sound: AssetRef<AudioSource>,
+    pub ship_warn_hull_sound: AssetRef<AudioSource>,
+    /// The ship's RCS fine-adjust loop: plays while the RCS primitive burns,
+    /// player- or autopilot-driven.
+    pub ship_rcs_loop_sound: AssetRef<AudioSource>,
     /// A catalog section failing. Per-target, and it stays per-target: the
     /// structure lets go the same way whatever killed it.
     pub section_destroy_sound: AssetRef<AudioSource>,
@@ -243,17 +243,17 @@ impl BaseContentAssets {
             railgun_charge_sound: AssetRef::from("self://sounds/railgun_charge.wav".to_string()),
             railgun_reload_sound: AssetRef::from("self://sounds/railgun_reload.wav".to_string()),
 
-            controller_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
-            controller_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),
-            controller_radar_deny_sound: AssetRef::from("self://sounds/radar_deny.wav".to_string()),
-            controller_radar_retarget_sound: AssetRef::from(
+            ship_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
+            ship_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),
+            ship_radar_deny_sound: AssetRef::from("self://sounds/radar_deny.wav".to_string()),
+            ship_radar_retarget_sound: AssetRef::from(
                 "self://sounds/radar_retarget.wav".to_string(),
             ),
-            controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
-            controller_warn_lock_sound: AssetRef::from("self://sounds/warn_lock.wav".to_string()),
-            controller_ammo_dry_sound: AssetRef::from("self://sounds/ammo_dry.wav".to_string()),
-            controller_warn_hull_sound: AssetRef::from("self://sounds/warn_hull.wav".to_string()),
-            controller_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
+            ship_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
+            ship_warn_lock_sound: AssetRef::from("self://sounds/warn_lock.wav".to_string()),
+            ship_ammo_dry_sound: AssetRef::from("self://sounds/ammo_dry.wav".to_string()),
+            ship_warn_hull_sound: AssetRef::from("self://sounds/warn_hull.wav".to_string()),
+            ship_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
             impact_kinetic_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             impact_kinetic_rock_sound: AssetRef::from("self://sounds/impact_rock.wav".to_string()),

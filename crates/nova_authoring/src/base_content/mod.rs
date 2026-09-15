@@ -6,7 +6,7 @@
 //! helpers, lint, and serialization tooling stay outside both.
 
 use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
-use nova_scenario::prelude::{ScenarioConfig, ShipConfig};
+use nova_scenario::prelude::{ScenarioConfig, ShipDesignPrototype};
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 
 pub(crate) mod assets;
@@ -23,7 +23,7 @@ use assets::BaseContentAssets;
 /// Complete built-in content before it is wrapped and serialized as mod items.
 pub(crate) struct BaseContent {
     pub(crate) sections: Vec<SectionConfig>,
-    pub(crate) ships: Vec<ShipConfig>,
+    pub(crate) ships: Vec<ShipDesignPrototype>,
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) styles: Vec<ShipStyleConfig>,
     pub(crate) impacts: Vec<ImpactSoundConfig>,

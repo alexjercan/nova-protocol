@@ -14,9 +14,9 @@ use nova_input::prelude::InputSource;
 use nova_mod_format::{BundleManifest, BASE_MOD_ID};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    lint_campaign, lint_scenario, lint_ship_config, CampaignConfig, EventActionConfig,
-    KnownSections, KnownShips, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
-    ShipConfig, SpaceshipController,
+    lint_campaign, lint_scenario, lint_ship_design_config, CampaignConfig, EventActionConfig,
+    KnownSections, KnownShipDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
+    ShipDesignPrototype, SpaceshipController,
 };
 use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig, ShipGrammarConfig};
 
@@ -42,7 +42,7 @@ struct WalkedBundle {
     id: String,
     manifest: BundleManifest,
     sections: Vec<SectionConfig>,
-    ships: Vec<ShipConfig>,
+    ships: Vec<ShipDesignPrototype>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     grammars: Vec<ShipGrammarConfig>,
@@ -241,11 +241,11 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
 
     // Visible ships, same overlay: base + declared dependencies' + this
     // bundle's own, so a scenario may spawn a base hull by id.
-    let ships_by_bundle: HashMap<&str, &[ShipConfig]> = all
+    let ships_by_bundle: HashMap<&str, &[ShipDesignPrototype]> = all
         .iter()
         .map(|b| (b.id.as_str(), b.ships.as_slice()))
         .collect();
-    let mut visible_ships: Vec<&ShipConfig> = ships_by_bundle
+    let mut visible_ships: Vec<&ShipDesignPrototype> = ships_by_bundle
         .get(BASE_MOD_ID)
         .map(|s| s.iter().collect())
         .unwrap_or_default();
@@ -255,7 +255,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         }
     }
     visible_ships.extend(bundle.ships.iter());
-    let known_ships = KnownShips::from_configs(visible_ships);
+    let known_ships = KnownShipDesigns::from_configs(visible_ships);
 
     let mut issues = Vec::new();
     for scenario in &bundle.scenarios {
@@ -274,7 +274,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // disconnected or unresolvable ship is caught even when no scenario spawns
     // it. Same rule the section catalog follows below.
     for ship in &bundle.ships {
-        for issue in lint_ship_config(ship, &known_sections, ship.id.as_str()) {
+        for issue in lint_ship_design_config(ship, &known_sections, ship.id.as_str()) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -404,7 +404,7 @@ pub struct AuditBundle {
     /// The bundle's parsed section configs.
     pub sections: Vec<SectionConfig>,
     /// The bundle's parsed ship configs.
-    pub ships: Vec<ShipConfig>,
+    pub ships: Vec<ShipDesignPrototype>,
     /// The bundle's parsed scenario configs.
     pub scenarios: Vec<ScenarioConfig>,
     /// The balance findings this bundle DECLARES intended, read from its own
@@ -1155,7 +1155,7 @@ mod tests {
                                                         "guns": [ Keyboard(Space) ],
                                                     },
                                                 )),
-                                                hull: Inline((sections: [])),
+                                                design: Inline((sections: [])),
                                             )),
                                         )),
                                     ],

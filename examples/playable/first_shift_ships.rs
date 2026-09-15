@@ -67,7 +67,7 @@ fn load_showcase(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
 ) {
     let scenario = showcase(&game_assets);
     refuse_broken(&scenario, &sections, &ships);
@@ -162,18 +162,18 @@ fn ship_object(id: &str, name: &str, position: Meters3, ship: &str) -> ScenarioO
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            hull: hull(ship),
+            design: design(ship),
             ..default()
         }),
     }
 }
 
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShips) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShipDesigns) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
-        &KnownShips::from_configs(ships.iter()),
+        &KnownShipDesigns::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
         &build_channels()
             .into_iter()

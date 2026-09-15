@@ -1246,6 +1246,7 @@ mod tests {
                     render_mesh: None,
                     render_mesh_transform: None,
                     muzzle: Some(MuzzleConfig {
+                        id: "main".to_string(),
                         fire_rate: 100.0,
                         muzzle_effect: None,
                     }),
@@ -1333,6 +1334,7 @@ mod tests {
                         render_mesh: None,
                         render_mesh_transform: None,
                         muzzle: Some(MuzzleConfig {
+                            id: "main".to_string(),
                             fire_rate: 100.0,
                             muzzle_effect: None,
                         }),

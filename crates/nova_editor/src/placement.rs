@@ -1921,8 +1921,7 @@ mod tests {
             .world_mut()
             .spawn((
                 SectionNode {
-                    source: SectionSource::Prototype("hull".to_string()),
-                    modifications: Vec::new(),
+                    source: SectionSource::prototype("hull"),
                     binds: Vec::new(),
                 },
                 ChildOf(ship),
@@ -1992,8 +1991,7 @@ mod tests {
             .world_mut()
             .spawn((
                 SectionNode {
-                    source: SectionSource::Prototype("hull".to_string()),
-                    modifications: Vec::new(),
+                    source: SectionSource::prototype("hull"),
                     binds: Vec::new(),
                 },
                 NodeId("part_1".to_string()),
@@ -2050,8 +2048,7 @@ mod tests {
             .world_mut()
             .spawn((
                 SectionNode {
-                    source: SectionSource::Prototype("hull".to_string()),
-                    modifications: Vec::new(),
+                    source: SectionSource::prototype("hull"),
                     binds: Vec::new(),
                 },
                 NodeId("part_1".to_string()),

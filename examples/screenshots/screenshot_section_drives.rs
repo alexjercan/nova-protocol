@@ -132,7 +132,6 @@ fn drive_rig(
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
     let bow_face = -cells_z * 0.5;
 
@@ -146,7 +145,7 @@ fn drive_rig(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(ShipHull {
+            design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![
                     at("drive", drive_id, Vec3::ZERO),
                     at(

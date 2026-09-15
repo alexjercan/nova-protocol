@@ -13,8 +13,12 @@
 //! no machinery anywhere else.
 
 use nova_scenario::prelude::{
-    SectionModification, ShipConfig, ShipHull, ShipSectionModification, ShipSource,
-    SpaceshipSectionConfig,
+    SectionId, SectionSource, ShipDesign, ShipDesignPrototype, ShipDesignSource,
+    ShipIntegrityConfig, ShipPresentationConfig, SpaceshipSectionConfig,
+    SpaceshipSectionConfigPatch,
+};
+use nova_ship::prelude::{
+    AmmoCapacity, SectionConfigPatch, SectionKindPatch, TurretSectionConfigPatch,
 };
 
 use super::assets::BaseContentAssets;
@@ -68,7 +72,7 @@ pub const BLOCK_WRECK_SHOULDER_SHIP_ID: &str = "block_wreck_shoulder";
 pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// Every shipped ship, in stable generated-content order.
-pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
+pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototype> {
     vec![
         block_ship(
             assets,
@@ -163,30 +167,49 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
     ]
 }
 
-/// A spawn of one CATALOG ship, by id.
-pub fn hull(id: &str) -> ShipSource {
-    ShipSource::Prototype(id.to_string())
+/// A spawn of one CATALOG design, by id, with nothing patched.
+pub fn design(id: &str) -> ShipDesignSource {
+    ShipDesignSource::prototype(id)
+}
+
+/// A spawn of one CATALOG design with this spawn's own section patches.
+pub(crate) fn patched_design(
+    id: &str,
+    patches: impl IntoIterator<Item = (SectionId, SpaceshipSectionConfigPatch)>,
+) -> ShipDesignSource {
+    ShipDesignSource::Prototype {
+        id: id.to_string(),
+        section_patches: patches.into_iter().collect(),
+    }
 }
 
 /// A one-off copy of the salvage raider for a set piece that changes an
 /// intrinsic hull property without retuning the shared catalog ship.
-pub(crate) fn inline_raider(assets: &BaseContentAssets, collapse_threshold: f32) -> ShipSource {
+pub(crate) fn inline_raider(
+    assets: &BaseContentAssets,
+    collapse_threshold: f32,
+) -> ShipDesignSource {
     let design = block::salvage_raider();
     let style = design.style.to_string();
-    ShipSource::Inline(ShipHull {
+    ShipDesignSource::Inline(ShipDesign {
         sections: design.sections(),
-        collapse_threshold: Some(collapse_threshold),
-        skin: true,
-        style: Some(style),
-        collapse_sound: Some(assets.ship_collapse_sound.clone()),
+        integrity: ShipIntegrityConfig {
+            collapse_threshold: Some(collapse_threshold),
+        },
+        presentation: ShipPresentationConfig {
+            skin: true,
+            style: Some(style),
+            collapse_sound: Some(assets.ship_collapse_sound.clone()),
+            ..default_presentation(assets)
+        },
     })
 }
 
-/// A ONE-OFF hull, authored inline: a scripted battery that is a single tube, a
-/// derelict that is five plates. Anything a second scenario would want gets a
+/// A ONE-OFF design, authored inline: a scripted battery that is a single tube,
+/// a derelict that is five plates. Anything a second scenario would want gets a
 /// catalog entry instead.
-pub(crate) fn inline_hull(sections: Vec<SpaceshipSectionConfig>) -> ShipSource {
-    ShipSource::Inline(ShipHull {
+pub(crate) fn inline_design(sections: Vec<SpaceshipSectionConfig>) -> ShipDesignSource {
+    ShipDesignSource::Inline(ShipDesign {
         sections,
         ..Default::default()
     })
@@ -202,14 +225,106 @@ pub(crate) fn picket_section_ids() -> Vec<String> {
         .collect()
 }
 
-/// One spawn-time delta aimed at a named section of the resolved hull.
+/// One spawn-time patch aimed at a named section of the resolved design.
 pub(crate) fn on_section(
     section: &str,
-    modifications: Vec<SectionModification>,
-) -> ShipSectionModification {
-    ShipSectionModification {
-        section: section.to_string(),
-        modifications,
+    patch: SpaceshipSectionConfigPatch,
+) -> (SectionId, SpaceshipSectionConfigPatch) {
+    (section.to_string(), patch)
+}
+
+/// A spawn patch that gives one section its own health and changes nothing
+/// else about it.
+pub(crate) fn section_health(health: f32) -> SpaceshipSectionConfigPatch {
+    SpaceshipSectionConfigPatch {
+        config: SectionConfigPatch {
+            health: Some(health),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// Put one section patch on a design source, whichever shape it has.
+///
+/// A prototype spawn carries the patch in its own spawn layer, over whatever
+/// the catalog design says. An inline design has no spawn layer, so the patch
+/// lands on the section itself - on its catalog reference when the section
+/// names a prototype, and on the config when the section is written out in
+/// full.
+pub(crate) fn patched_section(
+    design: ShipDesignSource,
+    section: &str,
+    patch: SpaceshipSectionConfigPatch,
+) -> ShipDesignSource {
+    match design {
+        ShipDesignSource::Prototype {
+            id,
+            mut section_patches,
+        } => {
+            section_patches.insert(section.to_string(), patch);
+            ShipDesignSource::Prototype {
+                id,
+                section_patches,
+            }
+        }
+        ShipDesignSource::Inline(mut design) => {
+            for entry in &mut design.sections {
+                if entry.id != section {
+                    continue;
+                }
+                if let Some(position) = patch.position {
+                    entry.position = position;
+                }
+                if let Some(rotation) = patch.rotation {
+                    entry.rotation = rotation;
+                }
+                match &mut entry.source {
+                    SectionSource::Prototype {
+                        patch: reference, ..
+                    } => reference.clone_from(&patch.config),
+                    SectionSource::Inline(config) => patch
+                        .config
+                        .apply(config)
+                        .expect("a shipped inline patch names its own section's kind"),
+                }
+            }
+            ShipDesignSource::Inline(design)
+        }
+    }
+}
+
+/// A spawn patch that gives one TURRET section its own magazine and changes
+/// nothing else about it.
+pub(crate) fn turret_magazine(rounds: u32) -> SpaceshipSectionConfigPatch {
+    SpaceshipSectionConfigPatch {
+        config: SectionConfigPatch {
+            kind: Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
+                ammunition: Some(AmmoCapacity::Limited(rounds)),
+                ..Default::default()
+            })),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// The feedback voice every shipped design speaks with. Authored once here:
+/// the sounds are the GAME's, not one hull's, and a ship that shipped without
+/// them would simply be mute.
+pub(crate) fn default_presentation(assets: &BaseContentAssets) -> ShipPresentationConfig {
+    ShipPresentationConfig {
+        collapse_sound: Some(assets.ship_collapse_sound.clone()),
+        lock_on_sound: Some(assets.ship_lock_on_sound.clone()),
+        lock_off_sound: Some(assets.ship_lock_off_sound.clone()),
+        radar_deny_sound: Some(assets.ship_radar_deny_sound.clone()),
+        radar_retarget_sound: Some(assets.ship_radar_retarget_sound.clone()),
+        safety_on_sound: Some(assets.ship_safety_on_sound.clone()),
+        warn_lock_sound: Some(assets.ship_warn_lock_sound.clone()),
+        ammo_dry_sound: Some(assets.ship_ammo_dry_sound.clone()),
+        warn_hull_sound: Some(assets.ship_warn_hull_sound.clone()),
+        rcs_loop_sound: Some(assets.ship_rcs_loop_sound.clone()),
+        ..ShipPresentationConfig::default()
     }
 }
 
@@ -221,13 +336,13 @@ fn ship(
     id: &str,
     name: &str,
     sections: Vec<SpaceshipSectionConfig>,
-) -> ShipConfig {
-    ShipConfig {
+) -> ShipDesignPrototype {
+    ShipDesignPrototype {
         id: id.to_string(),
         name: name.to_string(),
-        hull: ShipHull {
+        design: ShipDesign {
             sections,
-            collapse_sound: Some(assets.ship_collapse_sound.clone()),
+            presentation: default_presentation(assets),
             ..Default::default()
         },
     }
@@ -241,11 +356,11 @@ fn block_ship(
     id: &str,
     name: &str,
     design: block::BlockShip,
-) -> ShipConfig {
+) -> ShipDesignPrototype {
     let style = design.style.to_string();
     let mut config = ship(assets, id, name, design.sections());
-    config.hull.skin = true;
-    config.hull.style = Some(style);
+    config.design.presentation.skin = true;
+    config.design.presentation.style = Some(style);
     config
 }
 
@@ -274,11 +389,11 @@ mod tests {
         let catalog = crate::generation::build_section_catalog();
         for ship in super::ship_catalog(&BaseContentAssets::from_paths()) {
             let sockets: Vec<_> = ship
-                .hull
+                .design
                 .sections
                 .iter()
                 .map(|section| {
-                    let SectionSource::Prototype(id) = &section.source else {
+                    let SectionSource::Prototype { id, .. } = &section.source else {
                         panic!(
                             "ship '{}' section '{}' is not a prototype",
                             ship.id, section.id
@@ -294,7 +409,7 @@ mod tests {
                 })
                 .collect();
             let placed: Vec<_> = ship
-                .hull
+                .design
                 .sections
                 .iter()
                 .zip(&sockets)
@@ -311,7 +426,7 @@ mod tests {
             let mates = derive_link_point_graph(&placed)
                 .unwrap_or_else(|errors| panic!("ship '{}' does not mate: {errors:?}", ship.id));
             assert!(
-                mates.len() >= ship.hull.sections.len() - 1,
+                mates.len() >= ship.design.sections.len() - 1,
                 "ship '{}' holds together on only {} mates",
                 ship.id,
                 mates.len(),

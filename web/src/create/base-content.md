@@ -2,9 +2,9 @@
 
 Every id and asset the base game ships, so your mod can reference them
 instead of guessing. Five registries matter to a mod author: **section
-prototype ids** (what `source: Prototype("<id>")` can name), **ship ids**
-(what `hull: Prototype("<id>")` can name - tabled in
-[Ships](../ships/#base-ships)), **style ids** (what a hull's `style:` can
+prototype ids** (what `source: Prototype(id: "<id>")` can name), **ship ids**
+(what `design: Prototype(id: "<id>")` can name - tabled in
+[Ships](../ships/#base-ships)), **style ids** (what a design's `style:` can
 name), **scenario ids** (what `NextScenario` and campaigns can target), and
 **base asset paths** (what `dep://base/<path>` can reach). All of it is generated from the Rust builders
 by `cargo run content gen` into
@@ -26,8 +26,8 @@ whose cell is 10 m on a side. A section's `collider`, its `link_points` and its
 thruster's exhaust cone; everything else on this page is metric.
 
 A prototype id is used two ways: a ship's section list references it
-compactly (`source: Prototype("<id>")` resolves the whole config, meshes and
-sounds included), and a mod `Section` item that reuses the id REPLACES that
+compactly (`source: Prototype(id: "<id>")` resolves the whole config, meshes
+and sounds included, with an optional `patch` over it), and a mod `Section` item that reuses the id REPLACES that
 part everywhere. See [Ship sections for mods](../sections/) for
 the `Section` grammar and the overlay flow.
 
@@ -121,8 +121,8 @@ installed; nothing in base references them.
 
 Turret MOUNTS are not prototypes either, in base or in a mod. A hull names where
 a gun goes; the gun is `pdc_kinetic_turret_section`, seated on the face it stands
-on, and a scavenger-grade craft flies the SAME gun with a `SetHealth(60.0)`
-modification on the mount.
+on, and a scavenger-grade craft flies the SAME gun with a
+`patch: (health: Some(60.0))` on the mount.
 
 ## Impact rows
 

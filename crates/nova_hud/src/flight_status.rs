@@ -495,9 +495,9 @@ mod tests {
         camera::{ComputedCameraValues, RenderTargetInfo},
         ecs::system::RunSystemOnce,
     };
-    use nova_ship::sections::controller_section::prelude::FlightVerb;
 
     use super::*;
+    use crate::prelude::ManeuverChip;
 
     fn spawn_status_hud(world: &mut World, ship: Entity) -> (Entity, Entity) {
         let layer = world
@@ -714,7 +714,7 @@ mod tests {
             "manual flight leaves the speed chip at rest"
         );
 
-        world.resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Goto);
+        world.resource_mut::<HudSituations>().maneuver = Some(ManeuverChip::Goto);
         world.run_system_once(emphasize_speed_on_burn).unwrap();
         assert!(
             world.entity(speed).get::<HudEmphasis>().unwrap().held(),

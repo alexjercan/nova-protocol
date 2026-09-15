@@ -161,12 +161,13 @@ pub(super) fn insert_turret_section(
 
     // Opt-in finite ammo: a magazine on the turret SECTION entity (the one
     // `shoot_spawn_projectile` queries), so the fire loop spends and gates on it
-    // with the query it already runs. `None` leaves the turret unlimited.
-    if let Some(capacity) = config.ammo_capacity {
+    // with the query it already runs. `Unlimited` leaves the turret unlimited.
+    if let Some(capacity) = config.ammunition.rounds() {
         commands.entity(turret).insert(SectionAmmo::new(capacity));
-        // Auto-reload rides on the magazine: only a finite turret can reload, so
-        // an unlimited one (config.reload set but ammo_capacity None) gets none.
-        if let Some(reload) = config.reload {
+        // Auto-reload rides on the magazine: only a finite turret can reload,
+        // so an `Unlimited` one with an authored batch gets none (and the
+        // content lint refuses that pairing).
+        if let Some(reload) = config.reload.batch() {
             commands
                 .entity(turret)
                 .insert(SectionReload::from_config(reload));

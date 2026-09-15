@@ -50,7 +50,7 @@ shared `base` block and one kind-specific block:
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `base.id` | string | required | Prototype key used by `source: Prototype("<id>")`. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id. |
+| `base.id` | string | required | Prototype key used by `source: Prototype(id: "<id>")`. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id. |
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
 | `base.health` | number | required | Hit points before the section is destroyed. |
@@ -537,7 +537,7 @@ kind: Turret((
                         render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
                         children: [(
                             offset: (0.0, 0.0, -0.475),               // muzzle (fixed)
-                            muzzle: Some((fire_rate: 100.0)),
+                            muzzle: Some((id: "main", fire_rate: 100.0)),
                         )],
                     )],
                 )],
@@ -550,8 +550,8 @@ kind: Turret((
     bullet_kind: Kinetic,
     fire_sound: Some("dep://base/sounds/turret_fire.wav"),
     dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
-    ammo_capacity: Some(500),
-    reload: Some((delay: 3.0, amount: 200)),
+    ammunition: Limited(500),
+    reload: Batch((delay: 3.0, amount: 200)),
 )),
 ```
 
@@ -582,12 +582,17 @@ Per-joint fields (on every `root`/`children` node):
   a named node inside a scene mesh (the shipped PDC names its elevator joint
   `stow_lift`, and the `StowLift` track above targets that name). Omit it on a
   joint no track touches.
-- `muzzle` (optional) - marks this joint a fire point: `Some((fire_rate: N))`
-  (rounds per second), plus an optional `muzzle_effect` flash asset ref. A turret
-  aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or
-  give each its own arm. Every muzzle fires at its own `fire_rate` but draws from
-  the ONE shared section magazine (`ammo_capacity`), so a twin barrel empties the
-  same mag twice as fast rather than carrying a pool per gun.
+- `muzzle` (optional) - marks this joint a fire point:
+  `Some((id: "main", fire_rate: N))` - an id unique within the turret (`main` on
+  a single barrel, `left` and `right` on a twin) and rounds per second - plus an
+  optional `muzzle_effect` flash asset ref. The id is the handle a
+  [patch](../objects/#the-sections-list) and an editor row address the barrel
+  by, so re-parenting one never moves an authored rate onto the other gun; two
+  muzzles sharing an id is a lint error. A turret aims and fires ALL of its
+  muzzles: hang two off one barrel for a twin PDC, or give each its own arm.
+  Every muzzle fires at its own `fire_rate` but draws from the ONE shared
+  section magazine (`ammunition`), so a twin barrel empties the same mag twice
+  as fast rather than carrying a pool per gun.
 - `children` (optional) - joints hanging off this one; omit for a leaf.
 
 Section-wide fields (once, alongside `root`):
@@ -645,13 +650,15 @@ Section-wide fields (once, alongside `root`):
   round a long thin dart, an Explosive shell squat and wide, each in that
   type's HUD colour. Setting this field overrides all three - one mesh,
   whatever the turret has loaded.
-- `ammo_capacity` (optional) - magazine size; `None` fires without a limit,
-  `Some(n)` gives an ammo slot of `n` rounds.
-- `reload` (optional) - idle batch reload for the magazine (needs
-  `ammo_capacity`). `Some((delay, amount))`: every successful shot resets the
-  timer; after `delay` quiet seconds, `amount` rounds return, clamped to
-  capacity. Batches repeat while the weapon stays idle. An empty trigger pull
-  does not reset the timer. `None` = a spent magazine stays empty.
+- `ammunition` - the magazine, as a decision rather than a missing number:
+  `Unlimited` (the default - fires without a limit and never reloads) or
+  `Limited(n)` for an ammo slot of `n` rounds.
+- `reload` - how spent rounds come back: `Disabled` (the default - a spent
+  magazine stays empty) or `Batch((delay, amount))`. Every successful shot
+  resets the timer; after `delay` quiet seconds, `amount` rounds return,
+  clamped to capacity. Batches repeat while the weapon stays idle, and an empty
+  trigger pull does not reset the timer. A `Batch` on an `Unlimited` weapon is
+  a lint error - there is nothing to refill.
 
 ## Torpedo
 
@@ -681,8 +688,8 @@ kind: Torpedo((
         weave_angle: 0.44,
         weave_rate: 1.4,
     ),
-    ammo_capacity: Some(6),
-    reload: Some((delay: 10.0, amount: 1)),
+    ammunition: Limited(6),
+    reload: Batch((delay: 10.0, amount: 1)),
 )),
 ```
 
@@ -813,9 +820,8 @@ kind: Torpedo((
   dropping the cap and you get evasion for free. Do not try to fix it by capping
   total speed instead: a total-speed cap leaves the torpedo ballistic at cruise
   and unable to steer at all.
-- `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
-- `reload` (optional) - idle batch reload for the bay (needs `ammo_capacity`),
-  with the same `Some((delay, amount))` shape as a turret. The shipped bay
+- `ammunition` - the magazine in torpedoes: `Unlimited` or `Limited(n)`.
+- `reload` - `Disabled`, or the same `Batch((delay, amount))` a turret uses. The shipped bay
   restores one torpedo after ten seconds without a launch. Another launch
   resets that timer. Ammunition is a rate limit, not a permanent budget, but a
   bay must win through its six-round salvo rather than by outwaiting one PDC.
@@ -862,8 +868,8 @@ kind: Railgun((
     fire_sound: Some("dep://base/sounds/railgun_fire.wav"),
     charge_sound: Some("dep://base/sounds/railgun_charge.wav"),
     reload_sound: Some("dep://base/sounds/railgun_reload.wav"),
-    ammo_capacity: Some(1),
-    reload: Some((delay: 12.0, amount: 1)),
+    ammunition: Limited(1),
+    reload: Batch((delay: 12.0, amount: 1)),
 )),
 ```
 
@@ -932,10 +938,10 @@ kind: Railgun((
 - `reload_sound` (optional) - a shell going back into the breech, played when
   the magazine returns to capacity. For a one-shell railgun that IS the whole of
   its cadence: the reload is the silence, and this is the silence ending.
-- `ammo_capacity` (optional) - shells carried; `None` for unlimited, the
-  bare-rig default every weapon section shares.
-- `reload` (optional) - the same `Some((delay, amount))` batch reload a turret
-  and a bay use. For a one-shell magazine it IS the cadence: the shipped railgun
+- `ammunition` - shells carried: `Limited(n)`, or `Unlimited` (the default
+  every weapon section shares).
+- `reload` - the same `Disabled` / `Batch((delay, amount))` a turret and a bay
+  use. For a one-shell magazine it IS the cadence: the shipped railgun
   is one shot every twelve quiet seconds, and the section's ammo gauge is the
   countdown.
 
@@ -984,17 +990,17 @@ Section((
 
 Reuse a base id to REBALANCE or re-skin that part; give a NEW id to ADD a part
 alongside the base catalog. Either way, a ship references the section by id via
-`source: Prototype("<id>")` in its `sections` list. To ship the section, package
+`source: Prototype(id: "<id>")` in its `sections` list. To ship the section, package
 the file as a mod - [Publish a mod](../publish-a-mod/) is the release flow.
 
 Base ships a whole catalog of GENERIC prototypes - hull cells, drives, mounts,
 bays - and every base hull is built out of them rather than out of parts cut for
 one craft. A mod does not have to inline a big ship or
 carry any mesh paths: build one as a compact list of
-`(id, position, rotation, source: Prototype("<base-part-id>"))` entries, and each
+`(id, position, rotation, source: Prototype(id: "<base-part-id>"))` entries, and each
 prototype resolves the base's meshes and sounds for you. A mod that brings
 MODELLED craft brings their part prototypes with it, the way The Ledger does. Vary a ship by grade
-with a per-spawn `SetHealth` [modification](../ships/) on the parts you want
+with a per-spawn `health` [patch](../ships/) on the parts you want
 weaker - a scavenger flies the same `pdc_kinetic_turret_section` at 60 mount
 health - rather than re-authoring the parts. `SectionSource` is `Inline`
 (the full config, for a one-off part) or `Prototype` (a catalog reference, the

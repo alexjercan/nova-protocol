@@ -49,7 +49,6 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let player = SpaceshipConfig {
@@ -58,7 +57,7 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
             input_mapping: BTreeMap::new(),
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     "player_controller",
@@ -84,7 +83,6 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
                     position: Vec3::new(0.75, 0.0, 1.0),
                     rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
                     source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
-                    modifications: vec![],
                 },
                 // The 1x1x2 tube seats on the half cell; its aft flank socket
                 // at z 1.0 mates the hull's -X face.

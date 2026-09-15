@@ -4,119 +4,128 @@ use bevy::prelude::{UVec3, Vec3};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_ship::prelude::{
-    candidate_link_point_mates, derive_link_point_graph, section_colliders_overlap,
-    ControllerSectionConfig, LinkPointGraphError, LinkPointRef, PlacedSectionCollider,
-    PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig,
-    SectionFootprint, SectionKind, SectionReloadConfig, ShipGrammarConfig, TorpedoSectionConfig,
-    TurretJoint, TurretSectionConfig, MAX_GRAMMAR_CELLS,
+    candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
+    section_colliders_overlap, AmmoCapacity, ControllerSectionConfig, LinkPointGraphError,
+    LinkPointRef, PlacedSectionCollider, PlacedSectionLinkPoints, RailgunSectionConfig,
+    ReloadConfig, SectionCollider, SectionConfig, SectionFootprint, SectionKind, ShipGrammarConfig,
+    TorpedoSectionConfig, TurretJoint, TurretSectionConfig, MAX_GRAMMAR_CELLS,
 };
 
-use super::{KnownSections, KnownShips, LintIssue, LintSeverity};
+use super::{KnownSections, KnownShipDesigns, LintIssue, LintSeverity};
 use crate::prelude::*;
 
-/// Every reference a spawned (or scatter-template) ship makes must resolve: the
-/// hull it names, the section prototypes that hull is built from, and the
-/// sections its spawn-time modifications aim at.
+/// Every reference a spawned (or scatter-template) ship makes must resolve:
+/// the design it names, the section prototypes that design is built from, and
+/// the sections its spawn-time patches aim at.
 ///
-/// A `Prototype` hull's own geometry is NOT re-checked here - it is linted where
-/// the ship catalog is walked ([`lint_ship_config`]), the same rule a
-/// `Prototype` section follows.
+/// A `Prototype` design's own geometry is NOT re-checked here - it is linted
+/// where the design catalog is walked ([`lint_ship_design_config`]), the same
+/// rule a `Prototype` section follows.
 pub(super) fn check_object_prototypes(
     config: &ScenarioObjectConfig,
     scenario: &str,
     sections: &KnownSections,
-    ships: &KnownShips,
+    designs: &KnownShipDesigns,
     issues: &mut Vec<LintIssue>,
 ) {
     let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
         return;
     };
-    let hull = match &ship.hull {
-        ShipSource::Inline(hull) => {
-            check_hull_sections(config.base.id.as_str(), hull, scenario, sections, issues);
-            hull
-        }
-        ShipSource::Prototype(id) => match ships.get(id) {
-            Some(hull) => hull,
-            None => {
-                issues.push(LintIssue::error(
-                    scenario,
-                    format!("ship '{}': unknown ship '{id}'", config.base.id),
-                ));
-                return;
-            }
-        },
-    };
+    let catalog = GameShipDesigns(
+        designs
+            .get(ship.design.prototype_id().unwrap_or_default())
+            .map(|design| {
+                vec![ShipDesignPrototype {
+                    id: ship.design.prototype_id().unwrap_or_default().to_string(),
+                    name: String::new(),
+                    design: design.clone(),
+                }]
+            })
+            .unwrap_or_default(),
+    );
+    // An INLINE design is authored right here, so it is resolved and its
+    // structure linted in one place below. It has no spawn layer to check
+    // separately - it IS the design - and resolving it twice would report
+    // every broken reference twice.
+    if let ShipDesignSource::Inline(design) = &ship.design {
+        check_design_sections(config.base.id.as_str(), design, scenario, sections, issues);
+        return;
+    }
 
-    // A spawn override aimed at a section the hull does not carry does nothing
-    // at all - a silent no-op is exactly what this lint exists to catch.
-    for modification in &ship.modifications {
-        if !hull
-            .sections
-            .iter()
-            .any(|section| section.id == modification.section)
-        {
-            issues.push(LintIssue::error(
-                scenario,
-                format!(
-                    "ship '{}': modification names section '{}', which this hull does not carry",
-                    config.base.id, modification.section
-                ),
-            ));
+    // The SPAWN's own layer: resolve exactly the way the spawn will, so a
+    // patch that names nothing, disagrees with a section's kind or misspells a
+    // muzzle is caught here rather than at the first playthrough. The design's
+    // OWN section references are dropped: they belong to the design, which the
+    // catalog walk lints once however many scenarios spawn it.
+    let (_, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
+    for error in errors {
+        if matches!(error, ShipDesignError::UnknownSectionPrototype { .. }) {
+            continue;
         }
+        issues.push(LintIssue::error(
+            scenario,
+            format!("ship '{}': {error}", config.base.id),
+        ));
     }
 }
 
-/// Static checks over one hull's section list: every prototype resolves, the
-/// sections do not interpenetrate, the link-point graph is sound, and every
-/// inline section config is well-formed.
+/// Static checks over one design's section list: every prototype resolves,
+/// every patch applies, the sections do not interpenetrate, the link-point
+/// graph is sound, and every inline section config is well-formed.
 ///
-/// Run on an inline hull where the scenario spawns it, and on a catalog ship
-/// where the ship catalog is walked - so a hull is checked exactly once,
-/// wherever it is authored.
-fn check_hull_sections(
+/// Run on an inline design where the scenario spawns it, and on a catalog
+/// design where the design catalog is walked - so a design is checked exactly
+/// once, wherever it is authored.
+fn check_design_sections(
     ship_id: &str,
-    hull: &ShipHull,
+    design: &ShipDesign,
     source: &str,
     sections: &KnownSections,
     issues: &mut Vec<LintIssue>,
 ) {
-    for section in &hull.sections {
-        if let SectionSource::Prototype(proto) = &section.source {
-            if !sections.contains(proto) {
-                issues.push(LintIssue::error(
-                    source,
-                    format!(
-                        "ship '{ship_id}' section '{}': unknown section prototype '{proto}'",
-                        section.id
-                    ),
-                ));
-            }
-        }
+    // The design's OWN layer: each section reference resolved and patched, by
+    // the one resolver the spawn uses.
+    let (_, errors) = resolve_ship_design(
+        &ShipDesignSource::Inline(design.clone()),
+        &GameShipDesigns::default(),
+        sections.catalog(),
+    );
+    for error in errors {
+        issues.push(LintIssue::error(
+            source,
+            format!("ship '{ship_id}': {error}"),
+        ));
     }
-    check_section_overlaps(ship_id, &hull.sections, source, sections, issues);
-    check_link_point_graph(ship_id, &hull.sections, source, sections, issues);
+
+    check_section_overlaps(ship_id, &design.sections, source, sections, issues);
+    check_link_point_graph(ship_id, &design.sections, source, sections, issues);
     // Inline section configs authored directly (a Prototype ref resolves to a
     // catalog section, which is linted where the catalog is walked -
     // lint_bundle - so it is not re-linted here).
-    for section in &hull.sections {
+    for section in &design.sections {
         if let SectionSource::Inline(inline) = &section.source {
             issues.extend(lint_section_config(inline, source));
         }
     }
 }
 
-/// Static well-formedness of one CATALOG ship: the same structural checks a
-/// scenario's inline hull gets, run where the ship is authored so a hull
+/// Static well-formedness of one CATALOG design: the same structural checks a
+/// scenario's inline design gets, run where the design is authored so a build
 /// referenced by eleven scenarios is checked once. Pure over the config, like
 /// [`lint_section_config`] beside it.
-pub fn lint_ship_config(
-    ship: &ShipConfig,
+pub fn lint_ship_design_config(
+    design: &ShipDesignPrototype,
     sections: &KnownSections,
     source: &str,
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
-    check_hull_sections(ship.id.as_str(), &ship.hull, source, sections, &mut issues);
+    check_design_sections(
+        design.id.as_str(),
+        &design.design,
+        source,
+        sections,
+        &mut issues,
+    );
     issues
 }
 
@@ -279,7 +288,7 @@ pub fn lint_grammar_config(
 /// a second finding about a size nobody authored.
 fn seeded_span(sections: &KnownSections, id: &str) -> UVec3 {
     sections.get(id).map_or(UVec3::ONE, |section| {
-        *SectionFootprint::from_collider(section.collider)
+        *SectionFootprint::from_collider(section.base.collider.unwrap_or_default())
     })
 }
 
@@ -297,7 +306,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
         SectionKind::Turret(turret) => {
             check_reload_config(
                 config.base.id.as_str(),
-                turret.ammo_capacity,
+                turret.ammunition,
                 turret.reload,
                 source,
                 &mut issues,
@@ -307,7 +316,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
         SectionKind::Torpedo(torpedo) => {
             check_reload_config(
                 config.base.id.as_str(),
-                torpedo.ammo_capacity,
+                torpedo.ammunition,
                 torpedo.reload,
                 source,
                 &mut issues,
@@ -317,7 +326,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
         SectionKind::Railgun(railgun) => {
             check_reload_config(
                 config.base.id.as_str(),
-                railgun.ammo_capacity,
+                railgun.ammunition,
                 railgun.reload,
                 source,
                 &mut issues,
@@ -350,16 +359,18 @@ fn check_controller_config(
 
 fn check_reload_config(
     section_id: &str,
-    capacity: Option<u32>,
-    reload: Option<SectionReloadConfig>,
+    ammunition: AmmoCapacity,
+    reload: ReloadConfig,
     source: &str,
     issues: &mut Vec<LintIssue>,
 ) {
-    let Some(reload) = reload else { return };
-    if capacity.is_none_or(|capacity| capacity == 0) {
+    let ReloadConfig::Batch(reload) = reload else {
+        return;
+    };
+    if ammunition.rounds().is_none_or(|rounds| rounds == 0) {
         issues.push(LintIssue::error(
             source,
-            format!("section '{section_id}': reload requires a positive ammo_capacity"),
+            format!("section '{section_id}': reload requires a Limited ammunition of at least one round"),
         ));
     }
     if reload.delay <= 0.0 || !reload.delay.is_finite() {
@@ -538,6 +549,31 @@ fn check_turret_tree(
             ),
         ));
     }
+    // An id is the handle a patch and an editor row hold a barrel by, so two
+    // barrels that answer to one name is a turret no patch can address. Caught
+    // HERE rather than where a patch names it: the fault is the section's, and
+    // it is a fault whether or not anything has patched it yet.
+    if let Some(duplicate) = duplicate_muzzle_id(&config.root) {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': two turret muzzles share the id '{duplicate}' - a patch \
+                 and an editor row address a barrel by id, so every one of them must be unique \
+                 within the turret"
+            ),
+        ));
+    }
+    for (index, id) in muzzle_ids(&config.root).into_iter().enumerate() {
+        if id.trim().is_empty() {
+            issues.push(LintIssue::error(
+                source,
+                format!(
+                    "section '{section_id}': turret muzzle {index} has an empty id - name it \
+                     'main' on a single barrel, 'left' and 'right' on a twin"
+                ),
+            ));
+        }
+    }
 }
 
 fn check_link_point_config(config: &SectionConfig, source: &str, issues: &mut Vec<LintIssue>) {
@@ -609,9 +645,9 @@ fn check_link_point_graph(
         .iter()
         .map(|section| match &section.source {
             SectionSource::Inline(config) => Some(config.base.link_points.as_slice()),
-            SectionSource::Prototype(id) => {
-                sections.get(id).map(|known| known.link_points.as_slice())
-            }
+            SectionSource::Prototype { id, .. } => sections
+                .get(id)
+                .map(|known| known.base.link_points.as_slice()),
         })
         .collect();
     let Some(resolved) = resolved else {
@@ -697,7 +733,13 @@ fn resolved_link_point<'a>(
     let section = &ship_sections[reference.section_index];
     let points = match &section.source {
         SectionSource::Inline(config) => &config.base.link_points,
-        SectionSource::Prototype(id) => &sections.get(id).expect("prototype resolved").link_points,
+        SectionSource::Prototype { id, .. } => {
+            &sections
+                .get(id)
+                .expect("prototype resolved")
+                .base
+                .link_points
+        }
     };
     &points[reference.link_point_index]
 }
@@ -733,9 +775,12 @@ fn check_section_overlaps(
                 config.base.collider.unwrap_or_default(),
                 &config.base.link_points,
             )),
-            SectionSource::Prototype(id) => sections
-                .get(id)
-                .map(|known| (known.collider, known.link_points.as_slice())),
+            SectionSource::Prototype { id, .. } => sections.get(id).map(|known| {
+                (
+                    known.base.collider.unwrap_or_default(),
+                    known.base.link_points.as_slice(),
+                )
+            }),
         }
     }
 
@@ -844,7 +889,7 @@ pub fn lint_channel_config(channel: &NarrativeChannelConfig, source: &str) -> Ve
 mod tests {
 
     use bevy::prelude::*;
-    use nova_ship::prelude::{GrammarGrid, GrammarVacuum};
+    use nova_ship::prelude::{GrammarGrid, GrammarVacuum, SectionConfigPatch, SectionReloadConfig};
 
     use super::*;
     use crate::lint::fixtures::*;
@@ -1122,7 +1167,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    hull: ShipSource::Prototype(ship.to_string()),
+                    design: ShipDesignSource::prototype(ship),
                     ..default()
                 }),
             })
@@ -1164,11 +1209,21 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    hull: ShipSource::Prototype("block_gunship".to_string()),
-                    modifications: vec![ShipSectionModification {
-                        section: section.to_string(),
-                        modifications: vec![SectionModification::SetHealth(500.0)],
-                    }],
+                    design: ShipDesignSource::Prototype {
+                        id: "block_gunship".to_string(),
+                        section_patches: [(
+                            section.to_string(),
+                            SpaceshipSectionConfigPatch {
+                                config: SectionConfigPatch {
+                                    health: Some(500.0),
+                                    ..default()
+                                },
+                                ..default()
+                            },
+                        )]
+                        .into_iter()
+                        .collect(),
+                    },
                     ..default()
                 }),
             })
@@ -1208,23 +1263,22 @@ mod tests {
     /// layer depends on it, so nobody relaxes it into a warning.
     #[test]
     fn a_section_mounted_on_a_degenerate_rotation_is_an_error() {
-        let ship = |rotation: Quat| ShipConfig {
+        let ship = |rotation: Quat| ShipDesignPrototype {
             id: "block_gunship".to_string(),
             name: "Gunship".to_string(),
-            hull: ShipHull {
+            design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "fuselage".to_string(),
                     position: Vec3::ZERO,
                     rotation,
-                    source: SectionSource::Prototype("hull".to_string()),
-                    modifications: vec![],
+                    source: SectionSource::prototype("hull"),
                 }],
                 ..default()
             },
         };
 
         assert!(
-            lint_ship_config(&ship(Quat::IDENTITY), &sections(&["hull"]), "base").is_empty(),
+            lint_ship_design_config(&ship(Quat::IDENTITY), &sections(&["hull"]), "base").is_empty(),
             "fixture guard: an ordinary mount lints clean"
         );
 
@@ -1232,7 +1286,7 @@ mod tests {
             Quat::from_xyzw(0.0, 0.0, 0.0, 0.0),
             Quat::from_xyzw(f32::NAN, 0.0, 0.0, 1.0),
         ] {
-            let issues = lint_ship_config(&ship(rotation), &sections(&["hull"]), "base");
+            let issues = lint_ship_design_config(&ship(rotation), &sections(&["hull"]), "base");
             assert!(
                 errors(&issues)
                     .iter()
@@ -1283,26 +1337,25 @@ mod tests {
     /// scenarios have stopped inlining it.
     #[test]
     fn a_catalog_ship_is_linted_where_it_is_authored() {
-        let ship = |proto: &str| ShipConfig {
+        let ship = |proto: &str| ShipDesignPrototype {
             id: "block_gunship".to_string(),
             name: "Gunship".to_string(),
-            hull: ShipHull {
+            design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "fuselage".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype(proto.to_string()),
-                    modifications: vec![],
+                    source: SectionSource::prototype(proto),
                 }],
                 ..default()
             },
         };
 
-        let issues = lint_ship_config(&ship("no_such_proto"), &sections(&["hull"]), "base");
+        let issues = lint_ship_design_config(&ship("no_such_proto"), &sections(&["hull"]), "base");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("no_such_proto"));
 
-        assert!(lint_ship_config(&ship("hull"), &sections(&["hull"]), "base").is_empty());
+        assert!(lint_ship_design_config(&ship("hull"), &sections(&["hull"]), "base").is_empty());
     }
 
     #[test]
@@ -1331,20 +1384,21 @@ mod tests {
 
     #[test]
     fn reload_requires_a_valid_magazine_delay_and_amount() {
-        let reload = |delay, amount| SectionReloadConfig { delay, amount };
+        let reload = |delay, amount| ReloadConfig::Batch(SectionReloadConfig { delay, amount });
         let check = |capacity, reload| {
             let mut issues = Vec::new();
-            check_reload_config("weapon", capacity, Some(reload), "mod", &mut issues);
+            check_reload_config("weapon", capacity, reload, "mod", &mut issues);
             issues
         };
+        let rounds = AmmoCapacity::Limited;
 
-        assert!(check(Some(500), reload(3.0, 200)).is_empty());
+        assert!(check(rounds(500), reload(3.0, 200)).is_empty());
         for issues in [
-            check(None, reload(3.0, 200)),
-            check(Some(0), reload(3.0, 200)),
-            check(Some(500), reload(0.0, 200)),
-            check(Some(500), reload(f32::NAN, 200)),
-            check(Some(500), reload(3.0, 0)),
+            check(AmmoCapacity::Unlimited, reload(3.0, 200)),
+            check(rounds(0), reload(3.0, 200)),
+            check(rounds(500), reload(0.0, 200)),
+            check(rounds(500), reload(f32::NAN, 200)),
+            check(rounds(500), reload(3.0, 0)),
         ] {
             assert_eq!(errors(&issues).len(), 1, "{issues:?}");
         }
@@ -1402,15 +1456,14 @@ mod tests {
         let ScenarioObjectKind::Spaceship(ship) = &mut object.kind else {
             unreachable!()
         };
-        let ShipSource::Inline(hull) = &mut ship.hull else {
+        let ShipDesignSource::Inline(design) = &mut ship.design else {
             unreachable!()
         };
-        hull.sections.push(SpaceshipSectionConfig {
+        design.sections.push(SpaceshipSectionConfig {
             id: "second".to_string(),
             position: Vec3::X,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype("empty".to_string()),
-            modifications: Vec::new(),
+            source: SectionSource::prototype("empty"),
         });
         let scenario = scenario(vec![action], vec![]);
         let issues = lint_scenario(
@@ -1480,21 +1533,19 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    hull: ShipSource::Inline(ShipHull {
+                    design: ShipDesignSource::Inline(ShipDesign {
                         sections: vec![
                             SpaceshipSectionConfig {
                                 id: "a".to_string(),
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
-                                source: SectionSource::Prototype("known".to_string()),
-                                modifications: vec![],
+                                source: SectionSource::prototype("known"),
                             },
                             SpaceshipSectionConfig {
                                 id: "b".to_string(),
                                 position: tube_pos,
                                 rotation: Quat::IDENTITY,
-                                source: SectionSource::Prototype("known".to_string()),
-                                modifications: vec![],
+                                source: SectionSource::prototype("known"),
                             },
                         ],
                         ..default()
@@ -1559,7 +1610,6 @@ mod tests {
                         render_mesh_transform: None,
                     }),
                 }),
-                modifications: vec![],
             };
 
         let ship = |a: SpaceshipSectionConfig, b: SpaceshipSectionConfig| {
@@ -1571,7 +1621,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    hull: ShipSource::Inline(ShipHull {
+                    design: ShipDesignSource::Inline(ShipDesign {
                         sections: vec![a, b],
                         ..default()
                     }),
@@ -1736,21 +1786,19 @@ mod tests {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                hull: ShipSource::Inline(ShipHull {
+                design: ShipDesignSource::Inline(ShipDesign {
                     sections: vec![
                         SpaceshipSectionConfig {
                             id: "left".to_string(),
                             position: Vec3::ZERO,
                             rotation: Quat::IDENTITY,
-                            source: SectionSource::Prototype("left".to_string()),
-                            modifications: vec![],
+                            source: SectionSource::prototype("left"),
                         },
                         SpaceshipSectionConfig {
                             id: "right".to_string(),
                             position: Vec3::X * 0.5,
                             rotation: Quat::IDENTITY,
-                            source: SectionSource::Prototype("right".to_string()),
-                            modifications: vec![],
+                            source: SectionSource::prototype("right"),
                         },
                     ],
                     ..default()
@@ -1820,13 +1868,12 @@ mod tests {
             id: id.to_string(),
             position,
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype(prototype.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(prototype),
         };
-        let ship = ShipConfig {
+        let ship = ShipDesignPrototype {
             id: "drifter".to_string(),
             name: "Drifter".to_string(),
-            hull: ShipHull {
+            design: ShipDesign {
                 sections: vec![
                     // Mated, and deliberately interlocking: half a cell apart
                     // with two-cell boxes.
@@ -1840,7 +1887,7 @@ mod tests {
             },
         };
 
-        let issues = lint_ship_config(&ship, &KnownSections::from_configs(&configs), "base");
+        let issues = lint_ship_design_config(&ship, &KnownSections::from_configs(&configs), "base");
         let overlaps: Vec<_> = issues
             .iter()
             .filter(|issue| issue.message.contains("overlap"))
@@ -1881,6 +1928,7 @@ mod tests {
                 render_mesh: None,
                 render_mesh_transform: None,
                 muzzle: muzzle.then(|| MuzzleConfig {
+                    id: "main".to_string(),
                     fire_rate: 10.0,
                     muzzle_effect: None,
                 }),
@@ -1967,6 +2015,42 @@ mod tests {
                 "fire_rate {rate} must be a lint error: {issues:?}"
             );
         }
+
+        // A muzzle id is the handle a patch and an editor row hold a barrel
+        // by. Two barrels answering to one name is a turret no patch can
+        // address, and an unnamed one is a barrel nothing can reach.
+        let mut left = joint(None, None, None, true, vec![]);
+        left.muzzle.as_mut().unwrap().id = "left".to_string();
+        let mut right = joint(None, None, None, true, vec![]);
+        right.muzzle.as_mut().unwrap().id = "left".to_string();
+        let twin = joint(Some(Vec3::Y), None, None, false, vec![left, right.clone()]);
+        assert!(
+            errors(&lint_section_config(&turret(twin), "s"))
+                .iter()
+                .any(|i| i.message.contains("share the id 'left'")),
+            "a duplicated muzzle id is an error"
+        );
+
+        let mut nameless = joint(None, None, None, true, vec![]);
+        nameless.muzzle.as_mut().unwrap().id = "  ".to_string();
+        let bad = joint(Some(Vec3::Y), None, None, false, vec![nameless]);
+        assert!(
+            errors(&lint_section_config(&turret(bad), "s"))
+                .iter()
+                .any(|i| i.message.contains("empty id")),
+            "and so is a barrel with no name at all"
+        );
+
+        // The twin that IS authorable: two barrels, two ids.
+        let mut port = joint(None, None, None, true, vec![]);
+        port.muzzle.as_mut().unwrap().id = "left".to_string();
+        let named = joint(Some(Vec3::Y), None, None, false, vec![port, right]);
+        let mut named = turret(named);
+        let SectionKind::Turret(config) = &mut named.kind else {
+            panic!("a turret");
+        };
+        config.root.children[1].muzzle.as_mut().unwrap().id = "right".to_string();
+        assert!(lint_section_config(&named, "s").is_empty());
     }
 
     #[test]
@@ -1986,10 +2070,10 @@ mod tests {
         let configs = [section(1.0), section(2.0)];
         let catalog = KnownSections::from_configs(&configs);
         assert_eq!(
-            catalog.get("contested").unwrap().collider,
-            SectionCollider::Cuboid {
+            catalog.get("contested").unwrap().base.collider,
+            Some(SectionCollider::Cuboid {
                 size: Vec3::splat(2.0)
-            }
+            })
         );
     }
 }

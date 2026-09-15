@@ -26,7 +26,6 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_scenario::prelude::*;
-use nova_ship::prelude::FlightVerb;
 
 use crate::{
     config::SelectedNode,
@@ -695,12 +694,43 @@ impl ActionChoiceExt for ActionChoice {
                 id: String::new(),
                 cap: None,
             }),
-            ActionChoice::SetControllerVerb => {
-                EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
+            ActionChoice::SetShipCapabilityStop => {
+                EventActionConfig::SetShipCapabilityStop(SetShipCapabilityStopActionConfig {
                     id: String::new(),
-                    verb: FlightVerb::Goto,
                     enabled: true,
                 })
+            }
+            ActionChoice::SetShipCapabilityGoto => {
+                EventActionConfig::SetShipCapabilityGoto(SetShipCapabilityGotoActionConfig {
+                    id: String::new(),
+                    enabled: true,
+                })
+            }
+            ActionChoice::SetShipCapabilityOrbit => {
+                EventActionConfig::SetShipCapabilityOrbit(SetShipCapabilityOrbitActionConfig {
+                    id: String::new(),
+                    enabled: true,
+                })
+            }
+            ActionChoice::SetShipCapabilityLock => {
+                EventActionConfig::SetShipCapabilityLock(SetShipCapabilityLockActionConfig {
+                    id: String::new(),
+                    enabled: true,
+                })
+            }
+            ActionChoice::SetShipCapabilityRcs => {
+                EventActionConfig::SetShipCapabilityRcs(SetShipCapabilityRcsActionConfig {
+                    id: String::new(),
+                    enabled: true,
+                })
+            }
+            ActionChoice::SetShipCapabilityPointDefense => {
+                EventActionConfig::SetShipCapabilityPointDefense(
+                    SetShipCapabilityPointDefenseActionConfig {
+                        id: String::new(),
+                        enabled: true,
+                    },
+                )
             }
             ActionChoice::SetAllegiance => {
                 EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
@@ -2247,7 +2277,7 @@ mod name_coverage {
             let issues = lint_scenario(
                 &scenario,
                 &KnownSections::default(),
-                &KnownShips::default(),
+                &KnownShipDesigns::default(),
                 &HashSet::new(),
                 &HashSet::new(),
             );

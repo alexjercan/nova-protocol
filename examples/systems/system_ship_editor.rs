@@ -28,10 +28,14 @@
 //! 8. meet both placement REFUSALS in words and in pixels - an occupied socket, and a drive
 //!    aimed up a lane the hull already stands beside, which is `nova_ship`'s clearance rule and
 //!    the same one the ship generator collapses under;
-//! 9. place a WORLD object from the rail's palette, TYPE A NEW RADIUS INTO ITS INSPECTOR and
-//!    delete it again - the scenario node edits the range it stands on, not just the ships parked
-//!    on it, and a placed object is authorable rather than stuck with what the palette handed it;
-//! 10. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
+//! 9. TUNE a placed part and put it back - a catalog turret's fire rate typed over marks the
+//!    row and keeps the part it names, and the reset chip DROPS the field rather than pinning
+//!    today's value, so the part goes on owning it;
+//! 10. place a WORLD object from the rail's palette, TYPE A NEW RADIUS INTO ITS INSPECTOR and
+//!     delete it again - the scenario node edits the range it stands on, not just the ships
+//!     parked on it, and a placed object is authorable rather than stuck with what the palette
+//!     handed it;
+//! 11. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
 //!     its own structure, and the cladding reflowing around a hull that is still in the
 //!     builder's hand. Play then proves the toggle rode the hand-off: the flown ship wears it.
 //!
@@ -273,6 +277,10 @@ struct EditorWalk {
     /// The same listing's poses, so the round trip is proved on WHERE each node
     /// stands as well as on which nodes there are.
     document_at: Vec<(String, Vec3)>,
+    /// What the turret's Fire Rate row read while it still INHERITED it, so the
+    /// beats that tune it and reset it can both be read against the part's own
+    /// number rather than against a constant this run would have to know.
+    fire_rate: String,
 }
 
 /// The whole driven run.
@@ -2082,6 +2090,112 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the turret's first screen is {} rows", labels.len());
         })
         .add()
+        // The turret was PLACED from the gallery, so every number on this
+        // screen is the catalog part's. Tuning one here is the whole question
+        // the patch answers: the build has to keep naming the part, or a fix
+        // to the part never reaches the ships built out of it.
+        .step("editor: the turret's numbers are the part's")
+        .on_enter(|world: &mut World| {
+            let marked = the_marked_section(world);
+            assert!(
+                !marked.tuned,
+                "a part just placed carries nothing of its own yet: {marked:?}"
+            );
+            let marks = world.resource::<EditorProbe>().overridden.clone();
+            assert!(
+                marks.is_empty(),
+                "so no row is marked as this ship's: {marks:?}"
+            );
+            let reading = inspector_reading(world, FIRE_RATE_ROW);
+            assert!(
+                !reading.is_empty(),
+                "and the row a builder would tune is on screen"
+            );
+            world.resource_mut::<EditorWalk>().fire_rate = reading.clone();
+            info!("editor: the turret inherits {FIRE_RATE_ROW} {reading} from {}", marked.prototype);
+        })
+        .add()
+        .click_a_widget(
+            "editor: reach for the turret's fire rate",
+            "Inspector Field Fire Rate",
+        )
+        .step("editor: the fire rate box has the caret")
+        .until(editor_field_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: tune the fire rate for this ship")
+        .on_enter(|world: &mut World| {
+            let inherited: f32 = world
+                .resource::<EditorWalk>()
+                .fire_rate
+                .parse()
+                .expect("the fire rate row reads as a number");
+            press_edit_key(Key::End)(world);
+            for _ in 0..12 {
+                press_edit_key(Key::Backspace)(world);
+            }
+            type_text(format!("{}", inherited + 1.0))(world);
+            press_edit_key(Key::Enter)(world);
+        })
+        .until(the_row_is_marked(FIRE_RATE_ROW))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the tuned turret still names the part it came from")
+        .on_enter(|world: &mut World| {
+            let marked = the_marked_section(world);
+            assert!(
+                marked.tuned,
+                "the change is kept as a patch over the part, not a copy of it: {marked:?}"
+            );
+            let marks = world.resource::<EditorProbe>().overridden.clone();
+            assert_eq!(
+                marks,
+                vec![FIRE_RATE_ROW.to_string()],
+                "and ONE row is marked - the neighbours still inherit"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a tuned row keeps the part it names",
+                serde_json::json!({ "prototype": marked.prototype, "row": FIRE_RATE_ROW }),
+            );
+            info!(
+                "editor: {} reads {} and still names {}",
+                FIRE_RATE_ROW,
+                inspector_reading(world, FIRE_RATE_ROW),
+                marked.prototype
+            );
+        })
+        .add()
+        // And back. Reset is not "type the part's number in again": it DROPS
+        // the field, so the part goes on owning it and a later change to the
+        // part reaches this ship.
+        .click_a_widget("editor: put the fire rate back", "Inspector Reset Fire Rate")
+        .step("editor: the mark is gone")
+        .until(the_row_inherits(FIRE_RATE_ROW))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: reset left the part owning the number again")
+        .on_enter(|world: &mut World| {
+            let inherited = world.resource::<EditorWalk>().fire_rate.clone();
+            assert_eq!(
+                inspector_reading(world, FIRE_RATE_ROW),
+                inherited,
+                "the row reads what the part says again"
+            );
+            let marked = the_marked_section(world);
+            assert!(
+                !marked.tuned,
+                "and the placement carries NO patch at all - a reset that wrote the value back \
+                 would leave one that pins it: {marked:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: reset drops the field instead of pinning it",
+                serde_json::json!({ "row": FIRE_RATE_ROW, "reads": inherited }),
+            );
+            info!("editor: {FIRE_RATE_ROW} is back to the part's {inherited}");
+        })
+        .add()
         // And the way past it. Everything the walk can reach is one View menu
         // item away, which is also what makes the panel deep enough to scroll.
         .click_a_menu_item("editor: ask for every field", MENU_VIEW, "All Fields Item")
@@ -3344,6 +3458,52 @@ fn the_placed_node_is_gone() -> Wait {
                 .resource::<EditorProbe>()
                 .context_nodes
                 .contains(&placed)
+    })
+}
+
+/// The row the patch beats tune: a turret's fire rate lives on a MUZZLE, which
+/// is the deepest thing a patch addresses and the only one keyed by an id
+/// rather than a position.
+#[cfg(feature = "debug")]
+const FIRE_RATE_ROW: &str = "Fire Rate";
+
+/// The section the inspector is open on, as the probe reports it.
+#[cfg(feature = "debug")]
+fn the_marked_section(world: &World) -> EditorSection {
+    let probe = world.resource::<EditorProbe>();
+    let marked = probe
+        .selected_node
+        .clone()
+        .expect("a section is marked and inspected");
+    probe
+        .ship
+        .iter()
+        .find(|section| section.id == marked)
+        .cloned()
+        .unwrap_or_else(|| panic!("the marked section {marked} is one of the ship's"))
+}
+
+/// Advance once the panel marks `label` as this ship's own value.
+#[cfg(feature = "debug")]
+fn the_row_is_marked(label: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .resource::<EditorProbe>()
+            .overridden
+            .iter()
+            .any(|row| row == label)
+    })
+}
+
+/// Advance once `label` is back to inheriting the part's value.
+#[cfg(feature = "debug")]
+fn the_row_inherits(label: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        !world
+            .resource::<EditorProbe>()
+            .overridden
+            .iter()
+            .any(|row| row == label)
     })
 }
 

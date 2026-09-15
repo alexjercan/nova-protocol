@@ -346,15 +346,25 @@ fn lance_platform(sections: &GameSections) -> ScenarioObjectConfig {
         fixtures::ship(sections, SpaceshipController::None, &specs),
     );
     if let ScenarioObjectKind::Spaceship(ship) = &mut platform.kind {
-        if let ShipSource::Inline(hull) = &mut ship.hull {
-            for section in hull
+        if let ShipDesignSource::Inline(design) = &mut ship.design {
+            for section in design
                 .sections
                 .iter_mut()
                 .filter(|section| section.id == "lance")
             {
-                section
-                    .modifications
-                    .push(SectionModification::SetAmmo(LANCE_SHELLS));
+                let shells = SectionConfigPatch {
+                    kind: Some(SectionKindPatch::Railgun(RailgunSectionConfigPatch {
+                        ammunition: Some(AmmoCapacity::Limited(LANCE_SHELLS)),
+                        ..default()
+                    })),
+                    ..default()
+                };
+                match &mut section.source {
+                    SectionSource::Prototype { patch, .. } => *patch = shells,
+                    SectionSource::Inline(config) => shells
+                        .apply(config)
+                        .expect("the lance section is a railgun"),
+                }
             }
         }
     }
@@ -373,10 +383,19 @@ fn toughened(
     position: Meters3,
     mut ship: SpaceshipConfig,
 ) -> ScenarioObjectConfig {
-    if let ShipSource::Inline(hull) = &mut ship.hull {
-        hull.collapse_threshold = Some(0.0);
-        for section in &mut hull.sections {
-            section.modifications = vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
+    if let ShipDesignSource::Inline(design) = &mut ship.design {
+        design.integrity.collapse_threshold = Some(0.0);
+        for section in &mut design.sections {
+            let health = SectionConfigPatch {
+                health: Some(TOUGH_SECTION_HEALTH),
+                ..default()
+            };
+            match &mut section.source {
+                SectionSource::Prototype { patch, .. } => *patch = health,
+                SectionSource::Inline(config) => health
+                    .apply(config)
+                    .expect("health is not a kind-specific field"),
+            }
         }
     }
     ScenarioObjectConfig {

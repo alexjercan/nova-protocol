@@ -22,7 +22,6 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ship::prelude::*;
 
 mod range;
 mod script;
@@ -180,13 +179,46 @@ fn lesson_later(beat: f64, delay: f64, actions: Vec<EventActionConfig>) -> Event
     pacing::beat_later(&format!("beat_{beat}"), delay, actions)
 }
 
-fn grant(verb: FlightVerb) -> EventActionConfig {
-    EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
-        id: ID_TRAINER.to_string(),
-        verb,
-        enabled: true,
-    })
+/// Declare the "hand this capability back to the trainer" action for one
+/// capability. The card withholds all five at spawn and grants each at the
+/// lesson that teaches it, so every grant is the same two fields against a
+/// different action.
+macro_rules! grant {
+    ($fn_name:ident, $variant:ident, $config:ident) => {
+        fn $fn_name() -> EventActionConfig {
+            EventActionConfig::$variant($config {
+                id: ID_TRAINER.to_string(),
+                enabled: true,
+            })
+        }
+    };
 }
+
+grant!(
+    grant_stop,
+    SetShipCapabilityStop,
+    SetShipCapabilityStopActionConfig
+);
+grant!(
+    grant_rcs,
+    SetShipCapabilityRcs,
+    SetShipCapabilityRcsActionConfig
+);
+grant!(
+    grant_lock,
+    SetShipCapabilityLock,
+    SetShipCapabilityLockActionConfig
+);
+grant!(
+    grant_goto,
+    SetShipCapabilityGoto,
+    SetShipCapabilityGotoActionConfig
+);
+grant!(
+    grant_orbit,
+    SetShipCapabilityOrbit,
+    SetShipCapabilityOrbitActionConfig
+);
 
 fn range_line(after: f64, line: &str) -> SequenceStepConfig {
     step(after, vec![comms(RANGE_CONTROL, line)])
@@ -401,7 +433,7 @@ pub(crate) fn tutorial(
                         STOP_GAP,
                         vec![
                             advance(BEAT_STOP),
-                            grant(FlightVerb::Stop),
+                            grant_stop(),
                             post_objective(OBJ_STOP, script::OBJ_TEXT_STOP),
                             show_hint_emphasis(HINT_STOP),
                         ],
@@ -422,7 +454,7 @@ pub(crate) fn tutorial(
                     RCS_GAP,
                     [
                         advance(BEAT_RCS),
-                        grant(FlightVerb::Rcs),
+                        grant_rcs(),
                         post_objective(OBJ_RCS, script::OBJ_TEXT_RCS),
                     ]
                     .into_iter()
@@ -447,7 +479,7 @@ pub(crate) fn tutorial(
                         NAV_GAP,
                         vec![
                             advance(BEAT_NAV),
-                            grant(FlightVerb::Lock),
+                            grant_lock(),
                             post_objective(OBJ_NAV, script::OBJ_TEXT_NAV),
                             attach_objective_marker(ID_PLANETOID, PLANETOID_LABEL),
                             show_hint_emphasis(HINT_RADAR),
@@ -475,7 +507,7 @@ pub(crate) fn tutorial(
                     GOTO_GAP,
                     vec![
                         advance(BEAT_GOTO),
-                        grant(FlightVerb::Goto),
+                        grant_goto(),
                         post_objective(OBJ_GOTO, script::OBJ_TEXT_GOTO),
                         show_hint_emphasis(HINT_GOTO),
                     ],
@@ -499,7 +531,7 @@ pub(crate) fn tutorial(
                     ORBIT_GAP,
                     vec![
                         advance(BEAT_ORBIT),
-                        grant(FlightVerb::Orbit),
+                        grant_orbit(),
                         post_objective(OBJ_ORBIT, script::OBJ_TEXT_ORBIT),
                         show_hint_emphasis(HINT_ORBIT),
                     ],

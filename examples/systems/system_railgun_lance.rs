@@ -226,7 +226,6 @@ fn lance_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let ship = SpaceshipConfig {
@@ -237,7 +236,7 @@ fn lance_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
             // NOT infinite: invariant 5 is about the magazine, and an
             // unlimited one would make it unfalsifiable.
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     LANCE_ID,
@@ -1004,7 +1003,7 @@ fn slug_spec(world: &World, lance: Entity) -> SlugSpec {
         // Through the config's own rule, so the bank reads an authored zero as
         // no rake exactly as `charge_and_fire_railgun` does.
         rake: config.rake().map(Meters::to_engine),
-        cycle: config.charge_seconds + config.reload.map_or(0.0, |reload| reload.delay),
+        cycle: config.charge_seconds + config.reload.batch().map_or(0.0, |reload| reload.delay),
     }
 }
 

@@ -9,8 +9,9 @@ use nova_scenario::prelude::{
     AnchorConfig, BaseScenarioObjectConfig, CinematicActionConfig, EntityFilterConfig, EventConfig,
     EventFilterConfig, NextScenarioActionConfig, ObjectiveActionConfig, OutcomeActionConfig,
     PlayerControllerConfig, ScenarioEventConfig, ScenarioOutcomeKind, SectionSource,
-    SequenceStepConfig, ShipHull, SpaceshipConfig,
+    SequenceStepConfig, ShipDesign, ShipPresentationConfig, SpaceshipConfig,
 };
+use nova_ship::prelude::SectionConfigPatch;
 
 use super::*;
 use crate::node::{ObjectNode, ScenarioNode};
@@ -23,19 +24,21 @@ fn section(id: &str) -> SpaceshipSectionConfig {
         id: id.to_string(),
         position: Vec3::ZERO,
         rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype("light_hull_section".to_string()),
-        modifications: vec![],
+        source: SectionSource::prototype("light_hull_section"),
     }
 }
 
 fn design(id: &str) -> Content {
-    Content::Ship(ShipConfig {
+    Content::Ship(ShipDesignPrototype {
         id: id.to_string(),
         name: id.to_string(),
-        hull: ShipHull {
+        design: ShipDesign {
             sections: vec![section("hull_1")],
-            skin: true,
-            style: Some("worn".to_string()),
+            presentation: ShipPresentationConfig {
+                skin: true,
+                style: Some("worn".to_string()),
+                ..default()
+            },
             ..default()
         },
     })
@@ -60,7 +63,11 @@ fn object(id: &str) -> ScenarioObjectConfig {
     }
 }
 
-fn instance(id: &str, hull: ShipSource, controller: SpaceshipController) -> ScenarioObjectConfig {
+fn instance(
+    id: &str,
+    design: ShipDesignSource,
+    controller: SpaceshipController,
+) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -69,7 +76,7 @@ fn instance(id: &str, hull: ShipSource, controller: SpaceshipController) -> Scen
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull,
+            design,
             controller,
             ..default()
         }),
@@ -102,7 +109,7 @@ fn a_spaceship_that_names_this_files_design_lifts_as_a_ship() {
         design("ship_1"),
         scenario(vec![spawn(instance(
             "player_spaceship",
-            ShipSource::Prototype("ship_1".to_string()),
+            ShipDesignSource::prototype("ship_1"),
             SpaceshipController::Player(PlayerControllerConfig::default()),
         ))]),
     ];
@@ -134,7 +141,7 @@ fn an_inline_hull_opens_and_a_hull_this_file_lacks_stays_an_object() {
         scenario(vec![
             spawn(instance(
                 "inline_hulk",
-                ShipSource::Inline(ShipHull {
+                ShipDesignSource::Inline(ShipDesign {
                     sections: vec![section("spine")],
                     ..default()
                 }),
@@ -142,7 +149,7 @@ fn an_inline_hull_opens_and_a_hull_this_file_lacks_stays_an_object() {
             )),
             spawn(instance(
                 "foreign",
-                ShipSource::Prototype("some_other_mods_corvette".to_string()),
+                ShipDesignSource::prototype("some_other_mods_corvette"),
                 SpaceshipController::None,
             )),
         ]),
@@ -293,7 +300,7 @@ fn the_players_keys_come_back_on_the_sections_that_fire_them() {
         design("ship_1"),
         scenario(vec![spawn(instance(
             "player_spaceship",
-            ShipSource::Prototype("ship_1".to_string()),
+            ShipDesignSource::prototype("ship_1"),
             SpaceshipController::Player(mapping),
         ))]),
     ];
@@ -354,8 +361,7 @@ fn document(world: &mut World) -> Entity {
         .id();
     world.spawn((
         SectionNode {
-            source: SectionSource::Prototype("light_hull_section".to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype("light_hull_section"),
             binds: vec![InputSource::from(KeyCode::KeyW)],
         },
         NodeId("hull_1".to_string()),
@@ -575,13 +581,13 @@ fn a_design_is_written_once_and_referenced() {
     else {
         panic!("the file carries a scenario");
     };
-    let hulls: Vec<&ShipSource> = scenario
+    let hulls: Vec<&ShipDesignSource> = scenario
         .events
         .iter()
         .flat_map(|event| &event.actions)
         .filter_map(|action| match action {
             EventActionConfig::SpawnScenarioObject(object) => match &object.kind {
-                ScenarioObjectKind::Spaceship(spawn) => Some(&spawn.hull),
+                ScenarioObjectKind::Spaceship(spawn) => Some(&spawn.design),
                 _ => None,
             },
             _ => None,
@@ -590,7 +596,7 @@ fn a_design_is_written_once_and_referenced() {
     assert!(
         hulls
             .iter()
-            .all(|hull| matches!(hull, ShipSource::Prototype(_))),
+            .all(|hull| matches!(hull, ShipDesignSource::Prototype { .. })),
         "every spawned ship references a design rather than carrying one"
     );
 }
@@ -690,7 +696,7 @@ fn editing_a_design_leaves_its_instances_untouched() {
 
     let mut sections = world.query::<&mut SectionNode>();
     for mut section in sections.query_mut(&mut world) {
-        section.source = SectionSource::Prototype("reinforced_hull_section".to_string());
+        section.source = SectionSource::prototype("reinforced_hull_section");
     }
     let after = lower(&mut world);
 
@@ -854,4 +860,44 @@ fn a_retry_inside_a_scene_is_renamed_like_any_other() {
         crate::scenario::SANDBOX_ID,
         "a retry one level down kept the saved id"
     );
+}
+
+/// A tuned prototype instance reaches the FILE as a patch on the reference.
+///
+/// The saved output is the point: what the editor writes is what a hand
+/// authored mod writes, the part is still named, and a later change to that
+/// part still reaches every field this placement left alone.
+#[test]
+fn a_tuned_section_is_saved_as_a_patch_on_the_part_it_names() {
+    let mut world = world_with_document();
+    let section = world
+        .query_filtered::<Entity, With<SectionNode>>()
+        .single(&world)
+        .expect("the document's one section");
+    world
+        .get_mut::<SectionNode>(section)
+        .expect("the section")
+        .source = SectionSource::Prototype {
+        id: "light_hull_section".to_string(),
+        patch: SectionConfigPatch {
+            health: Some(250.0),
+            ..default()
+        },
+    };
+
+    let saved = serialize_content(&lower(&mut world)).expect("serialize");
+
+    assert!(
+        saved.contains("patch:") && saved.contains("health: Some(250.0)"),
+        "the delta is written beside the id, not baked into a copy: {saved}"
+    );
+    let lifted = lift_content(&parse_of(&saved)).expect("the file carries a range");
+    let SectionSource::Prototype { id, patch } = &lifted.ships[0].sections[0].source else {
+        panic!(
+            "it comes back a reference: {:?}",
+            lifted.ships[0].sections[0]
+        );
+    };
+    assert_eq!(id, "light_hull_section");
+    assert_eq!(patch.health, Some(250.0));
 }

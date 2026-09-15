@@ -158,12 +158,12 @@ pub(super) fn insert_torpedo_section(
         .add_children(&[body, spawner]);
 
     // Opt-in finite ammo: a magazine on the torpedo SECTION entity (the one
-    // `shoot_spawn_projectile` queries), depleted one per launch. `None` leaves
-    // the bay unlimited, matching the pre-ammo behavior.
-    if let Some(capacity) = config.ammo_capacity {
+    // `shoot_spawn_projectile` queries), depleted one per launch. `Unlimited`
+    // leaves the bay unlimited.
+    if let Some(capacity) = config.ammunition.rounds() {
         commands.entity(entity).insert(SectionAmmo::new(capacity));
         // Auto-reload rides on the magazine: only a finite bay can rearm.
-        if let Some(reload) = config.reload {
+        if let Some(reload) = config.reload.batch() {
             commands
                 .entity(entity)
                 .insert(SectionReload::from_config(reload));

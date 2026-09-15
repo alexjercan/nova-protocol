@@ -5,7 +5,7 @@
 //! than on a missing file.
 
 use bevy::prelude::{default, Quat, UVec3, Vec3};
-use nova_scenario::prelude::{SectionSource, ShipHull, SpaceshipSectionConfig};
+use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
 use nova_ship::prelude::{
     BaseSectionConfig, GameGrammars, GameSections, GrammarGrid, GrammarPart, GrammarZone,
     HullSectionConfig, LinkPoint, SectionConfig, SectionKind, ShipGrammarConfig,
@@ -31,7 +31,7 @@ fn catalog_tiles() -> (GameSections, TileSet) {
 }
 
 /// Nothing meets without mating, and the hull derives a graph.
-fn refuse_unmated_contacts(hull: &ShipHull, sections: &GameSections) {
+fn refuse_unmated_contacts(hull: &ShipDesign, sections: &GameSections) {
     let placed = place(hull, sections).expect("every generated section is a prototype");
     let unmated = unmated_contacts(&placed, hull, &|_, _| false).expect("the hull derives a graph");
     assert!(
@@ -103,9 +103,9 @@ fn the_two_cell_bay_becomes_a_pair_of_tiles_joined_across_their_shared_face() {
 #[test]
 fn generated_hulls_roll_two_cell_bays() {
     let (sections, tiles) = catalog_tiles();
-    let carries_bay = |hull: &ShipHull| {
+    let carries_bay = |hull: &ShipDesign| {
         hull.sections.iter().any(|section| {
-            matches!(&section.source, SectionSource::Prototype(id) if id == "torpedo_section")
+            matches!(&section.source, SectionSource::Prototype { id, .. } if id == "torpedo_section")
         })
     };
     let armed = (0..64)
@@ -451,7 +451,7 @@ fn a_drive_bigger_than_one_cell_reaches_the_transom_of_every_hull() {
             let drives = hull
                 .sections
                 .iter()
-                .filter(|section| matches!(&section.source, SectionSource::Prototype(p) if p == id))
+                .filter(|section| matches!(&section.source, SectionSource::Prototype { id: p, .. } if p == id))
                 .count();
             assert_eq!(
                 drives, 2,
@@ -506,7 +506,7 @@ fn a_bare_transom_leaves_the_seeded_drive_bolted_to_the_keel() {
         let seeded = hull.sections.iter().find(|section| section.id == corner);
         assert!(
             matches!(seeded.map(|section| &section.source),
-                Some(SectionSource::Prototype(p)) if *p == drive),
+                Some(SectionSource::Prototype { id: p, .. }) if *p == drive),
             "seed {seed} eroded the seeded '{drive}' out of cell {corner} and handed back a \
              hull with no thrust of its own: {seeded:?}"
         );
@@ -559,7 +559,7 @@ fn a_seeded_bow_gun_stands_on_the_nose_of_every_hull() {
             .sections
             .iter()
             .filter(|section| {
-                matches!(&section.source, SectionSource::Prototype(p) if p == "railgun_lance_section")
+                matches!(&section.source, SectionSource::Prototype { id: p, .. } if p == "railgun_lance_section")
             })
             .collect();
         assert_eq!(
@@ -609,7 +609,7 @@ fn a_zoned_part_stands_only_in_the_region_it_is_zoned_to() {
                 .hull(seed, true, None)
                 .unwrap_or_else(|why| panic!("{zone:?} seed {seed}: {why}"));
             for section in &hull.sections {
-                let SectionSource::Prototype(id) = &section.source else {
+                let SectionSource::Prototype { id, .. } = &section.source else {
                     continue;
                 };
                 if !id.starts_with("pdc_") {
@@ -803,15 +803,14 @@ fn the_exemption_callback_always_sees_the_lower_section_index_first() {
             body: (Vec3::new(0.75, 0.5, 0.0), Vec3::splat(0.25)),
         },
     ];
-    let hull = ShipHull {
+    let hull = ShipDesign {
         sections: ["big", "lower", "upper"]
             .into_iter()
             .map(|id| SpaceshipSectionConfig {
                 id: id.to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                source: SectionSource::Prototype(id.to_string()),
-                modifications: vec![],
+                source: SectionSource::prototype(id),
             })
             .collect(),
         ..default()

@@ -27,7 +27,7 @@
 //! unavailable alpha band.
 
 use bevy::{platform::collections::HashSet, prelude::*};
-use nova_ship::{input::prelude::*, sections::controller_section::prelude::FlightVerb};
+use nova_ship::input::prelude::*;
 use nova_ui::hud as chip;
 
 use super::{
@@ -468,9 +468,9 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
 fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize) -> DockChipState {
     let hint = verb_hint(hints, index);
     let hot = match DOCK_VERBS[index] {
-        "STOP" => situations.maneuver == Some(FlightVerb::Stop),
-        "GOTO" => situations.maneuver == Some(FlightVerb::Goto),
-        "ORBIT" => situations.maneuver == Some(FlightVerb::Orbit),
+        "STOP" => situations.maneuver == Some(ManeuverChip::Stop),
+        "GOTO" => situations.maneuver == Some(ManeuverChip::Goto),
+        "ORBIT" => situations.maneuver == Some(ManeuverChip::Orbit),
         "CANCEL" => hints.engaged,
         "RADAR" => situations.combat_lock,
         _ => false,
@@ -1077,7 +1077,7 @@ mod tests {
 
         // GOTO: hot only while a GOTO is the engaged maneuver.
         assert_eq!(state(&app, 1), DockChipState::Dim, "GOTO has no lock yet");
-        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Goto);
+        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(ManeuverChip::Goto);
         app.update();
         assert_eq!(
             state(&app, 1),
@@ -1122,7 +1122,7 @@ mod tests {
         app.insert_resource(hints(false, true, None));
         app.add_systems(Update, update_dock);
         app.world_mut().spawn(keybind_dock_hud());
-        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Orbit);
+        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(ManeuverChip::Orbit);
         app.update();
 
         let chips = chips(&app);
@@ -1200,7 +1200,7 @@ mod tests {
         // The retired-offer case: parked, so `orbit.available` is false, but
         // ORBIT is the live maneuver and must stay docked.
         app.insert_resource(hints(false, true, None));
-        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Orbit);
+        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(ManeuverChip::Orbit);
         app.update();
         assert_eq!(
             *app.world().entity(chips[2]).get::<DockChipState>().unwrap(),
@@ -1313,7 +1313,7 @@ mod tests {
         app.insert_resource(hints(false, true, None));
         app.add_systems(Update, (update_dock, grow_hot_chips.after(update_dock)));
         app.world_mut().spawn(keybind_dock_hud());
-        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Orbit);
+        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(ManeuverChip::Orbit);
         app.update();
 
         let orbit = chips(&app)[2];

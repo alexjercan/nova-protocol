@@ -339,7 +339,6 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
         position: Vec3::new(0.0, 0.0, z),
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
     let sections_line = |prefix: &str| {
         vec![
@@ -359,7 +358,7 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: sections_line("player"),
             ..default()
         }),
@@ -368,7 +367,7 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let target = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: sections_line("target"),
             ..default()
         }),

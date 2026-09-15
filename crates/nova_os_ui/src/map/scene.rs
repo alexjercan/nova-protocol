@@ -360,7 +360,7 @@ pub(crate) fn map_input(
 
     // GOTO on the selected contact (skip own ship). Sets a flight autopilot on
     // the player ship directly - this intentionally bypasses the normal
-    // `FlightVerb::Goto` grant check (fine for the PoC nav computer).
+    // GOTO capability check (fine for the PoC nav computer).
     if input.just_pressed("map_goto") {
         if let (Some(sel), Some((player, _, _))) = (runtime.selected, contacts.player_frame()) {
             if let Some(contact) = list.iter().find(|c| c.entity == sel) {

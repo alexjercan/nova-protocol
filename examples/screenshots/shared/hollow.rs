@@ -100,7 +100,7 @@ pub const AI_LEASH: Meters = Meters(3_200.0);
 pub fn ambush_hollow(
     game_assets: &GameAssets,
     sections: &GameSections,
-    ships: &GameShips,
+    ships: &GameShipDesigns,
 ) -> ScenarioConfig {
     let player_hull = kit::catalog_ship(ships, "block_gunship");
     let player = ship(
@@ -255,7 +255,7 @@ pub fn ambush_hollow(
 
 /// The ordnance set: the same hollow with no unrelated combatants and no live
 /// guns, so the only thing moving in frame is the salvo.
-pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -344,7 +344,7 @@ pub fn ship(
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
-    hull: ShipHull,
+    hull: ShipDesign,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -356,7 +356,7 @@ pub fn ship(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
             allegiance,
-            hull: ShipSource::Inline(hull),
+            design: ShipDesignSource::Inline(hull),
             ..default()
         }),
     })
@@ -384,12 +384,12 @@ pub fn fighter(patrol: Vec<Meters3>) -> SpaceshipController {
 /// magazine lives in the section config, so a rig that wants unlimited fire has
 /// to author the gun rather than reference it. The hull is rewritten in place,
 /// so it keeps the cladding it came with.
-pub fn unlimited_turrets(sections: &GameSections, mut hull: ShipHull) -> ShipHull {
+pub fn unlimited_turrets(sections: &GameSections, mut hull: ShipDesign) -> ShipDesign {
     hull.sections = hull
         .sections
         .into_iter()
         .map(|mut section| {
-            let SectionSource::Prototype(prototype) = &section.source else {
+            let SectionSource::Prototype { id: prototype, .. } = &section.source else {
                 return section;
             };
             let Some(resolved) = sections.get_section(prototype) else {
@@ -424,7 +424,7 @@ pub fn turret_bindings(
 ) -> BTreeMap<String, Vec<InputSource>> {
     hull.iter()
         .filter(|section| {
-            let SectionSource::Prototype(prototype) = &section.source else {
+            let SectionSource::Prototype { id: prototype, .. } = &section.source else {
                 return false;
             };
             sections

@@ -1,80 +1,153 @@
-//! What the flight computer lets a hull do: the one live-controller verb gate
-//! every consumer asks through, so a lit hint, a firing key, the radar and the
-//! autopilot can never disagree about the same ship.
+//! What a ship is PERMITTED to do: the six software capabilities every
+//! consumer asks the ship ROOT about, so a lit hint, a firing key, the radar
+//! and the autopilot can never disagree about the same hull.
+//!
+//! Capability is a property of the SHIP, not of any section. A controller
+//! section is attitude hardware - it senses, it lags, it twists - and a hull
+//! that loses every controller loses its commanded rotation, not its
+//! permission to hold a lock. The two questions are asked separately here:
+//! [`ShipCapabilities`] for what the ship may do, [`ship_has_attitude_authority`]
+//! for whether it can still point itself.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
-/// Every LIVE flight computer in the world, with its (optional) withheld
-/// verbs: the one query shape behind [`ship_grants_verb`].
+/// The root capability component and the attitude-authority query.
+pub mod prelude {
+    pub use super::ShipCapabilities;
+}
+
+/// What a ship is permitted to do, carried on the ship ROOT.
+///
+/// Every field defaults to `true`: a hull that says nothing can do everything,
+/// which is what the bare rigs the examples and the section ranges fly depend
+/// on. A scenario withholds a capability by authoring the `false`, and the
+/// `SetShipCapability*` actions flip one field on one root at runtime.
+///
+/// These are SOFTWARE decisions. None of them is affected by losing a
+/// controller section: a hulk with no attitude authority still knows whether
+/// its point defence was configured on.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[reflect(Component)]
+pub struct ShipCapabilities {
+    /// STOP: flip retrograde and burn to rest.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub stop_enabled: bool,
+    /// GOTO: fly to the current nav lock and come to rest off it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub goto_enabled: bool,
+    /// ORBIT: circularize and station-keep inside a gravity well.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub orbit_enabled: bool,
+    /// LOCK: the radar gesture and the combat lock it produces.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub lock_enabled: bool,
+    /// RCS: the torque-free fine-adjust push about the centre of mass.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub rcs_enabled: bool,
+    /// POINT DEFENCE: turrets engaging incoming ordnance on their own.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub point_defense_enabled: bool,
+}
+
+impl Default for ShipCapabilities {
+    fn default() -> Self {
+        Self {
+            stop_enabled: true,
+            goto_enabled: true,
+            orbit_enabled: true,
+            lock_enabled: true,
+            rcs_enabled: true,
+            point_defense_enabled: true,
+        }
+    }
+}
+
+impl ShipCapabilities {
+    /// Whether every capability is enabled - the authored default, which serde
+    /// omits from content entirely.
+    pub fn is_all_enabled(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Serde's default for one capability field: a field nobody authored is on.
+#[cfg(feature = "serde")]
+fn enabled() -> bool {
+    true
+}
+
+/// `skip_serializing_if` for one capability field, so only the WITHHELD ones
+/// are written.
+#[cfg(feature = "serde")]
+fn is_enabled(enabled: &bool) -> bool {
+    *enabled
+}
+
+/// The capabilities of every ship root, for the systems that gate on them.
+///
+/// Read through [`ship_capabilities`] rather than directly: a root with no
+/// component at all is the all-enabled default, and every consumer has to
+/// agree about that.
+pub(crate) type ShipCapabilityQuery<'w, 's> = Query<'w, 's, &'static ShipCapabilities>;
+
+/// What `ship` is permitted to do. A root carrying no [`ShipCapabilities`] -
+/// a bare rig an example spawned - can do everything.
+pub(crate) fn ship_capabilities(
+    ship: Entity,
+    capabilities: &ShipCapabilityQuery,
+) -> ShipCapabilities {
+    capabilities.get(ship).copied().unwrap_or_default()
+}
+
+/// Every LIVE flight computer in the world: the rows the attitude loop and the
+/// rotation-authority check both read.
 ///
 /// A live flight computer is a controller section that still has its
-/// [`PDController`] (preview controllers have none) and is not disabled. The PD
-/// is required through the DATA rather than a `With` filter because the
+/// [`PDController`] (preview controllers have none) and is not disabled. The
+/// PD is required through the DATA rather than a `With` filter because the
 /// autopilot reads these same rows for the hull's rotation authority, so one
 /// query answers both and the two can never disagree about which computers
 /// count.
-///
-/// [`WithheldVerbs`] is optional: a controller missing the component falls back
-/// to the all-granted default rather than becoming ungovernable.
 pub(crate) type LiveFlightComputers<'w, 's> = Query<
     'w,
     's,
-    (
-        &'static PDController,
-        &'static ChildOf,
-        Option<&'static WithheldVerbs>,
-    ),
+    (&'static PDController, &'static ChildOf),
     (
         With<ControllerSectionMarker>,
         Without<SectionInactiveMarker>,
     ),
 >;
 
-/// Whether some live flight computer on `ship` grants `verb` (union across
-/// computers). Doubles as the computer-present check: no live computer, no
-/// grant.
+/// Whether `ship` can still point itself: at least one live flight computer.
 ///
-/// The ONE answer to that question. The flight rig's maneuver observers, the
-/// hint pass that lights their keys, the radar gate and the RCS primitive all
-/// call this, so a dark hint and a dead key always mean the same thing.
-pub(crate) fn ship_grants_verb(
-    ship: Entity,
-    verb: FlightVerb,
-    computers: &LiveFlightComputers,
-) -> bool {
-    computers.iter().any(|(_, &ChildOf(parent), withheld)| {
-        parent == ship && withheld.is_none_or(|withheld| withheld.granted(verb))
-    })
-}
-
-/// Whether every live flight computer on `ship` withholds `verb` - the
-/// FAIL-OPEN counterpart of [`ship_grants_verb`], and false on a hull that has
-/// no live flight computer at all.
-///
-/// Point defence is the one capability read this way, deliberately: a hull with
-/// no controller section is one of the bare rigs the examples and the section
-/// ranges fly, and a range whose guns silently stood down would be a worse
-/// failure than one that defends itself. Only an explicit `DisableVerb` /
-/// `SetControllerVerb` takes the capability away.
-pub(crate) fn ship_withholds_verb(
-    ship: Entity,
-    verb: FlightVerb,
-    computers: &LiveFlightComputers,
-) -> bool {
-    let mut computed = false;
-    for (_, &ChildOf(parent), withheld) in computers {
-        if parent != ship {
-            continue;
-        }
-        computed = true;
-        if withheld.is_none_or(|withheld| withheld.granted(verb)) {
-            return false;
-        }
-    }
-    computed
+/// The PHYSICAL half of the old verb gate, and the only half a controller
+/// answers. A ship that fails this cannot execute a commanded rotation, so
+/// attitude-dependent maneuvers disengage - but its configured capabilities
+/// are untouched.
+pub(crate) fn ship_has_attitude_authority(ship: Entity, computers: &LiveFlightComputers) -> bool {
+    computers.iter().any(|(_, &ChildOf(parent))| parent == ship)
 }
 
 #[cfg(test)]
@@ -87,50 +160,21 @@ mod tests {
     #[derive(Resource)]
     struct Subject(Entity);
 
-    /// What [`ship_grants_verb`] answered for the subject, per verb.
+    /// What the two gates answered for the subject.
     #[derive(Resource, Default)]
-    struct Granted(Vec<FlightVerb>);
-
-    /// What [`ship_withholds_verb`] answered for the subject's point defence.
-    #[derive(Resource, Default)]
-    struct WithholdsPointDefense(bool);
-
-    /// Every verb the gate answers for. The match below is exhaustive, so a new
-    /// [`FlightVerb`] variant stops compiling here, one line under the list it
-    /// has to be added to, instead of quietly escaping the property tests.
-    fn every_verb() -> [FlightVerb; 6] {
-        let all = [
-            FlightVerb::Stop,
-            FlightVerb::Goto,
-            FlightVerb::Orbit,
-            FlightVerb::Lock,
-            FlightVerb::Rcs,
-            FlightVerb::PointDefense,
-        ];
-        for verb in all {
-            match verb {
-                FlightVerb::Stop
-                | FlightVerb::Goto
-                | FlightVerb::Orbit
-                | FlightVerb::Lock
-                | FlightVerb::Rcs
-                | FlightVerb::PointDefense => {}
-            }
-        }
-        all
+    struct Answers {
+        capabilities: ShipCapabilities,
+        attitude: bool,
     }
 
     fn collect_answers(
         subject: Res<Subject>,
+        capabilities: ShipCapabilityQuery,
         computers: LiveFlightComputers,
-        mut granted: ResMut<Granted>,
-        mut withholds: ResMut<WithholdsPointDefense>,
+        mut answers: ResMut<Answers>,
     ) {
-        granted.0 = every_verb()
-            .into_iter()
-            .filter(|verb| ship_grants_verb(subject.0, *verb, &computers))
-            .collect();
-        withholds.0 = ship_withholds_verb(subject.0, FlightVerb::PointDefense, &computers);
+        answers.capabilities = ship_capabilities(subject.0, &capabilities);
+        answers.attitude = ship_has_attitude_authority(subject.0, &computers);
     }
 
     /// A live flight computer, as `controller_section` builds one: the marker
@@ -156,87 +200,102 @@ mod tests {
         world.spawn((ChildOf(ship), ControllerSectionMarker)).id()
     }
 
-    fn answers(world: &mut World, ship: Entity) -> (Vec<FlightVerb>, bool) {
+    fn answers(world: &mut World, ship: Entity) -> Answers {
         world.insert_resource(Subject(ship));
-        world.init_resource::<Granted>();
-        world.init_resource::<WithholdsPointDefense>();
+        world.init_resource::<Answers>();
         world.run_system_once(collect_answers).unwrap();
-        (
-            world.resource::<Granted>().0.clone(),
-            world.resource::<WithholdsPointDefense>().0,
-        )
+        let answers = world.resource::<Answers>();
+        Answers {
+            capabilities: answers.capabilities,
+            attitude: answers.attitude,
+        }
     }
 
-    /// The property the copies of this gate were supposed to share and did not:
-    /// a controller section with no `PDController` (the editor's preview ship)
-    /// is not a live flight computer, so EVERY verb answers the same "no". The
-    /// Lock answer used to come from a copy that omitted the PD filter and said
-    /// yes here.
+    /// A preview controller carries no PD, so it is not a live flight computer
+    /// and gives the hull no attitude authority.
     #[test]
-    fn a_preview_controller_grants_no_verb_at_all() {
+    fn a_preview_controller_gives_no_attitude_authority() {
         let mut world = World::new();
         let ship = world.spawn_empty().id();
         preview_computer(&mut world, ship);
 
-        let (granted, _) = answers(&mut world, ship);
-
-        assert!(
-            granted.is_empty(),
-            "a preview controller carries no PD, so it is not a live flight \
-             computer and grants nothing - these verbs said otherwise: {granted:?}"
-        );
+        assert!(!answers(&mut world, ship).attitude);
     }
 
-    /// Delivery guard: the production default - a live computer carrying no
-    /// `WithheldVerbs` - grants every verb, so the test above is measuring the
-    /// missing PD and not a dead fixture.
+    /// Delivery guard for the test above: a real computer does give it.
     #[test]
-    fn a_live_computer_with_no_withheld_set_grants_every_verb() {
+    fn a_live_computer_gives_attitude_authority() {
         let mut world = World::new();
         let ship = world.spawn_empty().id();
         live_computer(&mut world, ship);
 
-        let (granted, _) = answers(&mut world, ship);
+        assert!(answers(&mut world, ship).attitude);
+    }
 
+    /// The property the section-owned model could not hold: losing every
+    /// controller takes the ship's attitude authority and NOTHING else. LOCK,
+    /// RCS and point defence are software decisions on the root, and a hulk
+    /// still knows what it was configured with.
+    #[test]
+    fn losing_every_controller_leaves_the_configured_capabilities_alone() {
+        let mut world = World::new();
+        let configured = ShipCapabilities {
+            goto_enabled: false,
+            ..default()
+        };
+        let ship = world.spawn(configured).id();
+        let computer = live_computer(&mut world, ship);
+
+        let before = answers(&mut world, ship);
+        assert!(before.attitude);
+        assert_eq!(before.capabilities, configured);
+
+        world.entity_mut(computer).despawn();
+
+        let after = answers(&mut world, ship);
+        assert!(
+            !after.attitude,
+            "the last controller is gone, so nothing executes a commanded rotation"
+        );
         assert_eq!(
-            granted,
-            every_verb().to_vec(),
-            "an absent WithheldVerbs is the all-granted default"
+            after.capabilities, configured,
+            "capabilities are the ROOT's, and no section death edits them"
         );
     }
 
-    /// The one deliberate divergence, pinned: point defence is read fail-open,
-    /// so a hull with no live flight computer keeps its guns. Only a LIVE
-    /// computer that withholds the verb stands them down.
+    /// Two controllers stack attitude authority and never union capabilities:
+    /// there is only one capability value on the hull to read.
     #[test]
-    fn point_defence_stands_down_only_for_a_live_computer_that_withholds_it() {
+    fn a_second_controller_adds_attitude_and_no_capability() {
         let mut world = World::new();
+        let configured = ShipCapabilities {
+            lock_enabled: false,
+            ..default()
+        };
+        let ship = world.spawn(configured).id();
+        let first = live_computer(&mut world, ship);
+        live_computer(&mut world, ship);
 
-        let bare = world.spawn_empty().id();
-        let (_, bare_withholds) = answers(&mut world, bare);
-        assert!(
-            !bare_withholds,
-            "a bare rig with no controller section at all still defends itself"
-        );
+        assert_eq!(answers(&mut world, ship).capabilities, configured);
 
-        let preview = world.spawn_empty().id();
-        preview_computer(&mut world, preview);
-        let (_, preview_withholds) = answers(&mut world, preview);
-        assert!(
-            !preview_withholds,
-            "a preview controller is not a live computer, so it withholds nothing"
-        );
+        world.entity_mut(first).despawn();
 
-        let live = world.spawn_empty().id();
-        let computer = live_computer(&mut world, live);
-        world.entity_mut(computer).insert(WithheldVerbs(
-            [FlightVerb::PointDefense].into_iter().collect(),
-        ));
-        let (_, live_withholds) = answers(&mut world, live);
-        assert!(
-            live_withholds,
-            "an explicit DisableVerb / SetControllerVerb is the only thing that \
-             takes point defence away"
+        let after = answers(&mut world, ship);
+        assert!(after.attitude, "one computer left still points the hull");
+        assert_eq!(
+            after.capabilities, configured,
+            "a surviving controller cannot hand back a capability the root withheld"
         );
+    }
+
+    /// A bare rig - no capability component at all - can do everything, which
+    /// is what keeps the examples and the section ranges flying and their
+    /// point defence live.
+    #[test]
+    fn a_root_with_no_capability_component_can_do_everything() {
+        let mut world = World::new();
+        let ship = world.spawn_empty().id();
+
+        assert!(answers(&mut world, ship).capabilities.is_all_enabled());
     }
 }

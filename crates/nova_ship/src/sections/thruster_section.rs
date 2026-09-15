@@ -38,7 +38,7 @@ pub mod prelude {
 pub(crate) const THRUSTER_SECTION_DEFAULT_MAGNITUDE: f32 = 1.0;
 
 /// Configuration for a thruster section of a spaceship.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ThrusterSectionConfig {
     /// The magnitude of the force produced by this thruster section.
@@ -142,7 +142,7 @@ pub fn preview_thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
 /// Configuration for the thruster exhaust shader (cone shape + glow). Authorable
 /// via [`ThrusterExhaust::shape`]; `#[serde(default)]` lets a mod set only the
 /// fields it cares about.
-#[derive(Component, Clone, Debug, Reflect)]
+#[derive(Component, Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct ThrusterExhaustConfig {
@@ -451,7 +451,7 @@ fn outer_extents(config: &ThrusterExhaustConfig) -> (f32, f32, f32) {
 /// +Y); `shape` is the shader/size config. The default matches the procedural
 /// thruster's historical hardcoded placement, so an omitted `exhaust` still
 /// yields the same cone.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct ThrusterExhaust {

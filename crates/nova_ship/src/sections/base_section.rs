@@ -340,7 +340,7 @@ pub struct SectionRenderOf(pub Entity);
 /// authored hit/destroy sounds and collider. Authored in the section RON as the
 /// `base` of a [`SectionConfig`]; snapshotted into runtime components (collider,
 /// [`DestroySound`]) by [`base_section`] / [`preview_section`].
-#[derive(Component, Clone, Debug, Default, Reflect)]
+#[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseSectionConfig {
     /// Stable content id used to look the section up in [`GameSections`].
@@ -450,7 +450,7 @@ pub struct DestroySound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 /// reads: hull (structure only), thruster (thrust), controller (attitude PD),
 /// turret (guns), torpedo (bay). Add a variant here (plus its config module and
 /// plugin) to introduce a new section kind.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionKind {
     /// Passive structural block; see [`HullSectionConfig`].
@@ -490,7 +490,7 @@ impl SectionKind {
 /// A complete authorable section: the shared [`BaseSectionConfig`] plus its
 /// kind-specific [`SectionKind`] config. This is the unit stored in
 /// [`GameSections`] and placed by the editor.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SectionConfig {
     /// Fields common to every section kind.
@@ -502,8 +502,8 @@ pub struct SectionConfig {
 impl SectionConfig {
     /// The same section with no magazine: its weapon fires without limit.
     ///
-    /// A weapon config with `ammo_capacity: None` gets neither `SectionAmmo`
-    /// nor `SectionReload`, so nothing counts rounds down. Harnesses whose
+    /// An [`AmmoCapacity::Unlimited`] weapon gets neither `SectionAmmo` nor
+    /// `SectionReload`, so nothing counts rounds down. Harnesses whose
     /// subject is not the magazine author their guns this way, on the gun that
     /// wants it, instead of a ship-wide grant.
     ///
@@ -512,16 +512,16 @@ impl SectionConfig {
     pub fn without_magazine(mut self) -> Self {
         match &mut self.kind {
             SectionKind::Turret(turret) => {
-                turret.ammo_capacity = None;
-                turret.reload = None;
+                turret.ammunition = AmmoCapacity::Unlimited;
+                turret.reload = ReloadConfig::Disabled;
             }
             SectionKind::Torpedo(torpedo) => {
-                torpedo.ammo_capacity = None;
-                torpedo.reload = None;
+                torpedo.ammunition = AmmoCapacity::Unlimited;
+                torpedo.reload = ReloadConfig::Disabled;
             }
             SectionKind::Railgun(railgun) => {
-                railgun.ammo_capacity = None;
-                railgun.reload = None;
+                railgun.ammunition = AmmoCapacity::Unlimited;
+                railgun.reload = ReloadConfig::Disabled;
             }
             SectionKind::Hull(_) | SectionKind::Thruster(_) | SectionKind::Controller(_) => {}
         }
@@ -623,24 +623,24 @@ mod tests {
         };
 
         let reload = || {
-            Some(SectionReloadConfig {
+            ReloadConfig::Batch(SectionReloadConfig {
                 delay: 2.0,
                 amount: 1,
             })
         };
         let armed = [
             SectionKind::Turret(TurretSectionConfig {
-                ammo_capacity: Some(12),
+                ammunition: AmmoCapacity::Limited(12),
                 reload: reload(),
                 ..default()
             }),
             SectionKind::Torpedo(TorpedoSectionConfig {
-                ammo_capacity: Some(4),
+                ammunition: AmmoCapacity::Limited(4),
                 reload: reload(),
                 ..default()
             }),
             SectionKind::Railgun(RailgunSectionConfig {
-                ammo_capacity: Some(1),
+                ammunition: AmmoCapacity::Limited(1),
                 reload: reload(),
                 ..default()
             }),
@@ -649,13 +649,13 @@ mod tests {
             // The reload leaves with the capacity: the content lint refuses a
             // reload with nothing to refill.
             let magazine = match strip(kind) {
-                SectionKind::Turret(turret) => (turret.ammo_capacity, turret.reload),
-                SectionKind::Torpedo(torpedo) => (torpedo.ammo_capacity, torpedo.reload),
-                SectionKind::Railgun(railgun) => (railgun.ammo_capacity, railgun.reload),
+                SectionKind::Turret(turret) => (turret.ammunition, turret.reload),
+                SectionKind::Torpedo(torpedo) => (torpedo.ammunition, torpedo.reload),
+                SectionKind::Railgun(railgun) => (railgun.ammunition, railgun.reload),
                 _ => panic!("the kind is preserved"),
             };
-            assert_eq!(magazine.0, None);
-            assert!(magazine.1.is_none());
+            assert_eq!(magazine.0, AmmoCapacity::Unlimited);
+            assert_eq!(magazine.1, ReloadConfig::Disabled);
         }
 
         // An unarmed section has no magazine to take, and must come back whole.

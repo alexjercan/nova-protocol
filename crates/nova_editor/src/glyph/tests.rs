@@ -18,7 +18,6 @@ fn section(kind: SectionKind) -> SectionNode {
             base: BaseSectionConfig::default(),
             kind,
         }),
-        modifications: Vec::new(),
         binds: Vec::new(),
     }
 }

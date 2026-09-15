@@ -33,7 +33,7 @@ for responsibilities and the dependency graph.
 | `nova_core` | Wiring only: `AppBuilder` assembles the whole plugin stack. No gameplay. |
 | `nova_gameplay` | The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns `GameStates`/`PauseStates`/`GameMode`. |
 | `nova_ship` | The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship's soundtrack. |
-| `nova_wfc` | Generated hulls: a catalog plus an authored `Grammar` in, a `ShipHull` out. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
+| `nova_wfc` | Generated hulls: a catalog plus an authored `Grammar` in, a `ShipDesign` out. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
 | `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
 | `nova_os` | NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI. |
 | `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |

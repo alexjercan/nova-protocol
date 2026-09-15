@@ -546,7 +546,6 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let shooter = SpaceshipConfig {
@@ -555,7 +554,7 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             input_mapping: BTreeMap::new(),
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     LANCE_ID.to_string(),
@@ -581,7 +580,7 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     let block = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: block_cells()
                 .into_iter()
                 .map(|cell| {

@@ -13,8 +13,7 @@
 
 use std::collections::HashMap;
 
-use nova_gameplay::prelude::SectionClass;
-use nova_ship::prelude::{LinkPoint, SectionCollider, SectionConfig};
+use nova_ship::prelude::{GameSections, SectionConfig};
 
 use crate::prelude::*;
 
@@ -24,90 +23,87 @@ mod scenario;
 mod ship;
 
 pub use scenario::{lint_campaign, lint_scenario};
-pub use ship::{lint_channel_config, lint_grammar_config, lint_section_config, lint_ship_config};
+pub use ship::{
+    lint_channel_config, lint_grammar_config, lint_section_config, lint_ship_design_config,
+};
 
 /// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
 /// content-lint entry points and result types into scope.
 pub mod prelude {
     pub use super::{
         lint_campaign, lint_channel_config, lint_grammar_config, lint_scenario,
-        lint_section_config, lint_ship_config, KnownSection, KnownSections, KnownShips, LintIssue,
+        lint_section_config, lint_ship_design_config, KnownSections, KnownShipDesigns, LintIssue,
         LintSeverity,
     };
 }
 
-/// Resolved lint-relevant data for one visible section prototype.
-///
-/// No `Default`: there is no such thing as a default section CLASS, and a
-/// stand-in one would quietly answer "hull" to every question about a section
-/// nobody filled in.
-#[derive(Clone, Debug)]
-pub struct KnownSection {
-    /// Authored collider used by overlap lint. Unset means the default unit cube.
-    pub collider: SectionCollider,
-    /// Structural sockets copied from the resolved prototype.
-    pub link_points: Vec<LinkPoint>,
-    /// Which class of section this prototype is, so a check that cares what a
-    /// section IS - a scripted action naming one mount - does not have to
-    /// carry a copy of its whole config to find out.
-    pub class: SectionClass,
-}
-
-/// Last-wins section-prototype view used by scenario lint.
+/// Last-wins section-prototype view used by scenario lint: the whole resolved
+/// config for each visible id, in the shape
+/// [`resolve_ship_design`](crate::objects::ship_design::prelude::resolve_ship_design)
+/// takes - so the lint resolves a design exactly the way the spawn does and
+/// the two can never disagree about what a patch did.
 #[derive(Clone, Debug, Default)]
 pub struct KnownSections {
-    entries: HashMap<String, KnownSection>,
+    catalog: GameSections,
+    index: HashMap<String, usize>,
 }
 
 impl KnownSections {
-    /// Resolve full section configs in iterator order; later duplicate IDs replace earlier ones.
+    /// Resolve full section configs in iterator order; later duplicate IDs
+    /// replace earlier ones.
     pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a SectionConfig>) -> Self {
-        let mut entries = HashMap::new();
+        let mut known = Self::default();
         for config in configs {
-            entries.insert(
-                config.base.id.clone(),
-                KnownSection {
-                    collider: config.base.collider.unwrap_or_default(),
-                    link_points: config.base.link_points.clone(),
-                    class: config.kind.class(),
-                },
-            );
+            match known.index.get(&config.base.id) {
+                Some(&at) => known.catalog.0[at] = config.clone(),
+                None => {
+                    known
+                        .index
+                        .insert(config.base.id.clone(), known.catalog.0.len());
+                    known.catalog.0.push(config.clone());
+                }
+            }
         }
-        Self { entries }
+        known
     }
 
     /// Look up one resolved prototype by content ID.
-    pub fn get(&self, id: &str) -> Option<&KnownSection> {
-        self.entries.get(id)
+    pub fn get(&self, id: &str) -> Option<&SectionConfig> {
+        self.index.get(id).map(|&at| &self.catalog.0[at])
     }
 
     /// Whether one prototype ID resolves in this catalog.
     pub fn contains(&self, id: &str) -> bool {
-        self.entries.contains_key(id)
+        self.index.contains_key(id)
+    }
+
+    /// The same prototypes as the catalog resource the resolver reads.
+    pub fn catalog(&self) -> &GameSections {
+        &self.catalog
     }
 }
 
-/// Last-wins ship view used by scenario lint: the hull each visible ship id
-/// resolves to, so a spawn's `Prototype` reference and its per-section
-/// modifications can both be checked against a real section list.
+/// Last-wins design view used by scenario lint: the design each visible id
+/// resolves to, so a spawn's `Prototype` reference and its per-section patches
+/// can both be checked against a real section list.
 #[derive(Clone, Debug, Default)]
-pub struct KnownShips {
-    entries: HashMap<String, ShipHull>,
+pub struct KnownShipDesigns {
+    entries: HashMap<String, ShipDesign>,
 }
 
-impl KnownShips {
-    /// Resolve full ship configs in iterator order; later duplicate ids replace
-    /// earlier ones.
-    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a ShipConfig>) -> Self {
+impl KnownShipDesigns {
+    /// Resolve full design prototypes in iterator order; later duplicate ids
+    /// replace earlier ones.
+    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a ShipDesignPrototype>) -> Self {
         let mut entries = HashMap::new();
         for config in configs {
-            entries.insert(config.id.clone(), config.hull.clone());
+            entries.insert(config.id.clone(), config.design.clone());
         }
         Self { entries }
     }
 
-    /// The hull one ship id resolves to, or `None` if nothing authored it.
-    pub fn get(&self, id: &str) -> Option<&ShipHull> {
+    /// The design one id resolves to, or `None` if nothing authored it.
+    pub fn get(&self, id: &str) -> Option<&ShipDesign> {
         self.entries.get(id)
     }
 }

@@ -44,12 +44,12 @@ use crate::{
     gizmo::GizmoAxis,
     inspect::{
         action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
-        driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
-        object_config_mut, object_rows, operand_path, operand_row, parse_colour, rotation_degrees,
-        rotation_from_degrees, scale_framed_drags, scenario_rows, script_name, section_config_mut,
-        section_rows, ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule,
-        FieldRoot, InspectTarget, InspectorRow, NodeKinds, Operand, PathStep, RowValue,
-        ScriptNames, GRIP_GONE,
+        driver_label, edit_section, event_rows, filter_rows, gate_rows, inspected, nudge_field,
+        object_config_mut, object_rows, operand_path, operand_row, parse_colour, reset_field,
+        rotation_degrees, rotation_from_degrees, scale_framed_drags, scenario_rows, script_name,
+        section_config_mut, section_rows, ship_rows, step_rows, toggle_field, write_field,
+        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, NodeKinds, Operand,
+        PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -191,6 +191,77 @@ fn ref_chip() -> impl Bundle {
             TextColor(theme::PHOSPHOR_MUTED),
         )],
     )
+}
+
+/// The chip an OVERRIDDEN row wears: the mark that this placement tuned the
+/// field away from the part it names, and the control that takes the tuning
+/// back off.
+///
+/// One widget for both, because they are one fact: the mark is only ever on a
+/// row that can be reset, and a builder who sees it has the gesture under the
+/// pointer already.
+#[derive(Component)]
+pub(crate) struct InspectorReset;
+
+/// The reset chip: the inherit mark in a box the width of the picker's.
+fn reset_chip() -> impl Bundle {
+    (
+        Node {
+            width: px(16),
+            height: px(16),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(theme::AMBER_NOVA.with_alpha(0.5)),
+        BackgroundColor(Color::NONE),
+        children![(
+            UiText,
+            Text::new(crate::glyph::INHERIT),
+            TextFont {
+                font_size: FontSize::Px(10.0),
+                ..default()
+            },
+            TextColor(theme::AMBER_NOVA),
+        )],
+    )
+}
+
+/// Put the reset chip beside an overridden row's name, and nothing at all
+/// beside a row that inherits - which is every row of everything but a section
+/// that names a catalog part and tunes it.
+fn spawn_override_mark(
+    parent: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    slot: usize,
+) {
+    if !row.overridden {
+        return;
+    }
+    parent.spawn((
+        Name::new(format!("Inspector Reset {}", row.label)),
+        InspectorSlot(slot),
+        InspectorReset,
+        field.clone(),
+        Button,
+        Hovered::default(),
+        reset_chip(),
+        observe(on_inspector_reset),
+    ));
+}
+
+/// What a row's name is painted in: the panel's own muted green, or the amber
+/// that says this value is the placement's rather than the part's.
+fn label_colour(row: &InspectorRow) -> Color {
+    if row.overridden {
+        theme::AMBER_NOVA
+    } else {
+        theme::PHOSPHOR_MUTED
+    }
 }
 
 /// The unit beside a row's value, and what that slot says when the value is
@@ -676,14 +747,21 @@ fn row_hint(row: &InspectorRow) -> impl Bundle {
         title.push_str(" / ");
     }
     title.push_str(&row.label);
-    (
-        Hovered::default(),
-        InspectorHint {
-            title,
-            body: row.hint.clone(),
-        },
-    )
+    let mut body = row.hint.clone();
+    if row.overridden {
+        // Said in the hint as well as marked in amber, because the mark says
+        // THAT the row was tuned and this says what the chip beside it does.
+        if !body.is_empty() {
+            body.push(' ');
+        }
+        body.push_str(OVERRIDDEN);
+    }
+    (Hovered::default(), InspectorHint { title, body })
 }
+
+/// What the hint adds on a row this placement tuned away from its part.
+const OVERRIDDEN: &str =
+    "Tuned for this ship. Reset puts it back to the part's value, and a later      change to the part reaches it again.";
 
 /// The hint panel: the row's name over the sentence that explains it,
 /// absolutely positioned by [`sync_inspector_tooltip`].
@@ -827,7 +905,7 @@ const OPERAND_STEP: f32 = 16.0;
 ///
 /// `taken` is what the row's own indent has already eaten, so the column ends
 /// where every other row's does.
-fn row_label(label: &str, taken: f32) -> impl Bundle {
+fn row_label(row: &InspectorRow, taken: f32) -> impl Bundle {
     (
         Node {
             width: px(LABEL_W - taken),
@@ -836,7 +914,7 @@ fn row_label(label: &str, taken: f32) -> impl Bundle {
             ..default()
         },
         UiText,
-        Text::new(label.to_string()),
+        Text::new(row.label.clone()),
         TextLayout {
             linebreak: LineBreak::NoWrap,
             ..default()
@@ -845,7 +923,7 @@ fn row_label(label: &str, taken: f32) -> impl Bundle {
             font_size: FontSize::Px(11.0),
             ..default()
         },
-        TextColor(theme::PHOSPHOR_MUTED),
+        TextColor(label_colour(row)),
     )
 }
 
@@ -986,7 +1064,8 @@ fn spawn_pick_row(
         },
     ))
     .with_children(|shell| {
-        shell.spawn(row_label(&row.label, step));
+        shell.spawn(row_label(row, step));
+        spawn_override_mark(shell, row, field, slot);
         shell.spawn(value_column()).with_children(|value| {
             value.spawn((
                 Name::new(format!("Inspector Choice {}", row.label)),
@@ -1089,19 +1168,31 @@ fn spawn_choice_row(
         },
     ))
     .with_children(|block| {
-        block.spawn((
-            UiText,
-            Text::new(row.label.clone()),
-            TextLayout {
-                linebreak: LineBreak::NoWrap,
+        // A NAME LINE rather than a bare label, because the reset chip stands
+        // beside the name and this shape puts its control on the line below.
+        block
+            .spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: px(4),
                 ..default()
-            },
-            TextFont {
-                font_size: FontSize::Px(11.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR_MUTED),
-        ));
+            })
+            .with_children(|line| {
+                line.spawn((
+                    UiText,
+                    Text::new(row.label.clone()),
+                    TextLayout {
+                        linebreak: LineBreak::NoWrap,
+                        ..default()
+                    },
+                    TextFont {
+                        font_size: FontSize::Px(11.0),
+                        ..default()
+                    },
+                    TextColor(label_colour(row)),
+                ));
+                spawn_override_mark(line, row, field, slot);
+            });
         spawn_choice_options(block, &row.label, field, slot, options, chosen, skin);
     });
 }
@@ -1138,7 +1229,8 @@ fn spawn_operand_row(
         },
     ))
     .with_children(|shell| {
-        shell.spawn(row_label(&row.label, step));
+        shell.spawn(row_label(row, step));
+        spawn_override_mark(shell, row, field, slot);
         shell.spawn(value_column()).with_children(|value| {
             // The control keeps its natural width so the box beside it takes
             // what is left: a segmented bar that shrank would clip the very
@@ -1393,8 +1485,9 @@ fn spawn_axes_row(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(label_colour(row)),
                 ));
+                spawn_override_mark(line, row, field, slot);
                 line.spawn(unit_text(&label, unit, slot));
             });
         for (index, (lead, tint)) in leads.into_iter().enumerate() {
@@ -1581,7 +1674,7 @@ fn build_rows(
             },
         ))
         .with_children(|shell| {
-            let mut label = shell.spawn(row_label(&row.label, step));
+            let mut label = shell.spawn(row_label(row, step));
             if row.nudge > 0.0 {
                 label.insert((
                     Name::new(format!("Inspector Grip {}", row.label)),
@@ -1594,6 +1687,7 @@ fn build_rows(
                     observe(on_inspector_drag),
                 ));
             }
+            spawn_override_mark(shell, row, &field, slot);
             shell
                 .spawn(value_column())
                 .with_children(|value| match &row.value {
@@ -1776,7 +1870,14 @@ fn build_rows(
 pub(crate) struct ShownInspector {
     shape: Option<(
         Entity,
-        Vec<(String, FieldRoot, Vec<PathStep>, Option<Entity>, usize)>,
+        Vec<(
+            String,
+            FieldRoot,
+            Vec<PathStep>,
+            Option<Entity>,
+            usize,
+            bool,
+        )>,
     )>,
 }
 
@@ -1919,7 +2020,10 @@ pub(crate) fn sync_inspector(
         // changed path and this signature already catches it.
         // The OWNER and the DEPTH are part of it: a condition page has two
         // rows called `Left`, and without them a tree that changed shape would
-        // repaint into the widgets of the tree it used to be.
+        // repaint into the widgets of the tree it used to be. So is whether
+        // the row is OVERRIDDEN: the reset chip is a widget, and a reset that
+        // only repainted values would leave it standing over an inherited
+        // field.
         rows.iter()
             .map(|row| {
                 (
@@ -1928,6 +2032,7 @@ pub(crate) fn sync_inspector(
                     row.path.clone(),
                     row.owner,
                     row.depth,
+                    row.overridden,
                 )
             })
             .collect::<Vec<_>>(),
@@ -2285,14 +2390,15 @@ impl EditTargets<'_, '_> {
                     });
                 }
                 if let Ok(mut section) = self.sections.get_mut(field.node) {
+                    let catalog = self.catalog.as_deref();
                     return if_it_took(&mut section, |section| {
-                        let config = editable_config(section, self.catalog.as_deref())
-                            .ok_or_else(|| "no catalog entry".to_string())?;
-                        edit(
-                            section_config_mut(&mut config.kind),
-                            &field.path,
-                            field.optional,
-                        )
+                        edit_section(section, catalog, |config| {
+                            edit(
+                                section_config_mut(&mut config.kind),
+                                &field.path,
+                                field.optional,
+                            )
+                        })
                     });
                 }
                 let mut object = self
@@ -2313,6 +2419,24 @@ impl EditTargets<'_, '_> {
                 took
             }
         }
+    }
+
+    /// Put the value `field` points at back to the one it INHERITS.
+    ///
+    /// Sections only: a patch is what a prototype REFERENCE carries, and
+    /// nothing else in the document stands on one. The write itself is
+    /// [`reset_field`], which writes the inherited value through the same
+    /// [`edit_section`] every typed edit takes - so the patch field goes away
+    /// instead of being set to what the part happens to say today.
+    pub(crate) fn reset(&mut self, field: &InspectorField) -> Result<(), String> {
+        let catalog = self.catalog.as_deref();
+        let mut section = self
+            .sections
+            .get_mut(field.node)
+            .map_err(|_| GRIP_GONE.to_string())?;
+        if_it_took(&mut section, |section| {
+            reset_field(section, catalog, &field.path)
+        })
     }
 
     /// Whether `node` belongs to the script rather than to the world.
@@ -2512,6 +2636,25 @@ pub(crate) fn on_inspector_flag(
             .ok_or_else(|| "not a flag".to_string())
     });
     if let Err(reason) = flipped {
+        says.refuse(reason);
+    }
+}
+
+/// Put an overridden field back to the value its prototype says.
+///
+/// The chip only exists on a row that HAS something to inherit, so a refusal
+/// here is a document that changed under the panel - a catalog entry an
+/// overlay dropped - and it is said out loud rather than swallowed.
+pub(crate) fn on_inspector_reset(
+    activate: On<Activate>,
+    chips: Query<&InspectorField, With<InspectorReset>>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    let Ok(field) = chips.get(activate.entity) else {
+        return;
+    };
+    if let Err(reason) = targets.reset(field) {
         says.refuse(reason);
     }
 }

@@ -107,12 +107,11 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Enemy),
             controller: SpaceshipController::None,
-            hull: ships::inline_hull(vec![SpaceshipSectionConfig {
+            design: ships::inline_design(vec![SpaceshipSectionConfig {
                 id: "bay".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                source: SectionSource::Prototype("torpedo_section".to_string()),
-                modifications: vec![],
+                source: SectionSource::prototype("torpedo_section"),
             }]),
             ..Default::default()
         }),
@@ -238,16 +237,13 @@ pub(crate) fn menu_gauntlet(
             // are the scene's clock - when they run dry the stand falls. Six
             // mounts cover both hemispheres, so a torpedo arriving from
             // either flank meets guns without the ship having to turn.
-            hull: ships::hull(ships::BLOCK_GUNSHIP_SHIP_ID),
-            modifications: ships::BLOCK_GUNSHIP_TURRET_IDS
-                .iter()
-                .map(|turret| {
-                    ships::on_section(
-                        turret,
-                        vec![SectionModification::SetAmmo(GUNSHIP_ROUNDS_PER_TURRET)],
-                    )
-                })
-                .collect(),
+            design: ships::patched_design(
+                ships::BLOCK_GUNSHIP_SHIP_ID,
+                ships::BLOCK_GUNSHIP_TURRET_IDS.iter().map(|turret| {
+                    ships::on_section(turret, ships::turret_magazine(GUNSHIP_ROUNDS_PER_TURRET))
+                }),
+            ),
+            ..Default::default()
         }),
     });
 

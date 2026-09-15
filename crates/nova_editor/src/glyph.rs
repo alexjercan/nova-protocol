@@ -146,6 +146,11 @@ pub(crate) fn choice_mark(choice: ObjectChoice) -> &'static str {
 /// drops is drawn under.
 pub(crate) const PICK: &str = "\u{25be}";
 
+/// A row whose value this placement tuned away from the part it names.
+/// ANTICLOCKWISE OPEN CIRCLE ARROW - press it and the field goes back to what
+/// the part says.
+pub(crate) const INHERIT: &str = "\u{21ba}";
+
 /// A container whose children are drawn under it. BLACK DOWN-POINTING SMALL
 /// TRIANGLE - pointing at what it is showing.
 pub(crate) const OPEN: &str = "\u{25be}";

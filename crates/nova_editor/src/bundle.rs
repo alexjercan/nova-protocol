@@ -48,7 +48,7 @@ use nova_modding::prelude::Content;
 use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioEventConfig,
-    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipConfig, ShipSource,
+    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesignPrototype, ShipDesignSource,
     SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
@@ -63,7 +63,7 @@ use crate::{
         SectionNode, SectionNodes, ShipDriver, ShipNode,
     },
     scenario::{
-        lower_fleet, ship_hull, world_objects, world_script, world_settings, HullForm,
+        lower_fleet, ship_design, world_objects, world_script, world_settings, HullForm,
         LoweredFleet, Range,
     },
 };
@@ -176,10 +176,10 @@ pub(crate) fn document_content(
     let mut items: Vec<Content> = fleet
         .designs()
         .map(|ship| {
-            Content::Ship(ShipConfig {
+            Content::Ship(ShipDesignPrototype {
                 id: ship.id.clone(),
                 name: ship.id.clone(),
-                hull: ship_hull(ship),
+                design: ship_design(ship),
             })
         })
         .collect();
@@ -260,7 +260,7 @@ pub(crate) struct LiftedDocument {
 /// ship prototypes is a legal mod and an empty document, and the two are worth
 /// telling apart at the call site.
 pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
-    let designs: BTreeMap<&str, &ShipConfig> = items
+    let designs: BTreeMap<&str, &ShipDesignPrototype> = items
         .iter()
         .filter_map(|item| match item {
             Content::Ship(ship) => Some((ship.id.as_str(), ship)),
@@ -309,7 +309,7 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
 /// design it cannot show is not one it should offer to edit.
 pub(crate) fn lift_objects(
     objects: impl IntoIterator<Item = ScenarioObjectConfig>,
-    designs: &BTreeMap<&str, &ShipConfig>,
+    designs: &BTreeMap<&str, &ShipDesignPrototype>,
 ) -> LiftedDocument {
     let mut lifted = LiftedDocument::default();
     for object in objects {
@@ -361,16 +361,16 @@ fn is_layout(event: &ScenarioEventConfig) -> bool {
 /// referenced by the id it was written under.
 fn lift_ship(
     object: &ScenarioObjectConfig,
-    designs: &BTreeMap<&str, &ShipConfig>,
+    designs: &BTreeMap<&str, &ShipDesignPrototype>,
 ) -> Option<LiftedShip> {
     let ScenarioObjectKind::Spaceship(spawn) = &object.kind else {
         return None;
     };
-    let (id, hull) = match &spawn.hull {
+    let (id, design) = match &spawn.design {
         // A design of this file's own, under the id it was written with.
-        ShipSource::Prototype(id) => (id.clone(), &designs.get(id.as_str())?.hull),
-        // A hull authored in place - every seeded ship of the stock range.
-        ShipSource::Inline(hull) => (object.base.id.clone(), hull),
+        ShipDesignSource::Prototype { id, .. } => (id.clone(), &designs.get(id.as_str())?.design),
+        // A design authored in place - every seeded ship of the stock range.
+        ShipDesignSource::Inline(design) => (object.base.id.clone(), design),
     };
     let (driver, pilot, binds) = match &spawn.controller {
         SpaceshipController::Player(config) => (
@@ -399,9 +399,9 @@ fn lift_ship(
         pilot,
         pose: Transform::from_translation(object.base.position.to_engine())
             .with_rotation(object.base.rotation),
-        skin: hull.skin,
-        style: hull.style.clone(),
-        sections: hull.sections.clone(),
+        skin: design.presentation.skin,
+        style: design.presentation.style.clone(),
+        sections: design.sections.clone(),
         binds,
     })
 }
@@ -440,7 +440,6 @@ pub(crate) fn insert_lifted_ship(
             NodeId(section.id),
             SectionNode {
                 source: section.source,
-                modifications: section.modifications,
                 binds,
             },
             Transform::from_translation(section.position).with_rotation(section.rotation),

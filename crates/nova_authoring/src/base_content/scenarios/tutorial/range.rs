@@ -51,16 +51,11 @@ pub(super) const TRAINER_BRIDGE_HEALTH: f32 = 1_300.0;
 
 /// The trainer on the line at the range origin, facing down the range.
 ///
-/// The helm verbs are withheld at spawn and handed back one lesson at a time,
-/// as spawn MODIFICATIONS aimed at the shared hull's flight computer: they
-/// apply from the instant the controller is built and only to this spawn.
-/// The gun is not withheld - there is no verb for it - so the fire lessons
-/// are written to survive a cadet who shoots early.
+/// The helm capabilities are withheld at spawn on the ROOT and handed back one
+/// lesson at a time: they apply from the instant the ship is built and only to
+/// this spawn. The gun is not withheld - there is no capability for it - so
+/// the fire lessons are written to survive a cadet who shoots early.
 pub(super) fn trainer() -> ScenarioObjectConfig {
-    let controller_gate: Vec<SectionModification> = WITHHELD_VERBS
-        .into_iter()
-        .map(SectionModification::DisableVerb)
-        .collect();
     let mut input_mapping = BTreeMap::new();
     input_mapping.insert(
         TRAINER_GUN.to_string(),
@@ -82,34 +77,33 @@ pub(super) fn trainer() -> ScenarioObjectConfig {
                 input_mapping,
                 speed_cap: Some(TRAINER_SPEED_CAP),
             }),
-            hull: ships::hull(ships::BLOCK_PICKET_SHIP_ID),
-            modifications: vec![
-                ships::on_section(
-                    ships::BLOCK_BRIDGE_SECTION_ID,
-                    [SectionModification::SetHealth(TRAINER_BRIDGE_HEALTH)]
-                        .into_iter()
-                        .chain(controller_gate)
-                        .collect(),
-                ),
-                ships::on_section(
-                    TRAINER_GUN,
-                    vec![SectionModification::SetHealth(TRAINER_GUN_HEALTH)],
-                ),
-            ],
+            capabilities: WITHHELD_CAPABILITIES,
+            design: ships::patched_design(
+                ships::BLOCK_PICKET_SHIP_ID,
+                [
+                    ships::on_section(
+                        ships::BLOCK_BRIDGE_SECTION_ID,
+                        ships::section_health(TRAINER_BRIDGE_HEALTH),
+                    ),
+                    ships::on_section(TRAINER_GUN, ships::section_health(TRAINER_GUN_HEALTH)),
+                ],
+            ),
         }),
     }
 }
 
-/// The verbs the card teaches, withheld until their lesson. Every one of
-/// them: a verb the cadet has not been shown is a verb they can fly the
-/// pattern with by accident.
-pub(super) const WITHHELD_VERBS: [FlightVerb; 5] = [
-    FlightVerb::Stop,
-    FlightVerb::Rcs,
-    FlightVerb::Lock,
-    FlightVerb::Goto,
-    FlightVerb::Orbit,
-];
+/// The helm the card teaches, withheld until its lesson. Every capability the
+/// cadet has not been shown is one they can fly the pattern with by accident,
+/// so the trainer spawns with all five off. Point defence is left alone: the
+/// trainer has no point-defense mount to stand down.
+pub(super) const WITHHELD_CAPABILITIES: ShipCapabilities = ShipCapabilities {
+    stop_enabled: false,
+    rcs_enabled: false,
+    lock_enabled: false,
+    goto_enabled: false,
+    orbit_enabled: false,
+    point_defense_enabled: true,
+};
 
 // --- the targets -------------------------------------------------------------
 
@@ -145,8 +139,7 @@ pub(super) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
         id: id.to_string(),
         position: cell,
         rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype(prototype.to_string()),
-        modifications: vec![],
+        source: SectionSource::prototype(prototype),
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -158,14 +151,14 @@ pub(super) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::None,
-            hull: ships::inline_hull(vec![
+            design: ships::inline_design(vec![
                 plate("spine", Vec3::ZERO, REINFORCED_HULL_SECTION_ID),
                 plate("bow", Vec3::new(0.0, 0.0, -1.0), LIGHT_HULL_SECTION_ID),
                 plate("stern", Vec3::new(0.0, 0.0, 1.0), LIGHT_HULL_SECTION_ID),
                 plate("port", Vec3::new(-1.0, 0.0, 0.0), LIGHT_HULL_SECTION_ID),
                 plate("starboard", Vec3::new(1.0, 0.0, 0.0), LIGHT_HULL_SECTION_ID),
             ]),
-            modifications: vec![],
+            ..Default::default()
         }),
     }
 }
@@ -211,19 +204,27 @@ pub(super) const DRONE_MAGAZINE: u32 = 150;
 /// Neutral is the dormancy. The AI runs its passive routine and never
 /// acquires, because acquisition only looks at hostile contacts. The live
 /// beat flips the allegiance and the same pilot starts fighting - no
-/// controller swap, no second spawn. The handicap is spawn modifications on
-/// every section, so the catalog picket the cadet flies is untouched.
+/// controller swap, no second spawn. The handicap is a spawn patch on every
+/// section, so the catalog picket the cadet flies is untouched.
 pub(super) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectConfig {
-    let modifications = ships::picket_section_ids()
-        .into_iter()
-        .map(|section| {
-            let mut deltas = vec![SectionModification::SetHealth(DRONE_SECTION_HEALTH)];
-            if section == TRAINER_GUN {
-                deltas.push(SectionModification::SetAmmo(DRONE_MAGAZINE));
-            }
-            ships::on_section(&section, deltas)
-        })
-        .collect();
+    let section_patches = ships::picket_section_ids().into_iter().map(|section| {
+        let kind = (section == TRAINER_GUN).then(|| {
+            SectionKindPatch::Turret(TurretSectionConfigPatch {
+                ammunition: Some(AmmoCapacity::Limited(DRONE_MAGAZINE)),
+                ..Default::default()
+            })
+        });
+        ships::on_section(
+            &section,
+            SpaceshipSectionConfigPatch {
+                config: SectionConfigPatch {
+                    health: Some(DRONE_SECTION_HEALTH),
+                    kind,
+                },
+                ..Default::default()
+            },
+        )
+    });
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -237,8 +238,8 @@ pub(super) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectCo
                 leash: Some(DRONE_LEASH),
                 ..Default::default()
             }),
-            hull: ships::hull(ships::BLOCK_PICKET_SHIP_ID),
-            modifications,
+            design: ships::patched_design(ships::BLOCK_PICKET_SHIP_ID, section_patches),
+            ..Default::default()
         }),
     }
 }

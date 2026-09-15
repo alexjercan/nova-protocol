@@ -5,7 +5,7 @@
     Ship((
         id: "racer",
         name: "Racer Yacht",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "engine_starboard",
@@ -20,7 +20,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_engine_starboard"),
+                    source: Prototype(id: "racer_engine_starboard"),
                 ),
                 (
                     id: "engine_port",
@@ -35,7 +35,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_engine_port"),
+                    source: Prototype(id: "racer_engine_port"),
                 ),
                 (
                     id: "wing_starboard",
@@ -50,7 +50,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_wing_starboard"),
+                    source: Prototype(id: "racer_wing_starboard"),
                 ),
                 (
                     id: "wing_port",
@@ -65,7 +65,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_wing_port"),
+                    source: Prototype(id: "racer_wing_port"),
                 ),
                 (
                     id: "nose",
@@ -80,7 +80,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_nose"),
+                    source: Prototype(id: "racer_nose"),
                 ),
                 (
                     id: "tail",
@@ -95,7 +95,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_tail"),
+                    source: Prototype(id: "racer_tail"),
                 ),
                 (
                     id: "fuselage",
@@ -110,16 +110,27 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("racer_fuselage"),
+                    source: Prototype(id: "racer_fuselage"),
                 ),
             ],
-            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
         ),
     )),
     Ship((
         id: "cargob",
         name: "CargoB Hauler",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "engine_starboard",
@@ -134,7 +145,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_engine_starboard"),
+                    source: Prototype(id: "cargob_engine_starboard"),
                 ),
                 (
                     id: "engine_port",
@@ -149,7 +160,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_engine_port"),
+                    source: Prototype(id: "cargob_engine_port"),
                 ),
                 (
                     id: "pod_starboard",
@@ -164,7 +175,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_pod_starboard"),
+                    source: Prototype(id: "cargob_pod_starboard"),
                 ),
                 (
                     id: "pod_port",
@@ -179,7 +190,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_pod_port"),
+                    source: Prototype(id: "cargob_pod_port"),
                 ),
                 (
                     id: "nose",
@@ -194,7 +205,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_nose"),
+                    source: Prototype(id: "cargob_nose"),
                 ),
                 (
                     id: "tail",
@@ -209,7 +220,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_tail"),
+                    source: Prototype(id: "cargob_tail"),
                 ),
                 (
                     id: "fuselage",
@@ -224,7 +235,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_fuselage"),
+                    source: Prototype(id: "cargob_fuselage"),
                 ),
                 (
                     id: "turret_starboard",
@@ -239,7 +250,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("ledger_pdc"),
+                    source: Prototype(id: "ledger_pdc"),
                 ),
                 (
                     id: "turret_port",
@@ -254,16 +265,27 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("ledger_pdc"),
+                    source: Prototype(id: "ledger_pdc"),
                 ),
             ],
-            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
         ),
     )),
     Ship((
         id: "cargob_lance",
         name: "CargoB Hauler (Lance)",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "engine_starboard",
@@ -278,7 +300,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_engine_starboard"),
+                    source: Prototype(id: "cargob_engine_starboard"),
                 ),
                 (
                     id: "engine_port",
@@ -293,7 +315,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_engine_port"),
+                    source: Prototype(id: "cargob_engine_port"),
                 ),
                 (
                     id: "pod_starboard",
@@ -308,7 +330,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_pod_starboard_lance"),
+                    source: Prototype(id: "cargob_pod_starboard_lance"),
                 ),
                 (
                     id: "pod_port",
@@ -323,7 +345,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_pod_port_lance"),
+                    source: Prototype(id: "cargob_pod_port_lance"),
                 ),
                 (
                     id: "nose",
@@ -338,7 +360,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_nose"),
+                    source: Prototype(id: "cargob_nose"),
                 ),
                 (
                     id: "tail",
@@ -353,7 +375,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_tail"),
+                    source: Prototype(id: "cargob_tail"),
                 ),
                 (
                     id: "fuselage",
@@ -368,7 +390,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargob_fuselage"),
+                    source: Prototype(id: "cargob_fuselage"),
                 ),
                 (
                     id: "turret_starboard",
@@ -383,7 +405,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("ledger_pdc"),
+                    source: Prototype(id: "ledger_pdc"),
                 ),
                 (
                     id: "turret_port",
@@ -398,16 +420,27 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("ledger_pdc"),
+                    source: Prototype(id: "ledger_pdc"),
                 ),
             ],
-            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
         ),
     )),
     Ship((
         id: "cargoa",
         name: "CargoA Corvette",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "engine_starboard",
@@ -422,7 +455,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_engine_starboard"),
+                    source: Prototype(id: "cargoa_engine_starboard"),
                 ),
                 (
                     id: "engine_port",
@@ -437,7 +470,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_engine_port"),
+                    source: Prototype(id: "cargoa_engine_port"),
                 ),
                 (
                     id: "pod_starboard",
@@ -452,7 +485,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_pod_starboard"),
+                    source: Prototype(id: "cargoa_pod_starboard"),
                 ),
                 (
                     id: "pod_port",
@@ -467,7 +500,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_pod_port"),
+                    source: Prototype(id: "cargoa_pod_port"),
                 ),
                 (
                     id: "nose",
@@ -482,7 +515,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_nose"),
+                    source: Prototype(id: "cargoa_nose"),
                 ),
                 (
                     id: "tail",
@@ -497,7 +530,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_tail"),
+                    source: Prototype(id: "cargoa_tail"),
                 ),
                 (
                     id: "fuselage",
@@ -512,7 +545,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_fuselage"),
+                    source: Prototype(id: "cargoa_fuselage"),
                 ),
                 (
                     id: "turret_starboard",
@@ -527,7 +560,7 @@
                         -0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("ledger_pdc"),
+                    source: Prototype(id: "ledger_pdc"),
                 ),
                 (
                     id: "turret_port",
@@ -542,16 +575,27 @@
                         0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("ledger_pdc"),
+                    source: Prototype(id: "ledger_pdc"),
                 ),
             ],
-            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
         ),
     )),
     Ship((
         id: "cargoa_raider",
         name: "CargoA Raider Corvette",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "engine_starboard",
@@ -566,10 +610,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_engine_starboard"),
-                    modifications: [
-                        SetHealth(90.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_engine_starboard",
+                        patch: (
+                            health: Some(90.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "engine_port",
@@ -584,10 +630,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_engine_port"),
-                    modifications: [
-                        SetHealth(90.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_engine_port",
+                        patch: (
+                            health: Some(90.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "pod_starboard",
@@ -602,10 +650,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_pod_starboard"),
-                    modifications: [
-                        SetHealth(250.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_pod_starboard",
+                        patch: (
+                            health: Some(250.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "pod_port",
@@ -620,10 +670,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_pod_port"),
-                    modifications: [
-                        SetHealth(250.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_pod_port",
+                        patch: (
+                            health: Some(250.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "nose",
@@ -638,10 +690,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_nose"),
-                    modifications: [
-                        SetHealth(200.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_nose",
+                        patch: (
+                            health: Some(200.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "tail",
@@ -656,10 +710,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_tail"),
-                    modifications: [
-                        SetHealth(160.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_tail",
+                        patch: (
+                            health: Some(160.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "fuselage",
@@ -674,10 +730,12 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_fuselage"),
-                    modifications: [
-                        SetHealth(300.0),
-                    ],
+                    source: Prototype(
+                        id: "cargoa_fuselage",
+                        patch: (
+                            health: Some(300.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "turret_starboard",
@@ -692,10 +750,12 @@
                         -0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("ledger_pdc_patrol"),
-                    modifications: [
-                        SetHealth(120.0),
-                    ],
+                    source: Prototype(
+                        id: "ledger_pdc_patrol",
+                        patch: (
+                            health: Some(120.0),
+                        ),
+                    ),
                 ),
                 (
                     id: "turret_port",
@@ -710,19 +770,32 @@
                         0.70710677,
                         0.70710677,
                     ),
-                    source: Prototype("ledger_pdc_patrol"),
-                    modifications: [
-                        SetHealth(120.0),
-                    ],
+                    source: Prototype(
+                        id: "ledger_pdc_patrol",
+                        patch: (
+                            health: Some(120.0),
+                        ),
+                    ),
                 ),
             ],
-            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
         ),
     )),
     Ship((
         id: "ledger_freighter",
         name: "Light Freighter",
-        hull: (
+        design: (
             sections: [
                 (
                     id: "engine_starboard",
@@ -737,7 +810,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_engine_starboard"),
+                    source: Prototype(id: "cargoa_engine_starboard"),
                 ),
                 (
                     id: "engine_port",
@@ -752,7 +825,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_engine_port"),
+                    source: Prototype(id: "cargoa_engine_port"),
                 ),
                 (
                     id: "pod_starboard",
@@ -767,7 +840,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_pod_starboard"),
+                    source: Prototype(id: "cargoa_pod_starboard"),
                 ),
                 (
                     id: "pod_port",
@@ -782,7 +855,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_pod_port"),
+                    source: Prototype(id: "cargoa_pod_port"),
                 ),
                 (
                     id: "nose",
@@ -797,7 +870,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_nose"),
+                    source: Prototype(id: "cargoa_nose"),
                 ),
                 (
                     id: "tail",
@@ -812,7 +885,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_tail"),
+                    source: Prototype(id: "cargoa_tail"),
                 ),
                 (
                     id: "fuselage",
@@ -827,91 +900,102 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("cargoa_fuselage"),
+                    source: Prototype(id: "cargoa_fuselage"),
                 ),
             ],
-            collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
         ),
     )),
-    Ship((id: "ledger_platform", name: "Platform", hull: (
+    Ship((id: "ledger_platform", name: "Platform", design: (
                                 sections: [
                                     (
                                         id: "core",
                                         position: (0.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("basic_controller_section"), modifications: [SetHealth(600.0)],
+                                        source: Prototype(id: "basic_controller_section", patch: (health: Some(600.0))),
                                     ),
                                     (
                                         id: "spine_zp1",
                                         position: (0.0, 0.0, 1.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "spine_zp2",
                                         position: (0.0, 0.0, 2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "spine_zm1",
                                         position: (0.0, 0.0, -1.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "spine_zm2",
                                         position: (0.0, 0.0, -2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "arm_xp1",
                                         position: (1.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "arm_xp2",
                                         position: (2.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "arm_xm1",
                                         position: (-1.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "arm_xm2",
                                         position: (-2.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "cap_yp",
                                         position: (0.0, 1.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "cap_ym",
                                         position: (0.0, -1.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"), modifications: [SetHealth(240.0)],
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
                                     ),
                                     (
                                         id: "turret_zp",
                                         position: (0.0, 0.75, 2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("ledger_pdc_patrol"), modifications: [SetHealth(100.0)],
+                                        source: Prototype(id: "ledger_pdc_patrol", patch: (health: Some(100.0))),
                                     ),
                                     (
                                         id: "turret_zm",
                                         position: (0.0, 0.75, -2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("ledger_pdc_patrol"), modifications: [SetHealth(100.0)],
+                                        source: Prototype(id: "ledger_pdc_patrol", patch: (health: Some(100.0))),
                                     ),
                                 ],
                             ))),

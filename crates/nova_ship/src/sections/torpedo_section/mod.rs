@@ -63,7 +63,7 @@ pub mod prelude {
 }
 
 /// Authorable config for a torpedo bay section (the guided-torpedo launcher).
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TorpedoSectionConfig {
     /// The render mesh of the torpedo bay, defaults to a cuboid of size 1x1x1.
@@ -228,22 +228,16 @@ pub struct TorpedoSectionConfig {
     /// the tube; this is what comes out of it.
     #[cfg_attr(feature = "serde", serde(default))]
     pub torpedo_type: TorpedoTypeConfig,
-    /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
-    /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
-    /// that depletes one per launch and blocks firing once empty.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub ammo_capacity: Option<u32>,
-    /// Idle batch reload for the bay. Each successful launch resets its delay;
-    /// each completed delay restores the authored amount until full. Requires
-    /// `ammo_capacity`; an unlimited bay never reloads.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub reload: Option<SectionReloadConfig>,
+    /// How many torpedoes this bay holds: `Unlimited`, or `Limited(n)` for a
+    /// [`SectionAmmo`] of `n` that depletes one per launch and blocks firing
+    /// once empty.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub ammunition: AmmoCapacity,
+    /// Idle batch reload. Each successful launch resets its delay; each
+    /// completed delay restores the authored amount until full. `Batch` on an
+    /// `Unlimited` bay is a content lint error - there is nothing to refill.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub reload: ReloadConfig,
 }
 
 impl Default for TorpedoSectionConfig {
@@ -275,8 +269,8 @@ impl Default for TorpedoSectionConfig {
             detonation_sound: None,
             projectile_health: default_projectile_health(),
             torpedo_type: TorpedoTypeConfig::default(),
-            ammo_capacity: None,
-            reload: None,
+            ammunition: AmmoCapacity::Unlimited,
+            reload: ReloadConfig::Disabled,
         }
     }
 }

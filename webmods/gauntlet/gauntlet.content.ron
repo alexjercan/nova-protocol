@@ -115,11 +115,11 @@
                         message: "Gauntlet Run 2.0 loaded from the mod portal.",
                     )),
                     // The cutter: the base game's small unarmed workboat, which
-                    // is exactly what a time trial wants. All verbs enabled (no
-                    // DisableVerb), so the pilot can GOTO/lock the gates from
-                    // the first second. Its reinforced plating buys crash
-                    // tolerance so the course is run-and-fail, not one-touch
-                    // death.
+                    // is exactly what a time trial wants. Every capability is
+                    // enabled (the spawn default), so the pilot can GOTO/lock
+                    // the gates from the first second. Its reinforced plating
+                    // buys crash tolerance so the course is run-and-fail, not
+                    // one-touch death.
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -134,7 +134,7 @@
                                 input_mapping: {},
                                 speed_cap: Some(250.0),
                             )),
-                            hull: Prototype("block_cutter"),
+                            design: Prototype(id: "block_cutter"),
                         )),
                     )),
                     // --- Gates: START, six threaded gates, FINISH ---

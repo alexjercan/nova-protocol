@@ -122,13 +122,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(hud_shell_set(&game_assets, &ships)));
 }
 
 /// The set: the player's carrier at the origin and the well it is falling
 /// around, lit by the photo rig.
-fn hud_shell_set(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn hud_shell_set(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let carrier = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: CARRIER_ID.to_string(),
@@ -145,7 +145,7 @@ fn hud_shell_set(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig 
                 speed_cap: None,
             }),
             allegiance: None,
-            hull: ShipSource::Inline(kit::catalog_ship(ships, "block_carrier")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, "block_carrier")),
             ..default()
         }),
     });

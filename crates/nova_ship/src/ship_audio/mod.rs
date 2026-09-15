@@ -32,11 +32,12 @@ use crate::prelude::*;
 
 /// `ShipAudioPlugin` and its ordering handle.
 pub mod prelude {
-    pub use super::{ShipAudioPlugin, ShipAudioSystems};
+    pub use super::{feedback::prelude::*, ShipAudioPlugin, ShipAudioSystems};
 }
 
 mod combat;
 mod cues;
+pub mod feedback;
 mod levels;
 mod loops;
 mod machinery;

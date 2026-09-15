@@ -31,7 +31,7 @@
 //! hundred rounds rather than a moment worth counting down.
 //!
 //! A weapon with no `SectionAmmo` fires without limit (an authored
-//! `ammo_capacity = None`, or the `ammo infinite` cheat taking the component
+//! `ammunition: Unlimited`, or the `ammo infinite` cheat taking the component
 //! off a live section): the reconcile filter skips it and it gets no readout at
 //! all, which is the intended "don't even show it" behavior for unlimited
 //! ammunition.

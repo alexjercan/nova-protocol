@@ -522,16 +522,6 @@
                     -0.100000024,
                 ),
             )),
-            lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
-            lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
-            radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
-            safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
-            warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
-            ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
-            warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
-            warn_hull_fraction: 0.3,
-            rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
         )),
     )),
     Section((
@@ -806,8 +796,8 @@
                 weave_angle: 0.44,
                 weave_rate: 1.4,
             ),
-            ammo_capacity: Some(6),
-            reload: Some((
+            ammunition: Limited(6),
+            reload: Batch((
                 delay: 10.0,
                 amount: 1,
             )),
@@ -917,8 +907,8 @@
                 weave_angle: 0.0,
                 weave_rate: 0.0,
             ),
-            ammo_capacity: Some(6),
-            reload: Some((
+            ammunition: Limited(6),
+            reload: Batch((
                 delay: 10.0,
                 amount: 1,
             )),
@@ -1028,8 +1018,8 @@
                 weave_angle: 0.44,
                 weave_rate: 1.4,
             ),
-            ammo_capacity: Some(6),
-            reload: Some((
+            ammunition: Limited(6),
+            reload: Batch((
                 delay: 10.0,
                 amount: 1,
             )),
@@ -1139,8 +1129,8 @@
                 weave_angle: 0.0,
                 weave_rate: 0.0,
             ),
-            ammo_capacity: Some(6),
-            reload: Some((
+            ammunition: Limited(6),
+            reload: Batch((
                 delay: 10.0,
                 amount: 1,
             )),
@@ -1312,16 +1302,6 @@
                     0.25,
                 ),
             )),
-            lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
-            lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
-            radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
-            safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
-            warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
-            ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
-            warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
-            warn_hull_fraction: 0.3,
-            rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
         )),
     )),
     Section((
@@ -1792,16 +1772,6 @@
                     -0.17500001,
                 ),
             )),
-            lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
-            lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
-            radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
-            safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
-            warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
-            ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
-            warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
-            warn_hull_fraction: 0.3,
-            rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
         )),
     )),
     Section((
@@ -1959,6 +1929,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "main",
                                                             fire_rate: 35.0,
                                                         )),
                                                     ),
@@ -1980,8 +1951,8 @@
             dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
             stow_open_sound: Some("dep://base/sounds/pdc_stow_open.wav"),
             stow_close_sound: Some("dep://base/sounds/pdc_stow_close.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
+            ammunition: Limited(500),
+            reload: Batch((
                 delay: 3.0,
                 amount: 200,
             )),
@@ -2142,6 +2113,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "main",
                                                             fire_rate: 25.0,
                                                         )),
                                                     ),
@@ -2163,8 +2135,8 @@
             dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
             stow_open_sound: Some("dep://base/sounds/pdc_stow_open.wav"),
             stow_close_sound: Some("dep://base/sounds/pdc_stow_close.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
+            ammunition: Limited(500),
+            reload: Batch((
                 delay: 3.0,
                 amount: 200,
             )),

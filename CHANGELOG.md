@@ -16,6 +16,10 @@ does NOT get an entry - and it is the only place they are written down.
 ## [Unreleased]
 
 ### Gameplay & Flight
+- **(breaking)** What a ship may do belongs to the SHIP: a spawn's
+  `capabilities` block replaces the controller section's `DisableVerb`, so a
+  hull that loses every flight computer keeps its radar, its point defence and
+  its permissions, and loses only its steering.
 - An enemy flies its fight on the flight computer: it holds a velocity and
   keeps its nose on you while it circles, and lights only the engines that
   burn for it instead of every thruster at once.
@@ -55,8 +59,7 @@ does NOT get an entry - and it is the only place they are written down.
   asteroid and a planet default their signature from their true surface.
 - A lock remembers the range it was taken at, so shooting a ship quieter never
   drops the lock already held on it. A fresh lock uses what it returns now.
-- An AI ship takes an authored `sensor_range`; `Some(0 m)`, or a hull with no
-  live flight computer, sees nothing at all.
+- An AI ship takes an authored `sensor_range`; `Some(0 m)` sees nothing at all.
 - A gun fires inside its target's own angular size, not one 0.92 deg cone: 11
   deg on a carrier at 1 km, 2.7 on a skiff, 0.7 on a torpedo. A crosshair with
   nothing under it keeps the fixed cone.
@@ -81,6 +84,21 @@ does NOT get an entry - and it is the only place they are written down.
   behind them.
 
 ### Ships & Sections
+- **(breaking)** A ship is a DESIGN: `Ship`'s `hull` field is now `design`,
+  its `collapse_threshold` moves under `integrity`, and its skin, style and
+  sounds under `presentation`.
+- **(breaking)** A prototype reference carries a typed `patch` instead of a
+  `modifications` list: health and the kind's own values, inherited where the
+  patch says nothing, kind-checked at lint.
+- **(breaking)** A weapon says which magazine it has: `ammunition: Unlimited` /
+  `Limited(n)` and `reload: Disabled` / `Batch((delay, amount))`. A `Batch` on
+  an unlimited gun is a lint error.
+- **(breaking)** Every turret muzzle carries an `id` - `main`, or `left` and
+  `right` on a twin - which is what a patch and an editor row address a barrel
+  by. Two muzzles sharing an id is a lint error.
+- **(breaking)** The cockpit voice is the design's, not its flight computer's:
+  a hull that loses every controller section still calls its own locks, its dry
+  magazines and its failing structure.
 - A severed wreck leaves at the speed its own size asks for: two halves are
   clear of each other in about two seconds whatever the hull, where a carrier's
   ground on for twenty. Under 20 m nothing moves.
@@ -92,6 +110,9 @@ does NOT get an entry - and it is the only place they are written down.
   with no launcher rather than firing every tick.
 
 ### Scenarios & Objectives
+- **(breaking)** Six `SetShipCapability*` actions replace `SetControllerVerb`,
+  one per capability (stop, goto, orbit, lock, rcs, point defence), each
+  flipping it on the ship root.
 - The menu duel keeps both ships on mirrored center patrols while AI aims and
   fires, and its doomed raider breaks apart below half health.
 - **(breaking)** A scenario's `hidden` flag is gone. The Scenarios list shows
@@ -121,6 +142,9 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- **(breaking)** A spawn tunes a catalog design through `section_patches`,
+  keyed by the design's own section ids, instead of a `modifications` list. The
+  Ledger and the example mod ship migrated.
 - **(breaking)** The Ledger becomes six replayable Field Trials with new
   scenario ids. Add dense fields, traffic, 500 m/s player caps, lighter hulls,
   tight race-gate cues, early convoy blockers and a trailing escort.
@@ -159,6 +183,15 @@ does NOT get an entry - and it is the only place they are written down.
 - A game file the game cannot do without now ends in a report instead of an
   endless loading animation: Quit on the desktop build, reload-and-report
   instructions in the browser.
+- A part placed in the editor NAMES the catalog part it came from instead of
+  copying it, so a later change to that part reaches every ship built out of
+  it.
+- Tuning one of its fields saves the delta as that part's patch, so the build
+  keeps the reference rather than becoming a copy of what the part said on the
+  day it was placed.
+- A tuned row wears a mark and a reset control that DROPS the field from the
+  patch rather than pasting today's value back, and a twin gun lists its
+  barrels as one group of rows per muzzle id.
 - The editor's stage camera covers the same ground at any frame rate, and a
   held direction builds it from 60 m/s to 32 times that over two seconds, with
   the lens widening as it goes.
@@ -233,6 +266,14 @@ does NOT get an entry - and it is the only place they are written down.
   about 28% of its frame time, 33% at its worst.
 
 ### Internals & Tooling
+- One resolver builds every ship: the spawn, the content lint, the preload
+  walk, the editor preview and the balance audit read the same finished
+  sections, so an audit quotes the numbers the ship flies with.
+- The agent bench reads `withheld_capabilities` off the ship record instead of
+  digging through each section for a `DisableVerb`.
+- The four bench fixtures are authored in the new design format, so their
+  revision moved: a performance set taken against the old files is no longer a
+  matched comparison and has to be re-baselined before it is read as one.
 - `--scenario editor_sandbox` no longer resolves. The editor's Play range is
   the open document rather than installed content, so nothing registers it and
   the only way to it is Play in the editor.

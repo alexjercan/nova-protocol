@@ -34,7 +34,7 @@ use nova_gameplay::prelude::*;
 
 use super::{assignment::TurretDefenseTarget, mount_may_shoot};
 use crate::{
-    flight::{ship_withholds_verb, LiveFlightComputers},
+    flight::{ship_capabilities, ShipCapabilityQuery},
     prelude::*,
 };
 
@@ -173,7 +173,7 @@ pub(super) fn update_point_defense_ownership(
         (Entity, &CombatLock, Option<&WeaponsRaised>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_controllers: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     mut q_turret: Query<(Entity, &ChildOf, &mut PointDefenseMount), With<TurretSectionMarker>>,
 ) {
     let delta = time.delta_secs();
@@ -187,16 +187,17 @@ pub(super) fn update_point_defense_ownership(
         // The grace clock: held by the player = full, otherwise counting down.
         // Reading it from the PLAYER's two tiers rather than from the resolved
         // authority is what makes it a release timer - a mount sitting in
-        // `Cold` because the verb is withheld is not serving a grace it would
+        // `Cold` because the capability is off is not serving a grace it would
         // have to serve again later.
         let next = if locked || raised {
             mount.regrasp = POINT_DEFENSE_REGRASP_SECS;
             mount_authority(locked, raised, false, mount.regrasp)
         } else {
             mount.regrasp = (mount.regrasp - delta).max(0.0);
-            // The FAIL-OPEN read, not `ship_grants_verb`: a hull with no
-            // live flight computer keeps its guns (see `ship_withholds_verb`).
-            let granted = !ship_withholds_verb(ship, FlightVerb::PointDefense, &q_controllers);
+            // A ship that authored nothing keeps its guns: the capability
+            // default is enabled, which is what the bare rigs the examples and
+            // the section ranges fly depend on.
+            let granted = ship_capabilities(ship, &q_capabilities).point_defense_enabled;
             mount_authority(false, false, granted, mount.regrasp)
         };
 
@@ -467,46 +468,48 @@ mod tests {
     }
 
     #[test]
-    fn a_withheld_verb_means_no_claim() {
+    fn point_defence_off_means_no_claim() {
         let mut app = ownership_app(1.0 / 60.0);
-        let (_, computer, turret) = player_hull(&mut app);
+        let (ship, _computer, turret) = player_hull(&mut app);
         app.world_mut()
-            .entity_mut(computer)
-            .insert(WithheldVerbs::default());
+            .entity_mut(ship)
+            .insert(ShipCapabilities::default());
 
         app.update();
         app.update();
         assert_eq!(
             authority(&app, turret),
             MountAuthority::FlightComputer,
-            "an empty withheld set grants every verb"
+            "the default capabilities enable everything"
         );
 
-        // The scenario lever, mid-run: SetControllerVerb writes exactly this.
+        // The scenario lever, mid-run: SetShipCapabilityPointDefense writes
+        // exactly this.
         app.world_mut()
-            .get_mut::<WithheldVerbs>(computer)
+            .get_mut::<ShipCapabilities>(ship)
             .unwrap()
-            .withhold(FlightVerb::PointDefense);
+            .point_defense_enabled = false;
         app.update();
         assert_eq!(
             authority(&app, turret),
             MountAuthority::Cold,
-            "a computer that does not grant point defence claims nothing"
+            "a ship that cannot run point defence claims nothing"
         );
 
         // And back again, without a respawn: the flip works both ways.
         app.world_mut()
-            .get_mut::<WithheldVerbs>(computer)
+            .get_mut::<ShipCapabilities>(ship)
             .unwrap()
-            .grant(FlightVerb::PointDefense);
+            .point_defense_enabled = true;
         app.update();
         assert_eq!(authority(&app, turret), MountAuthority::FlightComputer);
     }
 
     #[test]
     fn a_dead_computer_does_not_take_point_defence_with_it() {
-        // Fail-open: only an explicit withhold takes the capability away, so
-        // the bare rigs the section ranges fly still defend themselves.
+        // The capability lives on the ROOT, so losing every controller cannot
+        // take it away: the bare rigs the section ranges fly still defend
+        // themselves.
         let mut app = ownership_app(1.0 / 60.0);
         let (_, computer, turret) = player_hull(&mut app);
         app.world_mut().despawn(computer);

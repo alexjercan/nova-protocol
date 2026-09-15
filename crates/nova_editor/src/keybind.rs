@@ -458,7 +458,6 @@ mod tests {
                         },
                         kind,
                     }),
-                    modifications: vec![],
                     binds,
                 },
                 ChildOf(ship),

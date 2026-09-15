@@ -768,12 +768,12 @@ impl std::fmt::Display for Armament {
 }
 
 /// Count what a hull carries, by prototype.
-fn armament(hull: &ShipHull) -> Armament {
+fn armament(hull: &ShipDesign) -> Armament {
     let count = |prototype: &str| {
         hull.sections
             .iter()
             .filter(|section| {
-                matches!(&section.source, SectionSource::Prototype(id) if id == prototype)
+                matches!(&section.source, SectionSource::Prototype { id, .. } if id == prototype)
             })
             .count()
     };
@@ -817,10 +817,10 @@ fn mirror_cell(id: &str) -> &str {
 /// a Lance. The two halves of a mirrored pair always carry the same ordnance -
 /// a Lance to port against a Serpent to starboard is an accident, not a
 /// loadout.
-fn load_lances(hull: &mut ShipHull, seed: u64) {
+fn load_lances(hull: &mut ShipDesign, seed: u64) {
     let mut pairs: Vec<&str> = Vec::new();
     for section in &hull.sections {
-        if matches!(&section.source, SectionSource::Prototype(id) if id == SERPENT_BAY) {
+        if matches!(&section.source, SectionSource::Prototype { id, .. } if id == SERPENT_BAY) {
             let cell = mirror_cell(&section.id);
             if !pairs.contains(&cell) {
                 pairs.push(cell);
@@ -834,14 +834,14 @@ fn load_lances(hull: &mut ShipHull, seed: u64) {
         .map(|(_, cell)| (*cell).to_string())
         .collect();
     for section in &mut hull.sections {
-        let SectionSource::Prototype(id) = &section.source else {
+        let SectionSource::Prototype { id, .. } = &section.source else {
             continue;
         };
         if id.as_str() != SERPENT_BAY {
             continue;
         }
         if lances.iter().any(|cell| cell == mirror_cell(&section.id)) {
-            section.source = SectionSource::Prototype(LANCE_BAY.to_string());
+            section.source = SectionSource::prototype(LANCE_BAY);
         }
     }
 }
@@ -864,7 +864,7 @@ fn arena_tiles(sections: &GameSections, grammars: &GameGrammars) -> TileSet {
 }
 
 /// Collapse one hull for a roster slot and load its tubes.
-fn combat_hull(tiles: &TileSet, seed: u64, style: StyleId, sections: &GameSections) -> ShipHull {
+fn combat_hull(tiles: &TileSet, seed: u64, style: StyleId, sections: &GameSections) -> ShipDesign {
     let mut hull = tiles
         .hull(seed, true, style)
         .unwrap_or_else(|error| panic!("wfc_arena: {error}"));
@@ -885,7 +885,7 @@ fn draft_roster(
     looks: &[StyleId],
     from: u64,
     sections: &GameSections,
-) -> Vec<(u64, ShipHull)> {
+) -> Vec<(u64, ShipDesign)> {
     let pinned = ships.iter().filter(|ship| ship.seed.is_some()).count();
     info!(
         "wfc_arena: drafting from seed {from} ({pinned} of {} slots pinned)",
@@ -940,7 +940,7 @@ fn draft_roster(
 }
 
 /// The `--ship` arguments that pin `drafted`, in slot order.
-fn replay_ships(ships: &[ShipSpec], looks: &[StyleId], drafted: &[(u64, ShipHull)]) -> String {
+fn replay_ships(ships: &[ShipSpec], looks: &[StyleId], drafted: &[(u64, ShipDesign)]) -> String {
     ships
         .iter()
         .zip(looks)
@@ -999,14 +999,14 @@ fn spawn_position(team: usize, index: usize, strength: usize) -> Vec3 {
 /// `R` is free in the flight context - NOVA OS spends it, but that is the
 /// viewer context, exactly as it already spends the tubes' `F`.
 fn player_bindings(
-    hull: &ShipHull,
+    hull: &ShipDesign,
     slot: usize,
     overrides: &BTreeMap<(usize, String), Vec<InputSource>>,
 ) -> BTreeMap<String, Vec<InputSource>> {
     hull.sections
         .iter()
         .filter_map(|section| {
-            let SectionSource::Prototype(id) = &section.source else {
+            let SectionSource::Prototype { id, .. } = &section.source else {
                 return None;
             };
             let bindings: Vec<InputSource> = match id.as_str() {
@@ -1035,7 +1035,7 @@ fn player_bindings(
 fn combatant(
     slot: usize,
     seed: u64,
-    hull: ShipHull,
+    hull: ShipDesign,
     ship: &ShipSpec,
     place: (usize, usize),
     binding_overrides: &BTreeMap<(usize, String), Vec<InputSource>>,
@@ -1104,7 +1104,7 @@ fn combatant(
                     ..Default::default()
                 })
             },
-            hull: ShipSource::Inline(hull),
+            design: ShipDesignSource::Inline(hull),
             ..Default::default()
         }),
     }
@@ -1200,7 +1200,7 @@ fn freeze_junk(
 /// nozzle is legal on a LEAF cell only: the drive's one socket (its forward
 /// face, `NEG_Z * 0.5` in the catalog) is rotated onto the leaf's single
 /// neighbour, so it mates exactly and its exhaust points into vacuum.
-fn fragment_hull(seed: u64, clad: bool, style: StyleId) -> ShipHull {
+fn fragment_hull(seed: u64, clad: bool, style: StyleId) -> ShipDesign {
     let mut rng = StdRng::seed_from_u64(seed);
     let target = rng.random_range(FRAGMENT_MIN_SECTIONS..=FRAGMENT_MAX_SECTIONS);
     let directions = [
@@ -1275,16 +1275,18 @@ fn fragment_hull(seed: u64, clad: bool, style: StyleId) -> ShipHull {
                 id: format!("junk_{index}"),
                 position: cell.as_vec3() - centre,
                 rotation,
-                source: SectionSource::Prototype(prototype.to_string()),
-                modifications: vec![],
+                source: SectionSource::prototype(prototype),
             }
         })
         .collect();
 
-    ShipHull {
+    ShipDesign {
         sections,
-        skin: clad,
-        style: clad.then_some(style).flatten().map(str::to_string),
+        presentation: ShipPresentationConfig {
+            skin: clad,
+            style: clad.then_some(style).flatten().map(str::to_string),
+            ..default()
+        },
         ..default()
     }
 }
@@ -1348,7 +1350,7 @@ fn derelicts(
                     kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                         allegiance: None,
                         controller: SpaceshipController::None,
-                        hull: ShipSource::Inline(hull),
+                        design: ShipDesignSource::Inline(hull),
                         ..Default::default()
                     }),
                 },
@@ -3219,7 +3221,7 @@ mod binding_tests {
             .sections
             .iter()
             .find(|section| {
-                matches!(&section.source, SectionSource::Prototype(id) if id == SPINAL_LANCE)
+                matches!(&section.source, SectionSource::Prototype { id, .. } if id == SPINAL_LANCE)
             })
             .expect("every arena hull is seeded with one")
             .id

@@ -305,7 +305,6 @@ fn attitude_rig(
             position,
             rotation: Quat::IDENTITY,
             source: SectionSource::Inline(config),
-            modifications: vec![],
         }
     };
 
@@ -317,7 +316,7 @@ fn attitude_rig(
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: ship_sections,
             ..default()
         }),

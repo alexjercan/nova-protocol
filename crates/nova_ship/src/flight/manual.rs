@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
-    capability::{ship_grants_verb, LiveFlightComputers},
+    capability::{ship_capabilities, ShipCapabilityQuery},
     state::RcsReference,
     thrusters::{balance_throttles, spool_allocated_thrusters, BalanceEngine},
 };
@@ -281,7 +281,7 @@ pub(super) fn manual_burn_system(
 ///   acts in full. So RCS can only reshuffle velocity inside one sphere of
 ///   radius `cap`, never accumulate speed by spamming it diagonally.
 ///
-/// Gated on the ship granting the `Rcs` verb ([`ship_grants_verb`]).
+/// Gated on the ship's `rcs_enabled` capability.
 /// Deliberately NOT gated on `Without<Autopilot>`: the autopilot follow-up
 /// drives this very primitive while engaged.
 pub(super) fn rcs_burn_system(
@@ -298,7 +298,7 @@ pub(super) fn rcs_burn_system(
         ),
         With<SpaceshipRootMarker>,
     >,
-    q_controllers: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
 ) {
     let dt = time.delta_secs();
     if dt <= 0.0 {
@@ -310,10 +310,10 @@ pub(super) fn rcs_burn_system(
         if intent.0 == Vec3::ZERO {
             continue;
         }
-        // Capability gate: only a ship whose flight computer grants RCS
-        // fine-adjusts, even if something wrote an intent - so the verb stays
-        // authoritative no matter who drives the primitive.
-        if !ship_grants_verb(ship, FlightVerb::Rcs, &q_controllers) {
+        // Capability gate: only a ship configured for RCS fine-adjusts, even
+        // if something wrote an intent - so the capability stays authoritative
+        // no matter who drives the primitive.
+        if !ship_capabilities(ship, &q_capabilities).rcs_enabled {
             continue;
         }
 

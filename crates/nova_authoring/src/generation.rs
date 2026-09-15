@@ -14,7 +14,7 @@
 use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    ScenarioConfig, ShipConfig, ShipSource, SpaceshipConfig, SpaceshipSectionConfig,
+    ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 
@@ -73,7 +73,7 @@ pub fn build_grammar_content() -> Vec<Content> {
 
 /// The base game's ships, in a stable order - the whole hulls the scenarios
 /// spawn by id.
-pub fn build_ships() -> Vec<ShipConfig> {
+pub fn build_ships() -> Vec<ShipDesignPrototype> {
     base_content::build().ships
 }
 
@@ -96,17 +96,17 @@ pub fn build_style_content() -> Vec<Content> {
     build_styles().into_iter().map(Content::Style).collect()
 }
 
-/// The section list one authored spawn flies: its inline hull's, or that of
-/// the built-in ship it names. The join every scenario pin needs now that a
-/// scenario REFERENCES a hull instead of carrying one; an unknown id resolves
-/// to nothing (the content lint is what errors on it).
+/// The section list one authored spawn flies: its inline design's, or that of
+/// the built-in design it names. The join every scenario pin needs now that a
+/// scenario REFERENCES a design instead of carrying one; an unknown id
+/// resolves to nothing (the content lint is what errors on it).
 pub fn spawned_ship_sections(ship: &SpaceshipConfig) -> Vec<SpaceshipSectionConfig> {
-    match &ship.hull {
-        ShipSource::Inline(hull) => hull.sections.clone(),
-        ShipSource::Prototype(id) => build_ships()
+    match &ship.design {
+        ShipDesignSource::Inline(design) => design.sections.clone(),
+        ShipDesignSource::Prototype { id, .. } => build_ships()
             .into_iter()
             .find(|entry| entry.id == *id)
-            .map(|entry| entry.hull.sections)
+            .map(|entry| entry.design.sections)
             .unwrap_or_default(),
     }
 }
@@ -248,7 +248,7 @@ mod tests {
                 .iter()
                 .map(|section| match &section.source {
                     SectionSource::Inline(config) => config,
-                    SectionSource::Prototype(id) => catalog
+                    SectionSource::Prototype { id, .. } => catalog
                         .get(id.as_str())
                         .unwrap_or_else(|| panic!("missing prototype '{id}'")),
                 })
@@ -277,7 +277,7 @@ mod tests {
         };
 
         for ship in build_ships() {
-            check(&format!("ship '{}'", ship.id), &ship.hull.sections);
+            check(&format!("ship '{}'", ship.id), &ship.design.sections);
         }
 
         for scenario in build_scenarios() {
@@ -287,14 +287,15 @@ mod tests {
                         let ScenarioObjectKind::Spaceship(ship) = &object.kind else {
                             continue;
                         };
-                        // A Prototype hull is checked once above, where it is
-                        // authored - the same rule a Prototype section follows.
-                        let ShipSource::Inline(hull) = &ship.hull else {
+                        // A Prototype design is checked once above, where it
+                        // is authored - the same rule a Prototype section
+                        // follows.
+                        let ShipDesignSource::Inline(design) = &ship.design else {
                             continue;
                         };
                         check(
                             &format!("scenario '{}' ship '{}'", scenario.id, object.base.id),
-                            &hull.sections,
+                            &design.sections,
                         );
                     }
                 }

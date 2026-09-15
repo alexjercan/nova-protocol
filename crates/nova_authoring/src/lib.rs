@@ -34,7 +34,7 @@ pub mod built_in_scenarios {
 /// silhouette or a mount that moves in `base_content` moves in the bench too.
 pub mod built_in_ships {
     pub use crate::base_content::ships::{
-        hull, BLOCK_CARRIER_SHIP_ID, BLOCK_CLAW_SHIP_ID, BLOCK_CLEANUP_LEADER_SHIP_ID,
+        design, BLOCK_CARRIER_SHIP_ID, BLOCK_CLAW_SHIP_ID, BLOCK_CLEANUP_LEADER_SHIP_ID,
         BLOCK_CUTTER_SHIP_ID, BLOCK_GUNSHIP_SHIP_ID, BLOCK_HAULER_SHIP_ID, BLOCK_PICKET_SHIP_ID,
         BLOCK_RAIDER_SHIP_ID, BLOCK_SKIFF_SHIP_ID, BLOCK_TUG_SHIP_ID, BLOCK_WARSHIP_BAY_IDS,
         BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_SHIP_ID, BLOCK_WARSHIP_TURRET_IDS,

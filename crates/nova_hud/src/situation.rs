@@ -17,9 +17,25 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
-/// The `HudSituations` sensing resource.
+/// The `HudSituations` sensing resource and the dock chip it names.
 pub mod prelude {
-    pub use super::HudSituations;
+    pub use super::{HudSituations, ManeuverChip};
+}
+
+/// Which maneuver chip on the keybind dock an engaged autopilot lights.
+///
+/// A HUD discriminant, not a capability: what the ship is PERMITTED to do is
+/// `ShipCapabilities` on its root, and this says only which of the three dock
+/// chips is showing as live. Three variants where the old shared enum had six,
+/// owned by the layer whose policy it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+pub enum ManeuverChip {
+    /// The STOP chip.
+    Stop,
+    /// The GOTO chip.
+    Goto,
+    /// The ORBIT chip.
+    Orbit,
 }
 
 /// The live flight/combat situations the contextual HUD reacts to, resolved
@@ -28,8 +44,8 @@ pub mod prelude {
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct HudSituations {
-    /// The maneuver the autopilot is flying, if any (the mode chip's verb).
-    pub maneuver: Option<FlightVerb>,
+    /// The maneuver the autopilot is flying, if any - which dock chip is lit.
+    pub maneuver: Option<ManeuverChip>,
     /// A combat lock is held.
     pub combat_lock: bool,
     /// The weapons safety is off.
@@ -99,7 +115,7 @@ pub fn sense_hud_situations(
                     .is_some_and(|(ammo, reload)| reload.is_reloading(ammo));
             }
             HudSituations {
-                maneuver: autopilot.and_then(maneuver_verb),
+                maneuver: autopilot.and_then(maneuver_chip),
                 combat_lock: combat.is_some_and(|combat| combat.0.is_some()),
                 weapons_hot,
                 firing,
@@ -117,15 +133,15 @@ pub fn sense_hud_situations(
     }
 }
 
-/// The flight verb an engaged maneuver corresponds to, so the dock can light
-/// the chip whose key produced it. `None` for a maneuver no key produces:
-/// a held velocity is what a tactical controller steers with, and there is no
-/// chip on the dock for it to light.
-fn maneuver_verb(autopilot: &Autopilot) -> Option<FlightVerb> {
+/// The dock chip an engaged maneuver lights, so the dock can show the chip
+/// whose key produced it. `None` for a maneuver no key produces: a held
+/// velocity is what a tactical controller steers with, and there is no chip on
+/// the dock for it to light.
+fn maneuver_chip(autopilot: &Autopilot) -> Option<ManeuverChip> {
     match autopilot.action {
-        AutopilotAction::Stop => Some(FlightVerb::Stop),
-        AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. } => Some(FlightVerb::Goto),
-        AutopilotAction::Orbit { .. } => Some(FlightVerb::Orbit),
+        AutopilotAction::Stop => Some(ManeuverChip::Stop),
+        AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. } => Some(ManeuverChip::Goto),
+        AutopilotAction::Orbit { .. } => Some(ManeuverChip::Orbit),
         AutopilotAction::MatchVelocity { .. } => None,
     }
 }
@@ -166,7 +182,7 @@ mod tests {
             .entity_mut(ship)
             .insert(Autopilot::engage(AutopilotAction::Stop));
         app.update();
-        assert_eq!(situations(&app).maneuver, Some(FlightVerb::Stop));
+        assert_eq!(situations(&app).maneuver, Some(ManeuverChip::Stop));
 
         app.world_mut()
             .entity_mut(ship)
@@ -176,7 +192,7 @@ mod tests {
         app.update();
         assert_eq!(
             situations(&app).maneuver,
-            Some(FlightVerb::Goto),
+            Some(ManeuverChip::Goto),
             "a positional GOTO is still the GOTO verb"
         );
     }

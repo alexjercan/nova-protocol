@@ -228,6 +228,7 @@ mod tests {
         let muzzle = || TurretJoint {
             name: None,
             muzzle: Some(MuzzleConfig {
+                id: "main".to_string(),
                 fire_rate: 1.0,
                 muzzle_effect: None,
             }),

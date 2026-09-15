@@ -12,7 +12,7 @@
 //!   mapping the Scenarios picker groups and launches by,
 //! - [`Content::Style`] - a [`ShipStyleConfig`], the look a ship's derived skin
 //!   wears: materials per surface role plus the decoration it scatters,
-//! - [`Content::Ship`] - a [`ShipConfig`], a whole hull a scenario spawns by id,
+//! - [`Content::Ship`] - a [`ShipDesignPrototype`], a whole hull a scenario spawns by id,
 //!   and
 //! - [`Content::Grammar`] - a [`ShipGrammarConfig`], the table a procedurally
 //!   generated hull is drawn from.
@@ -50,7 +50,7 @@ use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
+use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype};
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 use serde::{Deserialize, Serialize};
 
@@ -90,11 +90,11 @@ pub enum Content {
     /// ship names one and its derived skin wears it, so a mod can ship a look
     /// and a scenario can put it on the enemies without any code changing.
     Style(ShipStyleConfig),
-    /// A [`ShipConfig`] - registers into `GameShips` keyed by its id. A whole
+    /// A [`ShipDesignPrototype`] - registers into `GameShipDesigns` keyed by its id. A whole
     /// hull (its section list, its skin and style, its collapse threshold),
     /// authored once and spawned by id, so a scenario names a corvette instead
     /// of carrying a copy of one.
-    Ship(ShipConfig),
+    Ship(ShipDesignPrototype),
     /// A [`ShipGrammarConfig`] - registers into `GameGrammars` keyed by its id.
     /// The taste a procedural hull is drawn from: which prototypes are offered
     /// and how often, which way a drive may point, and how big and how sparse

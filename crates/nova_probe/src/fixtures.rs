@@ -75,7 +75,7 @@ pub fn ship(
 ) -> SpaceshipConfig {
     SpaceshipConfig {
         controller,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: specs
                 .iter()
                 .map(|spec| SpaceshipSectionConfig {
@@ -93,7 +93,6 @@ pub fn ship(
                             section
                         }
                     }),
-                    modifications: vec![],
                 })
                 .collect(),
             ..Default::default()
@@ -180,10 +179,10 @@ mod tests {
 
         let built = ship(&sections, SpaceshipController::None, &specs);
 
-        let ShipSource::Inline(hull) = &built.hull else {
-            panic!("the fixture authors its hull inline");
+        let ShipDesignSource::Inline(design) = &built.design else {
+            panic!("the fixture authors its design inline");
         };
-        let placed: Vec<_> = hull
+        let placed: Vec<_> = design
             .sections
             .iter()
             .map(|s| (s.id.as_str(), s.position))
@@ -198,7 +197,7 @@ mod tests {
         );
         // The slot id is the ship-local one; the content id it resolved is the
         // asset. Confusing the two is the failure this pins.
-        let SectionSource::Inline(front) = &hull.sections[0].source else {
+        let SectionSource::Inline(front) = &design.sections[0].source else {
             panic!("sections are inlined, not referenced");
         };
         assert_eq!(front.base.id, "hull_a");

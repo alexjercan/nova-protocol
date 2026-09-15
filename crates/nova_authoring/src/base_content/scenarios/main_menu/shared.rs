@@ -95,7 +95,7 @@ pub(super) fn backdrop_orbiter(
                 orbit: Some("menu_planetoid".to_string()),
                 ..Default::default()
             }),
-            hull: ships::hull(hull),
+            design: ships::design(hull),
             ..Default::default()
         }),
     }

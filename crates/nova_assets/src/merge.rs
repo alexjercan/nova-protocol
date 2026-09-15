@@ -1,6 +1,6 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
-//! `GameShips`, `GameScenarios`, `GameCampaigns`, `GameStyles`, `GameImpacts`,
+//! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`, `GameImpacts`,
 //! `GameChannels`),
 //! linting the result as it goes.
 
@@ -17,7 +17,9 @@ use nova_gameplay::prelude::{
     GameChannels, GameImpacts, ImpactSoundConfig, NarrativeChannelConfig,
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
-use nova_scenario::prelude::{GameCampaigns, GameScenarios, GameShips, NewGameStart, ShipConfig};
+use nova_scenario::prelude::{
+    GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ShipDesignPrototype,
+};
 use nova_ship::prelude::*;
 
 use crate::{
@@ -300,7 +302,7 @@ pub fn register_bundles(
     // out of the backdrop draw.
     let merged_sections =
         nova_scenario::prelude::KnownSections::from_configs(outcome.sections.iter());
-    let merged_ships = nova_scenario::prelude::KnownShips::from_configs(outcome.ships.iter());
+    let merged_ships = nova_scenario::prelude::KnownShipDesigns::from_configs(outcome.ships.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
     // The backdrop subset, so campaign lint can refuse a member that is scenery
@@ -321,7 +323,8 @@ pub fn register_bundles(
     // one only checks that the id resolves, so this is the pass that sees the
     // hull's own geometry. Findings key on the ship id in the shared channel.
     for ship in &outcome.ships {
-        let found = nova_scenario::prelude::lint_ship_config(ship, &merged_sections, &ship.id);
+        let found =
+            nova_scenario::prelude::lint_ship_design_config(ship, &merged_sections, &ship.id);
         for issue in &found {
             warn!(
                 "register_bundles: content lint [{:?}] ship '{}': {}",
@@ -417,7 +420,7 @@ pub fn register_bundles(
     commands.insert_resource(outcome.campaigns);
     commands.insert_resource(GameStyles(outcome.styles));
     commands.insert_resource(GameImpacts(outcome.impacts));
-    commands.insert_resource(GameShips(outcome.ships));
+    commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameGrammars(outcome.grammars));
     commands.insert_resource(GameChannels(outcome.channels));
 }
@@ -464,7 +467,7 @@ pub struct MergeOutcome {
     pub styles: Vec<ShipStyleConfig>,
     /// Ships in registration order, overlaid last-wins by id - so a mod
     /// rebuilds a base hull by declaring the same id.
-    pub ships: Vec<ShipConfig>,
+    pub ships: Vec<ShipDesignPrototype>,
     /// Impact-table rows in registration order, overlaid last-wins by id - so a
     /// mod re-voices one (damage type, material) pair by declaring that row's
     /// id and nothing else.
@@ -813,7 +816,7 @@ mod tests {
     #[test]
     fn a_mod_overlays_a_base_ship_by_id_and_adds_its_own() {
         let ship = |id: &str, name: &str| {
-            Content::Ship(nova_scenario::prelude::ShipConfig {
+            Content::Ship(nova_scenario::prelude::ShipDesignPrototype {
                 id: id.to_string(),
                 name: name.to_string(),
                 ..Default::default()

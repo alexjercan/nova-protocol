@@ -600,7 +600,7 @@ fn ticking_a_capital_drive_builds_the_ship_around_it() {
             .iter()
             .filter(|section| matches!(
                 &section.source,
-                nova_scenario::prelude::SectionSource::Prototype(id)
+                nova_scenario::prelude::SectionSource::Prototype { id, .. }
                     if id == "capital_thruster_section"
             ))
             .count(),
@@ -646,7 +646,7 @@ fn ticking_a_spinal_gun_seats_it_on_the_bow() {
         .filter(|section| {
             matches!(
                 &section.source,
-                nova_scenario::prelude::SectionSource::Prototype(id)
+                nova_scenario::prelude::SectionSource::Prototype { id, .. }
                     if id == "railgun_lance_section"
             ) && (section.position.z - 1.5 - tiles.bow_face()).abs() < GRID_EPSILON
         })
@@ -704,7 +704,7 @@ fn a_zoned_row_carries_its_zone_into_the_grammar() {
         .hull(3, false, None)
         .expect("and collapses");
     for section in &hull.sections {
-        let nova_scenario::prelude::SectionSource::Prototype(id) = &section.source else {
+        let nova_scenario::prelude::SectionSource::Prototype { id, .. } = &section.source else {
             continue;
         };
         assert!(
@@ -769,16 +769,19 @@ fn the_collapse_dresses_the_hull_in_the_ship_it_is_built_for() {
     let second = styles.get(1).expect("more than one style").id.clone();
 
     let bare = collapse(sections, &grammar, Some(styles), 7, false, None).expect("a hull");
-    assert!(!bare.skin, "a ship with its plating off gets a bare hull");
-    assert_eq!(bare.style, None, "and no style to wear it in");
+    assert!(
+        !bare.presentation.skin,
+        "a ship with its plating off gets a bare hull"
+    );
+    assert_eq!(bare.presentation.style, None, "and no style to wear it in");
 
     let chosen =
         collapse(sections, &grammar, Some(styles), 7, true, Some(&second)).expect("a hull");
-    assert_eq!(chosen.style.as_deref(), Some(second.as_str()));
+    assert_eq!(chosen.presentation.style.as_deref(), Some(second.as_str()));
 
     let unchosen = collapse(sections, &grammar, Some(styles), 7, true, None).expect("a hull");
     assert_eq!(
-        unchosen.style.as_deref(),
+        unchosen.presentation.style.as_deref(),
         styles.first().map(|style| style.id.as_str()),
         "an unchosen style is the first one, which is what the node means by None"
     );

@@ -31,7 +31,9 @@ use nova_scenario::prelude::{
     object_reference_resolves, Names, ScenarioObjectKind, SectionSource, VariableConditionNode,
     VariableExpressionNode, ASTEROID_KIND_SUMMARIES,
 };
-use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
+use nova_ship::prelude::{
+    muzzle_ids, GameSections, SectionConfig, SectionConfigPatch, SectionKind, TurretSectionConfig,
+};
 
 use crate::{
     asset_index::prelude::AssetSort,
@@ -391,6 +393,17 @@ pub(crate) struct InspectorRow {
     /// whose depth is the length of its heading; a page draws a tree that has
     /// no headings to count.
     pub(crate) depth: usize,
+    /// Whether this row's value is the placement's own rather than the
+    /// prototype's: a patched field on a section that names a catalog part.
+    ///
+    /// The panel marks it and offers Reset, which writes the INHERITED value
+    /// back - and a value that matches the prototype writes no patch field at
+    /// all (see `SectionConfigPatch::between`), so reset removes the override
+    /// rather than freezing today's prototype value into the document.
+    ///
+    /// Always false for a row of anything else: an inline section, a rock, a
+    /// scenario. There is nothing over those to inherit from.
+    pub(crate) overridden: bool,
 }
 
 impl InspectorRow {
@@ -492,6 +505,7 @@ fn kind_row(
         asset: None,
         owner: None,
         depth: 0,
+        overridden: false,
     }
 }
 
@@ -513,6 +527,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         asset: None,
         owner: None,
         depth: 0,
+        overridden: false,
     }
 }
 
@@ -547,6 +562,7 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         asset: None,
         owner: None,
         depth: 0,
+        overridden: false,
     }
 }
 
@@ -677,8 +693,8 @@ const BULLET_KIND: FieldSpec = plain("bullet_kind");
 /// [`offer_object_vocabularies`] - because a ship section has a `material` too
 /// and this table matches by name at any depth.
 const MATERIAL: FieldSpec = plain("material");
-const AMMO_CAPACITY: FieldSpec = FieldSpec {
-    name: "ammo_capacity",
+const AMMUNITION: FieldSpec = FieldSpec {
+    name: "ammunition",
     unit: "rounds",
     limit: Limit::AtLeast(1.0),
     step: 1.0,
@@ -726,7 +742,7 @@ const SEED: FieldSpec = FieldSpec {
     limit: Limit::Free,
     step: 1.0,
 };
-const HULL: FieldSpec = plain("hull");
+const DESIGN: FieldSpec = plain("design");
 const CONTROLLER: FieldSpec = plain("controller");
 const ALLEGIANCE: FieldSpec = plain("allegiance");
 const LABEL: FieldSpec = plain("label");
@@ -779,7 +795,7 @@ const TURRET_PICKS: &[FieldSpec] = &[
     MUZZLE_SPEED,
     BULLET_DAMAGE,
     BULLET_KIND,
-    AMMO_CAPACITY,
+    AMMUNITION,
     RELOAD,
     PROJECTILE_LIFETIME,
 ];
@@ -791,7 +807,7 @@ const TORPEDO_PICKS: &[FieldSpec] = &[
     ARM_TIME,
     ARM_DISTANCE,
     NAV_CONSTANT,
-    AMMO_CAPACITY,
+    AMMUNITION,
     RELOAD,
     PROJECTILE_LIFETIME,
 ];
@@ -803,7 +819,7 @@ const RAILGUN_PICKS: &[FieldSpec] = &[
     SLUG_POWER,
     SLUG_SPEED,
     RECOIL_IMPULSE,
-    AMMO_CAPACITY,
+    AMMUNITION,
     RELOAD,
     SLUG_LIFETIME,
 ];
@@ -819,7 +835,7 @@ const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS, INVULNERAB
 /// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
 /// pick takes the field with everything under it - so the hull's source and the
 /// controller's own fields come along.
-const SPACESHIP_PICKS: &[FieldSpec] = &[HULL, CONTROLLER, ALLEGIANCE];
+const SPACESHIP_PICKS: &[FieldSpec] = &[DESIGN, CONTROLLER, ALLEGIANCE];
 const BEACON_PICKS: &[FieldSpec] = &[LABEL, RADIUS, COLOR, AREA_RADIUS];
 const SALVAGE_PICKS: &[FieldSpec] = &[SIZE, AREA_RADIUS];
 /// No `aim`. The node's ROTATION aims the light (`node.rs`), and two controls
@@ -1149,6 +1165,9 @@ fn option_payload(value: &dyn PartialReflect) -> Option<&'static TypeInfo> {
     variant.field_at(0)?.type_info()
 }
 
+/// What a row says where an authored TABLE holds nothing.
+pub(crate) const NOTHING: &str = "none";
+
 /// Every leaf of `value`, flattened into rows under `path`.
 fn walk(
     value: &dyn PartialReflect,
@@ -1309,6 +1328,23 @@ fn walk(
                 walk(field, root, inner, out);
             }
         }
+        ReflectRef::Map(entries) => {
+            // A map is its KEYS, read-only. What a scenario holds one of is a
+            // table an author wrote by name - which sections of a design this
+            // spawn patches - and the panel has no control that can add, drop
+            // or rename a key. The whole table as debug text was the row this
+            // replaces, and it ran off the panel on the first entry.
+            let keys: Vec<String> = entries
+                .iter()
+                .map(|(key, _)| leaf_text(key).unwrap_or_else(|| debug_of(key)))
+                .collect();
+            let text = if keys.is_empty() {
+                NOTHING.to_string()
+            } else {
+                keys.join(", ")
+            };
+            out.push(walked(root, path, false, RowValue::Fixed(text)));
+        }
         _ => out.push(walked(root, path, false, RowValue::Fixed(debug_of(value)))),
     }
 }
@@ -1362,7 +1398,7 @@ fn walk_option(
             root,
             path,
             true,
-            RowValue::Fixed("none".to_string()),
+            RowValue::Fixed(NOTHING.to_string()),
         ));
         return;
     }
@@ -1734,6 +1770,35 @@ fn resolve<'a>(
     Some(value)
 }
 
+/// The same walk, for READING.
+///
+/// A mirror of [`resolve`] rather than a second convention: the two have to
+/// step an `Option` and a quantity the same way, or a value read out of one
+/// config would be written into the wrong place in another. Reset to inherited
+/// is exactly that pair of walks.
+fn peek<'a>(root: &'a dyn PartialReflect, path: &[PathStep]) -> Option<&'a dyn PartialReflect> {
+    let mut value = root;
+    for next in path {
+        if let Some(inner) = quantity_inner(value) {
+            value = inner;
+        }
+        value = match (value.reflect_ref(), next) {
+            (ReflectRef::Struct(fields), PathStep::Field(name)) => fields.field(name)?,
+            (ReflectRef::Struct(fields), PathStep::Slot(index)) => fields.field_at(*index)?,
+            (ReflectRef::TupleStruct(fields), PathStep::Slot(index)) => fields.field(*index)?,
+            (ReflectRef::Tuple(fields), PathStep::Slot(index)) => fields.field(*index)?,
+            (ReflectRef::Enum(chosen), PathStep::Field(name)) => chosen.field(name)?,
+            (ReflectRef::Enum(chosen), PathStep::Slot(index)) => chosen.field_at(*index)?,
+            (ReflectRef::List(items), PathStep::Item(index)) => items.get(*index)?,
+            _ => return None,
+        };
+    }
+    match quantity_inner(value) {
+        Some(inner) => Some(inner),
+        None => Some(value),
+    }
+}
+
 /// Write `text` into the value `path` names, or say why it cannot go there.
 ///
 /// The whole edit is one `try_apply`, so a config either takes the new value or
@@ -2016,24 +2081,80 @@ pub(crate) fn section_config_mut(kind: &mut SectionKind) -> &mut dyn PartialRefl
     }
 }
 
-/// Make `node` editable in place, and hand back the config to edit.
+/// Hand `edit` the section as it is FLOWN, and keep what it wrote.
 ///
-/// A section that names a catalog PROTOTYPE is copied inline first: an edit
-/// applied to the id would be an edit to every ship that names it, including
-/// ships in other documents. The copy is what "this ship's thruster is tuned
-/// differently" has to mean.
-pub(crate) fn editable_config<'a>(
-    node: &'a mut SectionNode,
+/// An INLINE section is its own config and is written in place. A section that
+/// names a catalog PROTOTYPE is edited as the resolved copy a builder sees, and
+/// what the edit made of it is written back as the reference's own PATCH: the
+/// document keeps naming the part, and a later change to that part still
+/// reaches every field this placement did not touch. Writing through the id
+/// itself would be an edit to every ship that names it, in this document and
+/// every other.
+///
+/// The fallback is inlining, and it is the honest one: an edit outside what a
+/// patch can say (see [`SectionConfigPatch::between`]) has nowhere else to go,
+/// and the alternative is refusing an edit the panel offered.
+pub(crate) fn edit_section<R>(
+    node: &mut SectionNode,
     catalog: Option<&GameSections>,
-) -> Option<&'a mut SectionConfig> {
-    if let SectionSource::Prototype(id) = &node.source {
-        let config = catalog?.get_section(id)?.clone();
-        node.source = SectionSource::Inline(config);
+    edit: impl FnOnce(&mut SectionConfig) -> Result<R, String>,
+) -> Result<R, String> {
+    if let SectionSource::Inline(config) = &mut node.source {
+        return edit(config);
     }
-    match &mut node.source {
-        SectionSource::Inline(config) => Some(config),
-        SectionSource::Prototype(_) => None,
+    let SectionSource::Prototype { id, patch } = &node.source else {
+        unreachable!("the source is one of two, and the other one is Inline");
+    };
+    let id = id.clone();
+    let prototype = catalog
+        .and_then(|catalog| catalog.get_section(&id))
+        .ok_or_else(|| "no catalog entry".to_string())?;
+    let mut config = prototype.clone();
+    // The reference's own patch first: a builder edits the section they can
+    // see, which is the prototype as this placement already tuned it.
+    patch
+        .apply(&mut config)
+        .map_err(|error| format!("refused: {error}"))?;
+    let outcome = edit(&mut config)?;
+    node.source = match SectionConfigPatch::between(prototype, &config) {
+        Some(patch) => SectionSource::Prototype { id, patch },
+        None => SectionSource::Inline(config),
+    };
+    Ok(outcome)
+}
+
+/// Put one row of a section back to the value it INHERITS from its prototype.
+///
+/// A WRITE of the prototype's own value, not a lookup in the patch:
+/// [`SectionConfigPatch::between`] drops a field that matches the prototype
+/// again, so writing the inherited value removes the override instead of
+/// freezing today's prototype value into the document - and a later change to
+/// the part reaches the field again.
+///
+/// An inline section has nothing over it to inherit from and says so.
+pub(crate) fn reset_field(
+    node: &mut SectionNode,
+    catalog: Option<&GameSections>,
+    path: &[PathStep],
+) -> Result<(), String> {
+    if matches!(node.source, SectionSource::Inline(_)) {
+        return Err("nothing to inherit".to_string());
     }
+    let inherited = {
+        let prototype = node
+            .resolve(catalog)
+            .ok_or_else(|| "no catalog entry".to_string())?;
+        peek(section_config(&prototype.kind), path)
+            .ok_or_else(|| "nothing to inherit".to_string())?
+            .to_dynamic()
+    };
+    edit_section(node, catalog, |config| {
+        let target = resolve(section_config_mut(&mut config.kind), path)
+            .ok_or_else(|| "gone".to_string())?;
+        target
+            .try_apply(inherited.as_ref())
+            .map_err(|error| format!("refused: {error}"))
+    })
 }
 
 /// The fields `kind` shows before it is asked for the rest.
@@ -2109,12 +2230,63 @@ pub(crate) fn curated_section_rows(
     catalog: Option<&GameSections>,
 ) -> Vec<InspectorRow> {
     let rows = section_rows(node, catalog);
+    // The KIND is the prototype's - a patch can never change it - so the pick
+    // list is read off the cheap resolve rather than a patched clone.
     let Some(config) = node.resolve(catalog) else {
         return rows;
     };
     let picks = section_picks(&config.kind);
-    curate(rows, picks)
+    let mut rows = curate(rows, picks);
+    name_muzzles(config, &mut rows);
+    rows
 }
+
+/// Put a multi-barrel turret's rows under the muzzle they belong to, BY ID.
+///
+/// A twin PDC is two muzzles with the same fields, and the curated view drops
+/// the joint tree they are told apart by - so both fire rates arrive as a row
+/// called "Fire Rate" with nothing to say which gun it is. The id is what the
+/// patch is keyed by (`left`, `right`), so it is what the heading says.
+///
+/// A single-barrel turret is left flat. There is nothing to tell apart, and a
+/// heading over the one number is the line of tree this view exists to put
+/// away.
+fn name_muzzles(config: &SectionConfig, rows: &mut [InspectorRow]) {
+    let SectionKind::Turret(turret) = &config.kind else {
+        return;
+    };
+    if muzzle_ids(&turret.root).len() < 2 {
+        return;
+    }
+    for row in rows {
+        let Some(id) = muzzle_id_at(turret, &row.path) else {
+            continue;
+        };
+        row.group = vec![format!("{} Muzzle", pretty(&id))];
+    }
+}
+
+/// The id of the muzzle a row's path runs through, or `None` for a row that
+/// does not sit on one.
+///
+/// Read out of the CONFIG at the path rather than counted off the joint tree:
+/// the row is reached by walking, so it is answered by walking, and a barrel
+/// that is re-parented keeps its name either way.
+fn muzzle_id_at(turret: &TurretSectionConfig, path: &[PathStep]) -> Option<String> {
+    let muzzle = path
+        .iter()
+        .rposition(|step| matches!(step, PathStep::Field(name) if name == MUZZLE))?;
+    let found = peek(turret.as_partial_reflect(), &path[..=muzzle])?;
+    let ReflectRef::Enum(chosen) = found.reflect_ref() else {
+        return None;
+    };
+    peek(chosen.field_at(0)?, &[PathStep::Field("id".to_string())])?
+        .try_downcast_ref::<String>()
+        .cloned()
+}
+
+/// The field a muzzle hangs off its joint by.
+const MUZZLE: &str = "muzzle";
 
 /// An object's rows, cut to what the kind is worth showing.
 pub(crate) fn curated_object_rows(object: &ObjectNode, pose: &Transform) -> Vec<InspectorRow> {
@@ -2151,6 +2323,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             asset: None,
             owner: None,
             depth: 0,
+            overridden: false,
         },
         fixed(
             FieldRoot::Config,
@@ -2238,18 +2411,57 @@ pub(crate) fn section_rows(
             asset: None,
             owner: None,
             depth: 0,
+            overridden: false,
         });
     }
-    let Some(config) = node.resolve(catalog) else {
+    // The PATCHED config: a builder reads and types the value the section will
+    // fly with, and the prototype underneath it is what Reset goes back to.
+    let Some(config) = node.patched(catalog) else {
         return rows;
     };
+    let first = rows.len();
     walk(
         section_config(&config.kind),
         FieldRoot::Config,
         Vec::new(),
         &mut rows,
     );
+    mark_overrides(node, catalog, &mut rows[first..]);
     rows
+}
+
+/// Mark the rows this placement's patch moved off the prototype.
+///
+/// By VALUE against the same walk of the unpatched prototype, rather than by
+/// asking the patch which fields it holds: the row is a reflection path and the
+/// patch is a curated struct, and a mapping between the two would be the field
+/// boundary written a second time in UI code - which is the duplication the
+/// shared [`SectionConfigPatch`] exists to end.
+///
+/// A row the prototype has no path for is left unmarked. It is a row that only
+/// EXISTS because a patch chose another enum variant (a reload cycle on a gun
+/// the catalog ships without one), and the row it hangs under carries the mark
+/// and the reset for the whole field.
+fn mark_overrides(node: &SectionNode, catalog: Option<&GameSections>, rows: &mut [InspectorRow]) {
+    if node.source.patch().is_empty() {
+        return;
+    }
+    let Some(prototype) = node.resolve(catalog) else {
+        return;
+    };
+    let mut inherited = Vec::new();
+    walk(
+        section_config(&prototype.kind),
+        FieldRoot::Config,
+        Vec::new(),
+        &mut inherited,
+    );
+    for row in rows {
+        let Some(before) = inherited.iter().find(|before| before.path == row.path) else {
+            continue;
+        };
+        row.overridden = before.value != row.value;
+    }
 }
 
 /// The rows an object shows: its name, where it sits, and its kind config.
@@ -2487,6 +2699,7 @@ pub(crate) fn operand_row(
         asset: None,
         owner: Some(owner),
         depth,
+        overridden: false,
     }
 }
 
@@ -2678,6 +2891,7 @@ fn name_row(name: String) -> InspectorRow {
         asset: None,
         owner: None,
         depth: 0,
+        overridden: false,
     }
 }
 
@@ -2796,6 +3010,7 @@ fn axes_row(
         asset: None,
         owner: None,
         depth: 0,
+        overridden: false,
     }
 }
 

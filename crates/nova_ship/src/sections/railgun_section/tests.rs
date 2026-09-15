@@ -221,8 +221,8 @@ fn an_empty_lance_refuses_the_commit_until_its_shell_returns() {
     let (_ship, lance) = spawn_lance_ship(
         &mut app,
         RailgunSectionConfig {
-            ammo_capacity: Some(1),
-            reload: Some(SectionReloadConfig {
+            ammunition: AmmoCapacity::Limited(1),
+            reload: ReloadConfig::Batch(SectionReloadConfig {
                 delay: 5.0,
                 amount: 1,
             }),
@@ -266,7 +266,7 @@ fn safing_a_ship_mid_charge_dumps_the_charge_and_keeps_the_shell() {
         &mut app,
         RailgunSectionConfig {
             charge_seconds: 0.2,
-            ammo_capacity: Some(1),
+            ammunition: AmmoCapacity::Limited(1),
             ..default()
         },
         Vec3::NEG_Z * 2.0,
@@ -602,7 +602,7 @@ fn a_scripted_railgun_order_fires_one_shell_and_retires() {
             charge_seconds,
             // One shell, so a gun that kept cycling would visibly run dry
             // instead of silently firing forever.
-            ammo_capacity: Some(1),
+            ammunition: AmmoCapacity::Limited(1),
             ..default()
         },
         Vec3::NEG_Z * 2.0,
@@ -650,8 +650,8 @@ fn a_scripted_railgun_order_waits_for_an_empty_gun_to_reload() {
     let (_ship, lance) = spawn_lance_ship(
         &mut app,
         RailgunSectionConfig {
-            ammo_capacity: Some(1),
-            reload: Some(SectionReloadConfig {
+            ammunition: AmmoCapacity::Limited(1),
+            reload: ReloadConfig::Batch(SectionReloadConfig {
                 delay: 0.2,
                 amount: 1,
             }),

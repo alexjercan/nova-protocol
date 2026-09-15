@@ -15,7 +15,7 @@ pub mod prelude {
 }
 
 /// Configuration for a hull section.
-#[derive(Clone, Debug, Default, Reflect)]
+#[derive(Clone, Debug, Default, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HullSectionConfig {
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.

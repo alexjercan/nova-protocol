@@ -619,7 +619,6 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
 
     let ship = SpaceshipConfig {
@@ -628,7 +627,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
             input_mapping: BTreeMap::new(),
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 at(
                     "controller",
@@ -648,7 +647,6 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                     position: Vec3::new(0.75, 0.0, 0.0),
                     rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
                     source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
-                    modifications: vec![],
                 },
             ],
             ..default()

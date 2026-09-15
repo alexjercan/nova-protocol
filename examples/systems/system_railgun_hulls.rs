@@ -353,7 +353,7 @@ fn hold_combat_stance(mut mouse: ResMut<ButtonInput<MouseButton>>) {
 fn setup_range(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
     sections: Res<GameSections>,
 ) {
     commands.trigger(LoadScenario(hull_range(
@@ -372,7 +372,7 @@ fn setup_range(
 /// adjacency. The pylon runs straight down the mount's own column from the
 /// deepest cell the hull already has there, so every new cell mates the one
 /// above it and the lance's `positive_y_mid` socket mates the last of them.
-fn hull_with_lance(ships: &GameShips, hull: &str) -> ShipHull {
+fn hull_with_lance(ships: &GameShipDesigns, hull: &str) -> ShipDesign {
     let mut built = kit::catalog_ship(ships, hull);
     let footing = built
         .sections
@@ -402,8 +402,7 @@ fn hull_with_lance(ships: &GameShips, hull: &str) -> ShipHull {
             id: format!("pylon_{}", (-cell) as i32),
             position: Vec3::new(MOUNT.x, cell, MOUNT.z),
             rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype(REINFORCED_HULL_SECTION_ID.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(REINFORCED_HULL_SECTION_ID),
         });
         cell -= 1.0;
     }
@@ -411,8 +410,7 @@ fn hull_with_lance(ships: &GameShips, hull: &str) -> ShipHull {
         id: LANCE_SECTION.to_string(),
         position: MOUNT,
         rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype(RAILGUN_LANCE_SECTION_ID.to_string()),
-        modifications: vec![],
+        source: SectionSource::prototype(RAILGUN_LANCE_SECTION_ID),
     });
     built
 }
@@ -422,7 +420,7 @@ fn hull_with_lance(ships: &GameShips, hull: &str) -> ShipHull {
 fn hull_range(
     round: Round,
     game_assets: &GameAssets,
-    ships: &GameShips,
+    ships: &GameShipDesigns,
     sections: &GameSections,
 ) -> ScenarioConfig {
     // Player-controlled with an EMPTY input mapping, exactly as
@@ -437,7 +435,7 @@ fn hull_range(
             // which is the one number claim 2 is reading.
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(hull_with_lance(ships, round.hull)),
+        design: ShipDesignSource::Inline(hull_with_lance(ships, round.hull)),
         ..default()
     };
 
@@ -810,7 +808,7 @@ fn round_beats(script: Script, round: Round, first: bool) -> Script {
 fn load_round(world: &mut World, round: Round) {
     let config = {
         let game_assets = world.resource::<GameAssets>();
-        let ships = world.resource::<GameShips>();
+        let ships = world.resource::<GameShipDesigns>();
         let sections = world.resource::<GameSections>();
         hull_range(round, game_assets, ships, sections)
     };

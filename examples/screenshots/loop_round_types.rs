@@ -90,8 +90,8 @@ fn layered_target(
         Vec3::new(0.0, 0.0, -6.0),
     ));
     let mut ship = fixtures::ship(sections, SpaceshipController::None, &specs);
-    if let ShipSource::Inline(hull) = &mut ship.hull {
-        hull.collapse_threshold = Some(0.0);
+    if let ShipDesignSource::Inline(design) = &mut ship.design {
+        design.integrity.collapse_threshold = Some(0.0);
     }
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

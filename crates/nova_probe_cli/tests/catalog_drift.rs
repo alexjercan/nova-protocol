@@ -497,6 +497,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a tree row reveals its kind and its whole id on hover",
             "the Key row arms the rebind and takes the key",
             "the inspector opens on the fields the kind is authored through",
+            "a tuned row keeps the part it names",
+            "reset drops the field instead of pinning it",
             "the tree can be read as the ids an event names",
             "section ids survive exit and re-entry",
             "the scenario node reports the document",
@@ -830,7 +832,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 385;
+const SYSTEMS_INVARIANTS: usize = 387;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

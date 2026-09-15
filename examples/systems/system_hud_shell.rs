@@ -230,7 +230,7 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(shell_range(&game_assets, &ships, CARRIER)));
 }
 
@@ -241,7 +241,7 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
 /// The consort and the beacon are what invariant 6 measures: a ship silhouette
 /// and an authored body radius, the two things a world-anchored chip has to
 /// clear, both close enough to be hundreds of pixels across.
-fn shell_range(game_assets: &GameAssets, ships: &GameShips, hull: &str) -> ScenarioConfig {
+fn shell_range(game_assets: &GameAssets, ships: &GameShipDesigns, hull: &str) -> ScenarioConfig {
     let ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: SHIP_ID.to_string(),
@@ -255,7 +255,7 @@ fn shell_range(game_assets: &GameAssets, ships: &GameShips, hull: &str) -> Scena
                 speed_cap: None,
             }),
             allegiance: None,
-            hull: ShipSource::Inline(kit::catalog_ship(ships, hull)),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, hull)),
             ..default()
         }),
     });
@@ -273,7 +273,7 @@ fn shell_range(game_assets: &GameAssets, ships: &GameShips, hull: &str) -> Scena
             // non-player ship wears.
             controller: SpaceshipController::None,
             allegiance: None,
-            hull: ShipSource::Inline(kit::catalog_ship(ships, CONSORT)),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, CONSORT)),
             ..default()
         }),
     });
@@ -446,7 +446,7 @@ fn shell_round(script: Script, hull: &'static str) -> Script {
 fn reload_as_skiff(world: &mut World) {
     let config = {
         let game_assets = world.resource::<GameAssets>();
-        let ships = world.resource::<GameShips>();
+        let ships = world.resource::<GameShipDesigns>();
         shell_range(game_assets, ships, SKIFF)
     };
     world.resource_mut::<ShellProbe>().before = None;

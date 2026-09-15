@@ -557,7 +557,7 @@ mod tests {
                 kind: Turret((
                     root: (
                         offset: (0.0, 0.0, 0.0),
-                        muzzle: Some((fire_rate: 10.0)),
+                        muzzle: Some((id: "main", fire_rate: 10.0)),
                     ),
                     muzzle_speed: 600.0, projectile_lifetime: 5.0,
                     bullet_damage: 4.0, bullet_kind: Kinetic,

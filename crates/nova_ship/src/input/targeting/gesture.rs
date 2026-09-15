@@ -10,7 +10,7 @@ use nova_gameplay::prelude::*;
 #[cfg(test)]
 use super::radar::{lock_dwell_secs, update_radar_search};
 use crate::{
-    flight::{ship_grants_verb, LiveFlightComputers},
+    flight::{ship_capabilities, ShipCapabilityQuery},
     prelude::*,
 };
 
@@ -39,7 +39,7 @@ pub(super) fn on_radar_start(
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
     mut denied: MessageWriter<RadarDenied>,
-    q_controllers: LiveFlightComputers,
+    q_capabilities: ShipCapabilityQuery,
     q_ship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -51,8 +51,8 @@ pub(super) fn on_radar_start(
         return;
     }
     for ship in &q_ship {
-        if !ship_grants_verb(ship, FlightVerb::Lock, &q_controllers) {
-            // No Lock capability on this computer: the radar does not come
+        if !ship_capabilities(ship, &q_capabilities).lock_enabled {
+            // No LOCK capability on this ship: the radar does not come
             // on - and says so (deny buzz + adornment flash, F7/Q8a).
             denied.write(RadarDenied);
             continue;
@@ -783,16 +783,11 @@ mod tests {
     #[test]
     fn a_lock_less_computer_cannot_radar() {
         let (mut app, ship) = gesture_app();
-        // Withhold the Lock capability.
-        let controller = app
-            .world_mut()
-            .query_filtered::<Entity, With<ControllerSectionMarker>>()
-            .iter(app.world())
-            .next()
-            .unwrap();
-        app.world_mut()
-            .entity_mut(controller)
-            .insert(WithheldVerbs([FlightVerb::Lock].into_iter().collect()));
+        // Turn the Lock capability off on the root.
+        app.world_mut().entity_mut(ship).insert(ShipCapabilities {
+            lock_enabled: false,
+            ..default()
+        });
 
         press_ctrl(&mut app);
         app.update();
@@ -801,12 +796,13 @@ mod tests {
             "no Lock capability: the radar does not come on"
         );
 
-        // Delivery guard: granting it back opens the search on the next press.
+        // Delivery guard: turning it back on opens the search on the next
+        // press.
         release_ctrl(&mut app);
         app.update();
         app.world_mut()
-            .entity_mut(controller)
-            .insert(WithheldVerbs::default());
+            .entity_mut(ship)
+            .insert(ShipCapabilities::default());
         press_ctrl(&mut app);
         app.update();
         assert!(app.world().get::<RadarState>(ship).is_some());

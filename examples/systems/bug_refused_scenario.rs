@@ -177,21 +177,19 @@ fn refused_probe_live(game_assets: &GameAssets, sections: &GameSections) -> Scen
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig::default()),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
                 SpaceshipSectionConfig {
                     id: "controller".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
                     source: SectionSource::Inline(section("basic_controller_section")),
-                    modifications: vec![],
                 },
                 SpaceshipSectionConfig {
                     id: "hull".to_string(),
                     position: Vec3::new(0.0, 0.0, 1.0),
                     rotation: Quat::IDENTITY,
                     source: SectionSource::Inline(section("reinforced_hull_section")),
-                    modifications: vec![],
                 },
             ],
             ..default()

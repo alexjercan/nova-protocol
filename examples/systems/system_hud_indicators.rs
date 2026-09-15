@@ -387,7 +387,6 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
         position: Vec3::new(0.0, 0.0, z),
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
     };
     let sections_line = |prefix: &str| {
         vec![
@@ -409,7 +408,6 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
-        modifications: vec![],
     });
     let player = SpaceshipConfig {
         allegiance: None,
@@ -417,7 +415,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
             input_mapping: BTreeMap::new(),
             speed_cap: None,
         }),
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: player_sections,
             ..default()
         }),
@@ -426,7 +424,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
     let target = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::None,
-        hull: ShipSource::Inline(ShipHull {
+        design: ShipDesignSource::Inline(ShipDesign {
             sections: sections_line("target"),
             ..default()
         }),

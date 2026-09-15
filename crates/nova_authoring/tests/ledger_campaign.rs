@@ -292,7 +292,7 @@ fn the_racer_course_arms_only_the_next_gate_and_freezes_its_clock_at_finish() {
             _ => None,
         })
         .unwrap();
-    assert!(matches!(&player.hull, ShipSource::Prototype(id) if id == "racer"));
+    assert!(matches!(&player.design, ShipDesignSource::Prototype { id, .. } if id == "racer"));
     let SpaceshipController::Player(controller) = &player.controller else {
         panic!("player driver")
     };
@@ -615,31 +615,24 @@ fn the_platform_stays_within_its_encounter_health_budget() {
         })
         .unwrap();
     let health: f32 = ship
-        .hull
+        .design
         .sections
         .iter()
         .map(|section| {
-            section
-                .modifications
-                .iter()
-                .find_map(|modification| match modification {
-                    SectionModification::SetHealth(health) => Some(*health),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let SectionSource::Prototype(id) = &section.source else {
-                        panic!("catalog part")
-                    };
-                    content
-                        .iter()
-                        .find_map(|item| match item {
-                            Content::Section(config) if config.base.id == *id => {
-                                Some(config.base.health)
-                            }
-                            _ => None,
-                        })
-                        .expect("unmodified platform part resolves in the mod")
-                })
+            let SectionSource::Prototype { id, patch } = &section.source else {
+                panic!("catalog part")
+            };
+            patch.health.unwrap_or_else(|| {
+                content
+                    .iter()
+                    .find_map(|item| match item {
+                        Content::Section(config) if config.base.id == *id => {
+                            Some(config.base.health)
+                        }
+                        _ => None,
+                    })
+                    .expect("unpatched platform part resolves in the mod")
+            })
         })
         .sum();
     assert!(
@@ -667,13 +660,17 @@ fn the_player_corvette_protects_the_nose_that_connects_both_guns() {
                 _ => None,
             })
             .unwrap();
-        assert!(
-            player
-                .modifications
-                .iter()
-                .any(|section| section.section == "nose"
-                    && section.modifications.iter().any(|m| matches!(m,
-                SectionModification::SetHealth(health) if *health == 1200.0))),
+        let ShipDesignSource::Prototype {
+            section_patches, ..
+        } = &player.design
+        else {
+            panic!("the player flies a catalog design")
+        };
+        assert_eq!(
+            section_patches
+                .get("nose")
+                .and_then(|patch| patch.config.health),
+            Some(1200.0),
             "{}: do not lose both guns through a lightly plated nose",
             scenario.id
         );
@@ -706,14 +703,14 @@ fn modelled_critical_sections_and_campaign_guns_have_a_reaction_margin() {
         assert_eq!(muzzle_rate(&gun.root), rate);
         assert_eq!(gun.bullet_damage, damage);
         assert!(
-            gun.ammo_capacity.is_some(),
+            gun.ammunition.rounds().is_some(),
             "finite magazines remain gameplay"
         );
     }
     for item in &content {
         if let Content::Ship(ship) = item {
-            for section in &ship.hull.sections {
-                if let SectionSource::Prototype(id) = &section.source {
+            for section in &ship.design.sections {
+                if let SectionSource::Prototype { id, .. } = &section.source {
                     assert_ne!(
                         id, "pdc_kinetic_turret_section",
                         "{} owns its gun balance",

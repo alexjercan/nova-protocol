@@ -1,13 +1,16 @@
-//! The spaceship scenario object: which hull it spawns, where that hull comes
-//! from, and whether the player or the AI flies it.
+//! The spaceship scenario object: which design it spawns, where that design
+//! comes from, what the ship is permitted to do, and whether the player or the
+//! AI flies it.
 //!
-//! [`SectionSource`] is the seam that lets an authored ship reference the
+//! [`SectionSource`] is the seam that lets an authored design reference the
 //! shipped catalog by id or carry its own inline config;
-//! [`ShipSource`](crate::objects::ship::prelude::ShipSource) is the same seam
-//! one level up, over the whole hull.
+//! [`ShipDesignSource`](crate::objects::ship_design::prelude::ShipDesignSource)
+//! is the same seam one level up, over the whole design. Both carry a PATCH on
+//! the prototype arm, because a reference that cannot be tuned forces an
+//! author to inline the whole thing and lose the inheritance.
 //!
 //! Touch this module when changing how a ship is SPAWNED. What a ship IS lives
-//! in [`ship`](crate::objects::ship).
+//! in [`ship_design`](crate::objects::ship_design).
 
 use std::collections::BTreeMap;
 
@@ -18,9 +21,8 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 
-use crate::objects::{
-    modification::prelude::SectionModification,
-    ship::prelude::{GameShips, ShipHull, ShipSectionModification, ShipSource},
+use crate::objects::ship_design::prelude::{
+    resolve_ship_design, GameShipDesigns, ShipDesignSource,
 };
 
 /// The spaceship scenario object, its config and section sources, the player and AI controller
@@ -28,8 +30,8 @@ use crate::objects::{
 pub mod prelude {
     pub use super::{
         spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionId,
-        SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipHull, SpaceshipModifications,
-        SpaceshipPlugin, SpaceshipSectionConfig,
+        SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
+        SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
     };
 }
 
@@ -277,12 +279,14 @@ fn is_false(flag: &bool) -> bool {
 /// the section from scenario scripts.
 pub type SectionId = String;
 
-/// Where a ship section's [`SectionConfig`] comes from. Resolved at spawn in
-/// `insert_spaceship_sections` (mirrors `AssetRef`'s resolve-at-spawn): an
-/// `Inline` config is used as-is; a `Prototype` is looked up by id in the
-/// section-prototype catalog ([`GameSections`]). Keeping the compact
-/// authored form (the id) in the scenario data is what lets a re-ported ship
-/// reference a shared prototype instead of inlining its whole config.
+/// Where a ship section's [`SectionConfig`] comes from, and what this
+/// reference changes about it.
+///
+/// An `Inline` config is COMPLETE and takes no patch - there is no prototype
+/// left to inherit from. A `Prototype` is looked up by id in the section
+/// catalog ([`GameSections`]) and may tune the gameplay values that matter to
+/// this one placement, which is what lets a design mount a shared engine at
+/// ninety percent health instead of inlining the whole part.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 // Inline carries the full SectionConfig - hundreds of bytes (528 at the time
@@ -297,32 +301,57 @@ pub type SectionId = String;
 pub enum SectionSource {
     /// The full config, authored inline.
     Inline(SectionConfig),
-    /// A reference to a catalog prototype by id, resolved against
-    /// [`GameSections`] at spawn.
-    Prototype(SectionId),
+    /// A reference to a catalog prototype by id, with this placement's own
+    /// patch over it.
+    Prototype {
+        /// The catalog id, resolved against [`GameSections`].
+        id: SectionId,
+        /// What this placement changes about the prototype. All-inherit by
+        /// default, which authored files omit entirely.
+        #[cfg_attr(
+            feature = "serde",
+            serde(default, skip_serializing_if = "SectionConfigPatch::is_empty")
+        )]
+        patch: SectionConfigPatch,
+    },
 }
 
 impl SectionSource {
+    /// A prototype reference with nothing patched - the common authored form.
+    pub fn prototype(id: impl Into<SectionId>) -> Self {
+        Self::Prototype {
+            id: id.into(),
+            patch: SectionConfigPatch::default(),
+        }
+    }
+
     /// The section config this source names: the inline one, or the catalog
-    /// prototype's. `None` when a prototype id resolves to nothing - a mod
-    /// overlay dropped it - and the caller decides what that miss means (the
-    /// spawn logs it and skips the section, the editor draws nothing there).
+    /// prototype's, UNPATCHED. `None` when a prototype id resolves to nothing -
+    /// a mod overlay dropped it - and the caller decides what that miss means.
+    ///
+    /// Callers that want the finished section want
+    /// [`resolve_ship_design`](crate::objects::ship_design::prelude::resolve_ship_design)
+    /// instead: this is the lookup half, and the patch is still to come.
     ///
     /// `sections` is optional because a rig may hold no catalog at all: an
     /// editor document opened before the mods merged, or a test whose sections
     /// are all inline. Absent means no prototype resolves; an `Inline` source
-    /// still answers, which is what keeps a self-contained hull drawable
+    /// still answers, which is what keeps a self-contained design drawable
     /// without a catalog.
-    ///
-    /// This is the ONE resolver. Every consumer - the spawn, the preload walk,
-    /// the opening-frame envelope, the editor's nodes and previews - goes
-    /// through it, so a new source arm or a new lookup rule lands on all of
-    /// them at once. `nova_wfc`'s `place` is the deliberate exception: a
-    /// generated hull is prototypes only and rejects `Inline` outright.
     pub fn resolve<'a>(&'a self, sections: Option<&'a GameSections>) -> Option<&'a SectionConfig> {
         match self {
             SectionSource::Inline(config) => Some(config),
-            SectionSource::Prototype(id) => sections?.get_section(id),
+            SectionSource::Prototype { id, .. } => sections?.get_section(id),
+        }
+    }
+
+    /// What this reference changes about the config it resolves to. An inline
+    /// config is already exactly what it says, so its patch is the empty one.
+    pub fn patch(&self) -> &SectionConfigPatch {
+        const EMPTY: &SectionConfigPatch = &SectionConfigPatch::EMPTY;
+        match self {
+            SectionSource::Inline(_) => EMPTY,
+            SectionSource::Prototype { patch, .. } => patch,
         }
     }
 
@@ -333,17 +362,17 @@ impl SectionSource {
     pub fn prototype_id(&self) -> &str {
         match self {
             SectionSource::Inline(config) => &config.base.id,
-            SectionSource::Prototype(id) => id,
+            SectionSource::Prototype { id, .. } => id,
         }
     }
 }
 
-/// One entry in a ship's authored section list: where a section sits on the
-/// hull, where its config comes from, and any spawn-time modifications.
+/// One entry in a design's authored section list: where a section sits on the
+/// hull and where its config comes from.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipSectionConfig {
-    /// The section's scenario-local id (keys input bindings and scripts).
+    /// The section's design-local id (keys input bindings, scripts, patches).
     pub id: SectionId,
     /// The section's mount cell relative to the ship root, in BUILD-GRID
     /// cells - the one authored vector that is not a distance. A cell is one
@@ -352,44 +381,58 @@ pub struct SpaceshipSectionConfig {
     /// The section's rotation relative to the ship root.
     pub rotation: Quat,
     /// Where the section's config comes from - inline, or a catalog prototype
-    /// referenced by id.
+    /// referenced by id and patched.
     pub source: SectionSource,
-    /// Data-only deltas applied to the resolved section at spawn (inserted as
-    /// components, applied by observers). Empty by default; authored files may
-    /// omit the field.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Vec::is_empty")
-    )]
-    pub modifications: Vec<SectionModification>,
 }
 
-/// The hull a spawned ship flies, carried on the ship root from
-/// [`SpaceshipConfig::hull`]. `insert_spaceship_sections` reads it on
-/// `Add<SpaceshipRootMarker>`, resolves it against [`GameShips`], and spawns
-/// each [`SpaceshipSectionConfig`] as a child section entity.
-#[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
-pub struct SpaceshipHull(pub ShipSource);
+/// What ONE spawn changes about ONE placed section of a prototype design.
+///
+/// Position and rotation live on [`SpaceshipSectionConfig`] rather than inside
+/// the section config, so they are patched here and everything else through
+/// the shared [`SectionConfigPatch`].
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
+pub struct SpaceshipSectionConfigPatch {
+    /// Move the section to this mount cell.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Vec3>,
+    /// Turn the section to this mount rotation.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub rotation: Option<Quat>,
+    /// What this spawn changes about the section's config.
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "SectionConfigPatch::is_empty")
+    )]
+    pub config: SectionConfigPatch,
+}
 
-/// The per-spawn deltas this ship applies over its resolved hull, carried on
-/// the ship root from [`SpaceshipConfig::modifications`].
+/// The design a spawned ship flies, carried on the ship root from
+/// [`SpaceshipConfig::design`]. `insert_spaceship_sections` reads it on
+/// `Add<SpaceshipRootMarker>`, resolves it against [`GameShipDesigns`] and
+/// [`GameSections`], and spawns each resolved section as a child entity.
+///
+/// The spawn's own section patches ride INSIDE the source's `Prototype` arm,
+/// so the root carries one component and the resolver reads one value - there
+/// is no way to hand the design to a consumer and forget its patches.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
-pub struct SpaceshipModifications(pub Vec<ShipSectionModification>);
+pub struct SpaceshipDesign(pub ShipDesignSource);
 
-/// The scenario/modding RON surface for a spaceship object: WHICH hull it
-/// spawns, who drives it, which side it is on, and the deltas this one spawn
-/// applies over the shared hull. Passed to `spaceship_scenario_object` to build
-/// the ship-root bundle.
+/// The scenario/modding RON surface for a spaceship object: WHICH design it
+/// spawns, who drives it, which side it is on, and what it is permitted to do.
+/// Passed to `spaceship_scenario_object` to build the ship-root bundle.
 ///
 /// The split is the point: everything reusable lives in the
-/// [`ShipHull`](crate::objects::ship::prelude::ShipHull) this names, so eleven
-/// scenarios spawning the corvette reference one ship instead of carrying
-/// eleven copies of its section list.
+/// [`ShipDesign`](crate::objects::ship_design::prelude::ShipDesign) this
+/// names, so eleven scenarios spawning the corvette reference one design
+/// instead of carrying eleven copies of its section list.
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
-    /// The hull: a catalog ship by id, or one authored inline.
-    pub hull: ShipSource,
+    /// The design: a catalog one by id (with this spawn's patches), or one
+    /// authored inline.
+    pub design: ShipDesignSource,
     /// Who drives the ship: nobody, a player, or an AI bot.
     pub controller: SpaceshipController,
     /// Which side the ship fights for. `None` (the authored default - omit
@@ -404,14 +447,19 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub allegiance: Option<Allegiance>,
-    /// Data-only deltas this spawn applies to named sections of the resolved
-    /// hull, applied AFTER each section's own list so the spawn wins. Empty by
-    /// default; authored files may omit the field.
+    /// What this ship is PERMITTED to do: stop, goto, orbit, lock, RCS, point
+    /// defence. Everything enabled is the default and is omitted from RON, and
+    /// so is any field inside a non-default value that is still on.
+    ///
+    /// A spawn decision, not a design one and not a controller one: the same
+    /// corvette is a cadet's locked-down trainer in one scenario and a full
+    /// warship in the next, and losing its flight computer must not take its
+    /// radar with it.
     #[cfg_attr(
         feature = "serde",
-        serde(default, skip_serializing_if = "Vec::is_empty")
+        serde(default, skip_serializing_if = "ShipCapabilities::is_all_enabled")
     )]
-    pub modifications: Vec<ShipSectionModification>,
+    pub capabilities: ShipCapabilities,
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
@@ -419,9 +467,10 @@ pub struct SpaceshipConfig {
 /// observer resolves to spawn the section children and wire the driver at
 /// spawn.
 ///
-/// The hull's own components (collapse threshold, skin, style) are inserted by
-/// that observer rather than here: a `Prototype` hull is not known until the
-/// catalog is read, and the catalog is a resource only a system can see.
+/// The design's own components (collapse threshold, skin, style, the feedback
+/// voice) are inserted by that observer rather than here: a `Prototype` design
+/// is not known until the catalog is read, and the catalog is a resource only
+/// a system can see.
 pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     trace!("spaceship_scenario_object: config {:?}", config);
 
@@ -429,8 +478,8 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         SpaceshipRootMarker,
         EntityTypeName::new(SPACESHIP_TYPE_NAME),
         config.controller,
-        SpaceshipHull(config.hull),
-        SpaceshipModifications(config.modifications),
+        SpaceshipDesign(config.design),
+        config.capabilities,
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
@@ -445,7 +494,7 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
 /// Spawns spaceship scenario objects: resolves each ship's hull and section
 /// list into child section entities and wires the player/AI controller.
 /// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds empty
-/// [`GameSections`] and [`GameShips`] catalogs, and registers the
+/// [`GameSections`] and [`GameShipDesigns`] catalogs, and registers the
 /// section-modification components and their apply-on-add observers.
 pub struct SpaceshipPlugin;
 
@@ -454,19 +503,15 @@ impl Plugin for SpaceshipPlugin {
         trace!("SpaceshipPlugin: build");
 
         // `insert_spaceship_sections` resolves Prototype sources against
-        // `GameSections` and `GameShips`, so the plugin self-provides (empty)
-        // defaults: production and the editor overwrite them with the loaded
-        // catalogs, and Inline-only spawns (examples, previews) then need no
-        // catalog wiring. Makes both resource dependencies self-satisfying
-        // instead of a spawn-order footgun.
+        // `GameSections` and `GameShipDesigns`, so the plugin self-provides
+        // (empty) defaults: production and the editor overwrite them with the
+        // loaded catalogs, and Inline-only spawns (examples, previews) then
+        // need no catalog wiring. Makes both resource dependencies
+        // self-satisfying instead of a spawn-order footgun.
         app.init_resource::<GameSections>();
-        app.init_resource::<GameShips>();
+        app.init_resource::<GameShipDesigns>();
 
         app.add_observer(insert_spaceship_sections);
-
-        // Section modifications: the per-variant components + their apply-on-add
-        // observers (DisableVerb / SetHealth / Rename).
-        crate::objects::modification::register_section_modifications(app);
     }
 }
 
@@ -474,65 +519,64 @@ fn insert_spaceship_sections(
     add: On<Add, SpaceshipRootMarker>,
     mut commands: Commands,
     game_sections: Res<GameSections>,
-    game_ships: Res<GameShips>,
+    game_designs: Res<GameShipDesigns>,
     q_spaceship: Query<
-        (
-            &SpaceshipHull,
-            &SpaceshipModifications,
-            &SpaceshipController,
-            &Transform,
-        ),
+        (&SpaceshipDesign, &SpaceshipController, &Transform),
         With<SpaceshipRootMarker>,
     >,
 ) {
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((hull_source, spawn_modifications, controller_config, transform)) =
-        q_spaceship.get(entity)
-    else {
-        // NOT an error: a root with no [`SpaceshipHull`] is a hull somebody
+    let Ok((design_source, controller_config, transform)) = q_spaceship.get(entity) else {
+        // NOT an error: a root with no [`SpaceshipDesign`] is a hull somebody
         // built by hand rather than one a scenario authored, and an example or
         // a test is entitled to spawn one. This observer only owns the AUTHORED
         // path. Logging it as an error made `system_section_severing` fail
         // `log_clean` for behaving correctly.
         debug!(
-            "insert_spaceship_sections: entity {:?} carries no authored hull, so it is not a scenario ship",
+            "insert_spaceship_sections: entity {:?} carries no authored design, so it is not a scenario ship",
             entity
         );
         return;
     };
     let spawn_position = transform.translation;
 
-    // A prototype naming no catalog ship flies as an empty root (error + empty
-    // hull, no panic) - the same log-and-carry-on contract a missing section
-    // prototype gets below, one level up.
-    let empty = ShipHull::default();
-    let hull = match hull_source.resolve(&game_ships) {
-        Some(hull) => hull,
-        None => {
-            error!(
-                "insert_spaceship_sections: entity {:?} references unknown ship {:?}; \
-                 spawning an empty hull",
-                entity, hull_source.0
-            );
-            &empty
-        }
-    };
+    // ONE resolve, shared with the content lint and the editor preview. Errors
+    // are logged and the rest still flies: a design naming no catalog entry
+    // spawns an empty root, and a section whose prototype went missing is
+    // skipped - the same log-and-carry-on contract this observer always had.
+    let (design, errors) = resolve_ship_design(design_source, &game_designs, &game_sections);
+    for error in &errors {
+        error!("insert_spaceship_sections: entity {:?}: {}", entity, error);
+    }
 
-    // The hull's own components. Inserted here rather than in the spawn bundle
-    // because a Prototype hull is not known until the catalog is read; they
-    // land in the same command flush as the sections below, which is the batch
-    // the skin derivation and the integrity graph both key off.
-    let collapse_threshold = match hull.collapse_threshold {
+    // The design's own components. Inserted here rather than in the spawn
+    // bundle because a Prototype design is not known until the catalog is
+    // read; they land in the same command flush as the sections below, which
+    // is the batch the skin derivation and the integrity graph both key off.
+    let collapse_threshold = match design.integrity.collapse_threshold {
         Some(fraction) => StructuralCollapseThreshold::new(fraction),
         None => StructuralCollapseThreshold::default(),
     };
+    let presentation = &design.presentation;
     commands.entity(entity).insert((
         collapse_threshold,
-        ShipSkin(hull.skin),
-        ShipStyle(hull.style.clone()),
-        ShipCollapseSound(hull.collapse_sound.clone()),
+        ShipSkin(presentation.skin),
+        ShipStyle(presentation.style.clone()),
+        ShipCollapseSound(presentation.collapse_sound.clone()),
+        ShipFeedbackSounds {
+            lock_on: presentation.lock_on_sound.clone(),
+            lock_off: presentation.lock_off_sound.clone(),
+            radar_deny: presentation.radar_deny_sound.clone(),
+            radar_retarget: presentation.radar_retarget_sound.clone(),
+            safety_on: presentation.safety_on_sound.clone(),
+            warn_lock: presentation.warn_lock_sound.clone(),
+            ammo_dry: presentation.ammo_dry_sound.clone(),
+            warn_hull: presentation.warn_hull_sound.clone(),
+            rcs_loop: presentation.rcs_loop_sound.clone(),
+        },
+        ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
     ));
 
     // An AI ship with no turret or torpedo section cannot fight; it becomes a
@@ -541,20 +585,8 @@ fn insert_spaceship_sections(
     let mut has_weapon = false;
 
     commands.entity(entity).with_children(|parent| {
-        for section in hull.sections.iter() {
-            // Owned, because the section entity outlives this borrow of the
-            // catalog. A source that resolves to nothing is an error + skip of
-            // this section, no panic.
-            let Some(config) = section.source.resolve(Some(&game_sections)) else {
-                error!(
-                    "insert_spaceship_sections: unknown section prototype '{}' for \
-                     section '{}'; skipping",
-                    section.source.prototype_id(),
-                    section.id
-                );
-                continue;
-            };
-            let config: SectionConfig = config.clone();
+        for section in &design.sections {
+            let config = &section.config;
 
             let mut section_entity = parent.spawn((
                 EntityId::new(section.id.clone()),
@@ -567,7 +599,7 @@ fn insert_spaceship_sections(
             // carries its sockets and its collider and nothing that says what
             // sort of part it is, and the derived skin has to know which face a
             // part fires through to leave that one cell of it bare.
-            if let Some(exit) = SectionExit::of(&config) {
+            if let Some(exit) = SectionExit::of(config) {
                 section_entity.insert(exit);
             }
 
@@ -641,18 +673,6 @@ fn insert_spaceship_sections(
                     }
                 }
             }
-
-            // Insert the authored modification components; their observers apply
-            // each delta where relevant (and are inert elsewhere). The hull's
-            // own list first, then this spawn's overrides for the section - a
-            // later component insert replaces an earlier one, so the spawn wins.
-            let mut modifications = section.modifications.clone();
-            for override_ in spawn_modifications.iter() {
-                if override_.section == section.id {
-                    modifications.extend(override_.modifications.iter().cloned());
-                }
-            }
-            SectionModification::insert_all(&modifications, &mut section_entity);
         }
     });
 
@@ -797,7 +817,9 @@ fn insert_spaceship_sections(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::objects::{modification::prelude::SectionHealthOverride, ship::prelude::ShipConfig};
+    use crate::objects::ship_design::prelude::{
+        ShipDesign, ShipDesignPrototype, ShipIntegrityConfig,
+    };
 
     /// The AI controller config maps to the per-entity directive components
     /// exactly: patrol -> AIPatrolRoute, orbit -> AIOrbitDirective, absent
@@ -808,7 +830,7 @@ mod tests {
         // The observer resolves each source against a catalog; these tests use
         // Inline hulls and sections, so empty catalogs are fine.
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
 
         let spawn = |world: &mut World, config: AIControllerConfig| {
@@ -966,7 +988,7 @@ mod tests {
     fn a_zero_sensor_range_is_a_blind_ship_not_an_unauthored_one() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
         let blind = world
             .spawn((
@@ -996,7 +1018,7 @@ mod tests {
     fn a_zero_standoff_clearance_is_contact_not_an_unauthored_one() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
         let boarder = world
             .spawn((
@@ -1028,7 +1050,7 @@ mod tests {
     fn a_zero_avoid_margin_is_skin_clearance_not_an_unauthored_one() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
         let miner = world
             .spawn((
@@ -1057,7 +1079,7 @@ mod tests {
     fn a_zero_arrival_standoff_is_authored_not_dropped() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
 
         let ship = world
@@ -1088,7 +1110,7 @@ mod tests {
     fn an_unarmed_ai_ship_is_flagged_non_combatant() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
 
         let turret_section = || SpaceshipSectionConfig {
@@ -1102,7 +1124,6 @@ mod tests {
                 },
                 kind: SectionKind::Turret(TurretSectionConfig::default()),
             }),
-            modifications: vec![],
         };
         let spawn = |world: &mut World, controller, sections| {
             let entity = world
@@ -1110,7 +1131,7 @@ mod tests {
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
                         controller,
-                        hull: ShipSource::Inline(ShipHull {
+                        design: ShipDesignSource::Inline(ShipDesign {
                             sections,
                             ..default()
                         }),
@@ -1175,7 +1196,7 @@ mod tests {
     fn engage_delay_inserts_the_grace_only_when_positive() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, config: AIControllerConfig| {
             let entity = world
@@ -1223,15 +1244,15 @@ mod tests {
     fn the_collapse_threshold_is_authored_per_ship() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, collapse_threshold| {
             let entity = world
                 .spawn((
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
-                        hull: ShipSource::Inline(ShipHull {
-                            collapse_threshold,
+                        design: ShipDesignSource::Inline(ShipDesign {
+                            integrity: ShipIntegrityConfig { collapse_threshold },
                             ..default()
                         }),
                         ..default()
@@ -1267,47 +1288,47 @@ mod tests {
     }
 
     /// The documented strict-RON syntax parses, omitted defaults to None, and
-    /// an unauthored hull does not serialize the field at all.
+    /// an unauthored design does not serialize the field at all.
     #[cfg(feature = "serde")]
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
-        let authored: SpaceshipConfig =
-            ron::from_str(r#"(controller: None, hull: Inline((collapse_threshold: Some(0.1))))"#)
-                .expect("the documented syntax parses");
-        let ShipSource::Inline(hull) = &authored.hull else {
-            panic!("an inline hull");
+        let authored: SpaceshipConfig = ron::from_str(
+            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))))"#,
+        )
+        .expect("the documented syntax parses");
+        let ShipDesignSource::Inline(design) = &authored.design else {
+            panic!("an inline design");
         };
-        assert_eq!(hull.collapse_threshold, Some(0.1));
+        assert_eq!(design.integrity.collapse_threshold, Some(0.1));
 
-        let omitted: SpaceshipConfig =
-            ron::from_str(r#"(controller: None, hull: Inline(()))"#).expect("omitted field parses");
-        let ShipSource::Inline(hull) = &omitted.hull else {
-            panic!("an inline hull");
+        let omitted: SpaceshipConfig = ron::from_str(r#"(controller: None, design: Inline(()))"#)
+            .expect("omitted field parses");
+        let ShipDesignSource::Inline(design) = &omitted.design else {
+            panic!("an inline design");
         };
-        assert_eq!(hull.collapse_threshold, None);
+        assert_eq!(design.integrity.collapse_threshold, None);
 
         let written = ron::to_string(&omitted).expect("a config serializes");
         assert!(
             !written.contains("collapse_threshold"),
-            "an unauthored hull must not gain the field on a round trip: {written}"
+            "an unauthored design must not gain the field on a round trip: {written}"
         );
     }
 
-    /// A ship referenced by id spawns the CATALOG hull - its sections, its
-    /// skin, its collapse threshold - and the spawn's own modifications land on
-    /// the named section on top of the hull's own. This is the whole point of
-    /// the split: eleven scenarios name one corvette and each still gets to
-    /// harden its own.
+    /// A ship referenced by id spawns the CATALOG design - its sections, its
+    /// skin, its collapse threshold - and the spawn's own patch lands on the
+    /// named section over the design's own. This is the whole point of the
+    /// split: eleven scenarios name one corvette and each still gets to harden
+    /// its own.
     #[cfg(feature = "serde")]
     #[test]
-    fn a_ship_referenced_by_id_spawns_the_catalog_hull_with_spawn_overrides() {
+    fn a_ship_referenced_by_id_spawns_the_catalog_design_with_spawn_patches() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.insert_resource(GameShips(vec![ShipConfig {
+        world.insert_resource(GameShipDesigns(vec![ShipDesignPrototype {
             id: "corvette".to_string(),
             name: "Corvette".to_string(),
-            hull: ShipHull {
-                collapse_threshold: Some(0.25),
+            design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "fuselage".to_string(),
                     position: Vec3::ZERO,
@@ -1315,13 +1336,15 @@ mod tests {
                     source: SectionSource::Inline(SectionConfig {
                         base: BaseSectionConfig {
                             id: "fuselage".to_string(),
-                            health: 100.0,
+                            health: 200.0,
                             ..default()
                         },
                         kind: SectionKind::Hull(HullSectionConfig::default()),
                     }),
-                    modifications: vec![SectionModification::SetHealth(200.0)],
                 }],
+                integrity: ShipIntegrityConfig {
+                    collapse_threshold: Some(0.25),
+                },
                 ..default()
             },
         }]));
@@ -1331,11 +1354,21 @@ mod tests {
             .spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
-                    hull: ShipSource::Prototype("corvette".to_string()),
-                    modifications: vec![ShipSectionModification {
-                        section: "fuselage".to_string(),
-                        modifications: vec![SectionModification::SetHealth(500.0)],
-                    }],
+                    design: ShipDesignSource::Prototype {
+                        id: "corvette".to_string(),
+                        section_patches: [(
+                            "fuselage".to_string(),
+                            SpaceshipSectionConfigPatch {
+                                config: SectionConfigPatch {
+                                    health: Some(500.0),
+                                    ..default()
+                                },
+                                ..default()
+                            },
+                        )]
+                        .into_iter()
+                        .collect(),
+                    },
                     ..default()
                 }),
             ))
@@ -1345,34 +1378,38 @@ mod tests {
         assert_eq!(
             world.entity(entity).get::<StructuralCollapseThreshold>(),
             Some(&StructuralCollapseThreshold(0.25)),
-            "the catalog hull's threshold reaches the spawned root"
+            "the catalog design's threshold reaches the spawned root"
         );
         let children = world.entity(entity).get::<Children>().expect("sections");
-        assert_eq!(children.len(), 1, "the catalog hull's one section spawned");
+        assert_eq!(
+            children.len(),
+            1,
+            "the catalog design's one section spawned"
+        );
         assert_eq!(
             world
                 .entity(children[0])
-                .get::<SectionHealthOverride>()
-                .map(|health| health.0),
+                .get::<Health>()
+                .map(|health| health.max),
             Some(500.0),
-            "the spawn's override is applied after the hull's own, so it wins"
+            "the spawn's patch is applied over the design's own, so it wins"
         );
     }
 
-    /// A hull id nothing authored spawns an EMPTY root rather than panicking -
-    /// the same log-and-carry-on contract a missing section prototype gets.
+    /// A design id nothing authored spawns an EMPTY root rather than panicking
+    /// - the same log-and-carry-on contract a missing section prototype gets.
     #[test]
-    fn an_unknown_ship_id_spawns_an_empty_hull() {
+    fn an_unknown_ship_id_spawns_an_empty_design() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
 
         let entity = world
             .spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
-                    hull: ShipSource::Prototype("no_such_ship".to_string()),
+                    design: ShipDesignSource::prototype("no_such_ship"),
                     ..default()
                 }),
             ))
@@ -1393,13 +1430,13 @@ mod tests {
     fn a_section_source_resolves_by_id_or_reports_nothing() {
         let catalog = GameSections(vec![section_prototype("drive")]);
 
-        let worn = SectionSource::Prototype("drive".to_string());
+        let worn = SectionSource::prototype("drive");
         assert_eq!(
             worn.resolve(Some(&catalog))
                 .map(|config| config.base.id.as_str()),
             Some("drive")
         );
-        assert!(SectionSource::Prototype("nothing".to_string())
+        assert!(SectionSource::prototype("nothing")
             .resolve(Some(&catalog))
             .is_none());
         // No catalog at all: there is nothing to look an id up in.
@@ -1422,16 +1459,16 @@ mod tests {
     fn the_spawn_flies_the_sections_the_resolver_names() {
         let catalog = GameSections(vec![section_prototype("drive")]);
         let sources = [
-            SectionSource::Prototype("drive".to_string()),
+            SectionSource::prototype("drive"),
             SectionSource::Inline(section_prototype("cell")),
             // A prototype a mod overlay dropped: the resolver names nothing,
             // and so the spawn flies nothing.
-            SectionSource::Prototype("gone".to_string()),
+            SectionSource::prototype("gone"),
         ];
 
         let mut world = World::new();
         world.insert_resource(GameSections(catalog.0.clone()));
-        world.init_resource::<GameShips>();
+        world.init_resource::<GameShipDesigns>();
         world.add_observer(insert_spaceship_sections);
 
         let sections = sources
@@ -1442,14 +1479,13 @@ mod tests {
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 source: source.clone(),
-                modifications: vec![],
             })
             .collect();
         let entity = world
             .spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
-                    hull: ShipSource::Inline(ShipHull {
+                    design: ShipDesignSource::Inline(ShipDesign {
                         sections,
                         ..default()
                     }),

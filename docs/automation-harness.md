@@ -83,8 +83,9 @@ reports nothing wrong.
 The timeline says what HAPPENED. The world-state snapshot
 (`nova_probe::capabilities::snapshot`) says what the world LOOKS like: one JSON
 object holding every ship - identity, pose, velocity, aggregate health, mass,
-the collapse/defeat flags and its weapon locks - each ship's sections with their
-class, pose, health, modifications and magazine state, each section's fixtures
+the collapse/defeat flags, its weapon locks and its capabilities - each ship's
+sections with their class, pose, health and magazine state, each section's
+fixtures
 (the skin plates and decor bolted to it), and every torpedo and round in flight
 with its owner, damage, remaining lifetime and - for a torpedo - which ordnance
 TYPE it is, since two bays on one hull can load different torpedoes that are

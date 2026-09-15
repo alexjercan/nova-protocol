@@ -273,10 +273,19 @@ fn toughened(
     position: Meters3,
     mut ship: SpaceshipConfig,
 ) -> ScenarioObjectConfig {
-    if let ShipSource::Inline(hull) = &mut ship.hull {
-        hull.collapse_threshold = Some(0.0);
-        for section in &mut hull.sections {
-            section.modifications = vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
+    if let ShipDesignSource::Inline(design) = &mut ship.design {
+        design.integrity.collapse_threshold = Some(0.0);
+        for section in &mut design.sections {
+            let health = SectionConfigPatch {
+                health: Some(TOUGH_SECTION_HEALTH),
+                ..default()
+            };
+            match &mut section.source {
+                SectionSource::Prototype { patch, .. } => *patch = health,
+                SectionSource::Inline(config) => health
+                    .apply(config)
+                    .expect("health is not a kind-specific field"),
+            }
         }
     }
     placed(id, name, position, ship)

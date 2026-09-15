@@ -170,7 +170,7 @@ pub(super) fn unload_scenario(
 pub(super) struct ContentGate<'w> {
     issues: Option<Res<'w, ContentIssues>>,
     sections: Option<Res<'w, GameSections>>,
-    ships: Option<Res<'w, GameShips>>,
+    ships: Option<Res<'w, GameShipDesigns>>,
     scenarios: Option<Res<'w, GameScenarios>>,
     channels: Option<Res<'w, GameChannels>>,
 }
@@ -202,7 +202,7 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
             .as_deref()
             .map_or(&[][..], |registry| &registry.0),
     );
-    let known_ships = KnownShips::from_configs(
+    let known_ships = KnownShipDesigns::from_configs(
         gate.ships
             .as_deref()
             .map_or(&[][..], |registry| &registry.0),
@@ -261,20 +261,23 @@ const UNCREWED_VIEW: (Meters3, Vec3) = (Meters3::new(0.0, 100.0, 200.0), Vec3::Z
 /// error, and the camera has to pick one either way.
 fn opening_view(
     scenario: &ScenarioConfig,
-    ships: Option<&GameShips>,
+    ships: Option<&GameShipDesigns>,
     sections: Option<&GameSections>,
 ) -> Transform {
     let Some((base, spaceship)) = player_spawn(scenario) else {
         let (at, look) = UNCREWED_VIEW;
         return Transform::from_translation(at.to_engine()).looking_at(look, Vec3::Y);
     };
-    // An inline hull needs no catalog, and a rig that never merged content has
-    // none to give: the empty stand-in keeps both cases on one path.
-    let catalog = GameShips(Vec::new());
-    let envelope = spaceship
-        .hull
-        .resolve(ships.unwrap_or(&catalog))
-        .map_or(0.0, |hull| hull_envelope(hull, sections));
+    // An inline design needs no catalog, and a rig that never merged content
+    // has none to give: the empty stand-ins keep both cases on one path.
+    let designs = GameShipDesigns::default();
+    let parts = GameSections::default();
+    let (design, _) = resolve_ship_design(
+        &spaceship.design,
+        ships.unwrap_or(&designs),
+        sections.unwrap_or(&parts),
+    );
+    let envelope = hull_envelope(&design);
     // Engine boundary: a Bevy transform counts world units.
     chase_camera_opening_pose(base.position.to_engine(), base.rotation, envelope)
 }
@@ -323,20 +326,19 @@ fn player_spawn(
 /// only has to stand outside the hull. A section that resolves to nothing
 /// contributes nothing - the spawn reports that miss, and lint reports it
 /// first.
-fn hull_envelope(hull: &ShipHull, sections: Option<&GameSections>) -> f32 {
-    hull.sections
+fn hull_envelope(design: &ResolvedShipDesign) -> f32 {
+    design
+        .sections
         .iter()
-        .filter_map(|section| {
-            let config = section.source.resolve(sections)?;
-            Some(
-                config
-                    .base
-                    .collider
-                    .unwrap_or_default()
-                    // Engine boundary: a section's mount is authored in
-                    // build-grid cells, which are world units.
-                    .furthest_distance(section.position, section.rotation, Vec3::ZERO),
-            )
+        .map(|section| {
+            section
+                .config
+                .base
+                .collider
+                .unwrap_or_default()
+                // Engine boundary: a section's mount is authored in build-grid
+                // cells, which are world units.
+                .furthest_distance(section.position, section.rotation, Vec3::ZERO)
         })
         .fold(0.0, f32::max)
 }
@@ -726,7 +728,6 @@ mod tests {
                     },
                     kind: SectionKind::Hull(HullSectionConfig::default()),
                 }),
-                modifications: vec![],
             })
             .collect();
         ScenarioEventConfig {
@@ -744,7 +745,7 @@ mod tests {
                     },
                     kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                         controller: SpaceshipController::Player(PlayerControllerConfig::default()),
-                        hull: ShipSource::Inline(ShipHull {
+                        design: ShipDesignSource::Inline(ShipDesign {
                             sections,
                             ..default()
                         }),
@@ -859,16 +860,15 @@ mod tests {
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
         }]);
-        let source = SectionSource::Prototype("drive".to_string());
+        let source = SectionSource::prototype("drive");
         // Build-grid cells: one cell is one world unit.
         let stern = Vec3::new(0.0, 0.0, 4.0);
-        let hull = ShipHull {
+        let hull = ShipDesign {
             sections: vec![SpaceshipSectionConfig {
                 id: "stern".to_string(),
                 position: stern,
                 rotation: Quat::IDENTITY,
                 source: source.clone(),
-                modifications: vec![],
             }],
             ..default()
         };
@@ -881,9 +881,18 @@ mod tests {
             .unwrap_or_default()
             .furthest_distance(stern, Quat::IDENTITY, Vec3::ZERO);
 
-        assert_eq!(hull_envelope(&hull, Some(&catalog)), reach);
+        let resolve = |sections: &GameSections| {
+            let (design, _) = resolve_ship_design(
+                &ShipDesignSource::Inline(hull.clone()),
+                &GameShipDesigns::default(),
+                sections,
+            );
+            hull_envelope(&design)
+        };
+
+        assert_eq!(resolve(&catalog), reach);
         assert_eq!(
-            hull_envelope(&hull, None),
+            resolve(&GameSections::default()),
             0.0,
             "a section that resolves to nothing contributes nothing"
         );

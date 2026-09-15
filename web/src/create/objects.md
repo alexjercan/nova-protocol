@@ -210,15 +210,60 @@ id or authored inline.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `hull` | hull source | required | `Prototype("block_gunship")` names a [ship](../ships/) by id; `Inline((..))` carries a one-off hull (below) |
+| `design` | design source | required | `Prototype(id: "block_gunship")` names a [ship design](../ships/) by id, with this spawn's own `section_patches` over it; `Inline((..))` carries a one-off design (below) |
 | `controller` | controller | required | who flies it (below) |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
-| `modifications` | list | `[]` | per-spawn deltas over the shared hull: `(section: "fuselage", modifications: [SetHealth(500.0)])`. Applied AFTER the section's own list, so the spawn wins. A section id the hull does not carry is a lint error |
+| `capabilities` | capability set | all on | what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything |
 
-`hull: Inline((..))` carries the same fields a [ship](../ships/)'s own `hull`
-does - `sections`, `collapse_threshold`, `skin`, `style`. Author one for a
-genuine one-off (a scripted battery that is a single torpedo tube); anything a
-second scenario would spawn belongs in the ship catalog.
+`design: Inline((..))` carries the same fields a [ship design](../ships/) does
+- `sections`, `integrity`, `presentation`. Author one for a genuine one-off (a
+scripted battery that is a single torpedo tube); anything a second scenario
+would spawn belongs in the ship catalog. An inline design takes no
+`section_patches`: it is already this spawn's own, so anything a patch would
+say it can simply say.
+
+### Capabilities
+
+What the ship may do, on the SHIP, not on its flight computer. Every field is
+`true` when omitted, and the whole block is omitted for a ship that can do
+everything. Losing the controller section takes the hull's steering, never its
+permissions.
+
+| field | default | meaning |
+|---|---|---|
+| `stop_enabled` | `true` | STOP: flip retrograde and burn to rest |
+| `goto_enabled` | `true` | GOTO: fly to the nav lock and come to rest off it |
+| `orbit_enabled` | `true` | ORBIT: circularize inside a gravity well |
+| `lock_enabled` | `true` | LOCK: the radar gesture and the combat lock it makes |
+| `rcs_enabled` | `true` | RCS: the torque-free fine-adjust push |
+| `point_defense_enabled` | `true` | the turrets engaging incoming ordnance on their own |
+
+```ron
+// A cadet trainer: guns on the mount, nothing else handed over yet.
+capabilities: (
+    stop_enabled: false,
+    goto_enabled: false,
+    orbit_enabled: false,
+    lock_enabled: false,
+    rcs_enabled: false,
+),
+```
+
+Runtime mirror: the
+[`SetShipCapability*`](../actions/#ship-capabilities) actions, which is how a
+tutorial hands them over one lesson at a time.
+
+### Section patches
+
+`section_patches` tunes named sections of a catalog design for THIS spawn,
+keyed by the design's own section ids. A section id the design does not carry
+is a lint error, and so is a patch that argues with the section's kind.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `position` | 3-tuple | inherit | move the section to this mount cell |
+| `rotation` | 4-tuple | inherit | turn the section to this mount rotation |
+| `config` | section patch | inherit | what this spawn changes about the section's config ([the patch](#the-sections-list)) |
 
 An abbreviated player ship:
 
@@ -236,29 +281,30 @@ SpawnScenarioObject((
                 "turret_port": [Mouse(Left)],
             },
         )),
-        // The shipped patrol gunship, by id.
-        hull: Prototype("block_gunship"),
-        // This spawn's own flight computer is hardened; every other gunship
-        // is untouched.
-        modifications: [
-            (section: "bridge", modifications: [SetHealth(500.0)]),
-        ],
+        // The shipped patrol gunship, by id, with this spawn's own flight
+        // computer hardened; every other gunship is untouched.
+        design: Prototype(
+            id: "block_gunship",
+            section_patches: {
+                "bridge": (config: (health: Some(500.0))),
+            },
+        ),
     )),
 )),
 ```
 
-A one-off hull, authored inline:
+A one-off design, authored inline:
 
 ```ron
 kind: Spaceship((
     controller: None,
-    hull: Inline((
+    design: Inline((
         sections: [
             (
                 id: "bay",
                 position: (0.0, 0.0, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
-                source: Prototype("torpedo_section"),
+                source: Prototype(id: "torpedo_section"),
             ),
         ],
     )),
@@ -280,7 +326,7 @@ SpawnScenarioObject((
             patrol: [(0.0, 0.0, -3000.0), (800.0, 0.0, -2200.0)],
             engage_delay: Some(8.0),
         )),
-        hull: Prototype("block_raider"),
+        design: Prototype(id: "block_raider"),
     )),
 )),
 ```
@@ -360,22 +406,56 @@ Each entry places one section in continuous ship-root space:
 | `id` | string | required | scenario-local section id; keys `input_mapping` (shipped hulls name their specials, such as `"pdc_forward_port"`) |
 | `position` | 3-tuple | required | continuous offset from the ship root, in BUILD CELLS (one cell is 10 m) - the one authored position that is not metric |
 | `rotation` | 4-tuple | required | rotation relative to the root; structural link points rotate with the section |
-| `source` | source | required | `Prototype("<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form - or `Inline((..))` with a full section config ([Ship sections for mods](../sections/)) |
-| `modifications` | list | `[]` | spawn-time deltas (below) |
+| `source` | source | required | `Prototype(id: "<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form, with an optional `patch` over it - or `Inline((..))` with a full section config ([Ship sections for mods](../sections/)) |
 
-Section modifications - closed, data-only deltas applied at spawn:
+A `Prototype` reference may carry a `patch`: a typed, curated delta over the
+section it resolves to. An omitted field INHERITS the prototype's value,
+`Some(value)` replaces it, and for a nullable field `Some(None)` clears it. An
+`Inline` source takes no patch - it is the config, so anything a patch would
+say it simply says.
 
-| variant | payload | meaning |
-|---|---|---|
-| `DisableVerb(<verb>)` | `Stop`/`Goto`/`Orbit`/`Lock`/`Rcs`/`PointDefense` | withhold a flight verb from birth (controller sections; multiple accumulate). Runtime mirror: [`SetControllerVerb`](../actions/#setcontrollerverb) |
-| `SetHealth(<number>)` | starting health | override the section's health (current and max) |
-| `Rename(<string>)` | new name | rename the section entity |
-| `SetAmmo(<number>)` | rounds | HARD magazine: override the weapon's rounds AND strip its auto-reload - when they are gone the section is dry for good. Inert on a section with no magazine |
+| field | type | default | meaning |
+|---|---|---|---|
+| `health` | `Option` number | inherit | the section's starting health (current and max) |
+| `kind` | `Option` kind patch | inherit | the kind-specific delta, tagged with the section's own kind: `Turret((..))`, `Torpedo((..))`, `Railgun((..))`, `Thruster((..))`, `Controller((..))`, `Hull(())`. A kind that argues with the prototype is a lint error |
+
+What each kind patch reaches:
+
+| kind | fields |
+|---|---|
+| `Thruster` | `magnitude` |
+| `Controller` | `steering_lag`, `max_torque` |
+| `Turret` | `muzzle_speed`, `projectile_lifetime`, `bullet_damage`, `bullet_kind`, `ammunition`, `reload`, `muzzles` (per-barrel `fire_rate`, keyed by muzzle id) |
+| `Torpedo` | `fire_rate`, `spawner_speed`, `projectile_lifetime`, `arm_time`, `arm_distance`, `nav_constant`, `blast_radius`, `blast_damage`, `ammunition`, `reload` |
+| `Railgun` | `charge_seconds`, `slug_speed`, `slug_damage`, `slug_power`, `rake_radius`, `slug_lifetime`, `recoil_impulse`, `ammunition`, `reload` |
+| `Hull` | nothing of its own - a hull's health is the common `health` above |
+
+Art, colliders, sockets, link points, the turret joint tree, the section kind
+and the source itself stay the prototype's. A patch that could move them would
+make the prototype meaningless.
+
+The editor writes these patches for you. A part placed from the parts gallery
+names the catalog part it came from, and tuning a field on it marks the row:
+the build keeps the reference plus the delta, not a copy. The mark carries a reset control that DROPS that field from the
+patch, so the part's own value reaches the ship again - and a later change to
+the part reaches every ship that did not tune the field. A gun with more than
+one barrel shows a group of rows per muzzle id, which is what `muzzles` is
+keyed by. An edit no patch can say falls back to an `Inline` copy.
 
 ```ron
-(id: "bridge", position: (0.0, 0.7, 0.1), rotation: (0.0, 0.0, 0.0, 1.0),
- source: Prototype("basic_controller_section"),
- modifications: [ DisableVerb(Goto), DisableVerb(Orbit) ]),
+// A catalog mount that carries one dry magazine on this build.
+(id: "turret_port", position: (1.2, 0.7, 0.5), rotation: (0.0, 0.0, 0.0, 1.0),
+ source: Prototype(
+     id: "pdc_kinetic_turret_section",
+     patch: (
+         health: Some(90.0),
+         kind: Some(Turret((
+             ammunition: Some(Limited(200)),
+             reload: Some(Disabled),
+             muzzles: { "main": (fire_rate: Some(80.0)) },
+         ))),
+     ),
+ )),
 ```
 
 Ship structure is linted from authoritative link-point mates. A multi-section

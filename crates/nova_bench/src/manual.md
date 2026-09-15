@@ -46,9 +46,10 @@ All lengths are meters, speeds meters per second, angles degrees.
   gravity you are inside, or `null`), `sections` (the bridge, the drives and
   each mount, with its `weapon`: `kind`, `ammo`, `on_target`, `firing`),
   `hull_plates` (the armour, as a count of `total`, `damaged` and `lost`) and
-  `withheld_verbs` (flight verbs the scenario has NOT handed over yet -
-  `Goto`, `Lock`, `Orbit`, `Rcs`, `Stop`. A withheld verb does nothing
-  however well you drive it: a tutorial grants them one lesson at a time).
+  `withheld_capabilities` (what the scenario has NOT handed over yet -
+  `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`, `Stop`. A withheld
+  capability does nothing however well you drive it: a tutorial grants them
+  one lesson at a time).
 - `contacts`: every other ship. `distance_m`, `bearing_deg`, `closing_mps`
   (positive when the range is shrinking), `allegiance` (`Enemy`, `Player`
   for your own side, `Neutral`), `health`, `defeated`, `weapons_hot`,
@@ -166,8 +167,8 @@ first fight, `travel` and `orbit` before your first long leg.
   - Turned? `bearing_deg`. Moving? `speed_mps` and
     `velocity_bearing_deg`.
   - Objective met? `objectives` and `objective_log`.
-  - Nothing at all happening? Check `me.withheld_verbs` before you conclude
-    you drove it wrong.
+  - Nothing at all happening? Check `me.withheld_capabilities` before you
+    conclude you drove it wrong.
 - Read `game_errors` after every act: that is the game telling you a line was
   malformed, and it always says why.
 - Prefer a few long acts to many short ones when nothing is changing.

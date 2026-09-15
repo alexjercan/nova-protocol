@@ -77,7 +77,7 @@ impl ScenarioPreload {
 /// A spawn action carries its object's FULL config inline rather than an id
 /// looked up later, so the whole set is readable from authored data plus the
 /// two catalogs the spawn itself resolves against - no world and no
-/// `AssetServer`. A hull or section prototype that resolves to nothing is
+/// `AssetServer`. A design or section prototype that resolves to nothing is
 /// silently skipped: the spawn reports that miss, and `content lint` reports it
 /// before the spawn ever runs.
 ///
@@ -87,7 +87,7 @@ impl ScenarioPreload {
 /// warm-up exists for.
 pub fn scenario_render_meshes(
     scenario: &ScenarioConfig,
-    ships: &GameShips,
+    ships: &GameShipDesigns,
     sections: &GameSections,
 ) -> Vec<AssetRef<WorldAsset>> {
     let mut meshes = Vec::new();
@@ -106,14 +106,13 @@ pub fn scenario_render_meshes(
             let ScenarioObjectKind::Spaceship(spaceship) = &object.kind else {
                 return;
             };
-            let Some(hull) = spaceship.hull.resolve(ships) else {
-                return;
-            };
-            for section in &hull.sections {
-                let Some(config) = section.source.resolve(Some(sections)) else {
-                    continue;
-                };
-                push_section_meshes(config, &mut meshes);
+            // The SAME resolve the spawn runs, so the warm-up fetches the art
+            // a patched ship actually wears. Errors are reported by the lint
+            // and again by the spawn; a warm-up that finds nothing simply
+            // warms nothing.
+            let (design, _) = resolve_ship_design(&spaceship.design, ships, sections);
+            for section in &design.sections {
+                push_section_meshes(&section.config, &mut meshes);
             }
         });
     }
@@ -170,7 +169,7 @@ fn preload_scenario_render_meshes(
     _: On<ScenarioLoaded>,
     mut preload: ResMut<ScenarioPreload>,
     current: Res<CurrentScenario>,
-    ships: Res<GameShips>,
+    ships: Res<GameShipDesigns>,
     sections: Res<GameSections>,
     asset_server: Res<AssetServer>,
     time: Res<Time<Real>>,
@@ -366,12 +365,11 @@ mod tests {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             source,
-            modifications: vec![],
         }
     }
 
-    /// A `SpawnScenarioObject` action for a ship flying `hull`.
-    fn spawn_ship(id: &str, hull: ShipSource) -> EventActionConfig {
+    /// A `SpawnScenarioObject` action for a ship flying `design`.
+    fn spawn_ship(id: &str, design: ShipDesignSource) -> EventActionConfig {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
@@ -379,7 +377,10 @@ mod tests {
                 position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
-            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig { hull, ..default() }),
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                design,
+                ..default()
+            }),
         })
     }
 
@@ -411,26 +412,20 @@ mod tests {
             hull_prototype("opener", "art/opener.glb#Scene0"),
             hull_prototype("late", "art/late.glb#Scene0"),
         ]);
-        let ships = GameShips(vec![
-            ShipConfig {
+        let ships = GameShipDesigns(vec![
+            ShipDesignPrototype {
                 id: "opener_ship".to_string(),
                 name: "Opener".to_string(),
-                hull: ShipHull {
-                    sections: vec![section_at(
-                        "a",
-                        SectionSource::Prototype("opener".to_string()),
-                    )],
+                design: ShipDesign {
+                    sections: vec![section_at("a", SectionSource::prototype("opener"))],
                     ..default()
                 },
             },
-            ShipConfig {
+            ShipDesignPrototype {
                 id: "late_ship".to_string(),
                 name: "Late".to_string(),
-                hull: ShipHull {
-                    sections: vec![section_at(
-                        "a",
-                        SectionSource::Prototype("late".to_string()),
-                    )],
+                design: ShipDesign {
+                    sections: vec![section_at("a", SectionSource::prototype("late"))],
                     ..default()
                 },
             },
@@ -441,17 +436,14 @@ mod tests {
             vec![
                 event_with(vec![spawn_ship(
                     "opener",
-                    ShipSource::Prototype("opener_ship".to_string()),
+                    ShipDesignSource::prototype("opener_ship"),
                 )]),
                 ScenarioEventConfig {
                     label: None,
                     name: EventConfig::OnTimerEnd,
                     once: false,
                     filters: vec![],
-                    actions: vec![spawn_ship(
-                        "late",
-                        ShipSource::Prototype("late_ship".to_string()),
-                    )],
+                    actions: vec![spawn_ship("late", ShipDesignSource::prototype("late_ship"))],
                 },
             ],
         );
@@ -467,20 +459,17 @@ mod tests {
     #[test]
     fn the_walk_reaches_an_inline_hull_and_a_scatter_template() {
         let sections = GameSections(vec![hull_prototype("rock_tile", "art/tile.glb#Scene0")]);
-        let ships = GameShips(vec![]);
+        let ships = GameShipDesigns(vec![]);
 
-        let inline = ShipSource::Inline(ShipHull {
+        let inline = ShipDesignSource::Inline(ShipDesign {
             sections: vec![section_at(
                 "bay",
                 SectionSource::Inline(hull_prototype("bay", "art/bay.glb#Scene0")),
             )],
             ..default()
         });
-        let scattered = ShipSource::Inline(ShipHull {
-            sections: vec![section_at(
-                "tile",
-                SectionSource::Prototype("rock_tile".to_string()),
-            )],
+        let scattered = ShipDesignSource::Inline(ShipDesign {
+            sections: vec![section_at("tile", SectionSource::prototype("rock_tile"))],
             ..default()
         });
 
@@ -520,14 +509,11 @@ mod tests {
     #[test]
     fn the_walk_reaches_a_hull_spawned_from_inside_a_sequence_step() {
         let sections = GameSections(vec![hull_prototype("late", "art/late.glb#Scene0")]);
-        let ships = GameShips(vec![ShipConfig {
+        let ships = GameShipDesigns(vec![ShipDesignPrototype {
             id: "late_ship".to_string(),
             name: "Late".to_string(),
-            hull: ShipHull {
-                sections: vec![section_at(
-                    "a",
-                    SectionSource::Prototype("late".to_string()),
-                )],
+            design: ShipDesign {
+                sections: vec![section_at("a", SectionSource::prototype("late"))],
                 ..default()
             },
         }]);
@@ -539,10 +525,7 @@ mod tests {
                     key: "opening".to_string(),
                     steps: vec![SequenceStepConfig {
                         after: Some(5.0),
-                        actions: vec![spawn_ship(
-                            "late",
-                            ShipSource::Prototype("late_ship".to_string()),
-                        )],
+                        actions: vec![spawn_ship("late", ShipDesignSource::prototype("late_ship"))],
                         ..default()
                     }],
                 },
@@ -580,14 +563,14 @@ mod tests {
             hull_prototype("plate_a", "art/plate.glb#Scene0"),
             hull_prototype("plate_b", "art/plate.glb#Scene0"),
         ]);
-        let ships = GameShips(vec![ShipConfig {
+        let ships = GameShipDesigns(vec![ShipDesignPrototype {
             id: "gunboat".to_string(),
             name: "Gunboat".to_string(),
-            hull: ShipHull {
+            design: ShipDesign {
                 sections: vec![
-                    section_at("plate_a", SectionSource::Prototype("plate_a".to_string())),
-                    section_at("plate_b", SectionSource::Prototype("plate_b".to_string())),
-                    section_at("turret", SectionSource::Prototype("turret".to_string())),
+                    section_at("plate_a", SectionSource::prototype("plate_a")),
+                    section_at("plate_b", SectionSource::prototype("plate_b")),
+                    section_at("turret", SectionSource::prototype("turret")),
                 ],
                 ..default()
             },
@@ -597,7 +580,7 @@ mod tests {
             "gunboat",
             vec![event_with(vec![spawn_ship(
                 "gunboat",
-                ShipSource::Prototype("gunboat".to_string()),
+                ShipDesignSource::prototype("gunboat"),
             )])],
         );
 
@@ -620,13 +603,13 @@ mod tests {
         let scenario = scenario_with(
             "misses",
             vec![event_with(vec![
-                spawn_ship("ghost", ShipSource::Prototype("no_such_ship".to_string())),
+                spawn_ship("ghost", ShipDesignSource::prototype("no_such_ship")),
                 spawn_ship(
                     "gappy",
-                    ShipSource::Inline(ShipHull {
+                    ShipDesignSource::Inline(ShipDesign {
                         sections: vec![section_at(
                             "gap",
-                            SectionSource::Prototype("no_such_section".to_string()),
+                            SectionSource::prototype("no_such_section"),
                         )],
                         ..default()
                     }),
@@ -636,7 +619,8 @@ mod tests {
         );
 
         assert!(
-            scenario_render_meshes(&scenario, &GameShips(vec![]), &GameSections(vec![])).is_empty()
+            scenario_render_meshes(&scenario, &GameShipDesigns(vec![]), &GameSections(vec![]))
+                .is_empty()
         );
     }
 

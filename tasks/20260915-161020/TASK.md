@@ -1,6 +1,6 @@
 # Replace section modifiers with root capabilities and typed design patches
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.14.0, refactor, content, ship, editor
 

@@ -136,7 +136,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "siege_bay",
@@ -151,9 +151,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("heavy_torpedo_section"),
+                                        source: Prototype(
+                                            id: "heavy_torpedo_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                             allegiance: Some(Neutral),
@@ -280,7 +284,16 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_gunship"),
+                            design: Prototype(
+                                id: "block_gunship",
+                                section_patches: {
+                                    "bridge": (
+                                        config: (
+                                            health: Some(500.0),
+                                        ),
+                                    ),
+                                },
+                            ),
                             controller: AI((
                                 patrol: [
                                     (
@@ -304,14 +317,6 @@
                                 arrival_standoff: Some(100.0),
                             )),
                             allegiance: Some(Player),
-                            modifications: [
-                                (
-                                    section: "bridge",
-                                    modifications: [
-                                        SetHealth(500.0),
-                                    ],
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -331,7 +336,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "plate_0",
@@ -346,7 +351,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_1",
@@ -361,7 +368,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_2",
@@ -376,7 +385,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_3",
@@ -391,7 +402,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_4",
@@ -406,7 +419,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_5",
@@ -421,7 +436,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_6",
@@ -436,7 +453,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_7",
@@ -451,7 +470,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_8",
@@ -466,7 +487,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_9",
@@ -481,7 +504,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_10",
@@ -496,7 +521,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_11",
@@ -511,7 +538,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_12",
@@ -526,7 +555,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_13",
@@ -541,7 +572,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_14",
@@ -556,7 +589,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_15",
@@ -571,7 +606,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_16",
@@ -586,7 +623,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_17",
@@ -601,7 +640,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_18",
@@ -616,7 +657,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_19",
@@ -631,7 +674,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_20",
@@ -646,7 +691,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_21",
@@ -661,7 +708,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_22",
@@ -676,7 +725,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_23",
@@ -691,7 +742,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_24",
@@ -706,7 +759,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_25",
@@ -721,7 +776,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_26",
@@ -736,7 +793,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "plate_27",
@@ -751,7 +810,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
                                     ),
                                     (
                                         id: "bridge",
@@ -766,7 +827,12 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("basic_controller_section"),
+                                        source: Prototype(
+                                            id: "basic_controller_section",
+                                            patch: (
+                                                health: Some(500.0),
+                                            ),
+                                        ),
                                     ),
                                     (
                                         id: "drive_port",
@@ -781,7 +847,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("basic_thruster_section"),
+                                        source: Prototype(
+                                            id: "basic_thruster_section",
+                                        ),
                                     ),
                                     (
                                         id: "drive_center",
@@ -796,7 +864,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("basic_thruster_section"),
+                                        source: Prototype(
+                                            id: "basic_thruster_section",
+                                        ),
                                     ),
                                     (
                                         id: "drive_starboard",
@@ -811,7 +881,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("basic_thruster_section"),
+                                        source: Prototype(
+                                            id: "basic_thruster_section",
+                                        ),
                                     ),
                                     (
                                         id: "drive_outrigger",
@@ -826,7 +898,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("basic_thruster_section"),
+                                        source: Prototype(
+                                            id: "basic_thruster_section",
+                                        ),
                                     ),
                                     (
                                         id: "pdc_dorsal",
@@ -841,7 +915,9 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("pdc_kinetic_turret_section"),
+                                        source: Prototype(
+                                            id: "pdc_kinetic_turret_section",
+                                        ),
                                     ),
                                     (
                                         id: "pdc_boom",
@@ -856,13 +932,28 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("pdc_kinetic_turret_section"),
+                                        source: Prototype(
+                                            id: "pdc_kinetic_turret_section",
+                                        ),
                                     ),
                                 ],
-                                collapse_threshold: Some(0.5),
-                                skin: true,
-                                style: Some("salvage"),
-                                collapse_sound: Some("self://sounds/destroy_ship.wav"),
+                                integrity: (
+                                    collapse_threshold: Some(0.5),
+                                ),
+                                presentation: (
+                                    skin: true,
+                                    style: Some("salvage"),
+                                    collapse_sound: Some("self://sounds/destroy_ship.wav"),
+                                    lock_on_sound: Some("self://sounds/lock_on.wav"),
+                                    lock_off_sound: Some("self://sounds/lock_off.wav"),
+                                    radar_deny_sound: Some("self://sounds/radar_deny.wav"),
+                                    radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
+                                    safety_on_sound: Some("self://sounds/safety_on.wav"),
+                                    warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+                                    ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
+                                    warn_hull_sound: Some("self://sounds/warn_hull.wav"),
+                                    rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
+                                ),
                             )),
                             controller: AI((
                                 patrol: [
@@ -886,14 +977,6 @@
                                 engage_delay: Some(6.0),
                                 arrival_standoff: Some(100.0),
                             )),
-                            modifications: [
-                                (
-                                    section: "bridge",
-                                    modifications: [
-                                        SetHealth(500.0),
-                                    ],
-                                ),
-                            ],
                         )),
                     )),
                     PatrolShip((

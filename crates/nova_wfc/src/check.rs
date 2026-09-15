@@ -18,8 +18,9 @@ use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::AssetRef;
 use nova_scenario::prelude::{
     lint_scenario, BaseScenarioObjectConfig, EventActionConfig, EventConfig, KnownSections,
-    KnownShips, LintSeverity, ScenarioConfig, ScenarioEventConfig, ScenarioObjectConfig,
-    ScenarioObjectKind, SectionSource, ShipHull, ShipSource, SpaceshipConfig, SpaceshipController,
+    KnownShipDesigns, LintSeverity, ScenarioConfig, ScenarioEventConfig, ScenarioObjectConfig,
+    ScenarioObjectKind, SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig,
+    SpaceshipController,
 };
 use nova_ship::prelude::{
     derive_link_point_graph, GameSections, LinkPointRef, PlacedSectionLinkPoints, SectionConfig,
@@ -53,11 +54,11 @@ pub struct Placed<'a> {
 /// only - the tiles the collapse placed. An inline section here means the hull
 /// did not come out of the generator, which is a finding, not a section to
 /// measure.
-pub fn place<'a>(ship: &ShipHull, sections: &'a GameSections) -> Result<Vec<Placed<'a>>, String> {
+pub fn place<'a>(ship: &ShipDesign, sections: &'a GameSections) -> Result<Vec<Placed<'a>>, String> {
     ship.sections
         .iter()
         .map(|section| {
-            let SectionSource::Prototype(id) = &section.source else {
+            let SectionSource::Prototype { id, .. } = &section.source else {
                 return Err(format!(
                     "section '{}' is inline, and a generated hull is prototypes only",
                     section.id
@@ -143,7 +144,7 @@ fn body_holds((centre, half): (Vec3, Vec3), point: Vec3) -> bool {
 /// mirror, and a rule written once would hold on one pass and not the other.
 pub fn unmated_contacts(
     placed: &[Placed],
-    ship: &ShipHull,
+    ship: &ShipDesign,
     exempt: &dyn Fn(usize, usize) -> bool,
 ) -> Result<Vec<String>, String> {
     let exempt = |a: usize, b: usize| exempt(a.min(b), a.max(b));
@@ -232,7 +233,7 @@ pub fn lint_errors(scenario: &ScenarioConfig, sections: &GameSections) -> Vec<St
     lint_scenario(
         scenario,
         &known,
-        &KnownShips::default(),
+        &KnownShipDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         // A generated hull carries geometry, never dialogue: the throwaway
         // scenario this gate wraps it in authors no cue, so no channel has to
@@ -257,7 +258,7 @@ const LINT_SCENARIO_ID: &str = "generated_hull";
 /// asks this. It wraps the hull in the smallest scenario that can carry it and
 /// hands back what [`lint_errors`] found, so a hull is refused by exactly the
 /// rules that would refuse it in a mod file.
-pub fn hull_errors(hull: &ShipHull, sections: &GameSections) -> Vec<String> {
+pub fn hull_errors(hull: &ShipDesign, sections: &GameSections) -> Vec<String> {
     let spawn = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: LINT_SCENARIO_ID.to_string(),
@@ -268,7 +269,7 @@ pub fn hull_errors(hull: &ShipHull, sections: &GameSections) -> Vec<String> {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::None,
-            hull: ShipSource::Inline(hull.clone()),
+            design: ShipDesignSource::Inline(hull.clone()),
             ..default()
         }),
     });

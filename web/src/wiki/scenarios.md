@@ -8,7 +8,7 @@ A scenario spawns a handful of object kinds:
 
 - **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). An invulnerable rock never wears at all.
 - **Planets** - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. A planet is always invulnerable - nothing carves one - and carries a [gravity well](../gravity-wells/) like any other body.
-- **Spaceships** - multi-section [builds](../sections/) under a player or AI controller (which can withhold or grant flight verbs).
+- **Spaceships** - multi-section [builds](../sections/) under a player or AI controller, each spawn holding what the ship is permitted to do.
 - **Nav beacons** - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.
 - **Salvage crates** - small pickups collected by flying through them.
 - **Lights** - the scene's own key/rim/fill lighting; a scenario that spawns
@@ -19,7 +19,7 @@ created by an action rather than spawned as objects.
 
 ## Objectives: events, filters, actions
 
-Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary [Basic Training](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
+Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary [Basic Training](../getting-started/) is built from - each beat is an event handler that grants the next capability, posts the next objective, and moves a beat counter forward.
 
 What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.
 

@@ -343,13 +343,13 @@ fn range_plugin(app: &mut App) {
     );
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(ram_range(&game_assets, &ships)));
 }
 
 /// The range: four pairs of hulls in four lanes of flat space, none of them
 /// flown and none of them steered.
-fn ram_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn ram_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let body = |id: &str, name: &str, side: Side, at: Meters3| {
         let base = BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -361,7 +361,7 @@ fn ram_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             Side::Hull(catalog) => ScenarioObjectKind::Spaceship(SpaceshipConfig {
                 controller: SpaceshipController::None,
                 allegiance: None,
-                hull: ShipSource::Inline(kit::catalog_ship(ships, catalog)),
+                design: ShipDesignSource::Inline(kit::catalog_ship(ships, catalog)),
                 ..default()
             }),
             Side::Rock(radius) => ScenarioObjectKind::Asteroid(AsteroidConfig {

@@ -86,7 +86,7 @@ pub(crate) fn menu_weave(
                 arrival_standoff: Some(Meters(100.0)),
                 ..Default::default()
             }),
-            hull: ships::hull(ships::BLOCK_CUTTER_SHIP_ID),
+            design: ships::design(ships::BLOCK_CUTTER_SHIP_ID),
             ..Default::default()
         }),
     });

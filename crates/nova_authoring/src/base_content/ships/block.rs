@@ -673,16 +673,14 @@ impl BlockShip {
                 id: format!("plate_{index}"),
                 position: cell.as_vec3(),
                 rotation: Quat::IDENTITY,
-                source: SectionSource::Prototype(plate.to_string()),
-                modifications: vec![],
+                source: SectionSource::prototype(plate),
             })
             .collect();
         sections.extend(self.specials.iter().map(|part| SpaceshipSectionConfig {
             id: part.id.to_string(),
             position: part.position,
             rotation: part.rotation,
-            source: SectionSource::Prototype(part.prototype.to_string()),
-            modifications: vec![],
+            source: SectionSource::prototype(part.prototype),
         }));
         sections
     }
@@ -826,7 +824,7 @@ mod tests {
                 .sections()
                 .into_iter()
                 .filter(|section| {
-                    matches!(&section.source, SectionSource::Prototype(id) if id == SIEGE_RAILGUN)
+                    matches!(&section.source, SectionSource::Prototype { id, .. } if id == SIEGE_RAILGUN)
                 })
                 .count();
             let expected = if name == "warship" {
@@ -878,7 +876,7 @@ mod tests {
         {
             for section in ship.sections() {
                 assert!(
-                    matches!(&section.source, SectionSource::Prototype(id) if id == HULL),
+                    matches!(&section.source, SectionSource::Prototype { id, .. } if id == HULL),
                     "'{name}' section '{}' is not plain plating",
                     section.id
                 );

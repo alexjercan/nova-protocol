@@ -165,7 +165,7 @@ fn range_plugin(app: &mut App) {
     );
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
     commands.trigger(LoadScenario(crossing_range(&game_assets, &ships)));
 }
 
@@ -176,7 +176,7 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
 /// and an authored strength with no mesh, no collider and no `BodyRadius`, so
 /// the geometry this range computes its own pulls from is the geometry the
 /// scenario wrote, not a noise seed's.
-fn crossing_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+fn crossing_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let well = |id: &str, name: &str, at: Meters3| {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -200,7 +200,7 @@ fn crossing_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Inline(kit::catalog_ship(ships, SKIFF)),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, SKIFF)),
             controller: SpaceshipController::Player(PlayerControllerConfig::default()),
             allegiance: Some(Allegiance::Player),
             ..default()
