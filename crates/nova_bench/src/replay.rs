@@ -246,11 +246,6 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
         last = Some(observation);
     }
     game.close();
-    let movie = options
-        .record
-        .as_deref()
-        .map(|frames| movie::report(&bus, frames));
-
     let expected = recording
         .last
         .as_ref()
@@ -263,6 +258,10 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
         reason: reason.into(),
         score: json!({ "verdict": reason, "expected": expected, "actual": actual }),
     });
+    let movie = options
+        .record
+        .as_deref()
+        .map(|frames| movie::report(&bus, frames, &out.join("audit.jsonl")));
     println!("{}\n{reason}", out.display());
     if verdict != Verdict::Match {
         println!("expected {expected}\nactual   {actual}");

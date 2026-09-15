@@ -92,6 +92,8 @@ does NOT get an entry - and it is the only place they are written down.
   with no launcher rather than firing every tick.
 
 ### Scenarios & Objectives
+- The menu duel now keeps both ships on mirrored center patrols while their AI
+  aims and fires, instead of letting target-relative combat drift out of shot.
 - **(breaking)** A scenario's `hidden` flag is gone. The Scenarios list shows
   every installed scenario except a `menu_backdrop: true` one, so chained
   chapters are one click away; a file still authoring `hidden` is refused.
@@ -238,6 +240,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The agent bench has loose slingshot and mixed-weapon sandboxes plus reusable
   goals for gravity, carving, NOVA OS, cheats, protocol abuse, and other
   red-team runs.
+- A recorded bench run is a movie of what the agent did: a header naming the
+  scenario, agent, seed and clock, over a fading transcript of its goal,
+  thinking, prose, gestures, shell lines and refusals.
+- `bench movie <audit> --frames <dir>` remakes that movie from frames already on
+  disk, `--plain` skips the rail, and the rail is composited in the bench with
+  ffmpeg left as the codec.
 - Debug section gizmos are measured: a barrel line runs the mount's authored
   reach, and round and drive stubs one interval of their own flight or burn.
 - The app holds exactly one seeded global RNG, pinned by an assembly test: a

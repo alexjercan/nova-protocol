@@ -154,7 +154,10 @@ pub fn play(options: &PlayOptions) -> Result<ExitCode, String> {
         .map_err(|error| format!("could not write {}: {error}", score_path.display()))?;
     println!("{}\n{}", run_dir.display(), referee.score_table());
     if let Some(frames) = &options.record {
-        println!("{}", movie::report(&bus, frames));
+        println!(
+            "{}",
+            movie::report(&bus, frames, &run_dir.join("audit.jsonl"))
+        );
     }
 
     let reason = referee.reason().unwrap_or_default();

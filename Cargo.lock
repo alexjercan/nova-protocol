@@ -4592,7 +4592,9 @@ dependencies = [
 name = "nova_bench"
 version = "0.13.2"
 dependencies = [
+ "ab_glyph",
  "clap",
+ "image",
  "serde",
  "serde_json",
 ]

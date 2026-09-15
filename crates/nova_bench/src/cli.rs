@@ -16,6 +16,8 @@ pub enum Cmd {
     Play(PlayOptions),
     /// Re-drive a recorded audit's wire lines against a fresh game.
     Replay(ReplayOptions),
+    /// Draw a recorded run's action rail over its frames and encode it.
+    Movie(MovieOptions),
 }
 
 /// Everything `bench play` needs.
@@ -53,6 +55,21 @@ pub struct ReplayOptions {
     pub record: Option<PathBuf>,
     /// The renderer attached to the event bus.
     pub ui: Ui,
+}
+
+/// Everything `bench movie` needs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MovieOptions {
+    /// The `audit.jsonl` whose rail is drawn.
+    pub audit: PathBuf,
+    /// The directory of `frame_%06d.png` that run recorded.
+    pub frames: PathBuf,
+    /// The movie file; `None` is `<frames>.mp4`.
+    pub out: Option<PathBuf>,
+    /// The face the rail is set in; `None` is the game's own.
+    pub font: Option<PathBuf>,
+    /// Stitch the frames untouched, with no rail.
+    pub plain: bool,
 }
 
 /// The three budgets a run ends on, whichever comes first, plus the wall
@@ -140,6 +157,23 @@ enum Sub {
         #[arg(long)]
         audit_raw: bool,
     },
+    /// Draw a run's action rail over its recorded frames and encode the movie.
+    Movie {
+        /// The `audit.jsonl` of a play or a replay.
+        audit: PathBuf,
+        /// The directory that run's `--record` filled with `frame_%06d.png`.
+        #[arg(long, value_name = "DIR")]
+        frames: PathBuf,
+        /// The movie file (default `<frames>.mp4`).
+        #[arg(long, value_name = "FILE")]
+        out: Option<PathBuf>,
+        /// The face the rail is set in (default the game's terminal font).
+        #[arg(long, value_name = "TTF")]
+        font: Option<PathBuf>,
+        /// Stitch the frames untouched: no rail, no header.
+        #[arg(long)]
+        plain: bool,
+    },
     /// Feed a recorded audit's wire lines to a fresh game and compare the end.
     Replay {
         /// The `audit.jsonl` of a play.
@@ -166,7 +200,7 @@ pub fn parse(args: &[String]) -> Result<Cmd, String> {
                 clap::error::ErrorKind::DisplayHelp => Ok(Cmd::Help(error.render().to_string())),
                 clap::error::ErrorKind::MissingSubcommand
                 | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => {
-                    Err("a subcommand is required (play, replay)".into())
+                    Err("a subcommand is required (play, replay, movie)".into())
                 }
                 _ => Err(error.render().to_string().trim_end().to_string()),
             };
@@ -199,6 +233,19 @@ pub fn parse(args: &[String]) -> Result<Cmd, String> {
                 audit_raw,
             }))
         }
+        Sub::Movie {
+            audit,
+            frames,
+            out,
+            font,
+            plain,
+        } => Ok(Cmd::Movie(MovieOptions {
+            audit,
+            frames,
+            out,
+            font,
+            plain,
+        })),
         Sub::Replay {
             audit,
             out,
@@ -264,6 +311,25 @@ mod tests {
             ScenarioTarget::File(PathBuf::from("world.content.ron"))
         );
         assert_eq!(play.agent, AgentSpec::Baseline);
+    }
+
+    #[test]
+    fn a_movie_takes_an_audit_and_the_frames_that_run_recorded() {
+        let Cmd::Movie(movie) = parse(&args(&[
+            "movie",
+            "runs/a/audit.jsonl",
+            "--frames",
+            "target/rec",
+        ]))
+        .unwrap() else {
+            panic!("movie parses")
+        };
+        assert_eq!(movie.audit, PathBuf::from("runs/a/audit.jsonl"));
+        assert_eq!(movie.frames, PathBuf::from("target/rec"));
+        assert_eq!(movie.out, None);
+        assert_eq!(movie.font, None);
+        assert!(!movie.plain);
+        assert!(parse(&args(&["movie", "runs/a/audit.jsonl"])).is_err());
     }
 
     #[test]

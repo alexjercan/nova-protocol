@@ -24,6 +24,7 @@
 //! ```text
 //! cargo run --features debug bench play <scenario> [--agent baseline|pi|cmd:<argv>] [--goal ...]
 //! cargo run --features debug bench replay <run-dir>/audit.jsonl
+//! cargo run --features debug bench movie <run-dir>/audit.jsonl --frames <dir>
 //! ```
 //!
 //! The design record is `tasks/20260824-125933/ARCHITECTURE.md`.
@@ -51,7 +52,11 @@ pub mod prelude {
         audit::{BenchEvent, Bus, Ui},
         game::{GameChannel, GameConfig, GameProcess, ScenarioTarget},
         gesture::{expand, parse_gestures, Gesture, MAX_AIM_TICKS},
-        movie::{stitch, Movie},
+        movie::{
+            compose,
+            rail::{Film, Lane, Row},
+            stitch, Movie,
+        },
         observation::condense,
         referee::{Budget, Referee, TICKS_PER_SECOND},
         score::Score,
@@ -84,5 +89,62 @@ pub fn main(args: &[String]) -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        Ok(cli::Cmd::Movie(options)) => match make_movie(&options) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("bench: {message}");
+                ExitCode::FAILURE
+            }
+        },
     }
+}
+
+/// `bench movie`: the rail over the frames, or the frames alone under
+/// `--plain`. Progress goes to stderr because the movie's path goes to
+/// stdout, and a compose of a few thousand frames takes long enough that
+/// silence reads as a hang.
+fn make_movie(options: &cli::MovieOptions) -> Result<ExitCode, String> {
+    let out = options
+        .out
+        .clone()
+        .unwrap_or_else(|| movie::movie_path(&options.frames));
+    let movie = if options.plain {
+        let stitched = movie::stitch(&options.frames)?;
+        if stitched.path != out {
+            std::fs::rename(&stitched.path, &out).map_err(|error| {
+                format!("could not move the movie to {}: {error}", out.display())
+            })?;
+        }
+        movie::Movie {
+            path: out,
+            ..stitched
+        }
+    } else {
+        let font = options.font.clone().unwrap_or_else(movie::default_font);
+        let mut shown = 0;
+        movie::compose(
+            &options.audit,
+            &options.frames,
+            &out,
+            &font,
+            |done, total| {
+                let step = (total / 20).max(1);
+                if done == total || done / step > shown {
+                    shown = done / step;
+                    eprint!("\rcomposing {done}/{total} frames");
+                    if done == total {
+                        eprintln!();
+                    }
+                }
+            },
+        )?
+    };
+    println!(
+        "{} ({} frames, {:.1} s{})",
+        movie.path.display(),
+        movie.frames,
+        movie.seconds(),
+        if movie.railed { ", action rail" } else { "" }
+    );
+    Ok(ExitCode::SUCCESS)
 }

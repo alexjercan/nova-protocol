@@ -25,6 +25,12 @@ serde = { version = "1", features = ["derive"] }
 # presentational in all of them (reports and the wire are parsed, never
 # compared as text).
 serde_json = { version = "1", features = ["preserve_order"] }
+# The movie's action rail is composited here, not in an ffmpeg filter graph:
+# `image` decodes the recorder's PNGs and `ab_glyph` rasterises the game's own
+# terminal face over them. Both already build for the workspace through Bevy,
+# and neither pulls Bevy in, so the bench's tests still link no engine.
+image = { version = "0.25.8", default-features = false, features = ["png"] }
+ab_glyph = "0.2.32"
 
 [lints]
 workspace = true

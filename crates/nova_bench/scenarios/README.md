@@ -89,21 +89,17 @@ from the run, but do not tell the agent how to drive.
 - Turn a confirmed bug into an asserted `examples/systems/bug_*` range before
   fixing it.
 
-## Recording overlay follow-up
+## Recording the run
 
-The recording should show actions as a compact lower-third event rail, not raw
-JSON over the cockpit:
+`--record <dir>` on a play saves every stepped tick and the bench draws the
+run's own action rail over the frames before encoding `<dir>.mp4`. Remake the
+movie of frames already on disk without replaying anything:
 
-```text
-AGENT  03:24.700   PDC FORWARD PORT   START
-HELM   03:26.200   GOTO -> exit       TAP
-NOVA   03:28.050   cheats status      OK: clean
+```sh
+cargo run --features dev bench movie <run dir>/audit.jsonl --frames <dir>
 ```
 
-Use the audit as the source of truth. A future `bench movie` command should
-read `audit.jsonl` plus the numbered PNG frames, map each `channel_out` tick to
-a frame, render cards with a small native compositor, and then hand the final
-frames to the shared encoder. Keep ffmpeg as the codec backend, not the layout
-or authoring interface. Collapse aim runs and repeated held inputs, show errors
-in red, cheats in amber, and keep each card for about two seconds. This also
-makes replay and live-play recordings use the same overlay.
+The rail reads the audit, so a red-team run shows its own evidence: `cheat`
+lines in amber, refusals in red, `nova` shell lines apart from helm `act`
+lines. Grade the footage against those rows, not against the agent's report.
+See [the bench guide](../../../docs/agent-bench.md#the-action-rail).

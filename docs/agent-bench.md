@@ -66,7 +66,7 @@ and red-team rules are in `crates/nova_bench/scenarios/README.md`.
 | `--turns` | 300 | the `act` budget |
 | `--deadline` | 1800 | wall-clock seconds |
 | `--out` | `bench-runs/<sha>/<scenario>/<agent>-<n>/` | the run directory |
-| `--record` | unset | draw every tick offscreen into this directory and stitch `<dir>.mp4`; see [The movie](#the-movie) |
+| `--record` | unset | draw every tick offscreen into this directory and make `<dir>.mp4` with the action rail; see [The movie](#the-movie) |
 | `--ui` | `log` | `log` prints one line per event to stderr; `quiet` prints nothing |
 | `--audit-raw` | off | keep the full snapshot in every `channel_in` event |
 
@@ -287,23 +287,63 @@ way a play's is.
 `--record <dir>` on a play or a replay hands the directory to the game's own
 `--record`: the offscreen assembly draws every stepped tick with the real
 render stack and the full HUD, and saves it as `<dir>/frame_%06d.png`. When
-the game has exited the bench runs
-
-```sh
-ffmpeg -y -framerate 60 -i <dir>/frame_%06d.png -pix_fmt yuv420p <dir>.mp4
-```
+the game has exited the bench draws the run's own action rail over those
+frames and encodes `<dir>.mp4`.
 
 One tick is one frame and one tick is 1/60 s, so the movie runs in real
 time however long the agent thought between acts. The bench prints the
 movie's path, frame count and length after the score table and notes them
-in the audit. Without ffmpeg, or when ffmpeg refuses, the frames stay on
-disk and the note carries the command line to run by hand; the run's exit
-code does not change.
+in the audit. A compose that cannot find the face falls back to the plain
+stitch; without ffmpeg entirely the frames stay on disk and the note says
+so. Neither changes the run's exit code.
 
 Recording needs a GPU and a display. Run the bench from the dev shell
 (`nix develop`), which is where the Vulkan loader finds the driver, on an
 X display: your own, or an Xvfb (`DISPLAY=:99`). A play without `--record`
 needs neither.
+
+### The action rail
+
+```sh
+cargo run --features debug bench movie <run dir>/audit.jsonl --frames <dir>
+```
+
+`bench movie` remakes the movie of frames already on disk, so the overlay can
+be changed without replaying anything. `--out` names the file (default
+`<frames>.mp4`), `--font` the face, and `--plain` stitches the frames
+untouched.
+
+The rail is composited in the bench, not in an ffmpeg filter graph: `image`
+decodes the PNGs, `ab_glyph` sets the game's own terminal face over them, and
+ffmpeg is handed finished RGB frames on stdin. Layout that lived in a filter
+string could not be read or tested.
+
+A header strip carries the identity of the run - scenario, agent, seed, clock,
+tick and turn - so a clip lifted out of a movie still says where it came from.
+Under it a transcript of the last six lines, newest at the bottom, older ones
+fading:
+
+```text
+> act    aim camera.camera_rotate [-80, 0] x21
+> say    EXIT is 3.3 degrees off the nose at 7.27 km. With weapons lowered,
+         I'll hold radar to acquire it as a travel lock.
+> act    press targeting.radar_hold
+> think  Planning lock release and navigation
+```
+
+One lane per kind of line, each its own colour: `goal` (once, at the head),
+`think`, `say`, `look` (`observe` and `page`, which spend no tick), `act`,
+`nova` for a command shell line, `cheat` for a shell line that touches
+cheats, and `err` in red for a refusal.
+
+Placement is arithmetic, not a guess. The recorder captures one frame per
+stepped tick and numbers from zero, so **frame = tick - 1**. `channel_in`
+carries the tick; agent prose does not, because the world is frozen while the
+model thinks, so it lands on the tick of the snapshot it was answering. Rows
+that would share one frame are spread 21 frames apart - a first turn can
+produce ten rows, and all ten on frame zero is a wall of text. That spread is
+why the opening rows can trail the world by a second or two; the rail is a
+log of the run, not a caption track.
 
 ## Measured on the hunt fixture, seed 7
 
@@ -349,9 +389,7 @@ tapped Stop at 1.96 km, settled 1.1 km off and broke the hauler up in
 
 ## Not built yet
 
-A `--ui tui` renderer on the same event bus; `bench run`, a sweep of plays over
-a scenario set with an `index.json`, an HTML report and a `--baseline` diff
-release over release; and `bench movie`, an audit-driven compositor that draws
-a compact action rail onto recorded frames before calling the shared encoder.
-The overlay sketch is in `crates/nova_bench/scenarios/README.md`. The run design
-record is `tasks/20260824-125933/ARCHITECTURE.md`.
+A `--ui tui` renderer on the same event bus, and `bench run`, a sweep of plays
+over a scenario set with an `index.json`, an HTML report and a `--baseline`
+diff release over release. The run design record is
+`tasks/20260824-125933/ARCHITECTURE.md`.
