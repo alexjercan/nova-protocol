@@ -54,8 +54,19 @@ as a loose content file. The bench ships four fixtures under `crates/nova_bench/
   weapons, asteroid carving, NOVA OS, cheat, and protocol-abuse goals.
 
 The three sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
-the `end` block of the score and any recorded footage. Their reusable goal deck
-and red-team rules are in `crates/nova_bench/scenarios/README.md`.
+the `end` block of the score and any recorded footage. The red-team rules are
+in `crates/nova_bench/scenarios/README.md`, and the goal deck itself is
+`scripts/bench-plays.sh`, which runs any of eleven named plays with its goal,
+seed and budgets already set:
+
+```sh
+nix develop -c scripts/bench-plays.sh --list
+nix develop -c scripts/bench-plays.sh sommelier shell cheat
+```
+
+The seed pins the world, not the run: the model is the other half and takes a
+different route every time. The script pins the setup so two plays of one goal
+are comparable, which is as close to reproducible as an agent play gets.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 # Agent bench red-team sandboxes and prompts
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.14.0, bench, scenario, red-team
 
@@ -119,6 +119,35 @@ armed cheats at tick 3, took unlimited ammunition and no speed cap, reached
 - The models write markdown, so `**a name**` reached the rail as literal
   asterisks. `rail::flatten` drops `**`.
 
+## Delivered: one driver for the goal deck
+
+`scripts/bench-plays.sh` carries every goal in the deck as a named play -
+`assist`, `funny-orbit`, `cheese`, `gravity-redteam`, `sommelier`, `carve`,
+`shell`, `cheat`, `sneaky-cheat`, `ram`, `referee` - with its fixture, seed,
+budgets and recording already set. `--list` prints the catalog, `all` runs the
+lot, `--no-record` skips the frames, and `--agent` / `--model` / `--thinking` /
+`--seed` / `--out` override the defaults (pi, gpt-5.6-sol, medium, 7,
+`~/Videos/nova-bench-<date>`). It prints one score line per play and exits
+non-zero naming the plays that failed.
+
+The script is the only copy of the goal strings. `scenarios/README.md` and
+`docs/agent-bench.md` now point at it with a table of what each play is for,
+so a reworded goal cannot mean two things in two files.
+
+A play is not reproducible frame for frame and the script says so: the seed
+pins the world, the model does not repeat itself. What is pinned is the setup,
+which is what makes two runs of one goal comparable.
+
+### Proof
+
+- PASS `scripts/bench-plays.sh --no-build --no-record --agent baseline shell`:
+  2701 ticks, ended on the turn budget, one score line printed.
+- The first version of that score line crashed on the baseline agent, whose
+  `llm` and `agent_status` are null. Fixed and re-run.
+- PASS `--list`, `--help`, and exit 2 on an unknown play and on no arguments.
+- PASS `mdbook build`.
+
 ## Follow-up
 
-- None. The rail and the red-team goals are both graded on live footage.
+- None. The rail and the red-team goals are both graded on live footage, and
+  the deck is runnable by name.
