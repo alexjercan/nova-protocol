@@ -315,6 +315,9 @@ does NOT get an entry - and it is the only place they are written down.
   well-mixed half now does.
 
 ### Fixes
+- A ship built in the editor flies with the cockpit's voice: the lock cues,
+  the alarms and the RCS hiss. Only its collapse was authored, so a hull you
+  drew or rolled flew a silent panel.
 - A torpedo that goes off on a heavy frame still does its damage: the blast
   volume is now spent in physics ticks, so a slow frame can no longer sweep it
   away before the tick that resolves what it caught.

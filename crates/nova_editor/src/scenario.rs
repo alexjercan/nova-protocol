@@ -47,7 +47,9 @@ use crate::{
     event::{named_ids, NamedIds, ScriptNodes},
     node::{
         objects_of, sections_of, EditContext, NodeId, ObjectNodes, ScenarioNode, SectionNodes,
-        ShipDriver, ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND, SHIP_COLLAPSE_SOUND,
+        ShipDriver, ShipNode, AMMO_DRY_SOUND, ASTEROID_TEXTURE, DESTROY_SOUND, LOCK_OFF_SOUND,
+        LOCK_ON_SOUND, RADAR_DENY_SOUND, RADAR_RETARGET_SOUND, RCS_LOOP_SOUND, SAFETY_ON_SOUND,
+        SHIP_COLLAPSE_SOUND, WARN_HULL_SOUND, WARN_LOCK_SOUND,
     },
 };
 
@@ -515,6 +517,15 @@ pub(crate) fn ship_design(ship: &LoweredShip) -> ShipDesign {
             skin: ship.skin,
             style: ship.style.clone(),
             collapse_sound: Some(AssetRef::from(SHIP_COLLAPSE_SOUND)),
+            lock_on_sound: Some(AssetRef::from(LOCK_ON_SOUND)),
+            lock_off_sound: Some(AssetRef::from(LOCK_OFF_SOUND)),
+            radar_deny_sound: Some(AssetRef::from(RADAR_DENY_SOUND)),
+            radar_retarget_sound: Some(AssetRef::from(RADAR_RETARGET_SOUND)),
+            safety_on_sound: Some(AssetRef::from(SAFETY_ON_SOUND)),
+            warn_lock_sound: Some(AssetRef::from(WARN_LOCK_SOUND)),
+            ammo_dry_sound: Some(AssetRef::from(AMMO_DRY_SOUND)),
+            warn_hull_sound: Some(AssetRef::from(WARN_HULL_SOUND)),
+            rcs_loop_sound: Some(AssetRef::from(RCS_LOOP_SOUND)),
             ..default()
         },
         ..default()
@@ -1399,6 +1410,34 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// A hull built here flies with the cockpit's own voice.
+    ///
+    /// A design that omits a cue is SILENT for it rather than borrowing
+    /// another ship's, so a lowered ship carrying only its collapse sound
+    /// flies a mute radar and a mute RCS. Generate makes that the common
+    /// case: a collapsed hull is sections and cladding, and `nova_wfc` names
+    /// no asset.
+    #[test]
+    fn a_lowered_ship_carries_the_cockpit_feedback_voice() {
+        let voice = ship_design(&LoweredShip::default()).presentation;
+
+        assert_eq!(voice.lock_on_sound, Some(AssetRef::from(LOCK_ON_SOUND)));
+        assert_eq!(voice.lock_off_sound, Some(AssetRef::from(LOCK_OFF_SOUND)));
+        assert_eq!(
+            voice.radar_deny_sound,
+            Some(AssetRef::from(RADAR_DENY_SOUND))
+        );
+        assert_eq!(
+            voice.radar_retarget_sound,
+            Some(AssetRef::from(RADAR_RETARGET_SOUND))
+        );
+        assert_eq!(voice.safety_on_sound, Some(AssetRef::from(SAFETY_ON_SOUND)));
+        assert_eq!(voice.warn_lock_sound, Some(AssetRef::from(WARN_LOCK_SOUND)));
+        assert_eq!(voice.ammo_dry_sound, Some(AssetRef::from(AMMO_DRY_SOUND)));
+        assert_eq!(voice.warn_hull_sound, Some(AssetRef::from(WARN_HULL_SOUND)));
+        assert_eq!(voice.rcs_loop_sound, Some(AssetRef::from(RCS_LOOP_SOUND)));
     }
 
     /// The script follows the objects, whatever the builder deleted.

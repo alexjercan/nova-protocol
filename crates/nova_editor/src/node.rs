@@ -75,6 +75,28 @@ pub(crate) const SALVAGE_SOUND: &str = "base/sounds/salvage_pickup.wav";
 /// authors this one; a hull the builder made would otherwise die in silence
 /// where the stock corvette speaks.
 pub(crate) const SHIP_COLLAPSE_SOUND: &str = "base/sounds/destroy_ship.wav";
+/// The cockpit's feedback voice, which every catalog ship authors and a hull
+/// built here - drawn part by part or rolled by Generate - would otherwise fly
+/// without: the radar cues, the alarms and the RCS hiss are the GAME's sounds,
+/// not one hull's, so a builder's ship speaks with the same instruments as the
+/// stock corvette.
+pub(crate) const LOCK_ON_SOUND: &str = "base/sounds/lock_on.wav";
+/// Lock cleared.
+pub(crate) const LOCK_OFF_SOUND: &str = "base/sounds/lock_off.wav";
+/// Radar hold denied - the hull has no LOCK capability.
+pub(crate) const RADAR_DENY_SOUND: &str = "base/sounds/radar_deny.wav";
+/// A held radar gesture re-designated to a new target.
+pub(crate) const RADAR_RETARGET_SOUND: &str = "base/sounds/radar_retarget.wav";
+/// Weapons safety re-engaged.
+pub(crate) const SAFETY_ON_SOUND: &str = "base/sounds/safety_on.wav";
+/// A hostile holds this ship in its combat lock.
+pub(crate) const WARN_LOCK_SOUND: &str = "base/sounds/warn_lock.wav";
+/// A magazine ran dry - the cockpit gauge, not the gun's own click.
+pub(crate) const AMMO_DRY_SOUND: &str = "base/sounds/ammo_dry.wav";
+/// The hull is critical.
+pub(crate) const WARN_HULL_SOUND: &str = "base/sounds/warn_hull.wav";
+/// The RCS fine-adjust loop, sustained while the ship burns it.
+pub(crate) const RCS_LOOP_SOUND: &str = "base/sounds/rcs_loop.wav";
 
 /// Marker on every node of the document tree, at every depth.
 #[derive(Component, Debug)]

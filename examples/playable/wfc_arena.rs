@@ -863,14 +863,38 @@ fn arena_tiles(sections: &GameSections, grammars: &GameGrammars) -> TileSet {
     TileSet::build(sections, &grammar).unwrap_or_else(|error| panic!("wfc_arena: {error}"))
 }
 
-/// Collapse one hull for a roster slot and load its tubes.
+/// Collapse one hull for a roster slot, load its tubes and give it its voice.
 fn combat_hull(tiles: &TileSet, seed: u64, style: StyleId, sections: &GameSections) -> ShipDesign {
     let mut hull = tiles
         .hull(seed, true, style)
         .unwrap_or_else(|error| panic!("wfc_arena: {error}"));
     stamps::stamp_large_drives(&mut hull, seed, sections, tiles.grid());
     load_lances(&mut hull, seed);
+    give_voice(&mut hull);
     hull
+}
+
+/// The cockpit voice a drafted hull flies with.
+///
+/// A collapse carries structure and cladding only - `nova_wfc` names no asset,
+/// so a generated hull arrives mute. These are the GAME's sounds, the same set
+/// every catalog ship authors: the instruments are half of flying one, and a
+/// ship whose radar never beeps and whose thrusters never hiss is a ship the
+/// player is flying blind.
+fn give_voice(hull: &mut ShipDesign) {
+    // Field by field, so the skin and the style the collapse already decided
+    // stay the collapse's.
+    let voice = &mut hull.presentation;
+    voice.collapse_sound = Some(AssetRef::from("base/sounds/destroy_ship.wav"));
+    voice.lock_on_sound = Some(AssetRef::from("base/sounds/lock_on.wav"));
+    voice.lock_off_sound = Some(AssetRef::from("base/sounds/lock_off.wav"));
+    voice.radar_deny_sound = Some(AssetRef::from("base/sounds/radar_deny.wav"));
+    voice.radar_retarget_sound = Some(AssetRef::from("base/sounds/radar_retarget.wav"));
+    voice.safety_on_sound = Some(AssetRef::from("base/sounds/safety_on.wav"));
+    voice.warn_lock_sound = Some(AssetRef::from("base/sounds/warn_lock.wav"));
+    voice.ammo_dry_sound = Some(AssetRef::from("base/sounds/ammo_dry.wav"));
+    voice.warn_hull_sound = Some(AssetRef::from("base/sounds/warn_hull.wav"));
+    voice.rcs_loop_sound = Some(AssetRef::from("base/sounds/rcs_loop.wav"));
 }
 
 /// Field a hull per roster slot: a pinned seed as asked for, everything else
@@ -3236,6 +3260,44 @@ mod binding_tests {
         assert!(
             !bindings[&lance].contains(&InputSource::from(MouseButton::Left)),
             "and never the turrets' held trigger"
+        );
+    }
+
+    /// A drafted hull speaks: the radar cues and the RCS hiss the pilot flies
+    /// by, on a ship the collapse builds mute.
+    ///
+    /// A missing sound is SILENCE for that cue rather than another ship's
+    /// sound, so the failure is a fight with no lock beep and no thruster
+    /// hiss - and nothing else in the arena notices.
+    #[test]
+    fn a_drafted_hull_carries_the_cockpit_feedback_voice() {
+        let (sections, tiles) = catalog_tiles();
+        let hull = combat_hull(&tiles, 0, None, &sections);
+        let voice = &hull.presentation;
+
+        assert_eq!(
+            voice.lock_on_sound,
+            Some(AssetRef::from("base/sounds/lock_on.wav"))
+        );
+        assert_eq!(
+            voice.rcs_loop_sound,
+            Some(AssetRef::from("base/sounds/rcs_loop.wav"))
+        );
+        for (cue, sound) in [
+            ("collapse", &voice.collapse_sound),
+            ("lock off", &voice.lock_off_sound),
+            ("radar deny", &voice.radar_deny_sound),
+            ("radar retarget", &voice.radar_retarget_sound),
+            ("safety on", &voice.safety_on_sound),
+            ("warn lock", &voice.warn_lock_sound),
+            ("ammo dry", &voice.ammo_dry_sound),
+            ("warn hull", &voice.warn_hull_sound),
+        ] {
+            assert!(sound.is_some(), "a drafted hull is mute on '{cue}'");
+        }
+        assert!(
+            hull.presentation.skin,
+            "and keeps the cladding it collapsed with"
         );
     }
 }
