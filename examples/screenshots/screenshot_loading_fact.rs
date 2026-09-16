@@ -179,13 +179,18 @@ fn loading_script(narrow: bool) -> nova_protocol::nova_debug::harness::Autopilot
         .step("settle the Interface tab")
         .until(frames(SETTLE_FRAMES))
         .add()
-        .step("the training-prompt row is on the tab")
+        .step("the corner's two switches are on the tab")
         .on_enter(|world: &mut World| {
             // The switch the prompt is remembered by. Without this row,
             // answering the prompt is a one-way door.
             assert_named_visible("Training Prompt Row")(world);
             assert_named_visible("Training Prompt On")(world);
             assert_named_visible("Training Prompt Off")(world);
+            // The other notice in the same corner, switched the same way: the
+            // card's `Don't show again` writes this, and this brings it back.
+            assert_named_visible("Field Notes Row")(world);
+            assert_named_visible("Field Notes On")(world);
+            assert_named_visible("Field Notes Off")(world);
         })
         .add()
         .step("capture the training-prompt switch")

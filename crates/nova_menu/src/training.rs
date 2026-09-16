@@ -21,7 +21,9 @@
 //!
 //! The prompt is remembered as a SETTING ([`TrainingPromptSetting`]), not as
 //! progress. Starting Basic Training or answering `Not now` writes `Hidden`,
-//! and Settings > Interface is where it comes back.
+//! and Settings > Interface is where it comes back. The field note is switched
+//! the same way ([`FieldNoteSetting`]): `Don't show again` on the card writes
+//! `Hidden`, and the same Settings tab brings it back.
 //!
 //! THE LESSONS ARE CONTENT. `TrainingCatalog` is merged by `register_bundles`
 //! from the base bundle's `Lesson` items plus every enabled mod's; this module
@@ -51,7 +53,7 @@ use nova_ui::{
 use crate::{
     mods::ModsPanel,
     scenarios::{NewGameScenario, ScenariosPanel},
-    settings::{spawn_binding_chips, SettingsPanel, TrainingPromptSetting},
+    settings::{spawn_binding_chips, FieldNoteSetting, SettingsPanel, TrainingPromptSetting},
     widgets::{back_button, button, button_variant},
 };
 
@@ -391,7 +393,8 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, skin: UiSkin, note: Opti
 /// The claim itself is NOT written here - it is read off the catalog, so the
 /// card and the lesson cannot drift apart. The `Open lesson` action only
 /// appears for a note that came from a lesson; a compiled boot note has no page
-/// to open, and the card is then a fact and nothing more.
+/// to open. `Don't show again` is on EVERY note, because a player who does not
+/// want facts in the corner does not want them either way.
 fn spawn_field_note_card(commands: &mut Commands, aside: Entity, skin: UiSkin, note: &FieldNote) {
     commands.entity(aside).with_children(|corner| {
         corner
@@ -425,22 +428,36 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, skin: UiSkin, n
                         TextColor(theme::SCREEN_TEXT),
                     ));
                 }
-                if let Some(lesson) = &note.lesson {
-                    card.spawn((
-                        Name::new("Menu Field Note Lesson"),
-                        Node {
-                            margin: UiRect::top(px(8)),
-                            ..default()
-                        },
-                        children![(
+                card.spawn((
+                    Name::new("Menu Field Note Actions"),
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        flex_wrap: FlexWrap::Wrap,
+                        align_items: AlignItems::Center,
+                        column_gap: px(8),
+                        row_gap: px(6),
+                        margin: UiRect::top(px(8)),
+                        ..default()
+                    },
+                ))
+                .with_children(|actions| {
+                    if let Some(lesson) = &note.lesson {
+                        actions.spawn((
                             Name::new("Menu Field Note Lesson Button"),
                             MenuFieldNoteLesson { id: lesson.clone() },
                             nova_ui::widget::button(ButtonSpec::new("Open lesson").ghost().fit()),
                             crate::widgets::MenuSfxButton,
                             observe(on_open_note_lesson),
-                        )],
+                        ));
+                    }
+                    actions.spawn((
+                        Name::new("Menu Field Note Dismiss"),
+                        nova_ui::widget::button(ButtonSpec::new("Don't show again").ghost().fit()),
+                        crate::widgets::MenuSfxBack,
+                        crate::widgets::MenuSfxButton,
+                        observe(on_dismiss_field_notes),
                     ));
-                }
+                });
             });
     });
 }
@@ -558,6 +575,16 @@ pub(crate) fn on_open_note_lesson(
     };
     select_lesson(&note.id, &mut selected, &mut progress);
     **panel = Visibility::Visible;
+}
+
+/// `Don't show again` on the note card switches the corner's field notes off.
+///
+/// The same shape as `Not now` on the offer: a card carries the way to turn
+/// itself off, and Settings > Interface carries the way back. It is the SETTING
+/// that is written, not the card - `sync_menu_aside` takes the notice down on
+/// the next frame, and the next launch reads the saved answer.
+pub(crate) fn on_dismiss_field_notes(_activate: On<Activate>, mut notes: ResMut<FieldNoteSetting>) {
+    *notes = FieldNoteSetting::Hidden;
 }
 
 /// `Not now` is the other way to answer the offer. It is a SETTING, so the
@@ -1252,22 +1279,24 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
 }
 
 /// Keep the notice corner out of the way of whatever modal is open, and take
-/// the first-launch offer off it once the player has answered.
+/// each notice off it once the player has switched that notice off.
 ///
-/// TWO decisions, because the corner holds two different kinds of thing. The
-/// CORNER is about containment, not decoration: the modals are 85 percent of
-/// the window, so a card at the screen edge would otherwise still be visible
+/// THREE decisions, because the corner holds three different kinds of thing.
+/// The CORNER is about containment, not decoration: the modals are 85 percent
+/// of the window, so a card at the screen edge would otherwise still be visible
 /// and CLICKABLE beside a screen the player thinks owns the input. The PROMPT
 /// is about the offer: answering it is permanent, and the setting is what
-/// remembers. A field note is not an offer, so it outlives the answer.
+/// remembers. The NOTE is not an offer - it outlives the answer to the offer -
+/// but it has a switch of its own, so it reads its own setting.
 ///
 /// Losing the corner loses nothing: `Lessons` in the menu card is the
-/// permanent way into the handbook, and Settings > Interface brings the prompt
-/// back.
+/// permanent way into the handbook, and Settings > Interface brings both
+/// notices back.
 pub(crate) fn sync_menu_aside(
     prompt: Res<TrainingPromptSetting>,
-    // The `Without`s are what make the queries provably disjoint: all three
-    // read `Visibility`, and two of them write it.
+    field_note: Res<FieldNoteSetting>,
+    // The `Without`s are what make the queries provably disjoint: all four
+    // read `Visibility`, and three of them write it.
     panels: Query<
         &Visibility,
         (
@@ -1279,10 +1308,19 @@ pub(crate) fn sync_menu_aside(
             )>,
             Without<MenuAside>,
             Without<TrainingPromptCard>,
+            Without<MenuFieldNoteCard>,
         ),
     >,
-    mut aside: Query<&mut Visibility, (With<MenuAside>, Without<TrainingPromptCard>)>,
-    mut offer: Query<&mut Visibility, With<TrainingPromptCard>>,
+    mut aside: Query<
+        &mut Visibility,
+        (
+            With<MenuAside>,
+            Without<TrainingPromptCard>,
+            Without<MenuFieldNoteCard>,
+        ),
+    >,
+    mut offer: Query<&mut Visibility, (With<TrainingPromptCard>, Without<MenuFieldNoteCard>)>,
+    mut note: Query<&mut Visibility, With<MenuFieldNoteCard>>,
 ) {
     let modal_open = panels
         .iter()
@@ -1295,11 +1333,19 @@ pub(crate) fn sync_menu_aside(
             Visibility::Visible
         },
     );
-    // Inherited, not Visible: the offer is only ever on screen when the corner
+    // Inherited, not Visible: a notice is only ever on screen when the corner
     // holding it is, and a modal must not leave one card behind.
     set_all(
         &mut offer,
         if prompt.shown() {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        },
+    );
+    set_all(
+        &mut note,
+        if field_note.shown() {
             Visibility::Inherited
         } else {
             Visibility::Hidden

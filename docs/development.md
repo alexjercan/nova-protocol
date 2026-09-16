@@ -650,7 +650,7 @@ with `scripts/gen-web-screenshots.py`. It is the stills half of a pair:
 `scripts/capture-web-media.sh` does the same for the webm loops, and
 `scripts/capture-lesson-media.sh` the same again for the training handbook's
 demonstrations - the `lesson_*` producers, each writing one lesson's still or
-4x3 sprite sheet into `assets/base/training/<lesson>.webp`. That one ships
+4x5 sprite sheet into `assets/base/training/<lesson>.webp`. That one ships
 WEBP, not PNG: the Lessons pane draws a demonstration about 900 logical pixels
 wide, so a sheet carries 960x540 cells (3840x1620 in all), and at that size a
 lossless sheet is about 1.6 MB against about 150 KB encoded. A lesson with no

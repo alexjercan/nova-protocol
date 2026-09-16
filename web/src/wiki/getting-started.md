@@ -8,7 +8,7 @@ The game boots into a main menu. On a first launch a card in the bottom-left cor
 
 The card is a one-time offer, not the entrance: the menu's **Lessons** row always opens the handbook, and **Settings > Interface > Training prompt** switches the corner back on if you want it.
 
-Under it sits a **field note** - one short fact taken from the handbook, with **Open lesson** to read the page it came from. It changes each time you come back to the menu, and the same notes fill the slot at the bottom of every loading screen. While a practice range loads, the note is about what that range teaches.
+Under it sits a **field note** - one short fact taken from the handbook, with **Open lesson** to read the page it came from and **Don't show again** to stop the notes appearing on the menu. It changes each time you come back to the menu, and the same notes fill the slot at the bottom of every loading screen, which that switch does not touch. While a practice range loads, the note is about what that range teaches. **Settings > Interface > Field notes** switches the menu card back on.
 
 <details class="explain">
 <summary>Show the full menu rundown</summary>

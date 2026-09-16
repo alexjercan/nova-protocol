@@ -39,8 +39,8 @@ pub mod prelude {
         ambience::MENU_BACKDROP_ENV,
         pause::FocusPause,
         settings::{
-            TrainingPromptSetting, WindowModeSetting, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT,
-            SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
+            FieldNoteSetting, TrainingPromptSetting, WindowModeSetting, SETTINGS_PANEL_H,
+            SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
         },
         settings_store::{
             load_settings, save_settings, PersistedSettings, SettingsStoreAccess,
@@ -103,8 +103,8 @@ use scenarios::{
 use settings::{
     apply_settings_rebind, on_sensitivity_slider_change, on_volume_slider_change,
     refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider,
-    PendingRebind, SettingsActiveTab, SettingsControlsGroup, TrainingPromptSetting,
-    WindowModeSetting,
+    FieldNoteSetting, PendingRebind, SettingsActiveTab, SettingsControlsGroup,
+    TrainingPromptSetting, WindowModeSetting,
 };
 use settings_store::SettingsStorePlugin;
 use training::{
@@ -191,6 +191,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_observer(button_on_setting::<UiSkin>);
         app.add_observer(button_on_setting::<WindowModeSetting>);
         app.add_observer(button_on_setting::<TrainingPromptSetting>);
+        app.add_observer(button_on_setting::<FieldNoteSetting>);
         app.add_systems(Update, (sync_volume_slider, sync_sensitivity_slider));
         // Ungated by menu state: the SAME body is the pause overlay's, which
         // only exists while playing.

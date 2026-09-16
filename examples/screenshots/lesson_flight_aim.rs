@@ -1,7 +1,7 @@
 //! lesson_flight_aim: the training handbook's demonstration for "Turn, then
 //! thrust" (`assets/base/training/flight_aim.webp`).
 //!
-//! A corvette holding a heading with its main drive lit, recorded as the 4x3
+//! A corvette holding a heading with its main drive lit, recorded as the 4x5
 //! sprite sheet the lesson authors. The plume leaves the tail along the line
 //! the nose points down, which is the lesson's whole claim, and the camera
 //! drifts across it on a closed arc so the sheet can play on a cycle - see

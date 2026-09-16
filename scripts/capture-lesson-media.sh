@@ -5,7 +5,7 @@
 #
 # A lesson's demonstration is REAL FOOTAGE of the game. The producers are
 # ordinary capture examples in the one capture idiom
-# (`nova_autopilot::loops`): a loop lesson records its own 4x3 sprite sheet and
+# (`nova_autopilot::loops`): a loop lesson records its own 4x5 sprite sheet and
 # tiles it itself, a still lesson shoots a PNG, and this script only stages,
 # validates and encodes - the same division of labour as the web loops
 # (scripts/capture-web-media.sh) and the web stills
@@ -56,7 +56,7 @@ done
 
 # The lesson producers, and what each one writes.
 #
-# `loop` is a 4x3 sheet the producer tiles itself; `still` is a single shot.
+# `loop` is a 4x5 sheet the producer tiles itself; `still` is a single shot.
 # Both arrive at the size they ship at, so this only checks the size and
 # encodes. The lesson id IS the file name, in both cases, because that is the
 # path the lesson authors.
@@ -68,11 +68,11 @@ PRODUCERS=(
 )
 
 # What the authored lessons cut a sheet on
-# (crates/nova_authoring/src/base_content/lessons.rs): 4x3 cells of 960x540.
+# (crates/nova_authoring/src/base_content/lessons.rs): 4x5 cells of 960x540.
 # The game cuts by the AUTHORED grid, so a sheet of another size ships as
 # frames cut in the wrong places rather than as a visible error.
 SHEET_W=3840
-SHEET_H=1620
+SHEET_H=2700
 # What a still lesson ships at: the capture window, kept whole.
 STILL_W=1920
 STILL_H=1080

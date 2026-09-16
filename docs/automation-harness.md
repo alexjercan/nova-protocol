@@ -478,16 +478,19 @@ an error that names the predicate to hold on instead.
 
 ```rust
 sheet_start(world, "flight_aim", SheetGrid {
-    columns: 4, rows: 3, cell: (960, 540),  // the grid the LESSON authors
+    columns: 4, rows: 5, cell: (960, 540),  // the grid the LESSON authors
 });
 ```
 
-The cells are recorded frames, so the motion under a sheet has to CLOSE: a
-sheet plays on a cycle, and twelve frames at twelve a second is one second of
-it. `examples/screenshots/shared/lesson.rs` is the handbook's answer - a
-frozen scene with the camera on one period of a sine arc, so the last cell
-hands back to the first. A one-way clip of gameplay jump-cuts every second
-instead. `scripts/capture-lesson-media.sh` runs the `lesson_*` producers and
+The cells are recorded frames, so what happens under a sheet has to survive
+the WRAP: a sheet plays on a cycle, and twenty frames at ten a second is two
+seconds of it. `examples/screenshots/shared/lesson.rs` carries both answers. A
+POSE loop freezes the scene and puts the camera on one period of a sine arc, so
+the last cell hands back to the first. An ACTION loop holds the camera still
+and lets the act be the motion - a few cells before, the press, and the rest of
+the sheet holding the result - which wraps the way a tutorial clip wraps. What
+does not work is a one-way clip of gameplay under a moving camera: that
+jump-cuts every two seconds. `scripts/capture-lesson-media.sh` runs the `lesson_*` producers and
 packages what they write into `assets/base/training/`, encoding the staged PNG
 as the WebP the handbook ships - a sheet sized to fill the Lessons pane is
 megabytes lossless and about 150 KB encoded.

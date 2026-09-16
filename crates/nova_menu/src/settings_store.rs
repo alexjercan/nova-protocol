@@ -21,7 +21,7 @@ use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{TrainingPromptSetting, WindowModeSetting};
+use crate::settings::{FieldNoteSetting, TrainingPromptSetting, WindowModeSetting};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
@@ -77,6 +77,11 @@ pub struct PersistedSettings {
     /// field at all takes the default and shows the prompt once.
     #[serde(default)]
     pub training_prompt: TrainingPromptSetting,
+    /// Whether the main menu shows its field note. An older store with no
+    /// field takes the default and shows the hint, the same way a fresh
+    /// install does.
+    #[serde(default)]
+    pub field_note: FieldNoteSetting,
     /// Keybinds the player moved, by action name. Only the CHANGED rows are
     /// here, so a default the game later moves reaches a player who never
     /// touched that row.
@@ -132,6 +137,7 @@ impl Default for PersistedSettings {
             nova_os_sound_enabled: default_sound_enabled(),
             window_mode: WindowModeSetting::default(),
             training_prompt: TrainingPromptSetting::default(),
+            field_note: FieldNoteSetting::default(),
             keybinds: BTreeMap::new(),
         }
     }
@@ -150,6 +156,7 @@ impl PersistedSettings {
         monitor: NovaOsMonitorSettings,
         window_mode: WindowModeSetting,
         training_prompt: TrainingPromptSetting,
+        field_note: FieldNoteSetting,
         bindings: &InputBindings,
     ) -> Self {
         Self {
@@ -167,6 +174,7 @@ impl PersistedSettings {
             nova_os_sound_enabled: monitor.sound_enabled,
             window_mode,
             training_prompt,
+            field_note,
             keybinds: bindings.overrides(),
         }
     }
@@ -379,6 +387,7 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<WindowModeSetting>();
         app.init_resource::<TrainingPromptSetting>();
+        app.init_resource::<FieldNoteSetting>();
         // The keybind overrides land on the same table every rig is built
         // from, so the load needs it present even in an app that has not added
         // `NovaInputPlugin` yet.
@@ -420,6 +429,7 @@ pub(crate) fn load_persisted_settings(
     mut monitor: ResMut<NovaOsMonitorSettings>,
     mut window_mode: ResMut<WindowModeSetting>,
     mut training_prompt: ResMut<TrainingPromptSetting>,
+    mut field_note: ResMut<FieldNoteSetting>,
     mut bindings: ResMut<InputBindings>,
     root: Res<SettingsStoreRoot>,
 ) {
@@ -436,6 +446,7 @@ pub(crate) fn load_persisted_settings(
     *monitor = saved.nova_os_monitor();
     *window_mode = saved.window_mode;
     *training_prompt = saved.training_prompt;
+    *field_note = saved.field_note;
     // Before the first rig is built: the flight rig spawns with the player
     // ship, which is a scenario away, so a saved keybind is on the table by
     // the time anything reads it.
@@ -521,6 +532,7 @@ pub(crate) struct LiveSettings<'w> {
     monitor: Res<'w, NovaOsMonitorSettings>,
     window_mode: Res<'w, WindowModeSetting>,
     training_prompt: Res<'w, TrainingPromptSetting>,
+    field_note: Res<'w, FieldNoteSetting>,
     bindings: Res<'w, InputBindings>,
 }
 
@@ -546,6 +558,7 @@ impl LiveSettings<'_> {
                 self.training_prompt.is_changed(),
                 self.training_prompt.is_added(),
             )
+            || moved(self.field_note.is_changed(), self.field_note.is_added())
             || moved(self.bindings.is_changed(), self.bindings.is_added())
     }
 
@@ -562,6 +575,7 @@ impl LiveSettings<'_> {
             *self.monitor,
             *self.window_mode,
             *self.training_prompt,
+            *self.field_note,
             &self.bindings,
         )
     }
@@ -613,7 +627,7 @@ mod tests {
     use nova_ui::prelude::UiSkin;
 
     use super::{PersistedSettings, KEY};
-    use crate::settings::{TrainingPromptSetting, WindowModeSetting};
+    use crate::settings::{FieldNoteSetting, TrainingPromptSetting, WindowModeSetting};
 
     fn temp_store(name: &str) -> NativeStorage {
         NativeStorage::at(std::env::temp_dir().join(format!("nova_settings_{name}")))
@@ -652,6 +666,7 @@ mod tests {
             nova_os_sound_enabled: false,
             window_mode: WindowModeSetting::Borderless,
             training_prompt: TrainingPromptSetting::Hidden,
+            field_note: FieldNoteSetting::Hidden,
             keybinds: BTreeMap::new(),
         };
         save_to(&store, KEY, &settings);
@@ -728,6 +743,7 @@ mod tests {
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
                 window_mode: WindowModeSetting::default(),
                 training_prompt: TrainingPromptSetting::default(),
+                field_note: FieldNoteSetting::default(),
                 keybinds: BTreeMap::new(),
             }),
             "a missing field falls back to its serde default"
@@ -746,6 +762,22 @@ mod tests {
         assert_eq!(
             load_from::<PersistedSettings>(&store, KEY).map(|saved| saved.training_prompt),
             Some(TrainingPromptSetting::Shown)
+        );
+        clear(&store);
+    }
+
+    /// The field note is a HINT the player can switch off, so a store written
+    /// before the switch existed - and a fresh install - must both show it.
+    /// Anything else and the upgrade silently takes the corner's second notice
+    /// away from everyone who already had it.
+    #[test]
+    fn a_store_with_no_field_note_field_still_shows_the_note() {
+        let store = temp_store("field_note_absent");
+        clear(&store);
+        write_raw(&store, b"(master_volume: 0.5)");
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY).map(|saved| saved.field_note),
+            Some(FieldNoteSetting::Shown)
         );
         clear(&store);
     }

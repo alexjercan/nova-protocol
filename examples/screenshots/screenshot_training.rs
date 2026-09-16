@@ -144,6 +144,10 @@ fn training_script(
             // The corner's second notice, drawn from the SHIPPED catalog: a
             // build whose lessons carry no field note would fail here.
             assert_named_visible("Menu Field Note")(world);
+            // And both of its actions: the way into the lesson the fact came
+            // from, and the way to switch the notes off where they stand.
+            assert_named_visible("Menu Field Note Lesson Button")(world);
+            assert_named_visible("Menu Field Note Dismiss")(world);
         })
         .add()
         .step("capture the front door")

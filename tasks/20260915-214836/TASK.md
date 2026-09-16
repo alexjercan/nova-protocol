@@ -135,11 +135,17 @@ Start only after the Phase 1 owner review is recorded on this task.
       loop (`lesson_combat_radar`) and the editor still
       (`lesson_build_sections`). Each is an ordinary capture producer run by
       `scripts/capture-lesson-media.sh`; `examples/screenshots/shared/lesson.rs`
-      carries the device that makes a one-second sheet CLOSE (a frozen scene
-      under a camera on one sine period). A demonstration is WEBP at the size
-      the pane draws it - a sheet of 960x540 cells, 3840x1620 in all - because
-      the pane is about 900 logical pixels wide and the first cut of this shipped
-      240x135 cells, which the owner rightly called unreadable.
+      carries the two devices that make a sheet CLOSE - a POSE loop (frozen
+      scene, camera on one sine period) and an ACTION loop (held camera, the act
+      itself is the motion, with lead-in cells and a held result). A
+      demonstration is WEBP at the size the pane draws it - a 4x5 sheet of
+      960x540 cells, 3840x2700 in all, twenty cells at 10 fps - because the pane
+      is about 900 logical pixels wide and the first cut of this shipped 240x135
+      cells, which the owner rightly called unreadable. Twenty cells is the
+      CEILING, not a preference: 4096 is the texture size a WebGL2 target is
+      guaranteed, so a longer loop has to shrink the cell again.
+      `lesson_combat_radar` is the action loop - the sheet opens unmarked, the
+      dwell charges, the bracket lands, and the rest of the cells hold it.
       WASM: the browser run proved the sheet is CUT and ANIMATING with a real
       pointer (`captures/web-training-*.png`), and that mechanism did not
       change; the CODEC is held by
@@ -216,7 +222,10 @@ menu corner's second notice, and the corner's split visibility.
       not interactive. A menu field note needs a place to live first: the
       bottom-left corner is a notice slot, so a note is a second notice there.
       `wrap_note_lines` refuses a third line; the corner now holds the offer and
-      the note, and answering the offer leaves the note standing.
+      the note, and answering the offer leaves the note standing. Each notice
+      carries its OWN switch: `Don't show again` on the note writes
+      `FieldNoteSetting`, the way `Not now` writes `TrainingPromptSetting`, and
+      Settings > Interface holds both. Neither touches the loading screens.
 
 ## Verification
 

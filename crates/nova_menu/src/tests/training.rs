@@ -13,7 +13,7 @@ use super::support::{
 };
 use crate::{
     scenarios::NewGameScenario,
-    settings::TrainingPromptSetting,
+    settings::{FieldNoteSetting, TrainingPromptSetting},
     training::{
         LessonRow, MenuAside, MenuFieldNoteCard, SelectedLessonId, TrainingPanel,
         TrainingPromptCard,
@@ -606,6 +606,53 @@ fn a_catalog_with_no_notes_draws_no_note_card() {
     });
     assert!(entity_by_name(&mut app, "Menu Field Note").is_none());
     assert_eq!(visibility(&mut app, "Menu Aside"), Visibility::Visible);
+}
+
+/// The note carries the way to switch itself off, beside the way into the
+/// lesson. It writes the SETTING, so the answer survives a restart, and the
+/// corner keeps the offer above it - two notices, two switches.
+#[test]
+fn dont_show_again_takes_the_field_note_down() {
+    let mut app = training_app();
+    assert_eq!(
+        visibility(&mut app, "Menu Field Note"),
+        Visibility::Inherited
+    );
+
+    click(&mut app, "Menu Field Note Dismiss");
+
+    assert_eq!(
+        *app.world().resource::<FieldNoteSetting>(),
+        FieldNoteSetting::Hidden
+    );
+    assert_eq!(visibility(&mut app, "Menu Field Note"), Visibility::Hidden);
+    assert_eq!(
+        visibility(&mut app, "Training Prompt"),
+        Visibility::Inherited,
+        "switching the notes off is not answering the first-launch offer"
+    );
+    assert_eq!(visibility(&mut app, "Menu Aside"), Visibility::Visible);
+}
+
+/// The player who switched the notes back on in Settings gets them back.
+///
+/// `Inherited`, not `Visible`, for the same reason the offer is: the corner
+/// decides whether anything in it is on screen, and a card that asserted
+/// itself Visible would survive a modal.
+#[test]
+fn the_setting_is_what_decides_whether_the_note_draws() {
+    let mut app = training_app_with(|app| {
+        app.insert_resource(FieldNoteSetting::Hidden);
+    });
+    assert_eq!(visibility(&mut app, "Menu Field Note"), Visibility::Hidden);
+
+    *app.world_mut().resource_mut::<FieldNoteSetting>() = FieldNoteSetting::Shown;
+    app.update();
+
+    assert_eq!(
+        visibility(&mut app, "Menu Field Note"),
+        Visibility::Inherited
+    );
 }
 
 /// The modals are 85 percent of the window, so a card at the screen edge would

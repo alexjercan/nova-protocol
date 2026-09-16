@@ -60,22 +60,28 @@ fn still(id: &str, alt: &str) -> LessonMedia {
 
 /// A looping demonstration, as a sprite sheet.
 ///
-/// One grid for every loop in the base handbook: 12 frames in a 4x3 sheet at
-/// 12 fps, which is one second of motion. The grid is authored rather than
+/// One grid for every loop in the base handbook: 20 frames in a 4x5 sheet at
+/// 10 fps, which is TWO SECONDS of motion. The grid is authored rather than
 /// inferred because a sheet is just an image - nothing in the file says where
 /// the cells are, and a guess would silently cut the frames wrong.
 ///
-/// Captured footage fills those cells at 960x540 each, so a 3840x1620 sheet -
-/// one screen pixel per cell pixel at a 1920 window, and inside the texture
-/// size every target supports. A lesson still on placeholder art carries a
-/// smaller sheet on the same grid; the cell size follows the file.
+/// Two seconds, not one, because a demonstration has to show a THING HAPPEN.
+/// One second is enough for a camera to drift over a pose, and not enough to
+/// press a key, watch the lock charge and see the bracket land - which is the
+/// only reason the loop is there. 10 fps rather than 12 keeps the sheet inside
+/// the texture size every target supports.
+///
+/// Captured footage fills those cells at 960x540 each, so a 3840x2700 sheet -
+/// one screen pixel per cell pixel at a 1920 window. A lesson still on
+/// placeholder art carries a smaller sheet on the same grid; the cell size
+/// follows the file.
 fn looping(id: &str, alt: &str) -> LessonMedia {
     LessonMedia::Loop {
         sheet: media_path(id).into(),
         columns: 4,
-        rows: 3,
-        frames: 12,
-        frames_per_second: 12.0,
+        rows: 5,
+        frames: 20,
+        frames_per_second: 10.0,
         alt: alt.to_string(),
     }
 }
@@ -286,7 +292,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Using the radar",
             looping(
                 "combat_radar",
-                "a contact marked ahead of the ship, its range beside the bracket",
+                "the radar marking a contact ahead of the ship: the lock charges, \
+                 then the bracket lands on it",
             ),
             "Hold radar to sweep for contacts and mark one. A tap clears the \
              mark. Autopilot orders and weapon locks both work from the contact \

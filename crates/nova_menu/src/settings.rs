@@ -351,6 +351,54 @@ impl TrainingPromptSetting {
     }
 }
 
+/// Whether the main menu shows its FIELD NOTE.
+///
+/// Separate from [`TrainingPromptSetting`] because the two cards in the corner
+/// are different promises. The training prompt is a first-launch OFFER: it is
+/// answered once and then gone. A field note is a standing hint - a fact from
+/// the handbook, a new one each time the menu comes up - and a player who does
+/// not want hints is not answering anything, they are turning a feature off.
+/// One switch could not mean both.
+///
+/// `Shown` is the default: the hint is the point of the corner. `Don't show
+/// again` on the card and Settings > Interface write the same setting, so the
+/// card can be dismissed where it stands and brought back where every other
+/// preference lives.
+///
+/// Only the MENU corner. The same notes also fill the loading screens' slot,
+/// where they are furniture on a screen with nothing else to read, and no
+/// switch here touches those.
+///
+/// `Resource`-only on purpose, like its neighbours: on Bevy 0.19 a
+/// `#[derive(Resource)]` type is component-backed, so this doubles as the
+/// `Component` that `button_on_setting::<FieldNoteSetting>` needs.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FieldNoteSetting {
+    /// The note card is up on the main menu.
+    #[default]
+    Shown,
+    /// The player switched the hints off.
+    Hidden,
+}
+
+impl FieldNoteSetting {
+    /// The options, in row order.
+    const ALL: [Self; 2] = [Self::Shown, Self::Hidden];
+
+    /// What the option reads.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Shown => "On",
+            Self::Hidden => "Off",
+        }
+    }
+
+    /// Whether the note card draws.
+    pub(crate) fn shown(self) -> bool {
+        matches!(self, Self::Shown)
+    }
+}
+
 /// Whether the window fills the screen. Native only: the web build already
 /// fits its canvas, and a browser cannot go fullscreen without a user gesture
 /// the settings row does not carry.
@@ -526,6 +574,7 @@ pub(crate) struct SettingsValues<'w> {
     skin: Res<'w, UiSkin>,
     window_mode: Res<'w, WindowModeSetting>,
     prompt: Res<'w, TrainingPromptSetting>,
+    field_note: Res<'w, FieldNoteSetting>,
 }
 
 /// Fill every [`SettingsTabBody`] with the open tab.
@@ -578,7 +627,9 @@ pub(crate) fn refresh_settings_tab(
                     skin,
                 );
             }
-            SettingsTabKind::Interface => build_interface_tab(list, skin, *values.prompt),
+            SettingsTabKind::Interface => {
+                build_interface_tab(list, skin, *values.prompt, *values.field_note);
+            }
         });
     }
 }
@@ -769,13 +820,15 @@ fn build_graphics_tab(
     let _ = window_mode;
 }
 
-/// INTERFACE - the UI skin choice and the menu's corner prompt. Both are
-/// segmented controls wired through `ButtonValue<T>` + the app-global
-/// `button_on_setting::<T>` observer, exactly like the graphics preset.
+/// INTERFACE - the UI skin choice and the two cards the menu's corner can
+/// carry. All three are segmented controls wired through `ButtonValue<T>` +
+/// the app-global `button_on_setting::<T>` observer, exactly like the graphics
+/// preset.
 fn build_interface_tab(
     list: &mut ChildSpawnerCommands,
     skin: UiSkin,
     prompt: TrainingPromptSetting,
+    field_note: FieldNoteSetting,
 ) {
     list.spawn(panel_header("Skin"));
     list.spawn((Name::new("UI Skin Row"), segmented_container(skin)))
@@ -807,6 +860,22 @@ fn build_interface_tab(
                     ButtonValue(option),
                 ));
                 if option == prompt {
+                    button.insert(Selected);
+                }
+            }
+        });
+
+    list.spawn(separator());
+    list.spawn(panel_header("Field notes"));
+    list.spawn((Name::new("Field Notes Row"), segmented_container(skin)))
+        .with_children(|row| {
+            for option in FieldNoteSetting::ALL {
+                let mut button = row.spawn((
+                    Name::new(format!("Field Notes {}", option.label())),
+                    segmented_option(option.label()),
+                    ButtonValue(option),
+                ));
+                if option == field_note {
                     button.insert(Selected);
                 }
             }

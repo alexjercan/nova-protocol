@@ -9,9 +9,9 @@ the picker's art gap - a deterministic PNG per lesson in the NOVA OS phosphor
 look, rendered from the lesson's own title and id so every lesson looks
 DIFFERENT and the screen stops looking broken.
 
-A still is one 480x270 frame. A loop is a 4x3 sheet of twelve 240x135 cells -
+A still is one 480x270 frame. A loop is a 4x5 sheet of twenty 240x135 cells -
 the grid `crates/nova_authoring/src/base_content/lessons.rs` authors - carrying
-one second of periodic motion, so the frame the screen cuts out genuinely
+two seconds of periodic motion, so the frame the screen cuts out genuinely
 animates instead of flickering between two stills.
 
 That is a QUARTER of the size captured footage ships at, and deliberately so:
@@ -19,12 +19,12 @@ this art is drawn a pixel at a time in Python, and the screen it imitates is a
 low-resolution CRT. The grid is what the game cuts on, not the cell size, so a
 placeholder and a capture sit at the same path on the same lesson.
 
-Overwrite any generated file with real art at the same path and no code change
-is needed, the same contract the scenario thumbnails have - and REAL ART WINS:
-a file that is not this generator's own output is left exactly as it is, by
-both modes. That is what makes `scripts/capture-lesson-media.sh` safe to run
-against the same paths; a re-run of this generator cannot quietly replace
-captured footage with a placeholder again.
+Real art lands at the same path with no code change, the same contract the
+scenario thumbnails have - and REAL ART WINS: a lesson named in
+`scripts/capture-lesson-media.sh`'s `PRODUCERS` table is never drawn here, by
+either mode, so running the two in either order is safe. The table is read
+rather than inferred from the file, because inferring gets a changed grid
+exactly backwards.
 
 The grid must keep matching the authored `columns`/`rows`/`frames`, and
 `--check` is what proves that for the lessons still on placeholders: it
@@ -82,8 +82,10 @@ CELL_W, CELL_H = 240, 135
 
 # The sheet grid the base lessons author. Changing it here means changing
 # `looping()` in `lessons.rs` in the same commit - the game cuts the cells by
-# the AUTHORED grid, not by anything in the file.
-COLUMNS, ROWS, FRAMES = 4, 3, 12
+# the AUTHORED grid, not by anything in the file. The motion below is written
+# against `t = nth / FRAMES`, so a longer sheet is a slower sweep, not a
+# truncated one.
+COLUMNS, ROWS, FRAMES = 4, 5, 20
 
 # Every base lesson: (lesson id, screen title, "still" or "loop"). The output
 # path is `assets/base/training/<id>.webp` for all of them, listed in
@@ -241,7 +243,7 @@ def render_still(lesson_id, title):
 
 
 def render_loop(lesson_id, title):
-    """One 4x3 sheet of twelve 240x135 cells carrying a second of motion."""
+    """One 4x5 sheet of twenty 240x135 cells carrying two seconds of motion."""
     rng = random.Random(seed_of(lesson_id))
     ink = ink_of(lesson_id)
     stars = starfield(rng, CELL_W, CELL_H, 45)
@@ -338,11 +340,30 @@ def path_of(lesson_id):
     return os.path.join(REPO_ROOT, "assets", "base", "training", f"{lesson_id}.webp")
 
 
-def is_generated_placeholder(lesson_id, title, kind):
-    """True when the committed file still draws exactly this generator's art.
+def captured_lessons():
+    """The lesson ids a capture producer owns, read from the capture script.
 
-    How the advisory coverage report tells a placeholder from real art without
-    a marker file: real art overwrites the same path and stops matching.
+    The one place that knows which lessons have real footage is
+    `scripts/capture-lesson-media.sh`'s own `PRODUCERS` table, so this reads
+    THAT rather than guessing from the pixels. Guessing is what a comparison
+    against a fresh render would do, and it gets the one case that matters
+    backwards: change the authored grid and every stale placeholder stops
+    matching, which would read as "real footage, leave it alone" and quietly
+    ship 21 sheets cut on the wrong grid."""
+    script = os.path.join(REPO_ROOT, "scripts", "capture-lesson-media.sh")
+    with open(script, encoding="utf-8") as handle:
+        source = handle.read()
+    table = source.split("\nPRODUCERS=(", 1)[1].split("\n)", 1)[0]
+    owned = set()
+    for line in table.splitlines():
+        line = line.strip().strip('"')
+        if line.count("|") == 2:
+            owned.add(line.split("|")[1])
+    return owned
+
+
+def matches_a_fresh_render(lesson_id, title, kind):
+    """True when the committed file still draws exactly this generator's art.
 
     PIXELS, not file bytes. The comparison has to survive a libwebp that packs
     the same image differently, and a lossless format is what makes comparing
@@ -355,26 +376,31 @@ def is_generated_placeholder(lesson_id, title, kind):
 
 
 def check():
-    """Placeholders must match a fresh render; captured footage is left alone.
+    """Every demonstration is on disk, and every placeholder is up to date.
 
-    A file that differs from a fresh render is REAL ART, not a stale
-    placeholder: the capture producers write the same paths, so "differs" is
-    how this tells the two apart (`is_generated_placeholder`). Only a missing
-    file is a failure - there is nothing on the screen for that lesson."""
-    missing, captured = [], []
+    Three outcomes per lesson. CAPTURED: a producer owns it, so this only
+    checks it is there. STALE: no producer, and the committed file is not what
+    this generator draws today - the authored grid moved, or the title did, and
+    the file is cut on the old one. MISSING: nothing at the path at all. The
+    last two fail."""
+    owned = captured_lessons()
+    missing, captured, stale = [], [], []
     for lesson_id, title, kind in LESSONS:
-        path = path_of(lesson_id)
-        if not os.path.exists(path):
+        if not os.path.exists(path_of(lesson_id)):
             missing.append(lesson_id)
-        elif not is_generated_placeholder(lesson_id, title, kind):
+        elif lesson_id in owned:
             captured.append(lesson_id)
+        elif not matches_a_fresh_render(lesson_id, title, kind):
+            stale.append(lesson_id)
     for lesson_id in missing:
         print(f"  MISSING  assets/base/training/{lesson_id}.webp")
+    for lesson_id in stale:
+        print(f"  STALE    assets/base/training/{lesson_id}.webp")
     for lesson_id in captured:
-        print(f"  CAPTURED assets/base/training/{lesson_id}.webp (real footage, not regenerated)")
-    if missing:
-        print(f"\n{len(missing)} of {len(LESSONS)} lesson demonstration(s) missing - "
-              "run scripts/gen-lesson-media.py", file=sys.stderr)
+        print(f"  CAPTURED assets/base/training/{lesson_id}.webp (a producer owns it)")
+    if missing or stale:
+        print(f"\n{len(missing)} missing and {len(stale)} stale of {len(LESSONS)} lesson "
+              "demonstration(s) - run scripts/gen-lesson-media.py", file=sys.stderr)
         return 1
     drawn = len(LESSONS) - len(captured)
     print(f"{drawn} placeholder(s) match a fresh render (pixel for pixel); "
@@ -383,19 +409,20 @@ def check():
 
 
 def generate():
-    """Draw a placeholder for every lesson that is still on one.
+    """Draw a placeholder for every lesson no capture producer owns.
 
-    Captured footage is NEVER overwritten: a lesson whose file is not this
-    generator's own output is real art, and redrawing it would undo a capture
-    run. Delete the file to go back to a placeholder."""
+    Captured footage is NEVER overwritten - not because the file looks
+    unfamiliar, but because `scripts/capture-lesson-media.sh` declares that
+    lesson as its own. To go back to a placeholder, take the producer out of
+    that table."""
+    owned = captured_lessons()
     os.makedirs(os.path.join(REPO_ROOT, "assets", "base", "training"), exist_ok=True)
     drawn, kept = 0, []
     for lesson_id, title, kind in LESSONS:
-        path = path_of(lesson_id)
-        if os.path.exists(path) and not is_generated_placeholder(lesson_id, title, kind):
+        if lesson_id in owned:
             kept.append(lesson_id)
             continue
-        with open(path, "wb") as handle:
+        with open(path_of(lesson_id), "wb") as handle:
             handle.write(encoded(lesson_id, title, kind))
         drawn += 1
     print(f"wrote {drawn} placeholder demonstration(s) to assets/base/training/")

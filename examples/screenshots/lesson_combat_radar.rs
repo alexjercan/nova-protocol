@@ -1,15 +1,18 @@
 //! lesson_combat_radar: the training handbook's demonstration for "Using the
 //! radar" (`assets/base/training/combat_radar.webp`).
 //!
-//! The nav radar sweeps the hollow, marks a contact, and the sheet is recorded
-//! with the mark standing on the HUD - which is the lesson: hold the gesture,
-//! sweep, mark one.
+//! An ACTION loop (see `shared/lesson.rs`): the lock is acquired INSIDE the
+//! recording. The sheet opens on an unmarked contact, the gesture goes down,
+//! the acquisition dwell charges, the bracket lands, and the rest of the cells
+//! hold it - which is the lesson, in the order a player does it.
 //!
-//! The mark is committed BEFORE the camera moves. Releasing the gesture stops
-//! the retargeting and keeps the last candidate (`nova_ship`'s radar search),
-//! so the sweep that makes the sheet close cannot swing the mark onto another
-//! hull mid-record. The HUD stays up here, unlike the scene lessons: the
-//! instrument IS the subject.
+//! So the camera does NOT move here. A pose loop needs a sweep to make its
+//! last cell hand back to its first; this one has something happening in it
+//! already, and a camera drifting under an acquisition is one moving thing too
+//! many - it also risks walking the look ray off the candidate, which restarts
+//! the dwell (`nova_ship`'s radar search). A still camera wraps cleanly on its
+//! own. The HUD stays up, unlike the scene lessons: the instrument IS the
+//! subject.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole script, exit
@@ -33,7 +36,7 @@ mod lesson;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{hold_lesson_camera, lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID};
+use lesson::{lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -46,43 +49,51 @@ struct Cli;
 #[cfg(feature = "debug")]
 const LESSON: &str = "combat_radar";
 
-/// What the sweep looks at: a point far down the player's own bearing, so the
+/// What the view looks at: a point far down the player's own bearing, so the
 /// camera sits over its shoulder and the ray it aims the radar along runs out
 /// to where the contact is.
 #[cfg(feature = "debug")]
-const SWEEP_SUBJECT: Meters3 = Meters3::new(0.0, 6.0, -250.0);
+const VIEW_SUBJECT: Meters3 = Meters3::new(0.0, 6.0, -250.0);
 /// How far the camera stands off that point. With the subject 250 m ahead this
 /// leaves the camera about 220 m behind the player - four times the corvette's
 /// 55 m bounding radius, so the hull reads whole in the cell instead of
 /// running off its edge.
 #[cfg(feature = "debug")]
-const SWEEP_RANGE: Meters = Meters(460.0);
+const VIEW_RANGE: Meters = Meters(460.0);
 /// How far above the subject the camera rides. High enough to look DOWN on the
 /// player rather than up its exhaust: from behind and level, a corvette under
 /// power is one lit engine bell filling the lower corner.
 #[cfg(feature = "debug")]
-const SWEEP_HEIGHT: Meters = Meters(70.0);
+const VIEW_HEIGHT: Meters = Meters(70.0);
 /// Centred off the player's shoulder rather than straight down its spine, so
-/// the hull does not stand in front of the contact it marked.
+/// the hull does not stand in front of the contact it marks.
 #[cfg(feature = "debug")]
-const SWEEP_BEARING_DEGREES: f32 = 6.0;
-/// Half the sweep's width. Tighter than a scene lesson's: the mark has to stay
-/// where the eye found it. At this range it is still a 24 m swing either way.
+const VIEW_BEARING_DEGREES: f32 = 6.0;
+/// How many cells run before the gesture goes down.
+///
+/// The sheet has to open on the state BEFORE the act, or a player sees the
+/// answer and never sees the question. Three cells is a third of a second: long
+/// enough to read as "no mark yet", short enough to leave the whole
+/// acquisition and a held result inside twenty.
 #[cfg(feature = "debug")]
-const SWEEP_ARC_DEGREES: f32 = 3.5;
+const LEAD_IN_CELLS: u32 = 3;
 
-/// The camera path this lesson records over. Built in one place because the
-/// beats that AIM the radar pose from it too: the radar picks by the camera's
-/// own look ray, so the view that latches the mark has to be the view that
-/// records it.
+/// Where the camera stands for the whole recording.
+///
+/// A [`LessonSweep`] with NO ARC: this is an action loop, so the camera holds
+/// (see the module docs). The sweep type still drives it, because the camera
+/// has to be written EVERY frame to stay put - a zero arc makes every frame of
+/// that path the same place. It is also what aims the radar: the search picks
+/// by the camera's own look ray, so the view that latches the mark is the view
+/// that records it.
 #[cfg(feature = "debug")]
-fn sweep() -> LessonSweep {
+fn view() -> LessonSweep {
     LessonSweep::new(
-        SWEEP_SUBJECT,
-        SWEEP_RANGE,
-        SWEEP_HEIGHT,
-        SWEEP_BEARING_DEGREES,
-        SWEEP_ARC_DEGREES,
+        VIEW_SUBJECT,
+        VIEW_RANGE,
+        VIEW_HEIGHT,
+        VIEW_BEARING_DEGREES,
+        0.0,
     )
 }
 
@@ -98,7 +109,15 @@ fn main() -> bevy::app::AppExit {
         ));
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         app.add_plugins(radar_lesson_script());
-        app.add_systems(Update, sweep_lesson_camera);
+        // Nothing in the WORLD moves under an action loop. The only thing that
+        // changes between the first cell and the last is the instrument, so
+        // the sheet wraps on a scene that is exactly where it started.
+        //
+        // `freeze_bodies` pins the hulls and the rocks. `sweep_lesson_camera`
+        // pins the VIEW: the scenario camera eases back toward its own target
+        // every frame, so a pose set once drifts a cell at a time, and a
+        // zero-arc sweep is the same pose written again on each of them.
+        app.add_systems(Update, (freeze_bodies, sweep_lesson_camera));
         // Only under the script, like the other hollow producers: the set's
         // geometry - and so which body the sweep marks - is measured from a
         // player at the origin, and a plain run is the owner flying it.
@@ -160,37 +179,55 @@ fn radar_lesson_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .deadline(30.0)
         .add()
         .step("settle the hollow")
-        .on_enter(|world| {
-            hollow::hold_station(world);
-            hollow::nudge_raider(world);
-        })
+        .on_enter(hollow::hold_station)
         .until(elapsed(2.0))
         .add()
         // Frame FIRST: the radar picks by the camera's look ray, so the shot's
-        // own view is what aims the sweep.
+        // own view is what aims the gesture.
         .step("raise the instruments and frame the bearing")
         .on_enter(|world: &mut World| {
             hollow::hud_instrument(world);
-            hold_lesson_camera(world, sweep());
+            world.insert_resource(view());
         })
         .until(elapsed(0.5))
         .add()
-        .step("sweep the nav radar")
-        .on_enter(hollow::hold_radar)
-        .until(the_raider_is_marked())
-        .deadline(20.0)
-        .add()
-        // Commit: from here the mark is held and the camera is free to move.
-        .step("commit the mark")
-        .on_enter(hollow::release_radar)
-        .until(elapsed(0.5))
-        .add()
-        .step("record the radar sheet")
+        // The recording opens BEFORE the gesture: these cells are the state a
+        // player starts from, and without them the sheet only ever shows the
+        // answer.
+        .step("open the sheet on an unmarked contact")
         .on_enter(|world: &mut World| {
-            world.insert_resource(sweep());
             sheet_start(world, LESSON, LESSON_GRID);
         })
+        .until(frames(LEAD_IN_CELLS))
+        .add()
+        // Inside the recording, so the dwell ring charging and the bracket
+        // landing are cells of the sheet rather than something that happened
+        // before it.
+        .step("hold the radar on the contact")
+        .on_enter(hollow::hold_radar)
+        .until(the_raider_is_marked())
+        .deadline(30.0)
+        .add()
+        // Releasing stops the RETARGETING and keeps the last candidate, so the
+        // remaining cells hold the mark rather than hunting for another.
+        .step("release, and hold the mark for the rest of the sheet")
+        .on_enter(hollow::release_radar)
         .until(sheet_written(LESSON))
         .deadline(60.0)
+        .add()
+        // The sheet is twenty cells long and the acquisition dwell is about
+        // 0.7 s of it; a scene that made the dwell restart would tile a sheet
+        // with no bracket in it at all, and that must fail the run rather than
+        // ship.
+        .step("the sheet caught the mark")
+        .on_enter(|world: &mut World| {
+            assert!(
+                the_raider_is_marked()(world),
+                "the sheet closed before the radar committed: the lesson would show a gesture \
+                 that never lands. Give the acquisition more cells (LEAD_IN_CELLS) or check \
+                 that the view still holds the raider."
+            );
+        })
+        .until(frames(1))
         .add()
 }

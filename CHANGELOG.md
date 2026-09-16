@@ -191,7 +191,7 @@ does NOT get an entry - and it is the only place they are written down.
 ### Interface & HUD
 - The main menu opens a training handbook: 24 lessons in six categories, one
   screen each with a demonstration recorded from the game - a still, or a
-  one-second loop - your own bindings, a wiki link, and a Practice button that
+  two-second loop - your own bindings, a wiki link, and a Practice button that
   flies a range.
 - A first launch is offered Basic Training from the menu's corner. Taking it or
   answering `Not now` puts the card away for good; Settings > Interface brings
@@ -199,9 +199,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The handbook keeps what you have done, in its own file beside your settings: a
   lesson you open reads `read`, one reads `done` only once you win a scenario
   that teaches it.
-- Field notes: a two-line fact from the handbook sits on the menu's corner with
-  its lesson one click away, and in each loading screen's slot. A scenario load
-  draws a note about that range.
+- Field notes: a two-line fact from the handbook on the menu's corner, its
+  lesson a click away, and in each loading screen's slot. `Don't show again`,
+  or Settings > Interface, switches the card.
 - A docking sight draws the approach in the world: a cross over each port face,
   a line between them, and a tick per cell of capture distance. Each half turns
   green when its half of the envelope holds.
