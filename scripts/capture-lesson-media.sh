@@ -84,6 +84,7 @@ PRODUCERS=(
     "lesson_novaos|novaos_open:loop,novaos_view:loop"
     "lesson_novaos_contacts|novaos_contacts:still"
     "lesson_novaos_prompt|novaos_terminal:loop,novaos_commands:loop"
+    "lesson_novaos_ship|novaos_service:loop,novaos_rebind_section:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
 )
 

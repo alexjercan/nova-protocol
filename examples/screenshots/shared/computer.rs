@@ -27,6 +27,7 @@ use bevy::input::{
     ButtonState,
 };
 use bevy::prelude::*;
+use nova_input::prelude::InputSource;
 #[cfg(feature = "debug")]
 use nova_protocol::nova_os_ui::nova_os::prelude::{NovaOsTerminal, TerminalMode};
 use nova_protocol::prelude::*;
@@ -54,7 +55,19 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
     let player = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: BTreeMap::new(),
+            // The turret carries the trigger a player ship's turret carries -
+            // the same pair `shared/hollow.rs` writes for every gun it places.
+            // A section with NO binding cannot be rebound: the SHIP app reads
+            // the binding component to decide whether its rebind button is
+            // live, so a range with an empty mapping is a range where the
+            // rebind lesson has nothing to photograph.
+            input_mapping: BTreeMap::from([(
+                "player_turret".to_string(),
+                vec![
+                    InputSource::Mouse(MouseButton::Left),
+                    InputSource::Gamepad(GamepadButton::RightTrigger2),
+                ],
+            )]),
             speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {

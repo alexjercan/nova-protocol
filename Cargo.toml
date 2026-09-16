@@ -749,6 +749,10 @@ name = "lesson_novaos_prompt"
 path = "examples/screenshots/lesson_novaos_prompt.rs"
 
 [[example]]
+name = "lesson_novaos_ship"
+path = "examples/screenshots/lesson_novaos_ship.rs"
+
+[[example]]
 name = "lesson_menu_advanced"
 path = "examples/screenshots/lesson_menu_advanced.rs"
 

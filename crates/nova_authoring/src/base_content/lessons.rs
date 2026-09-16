@@ -890,10 +890,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             NovaOs,
             35,
             "Repair and reload a section",
-            still(
+            looping(
                 "novaos_service",
-                "the SHIP app with one damaged section selected, its ASCII integrity meter in \
-                 the inspector",
+                "the SHIP app's inspector on a damaged PDC-1: repair fills the integrity meter to \
+                 `100% [##########]` and prints `repaired PDC-1`, then reload takes the magazine \
+                 from `1/500` back to `500/500`",
             ),
             "Sections carry short codes - HULL-1, THR-1, CTL-1, PDC-1, TRB-1 - stable for the \
              session and shared by the app and the prompt. Select one and repair restores its \
@@ -910,9 +911,12 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             NovaOs,
             45,
             "Rebinding a section",
-            still(
+            looping(
                 "novaos_rebind_section",
-                "the SHIP app armed for a rebind, PRESS A KEY OR MOUSE BUTTON across the panel",
+                "the SHIP app's inspector on PDC-1: arming the rebind puts `PRESS A KEY OR MOUSE \
+                 BUTTON - ESC CANCELS` across the panel in amber, and the next key takes the \
+                 trigger - the binding line turns from `LMB / Right Trigger 2` to `K / Right \
+                 Trigger 2`",
             ),
             "Your thrusters, turrets and tubes fire on per-ship triggers that Settings does not \
              list. Select the section in the SHIP app and arm rebind; the next key or mouse button \
