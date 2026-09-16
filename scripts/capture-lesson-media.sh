@@ -74,6 +74,7 @@ PRODUCERS=(
     "lesson_flight_aim|flight_aim:loop"
     "lesson_flight_basics|flight_momentum:loop,flight_stop:loop,flight_rcs:loop"
     "lesson_flight_orders|flight_goto:loop,flight_orbit:loop"
+    "lesson_flight_limits|flight_speedcap:loop,flight_cancel:loop"
     "lesson_combat_radar|combat_radar:loop"
     "lesson_combat_moves|combat_stance:loop,combat_components:loop,combat_turrets:still"
     "lesson_combat_torpedoes|combat_torpedoes:loop"

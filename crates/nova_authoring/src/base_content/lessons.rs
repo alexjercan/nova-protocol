@@ -257,10 +257,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Flight,
             25,
             "The speed cap",
-            still(
+            looping(
                 "flight_speedcap",
-                "a held burn levelling off against the range's soft speed cap, the speed chip \
-                 steady",
+                "a held burn climbing against the range's soft cap: the speed chip reads 138.7 / \
+                 150.0 m/s and settles on 150.0 with the drive still lit",
             ),
             "A scenario can put a soft cap on your manual burn: Basic Training flies under 150 \
              m/s. It caps your TOTAL speed, not the heading you point, so a held throttle tapers \
@@ -294,10 +294,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Flight,
             35,
             "Taking the ship back",
-            still(
+            looping(
                 "flight_cancel",
-                "an engaged maneuver dropping the moment the main drive lights, the mode chip \
-                 clearing",
+                "a braking order running, then the main drive lighting: the AP STOP chip goes \
+                 out, the CANCEL chip leaves the dock and the shell turns from nav cyan to blue",
             ),
             "CANCEL drops any engaged maneuver and hands the ship back already moving. So does a \
              main-drive burn, a bound thruster key, entering RCS, or pressing the engaged verb \

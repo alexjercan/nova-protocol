@@ -141,9 +141,13 @@
         category: Flight,
         order: 25,
         title: "The speed cap",
-        media: Image(
-            image: "self://training/flight_speedcap.webp",
-            alt: "a held burn levelling off against the range\'s soft speed cap, the speed chip steady",
+        media: Loop(
+            sheet: "self://training/flight_speedcap.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a held burn climbing against the range\'s soft cap: the speed chip reads 138.7 / 150.0 m/s and settles on 150.0 with the drive still lit",
         ),
         body: "A scenario can put a soft cap on your manual burn: Basic Training flies under 150 m/s. It caps your TOTAL speed, not the heading you point, so a held throttle tapers off there instead of accelerating forever. A braking burn is never capped.",
         actions: [
@@ -187,9 +191,13 @@
         category: Flight,
         order: 35,
         title: "Taking the ship back",
-        media: Image(
-            image: "self://training/flight_cancel.webp",
-            alt: "an engaged maneuver dropping the moment the main drive lights, the mode chip clearing",
+        media: Loop(
+            sheet: "self://training/flight_cancel.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a braking order running, then the main drive lighting: the AP STOP chip goes out, the CANCEL chip leaves the dock and the shell turns from nav cyan to blue",
         ),
         body: "CANCEL drops any engaged maneuver and hands the ship back already moving. So does a main-drive burn, a bound thruster key, entering RCS, or pressing the engaged verb again. Moving the mouse does not: while the computer flies, the mouse is camera only.",
         actions: [
