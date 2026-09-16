@@ -132,7 +132,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>) {
                         texture: texture.clone(),
                         // THE variable. Everything else in this config is the
                         // same in all fifteen cells.
-                        material: (*kind).to_string(),
+                        kind: (*kind).to_string(),
                         destroy_sound: None,
                         mass: None,
                         invulnerable: false,

@@ -12,25 +12,27 @@
 //! `asteroid_surface.wgsl` spends it. The id is not new: it is
 //! [`AsteroidConfig::material`](super::asteroid::AsteroidConfig::material),
 //! which already exists, is already authored per rock, and already says "ice or
-//! metal body" in its own docs. It reached the impact table and nothing else.
-//! Now it reaches the surface too, and it is where an ore yield attaches next -
-//! one id, one authored field, three consumers.
+//! metal body" in its own docs. It drives the surface, and it is where an ore
+//! yield attaches next - one id, one authored field.
 //!
-//! Ids are OPEN STRINGS, not an enum, for the reason
-//! [`SurfaceMaterial`](nova_gameplay::prelude::SurfaceMaterial) is: a mod fields
-//! a new rock by naming one, and the table it names is data rather than a Rust
-//! variant list.
+//! It is NOT what a round sounds like against the rock. That is
+//! [`ImpactSurface`](nova_gameplay::prelude::ImpactSurface), which is closed and
+//! engine-owned and answers `Rock` for every kind here: a nickel-iron body and
+//! an ice body are two LOOKS of one substance as far as the sample library
+//! goes.
+//!
+//! Ids are OPEN STRINGS, not an enum, because a mod fields a new rock by naming
+//! one, and the table it names is data rather than a Rust variant list.
 //!
 //! Open does NOT mean forgiving. An id this table does not know is an ERROR,
 //! not a grey rock: the scenario lint refuses it before the file ships, and the
 //! render path refuses it again and says which body and which id. A mod author
 //! who typed `granit` has to hear about it, and a rock that silently became
 //! stone would be the one way they never would. There is no default kind and
-//! nothing resolves an absent one - [`AsteroidConfig::material`] is required,
-//! so a rock that does not say what it is made of does not load at all.
+//! nothing resolves an absent one - [`AsteroidConfig::kind`] is required, so a
+//! rock that does not say what it is made of does not load at all.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::MATERIAL_ROCK;
 
 /// The kind tag, the shading a kind resolves to, and the ids the base game
 /// ships.
@@ -44,11 +46,9 @@ pub mod prelude {
 
 /// Ordinary stone, and what most of the belt is made of.
 ///
-/// The same string as [`MATERIAL_ROCK`], deliberately: the one id names both
-/// what a round sounds like against this rock and what the rock looks like.
-/// It is not a default - every asteroid names its kind, and one that names
-/// nothing does not load.
-pub const KIND_ROCK: &str = MATERIAL_ROCK;
+/// Not a default - every asteroid names its kind, and one that names nothing
+/// does not load.
+pub const KIND_ROCK: &str = "rock";
 
 /// Nickel-iron: dark, cold-toned, metallic, with a bright seam network.
 pub const KIND_METAL: &str = "metal";
@@ -71,10 +71,10 @@ pub const KIND_PLAIN: &str = "plain";
 /// The resolved kind id this rock was built with, carried on the asteroid root.
 ///
 /// A separate component from
-/// [`SurfaceMaterial`](nova_gameplay::prelude::SurfaceMaterial) even though both
-/// hold the same string: that one is the audio table's key and lives in
-/// nova_gameplay, and a render observer has no business reading it. This is what
-/// a future mining or ore system reads too.
+/// [`ImpactSurface`](nova_gameplay::prelude::ImpactSurface), which sits beside
+/// it on the same root: that one is closed and says what a round bites into,
+/// this one is open and says how the rock is shaded. This is what a future
+/// mining or ore system reads too.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidKind(pub String);
 
@@ -155,12 +155,12 @@ pub fn asteroid_kind_at<S: AsRef<str>>(mix: &[(S, u32)], index: usize) -> Option
 /// otherwise; none of them is a length, so none of them is in meters.
 ///
 /// Rust-side for now. The RON surface this round is the kind ID
-/// ([`AsteroidConfig::material`](super::asteroid::AsteroidConfig::material))
-/// plus the silhouette seed - a kind is picked, not authored. Making the LOOK
-/// authorable is one content kind away: give this struct `serde` and an `id`,
-/// register it the way `ImpactSoundConfig` is registered, and resolve through
-/// the merged registry instead of [`asteroid_kind_look`]. That is the whole
-/// remaining step, and nothing else has to move.
+/// ([`AsteroidConfig::kind`](super::asteroid::AsteroidConfig::kind)) plus the
+/// silhouette seed - a kind is picked, not authored. Making the LOOK authorable
+/// is one content kind away: give this struct `serde` and an `id`, register it
+/// the way a section is registered, and resolve through the merged registry
+/// instead of [`asteroid_kind_look`]. That is the whole remaining step, and
+/// nothing else has to move.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AsteroidKindLook {
     /// The dark end of the palette: what the low ground of the macro noise is
@@ -454,13 +454,6 @@ mod tests {
         for (id, summary) in ASTEROID_KIND_SUMMARIES {
             assert!(!summary.is_empty(), "'{id}' offers no explanation");
         }
-    }
-
-    /// Stone's id is the impact table's rock id, so one authored string keeps
-    /// answering the sound question and the look question.
-    #[test]
-    fn the_rock_kind_id_is_the_rock_material_id() {
-        assert_eq!(KIND_ROCK, MATERIAL_ROCK);
     }
 
     /// The control has to BE the control: any knob left on would put the before

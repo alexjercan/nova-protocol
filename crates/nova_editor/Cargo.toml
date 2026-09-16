@@ -39,7 +39,7 @@ workspace = true
 debug = ["bevy/track_location", "nova_gameplay/debug"]
 
 [dev-dependencies]
-# The Generate tests read the SHIPPED catalog, grammar and styles out of the
+# The Generate tests read the SHIPPED catalog and styles out of the
 # builders rather than off disk, so they fail on a content change rather than
 # on a missing asset server.
 nova_authoring = { path = "../nova_authoring" }

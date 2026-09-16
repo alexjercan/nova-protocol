@@ -392,11 +392,11 @@ impl ShellShape {
     /// symmetric about the out axis, so standing up it is the one answer that
     /// does not pick a side.
     ///
-    /// Nothing here decides WHETHER a piece may stand on a cone; that is
-    /// [`ScatterSeat`], and by default it may not.
+    /// Nothing here decides WHETHER a piece may stand on a cone; that is the
+    /// fixture's [`FixtureRegion`], and only the high ground allows it.
     ///
     /// [`decor_pose`]: super::skin_decor::decor_pose
-    /// [`ScatterSeat`]: super::skin_style::ScatterSeat
+    /// [`FixtureRegion`]: super::skin_style::FixtureRegion
     pub fn seat_normal(&self) -> Vec3 {
         match self.is_coplanar() {
             true => self.top_normal(),

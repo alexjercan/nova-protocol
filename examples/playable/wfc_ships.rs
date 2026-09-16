@@ -306,7 +306,6 @@ fn load_row(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
@@ -323,7 +322,6 @@ fn load_row(
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
-        &grammars,
         *roster,
         style,
     )));
@@ -340,7 +338,6 @@ fn reroll_on_key(
     keyboard: Res<ButtonInput<KeyCode>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
-    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     mut roster: ResMut<Roster>,
 ) {
@@ -360,7 +357,6 @@ fn reroll_on_key(
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
-        &grammars,
         *roster,
         style,
     )));
@@ -386,11 +382,10 @@ fn stand_position(index: usize, ships: usize) -> Vec3 {
 fn wfc_row(
     game_assets: &GameAssets,
     sections: &GameSections,
-    grammars: &GameGrammars,
     roster: Roster,
     style: StyleId,
 ) -> ScenarioConfig {
-    let tiles = TileSet::from_catalog(sections, grammars, STANDARD_HULL_GRAMMAR_ID)
+    let tiles = TileSet::build(sections, &WfcPlan::standard_hull())
         .unwrap_or_else(|error| panic!("wfc_ships: {error}"));
     let ships = (0..roster.ships).map(|index| {
         let seed = roster.seed.wrapping_add(index as u64);
@@ -728,7 +723,6 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .on_enter(|world: &mut World| {
             let assets = world.resource::<GameAssets>().clone();
             let sections = world.resource::<GameSections>().clone();
-            let grammars = world.resource::<GameGrammars>().clone();
             let styles = world.resource::<GameStyles>().clone();
             let next = Roster {
                 clad: false,
@@ -736,9 +730,7 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             };
             *world.resource_mut::<Roster>() = next;
             let style = style_at(&styles, next.style);
-            world.trigger(LoadScenario(wfc_row(
-                &assets, &sections, &grammars, next, style,
-            )));
+            world.trigger(LoadScenario(wfc_row(&assets, &sections, next, style)));
         })
         .until(and(scenario_camera_present(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)

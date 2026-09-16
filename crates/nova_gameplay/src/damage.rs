@@ -28,7 +28,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::{
-    impact_sound::prelude::{GameImpacts, SurfaceMaterial},
+    impact_sound::prelude::{ImpactSounds, ImpactSurface},
     integrity::{
         carve::prelude::{record_blast_marks, record_damage_mark},
         health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
@@ -289,7 +289,7 @@ pub struct SurfaceImpact {
     pub entity: Entity,
     /// Which weapon class paid for the hit - the round-side half of "what hit
     /// what". The target-side half is the struck body's
-    /// [`SurfaceMaterial`](crate::impact_sound::SurfaceMaterial).
+    /// [`ImpactSurface`](crate::impact_sound::ImpactSurface).
     pub kind: DamageType,
     /// Where it landed, in world space.
     pub at: Vec3,
@@ -845,12 +845,12 @@ impl Plugin for NovaDamagePlugin {
             .register_type::<ProjectileDamage>()
             .register_type::<SectionClass>()
             .register_type::<NovaBlast>()
-            .register_type::<SurfaceMaterial>()
+            .register_type::<ImpactSurface>()
             .init_resource::<PendingBlastHits>()
-            // Empty unless the content merge overwrites it, so a rig that
-            // loads no content resolves no hit voice rather than panicking on
-            // a missing resource.
-            .init_resource::<GameImpacts>();
+            // The four fixed impact samples, loaded here because the hit voice
+            // is engine policy: there is no catalog to merge and no id to
+            // resolve, only four files the engine knows the names of.
+            .init_resource::<ImpactSounds>();
         app.add_observer(collect_nova_blast_collision);
         app.add_systems(
             FixedPostUpdate,

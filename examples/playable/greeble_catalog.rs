@@ -66,11 +66,6 @@ const LABEL_STAGGER: f32 = 0.45;
 /// The pedestal plate's thickness. A plate, not a plinth: its top face is the
 /// `y = 0` mounting plane a greeble is authored against.
 const PEDESTAL_HEIGHT: f32 = 0.12;
-/// A plate's roughness/metallic where the style names no Top surface -
-/// `nova_ship`'s own `SKIN_ROUGHNESS` / `SKIN_METALLIC` defaults, mirrored.
-const BARE_PLATE_ROUGHNESS: f32 = 0.65;
-const BARE_PLATE_METALLIC: f32 = 0.15;
-
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(catalog_plugin).build();
@@ -173,25 +168,14 @@ fn stand_position(row: usize, rows: usize, column: usize, in_row: usize) -> Vec3
     )
 }
 
-/// A one-line reading of a fixture's scatter rule - the placement half of the
-/// report, so the catalog shows model and rule together.
-fn rule_summary(rule: &ScatterRule) -> String {
-    let relief = if rule.relief.is_empty() {
-        "any".to_string()
-    } else {
-        rule.relief
-            .iter()
-            .map(|relief| relief.name())
-            .collect::<Vec<_>>()
-            .join("+")
-    };
-    let near = rule
-        .near_fitting
-        .map(|near| format!(", near_fitting {near}"))
-        .unwrap_or_default();
+/// A one-line reading of where a fixture belongs - the placement half of the
+/// report, so the catalog shows model and intent together. The three authored
+/// words, not the filters they expand into: what the style SAID is what an
+/// author compares against the piece standing in front of them.
+fn placement_summary(placement: &FixturePlacement) -> String {
     format!(
-        "relief {relief}, seat {:?}, align {:?}, chance {:.2}, stride {}, patch {}{near}",
-        rule.seat, rule.align, rule.chance, rule.stride, rule.patch,
+        "region {:?}, density {:?}, orientation {:?}",
+        placement.region, placement.density, placement.orientation,
     )
 }
 
@@ -238,11 +222,13 @@ fn load_catalog(
         .unwrap_or(1);
     let mut rows = Vec::new();
     for (row, style) in styles.iter().enumerate() {
-        let top = style.surface(ShellSurface::Top);
+        // The plate every piece in this row stands on, dressed in the style's
+        // own top finish - the same face the hull shows space.
+        let top = &style.palette.top;
         let material = materials.add(StandardMaterial {
-            base_color: top.map_or(ShellSurface::Top.colour(), |dress| dress.color),
-            perceptual_roughness: top.map_or(BARE_PLATE_ROUGHNESS, |dress| dress.roughness),
-            metallic: top.map_or(BARE_PLATE_METALLIC, |dress| dress.metallic),
+            base_color: top.color,
+            perceptual_roughness: top.roughness,
+            metallic: top.metallic,
             ..default()
         });
 
@@ -260,7 +246,7 @@ fn load_catalog(
                 fixture.collider.y,
                 fixture.collider.z,
                 fixture.health,
-                rule_summary(&fixture.scatter),
+                placement_summary(&fixture.placement),
             );
             spawn_stand(
                 &mut commands,

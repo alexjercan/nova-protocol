@@ -40,16 +40,16 @@ use nova_ui::{
     theme,
     widget::{checkbox_colors, checkbox_glyph, list_row_colors, ListRow, Selected},
 };
+use nova_wfc::prelude::{WfcPlan, WfcZone};
 
 use crate::{
     bundle::{ask_to_open, ask_to_save, ask_to_save_as},
     config::{
         ContextBreadcrumb, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
-        EditorRail, EditorStatus, GrammarChoice, GrammarList, HullPlanLine, InspectorHeader,
-        LastClick, PartChoice, PartList, PartTick, PartZoneChip, PlacementStatus, PlayButton,
-        RailTab, RailTabButton, RebindButton, SceneList, SceneRow, SectionChoice, SelectedNode,
-        ShipReadout, ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
-        StyleSwatch,
+        EditorRail, EditorStatus, HullPlanLine, InspectorHeader, LastClick, PartChoice, PartList,
+        PartTick, PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton,
+        SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote,
+        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
         action_choice, add_script_node, event_label, filter_choice, handler_text, ActionChoice,
@@ -62,7 +62,7 @@ use crate::{
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     generate::{
         bow_gun, generate_ship, main_engine, reroll_seed, Drawn, GenerateButton, GenerateSettings,
-        HullGrammar, HullSeed, HullSeedField, UNAUTHORED_WEIGHT,
+        HullSeed, HullSeedField, UNAUTHORED_WEIGHT,
     },
     glyph::{
         category_mark, choice_mark, object_mark, script_mark, section_mark, ship_mark, ACTION,
@@ -89,7 +89,7 @@ use crate::{
         },
         plate::plate_layer,
         rail::{
-            grammar_row, next_zone, part_row, rail_tab, rail_tab_strip, scene_row, scene_tooltip,
+            next_zone, part_row, rail_tab, rail_tab_strip, scene_row, scene_tooltip,
             skin_toggle_row, style_row, zone_label, SceneRowHint, SceneRowTrash,
         },
         window::{window_layer, DestructiveVerb},
@@ -415,9 +415,7 @@ pub(crate) fn setup_editor_scene(
     game_assets: Res<GameAssets>,
     styles: Res<GameStyles>,
     sections: Res<GameSections>,
-    grammars: Res<GameGrammars>,
     seed: Res<HullSeed>,
-    line: Res<HullGrammar>,
     context: Res<EditContext>,
     q_ships: Query<&ShipNode>,
 ) {
@@ -426,8 +424,7 @@ pub(crate) fn setup_editor_scene(
     // checkbox starts bare, which is what a fresh ship is.
     let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
     let listed = listed_styles(&styles);
-    let lines = listed_grammars(&grammars);
-    let drawable = listed_parts(&sections, &grammars, &line.0);
+    let drawable = listed_parts(&sections);
     // Key + rim, the same bearings the parts viewer lights its turntable with.
     // One light shining straight down puts every vertical face of every part in
     // flat shadow - fine for a ship seen from above, wrong for the gallery, where
@@ -944,45 +941,6 @@ pub(crate) fn setup_editor_scene(
                                                 ..default()
                                             },
                                         ));
-                                        // WHICH LINE, ahead of the seed and
-                                        // the draw, because it decides what
-                                        // both of those mean: the keel, the
-                                        // grid, the taper and the prices are
-                                        // the grammar's, and the seed only
-                                        // picks one hull out of them.
-                                        block.spawn((
-                                            Name::new("Hull Line Label"),
-                                            UiText,
-                                            Text::new("HULL LINE"),
-                                            TextFont {
-                                                font_size: FontSize::Px(10.0),
-                                                ..default()
-                                            },
-                                            TextColor(theme::PHOSPHOR_MUTED),
-                                            Node {
-                                                margin: UiRect::top(px(4)),
-                                                ..default()
-                                            },
-                                        ));
-                                        block
-                                            .spawn((
-                                                Name::new("Grammar List"),
-                                                GrammarList,
-                                                rail_list_node(),
-                                            ))
-                                            .with_children(|list| {
-                                                for (id, name) in &lines {
-                                                    let picked = *id == line.0;
-                                                    let mut row = list.spawn((
-                                                        Name::new(format!("Line: {id}")),
-                                                        grammar_row(id, name, picked, skin),
-                                                        observe(on_grammar_choice),
-                                                    ));
-                                                    if picked {
-                                                        row.insert(Selected);
-                                                    }
-                                                }
-                                            });
                                         // The seed is SHOWN because it is the
                                         // whole handle on the generator: a hull
                                         // a builder liked is a number they can
@@ -1043,8 +1001,8 @@ pub(crate) fn setup_editor_scene(
                                         // section is on the list without the
                                         // editor knowing an id - and the note
                                         // says the terms an untuned one joins
-                                        // on, because the shipped grammar
-                                        // prices only the parts it ships with.
+                                        // on, because the standard plan prices
+                                        // only the parts it ships with.
                                         block.spawn((
                                             Name::new("Draw Label"),
                                             UiText,
@@ -1063,7 +1021,7 @@ pub(crate) fn setup_editor_scene(
                                             Name::new("Draw Note"),
                                             UiText,
                                             Text::new(format!(
-                                                "ticked sections draw at the grammar's own weights; one it does not price joins at {UNAUTHORED_WEIGHT}. the chip on a ticked row says where on the hull it may stand",
+                                                "ticked sections draw at the standard plan's own weights; one it does not price joins at {UNAUTHORED_WEIGHT}. the chip on a ticked row says where on the hull it may stand",
                                             )),
                                             TextFont {
                                                 font_size: FontSize::Px(10.0),
@@ -1256,63 +1214,37 @@ const DEBUG_ONLY_STYLES: &[&str] = &["placeholder"];
 /// listed beside the base ones without the editor knowing any id.
 ///
 /// The colour is the paint the style puts on a hull's TOP surface, which is the
-/// face the build view mostly shows. A style that dresses no surface restates
-/// the built-in plate colours, and its row carries no colour rather than a
-/// guessed one.
+/// face the build view mostly shows. Every style has one - a palette dresses
+/// both surfaces that are ever in shot - so the row is never a guessed colour.
 fn listed_styles(styles: &GameStyles) -> Vec<(String, String, Color)> {
     styles
         .iter()
         .filter(|style| cfg!(feature = "debug") || !DEBUG_ONLY_STYLES.contains(&style.id.as_str()))
         .map(|style| {
-            let colour = style
-                .surface(ShellSurface::Top)
-                .or_else(|| style.surfaces.first())
-                .map_or(Color::NONE, |dress| dress.color);
-            (style.id.clone(), style.name.clone(), colour)
-        })
-        .collect()
-}
-
-/// Every hull line in the merged content, as `(id, name)` in authored order.
-///
-/// The whole catalog, base and modded together, which is the point: a mod that
-/// ships a `Grammar` under a new id appears here without the editor knowing
-/// that id. A line whose author left the name blank is listed by its id, so a
-/// row is never an empty box nothing can be told apart from.
-fn listed_grammars(grammars: &GameGrammars) -> Vec<(String, String)> {
-    grammars
-        .iter()
-        .map(|grammar| {
-            let name = if grammar.name.is_empty() {
-                grammar.id.clone()
-            } else {
-                grammar.name.clone()
-            };
-            (grammar.id.clone(), name)
+            (
+                style.id.clone(),
+                style.name.clone(),
+                style.palette.top.color,
+            )
         })
         .collect()
 }
 
 /// The rows the Generate block's draw list is built from: every section in the
-/// MERGED catalog, and whether the picked line already draws it.
+/// MERGED catalog, and whether the standard plan already draws it.
 ///
-/// The whole catalog rather than the grammar's own parts, because a grammar
-/// that names a part it cannot lay does not BUILD - so a list read off one
-/// could never offer the parts a builder most wants to try. Ticking one of
-/// those is an experiment the collapse either runs or refuses in a line; both
-/// answers are better than a row that does not exist.
+/// The whole catalog rather than the plan's own parts, because a plan that
+/// names a part it cannot lay does not BUILD - so a list read off one could
+/// never offer the parts a builder most wants to try. Ticking one of those is
+/// an experiment the collapse either runs or refuses in a line; both answers
+/// are better than a row that does not exist. A mod's section is on the list
+/// for the same reason, and starts unticked because nothing prices it.
 ///
-/// The PICKED line's own draw starts ticked, so pressing Generate without
-/// touching the list rolls the ship that line rolls.
-fn listed_parts(
-    sections: &GameSections,
-    grammars: &GameGrammars,
-    line: &str,
-) -> Vec<(String, String, bool, Option<GrammarZone>)> {
-    let drawn = grammars
-        .get_grammar(line)
-        .map(|grammar| grammar.parts.as_slice())
-        .unwrap_or_default();
+/// The standard plan's own draw starts ticked, so pressing Generate without
+/// touching the list rolls the ship the base game rolls.
+fn listed_parts(sections: &GameSections) -> Vec<(String, String, bool, Option<WfcZone>)> {
+    let base = WfcPlan::standard_hull();
+    let drawn = base.parts.as_slice();
     sections
         .iter()
         .map(|section| {
@@ -1422,12 +1354,10 @@ pub(crate) fn a_ship_is_entered(context: Res<EditContext>) -> bool {
 /// much to build each frame for a line that is not on screen.
 pub(crate) fn sync_hull_plan(
     sections: Option<Res<GameSections>>,
-    grammars: Option<Res<GameGrammars>>,
-    line: Res<HullGrammar>,
     rows: Query<(&PartChoice, Has<Selected>)>,
     mut lines: Query<&mut Text, With<HullPlanLine>>,
 ) {
-    let (Some(sections), Some(grammars)) = (sections.as_deref(), grammars.as_deref()) else {
+    let Some(sections) = sections.as_deref() else {
         return;
     };
     let drawn: Vec<Drawn> = rows
@@ -1442,19 +1372,13 @@ pub(crate) fn sync_hull_plan(
         id.and_then(|id| sections.get_section(id))
             .map_or_else(|| "-".to_string(), |config| config.base.name.clone())
     };
-    // The two roles the TICKS decide. The keel and the bridge are the
-    // grammar's and are the same on every hull, so naming them here would cost
-    // two lines of a narrow rail to say nothing.
-    let stern = grammars
-        .get_grammar(&line.0)
-        .map(|grammar| grammar.keel.stern_drive.clone());
+    // The two roles the TICKS decide. The keel and the bridge are the standard
+    // plan's and are the same on every hull, so naming them here would cost two
+    // lines of a narrow rail to say nothing.
+    let stern = WfcPlan::standard_hull().keel.stern_drive;
     let plan = format!(
         "stern {}\nbow {}",
-        named(
-            main_engine(sections, &drawn)
-                .as_deref()
-                .or(stern.as_deref())
-        ),
+        named(main_engine(sections, &drawn).as_deref().or(Some(&stern))),
         named(bow_gun(sections, &drawn).as_deref()),
     );
     for mut text in &mut lines {
@@ -2726,87 +2650,6 @@ pub(crate) fn sync_rebind_button(
             }
             (true, true) => {
                 commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Pick the hull line this row names.
-///
-/// Writes an explicit id rather than a list index, for the reason
-/// [`on_style_choice`] does: a mod can grow the catalog, and an index into one
-/// that grows does not keep meaning the same line.
-pub(crate) fn on_grammar_choice(
-    activate: On<Activate>,
-    choices: Query<&GrammarChoice>,
-    mut line: ResMut<HullGrammar>,
-) {
-    let Ok(choice) = choices.get(activate.entity) else {
-        return;
-    };
-    if line.0 != choice.0 {
-        line.0.clone_from(&choice.0);
-    }
-}
-
-/// Mark the row the next Generate would collapse.
-///
-/// Compared before writing rather than gated on a change, for the same reason
-/// as [`sync_style_list`]: the rows are spawned on entering the editor, which
-/// need not be a frame the line changed on.
-pub(crate) fn sync_grammar_list(
-    mut commands: Commands,
-    line: Res<HullGrammar>,
-    rows: Query<(Entity, &GrammarChoice, Has<Selected>)>,
-) {
-    for (entity, choice, selected) in &rows {
-        match (choice.0 == line.0, selected) {
-            (true, false) => {
-                commands.entity(entity).insert(Selected);
-            }
-            (false, true) => {
-                commands.entity(entity).remove::<Selected>();
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Re-tick the draw list to the picked line's own draw.
-///
-/// A tick means "this line may draw this section", and the prices behind it are
-/// the grammar's. Leaving one line's ticks standing under another would hand
-/// the collapse a draw the builder never chose, and every unpriced row would
-/// join at [`UNAUTHORED_WEIGHT`] with no sign that it had.
-///
-/// The ZONE goes back with the tick, for the same reason: a zone is an override
-/// of the grammar's own, and the grammar underneath it has changed.
-pub(crate) fn retick_draw_for_line(
-    mut commands: Commands,
-    line: Res<HullGrammar>,
-    grammars: Option<Res<GameGrammars>>,
-    mut rows: Query<(Entity, &mut PartChoice, Has<Selected>)>,
-) {
-    let Some(grammars) = grammars.as_deref() else {
-        return;
-    };
-    let drawn = grammars
-        .get_grammar(&line.0)
-        .map(|grammar| grammar.parts.as_slice())
-        .unwrap_or_default();
-    for (entity, mut choice, ticked) in &mut rows {
-        let priced = drawn.iter().find(|part| part.prototype == choice.prototype);
-        let zone = priced.and_then(|part| part.zone);
-        if choice.zone != zone {
-            choice.zone = zone;
-        }
-        match (priced.is_some(), ticked) {
-            (true, false) => {
-                commands.entity(entity).insert(Selected);
-            }
-            (false, true) => {
-                commands.entity(entity).remove::<Selected>();
             }
             _ => {}
         }
@@ -4797,12 +4640,14 @@ mod tests {
         ShipStyleConfig {
             id: id.to_string(),
             name: id.to_string(),
-            surfaces: vec![StyleSurfaceConfig {
-                surface: ShellSurface::Top,
-                color: Color::linear_rgb(0.2, 0.3, 0.4),
-                roughness: 0.5,
-                metallic: 0.0,
-            }],
+            palette: StylePalette {
+                top: SurfaceFinish {
+                    color: Color::linear_rgb(0.2, 0.3, 0.4),
+                    roughness: 0.5,
+                    metallic: 0.0,
+                },
+                wall: default(),
+            },
             fixtures: vec![],
         }
     }
@@ -5225,13 +5070,12 @@ mod tests {
     }
 
     /// The list a builder is handed: the whole merged catalog, with the
-    /// shipped grammar's own draw already ticked - so pressing Generate
-    /// without touching it rolls the ship the base game rolls.
+    /// standard plan's own draw already ticked - so pressing Generate without
+    /// touching it rolls the ship the base game rolls.
     #[test]
-    fn the_draw_list_offers_the_catalog_and_ticks_the_grammars_own() {
+    fn the_draw_list_offers_the_catalog_and_ticks_the_standard_plans_own() {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
-        let grammars = GameGrammars(nova_authoring::generation::build_grammars());
-        let listed = listed_parts(&sections, &grammars, STANDARD_HULL_GRAMMAR_ID);
+        let listed = listed_parts(&sections);
 
         assert_eq!(
             listed.len(),
@@ -5243,17 +5087,11 @@ mod tests {
             .filter(|(_, _, drawn, _)| *drawn)
             .map(|(id, _, _, _)| id.as_str())
             .collect();
-        let authored: Vec<&str> = grammars
-            .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-            .expect("the base content ships one")
-            .parts
-            .iter()
-            .map(|part| part.prototype.as_str())
-            .collect();
-        for prototype in &authored {
+        for part in &WfcPlan::standard_hull().parts {
             assert!(
-                ticked.contains(prototype),
-                "'{prototype}' is in the shipped draw, so its row starts ticked"
+                ticked.contains(&part.prototype.as_str()),
+                "'{}' is in the standard draw, so its row starts ticked",
+                part.prototype
             );
         }
         assert!(
@@ -5269,130 +5107,47 @@ mod tests {
         );
     }
 
-    /// Every line in the merged content is on the list, and a line whose
-    /// author left the name blank is listed by its id.
+    /// A mod's own section is on the draw list, unticked, and ticking it puts
+    /// it into the plan the next Generate collapses.
     ///
-    /// The blank case is not a hypothetical: `name` had no reader in the tree
-    /// until this list, so nothing has ever refused an empty one, and a mod
-    /// shipping a grammar without one would otherwise get a row that cannot be
-    /// told from any other.
+    /// The whole point of the list surviving the grammar catalog's removal: the
+    /// plan is code now, so nothing prices a section the base game never
+    /// shipped - and a row a builder cannot reach would make a mod's part
+    /// undrawable rather than merely untuned.
     #[test]
-    fn every_hull_line_is_listed_and_a_nameless_one_falls_back_to_its_id() {
-        let mut catalog = nova_authoring::generation::build_grammars();
-        catalog.push(ShipGrammarConfig {
-            id: "quiet_line".to_string(),
-            name: String::new(),
-            ..catalog[0].clone()
-        });
-        let grammars = GameGrammars(catalog);
-        let listed = listed_grammars(&grammars);
+    fn a_mod_section_joins_the_draw_list_unticked_and_can_still_be_drawn() {
+        let mut catalog = nova_authoring::generation::build_section_catalog();
+        let mut modded = catalog[0].clone();
+        modded.base.id = "mod_spar_section".to_string();
+        modded.base.name = "Mod Spar".to_string();
+        catalog.push(modded);
+        let sections = GameSections(catalog);
 
-        assert_eq!(listed.len(), grammars.len(), "every line gets a row");
-        assert!(
-            listed
-                .iter()
-                .any(|(id, name)| id == STANDARD_HULL_GRAMMAR_ID && name == "Standard Hull"),
-            "the shipped line is listed by the name its author wrote"
-        );
-        assert!(
-            listed
-                .iter()
-                .any(|(id, name)| id == "quiet_line" && name == "quiet_line"),
-            "and a nameless one by its id: {listed:?}"
-        );
-    }
-
-    /// Pressing a line row picks it, and the mark follows to the row pressed.
-    #[test]
-    fn a_press_on_a_line_row_picks_that_line() {
-        let mut app = App::new();
-        app.init_resource::<HullGrammar>();
-        app.add_systems(Update, sync_grammar_list);
-        app.add_observer(on_grammar_choice);
-        let rows: Vec<Entity> = [STANDARD_HULL_GRAMMAR_ID, "freighter_hull"]
+        let listed = listed_parts(&sections);
+        let row = listed
             .iter()
-            .map(|id| app.world_mut().spawn(GrammarChoice((*id).to_string())).id())
-            .collect();
-        app.update();
+            .find(|(id, ..)| id == "mod_spar_section")
+            .expect("a section the merge loaded is a row");
         assert!(
-            app.world().entity(rows[0]).contains::<Selected>(),
-            "the default line starts marked"
+            !row.2,
+            "nothing in the standard plan prices it, so it starts unticked"
         );
 
-        app.world_mut().trigger(Activate { entity: rows[1] });
-        app.update();
-        assert_eq!(
-            app.world().resource::<HullGrammar>().0,
-            "freighter_hull",
-            "the press writes the id, not a list index"
-        );
-        assert!(
-            !app.world().entity(rows[0]).contains::<Selected>()
-                && app.world().entity(rows[1]).contains::<Selected>(),
-            "and the mark moves with it: a line is a choice of one"
-        );
-    }
-
-    /// Picking a line puts the draw list back to THAT line's own draw.
-    ///
-    /// Ticks and zones both, because both belong to the grammar underneath
-    /// them: a tick left standing under another line hands the collapse a draw
-    /// the builder never chose, priced at the unauthored weight with nothing
-    /// on screen saying so.
-    #[test]
-    fn picking_a_line_reticks_the_draw_to_that_lines_own() {
-        let mut app = App::new();
-        let mut catalog = nova_authoring::generation::build_grammars();
-        let mut second = catalog[0].clone();
-        second.id = "freighter_hull".to_string();
-        second.parts = vec![GrammarPart {
-            prototype: "railgun_lance_section".to_string(),
-            weight: 1.0,
-            aim: None,
-            zone: Some(GrammarZone::Bow),
-        }];
-        catalog.push(second);
-        app.insert_resource(GameGrammars(catalog));
-        app.insert_resource(HullGrammar("freighter_hull".to_string()));
-        app.add_systems(Update, retick_draw_for_line);
-
-        // The rows as the shipped line left them: the hull cube ticked, the
-        // lance not.
-        let hull = app
-            .world_mut()
-            .spawn((
-                PartChoice {
-                    prototype: "reinforced_hull_section".to_string(),
-                    zone: None,
-                },
-                Selected,
-            ))
-            .id();
-        let lance = app
-            .world_mut()
-            .spawn(PartChoice {
-                prototype: "railgun_lance_section".to_string(),
+        let plan = crate::generate::drawn_plan(
+            &sections,
+            &[Drawn {
+                prototype: "mod_spar_section".to_string(),
                 zone: None,
-            })
-            .id();
-        app.update();
-
-        assert!(
-            !app.world().entity(hull).contains::<Selected>(),
-            "the freighter line does not price the hull cube, so its row is untick             ed"
-        );
-        assert!(
-            app.world().entity(lance).contains::<Selected>(),
-            "and does price the lance, so that row is ticked"
-        );
+            }],
+        )
+        .expect("one ticked row is a draw");
         assert_eq!(
-            app.world()
-                .entity(lance)
-                .get::<PartChoice>()
-                .map(|choice| choice.zone),
-            Some(Some(GrammarZone::Bow)),
-            "the zone comes back with the tick: it is an override of the \
-             grammar's own, and the grammar changed"
+            plan.parts
+                .iter()
+                .map(|part| (part.prototype.as_str(), part.weight))
+                .collect::<Vec<_>>(),
+            vec![("mod_spar_section", UNAUTHORED_WEIGHT)],
+            "ticking it draws it, at the weight the block's note states"
         );
     }
 
@@ -5483,14 +5238,14 @@ mod tests {
 
         app.world_mut().trigger(Activate { entity: chip });
         app.update();
-        assert_eq!(read(&app), zone_label(Some(GrammarZone::Bow)));
+        assert_eq!(read(&app), zone_label(Some(WfcZone::Bow)));
         assert!(
             app.world().get::<Selected>(row).is_some(),
             "the press that cycled the zone did not untick the row under it"
         );
 
         // All the way round and back to unzoned.
-        let mut zone = Some(GrammarZone::Bow);
+        let mut zone = Some(WfcZone::Bow);
         for _ in 0..6 {
             app.world_mut().trigger(Activate { entity: chip });
             app.update();

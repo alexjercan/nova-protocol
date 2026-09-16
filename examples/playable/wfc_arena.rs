@@ -8,11 +8,11 @@
 //! This is the flyability bench for wfc ships - thrust against a collapsed
 //! hull's mass, turret arcs on a random silhouette, torpedo lanes that were
 //! only ever checked geometrically. After collapse, two arena-only stamps go
-//! on outside the grammar: a seeded stern stamp fitting one capital drive or
+//! on outside the plan: a seeded stern stamp fitting one capital drive or
 //! two to three vector drives, and a bow stamp bolting a SPINAL LANCE to the
 //! keel cell at the nose. Both are simple PoCs - one for judging large
 //! propulsion, one for benching a gun the whole ship aims - and neither is the
-//! future game's ship grammar.
+//! future game's ship plan.
 //!
 //! Combatants are DRAFTED: the collapse arms hulls with wild variance, so the
 //! arena walks the seed stream from its head and fields the first hulls that
@@ -846,21 +846,22 @@ fn load_lances(hull: &mut ShipDesign, seed: u64) {
     }
 }
 
-/// The arena's tile set: the shipped grammar read against the merged catalog.
+/// The arena's tile set: its OWN plan, read against the merged catalog.
+///
+/// The plan is this example's, not the editor's - which is the point of the
+/// generator taking one in code. The arena bends the standard hull for the
+/// fight it stages, and nothing about that reaches a content schema.
 ///
 /// Built where it is needed rather than held in a resource, because the lobby
 /// rebuilds one per reroll and the arena one per match - both are one-shot, and
 /// a stale set is worse than a rebuilt one.
-fn arena_tiles(sections: &GameSections, grammars: &GameGrammars) -> TileSet {
-    let mut grammar = grammars
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .unwrap_or_else(|| panic!("wfc_arena: no ship grammar '{STANDARD_HULL_GRAMMAR_ID}'"))
-        .clone();
+fn arena_tiles(sections: &GameSections) -> TileSet {
+    let mut plan = WfcPlan::standard_hull();
     // The whole point of the arena: a spinal weapon benched on hulls nobody
     // designed around one. The base warship seats no lance, so this one names
     // it as its bow gun and the collapse seeds the pair itself.
-    grammar.keel.bow_gun = Some(SPINAL_LANCE.to_string());
-    TileSet::build(sections, &grammar).unwrap_or_else(|error| panic!("wfc_arena: {error}"))
+    plan.keel.bow_gun = Some(SPINAL_LANCE.to_string());
+    TileSet::build(sections, &plan).unwrap_or_else(|error| panic!("wfc_arena: {error}"))
 }
 
 /// Collapse one hull for a roster slot, load its tubes and give it its voice.
@@ -1166,7 +1167,7 @@ fn rock_ring(
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep://: this scenario is built at runtime
                 // outside the mod merge, so scheme refs would never rewrite.
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
                 radius: radius.0,
                 texture: AssetRef::from(game_assets.asteroid_texture.clone()),
@@ -1412,7 +1413,7 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
             radius: PLANETOID_RADIUS,
             texture: AssetRef::from(game_assets.asteroid_texture.clone()),
@@ -1443,11 +1444,10 @@ fn ship_style<'a>(styles: &'a GameStyles, ship: &ShipSpec, run: StyleId<'a>) -> 
 fn arena(
     game_assets: &GameAssets,
     sections: &GameSections,
-    grammars: &GameGrammars,
     styles: &GameStyles,
     roster: &mut Roster,
 ) -> ScenarioConfig {
-    let tiles = arena_tiles(sections, grammars);
+    let tiles = arena_tiles(sections);
     let run_style = style_at(styles, roster.style);
     let looks: Vec<StyleId> = roster
         .ships
@@ -3192,14 +3192,13 @@ fn arena_script(
 mod binding_tests {
     use super::*;
 
-    /// The shipped catalog and the ARENA's own grammar read against each
-    /// other, out of the builders rather than off disk. The arena's, not the
-    /// shipped one, because the lance these tests bind is a role the arena
-    /// seats and the base warship does not.
+    /// The shipped catalog and the ARENA's own plan read against each other,
+    /// out of the builders rather than off disk. The arena's, not the standard
+    /// one, because the lance these tests bind is a role the arena seats and
+    /// the base warship does not.
     fn catalog_tiles() -> (GameSections, TileSet) {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
-        let grammars = GameGrammars(nova_authoring::generation::build_grammars());
-        let tiles = arena_tiles(&sections, &grammars);
+        let tiles = arena_tiles(&sections);
         (sections, tiles)
     }
 

@@ -172,7 +172,6 @@ pub(super) struct ContentGate<'w> {
     sections: Option<Res<'w, GameSections>>,
     ships: Option<Res<'w, GameShipDesigns>>,
     scenarios: Option<Res<'w, GameScenarios>>,
-    channels: Option<Res<'w, GameChannels>>,
 }
 
 /// The Error-level findings against a scenario about to start: what the merge
@@ -216,23 +215,12 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
     // itself, and the editor's sandbox is absent from the registry on a rig
     // that never merged content.
     known_scenarios.insert(scenario.id.clone());
-    let known_channels: std::collections::HashSet<String> = gate
-        .channels
-        .as_deref()
-        .map(|catalog| catalog.0.iter().map(|channel| channel.id.clone()).collect())
-        .unwrap_or_default();
 
     messages.extend(
-        lint_scenario(
-            scenario,
-            &known_sections,
-            &known_ships,
-            &known_scenarios,
-            &known_channels,
-        )
-        .into_iter()
-        .filter(|issue| issue.severity == LintSeverity::Error)
-        .map(|issue| issue.message),
+        lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios)
+            .into_iter()
+            .filter(|issue| issue.severity == LintSeverity::Error)
+            .map(|issue| issue.message),
     );
     let mut seen = std::collections::HashSet::new();
     messages.retain(|message| seen.insert(message.clone()));
@@ -1467,6 +1455,7 @@ mod tests {
             prelude::{Collider, ColliderDensity, Physics, RigidBody},
             schedule::PhysicsTime,
         };
+        use bevy::audio::AudioSource;
         use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
         /// Where the torpedo goes off, and where the reloaded scenario puts its
@@ -1476,6 +1465,9 @@ mod tests {
 
         let mut app = unfinished_integrity_physics_app();
         app.init_asset::<Image>();
+        // NovaDamagePlugin builds the engine's impact bank, which loads four
+        // samples; the rig carries no AudioPlugin to register the asset type.
+        app.init_asset::<AudioSource>();
         app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
         // TempEntityPlugin owns the transient countdown; NovaDamagePlugin owns
         // the blast collision observer. Neither comes with the integrity rig.
@@ -1889,7 +1881,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
@@ -1899,7 +1891,7 @@ mod tests {
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
-                channel: NarrativeChannelConfig::new(CHANNEL_COMMS, ChipTone::Comms),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
@@ -1925,7 +1917,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Speaker One".to_string(),
                 text: "beta".to_string(),
                 dwell: None,

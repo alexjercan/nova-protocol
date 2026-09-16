@@ -137,7 +137,7 @@ registry::scenario_actions! {
         effect: Bookkeeping,
         inspect: Reflect,
     },
-    /// Speaker-attributed story text on a named channel, rendered by the HUD
+    /// Speaker-attributed story text in its own accent, rendered by the HUD
     /// comms panel.
     NarrativeCue(NarrativeCueActionConfig) {
         label: "Narrative Cue",
@@ -645,7 +645,8 @@ impl EventActionConfig {
 
 #[cfg(test)]
 mod effect_tests {
-    use nova_gameplay::prelude::CHANNEL_COMMS;
+
+    use nova_gameplay::prelude::default_comms_accent;
 
     use super::*;
 
@@ -695,7 +696,7 @@ mod effect_tests {
             key: "quiet".to_string(),
             steps: vec![step(vec![EventActionConfig::NarrativeCue(
                 NarrativeCueActionConfig {
-                    channel: CHANNEL_COMMS.to_string(),
+                    accent: default_comms_accent(),
                     speaker: "OKONO".to_string(),
                     text: "Strip it clean.".to_string(),
                     dwell: None,

@@ -74,7 +74,7 @@
                         kind: Asteroid((
                             radius: 28.0,
                             texture: "base/textures/asteroid.png",
-                            material: "rock",
+                            kind: "rock",
                             destroy_sound: Some("base/sounds/destroy_rock.wav"),
                             invulnerable: false,
                             seed: Some(20260912),

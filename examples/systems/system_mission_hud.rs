@@ -279,7 +279,7 @@ fn mission(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig 
         attach_objective_marker(NEAR_ID, NEAR_LABEL),
         attach_objective_marker(FAR_ID, FAR_LABEL),
         EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-            channel: "comms".to_string(),
+            accent: default_comms_accent(),
             speaker: SPEAKER.to_string(),
             text: LINE.to_string(),
             dwell: Some(DWELL_SECS),

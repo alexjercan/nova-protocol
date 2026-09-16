@@ -112,7 +112,7 @@
                             kind: Asteroid((
                                 radius: 16.0,
                                 texture: "dep://base/textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 mass: Some(0.0),
                                 invulnerable: false,
                                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
@@ -137,7 +137,7 @@
                             kind: Asteroid((
                                 radius: 16.0,
                                 texture: "dep://base/textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 mass: Some(0.0),
                                 invulnerable: false,
                                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
@@ -162,7 +162,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "dep://base/textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 mass: Some(0.0),
                                 invulnerable: false,
                                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
@@ -226,7 +226,7 @@
                         kind: Asteroid((
                             radius: 65.0,
                             texture: "dep://base/textures/asteroid.png",
-                            material: "metal",
+                            kind: "metal",
                             mass: Some(0.0),
                             invulnerable: false,
                             seed: None,
@@ -243,7 +243,7 @@
                         kind: Asteroid((
                             radius: 65.0,
                             texture: "dep://base/textures/asteroid.png",
-                            material: "rock",
+                            kind: "rock",
                             mass: Some(0.0),
                             invulnerable: false,
                             seed: None,
@@ -260,7 +260,7 @@
                         kind: Asteroid((
                             radius: 60.0,
                             texture: "dep://base/textures/asteroid.png",
-                            material: "carbon",
+                            kind: "carbon",
                             mass: Some(0.0),
                             invulnerable: false,
                             seed: None,

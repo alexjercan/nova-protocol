@@ -3,7 +3,7 @@
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
 six kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
-ship skin styles, and impact rows.
+ship skin styles, and training lessons.
 
 Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.
@@ -178,13 +178,11 @@ six item kinds:
     Style((
         id: "my_look",
         name: "My Look",
+        palette: (
+            top: (color: Srgba((red: 0.4, green: 0.4, blue: 0.42, alpha: 1.0)), roughness: 0.8, metallic: 0.2),
+            wall: (color: Srgba((red: 0.1, green: 0.1, blue: 0.12, alpha: 1.0)), roughness: 0.9, metallic: 0.2),
+        ),
         fixtures: [],
-    )),
-    Impact((
-        id: "my_kinetic_ceramic",
-        damage: Kinetic,
-        material: Some("my_ceramic"),
-        sound: "self://sounds/kinetic_ceramic.wav",
     )),
 ]
 ```
@@ -193,7 +191,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The nine content chapters
+## The six content chapters
 
 <div id="wiki-children"></div>
 
@@ -205,16 +203,8 @@ Large mods can use one scenario per file and list all of them in `content`.
   turret, or torpedo bay.
 - A [ship](../ships/) defines a whole hull - its section layout and cladding -
   that any scenario can spawn by id.
-- A [style](../styles/) defines the look a ship's derived cladding wears: plate
-  materials, and the destructible decoration scattered over them.
-- An [impact](../impacts/) row pairs a damage type with a material to voice a
-  hit - what your round sounds like against what it struck.
-- A [grammar](../grammars/) is the table a PROCEDURAL hull is drawn from: which
-  sections the generator may reach for, how often, and how big and how sparse
-  the hull it builds is.
-- A [channel](../channels/) is where a story line was heard, and how the comms
-  panel draws one that was - the difference between a line addressed to your
-  ship and one you are overhearing.
+- A [style](../styles/) defines the look a ship's derived cladding wears: the
+  two plate surfaces, and the destructible decoration scattered over them.
 - A [lesson](../lessons/) is one screen of the in-game training handbook: a
   demonstration, a few lines, the actions it names, and sometimes a focused
   range to fly.

@@ -199,7 +199,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,

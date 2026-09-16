@@ -1,12 +1,12 @@
 //! The arena's own post-collapse STAMP: a seeded large-drive stern.
 //!
 //! Deliberately outside the collapse, and deliberately outside `nova_wfc`. A
-//! grammar seeds ONE stern drive, and what the arena wants to bench is one
+//! plan seeds ONE stern drive, and what the arena wants to bench is one
 //! capital drive against two or three vector drives on the same hull - a
-//! comparison no single grammar can express.
+//! comparison no single plan can express.
 //!
-//! The lance that used to be stamped beside it is a grammar role now
-//! (`GrammarKeel::bow_gun`), so the arena names it and the collapse seeds the
+//! The lance that used to be stamped beside it is a plan role now
+//! (`WfcKeel::bow_gun`), so the arena names it and the collapse seeds the
 //! pair itself. This is what is left.
 //!
 //! It stays here because the ARENA is what wants it. `wfc_ships` poses the
@@ -28,20 +28,20 @@ fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSect
 /// Replace the arena PoC's unit-cell stern with a seeded large-drive stamp.
 ///
 /// This is deliberately outside the collapse. Large sections are not WFC tiles,
-/// and the production ship generator will own a richer grammar later. The
+/// and the production ship generator will own a richer plan later. The
 /// arena only needs a deterministic fleet for judging one capital drive against
 /// two or three vector drives.
 pub fn stamp_large_drives(
     hull: &mut ShipDesign,
     seed: u64,
     sections: &GameSections,
-    grid: GrammarGrid,
+    grid: WfcGrid,
 ) {
     // Ship-space geometry the stamp has to agree with the collapse on. These
     // were three literals tuned for `half_width: 4, length: 11`, back when the
-    // grid was a const in the same file as the collapse. The GRAMMAR authors it
-    // now - a mod may overlay `standard_hull` with a longer one - so they are
-    // read off the grid the hull was actually collapsed in.
+    // grid was a const in the same file as the collapse. The PLAN carries it
+    // now - and a caller may hand the collapse a longer one - so they are read
+    // off the grid the hull was actually collapsed in.
     //
     // `Grid::starboard_half` starts the starboard half at `x = 0.5` and puts
     // the z origin at `-(length - 1) / 2`, so a mirrored hull's outer cell
@@ -70,14 +70,15 @@ pub fn stamp_large_drives(
     let needed = widest(&["capital_thruster_section", "vector_thruster_section"]);
     assert!(
         beam_half_x >= needed,
-        "wfc_arena: the stamp bolts drives {needed} cell(s) either side of the keel onto a beam          only {beam_half_x} wide; grammar '{STANDARD_HULL_GRAMMAR_ID}' is {} cell(s) across its \
-         half-width and this stamp was tuned for 4",
+        "wfc_arena: the stamp bolts drives {needed} cell(s) either side of the keel onto a beam \
+         only {beam_half_x} wide; the hull plan is {} cell(s) across its half-width and this \
+         stamp was tuned for 4",
         grid.half_width
     );
     assert!(
         grid.length >= 3,
-        "wfc_arena: the stamp clears the aft-most row and the one in front of it; grammar \
-         '{STANDARD_HULL_GRAMMAR_ID}' is {} cell(s) long and there would be no hull left",
+        "wfc_arena: the stamp clears the aft-most row and the one in front of it; the hull \
+         plan is {} cell(s) long and there would be no hull left",
         grid.length
     );
 
@@ -186,14 +187,13 @@ mod stamp_tests {
         );
     }
 
-    /// The shipped catalog and the shipped grammar read against each other -
-    /// the same pair the running example builds, out of the builders rather
-    /// than off disk.
+    /// The shipped catalog and the standard plan read against each other - the
+    /// same pair the running example builds, out of the builders rather than
+    /// off disk.
     fn catalog_tiles() -> (GameSections, TileSet) {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
-        let grammars = GameGrammars(nova_authoring::generation::build_grammars());
-        let tiles = TileSet::from_catalog(&sections, &grammars, STANDARD_HULL_GRAMMAR_ID)
-            .expect("the shipped grammar reads against the shipped catalog");
+        let tiles = TileSet::build(&sections, &WfcPlan::standard_hull())
+            .expect("the standard plan reads against the shipped catalog");
         (sections, tiles)
     }
 
@@ -226,24 +226,21 @@ mod stamp_tests {
         }
     }
 
-    /// The stamp follows the GRID, which is content now.
+    /// The stamp follows the GRID, which the plan carries.
     ///
     /// `half_width` and `length` were three literals in this file - the beam's
     /// x extent, the row it takes, and the plane the carve clears to - tuned
-    /// for the 4x5x11 the collapse then held as consts. A mod overlaying
-    /// `standard_hull` with a longer hull used to move the transom out from
-    /// under a beam that stayed where it was: the carve stripped rows that
-    /// should have survived, and the beam was planted cells inside the hull.
+    /// for the 4x5x11 the collapse then held as consts. A caller handing the
+    /// collapse a longer hull used to move the transom out from under a beam
+    /// that stayed where it was: the carve stripped rows that should have
+    /// survived, and the beam was planted cells inside the hull.
     #[test]
-    fn the_stamp_moves_its_beam_when_the_grammar_retunes_the_grid() {
+    fn the_stamp_moves_its_beam_when_the_plan_retunes_the_grid() {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
-        let mut grammar = GameGrammars(nova_authoring::generation::build_grammars())
-            .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-            .expect("the base content ships one")
-            .clone();
-        grammar.grid.half_width = 5;
-        grammar.grid.length = 13;
-        let tiles = TileSet::build(&sections, &grammar).expect("the retuned grid reads");
+        let mut plan = WfcPlan::standard_hull();
+        plan.grid.half_width = 5;
+        plan.grid.length = 13;
+        let tiles = TileSet::build(&sections, &plan).expect("the retuned grid reads");
 
         let mut hull = tiles.hull(0, false, None).expect("the seed collapses");
         stamp_large_drives(&mut hull, 0, &sections, tiles.grid());

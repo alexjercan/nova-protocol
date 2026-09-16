@@ -6,8 +6,8 @@
 //! [`crate::node`] as a tree of node entities, one config component per node.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_ship::prelude::GrammarZone;
 use nova_ui::theme;
+use nova_wfc::prelude::WfcZone;
 
 /// The group every immediate-mode line in the editor draws in.
 ///
@@ -418,20 +418,6 @@ pub(crate) struct StyleSwatch(pub(crate) Color);
 #[derive(Component)]
 pub(crate) struct StyleChoice(pub(crate) String);
 
-/// The Generate block's list of hull LINES: every grammar the merged content
-/// holds, base and modded alike.
-///
-/// Listed even when the base game is the only one on it. A list of one says
-/// what the control is FOR, and it is what a mod's line appears in without the
-/// editor knowing an id.
-#[derive(Component)]
-pub(crate) struct GrammarList;
-
-/// One row of that list, carrying the grammar id it picks - the same shape the
-/// style rows use, so the shared `Selected` highlight marks the active line.
-#[derive(Component)]
-pub(crate) struct GrammarChoice(pub(crate) String);
-
 /// The Generate block's list of drawable sections.
 #[derive(Component)]
 pub(crate) struct PartList;
@@ -452,7 +438,7 @@ pub(crate) struct PartChoice {
     pub(crate) prototype: String,
     /// Where on the hull the collapse may stand it, or `None` for anywhere the
     /// mating rule allows.
-    pub(crate) zone: Option<GrammarZone>,
+    pub(crate) zone: Option<WfcZone>,
 }
 
 /// The tick glyph on a part row.

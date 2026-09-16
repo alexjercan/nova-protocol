@@ -119,7 +119,6 @@ happens one time - then the only filter left is the one about the game:
     ],
     actions: [
         NarrativeCue((
-            channel: "comms",
             speaker: "Control",
             text: "Ten seconds elapsed.",
         )),
@@ -142,7 +141,7 @@ Fires exactly once when a keyed scenario timer reaches its deadline. Payload:
 (
     name: OnTimerEnd,
     filters: [Timer((key: "briefing_delay"))],
-    actions: [NarrativeCue((channel: "comms", speaker: "Control", text: "Proceed."))],
+    actions: [NarrativeCue((speaker: "Control", text: "Proceed."))],
 ),
 ```
 
@@ -271,7 +270,7 @@ only one whose `order_interruption` policy says so (see
 (
     name: OnShipOrderInterrupted,
     filters: [ShipOrder((ship: Some("picket")))],
-    actions: [NarrativeCue((channel: "comms", speaker: "Picket", text: "Contact. Breaking off."))],
+    actions: [NarrativeCue((speaker: "Picket", text: "Contact. Breaking off."))],
 ),
 ```
 
@@ -409,7 +408,7 @@ world. Payload: `id`, `type_name` of the neutralized ship; no other party.
     filters: [Entity((id: Some("derelict_gunship")))],
     actions: [
         ObjectiveComplete((id: "disarm_gunship")),
-        NarrativeCue((channel: "comms", speaker: "Control", text: "Guns down. The wreck is yours.")),
+        NarrativeCue((speaker: "Control", text: "Guns down. The wreck is yours.")),
     ],
 ),
 ```

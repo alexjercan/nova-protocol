@@ -181,12 +181,12 @@ pub(super) fn on_collapse_play_hull_loss(
 /// landed on. Throttled per area cell, because a single blast reaches many
 /// colliders in one frame.
 ///
-/// Both halves of "what hit what" are read here, and neither is a per-target
-/// field any more. The round side is [`SurfaceImpact::kind`]; the target side
-/// is the struck body's [`SurfaceMaterial`], found by walking up from the hit
-/// (an asteroid keeps its Health on a child node). The pair goes to
-/// [`GameImpacts`], which falls back once to the damage type's default row and
-/// is otherwise AUTHORED-OR-SILENT like every other voice.
+/// Both halves of "what hit what" are read here, and neither is authored. The
+/// round side is [`SurfaceImpact::kind`]; the target side is the struck body's
+/// [`ImpactSurface`], found by walking up from the hit (an asteroid keeps its
+/// Health on a child node). Both are closed enums, so [`ImpactSounds`] answers
+/// the pair with a `match` - every hit has a voice, and a body that carries no
+/// tag at all is plate, which is what a nameless collider in this game is.
 ///
 /// [`SurfaceImpact`] does not propagate, which is why there is no
 /// "am I the original target" guard here: the old cue rode `HealthApplyDamage`
@@ -195,14 +195,13 @@ pub(super) fn on_collapse_play_hull_loss(
 /// plays where the round actually bit.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one observer: the bank, the clock, the impact table, the struck surface, what it is part of, its route and the throttle"
+    reason = "one observer: the clock, the sample bank, the struck surface, what it is part of, its route and the throttle"
 )]
 pub(super) fn on_surface_impact_play_sfx(
     impact: On<SurfaceImpact>,
-    asset_server: Res<AssetServer>,
     time: Res<Time>,
-    impacts: Res<GameImpacts>,
-    q_material: Query<&SurfaceMaterial>,
+    impacts: Res<ImpactSounds>,
+    q_surface: Query<&ImpactSurface>,
     q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
@@ -210,10 +209,10 @@ pub(super) fn on_surface_impact_play_sfx(
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
-    let material = nearest(impact.entity, &q_material, &q_child_of).map(|m| m.0.as_str());
-    let Some(sound) = impacts.sound(impact.kind, material) else {
-        return;
-    };
+    let surface = nearest(impact.entity, &q_surface, &q_child_of)
+        .copied()
+        .unwrap_or_default();
+    let sound = impacts.sound(impact.kind, surface).clone();
     let pos = impact.at;
     // Grouped by the hull that was hit - a blast raking a dozen of one ship's
     // colliders is one report - and played at the CONTACT, because where on
@@ -226,7 +225,7 @@ pub(super) fn on_surface_impact_play_sfx(
     ) {
         // Damage landing on YOUR hull is heard through it, not across the gap.
         let route = route_for(impact.entity, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(sound.resolve(&asset_server), route, IMPACT_VOLUME, pos);
+        commands.play_sfx_at(sound, route, IMPACT_VOLUME, pos);
     }
 }
 
@@ -374,32 +373,17 @@ mod tests {
 
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};
-    fn impact_row(
-        id: &str,
-        damage: DamageType,
-        material: Option<&str>,
-        sound: &str,
-    ) -> ImpactSoundConfig {
-        ImpactSoundConfig {
-            id: id.to_string(),
-            damage,
-            material: material.map(str::to_string),
-            sound: AssetRef::from(sound),
-        }
-    }
-
-    /// App rig for the hit voice: the real observer over a supplied impact
-    /// table, counting cues and capturing the last handle. No bank and no audio
-    /// device - the cue resolves the table's own refs against the
-    /// `AssetServer`.
-    fn impact_app(table: Vec<ImpactSoundConfig>) -> App {
+    /// App rig for the hit voice: the real observer over the engine's own
+    /// sample bank, counting cues and capturing the last handle. No audio
+    /// device - the bank loads four paths against the `AssetServer`.
+    fn impact_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<PlayedSfx>();
         app.init_resource::<LastPlayed>();
-        app.insert_resource(GameImpacts(table));
+        app.init_resource::<ImpactSounds>();
         app.add_observer(on_surface_impact_play_sfx);
         app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
         app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
@@ -408,17 +392,9 @@ mod tests {
         app
     }
 
-    fn base_table() -> Vec<ImpactSoundConfig> {
-        vec![
-            impact_row("kinetic", DamageType::Kinetic, None, "mods/x/thud.wav"),
-            impact_row(
-                "kinetic_rock",
-                DamageType::Kinetic,
-                Some(MATERIAL_ROCK),
-                "mods/x/gravel.wav",
-            ),
-            impact_row("pierce", DamageType::Pierce, None, "mods/x/punch.wav"),
-        ]
+    /// The bank the rig loaded, to compare a played handle against.
+    fn bank(app: &App) -> ImpactSounds {
+        app.world().resource::<ImpactSounds>().clone()
     }
 
     /// Hit `target` at `at` and flush - the observer plays via `Commands`, so
@@ -437,44 +413,34 @@ mod tests {
     }
 
     #[test]
-    fn what_a_hit_sounds_like_is_the_round_and_the_material_together() {
-        let mut app = impact_app(base_table());
-        let server = app.world().resource::<AssetServer>().clone();
-        let thud: Handle<AudioSource> = server.load("mods/x/thud.wav");
-        let gravel: Handle<AudioSource> = server.load("mods/x/gravel.wav");
-        let punch: Handle<AudioSource> = server.load("mods/x/punch.wav");
+    fn what_a_hit_sounds_like_is_the_round_and_the_surface_together() {
+        let mut app = impact_app();
+        let bank = bank(&app);
 
-        let rock = app
-            .world_mut()
-            .spawn(SurfaceMaterial::new(MATERIAL_ROCK))
-            .id();
-        let hull = app
-            .world_mut()
-            .spawn(SurfaceMaterial::new(MATERIAL_HULL))
-            .id();
+        let rock = app.world_mut().spawn(ImpactSurface::Rock).id();
+        let hull = app.world_mut().spawn(ImpactSurface::Hull).id();
 
-        // Same target, two rounds: the rock has its own kinetic row and no
-        // pierce row, so a penetrator into stone takes the PIERCE default -
-        // never the kinetic rock voice.
+        // Same target, two rounds: a slug into stone is gravel, a penetrator
+        // into the same stone is the penetration - the round wins when the
+        // round is what the sample is OF.
         strike(&mut app, rock, DamageType::Kinetic, Vec3::ZERO);
-        assert_eq!(last(&app), Some(gravel));
+        assert_eq!(last(&app), Some(bank.kinetic_rock.clone()));
         strike(
             &mut app,
             rock,
             DamageType::Pierce,
             Vec3::splat(SFX_AREA_CELL * 10.0),
         );
-        assert_eq!(last(&app), Some(punch));
+        assert_eq!(last(&app), Some(bank.pierce.clone()));
 
-        // Same round, two materials: the hull names no row of its own and
-        // takes the kinetic default.
+        // Same round, two surfaces: the slug is the one that hears what it hit.
         strike(
             &mut app,
             hull,
             DamageType::Kinetic,
             Vec3::splat(SFX_AREA_CELL * 20.0),
         );
-        assert_eq!(last(&app), Some(thud));
+        assert_eq!(last(&app), Some(bank.kinetic_hull.clone()));
     }
 
     #[test]
@@ -483,7 +449,7 @@ mod tests {
         // the hops back out, positioning itself at the struck entity's origin.
         // `SurfaceImpact` does not propagate and carries the contact point, so
         // one hit is one cue and it is keyed at the point, not the body.
-        let mut app = impact_app(base_table());
+        let mut app = impact_app();
         let parent = app
             .world_mut()
             .spawn(GlobalTransform::from(Transform::from_translation(
@@ -495,7 +461,7 @@ mod tests {
             .spawn((
                 GlobalTransform::default(),
                 ChildOf(parent),
-                SurfaceMaterial::new(MATERIAL_HULL),
+                ImpactSurface::Hull,
             ))
             .id();
 
@@ -522,42 +488,33 @@ mod tests {
     }
 
     #[test]
-    fn the_material_lookup_walks_up_to_the_asteroid_parent() {
+    fn the_surface_lookup_walks_up_to_the_asteroid_parent() {
         // The asteroid shape: the colliders that take the hit are CHILD nodes
-        // while the material tag sits on the rock's parent bundle.
-        let mut app = impact_app(base_table());
-        let gravel: Handle<AudioSource> = app
-            .world()
-            .resource::<AssetServer>()
-            .load("mods/x/gravel.wav");
-        let rock = app
-            .world_mut()
-            .spawn(SurfaceMaterial::new(MATERIAL_ROCK))
-            .id();
+        // while the surface tag sits on the rock's parent bundle.
+        let mut app = impact_app();
+        let bank = bank(&app);
+        let rock = app.world_mut().spawn(ImpactSurface::Rock).id();
         let node = app.world_mut().spawn(ChildOf(rock)).id();
 
         strike(&mut app, node, DamageType::Kinetic, Vec3::ZERO);
         assert_eq!(
             last(&app),
-            Some(gravel),
-            "the hit voice must find the parent's material via the walk"
+            Some(bank.kinetic_rock),
+            "the hit voice must find the parent's surface via the walk"
         );
     }
 
     #[test]
-    fn a_round_the_table_never_names_lands_in_silence() {
-        // AUTHORED-OR-SILENT, and the table falls back exactly once - to its
-        // own damage type's default row. Explosive has neither, so a blast on
-        // a tagged hull makes no hit noise at all.
-        let mut app = impact_app(base_table());
-        let hull = app
-            .world_mut()
-            .spawn(SurfaceMaterial::new(MATERIAL_HULL))
-            .id();
+    fn every_round_has_a_voice_and_an_untagged_body_is_plate() {
+        // The whole point of closing both axes: there is no silent pair left.
+        // A blast used to need an authored row and made no noise without one.
+        let mut app = impact_app();
+        let bank = bank(&app);
+        let hull = app.world_mut().spawn(ImpactSurface::Hull).id();
         strike(&mut app, hull, DamageType::Explosive, Vec3::ZERO);
-        assert_eq!(app.world().resource::<PlayedSfx>().0, 0);
+        assert_eq!(last(&app), Some(bank.explosive));
 
-        // And an untagged target is not an error: it takes the default row.
+        // And an untagged target is not an error: it is plate.
         let bare = app.world_mut().spawn_empty().id();
         strike(
             &mut app,
@@ -565,7 +522,8 @@ mod tests {
             DamageType::Kinetic,
             Vec3::splat(SFX_AREA_CELL * 10.0),
         );
-        assert_eq!(app.world().resource::<PlayedSfx>().0, 1);
+        assert_eq!(last(&app), Some(bank.kinetic_hull));
+        assert_eq!(app.world().resource::<PlayedSfx>().0, 2);
     }
 
     /// App rig for the turret-fire cue: the real `on_turret_fire_play_sfx`

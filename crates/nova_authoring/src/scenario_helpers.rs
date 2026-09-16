@@ -4,8 +4,8 @@
 //! nodes. Keep story policy, scenario ids, pacing, and object design in the
 //! owning scenario module.
 
-use bevy::prelude::AudioSource;
-use nova_gameplay::prelude::{AssetRef, CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD};
+use bevy::prelude::{AudioSource, Color};
+use nova_gameplay::prelude::{default_comms_accent, AssetRef, ChipTone};
 use nova_scenario::prelude::*;
 
 /// Glob-import surface for generic scenario authoring constructors.
@@ -166,15 +166,16 @@ pub fn clear_hint_emphasis(verb: impl Into<String>) -> EventActionConfig {
 
 /// Build a speaker-attributed narrative cue with default dwell and no icon.
 ///
-/// `channel` is a channel id the content authors; an id nothing declares is a
-/// lint error and a load refusal.
+/// `accent` is the colour the comms panel draws the whole card in. Prefer the
+/// three named voices below; reach for this only for a line that belongs to
+/// neither the work traffic, the crew, nor the Fleet.
 pub fn cue(
-    channel: impl Into<String>,
+    accent: Color,
     speaker: impl Into<String>,
     text: impl Into<String>,
 ) -> EventActionConfig {
     EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-        channel: channel.into(),
+        accent,
         speaker: speaker.into(),
         text: text.into(),
         dwell: None,
@@ -182,20 +183,23 @@ pub fn cue(
     })
 }
 
-/// A line on the work channel: the traffic a shift is paid to answer.
+/// A line of work traffic: what a shift is paid to answer. The comms blue, and
+/// the accent a cue that names none already has.
 pub fn comms(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(CHANNEL_COMMS, speaker, text)
+    cue(default_comms_accent(), speaker, text)
 }
 
-/// A line spoken inside the cutter, heard by nobody else.
+/// A line spoken inside the cutter, heard by nobody else - drawn in the
+/// instrument green, because the voice is in the room rather than on a radio.
 pub fn crew(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(CHANNEL_CREW, speaker, text)
+    cue(ChipTone::Phosphor.text(), speaker, text)
 }
 
-/// A line bleeding off the Fleet guard channel: never addressed to the cutter,
-/// and heard in fragments.
+/// A line bleeding off the Fleet guard band: never addressed to the cutter, and
+/// heard in fragments. Drawn in the amber the HUD keeps for what demands
+/// attention.
 pub fn guard(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(CHANNEL_GUARD, speaker, text)
+    cue(ChipTone::Amber.text(), speaker, text)
 }
 
 /// Build a keyed cinematic action: a beat chain the player may walk out of.

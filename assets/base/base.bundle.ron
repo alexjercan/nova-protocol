@@ -5,8 +5,8 @@
 (
     // This list is NOT a dependency order. Every file loads as a dependency of
     // this bundle and the merge only routes items into id-keyed registries;
-    // nothing resolves a reference while merging, so a ship may name a section,
-    // a grammar a section and a cue a channel whatever order the files are in.
+    // nothing resolves a reference while merging, so a ship may name a section
+    // and a scenario a ship whatever order the files are in.
     // Those references are answered against the MERGED registries, at lint and
     // then at load.
     //
@@ -19,12 +19,6 @@
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",
-        // The impact table: what a round sounds like against what it hit.
-        "impacts/base.content.ron",
-        // The generator's taste, drawn from the sections above.
-        "grammars/base.content.ron",
-        // The channels a line can be heard on.
-        "channels/base.content.ron",
         "scenarios/menu_waystation.content.ron",
         "scenarios/menu_gauntlet.content.ron",
         "scenarios/menu_weave.content.ron",

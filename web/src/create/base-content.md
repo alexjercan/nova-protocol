@@ -97,17 +97,6 @@ A ship names one with `style: Some("<id>")` beside `skin: true` on its
 a `Style` with the same id replaces that look everywhere; a new id is a new look.
 See [Ship skin styles](../styles/).
 
-### Ship grammars
-
-| id | what it is |
-|---|---|
-| `standard_hull` | the keeled, mirrored warship the editor's generator draws from: a seeded spine with a bridge a third of the way back, a mirrored pair of stern drives, and hull, controller, thruster, torpedo and PDC prototypes on the draw |
-
-The editor's Generate block lists every grammar in the merged content under
-HULL LINE and collapses whichever is picked, so a mod declaring a `Grammar`
-under a NEW id adds a line beside this one; declaring `standard_hull` retunes
-this one instead. See [Ship grammars](../grammars/).
-
 ### Modelled ship parts (not base content)
 
 Base ships NO parts cut for one craft. Every base hull is built out of the
@@ -124,32 +113,6 @@ Turret MOUNTS are not prototypes either, in base or in a mod. A hull names where
 a gun goes; the gun is `pdc_kinetic_turret_section`, seated on the face it stands
 on, and a scavenger-grade craft flies the SAME gun with a
 `patch: (health: Some(60.0))` on the mount.
-
-## Impact rows
-
-The rows of the [impact table](../impacts/), re-declarable by id to re-voice a
-hit for the whole game: `impact_kinetic`, `impact_pierce` and
-`impact_explosive` are the three damage-type defaults, and
-`impact_kinetic_rock`, `impact_kinetic_metal`, `impact_kinetic_ice`,
-`impact_kinetic_carbon` and `impact_kinetic_plain` are the stone rows, one per
-asteroid kind.
-
-The materials the base game names are `"hull"` (every section) and the five
-asteroid kinds, which are the same ids an asteroid's `material` field takes.
-
-## Narrative channels
-
-Where a story line is heard, and how the comms panel draws one that was. Any
-[`NarrativeCue`](../actions/#narrativecue) names one by id, and re-declaring an
-id restyles that channel for the whole game.
-
-| id | drawn | tagged | what it is |
-|---|---|---|---|
-| `comms` | incoming-transmission blue | no | the work channel: traffic addressed to this ship |
-| `crew` | phosphor green | no | inside the hull, off the radio - a voice in the room |
-| `guard` | amber, at 70% strength | `GUARD` | everybody's channel, nobody's conversation |
-
-The fields are documented in [Channels](../channels/).
 
 ## Scenario ids
 
@@ -175,10 +138,12 @@ Practice button of the [lessons](../lessons/) that name it, and from nowhere
 else.
 
 The base bundle ships no campaign, and no shipped mod carries one today - a
-`Campaign` is a mod's to declare. There are no other content kinds - a content file holds
-`Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact`, `Grammar`,
-`Channel` and `Lesson` items only; factions are not content. The base ship ids are tabled in
-[Ships](../ships/#base-ships), the style ids [above](#skin-styles).
+`Campaign` is a mod's to declare. There are no other content kinds - a content
+file holds `Section`, `Scenario`, `Campaign`, `Ship`, `Style` and `Lesson` items
+only; factions are not content, and neither is impact audio, a comms channel or
+the table a generated hull is drawn from - all three are engine-owned. The base
+ship ids are tabled in [Ships](../ships/#base-ships), the style ids
+[above](#skin-styles).
 
 New Game is base-owned: `new_game_scenario: Some("tutorial")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod
@@ -320,7 +285,7 @@ The builders behind this page live under
 section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
 skin styles, `ships/` owns the block hulls,
 `scenarios/` groups the training range and the main-menu backdrops, and
-`channels.rs` owns the narrative channels. If this page and the generated RON
+`lessons.rs` owns the handbook screens. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

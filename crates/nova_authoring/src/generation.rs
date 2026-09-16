@@ -11,12 +11,11 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
-use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
+use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 
 use crate::base_content;
@@ -26,11 +25,9 @@ use crate::base_content;
 /// parity test asserts.
 pub mod prelude {
     pub use super::{
-        build_channel_content, build_channels, build_grammar_content, build_grammars,
-        build_impact_content, build_impacts, build_lesson_content, build_lessons,
-        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
-        build_ship_content, build_ships, build_style_content, build_styles, content_files,
-        serialize_content, spawned_ship_sections,
+        build_lesson_content, build_lessons, build_scenario_contents, build_scenarios,
+        build_section_catalog, build_section_content, build_ship_content, build_ships,
+        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
     };
 }
 
@@ -55,22 +52,6 @@ pub fn build_scenarios() -> Vec<ScenarioConfig> {
 /// cladding wears, named by id from its config.
 pub fn build_styles() -> Vec<ShipStyleConfig> {
     base_content::build().styles
-}
-
-/// The base game's ship grammars, in a stable order - the tables a procedural
-/// hull is drawn from.
-pub fn build_grammars() -> Vec<ShipGrammarConfig> {
-    base_content::build().grammars
-}
-
-/// The grammar catalog wrapped as one `Vec<Content>` of `Content::Grammar`
-/// items - the shape the committed `assets/base/grammars/base.content.ron`
-/// file carries.
-///
-/// ONE file for every grammar, like the styles: the set is short and one
-/// generator's taste is read against the others'.
-pub fn build_grammar_content() -> Vec<Content> {
-    build_grammars().into_iter().map(Content::Grammar).collect()
 }
 
 /// The base game's ships, in a stable order - the whole hulls the scenarios
@@ -120,37 +101,6 @@ pub fn spawned_ship_sections(ship: &SpaceshipConfig) -> Vec<SpaceshipSectionConf
 /// and a hull is read against the others it shares parts with.
 pub fn build_ship_content() -> Vec<Content> {
     build_ships().into_iter().map(Content::Ship).collect()
-}
-
-/// The base game's impact table, in the order the file carries it - which is
-/// also the order `GameImpacts` resolves in.
-pub fn build_impacts() -> Vec<ImpactSoundConfig> {
-    base_content::build().impacts
-}
-
-/// The impact table wrapped as one `Vec<Content>` of `Content::Impact` items -
-/// the shape the committed `assets/base/impacts/base.content.ron` file carries.
-///
-/// ONE file for the whole table: the rows are read against each other (which
-/// pair falls back to which default) and there are four of them.
-pub fn build_impact_content() -> Vec<Content> {
-    build_impacts().into_iter().map(Content::Impact).collect()
-}
-
-/// The base game's narrative channels, in the order the file carries them -
-/// which is also the order `GameChannels` resolves in.
-pub fn build_channels() -> Vec<NarrativeChannelConfig> {
-    base_content::build().channels
-}
-
-/// The channel catalog wrapped as one `Vec<Content>` of `Content::Channel`
-/// items - the shape the committed `assets/base/channels/base.content.ron`
-/// file carries.
-///
-/// ONE file for every channel: a channel is only legible against the others,
-/// because what it means is how a line drawn in it differs from the rest.
-pub fn build_channel_content() -> Vec<Content> {
-    build_channels().into_iter().map(Content::Channel).collect()
 }
 
 /// The base game's training lessons, in the order the file carries them.
@@ -209,18 +159,6 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/ships/base.content.ron".to_string(),
             serialize_content(&build_ship_content()),
-        ),
-        (
-            "base/impacts/base.content.ron".to_string(),
-            serialize_content(&build_impact_content()),
-        ),
-        (
-            "base/grammars/base.content.ron".to_string(),
-            serialize_content(&build_grammar_content()),
-        ),
-        (
-            "base/channels/base.content.ron".to_string(),
-            serialize_content(&build_channel_content()),
         ),
         (
             "base/training/base.content.ron".to_string(),

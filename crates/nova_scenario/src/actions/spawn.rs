@@ -522,7 +522,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 // The mix is the field's answer, so it REPLACES whatever the
                 // template said. The guard above proved it has weight.
                 if let Some(kind) = asteroid_kind_from_mix(&self.asteroid_kinds, kind_draw) {
-                    asteroid.material = kind.to_string();
+                    asteroid.kind = kind.to_string();
                 }
                 if let Some(radius) = radius_draw {
                     asteroid.radius = radius;
@@ -777,7 +777,7 @@ mod tests {
             asteroid_scenario_object(
                 &mut entity_commands,
                 AsteroidConfig {
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(10.0),
                     texture: AssetRef::default(),
@@ -1038,7 +1038,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1272,7 +1272,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
@@ -1354,7 +1354,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1428,7 +1428,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1503,7 +1503,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: KIND_CARBON.to_string(),
+                    kind: KIND_CARBON.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1613,7 +1613,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),

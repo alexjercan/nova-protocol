@@ -19,10 +19,7 @@ use bevy::prelude::*;
 use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
-    prelude::{
-        destructible_body, ConnectedTo, ExplodableEntity, SectionClass, SurfaceMaterial,
-        MATERIAL_HULL,
-    },
+    prelude::{destructible_body, ConnectedTo, ExplodableEntity, ImpactSurface, SectionClass},
 };
 
 use super::prelude::*;
@@ -351,19 +348,6 @@ pub struct BaseSectionConfig {
     pub description: String,
     /// Section hit points; reaching zero destroys the section.
     pub health: f32,
-    /// What this section is MADE of - an open material id looked up in the
-    /// impact table ([`nova_gameplay::prelude::GameImpacts`]) against the
-    /// damage type that struck it, snapshotted into [`SurfaceMaterial`] by
-    /// [`base_section`].
-    ///
-    /// `None` is [`MATERIAL_HULL`], because a section IS ship plate. The field
-    /// exists so a mod can say otherwise - ceramic, ice, a fielded screen -
-    /// not so the base catalog can restate what every section already is.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub material: Option<String>,
     /// The sound this section's destruction plays. Unlike the hit voice this
     /// stays per-target: a section failing is one event with one sound, and
     /// nothing about what killed it changes how the structure lets go.
@@ -438,8 +422,8 @@ fn is_false(b: &bool) -> bool {
 /// child node), resolves, and plays - authored-or-silent. `pub` because
 /// nova_scenario's asteroid bundle constructs it.
 ///
-/// It used to carry the HIT voice too. That half is the impact table's now
-/// ([`nova_gameplay::prelude::GameImpacts`]), because what a hit sounds like
+/// It used to carry the HIT voice too. That half is the engine's now
+/// ([`nova_gameplay::prelude::ImpactSounds`]), because what a hit sounds like
 /// depends on the round as well as the target, and a per-target field can only
 /// say one of those.
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -582,7 +566,10 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // cues; the SectionAnimationPlugin systems move the scene nodes.
         super::section_animation::SectionAnimations::new(config.animations),
         DestroySound(config.destroy_sound),
-        SurfaceMaterial::new(config.material.unwrap_or_else(|| MATERIAL_HULL.to_string())),
+        // A section IS ship plate. Not authored, because there is nothing for
+        // a section to say here: a hull that claimed to be stone would only be
+        // borrowing the asteroid's sample.
+        ImpactSurface::Hull,
     )
 }
 
@@ -839,7 +826,6 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
-            material: None,
             destroy_sound: None,
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::new(0.8, 0.8, 0.8),
@@ -877,7 +863,6 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
-            material: None,
             destroy_sound: None,
             collider: None,
             link_points: Vec::new(),

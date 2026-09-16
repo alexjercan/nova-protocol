@@ -465,9 +465,6 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
         &known,
         &KnownShipDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
-        // The bench authors geometry, never dialogue: no cue, so no channel
-        // has to resolve.
-        &HashSet::new(),
     );
     let errors: Vec<&str> = issues
         .iter()
@@ -754,7 +751,7 @@ fn report_skins(
                 .fixtures
                 .iter()
                 .zip(&report.rules)
-                .filter(|(fixture, _)| fixture.scatter.near_fitting.is_some())
+                .filter(|(fixture, _)| fixture.placement.region == FixtureRegion::NearFitting)
                 .fold((0, 0), |(taken, reach), (_, rule)| {
                     (taken + rule.taken, reach + rule.reach)
                 });

@@ -256,8 +256,8 @@ action names anything, and the docs.
    their steps are children; `VariableSet` because its panel is a head. All
    three matches are exhaustive.
 
-5. Lint it, if it names anything. An action that carries an id, a channel or a
-   file reference needs an arm in `crates/nova_scenario/src/lint/` so an
+5. Lint it, if it names anything. An action that carries an id or a file
+   reference needs an arm in `crates/nova_scenario/src/lint/` so an
    unresolvable name is an error at lint rather than a surprise at load. This
    is the fourth thing the table cannot generate.
 
@@ -326,7 +326,7 @@ kind in the directory, split across three modules with two plugins, carrying no
    OVERRIDE with runtime-derived behavior behind it, and the field's own doc
    comment says what the absence MEANS: `AsteroidConfig::mass` (absent = the
    global rule about which radii are wells) and `lock_signature` (absent = the
-   radius) are the shipped precedent. `AsteroidConfig::material` is the
+   radius) are the shipped precedent. `AsteroidConfig::kind` is the
    counter-example: it is a plain required `String`, because "how is this rock
    shaded" has no runtime answer to fall back on.
 

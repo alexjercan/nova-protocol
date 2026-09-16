@@ -102,7 +102,7 @@ fn asteroid(app: &mut App, scenario: Entity) -> Entity {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
                     texture: default(),
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

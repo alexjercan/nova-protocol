@@ -123,7 +123,7 @@ pub fn asteroid(
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
             mass: None,

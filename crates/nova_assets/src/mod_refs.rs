@@ -407,7 +407,7 @@ mod tests {
                             kind: Asteroid((
                                 radius: 2.0,
                                 texture: "self://textures/rock.png",
-                                material: "rock",
+                                kind: "rock",
                                 health: 50.0,
                                 mass: None,
                                 invulnerable: false,
@@ -826,13 +826,11 @@ mod tests {
             events: [
                 ( name: OnStart, filters: [], actions: [
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Alpha",
                         text: "Own icon.",
                         icon: Some("self://icons/alpha.png"),
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Relay",
                         text: "Shared icon.",
                         icon: Some("dep://base/icons/comms.png"),

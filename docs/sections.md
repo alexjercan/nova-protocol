@@ -12,8 +12,7 @@ how sections connect and handles damage, disabling, and cascading destruction.
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`,
-`health`, optional `material` (the impact table's target half) and
-`destroy_sound`, optional `collider`,
+`health`, optional `destroy_sound`, optional `collider`,
 structural `link_points`, `hide_in_editor`, and `damage_effects` - the authored
 list of looks this section wears as it is damaged (see [Damage is two
 readings](#damage-is-two-readings)).
@@ -507,10 +506,25 @@ over it.
 
 A `ShipStyleConfig` (`sections/skin_style.rs`) is CONTENT resolved by id out of
 `GameStyles`, exactly as a section prototype resolves out of `GameSections`. It
-carries a material per surface role and a list of decoration fixtures, each with
-a model `AssetRef` and a `ScatterRule` written in the vocabulary above. The mod
-merge routes `Content::Style` into `GameStyles` with the same last-wins overlay
-every other kind gets, so a mod restyles a base look by declaring its id.
+carries a `StylePalette` - a `SurfaceFinish` for the plate `top` and one for its
+`wall`, the hidden floor keeping an engine finish - and a list of decoration
+fixtures, each with a model `AssetRef`, a health, a collider and a
+`FixturePlacement`. The mod merge routes `Content::Style` into `GameStyles` with
+the same last-wins overlay every other kind gets, so a mod restyles a base look
+by declaring its id.
+
+A `FixturePlacement` is three authored words - a `FixtureRegion`, a
+`FixtureDensity` and a `FixtureOrientation` - and `skin_style` expands it
+PRIVATELY into the `ScatterRule` written in the vocabulary above. That expansion
+is engine policy: it is tuned against real hulls and it moves when the plate
+derivation moves, which a style that had spelled out fourteen interacting
+filters could not survive. Two facts are derived from the fixture's own collider
+rather than authored beside it, because the size already answers them:
+`min_run` (one cell of run per half cell the piece spans in plane, capped at
+`MAX_DERIVED_RUN`) and whether the piece needs a whole seat at all (a collider
+under `TRIM_HEIGHT` is trim, and trim beds onto a crease). Physics density is
+not authored either - every piece stands at `DECOR_DENSITY`, the same as the
+cladding it sits on.
 
 `scatter_decor` (`sections/skin_decor.rs`) turns plates plus readings plus a
 style into placements. It takes the READINGS, not the structure, so the scatter
@@ -536,10 +550,17 @@ tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
 build. `ScatterRule::patch` is a floor: within each block of `patch` cubed cells,
 keyed by the out face, a rule that the share left with nothing claims its lowest
 hashing eligible plate. A block is a fixed division of the ship's own cells, so a
-hull that grows by one cell keeps every piece outside the block it grew into; the
-floor never displaces another rule's piece, so priority still means what it says.
-With `chance: 0.0` the share picks nothing and the rule is purely "one piece per
-block", which is a density that reads the same at any hull size.
+hull that grows by one cell keeps every piece outside the block it grew into.
+
+The floor takes UNCLAIMED plate first. Where a thin rule's whole region was
+swept by broader rules below it - `Rare` on a `Panel` two `Dense` rules also
+want - there is no unclaimed plate to floor onto, and the rule logs `x0 of 78`
+on a hull it was eligible all over. So the floor may BORROW one claimed plate,
+under three conditions that bound the damage: the holder is on a THICKER rung
+than the borrower, the holder has a floor of its own (`Every` never lends, and
+a line with a hole in it is not a line), and the holder still keeps a piece
+somewhere on the ship. Priority therefore decides who picks, and the floor
+decides only that nobody is picked down to nothing.
 
 A decoration is a `SectionFixture` like a plate, and a child of the PLATE, one
 level further out - so a plate shot off takes its greebles, and

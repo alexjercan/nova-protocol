@@ -465,7 +465,6 @@ fn pdc_turret_prototype(
             name: name.to_string(),
             description: description.to_string(),
             health: TURRET_BASE_HEALTH,
-            material: None,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // A turret is all function - the barrel has to point and the mount
             // has to turn - so it fails by sparking and never by losing a
@@ -579,7 +578,6 @@ fn large_thruster_prototype(meshes: &BaseContentAssets, spec: LargeDriveSpec<'_>
             name: spec.name.to_string(),
             description: spec.description.to_string(),
             health: spec.health,
-            material: None,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid {
                 size: spec.cells.as_vec3(),
@@ -627,7 +625,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 health: 200.0,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -654,7 +651,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // Exposed propulsion: fragile, takes more damage per hit than
                 // an armored mount.
                 health: THRUSTER_BASE_HEALTH,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 // ONE socket, on the mounting face. The authored bell opens
@@ -732,7 +728,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 description: "A basic controller section for spaceships.".to_string(),
                 // Command core: mid durability baseline.
                 health: CONTROLLER_BASE_HEALTH,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -769,7 +764,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // A third of reinforced: the shakedown pirate should die in a
                 // short burst, not a slugging match ("gentle" is data).
                 health: 60.0,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -794,7 +788,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                               face reads the same."
                     .to_string(),
                 health: 200.0,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -815,7 +808,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                               open frame rails."
                     .to_string(),
                 health: 200.0,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -979,7 +971,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                               armored ordnance, ship-killing blast."
                     .to_string(),
                 health: TORPEDO_BASE_HEALTH,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
                 // The same bay art at siege grade, so the same open muzzle.
@@ -1051,7 +1042,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // Light machinery behind a hatch: softer than the command core
                 // it is bolted beside, tougher than exposed propulsion.
                 health: DOCKING_BASE_HEALTH,
-                material: None,
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: dock_link_points(),
@@ -1218,7 +1208,6 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             name: spec.name.to_string(),
             description: spec.description.to_string(),
             health: RAILGUN_BASE_HEALTH,
-            material: None,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Three cells long, and the collider has to claim all of it: the
             // lance is the biggest single target on any ship carrying one.
@@ -1297,7 +1286,6 @@ fn torpedo_bay_prototype(
             description: description.to_string(),
             // Torpedo bay: mid durability baseline.
             health: TORPEDO_BASE_HEALTH,
-            material: None,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Two cells long: the tube art earns its length, and the collider
             // has to claim it or half the bay would be a ghost.

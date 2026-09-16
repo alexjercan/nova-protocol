@@ -637,22 +637,21 @@ mod tests {
         ShipStyleConfig {
             id: "test".to_string(),
             name: "Test".to_string(),
-            surfaces: Vec::new(),
+            palette: default(),
             fixtures: vec![StyleFixtureConfig {
                 id: "block".to_string(),
                 model: AssetRef::from(
                     "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
                 ),
                 health: 10.0,
-                density: 0.1,
-                collider: Vec3::new(0.2, 0.1, 0.2),
-                // `Whole` (the default seat) refuses a crease, and the lone
-                // cell this suite builds is six cone plates - the seat gate
-                // would land nothing on it. `Any` keeps the fixture what these
-                // tests need: a rule that takes every plate.
-                scatter: ScatterRule {
-                    seat: ScatterSeat::Any,
-                    ..default()
+                // Under the trim height, so the seat gate lets it lie on a
+                // crease: the lone cell this suite builds is six cone plates,
+                // and a piece that stands proud would land nowhere on it.
+                collider: Vec3::new(0.2, 0.05, 0.2),
+                placement: FixturePlacement {
+                    region: FixtureRegion::Anywhere,
+                    density: FixtureDensity::Every,
+                    orientation: FixtureOrientation::Free,
                 },
             }],
         }

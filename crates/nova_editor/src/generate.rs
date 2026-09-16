@@ -1,12 +1,13 @@
 //! Generate a hull nobody drew, into the ship being edited.
 //!
 //! The generator is `nova_wfc`, run over the SAME merged content the rest of
-//! the editor reads: a mod that ships a section changes what Generate can roll
-//! and a mod that ships a grammar changes how it rolls, with nothing here
-//! knowing an id. What this module owns is the seed the builder types, the
-//! SECTIONS they ticked, and the REFUSAL - a collapse that fails, or a hull the
-//! game's own content lint would reject, writes one line to the status and
-//! leaves the document as it was.
+//! the editor reads: a mod that ships a section changes what Generate can roll,
+//! with nothing here knowing an id. The TASTE it rolls with is code -
+//! [`WfcPlan::standard_hull`] - because how often a part is offered is
+//! generator policy rather than something a mod overlays. What this module owns
+//! is the seed the builder types, the SECTIONS they ticked, and the REFUSAL - a
+//! collapse that fails, or a hull the game's own content lint would reject,
+//! writes one line to the status and leaves the document as it was.
 //!
 //! Generate is a SHIP verb. A ship is the unit a hull is, so the block sits
 //! inside one and what it rolls replaces what that ship holds - which is what
@@ -18,15 +19,12 @@
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_scenario::prelude::ShipDesign;
-use nova_ship::prelude::{
-    GameGrammars, GameSections, GameStyles, GrammarGrid, GrammarPart, GrammarZone,
-    SectionFootprint, SectionKind, ShipGrammarConfig, STANDARD_HULL_GRAMMAR_ID,
-};
+use nova_ship::prelude::{GameSections, GameStyles, SectionFootprint, SectionKind};
 use nova_ui::{
     prelude::{TextFieldError, TextFieldValue},
     widget::Selected,
 };
-use nova_wfc::prelude::{hull_errors, TileSet};
+use nova_wfc::prelude::{hull_errors, TileSet, WfcGrid, WfcPart, WfcPlan, WfcZone};
 
 #[cfg(test)]
 mod tests;
@@ -53,25 +51,6 @@ pub(crate) struct HullSeed(pub(crate) u64);
 impl Default for HullSeed {
     fn default() -> Self {
         Self(rand::random())
-    }
-}
-
-/// The grammar the next Generate collapses: which hull LINE the ship is drawn
-/// from, as the builder last picked it.
-///
-/// A resource beside [`HullSeed`], and for the same reason: it is an input to
-/// the roll rather than a property of the ship. A ship keeps its sections and
-/// its cladding; the line it was rolled off is a dial the builder can turn and
-/// roll again.
-///
-/// Starts at [`STANDARD_HULL_GRAMMAR_ID`], so a builder who never opens the
-/// list gets the hull the base game draws.
-#[derive(Resource, Debug, Clone)]
-pub(crate) struct HullGrammar(pub(crate) String);
-
-impl Default for HullGrammar {
-    fn default() -> Self {
-        Self(STANDARD_HULL_GRAMMAR_ID.to_string())
     }
 }
 
@@ -153,9 +132,7 @@ pub(crate) fn generate_ship(
     _activate: On<Activate>,
     mut commands: Commands,
     seed: Res<HullSeed>,
-    line: Res<HullGrammar>,
     sections: Option<Res<GameSections>>,
-    grammars: Option<Res<GameGrammars>>,
     styles: Option<Res<GameStyles>>,
     drawable: Query<(&PartChoice, Has<Selected>)>,
     held: Query<&Children>,
@@ -170,7 +147,7 @@ pub(crate) fn generate_ship(
         says.refuse("go inside a ship to generate a hull into it");
         return;
     };
-    let (Some(sections), Some(grammars)) = (sections.as_deref(), grammars.as_deref()) else {
+    let Some(sections) = sections.as_deref() else {
         says.refuse("the content has not finished loading");
         return;
     };
@@ -189,10 +166,10 @@ pub(crate) fn generate_ship(
     let (clad, wears) = q_ships
         .get(ship)
         .map_or((true, None), |node| (node.skin, node.style.clone()));
-    let hull = match drawn_grammar(sections, grammars, &line.0, &drawn).and_then(|grammar| {
+    let hull = match drawn_plan(sections, &drawn).and_then(|plan| {
         collapse(
             sections,
-            &grammar,
+            &plan,
             styles.as_deref(),
             seed.0,
             clad,
@@ -243,40 +220,35 @@ pub(crate) fn generate_ship(
 
 /// What an unauthored part joins the draw at.
 ///
-/// The grammar prices every part it names, tuned by looking at hulls. A
+/// The standard plan prices every part it names, tuned by looking at hulls. A
 /// section it does not name has no such number, and this is the plain one the
 /// block's own note puts on screen beside the list - stated rather than
 /// hidden, because a builder ticking a part the shipped ship never draws is
 /// running an experiment and has to know the terms of it.
 pub(crate) const UNAUTHORED_WEIGHT: f32 = 1.0;
 
-/// The grammar this roll runs: the LINE the builder picked, drawing exactly the
-/// sections that are ticked, around the biggest drive among them.
-///
-/// The vacuum taper stays the grammar's own - it is what a standard hull IS,
-/// and it is not a part. What the list decides is the draw, the ship's MAIN
-/// ENGINE, and through that engine the size of the ship.
+/// One ticked row of the DRAW FROM list: a section the collapse may use, and
+/// where on the hull the builder allowed it.
 pub(crate) struct Drawn {
     /// The catalog section id the builder ticked.
     pub(crate) prototype: String,
     /// Where they zoned it, if they did.
-    pub(crate) zone: Option<GrammarZone>,
+    pub(crate) zone: Option<WfcZone>,
 }
 
-fn drawn_grammar(
-    sections: &GameSections,
-    grammars: &GameGrammars,
-    line: &str,
-    drawn: &[Drawn],
-) -> Result<ShipGrammarConfig, String> {
-    let base = grammars
-        .get_grammar(line)
-        .ok_or_else(|| format!("no ship grammar '{line}' in the merged content"))?;
+/// The plan this roll runs: the code default, drawing exactly the sections that
+/// are ticked, around the biggest drive among them.
+///
+/// The vacuum taper stays the default's own - it is what a standard hull IS,
+/// and it is not a part. What the list decides is the draw, the ship's MAIN
+/// ENGINE, and through that engine the size of the ship.
+pub(crate) fn drawn_plan(sections: &GameSections, drawn: &[Drawn]) -> Result<WfcPlan, String> {
     if drawn.is_empty() {
         return Err("tick at least one section for the collapse to draw".to_string());
     }
-    let mut grammar = base.clone();
-    grammar.parts = drawn
+    let base = WfcPlan::standard_hull();
+    let mut plan = base.clone();
+    plan.parts = drawn
         .iter()
         .map(|ticked| {
             let mut part = base
@@ -284,28 +256,28 @@ fn drawn_grammar(
                 .iter()
                 .find(|part| part.prototype == ticked.prototype)
                 .cloned()
-                .unwrap_or_else(|| GrammarPart {
+                .unwrap_or_else(|| WfcPart {
                     prototype: ticked.prototype.clone(),
                     weight: UNAUTHORED_WEIGHT,
                     aim: None,
                     zone: None,
                 });
-            // The builder's zone beats the grammar's, and clearing one on the
+            // The builder's zone beats the default's, and clearing one on the
             // row clears it here: the row IS the setting.
             part.zone = ticked.zone;
             part
         })
         .collect();
 
-    // The seeded roles are the grammar's own, and `nova_wfc` gives every role
-    // it names tiles whether or not the draw prices it - so a builder who
-    // unticks the hull cube still gets the spine the grammar says a ship has.
+    // The seeded roles are the plan's own, and `nova_wfc` gives every role it
+    // names tiles whether or not the draw prices it - so a builder who unticks
+    // the hull cube still gets the spine a ship has.
     if let Some(main) = main_engine(sections, drawn) {
-        grammar.keel.stern_drive = main;
+        plan.keel.stern_drive = main;
     }
-    grammar.keel.bow_gun = bow_gun(sections, drawn);
-    grammar.grid = holding(sections, &grammar);
-    Ok(grammar)
+    plan.keel.bow_gun = bow_gun(sections, drawn);
+    plan.grid = holding(sections, &plan);
+    Ok(plan)
 }
 
 /// The biggest drive the builder ticked, which becomes the ship's main engine.
@@ -357,7 +329,7 @@ fn biggest(
         .map(|(_, prototype)| prototype)
 }
 
-/// The grammar's grid, grown to hold both the roles it seeds.
+/// The plan's grid, grown to hold both the roles it seeds.
 ///
 /// Never shrunk: the authored size is the shape of the ship, and this only
 /// says that a hull carrying a capital drive is a capital hull. The drive
@@ -365,8 +337,8 @@ fn biggest(
 /// gun stands in the keel column at the other end, and the two of them have to
 /// leave a keel between. Both are the bounds `nova_wfc` refuses a too-small
 /// grid with.
-fn holding(sections: &GameSections, grammar: &ShipGrammarConfig) -> GrammarGrid {
-    let grid = grammar.grid;
+fn holding(sections: &GameSections, plan: &WfcPlan) -> WfcGrid {
+    let grid = plan.grid;
     let cells = |prototype: &str| {
         sections
             .get_section(prototype)
@@ -374,13 +346,9 @@ fn holding(sections: &GameSections, grammar: &ShipGrammarConfig) -> GrammarGrid 
                 SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0
             })
     };
-    let drive = cells(&grammar.keel.stern_drive);
-    let bore = grammar
-        .keel
-        .bow_gun
-        .as_deref()
-        .map_or(0, |gun| cells(gun).z);
-    GrammarGrid {
+    let drive = cells(&plan.keel.stern_drive);
+    let bore = plan.keel.bow_gun.as_deref().map_or(0, |gun| cells(gun).z);
+    WfcGrid {
         half_width: grid.half_width.max(drive.x + 1),
         height: grid.height.max(drive.y),
         length: grid.length.max(drive.z + 1).max(bore + drive.z + 2),
@@ -397,13 +365,13 @@ fn holding(sections: &GameSections, grammar: &ShipGrammarConfig) -> GrammarGrid 
 /// still has that after a reroll.
 fn collapse(
     sections: &GameSections,
-    grammar: &ShipGrammarConfig,
+    plan: &WfcPlan,
     styles: Option<&GameStyles>,
     seed: u64,
     clad: bool,
     wears: Option<&str>,
 ) -> Result<ShipDesign, String> {
-    let tiles = TileSet::build(sections, grammar)?;
+    let tiles = TileSet::build(sections, plan)?;
     // Resolved the way the build view resolves it (`skin::editor_style`): the
     // ship's own style, or the first the content merge loaded where the ship
     // has not chosen - which is what `ShipNode::style: None` MEANS, so a hull

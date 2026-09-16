@@ -139,7 +139,7 @@ fn field(
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: ROCK_RADIUS.0,
                 texture: game_assets.asteroid_texture.clone().into(),
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 mass: None,
                 invulnerable: false,

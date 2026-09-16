@@ -10,13 +10,13 @@ use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::*;
 use nova_ship::prelude::{
-    blocked_exits, exit_lanes, BlockedExit, BlockedExitReason, GrammarKeel, GrammarVacuum,
-    GrammarZone, ShipExit, SkinStructure,
+    blocked_exits, exit_lanes, BlockedExit, BlockedExitReason, ShipExit, SkinStructure,
 };
 use rand::{rngs::StdRng, RngExt, SeedableRng};
 
 use crate::{
     grid::{Grid, FACES},
+    plan::{WfcKeel, WfcVacuum, WfcZone},
     tiles::{compatible, mirror_cell, seam_allows, upright_tile, Family, ShipCell, Tile, VACUUM},
 };
 
@@ -27,15 +27,15 @@ const SPIKE_SUPPORT: usize = 3;
 const FILL_SUPPORT: usize = 3;
 
 /// One collapse in progress: the tiles, the block they are laid in, and the
-/// grammar's taste about where the result may be sparse.
+/// plan's taste about where the result may be sparse.
 pub(crate) struct Collapse<'a> {
     pub(crate) tiles: &'a [Tile],
     pub(crate) families: &'a [Family],
     pub(crate) grid: Grid,
     /// The row the keel is laid along.
     pub(crate) keel_row: usize,
-    pub(crate) vacuum: GrammarVacuum,
-    pub(crate) keel: &'a GrammarKeel,
+    pub(crate) vacuum: WfcVacuum,
+    pub(crate) keel: &'a WfcKeel,
 }
 
 impl Collapse<'_> {
@@ -102,12 +102,12 @@ impl Collapse<'_> {
         let (x, y, z) = self.grid.coords(cell);
         let (width, length) = (self.grid.size.x as usize, self.grid.size.z as usize);
         match zone {
-            GrammarZone::Bow => z * 3 < length,
-            GrammarZone::Amidships => z * 3 >= length && z * 3 < length * 2,
-            GrammarZone::Stern => z * 3 >= length * 2,
-            GrammarZone::Dorsal => y > self.keel_row,
-            GrammarZone::Ventral => y < self.keel_row,
-            GrammarZone::Flank => x * 2 >= width,
+            WfcZone::Bow => z * 3 < length,
+            WfcZone::Amidships => z * 3 >= length && z * 3 < length * 2,
+            WfcZone::Stern => z * 3 >= length * 2,
+            WfcZone::Dorsal => y > self.keel_row,
+            WfcZone::Ventral => y < self.keel_row,
+            WfcZone::Flank => x * 2 >= width,
         }
     }
 
@@ -248,7 +248,7 @@ impl Collapse<'_> {
     ///
     /// The block is seeded by its own MINIMUM CORNER - the one segment that
     /// emits - and propagation lays the rest of it out. A domain that empties
-    /// while it does is a grammar whose drive does not fit its grid, which
+    /// while it does is a plan whose drive does not fit its grid, which
     /// [`crate::runnable`] has already refused.
     fn seed_stern(&self, domains: &mut [Vec<bool>], seeded: &mut [bool]) -> Result<(), String> {
         let (length, height) = (self.grid.size.z as usize, self.grid.size.y as usize);
@@ -385,7 +385,7 @@ impl Collapse<'_> {
         let standing_here = || (0..self.tiles.len()).filter(|index| domain[*index]);
         let total: f32 = standing_here().map(weight).sum();
         // A weighted draw needs a positive finite total to roll inside. The
-        // grammar gate rejects the tables that would make one zero, but the
+        // plan gate rejects the tables that would make one zero, but the
         // number reaching here has been divided by a per-cell orientation
         // count, so this is the last place to notice - and `rand` PANICS on an
         // empty range. Falling back to a flat draw keeps the collapse running
@@ -751,7 +751,7 @@ impl Collapse<'_> {
         // hull has to REFUSE the seed rather than hand one out.
         //
         // No test drives this arm, and the record says so rather than pretending
-        // otherwise: a sweep of 7,200 seeds over 120 bent grammars - vacuum
+        // otherwise: a sweep of 7,200 seeds over 120 bent plans - vacuum
         // priced from 0.001 to 4, every part from featherweight to twenty, four
         // grid shapes, with and without a seeded bow gun - reached it never.
         // Erosion drops a blocked part before this reads, and the filler is

@@ -25,7 +25,6 @@ pub mod railgun_section;
 pub mod section_animation;
 pub mod shell_shape;
 pub mod shell_skin;
-pub mod ship_grammar;
 pub mod signature;
 pub mod skin_decor;
 pub mod skin_reading;
@@ -45,11 +44,10 @@ pub mod prelude {
         fixture::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
         integrity::prelude::*, link_points::prelude::*, live_structure_anchor, patch::prelude::*,
         placeholder_art::prelude::*, railgun_section::prelude::*, section_animation::prelude::*,
-        shell_shape::prelude::*, shell_skin::prelude::*, ship_grammar::prelude::*,
-        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        shell_shape::prelude::*, shell_skin::prelude::*, signature::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 

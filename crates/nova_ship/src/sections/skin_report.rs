@@ -427,7 +427,7 @@ mod tests {
         shell_shape::{FULL, HALF, TOP_FACET_FOOTPRINT},
         shell_skin::derive_skin,
         skin_reading::read_plates,
-        skin_style::{ScatterRule, ScatterSeat, StyleFixtureConfig},
+        skin_style::{FixtureDensity, FixturePlacement, FixtureRegion, StyleFixtureConfig},
     };
 
     /// A section that mates on every face, like a hull cube.
@@ -468,21 +468,43 @@ mod tests {
         ShipStyleConfig {
             id: "test".to_string(),
             name: "Test".to_string(),
-            surfaces: Vec::new(),
+            palette: default(),
             fixtures,
         }
     }
 
-    fn fixture(id: &str, scatter: ScatterRule) -> StyleFixtureConfig {
+    /// A piece small enough that its derived run gate admits any plate, so a
+    /// test names only the placement words it is actually about.
+    fn fixture(id: &str, region: FixtureRegion, density: FixtureDensity) -> StyleFixtureConfig {
+        sized(id, region, density, Vec3::new(0.2, 0.1, 0.2))
+    }
+
+    /// A fixture of an authored size, because the seat gate and the run gate are
+    /// both read off the collider - a test about either has to say which piece
+    /// it means.
+    fn sized(
+        id: &str,
+        region: FixtureRegion,
+        density: FixtureDensity,
+        collider: Vec3,
+    ) -> StyleFixtureConfig {
         StyleFixtureConfig {
             id: id.to_string(),
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
-            density: 0.1,
-            collider: Vec3::new(0.2, 0.1, 0.2),
-            scatter,
+            collider,
+            placement: FixturePlacement {
+                region,
+                density,
+                ..default()
+            },
         }
     }
+
+    /// A stack: it stands proud, so it takes the seat gate.
+    const PROUD: Vec3 = Vec3::new(0.18, 0.28, 0.18);
+    /// A livery patch: trim, so it does not.
+    const TRIM: Vec3 = Vec3::new(0.3, 0.03, 0.46);
 
     /// An L of hull cubes with arms `arm` cells long and `depth` cells thick,
     /// lying in x/y - the owner's own build.
@@ -720,13 +742,16 @@ mod tests {
     #[test]
     fn a_piece_says_whether_its_own_share_or_the_floor_put_it_there() {
         let structure = slab(8);
-        let thin = ScatterRule {
-            relief: vec![PlateRelief::Flat],
-            chance: 0.02,
-            patch: 3,
-            ..default()
-        };
-        let report = report(&structure, Some(&style(vec![fixture("panel", thin)])));
+        // `Rare` has no share at all, so the floor is the only thing that can
+        // have put a piece down.
+        let report = report(
+            &structure,
+            Some(&style(vec![fixture(
+                "panel",
+                FixtureRegion::Panel,
+                FixtureDensity::Rare,
+            )])),
+        );
 
         let placed: Vec<&DecorReport> = report
             .plates
@@ -761,14 +786,22 @@ mod tests {
             .collect();
         cells.push(IVec3::new(2, 1, 2));
         let structure = hull(&cells);
-        let cover =
-            |rule: ScatterRule| report(&structure, Some(&style(vec![fixture("panel", rule)])));
+        let cover = |piece: StyleFixtureConfig| report(&structure, Some(&style(vec![piece])));
 
-        let gated = cover(ScatterRule::default());
-        let ungated = cover(ScatterRule {
-            seat: ScatterSeat::Any,
-            ..default()
-        });
+        // The same region and the same rung; the only difference is the PIECE.
+        // A stack stands proud and takes the gate, a decal is trim and does not.
+        let gated = cover(sized(
+            "stack",
+            FixtureRegion::Anywhere,
+            FixtureDensity::Every,
+            PROUD,
+        ));
+        let ungated = cover(sized(
+            "livery",
+            FixtureRegion::Anywhere,
+            FixtureDensity::Every,
+            TRIM,
+        ));
 
         assert_eq!(gated.decor_on_creased, 0, "the gate let a crease through");
         assert!(
@@ -781,7 +814,8 @@ mod tests {
             gated.decor_tilt,
             ungated.decor_tilt,
         );
-        // The cost, stated: the gate refuses two fifths of this hull.
+        // The cost, stated: the gate refuses two fifths of this hull to anything
+        // that stands proud on it.
         assert!(
             gated.decor < ungated.decor,
             "the gate refused nothing at all",
@@ -799,13 +833,17 @@ mod tests {
     #[test]
     fn the_seat_gate_strips_a_hand_built_l_and_the_high_ground_carries_it() {
         let worn = style(vec![
-            fixture("panel", ScatterRule::default()),
-            fixture(
-                "mast",
-                ScatterRule {
-                    seat: ScatterSeat::Any,
-                    ..default()
-                },
+            sized(
+                "stack",
+                FixtureRegion::Anywhere,
+                FixtureDensity::Every,
+                PROUD,
+            ),
+            sized(
+                "livery",
+                FixtureRegion::Anywhere,
+                FixtureDensity::Every,
+                TRIM,
             ),
         ]);
         let report = report(&elbow(3, 1), Some(&worn));
@@ -813,9 +851,13 @@ mod tests {
         assert_eq!(report.coplanar, 0, "the L has no seat anywhere on it");
         assert_eq!(
             report.rules[0].reach, 0,
-            "a seated rule reaches nothing on a hand-built hull",
+            "a piece standing proud reaches nothing on a hand-built hull",
         );
-        assert_eq!(report.rules[1].taken, report.plates.len());
+        assert_eq!(
+            report.rules[1].taken,
+            report.plates.len(),
+            "trim is what carries a hand-built hull, so it has to reach all of it",
+        );
         assert_eq!(
             report.decor_on_creased, report.decor,
             "every piece on an L stands on a cone, and there is nowhere else",
@@ -832,10 +874,8 @@ mod tests {
         reversed.reverse();
         let worn = style(vec![fixture(
             "vent",
-            ScatterRule {
-                chance: 0.5,
-                ..default()
-            },
+            FixtureRegion::Anywhere,
+            FixtureDensity::Dense,
         )]);
 
         let forwards = report(&hull(&cells), Some(&worn));

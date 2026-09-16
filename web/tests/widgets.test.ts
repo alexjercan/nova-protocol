@@ -401,7 +401,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     const SPATIAL = "crates/nova_gameplay/src/audio/spatial.rs";
     const SPEW = "crates/nova_gameplay/src/integrity/spew.rs";
     const CHUNK = "crates/nova_gameplay/src/integrity/chunk.rs";
-    const GRAMMARS = "crates/nova_authoring/src/base_content/grammars.rs";
+    const WFC_PLAN = "crates/nova_wfc/src/plan.rs";
     const OCCLUSION = "crates/nova_ship/src/input/targeting/occlusion.rs";
 
     // The lance's recoil, hardcoded in the shared `railgun_lance_prototype`
@@ -490,8 +490,10 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         "KINETIC_SHARDS.most, the widest carve a hit may throw"
     );
 
-    // The shipped grammar's grid, the block the zone scope collapses.
-    const grid = rustSays(GRAMMARS, /grid: GrammarGrid \{([\s\S]*?)\n {8}\},/);
+    // The shipped plan's grid, the block the zone scope collapses. The plan
+    // moved into nova_wfc in v0.14.0 - it is code, not content - so the scope's
+    // numbers are pinned to WfcPlan::standard_hull rather than to a builder.
+    const grid = rustSays(WFC_PLAN, /grid: WfcGrid \{([\s\S]*?)\n {12}\},/);
     for (const [name, want] of [
         ["half_width", GRAMMAR_HALF_WIDTH],
         ["height", GRAMMAR_HEIGHT],

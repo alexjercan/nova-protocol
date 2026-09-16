@@ -54,7 +54,6 @@ shared `base` block and one kind-specific block:
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
 | `base.health` | number | required | Hit points before the section is destroyed. |
-| `base.material` | `Option` string | `None` | What the section is MADE of, looked up in the [impact table](../impacts/) against the round that hit it. Omitted means `"hull"`. |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
@@ -327,9 +326,11 @@ Section((
   sound THIS section's destruction plays, an asset ref like the meshes
   (`dep://base/sounds/explosion.wav` is the base voice); an omitted sound is
   silent.
-- what a HIT sounds like is not authored here. A hit has two halves - the round
-  and what it struck - so the section names only its `material` and the
-  [impact table](../impacts/) pairs that with the damage type.
+- what a HIT sounds like is not authored at all. A hit has two halves - the
+  round and what it struck - and both are closed engine vocabularies: every
+  section is ship plate, every rock is stone, and the damage type does the rest.
+  A mod that wants a different bang replaces the base sound file; it cannot add
+  a category, because a category nothing can be made of would never play.
 
 ## Thruster
 

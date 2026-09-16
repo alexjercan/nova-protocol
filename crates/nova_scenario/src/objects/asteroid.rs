@@ -46,25 +46,23 @@ pub struct AsteroidConfig {
     /// at spawn time (see `insert_asteroid_render`).
     #[reflect(ignore)]
     pub texture: AssetRef<Image>,
-    /// What this rock is MADE of - one open id with three consumers, and the
-    /// authored half of the asteroid KIND.
+    /// What this rock IS - one open id, snapshotted into [`AsteroidKind`] on
+    /// the asteroid parent.
     ///
-    /// It is looked up in the impact table against the damage type that struck
-    /// it, snapshotted into [`SurfaceMaterial`] on the asteroid parent (the
-    /// audio observers walk up from the collider node); it selects the surface
-    /// shading through
+    /// It selects the surface shading through
     /// [`asteroid_kind_look`](super::asteroid_kind::asteroid_kind_look), so an
-    /// `ice` body is drawn as ice and not only heard as it; and it is where an
-    /// ore yield attaches when mining exists. One field, because a rock that is
-    /// made of ice is made of ice for every purpose.
+    /// `ice` body is drawn as ice, and it is where an ore yield attaches when
+    /// mining exists. What a round SOUNDS like against it is not here and is
+    /// not authored: every kind is [`ImpactSurface::Rock`], because the sample
+    /// library knows plate and stone and an ice body is stone.
     ///
     /// REQUIRED, and checked. The base kinds are [`ASTEROID_KINDS`]: `rock`,
     /// `metal`, `ice`, `carbon` and the `plain` control. There is no default
-    /// and no fallback - a rock that does not say what it is made of fails to
+    /// and no fallback - a rock that does not say what it is fails to
     /// deserialize, and one that names a kind nobody ships is a lint error and
     /// a loud refusal at render time. A body this big in the frame does not get
     /// to be a shrug.
-    pub material: String,
+    pub kind: String,
     /// The sound this rock's destruction plays. Authorable asset ref;
     /// AUTHORED-OR-SILENT, snapshotted into [`DestroySound`] on the same
     /// parent. Per-target, unlike the hit voice: a rock breaking up is one
@@ -226,7 +224,7 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // One resolved id for the two components that carry it: what the rock
     // sounds like and what it is drawn as can never disagree, because there is
     // nothing for them to disagree about.
-    let kind = config.material.clone();
+    let kind = config.kind.clone();
 
     entity.insert((
         AsteroidMarker,
@@ -237,9 +235,10 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
         AsteroidTexture(config.texture),
         AsteroidRadius(radius),
         DestroySound(config.destroy_sound.clone()),
-        // Nested so the bundle stays inside the 15-element tuple limit; the
-        // pair is one fact about the rock anyway.
-        (AsteroidKind::new(kind.clone()), SurfaceMaterial::new(kind)),
+        // Nested so the bundle stays inside the 15-element tuple limit. The
+        // two are NOT one fact: the kind is how a rock is shaded, the surface
+        // is what a round bites into, and every kind bites the same.
+        (AsteroidKind::new(kind), ImpactSurface::Rock),
         AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
         AsteroidSeed(seed),
@@ -1125,7 +1124,7 @@ mod tests {
     /// are in world units - a 200 m rock is 20 of them.
     fn rock(radius: Meters, mass: Option<f32>) -> AsteroidConfig {
         AsteroidConfig {
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: None,
             radius,
             texture: AssetRef::default(),

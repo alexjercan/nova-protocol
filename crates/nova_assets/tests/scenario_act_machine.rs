@@ -134,7 +134,7 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "act", expression: Term(Factor(Literal(Number(2.0)))))),
                     VariableSet((key: "win_gate", expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))))),
                     ObjectiveComplete((id: "objective_1")),
-                    NarrativeCue((channel: "comms", speaker: "Speaker One", text: "Field is clear.")),
+                    NarrativeCue((speaker: "Speaker One", text: "Field is clear.")),
                 ],
             ),
             (

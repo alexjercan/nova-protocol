@@ -701,9 +701,10 @@ Four engine facts the object configs do not show:
   (`objects/light.rs`) and the engine adds none of its own, so a scenario that
   authors no `Light` renders black. This catches every new backdrop.
 - **What a rock is MADE of is required, and it decides how it looks.**
-  `AsteroidConfig::material` names a KIND - `rock`, `metal`, `ice`, `carbon`,
+  `AsteroidConfig::kind` names a KIND - `rock`, `metal`, `ice`, `carbon`,
   or the `plain` control - and `objects/asteroid_kind.rs` is the one table that
-  maps a kind to a look. The look is uniform data for a triplanar
+  maps a kind to a look. It decides the LOOK and nothing else: a rock's hit
+  voice is `ImpactSurface::Rock` whatever it is made of. The look is uniform data for a triplanar
   `ExtendedMaterial` (`objects/asteroid_surface.rs`), so a carved and remeshed
   rock wears the same surface it did before the hit. There is NO default and no
   fallback: a config without the field fails to deserialize, an id the table

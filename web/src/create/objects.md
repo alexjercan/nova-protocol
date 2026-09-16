@@ -61,7 +61,7 @@ default mass and radar signature together.
 | `texture` | asset ref | required | the fine crevice GRAIN the kind modulates, not the rock's colour (`dep://base/textures/asteroid.png` is the stock one) |
 | `invulnerable` | bool | required | `true` = no carving: the rock and its gravity well cannot be destroyed mid-scenario |
 | `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` ALWAYS makes this rock a well. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space) |
-| `material` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock looks and how a round sounds landing on it - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
+| `kind` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock LOOKS - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
 | `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = 100 m plus half the rock's TRUE geometric radius (the meshed extent, not the nominal `radius` above), so a pebble is a close-range contact and a belt body a landmark. Lock range is thirty times the signature. Separately, and whatever the signature says, EVERY asteroid blocks radar: nothing behind it can be locked or detected while it is on the line - see [line of sight](#radar-line-of-sight) |
 | `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` derives one from the object's own `id`, so a rock differs from its neighbours but keeps its shape on every load. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
@@ -72,7 +72,7 @@ SpawnScenarioObject((
     kind: Asteroid((
         radius: 200.0,
         texture: "dep://base/textures/asteroid.png",
-        material: "rock",
+        kind: "rock",
         mass: Some(45000.0),
         invulnerable: true,
     )),
@@ -81,9 +81,10 @@ SpawnScenarioObject((
 
 ### What a rock is made of
 
-`material` is the rock's KIND, and it is REQUIRED. It answers two questions at
-once: how the body is SHADED, and what the [impact table](../impacts/) plays
-when a round lands on it.
+`kind` is the rock's KIND, and it is REQUIRED. It answers one question: how the
+body is SHADED. It does NOT decide what the rock sounds like when something
+hits it - every asteroid is stone to the engine's impact voice, whatever it is
+made of, and only the damage type changes the bang.
 
 | kind | reads as |
 |---|---|
@@ -102,11 +103,13 @@ made of fails to load, and one that names a kind nobody ships is a `content
 lint` error and a refusal to render. A body this big in the frame does not get
 to be a shrug.
 
-**Migrating a file written for 0.12.0 or earlier:** every `Asteroid((..))` needs a
-`material:` line. `material: "rock"` is what the old files were drawn as, so it
-is the mechanical migration; picking a kind per rock is the point of the field.
-A field scattered by [`ScatterObjects`](../actions/#scatterobjects) states its
-kinds once, in `asteroid_kinds`, and the scatter writes them into every copy.
+**Migrating an older file:** the field was called `material:` in 0.13.x - rename
+it to `kind:`, and nothing else about it changed. A file written for 0.12.0 or
+earlier has no such line at all and needs one on every `Asteroid((..))`;
+`kind: "rock"` is what those files were drawn as, so it is the mechanical
+migration, and picking a kind per rock is the point of the field. A field
+scattered by [`ScatterObjects`](../actions/#scatterobjects) states its kinds
+once, in `asteroid_kinds`, and the scatter writes them into every copy.
 
 A normal asteroid has no health pool. Hits remove signed geometry and severed
 pieces become debris. When no viable connected solid remains, destruction fires

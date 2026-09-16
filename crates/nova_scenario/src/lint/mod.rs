@@ -23,17 +23,14 @@ mod scenario;
 mod ship;
 
 pub use scenario::{lint_campaign, lint_scenario};
-pub use ship::{
-    lint_channel_config, lint_grammar_config, lint_section_config, lint_ship_design_config,
-};
+pub use ship::{lint_section_config, lint_ship_design_config};
 
 /// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
 /// content-lint entry points and result types into scope.
 pub mod prelude {
     pub use super::{
-        lint_campaign, lint_channel_config, lint_grammar_config, lint_scenario,
-        lint_section_config, lint_ship_design_config, KnownSections, KnownShipDesigns, LintIssue,
-        LintSeverity,
+        lint_campaign, lint_scenario, lint_section_config, lint_ship_design_config, KnownSections,
+        KnownShipDesigns, LintIssue, LintSeverity,
     };
 }
 

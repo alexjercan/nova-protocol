@@ -9,7 +9,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_input::prelude::InputSource;
 use nova_mod_format::{BundleManifest, BASE_MOD_ID};
 use nova_modding::prelude::Content;
@@ -18,7 +17,7 @@ use nova_scenario::prelude::{
     KnownSections, KnownShipDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
     ScenarioRole, ShipDesignPrototype, SpaceshipController,
 };
-use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig, ShipGrammarConfig};
+use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
@@ -48,8 +47,6 @@ struct WalkedBundle {
     ships: Vec<ShipDesignPrototype>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
-    grammars: Vec<ShipGrammarConfig>,
-    channels: Vec<NarrativeChannelConfig>,
     lessons: Vec<Lesson>,
     /// Every parsed content item paired with the bundle-relative file it was
     /// read from (a bundle lists several content files). Kept so the
@@ -112,8 +109,6 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut ships = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
-    let mut grammars = Vec::new();
-    let mut channels = Vec::new();
     let mut lessons = Vec::new();
     for (_, item) in &content {
         match item {
@@ -121,13 +116,11 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Ship(ship) => ships.push(ship.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
-            Content::Grammar(grammar) => grammars.push(grammar.clone()),
-            Content::Channel(channel) => channels.push(channel.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
-            // Styles and impact rows have no cross-content references of their
-            // own - each names asset paths and nothing else - so they are
-            // walked for their resource refs (below) and need no bucket here.
-            Content::Style(_) | Content::Impact(_) => {}
+            // A style has no cross-content references of its own - it
+            // names asset paths and nothing else - so it is walked for its
+            // resource refs (below) and needs no bucket here.
+            Content::Style(_) => {}
         }
     }
     WalkedBundle {
@@ -137,8 +130,6 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         ships,
         scenarios,
         campaigns,
-        grammars,
-        channels,
         lessons,
         content,
         acks: read_acks(dir),
@@ -236,24 +227,6 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .filter(|(_, role)| !role.is_backdrop())
         .map(|(id, _)| id.clone())
         .collect();
-    // Channels overlay like sections do, not like scenarios: a cue may only
-    // name a channel its own bundle can SEE, so a mod cannot lean on a channel
-    // some unrelated mod happens to ship.
-    let channels_by_bundle: HashMap<&str, &[NarrativeChannelConfig]> = all
-        .iter()
-        .map(|b| (b.id.as_str(), b.channels.as_slice()))
-        .collect();
-    let mut known_channels: HashSet<String> = channels_by_bundle
-        .get(BASE_MOD_ID)
-        .map(|channels| channels.iter().map(|c| c.id.clone()).collect())
-        .unwrap_or_default();
-    for dep in &bundle.manifest.meta.dependencies {
-        if let Some(dep_channels) = channels_by_bundle.get(dep.as_str()) {
-            known_channels.extend(dep_channels.iter().map(|c| c.id.clone()));
-        }
-    }
-    known_channels.extend(bundle.channels.iter().map(|c| c.id.clone()));
-
     // Visible prototypes: base + this bundle's own + its declared
     // dependencies' ('base' is implicit and never declared). Full
     // configs, so the catalog can classify mount kinds.
@@ -289,13 +262,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
 
     let mut issues = Vec::new();
     for scenario in &bundle.scenarios {
-        for issue in lint_scenario(
-            scenario,
-            &known_sections,
-            &known_ships,
-            &known_scenarios,
-            &known_channels,
-        ) {
+        for issue in lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -305,26 +272,6 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // it. Same rule the section catalog follows below.
     for ship in &bundle.ships {
         for issue in lint_ship_design_config(ship, &known_sections, ship.id.as_str()) {
-            issues.push((bundle.id.clone(), issue));
-        }
-    }
-
-    // Grammar well-formedness: every prototype a generator draws from has to
-    // resolve, in the same visible catalog a scenario's spawns resolve in.
-    for grammar in &bundle.grammars {
-        for issue in nova_scenario::prelude::lint_grammar_config(
-            grammar,
-            &known_sections,
-            bundle.id.as_str(),
-        ) {
-            issues.push((bundle.id.clone(), issue));
-        }
-    }
-
-    // Channel well-formedness: a channel is pure presentation, so the only
-    // thing to check is that the presentation is authorable.
-    for channel in &bundle.channels {
-        for issue in nova_scenario::prelude::lint_channel_config(channel, bundle.id.as_str()) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -838,13 +785,10 @@ pub fn collect_target(dir: &Path) -> ContentReport {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{AssetRef, ChipTone, NarrativeChannelConfig};
+    use nova_gameplay::prelude::AssetRef;
     use nova_mod_format::{BundleManifest, ModMeta};
     use nova_modding::prelude::Content;
-    use nova_scenario::prelude::{
-        EventActionConfig, EventConfig, NarrativeCueActionConfig, ScenarioConfig,
-        ScenarioEventConfig,
-    };
+    use nova_scenario::prelude::ScenarioConfig;
 
     use super::{lint_bundle, scenario_input_overlaps, WalkedBundle};
 
@@ -899,20 +843,6 @@ mod tests {
                 _ => None,
             })
             .collect();
-        let grammars = content
-            .iter()
-            .filter_map(|c| match c {
-                Content::Grammar(g) => Some(g.clone()),
-                _ => None,
-            })
-            .collect();
-        let channels = content
-            .iter()
-            .filter_map(|c| match c {
-                Content::Channel(c) => Some(c.clone()),
-                _ => None,
-            })
-            .collect();
         let lessons = content
             .iter()
             .filter_map(|c| match c {
@@ -935,8 +865,6 @@ mod tests {
             ships,
             scenarios,
             campaigns,
-            grammars,
-            channels,
             lessons,
             // The tests do not exercise multi-file provenance; a single
             // synthetic file name carries every item.
@@ -958,69 +886,6 @@ mod tests {
 
     fn count_containing(msgs: &[String], needle: &str) -> usize {
         msgs.iter().filter(|m| m.contains(needle)).count()
-    }
-
-    /// A cue may name a channel from base, from this bundle, or from a bundle
-    /// it DEPENDS on - and nothing else. Borrowing a channel that merely
-    /// happens to be installed would make a mod work on its author's machine
-    /// and fail on everyone else's.
-    #[test]
-    fn a_cue_may_only_name_a_channel_its_own_bundle_can_see() {
-        let channel = |id: &str| Content::Channel(NarrativeChannelConfig::new(id, ChipTone::Comms));
-        let speaking = |scenario_id: &str, channel_id: &str| {
-            let mut config = ScenarioConfig {
-                description: String::new(),
-                ..ScenarioConfig::new(
-                    scenario_id.to_string(),
-                    scenario_id.to_string(),
-                    AssetRef::from("self://textures/base.png".to_string()),
-                )
-            };
-            config.events.push(ScenarioEventConfig {
-                label: None,
-                name: EventConfig::OnStart,
-                once: false,
-                filters: Vec::new(),
-                actions: vec![EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    channel: channel_id.to_string(),
-                    speaker: "Alpha".to_string(),
-                    text: "Say again.".to_string(),
-                    dwell: None,
-                    icon: None,
-                })],
-            });
-            Content::Scenario(config)
-        };
-
-        let base = walked("base", &[], &[], vec![channel("comms")]);
-        let stranger = walked("stranger", &[], &[], vec![channel("smuggler_band")]);
-        let borrower = walked(
-            "mod",
-            &[],
-            &["textures/base.png"],
-            vec![speaking("borrowed", "smuggler_band")],
-        );
-        let all = [base, stranger, borrower];
-
-        let msgs = messages(&all[2], &all);
-        assert_eq!(
-            count_containing(&msgs, "channel 'smuggler_band', which no bundle authors"),
-            1,
-            "an undeclared bundle's channel must not resolve: {msgs:?}"
-        );
-
-        // The base game's channels are always visible, declared or not.
-        let own = walked(
-            "mod",
-            &[],
-            &["textures/base.png"],
-            vec![speaking("heard", "comms")],
-        );
-        let all = [walked("base", &[], &[], vec![channel("comms")]), own];
-        assert!(
-            messages(&all[1], &all).is_empty(),
-            "a base channel must resolve for every mod"
-        );
     }
 
     #[test]

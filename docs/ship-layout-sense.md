@@ -2,9 +2,9 @@
 
 Design note. Written in 2026-08 against `examples/playable/shared/wfc.rs`,
 where the collapse used to live as consts in one example file. It lives in
-`crates/nova_wfc` now and every number the note treated as a constant is an
-authored field of a `Grammar` (`nova_ship::prelude::ShipGrammarConfig`), so the
-citations below have been re-derived. The REASONING is unchanged and is why the
+`crates/nova_wfc` now and every number the note treated as a constant is a field
+of a `WfcPlan` (`nova_wfc::prelude::WfcPlan`), so the citations below have been
+re-derived. The REASONING is unchanged and is why the
 note is kept.
 
 The complaint it answers: looking at any render of the `wfc_ships` row, drives
@@ -46,18 +46,20 @@ illegal. The drive was the one part whose direction was both free and wrong.
 More than expected. The generator is not orientation-blind - it is
 orientation-blind *about parts* while being quite opinionated about *shape*.
 
-Every row was a constant when this was written. All but two are authored
-`Grammar` fields now, which is the change that made the note need re-deriving
-rather than retiring: the facts are the same facts, a mod can retune them, and
-`standard_hull` is the grammar the numbers below come from.
+Every row was a constant when this was written. All but two are `WfcPlan` fields
+now, which is the change that made the note need re-deriving rather than
+retiring: the facts are the same facts, each caller can retune them, and
+`WfcPlan::standard_hull` is the plan the numbers below come from. The plan is
+code and not content - which generator wants which section is generator policy,
+so a section stays a description of geometry and capability.
 
 | Fact | Where | What it already means |
 | --- | --- | --- |
-| `grid.length = 11` on `z` | `GrammarGrid`, authored | the ship's long axis |
-| `grid.height = 5` on `y`; the keel row is `height / 2` | `GrammarGrid`; `TileSet::hull` | up, and a middle |
+| `grid.length = 11` on `z` | `WfcGrid`, authored | the ship's long axis |
+| `grid.height = 5` on `y`; the keel row is `height / 2` | `WfcGrid`; `TileSet::hull` | up, and a middle |
 | `x = 0` is the mirror plane | `Grid::starboard_half` starts at `x = 0.5` | port/starboard |
-| `vacuum.bow_taper = 24.0` | `GrammarVacuum`, read by `Plan::vacuum_weight` | **`z = 0` is the BOW** |
-| `vacuum.stern = 9.0` | `GrammarVacuum`, same reader | the last row is sparse |
+| `vacuum.bow_taper = 24.0` | `WfcVacuum`, read by `Plan::vacuum_weight` | **`z = 0` is the BOW** |
+| `vacuum.stern = 9.0` | `WfcVacuum`, same reader | the last row is sparse |
 | `seed_keel` | collapses the spine by hand, from `keel.hull` | a connected structure to grow on |
 | `keel.bridge` at `length / 3` | the bridge, forward of centre | a front, already |
 
@@ -125,23 +127,23 @@ Cost against effect, as ranked at the time. Where they stand now:
 
 | # | Then | Now |
 | --- | --- | --- |
-| 1. Per-part aim | done | shipped, as the authored `GrammarPart::aim` |
+| 1. Per-part aim | done | shipped, as `WfcPart::aim` |
 | 2. Seed the drive deck | done | shipped, and it seeds a multi-cell drive whole |
 | 3. Deck and belly | measured, not landed | unchanged: measured, not landed, still a taste call |
 | 4. Seed a superstructure | proposal | not landed |
-| 5. Zone the grid | "only if 1-4 are not enough" | the MECHANISM shipped as `GrammarPart::zone`; `standard_hull` authors none |
-| 6. Re-tune the weights | last | not done; the weights are content now, so it is a mod's call as much as ours |
+| 5. Zone the grid | "only if 1-4 are not enough" | the MECHANISM shipped as `WfcPart::zone`; `standard_hull` names none |
+| 6. Re-tune the weights | last | not done; the weights are plan fields, so each caller retunes its own |
 
-Not on the list and shipped anyway: a seeded SPINAL GUN (`GrammarKeel::bow_gun`),
+Not on the list and shipped anyway: a seeded SPINAL GUN (`WfcKeel::bow_gun`),
 which is item 2's move applied to the bow. It is what replaced the `wfc_arena`
 bench stamping a lance on after the collapse.
 
 ### 1. A per-part AIM, as a unary constraint. SHIPPED
 
-Landed as proposed, then became content: a draw entry carries
-`aim: Option<GrammarAim>` - the only face this part may fire through - and
+Landed as proposed, then moved into the plan: a draw entry carries
+`aim: Option<WfcAim>` - the only face this part may fire through - and
 `Plan::domains` strikes any tile `Plan::aim_allowed` disagrees with. The
-shipped grammar aims its thrusters `Aft`; everything else authors nothing.
+shipped plan aims its thrusters `Aft`; everything else names nothing.
 
 - **Cost:** one struct field, a four-line predicate, one line in `Plan::domains`.
   Cannot empty a domain, because `VACUUM` is compatible with everything and is
@@ -167,10 +169,10 @@ that a pair either side of the centreline. `seed_keel` stops one cell short of
 the transom so the seam cell beside the drive is free - a keel cube there would
 press a socket into the drive's blind flank.
 
-It grew past the two cells proposed here: the drive is authored
-(`GrammarKeel::stern_drive`) and may be several cells on a side, so the seed
+It grew past the two cells proposed here: the drive is named by the plan
+(`WfcKeel::stern_drive`) and may be several cells on a side, so the seed
 lays the block by its minimum corner and propagation fills the rest of it in.
-`runnable` refuses a grid too small to hold what the grammar seeds, by name,
+`runnable` refuses a grid too small to hold what the plan seeds, by name,
 rather than letting the seed run off the end.
 
 - **Cost:** fifteen lines, in the shape of the function above it.
@@ -190,7 +192,7 @@ rather than letting the seed run off the end.
 
 ### 3. Give the hull a deck and a belly. MEASURED, NOT LANDED
 
-It would be two more `GrammarVacuum` fields today, not two consts.
+It would be two more `WfcVacuum` fields today, not two consts.
 
 `off_keel` is symmetric in `y`, so a ship has no top. Weight the two directions
 differently - `|y - keel_row|` times a deck taper above and a belly taper below -
@@ -238,20 +240,20 @@ The general form of items 1-4: split `z` into bow / midships / engineering bands
 no drives forward of the engineering band, no bays in it, bridges only in
 midships-top. Same mechanism as item 1, a table instead of a formula.
 
-Shipped as `GrammarPart::zone`, with six regions rather than three bands: thirds
+Shipped as `WfcPart::zone`, with six regions rather than three bands: thirds
 along the hull (`Bow`, `Amidships`, `Stern`), halves either side of the keel row
 (`Dorsal`, `Ventral`, and the keel row itself is neither), and the outboard half
 (`Flank`). It rules on one CELL, so a multi-cell part is zoned only where every
 cell of it qualifies. **`standard_hull` authors no zone at all** - the mechanism
-is there for a mod, and the caution below is why the base grammar has not spent
-it.
+is there for a caller that wants it, and the caution below is why the shipped
+plan has not spent it.
 
 The caution turned out to be right in a way not anticipated here: a zone CAN
 empty a domain, which nothing else in this note can. Not through the unary
 filter itself - vacuum survives that - but across a JOINT, where vacuum is not
 an option and only the partner segment fits. Zone a multi-cell part into a
 region too short to hold it and the cell past the boundary has nothing left.
-The collapse refuses that grammar by name; it does not photograph it.
+The collapse refuses that plan by name; it does not photograph it.
 
 - **Cost:** a band function and a table. Maybe forty lines.
 - **Effect:** the ships get an internal LAYOUT rather than a uniform texture,
@@ -275,10 +277,9 @@ mounts came down a third and nobody asked them to.
   histogram).
 - **Do it LAST.** Tuning weights against a layout that is about to change is
   wasted work, and it is how the previous round of numbers got measured twice.
-- The weights are AUTHORED now (`GrammarPart::weight`, `GrammarVacuum`), so a
-  sweep tunes `standard_hull` rather than the generator. A mod retunes the same
-  numbers without touching this crate, which is most of the reason not to keep
-  chasing them here.
+- The weights are PLAN fields now (`WfcPart::weight`, `WfcVacuum`), so a
+  sweep tunes `standard_hull` rather than the generator, and a caller that wants
+  a different row builds a different plan from it.
 
 ## 5. What I would NOT do
 
@@ -286,9 +287,9 @@ mounts came down a third and nobody asked them to.
 prototypes, an "aft drive" and a "manoeuvring thruster", and let mating sort them
 out. It cannot: mating is binary and the distinction is global, so both would
 still land anywhere. It would also put a generator concern into shipped catalog
-content that the editor and every scenario have to carry. The `Grammar` is where
-that fact went instead - authored, overlayable, and read by nothing but the
-collapse.
+content that the editor and every scenario have to carry. The `WfcPlan` is where
+that fact went instead - code beside the collapse, built fresh by each caller,
+and read by nothing else.
 
 **Do not add a scoring-and-rejection pass.** Generate N ships, score each for
 "engines at the back, bridge on top", keep the best. It is the obvious answer and
@@ -317,7 +318,7 @@ because vacuum is compatible with everything and is never struck. That property
 is worth defending: a collapse that cannot fail needs no restart loop, no retry
 counter and no failure budget. Any proposal that costs it should have to argue
 for itself - and note that item 5 already costs a little of it, because a joint
-face has no vacuum option. The answer there was to REFUSE the grammar with a
+face has no vacuum option. The answer there was to REFUSE the plan with a
 line naming what to change, not to start retrying seeds.
 
 ## Sources

@@ -7,17 +7,17 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Button},
 };
-use nova_ship::prelude::GrammarZone;
 use nova_ui::{
     prelude::{panel, ThemedButton, UiSkin, UiText},
     theme,
     widget::{checkbox, checkbox_glyph, list_row_colors, ListRow},
 };
+use nova_wfc::prelude::WfcZone;
 
 use crate::{
     config::{
-        GrammarChoice, PartChoice, PartTick, PartZoneChip, RailTab, RailTabButton, SceneRow,
-        SkinToggleCheckbox, StyleChoice, StyleSwatch,
+        PartChoice, PartTick, PartZoneChip, RailTab, RailTabButton, SceneRow, SkinToggleCheckbox,
+        StyleChoice, StyleSwatch,
     },
     ui::layer,
 };
@@ -133,43 +133,6 @@ pub(crate) fn style_row(
     )
 }
 
-/// One row of the Generate block's hull-line list: the name a grammar author
-/// gave their line.
-///
-/// The NAME rather than the id, because the name is the half a grammar author
-/// writes for a reader - and the row is the first thing in the tree that has
-/// ever shown it.
-pub(crate) fn grammar_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> impl Bundle {
-    let (background, border) = list_row_colors(selected, false, skin);
-    (
-        ListRow,
-        GrammarChoice(id.to_string()),
-        Button,
-        Hovered::default(),
-        Node {
-            width: percent(100),
-            min_height: px(20),
-            margin: UiRect::bottom(px(1)),
-            padding: UiRect::axes(px(6), px(1)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        BorderColor::all(border),
-        BackgroundColor(background),
-        children![(
-            UiText,
-            Text::new(name.to_string()),
-            TextFont {
-                font_size: FontSize::Px(11.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR),
-        )],
-    )
-}
-
 /// One row of the Generate block's part list: whether the collapse may draw
 /// this section, and what it is called.
 ///
@@ -182,7 +145,7 @@ pub(crate) fn part_row(
     prototype: &str,
     name: &str,
     drawn: bool,
-    zone: Option<GrammarZone>,
+    zone: Option<WfcZone>,
     skin: UiSkin,
 ) -> impl Bundle {
     let (background, border) = list_row_colors(drawn, false, skin);
@@ -256,7 +219,7 @@ pub(crate) fn part_row(
 /// Hidden while the row is unticked. A zone on a part the collapse may not draw
 /// says nothing, and a chip on every row of a catalog-long list is a column of
 /// noise.
-pub(crate) fn zone_chip(zone: Option<GrammarZone>, drawn: bool) -> impl Bundle {
+pub(crate) fn zone_chip(zone: Option<WfcZone>, drawn: bool) -> impl Bundle {
     (
         PartZoneChip,
         Button,
@@ -287,28 +250,28 @@ pub(crate) fn zone_chip(zone: Option<GrammarZone>, drawn: bool) -> impl Bundle {
 /// part reads as a decision rather than as a control nobody wired up. Short,
 /// because the chip shares a 190px row with a section name that is already
 /// close to filling it.
-pub(crate) fn zone_label(zone: Option<GrammarZone>) -> &'static str {
+pub(crate) fn zone_label(zone: Option<WfcZone>) -> &'static str {
     match zone {
         None => "any",
-        Some(GrammarZone::Bow) => "bow",
-        Some(GrammarZone::Amidships) => "mid",
-        Some(GrammarZone::Stern) => "stern",
-        Some(GrammarZone::Dorsal) => "dorsal",
-        Some(GrammarZone::Ventral) => "ventral",
-        Some(GrammarZone::Flank) => "flank",
+        Some(WfcZone::Bow) => "bow",
+        Some(WfcZone::Amidships) => "mid",
+        Some(WfcZone::Stern) => "stern",
+        Some(WfcZone::Dorsal) => "dorsal",
+        Some(WfcZone::Ventral) => "ventral",
+        Some(WfcZone::Flank) => "flank",
     }
 }
 
 /// The zone a press moves this row on to, wrapping back to unzoned.
-pub(crate) fn next_zone(zone: Option<GrammarZone>) -> Option<GrammarZone> {
+pub(crate) fn next_zone(zone: Option<WfcZone>) -> Option<WfcZone> {
     match zone {
-        None => Some(GrammarZone::Bow),
-        Some(GrammarZone::Bow) => Some(GrammarZone::Amidships),
-        Some(GrammarZone::Amidships) => Some(GrammarZone::Stern),
-        Some(GrammarZone::Stern) => Some(GrammarZone::Dorsal),
-        Some(GrammarZone::Dorsal) => Some(GrammarZone::Ventral),
-        Some(GrammarZone::Ventral) => Some(GrammarZone::Flank),
-        Some(GrammarZone::Flank) => None,
+        None => Some(WfcZone::Bow),
+        Some(WfcZone::Bow) => Some(WfcZone::Amidships),
+        Some(WfcZone::Amidships) => Some(WfcZone::Stern),
+        Some(WfcZone::Stern) => Some(WfcZone::Dorsal),
+        Some(WfcZone::Dorsal) => Some(WfcZone::Ventral),
+        Some(WfcZone::Ventral) => Some(WfcZone::Flank),
+        Some(WfcZone::Flank) => None,
     }
 }
 

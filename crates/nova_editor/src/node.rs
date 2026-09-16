@@ -65,9 +65,8 @@ pub(crate) struct AutoLayout(pub(crate) Vec3);
 /// rewritten and would resolve to nothing.
 pub(crate) const ASTEROID_TEXTURE: &str = "base/textures/asteroid.png";
 /// The sound a placed rock's destruction plays: the rock's own, not the
-/// hull's. A placed asteroid takes the base catalog's rock material for its HIT
-/// voice (see `GameImpacts`) and must not borrow ship plate for the other
-/// half.
+/// hull's. A placed asteroid carries `ImpactSurface::Rock` for its HIT voice
+/// and must not borrow ship plate for the other half.
 pub(crate) const DESTROY_SOUND: &str = "base/sounds/destroy_rock.wav";
 /// The ding a placed salvage crate is picked up with.
 pub(crate) const SALVAGE_SOUND: &str = "base/sounds/salvage_pickup.wav";
@@ -400,7 +399,7 @@ impl ObjectChoice {
             ObjectChoice::Asteroid => ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: Meters(30.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 mass: None,
                 invulnerable: false,
@@ -1795,7 +1794,7 @@ mod tests {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
                     texture: default(),
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,
@@ -1829,7 +1828,7 @@ mod tests {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
                     texture: default(),
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

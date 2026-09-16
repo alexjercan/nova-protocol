@@ -1,18 +1,16 @@
 //! Structural checks over a scenario's ships and their section configs.
 
-use bevy::prelude::{UVec3, Vec3};
+use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, ControllerSectionConfig, DockingSectionConfig,
     LinkPointGraphError, LinkPointRef, PlacedSectionCollider, PlacedSectionLinkPoints,
     RailgunSectionConfig, ReloadConfig, SectionAnimationCue, SectionCollider, SectionConfig,
-    SectionFootprint, SectionKind, ShipGrammarConfig, TorpedoSectionConfig, TurretJoint,
-    TurretSectionConfig, MAX_GRAMMAR_CELLS,
+    SectionKind, TorpedoSectionConfig, TurretJoint, TurretSectionConfig,
 };
 
-use super::{KnownSections, KnownShipDesigns, LintIssue, LintSeverity};
+use super::{KnownSections, KnownShipDesigns, LintIssue};
 use crate::prelude::*;
 
 /// Every reference a spawned (or scatter-template) ship makes must resolve:
@@ -128,169 +126,6 @@ pub fn lint_ship_design_config(
         &mut issues,
     );
     issues
-}
-
-/// Static well-formedness of one authored ship GRAMMAR: every prototype it
-/// names has to resolve, and its grid has to be big enough to hold the seeds
-/// it lays down and small enough to be collapsed at all.
-///
-/// The id checks are the authoring rule in force - an unrecognized id is an
-/// error at lint, then again at load - and they matter more here than
-/// elsewhere, because a grammar is read by a GENERATOR: a keel role that
-/// resolves to nothing is a hull with no spine, and a drawable part that does
-/// not exist is a hole in the draw that only shows up as a thinner ship.
-///
-/// Whether a named prototype can actually be a TILE is not checked here. That
-/// is a geometric question about link points, the generator answers it by
-/// simply not offering the part, and it needs the collapse's own machinery to
-/// ask. A part on the list that cannot tile is a wasted line, not a broken
-/// ship.
-pub fn lint_grammar_config(
-    grammar: &ShipGrammarConfig,
-    sections: &KnownSections,
-    source: &str,
-) -> Vec<LintIssue> {
-    let mut issues = Vec::new();
-    let mut error = |message: String| {
-        issues.push(LintIssue {
-            severity: LintSeverity::Error,
-            scenario: grammar.id.clone(),
-            message,
-        });
-    };
-
-    for id in grammar.named_sections() {
-        if !sections.contains(id) {
-            error(format!(
-                "grammar '{}' in {source} names section prototype '{id}', which no visible \
-                 catalog holds",
-                grammar.id
-            ));
-        }
-    }
-
-    if grammar.parts.is_empty() {
-        error(format!(
-            "grammar '{}' in {source} draws from no parts, so a collapse under it can only \
-             ever produce its own seeded keel",
-            grammar.id
-        ));
-    }
-    for part in &grammar.parts {
-        if !(part.weight.is_finite() && part.weight > 0.0) {
-            error(format!(
-                "grammar '{}' in {source} gives part '{}' weight {}, which is never drawn - \
-                 leave the part out instead",
-                grammar.id, part.prototype, part.weight
-            ));
-        }
-    }
-
-    // Three cells is the floor the SKIN sets: a plate is a flat run only where
-    // it has neighbours on all four sides, so a surface narrower than this has
-    // no interior and the hull comes out all rim.
-    let grid = grammar.grid;
-    for (axis, cells) in [
-        ("half_width", grid.half_width),
-        ("height", grid.height),
-        ("length", grid.length),
-    ] {
-        if cells < 3 {
-            error(format!(
-                "grammar '{}' in {source} is {cells} cell(s) in {axis}; a hull needs at least \
-                 3 there or its skin is all rim and no interior",
-                grammar.id
-            ));
-        }
-    }
-    // A domain per cell is laid down before the collapse can refuse anything,
-    // so the size is an allocation the generator is asked to make on trust.
-    if grid.cells() > MAX_GRAMMAR_CELLS {
-        error(format!(
-            "grammar '{}' in {source} asks for a {}x{}x{} grid, which is {} cells; the collapse \
-             holds one domain per cell and stops at {MAX_GRAMMAR_CELLS}",
-            grammar.id,
-            grid.half_width,
-            grid.height,
-            grid.length,
-            grid.cells(),
-        ));
-    }
-
-    // The seeds' own footprints. The stern seed stands the drive one cell off
-    // the centreline with its deck plate in front of it, and the bow gun
-    // stands IN the keel column at the other end; both are as big as whatever
-    // prototype the grammar named, so a floor on the axes cannot see them.
-    // These are the three bounds `nova_wfc::runnable` refuses a grid with,
-    // asked here so a grammar is refused where it is AUTHORED rather than when
-    // a builder presses Generate.
-    let drive = seeded_span(sections, &grammar.keel.stern_drive);
-    for (axis, cells, wanted) in [
-        ("across its half-width", grid.half_width, drive.x + 1),
-        ("tall", grid.height, drive.y),
-        ("long", grid.length, drive.z + 1),
-    ] {
-        if cells < wanted {
-            error(format!(
-                "grammar '{}' in {source} is {cells} cell(s) {axis} and its seeded stern drive \
-                 '{}' needs {wanted}",
-                grammar.id, grammar.keel.stern_drive
-            ));
-        }
-    }
-    if let Some(prototype) = grammar.keel.bow_gun.as_deref() {
-        let bow = seeded_span(sections, prototype);
-        if bow.x != 1 || bow.y != 1 {
-            error(format!(
-                "grammar '{}' in {source} seats '{prototype}' as its bow gun, but a spinal gun \
-                 stands on the keel line and that one is {} cell(s) across and {} tall",
-                grammar.id, bow.x, bow.y
-            ));
-        }
-        if grid.length < bow.z + drive.z + 2 {
-            error(format!(
-                "grammar '{}' in {source} is {} cell(s) long, and its bow gun '{prototype}' and \
-                 stern drive '{}' leave no keel between them",
-                grammar.id, grid.length, grammar.keel.stern_drive
-            ));
-        }
-    }
-
-    for (field, value) in [
-        ("base", grammar.vacuum.base),
-        ("taper", grammar.vacuum.taper),
-        ("stern", grammar.vacuum.stern),
-        ("bow_taper", grammar.vacuum.bow_taper),
-    ] {
-        if !value.is_finite() || value < 0.0 {
-            error(format!(
-                "grammar '{}' in {source} prices vacuum.{field} at {value}; a vacuum weight is \
-                 a non-negative number",
-                grammar.id
-            ));
-        }
-    }
-    if grammar.vacuum.base <= 0.0 {
-        error(format!(
-            "grammar '{}' in {source} prices vacuum.base at 0, so the collapse can never leave \
-             a cell empty and every hull is a solid block",
-            grammar.id
-        ));
-    }
-
-    issues
-}
-
-/// How many cells one seeded prototype spans, upright - the same reading the
-/// generator takes.
-///
-/// `UVec3::ONE` for an id the catalog does not hold, because that id is
-/// already an Error above and a bound derived from a guess would bury it under
-/// a second finding about a size nobody authored.
-fn seeded_span(sections: &KnownSections, id: &str) -> UVec3 {
-    sections.get(id).map_or(UVec3::ONE, |section| {
-        *SectionFootprint::from_collider(section.base.collider.unwrap_or_default())
-    })
 }
 
 /// Static well-formedness of one section's config that the RON parser cannot
@@ -927,309 +762,14 @@ fn check_section_overlaps(
     }
 }
 
-/// Well-formedness for one authored narrative channel.
-///
-/// A channel is pure presentation, so there is nothing here about what a line
-/// MEANS - only the two ways a card can come out unreadable: a strength that
-/// draws it at nothing, and a tag that takes the space beside the speaker
-/// without saying anything.
-///
-/// Whether two channels are visibly different is deliberately NOT checked. Two
-/// bands on one tone is a legitimate authoring choice (a mod may want four
-/// channels and has four tones), and the tag is there to separate them.
-pub fn lint_channel_config(channel: &NarrativeChannelConfig, source: &str) -> Vec<LintIssue> {
-    let mut issues = Vec::new();
-    let mut error = |message: String| {
-        issues.push(LintIssue {
-            severity: LintSeverity::Error,
-            scenario: channel.id.clone(),
-            message,
-        });
-    };
-
-    if channel.id.trim().is_empty() {
-        error(format!("a channel in {source} has an empty id"));
-    }
-
-    // Zero is excluded, not clamped: a channel drawn at nothing is a channel
-    // whose lines never reach the player, which is a mistake rather than a
-    // style. Above one is a card brighter than the HUD it sits in.
-    if !(channel.signal_strength.is_finite()
-        && channel.signal_strength > 0.0
-        && channel.signal_strength <= 1.0)
-    {
-        error(format!(
-            "channel '{}' in {source} has signal strength {}, which is outside (0, 1]",
-            channel.id, channel.signal_strength
-        ));
-    }
-
-    if channel
-        .tag
-        .as_ref()
-        .is_some_and(|tag| tag.trim().is_empty())
-    {
-        error(format!(
-            "channel '{}' in {source} authors an empty tag; omit the field for a channel \
-             that needs no saying",
-            channel.id
-        ));
-    }
-
-    issues
-}
-
 #[cfg(test)]
 mod tests {
 
     use bevy::prelude::*;
-    use nova_ship::prelude::{GrammarGrid, GrammarVacuum, SectionConfigPatch, SectionReloadConfig};
+    use nova_ship::prelude::{SectionConfigPatch, SectionReloadConfig};
 
     use super::*;
     use crate::lint::fixtures::*;
-
-    /// A channel is pure presentation, so the only thing to check is that the
-    /// presentation is authorable: a card drawn at nothing never reaches the
-    /// player, and a tag that says nothing is a label on every line.
-    #[test]
-    fn a_channel_drawn_at_nothing_or_labelled_with_nothing_is_an_error() {
-        use nova_gameplay::prelude::ChipTone;
-
-        let good = NarrativeChannelConfig::new("work", ChipTone::Comms);
-        assert!(
-            lint_channel_config(&good, "test").is_empty(),
-            "a plain channel must lint clean"
-        );
-
-        for bad in [
-            NarrativeChannelConfig::new("", ChipTone::Comms),
-            NarrativeChannelConfig::new("dark", ChipTone::Comms).with_signal_strength(0.0),
-            NarrativeChannelConfig::new("loud", ChipTone::Comms).with_signal_strength(1.5),
-            NarrativeChannelConfig::new("nameless", ChipTone::Comms).with_tag("  "),
-        ] {
-            let issues = lint_channel_config(&bad, "test");
-            assert_eq!(issues.len(), 1, "{bad:?} -> {issues:?}");
-            assert_eq!(issues[0].severity, LintSeverity::Error);
-        }
-    }
-
-    /// The shape everything below bends: a grammar that names only prototypes
-    /// its catalog holds, on a grid that fits its seeds, drawing one part at a
-    /// real weight. If this ever fires, every assertion under it is measuring
-    /// the fixture instead of the gate.
-    #[test]
-    fn a_well_formed_grammar_draws_nothing() {
-        let issues = lint_grammar_config(&grammar(), &grammar_sections(), "test");
-        assert!(issues.is_empty(), "{issues:?}");
-    }
-
-    /// The authoring rule, on every role a grammar seeds and on the draw: an id
-    /// the catalog does not hold is an Error, named so the author can find it.
-    /// A keel role that resolves to nothing is a hull with no spine.
-    #[test]
-    fn a_grammar_naming_a_prototype_no_catalog_holds_is_an_error() {
-        let bend: [(&str, fn(&mut ShipGrammarConfig)); 6] = [
-            ("keel.hull", |g| g.keel.hull = "ghost".to_string()),
-            ("keel.bridge", |g| g.keel.bridge = "ghost".to_string()),
-            ("keel.stern_deck", |g| {
-                g.keel.stern_deck = "ghost".to_string()
-            }),
-            ("keel.stern_drive", |g| {
-                g.keel.stern_drive = "ghost".to_string();
-            }),
-            ("keel.bow_gun", |g| {
-                g.keel.bow_gun = Some("ghost".to_string());
-            }),
-            ("parts", |g| g.parts[0].prototype = "ghost".to_string()),
-        ];
-        for (role, bend) in bend {
-            let mut config = grammar();
-            bend(&mut config);
-            let issues = lint_grammar_config(&config, &grammar_sections(), "test");
-            let named: Vec<&LintIssue> = issues
-                .iter()
-                .filter(|issue| issue.message.contains("ghost"))
-                .collect();
-            assert_eq!(named.len(), 1, "{role} -> {issues:?}");
-            assert_eq!(named[0].severity, LintSeverity::Error, "{role}");
-        }
-    }
-
-    /// A draw is what the collapse rolls on. An empty one leaves it nothing to
-    /// place but the seeded keel, and a part priced at a weight that is never
-    /// drawn is a line that reads as a decision and is not one.
-    #[test]
-    fn a_grammar_that_draws_from_nothing_or_prices_a_part_at_nothing_is_an_error() {
-        let mut empty = grammar();
-        empty.parts.clear();
-        let issues = lint_grammar_config(&empty, &grammar_sections(), "test");
-        assert_eq!(issues.len(), 1, "{issues:?}");
-        assert_eq!(issues[0].severity, LintSeverity::Error);
-
-        for weight in [0.0, -1.0, f32::NAN, f32::INFINITY] {
-            let mut config = grammar();
-            config.parts[0].weight = weight;
-            let issues = lint_grammar_config(&config, &grammar_sections(), "test");
-            assert_eq!(issues.len(), 1, "weight {weight} -> {issues:?}");
-            assert_eq!(issues[0].severity, LintSeverity::Error, "weight {weight}");
-        }
-    }
-
-    /// The floor the SKIN sets. A surface needs neighbours on all four sides
-    /// before it is a flat run, so a hull under three cells on any axis comes
-    /// out all rim.
-    #[test]
-    fn a_grid_too_thin_to_have_an_interior_is_an_error() {
-        let bend: [(&str, fn(&mut GrammarGrid)); 3] = [
-            ("half_width", |grid| grid.half_width = 2),
-            ("height", |grid| grid.height = 2),
-            ("length", |grid| grid.length = 2),
-        ];
-        for (axis, bend) in bend {
-            let mut config = grammar();
-            bend(&mut config.grid);
-            let issues = lint_grammar_config(&config, &grammar_sections(), "test");
-            assert!(
-                issues
-                    .iter()
-                    .any(|issue| issue.message.contains(axis)
-                        && issue.severity == LintSeverity::Error),
-                "{axis} -> {issues:?}"
-            );
-        }
-    }
-
-    /// The bounds the GENERATOR refuses a grid with, asked where the grammar is
-    /// authored. A grid can clear the axis floor and still have nowhere to
-    /// stand the drive the same grammar seeds - that is a fact about the named
-    /// prototype's footprint, which a floor on the axes cannot see.
-    #[test]
-    fn a_grid_too_small_for_the_seeds_it_lays_is_an_error() {
-        // A 5x5x3 capital drive wants 6 across, 5 tall and 4 long; the shipped
-        // 4x5x11 grid is a cell short across and clears the other two.
-        let mut capital = grammar();
-        capital.keel.stern_drive = "capital_drive".to_string();
-        let issues = lint_grammar_config(&capital, &grammar_sections(), "test");
-        assert_eq!(issues.len(), 1, "{issues:?}");
-        assert!(
-            issues[0].message.contains("half-width") && issues[0].message.contains("capital_drive"),
-            "{issues:?}"
-        );
-
-        // A spinal gun stands IN the keel column, so one wider or taller than a
-        // single cell is refused by name rather than seeded crooked.
-        let mut broad = grammar();
-        broad.keel.bow_gun = Some("broad_lance".to_string());
-        let issues = lint_grammar_config(&broad, &grammar_sections(), "test");
-        assert_eq!(issues.len(), 1, "{issues:?}");
-        assert!(issues[0].message.contains("broad_lance"), "{issues:?}");
-
-        // Both seeds eat the same column, and what is left has to hold a keel.
-        // A 4-long lance and a 1-long drive need 7; this grid is 6.
-        let mut crowded = grammar();
-        crowded.keel.bow_gun = Some("lance".to_string());
-        crowded.grid.length = 6;
-        let issues = lint_grammar_config(&crowded, &grammar_sections(), "test");
-        assert_eq!(issues.len(), 1, "{issues:?}");
-        assert!(issues[0].message.contains("no keel between"), "{issues:?}");
-
-        // One more cell and the same pair fits.
-        crowded.grid.length = 7;
-        assert!(
-            lint_grammar_config(&crowded, &grammar_sections(), "test").is_empty(),
-            "7 cells is exactly enough for a 4-long gun, a 1-long drive and a keel"
-        );
-    }
-
-    /// The bound the grid never had. The collapse lays down a domain per cell
-    /// before it can refuse anything, so an authored size is an allocation
-    /// taken on trust - and the product of three `u32` axes wraps.
-    #[test]
-    fn a_grid_too_big_to_be_collapsed_in_is_an_error() {
-        // Exactly 2^32 cells: the size that used to multiply to zero.
-        let mut wrapping = grammar();
-        wrapping.grid = GrammarGrid {
-            half_width: 2048,
-            height: 2048,
-            length: 1024,
-        };
-        assert_eq!(
-            wrapping.grid.cells(),
-            1 << 32,
-            "the fixture has to be the size that wraps a u32, or it proves nothing"
-        );
-        let issues = lint_grammar_config(&wrapping, &grammar_sections(), "test");
-        assert!(
-            issues
-                .iter()
-                .any(|issue| issue.message.contains("holds one domain per cell")),
-            "{issues:?}"
-        );
-
-        // The ceiling itself is clean, and one cell over it is not.
-        let mut at_ceiling = grammar();
-        at_ceiling.grid = GrammarGrid {
-            half_width: 16,
-            height: 16,
-            length: 256,
-        };
-        assert_eq!(at_ceiling.grid.cells(), MAX_GRAMMAR_CELLS);
-        assert!(
-            lint_grammar_config(&at_ceiling, &grammar_sections(), "test").is_empty(),
-            "the ceiling is a size that runs, not the first that does not"
-        );
-        at_ceiling.grid.length += 1;
-        assert_eq!(
-            lint_grammar_config(&at_ceiling, &grammar_sections(), "test").len(),
-            1
-        );
-    }
-
-    /// Vacuum is how emptiness is priced against the parts. A price that is not
-    /// a number is not a price, and a base of zero means the collapse can never
-    /// leave a cell empty - every hull comes out a solid block.
-    #[test]
-    fn a_vacuum_price_that_is_not_a_weight_is_an_error() {
-        let bend: [(&str, fn(&mut GrammarVacuum, f32)); 4] = [
-            ("base", |vacuum, value| vacuum.base = value),
-            ("taper", |vacuum, value| vacuum.taper = value),
-            ("stern", |vacuum, value| vacuum.stern = value),
-            ("bow_taper", |vacuum, value| vacuum.bow_taper = value),
-        ];
-        for (field, bend) in bend {
-            for value in [-1.0, f32::NAN] {
-                let mut config = grammar();
-                bend(&mut config.vacuum, value);
-                let issues = lint_grammar_config(&config, &grammar_sections(), "test");
-                assert!(
-                    issues.iter().any(|issue| issue.message.contains(field)
-                        && issue.severity == LintSeverity::Error),
-                    "vacuum.{field} = {value} -> {issues:?}"
-                );
-            }
-        }
-
-        // Zero is a NUMBER, so only `base` refuses it: a taper of zero is a
-        // hull that is evenly sparse, which is taste.
-        let mut solid = grammar();
-        solid.vacuum.base = 0.0;
-        let issues = lint_grammar_config(&solid, &grammar_sections(), "test");
-        assert_eq!(issues.len(), 1, "{issues:?}");
-        assert!(issues[0].message.contains("solid block"), "{issues:?}");
-
-        for zeroed in [
-            |vacuum: &mut GrammarVacuum| vacuum.taper = 0.0,
-            |vacuum: &mut GrammarVacuum| vacuum.stern = 0.0,
-            |vacuum: &mut GrammarVacuum| vacuum.bow_taper = 0.0,
-        ] {
-            let mut config = grammar();
-            zeroed(&mut config.vacuum);
-            assert!(
-                lint_grammar_config(&config, &grammar_sections(), "test").is_empty(),
-                "an unpriced taper is a flat hull, not a broken one"
-            );
-        }
-    }
 
     #[test]
     fn unknown_prototype_is_an_error() {
@@ -1239,7 +779,6 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1273,7 +812,6 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1285,7 +823,6 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
     }
@@ -1329,7 +866,6 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1342,7 +878,6 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
-            &base_channels(),
         )
         .is_empty());
     }
@@ -1560,13 +1095,7 @@ mod tests {
             source: SectionSource::prototype("empty"),
         });
         let scenario = scenario(vec![action], vec![]);
-        let issues = lint_scenario(
-            &scenario,
-            &catalog,
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&scenario, &catalog, &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues
                 .iter()
@@ -1607,7 +1136,6 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1656,7 +1184,6 @@ mod tests {
             &sections(&["known"]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert_eq!(
             issues
@@ -1674,7 +1201,6 @@ mod tests {
             &sections(&["known"]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }
@@ -1739,13 +1265,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(
             issues
                 .iter()
@@ -1763,13 +1283,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues
                 .iter()
@@ -1786,13 +1300,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(
             issues
                 .iter()
@@ -1814,13 +1322,7 @@ mod tests {
         a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         b.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         let s = scenario(vec![ship(a, b)], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues
                 .iter()
@@ -1836,13 +1338,7 @@ mod tests {
         a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         b.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         let s = scenario(vec![ship(a, b)], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues
                 .iter()
@@ -1907,13 +1403,7 @@ mod tests {
     fn directly_mated_sections_may_overlap() {
         let (action, catalog) = ship_with_mated_overlap();
         let s = scenario(vec![action], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &catalog,
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &catalog, &ships(&[]), &known(&["test_scenario"]));
         assert!(issues.is_empty(), "{issues:?}");
     }
 

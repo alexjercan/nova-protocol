@@ -43,19 +43,14 @@ impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
 /// One speaker-attributed narrative cue for the HUD comms panel. Appends to
 /// the event world's story log; the log is scenario-scoped (cleared at teardown
 /// with the rest of the event world), so a line can never leak into the next
-/// scenario or the menu. RON: `NarrativeCue((channel: "comms", speaker: "Alpha",
-/// text: "Strip it clean."))`. Optionally add `dwell: Some(12.0)` for a longer
-/// hold and `icon: Some("self://icons/alpha.png")` for a speaker image. Strict
-/// RON uses `Some`; omit the field for the HUD fallback icon.
+/// scenario or the menu. RON: `NarrativeCue((speaker: "Alpha", text: "Strip it
+/// clean."))`. Optionally add `dwell: Some(12.0)` for a longer hold,
+/// `icon: Some("self://icons/alpha.png")` for a speaker image, and `accent` for
+/// a card drawn in something other than the comms blue. Strict RON uses `Some`;
+/// omit the icon field for the HUD fallback tile.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NarrativeCueActionConfig {
-    /// The id of the [channel](nova_gameplay::narrative_channel) the line is
-    /// heard on - `"comms"`, `"crew"` and `"guard"` in the base content, or one
-    /// a mod authored. Required on every cue, because a line whose channel was
-    /// guessed is a line drawn in the wrong voice, and an id nothing authored
-    /// is a lint error and a load refusal rather than a default.
-    pub channel: String,
     /// Who says it (the panel renders it as the line's header).
     pub speaker: String,
     /// The line itself.
@@ -77,6 +72,31 @@ pub struct NarrativeCueActionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub icon: Option<AssetRef<Image>>,
+    /// The colour the card is drawn in: its border, its speaker line, its
+    /// fallback icon, and (lifted toward white) the words the player reads.
+    ///
+    /// Defaulted rather than required, because almost every line in the game is
+    /// ordinary comms traffic and authoring the same blue on all of them would
+    /// bury the few that differ. A cue that wants a distress band, a corporate
+    /// net or a private channel names its own colour and is drawn in it -
+    /// nothing looks an id up, so nothing can fail to resolve one.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_comms_accent",
+            skip_serializing_if = "is_comms_accent"
+        )
+    )]
+    pub accent: Color,
+}
+
+/// Whether a cue is drawn in the default blue, and so need not write its
+/// accent out at all. Generated scenario RON is read by authors, and six lines
+/// of the same colour on every one of a chapter's lines would bury the cue that
+/// actually chose one.
+#[cfg(feature = "serde")]
+fn is_comms_accent(accent: &Color) -> bool {
+    *accent == default_comms_accent()
 }
 
 impl EventAction<NovaEventWorld> for NarrativeCueActionConfig {
@@ -385,14 +405,13 @@ mod tests {
     use super::*;
 
     /// The authored RON shape parses and round-trips - the exact syntax the
-    /// authoring guide documents: `NarrativeCue((channel: "comms", speaker:..., text:...))`, with
+    /// authoring guide documents: `NarrativeCue((speaker:..., text:...))`, with
     /// `dwell` OMITTED defaulting to None and the documented strict-RON `dwell:
     /// Some(12.0)` parsing.
     #[cfg(feature = "serde")]
     #[test]
     fn a_cue_round_trips_through_authored_ron() {
-        let authored =
-            r#"NarrativeCue((channel: "comms", speaker: "Alpha", text: "Quota's quota."))"#;
+        let authored = r#"NarrativeCue((speaker: "Alpha", text: "Quota's quota."))"#;
         let parsed: EventActionConfig = ron::from_str(authored).expect("authored RON parses");
         let EventActionConfig::NarrativeCue(config) = &parsed else {
             panic!("parsed the NarrativeCue variant");
@@ -401,7 +420,7 @@ mod tests {
         assert_eq!(config.text, "Quota's quota.");
         assert_eq!(config.dwell, None, "omitted dwell defaults to None");
 
-        let with_dwell = r#"NarrativeCue((channel: "comms", speaker: "Alpha", text: "Slowly.", dwell: Some(12.0)))"#;
+        let with_dwell = r#"NarrativeCue((speaker: "Alpha", text: "Slowly.", dwell: Some(12.0)))"#;
         let parsed_dwell: EventActionConfig =
             ron::from_str(with_dwell).expect("the documented dwell syntax parses");
         let EventActionConfig::NarrativeCue(config_dwell) = &parsed_dwell else {
@@ -418,20 +437,19 @@ mod tests {
     }
 
     /// NarrativeCue icons are optional authorable image refs: omitted stays
-    /// `None` for back-compat, while strict RON `Some("self://...")` /
+    /// `None`, while strict RON `Some("self://...")` /
     /// `Some("dep://...")` round-trip as AssetRef paths.
     #[cfg(feature = "serde")]
     #[test]
     fn a_cue_icon_round_trips_through_authored_ron() {
-        let legacy =
-            r#"NarrativeCue((channel: "comms", speaker: "Alpha", text: "Quota's quota."))"#;
-        let parsed: EventActionConfig = ron::from_str(legacy).expect("legacy RON parses");
+        let plain = r#"NarrativeCue((speaker: "Alpha", text: "Quota's quota."))"#;
+        let parsed: EventActionConfig = ron::from_str(plain).expect("the plain cue parses");
         let EventActionConfig::NarrativeCue(config) = &parsed else {
             panic!("parsed the NarrativeCue variant");
         };
         assert_eq!(config.icon, None, "omitted icon defaults to None");
 
-        let with_self = r#"NarrativeCue((channel: "comms", speaker: "Alpha", text: "Face.", icon: Some("self://icons/alpha.png")))"#;
+        let with_self = r#"NarrativeCue((speaker: "Alpha", text: "Face.", icon: Some("self://icons/alpha.png")))"#;
         let parsed_self: EventActionConfig =
             ron::from_str(with_self).expect("self icon syntax parses");
         let EventActionConfig::NarrativeCue(config_self) = &parsed_self else {
@@ -442,7 +460,7 @@ mod tests {
             Some("self://icons/alpha.png")
         );
 
-        let with_dep = r#"NarrativeCue((channel: "comms", speaker: "Relay", text: "Shared.", icon: Some("dep://base/icons/comms.png")))"#;
+        let with_dep = r#"NarrativeCue((speaker: "Relay", text: "Shared.", icon: Some("dep://base/icons/comms.png")))"#;
         let parsed_dep: EventActionConfig =
             ron::from_str(with_dep).expect("dep icon syntax parses");
         let EventActionConfig::NarrativeCue(config_dep) = &parsed_dep else {
@@ -692,29 +710,39 @@ mod tests {
     /// aside on the work channel or a guard-channel fragment in the voice of
     /// traffic addressed to this ship - and the fragment IS the beat.
     #[cfg(feature = "serde")]
-    #[test]
-    fn a_cue_that_names_no_channel_is_refused() {
-        let missing = r#"NarrativeCue((speaker: "Alpha", text: "Quota's quota."))"#;
-        assert!(
-            ron::from_str::<EventActionConfig>(missing).is_err(),
-            "a cue with no channel must fail to load, not pick one"
-        );
-    }
-
-    /// A cue names its channel by ID, and the id is carried verbatim. Nothing
-    /// in this crate knows which ids exist - the catalog resolves them - so the
-    /// parse must not quietly normalise or reject one a mod authored.
+    /// The accent is the one presentation field a cue carries, and almost
+    /// every line in the game wants the same one - so omitting it must give the
+    /// comms blue rather than refuse the cue, and naming one must carry that
+    /// colour through verbatim.
     #[cfg(feature = "serde")]
     #[test]
-    fn a_cue_carries_the_channel_id_it_names() {
-        for id in [CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD, "smuggler_band"] {
-            let authored =
-                format!(r#"NarrativeCue((channel: "{id}", speaker: "Alpha", text: "..."))"#);
-            let parsed: EventActionConfig = ron::from_str(&authored).expect("the channel parses");
-            let EventActionConfig::NarrativeCue(config) = &parsed else {
-                panic!("NarrativeCue variant");
-            };
-            assert_eq!(config.channel, id);
-        }
+    fn an_omitted_accent_is_the_comms_blue_and_an_authored_one_is_carried() {
+        let plain = r#"NarrativeCue((speaker: "Alpha", text: "Strip it clean."))"#;
+        let parsed: EventActionConfig = ron::from_str(plain).expect("a cue needs no accent");
+        let EventActionConfig::NarrativeCue(config) = &parsed else {
+            panic!("NarrativeCue variant");
+        };
+        assert_eq!(
+            config.accent,
+            default_comms_accent(),
+            "an unaccented cue is ordinary comms traffic"
+        );
+
+        // The documented custom-accent syntax, from the authoring guide.
+        let accented = r#"NarrativeCue((
+            speaker: "Meridian Control",
+            text: "Unknown vessel, alter course.",
+            accent: LinearRgba((red: 1.0, green: 0.55, blue: 0.2, alpha: 1.0)),
+        ))"#;
+        let parsed: EventActionConfig =
+            ron::from_str(accented).expect("the documented accent syntax parses");
+        let EventActionConfig::NarrativeCue(config) = &parsed else {
+            panic!("NarrativeCue variant");
+        };
+        assert_eq!(
+            config.accent.to_linear(),
+            LinearRgba::new(1.0, 0.55, 0.2, 1.0),
+            "the authored colour reached the cue unchanged"
+        );
     }
 }

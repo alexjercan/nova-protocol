@@ -248,6 +248,13 @@ const REDIRECTS = [
     ["changelog/0.5.1", "news/0.5.0"],
     ["changelog/0.5.2", "news/0.5.0"],
     ["changelog/0.6.0", "news/0.6.0"],
+    // v0.13.0 shipped these three as authored content. v0.14.0 moved impact
+    // audio and WFC input into the engine and folded a narrative channel into
+    // the cue's own accent, so the pages are gone rather than renamed; each
+    // lands on the page that now covers what it used to.
+    ["create/impacts", "create/mod-files"],
+    ["create/channels", "create/actions"],
+    ["create/grammars", "create/mod-files"],
 ];
 const redirectPage = ([from, to]) =>
     new HtmlWebpackPlugin({

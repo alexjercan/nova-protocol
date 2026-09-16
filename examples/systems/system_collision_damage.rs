@@ -367,7 +367,7 @@ fn ram_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfi
             Side::Rock(radius) => ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius,
                 texture: game_assets.asteroid_texture.clone().into(),
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 // No well: a designated rock is put on rails and drags every
                 // lane inside its sphere of influence along with it.

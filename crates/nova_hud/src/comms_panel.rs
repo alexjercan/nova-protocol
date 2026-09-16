@@ -25,15 +25,14 @@ use bevy::prelude::*;
 use nova_gameplay::{
     asset_ref::AssetRef,
     audio::{AudioRoute, SfxCommandsExt, SoundBank, UiSfx},
-    narrative_channel::prelude::NarrativeChannelConfig,
 };
-use nova_ui::hud::ChipTone;
+use nova_ui::hud::{body_colour, CHIP_BORDER_ALPHA, CHIP_FILL};
 
 use super::{HudSelfDrivenVisibility, HudTier};
 
 /// The `StoryFeed` queue, `StoryLine`, and the comms dwell and fade timing
-/// constants. The channel itself is `nova_gameplay`'s, because both ends of
-/// the sync need it.
+/// constants. The accent a line carries is `nova_gameplay`'s, because both
+/// ends of the sync need it.
 pub mod prelude {
     pub use super::{
         StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS, COMMS_DWELL_SECS,
@@ -53,10 +52,11 @@ pub struct StoryLine {
     pub dwell: Option<f32>,
     /// Optional speaker icon image. `None` renders the HUD fallback tile.
     pub icon: Option<AssetRef<Image>>,
-    /// The channel the line was heard on, RESOLVED - the authored record, not
-    /// the id that named it. The scenario sync does the lookup, so the panel
-    /// has no catalog to consult and no unknown-id branch to get wrong.
-    pub channel: NarrativeChannelConfig,
+    /// The colour this card is drawn in: its border, its speaker line, its
+    /// fallback icon, and - lifted toward white - the words the player reads.
+    /// Resolved by the scenario sync, so the panel has no catalog to consult
+    /// and no unknown-id branch to get wrong.
+    pub accent: Color,
 }
 
 /// The loaded scenario's story-message log, in delivery order. Written by
@@ -119,6 +119,9 @@ const COMMS_PANEL_WIDTH_PERCENT: f32 = 48.0;
 const COMMS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
 /// Square speaker icon size inside a comms card.
 const COMMS_ICON_SIZE_PX: f32 = 48.0;
+/// How much of the accent washes the FALLBACK icon tile. Faint enough that the
+/// tile reads as an empty frame waiting for a portrait, not as a second chip.
+const ICON_FILL_ALPHA: f32 = 0.18;
 /// Speaker header and message body sizes.
 const COMMS_SPEAKER_FONT_SIZE_PX: f32 = 14.0;
 const COMMS_BODY_FONT_SIZE_PX: f32 = 20.0;
@@ -408,10 +411,9 @@ fn reconcile_comms_cards(
 
 /// Fade what is already on screen.
 ///
-/// The alpha is the whole per-frame part of a card: it multiplies the fade with
-/// the channel's own signal strength, so a guard-channel catch stays faint for
-/// the whole of its dwell. Written on diff, so the flat middle of a dwell -
-/// where nothing is fading - costs nothing at all.
+/// The alpha is the whole per-frame part of a card - the fade, and nothing
+/// else. Written on diff, so the flat middle of a dwell - where nothing is
+/// fading - costs nothing at all.
 ///
 /// The TEXT is not here. It is written once, when the card is spawned, because
 /// a showing line's words do not change.
@@ -447,28 +449,25 @@ fn paint_comms_cards(
         let Some(visible) = showing(id) else {
             continue;
         };
-        let (tone, alpha) = (visible.line.channel.tone, card_alpha(visible));
-        set_border(
-            &mut border,
-            tone.border().with_alpha(tone.border().alpha() * alpha),
-        );
+        let (accent, alpha) = (visible.line.accent, visible.alpha());
+        set_border(&mut border, accent.with_alpha(CHIP_BORDER_ALPHA * alpha));
         set_background(
             &mut background,
-            tone.fill().with_alpha(tone.fill().alpha() * alpha),
+            CHIP_FILL.with_alpha(CHIP_FILL.alpha() * alpha),
         );
     }
     for (id, icon, mut border, mut background, mut image) in &mut q_icon {
         let Some(visible) = showing(id) else {
             continue;
         };
-        let (tone, alpha) = (visible.line.channel.tone, card_alpha(visible));
-        set_border(&mut border, tone.text().with_alpha(alpha));
+        let (accent, alpha) = (visible.line.accent, visible.alpha());
+        set_border(&mut border, accent.with_alpha(alpha));
         let (fill, tint) = match icon.kind {
             CommsIconKind::Authored => (
                 Color::srgba(0.0, 0.0, 0.0, 0.0),
                 Color::WHITE.with_alpha(alpha),
             ),
-            CommsIconKind::Fallback => (tone.text().with_alpha(0.18 * alpha), image.color),
+            CommsIconKind::Fallback => (accent.with_alpha(ICON_FILL_ALPHA * alpha), image.color),
         };
         set_background(&mut background, fill);
         if image.color != tint {
@@ -479,15 +478,7 @@ fn paint_comms_cards(
         let Some(visible) = showing(id) else {
             continue;
         };
-        set_text_color(
-            &mut color,
-            visible
-                .line
-                .channel
-                .tone
-                .text()
-                .with_alpha(card_alpha(visible)),
-        );
+        set_text_color(&mut color, visible.line.accent.with_alpha(visible.alpha()));
     }
     for (id, mut color) in &mut q_body {
         let Some(visible) = showing(id) else {
@@ -495,15 +486,9 @@ fn paint_comms_cards(
         };
         set_text_color(
             &mut color,
-            visible.line.channel.body().with_alpha(card_alpha(visible)),
+            body_colour(visible.line.accent).with_alpha(visible.alpha()),
         );
     }
-}
-
-/// The fade and the channel's own strength multiply: a guard-channel catch is
-/// faint for the whole of its dwell, not only while it is fading.
-fn card_alpha(visible: &VisibleCommsLine) -> f32 {
-    visible.alpha() * visible.line.channel.signal_strength
 }
 
 /// The three write-on-diff helpers. A `DerefMut` on any of these marks the
@@ -529,13 +514,9 @@ fn set_text_color(color: &mut TextColor, wanted: Color) {
 }
 
 fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> impl Bundle {
-    let channel = &line.line.channel;
-    let tone = channel.tone;
-    let alpha = card_alpha(line);
-    let header = match channel.tag.as_deref() {
-        Some(tag) => format!("{} / {tag}", line.line.speaker.to_uppercase()),
-        None => line.line.speaker.to_uppercase(),
-    };
+    let accent = line.line.accent;
+    let alpha = line.alpha();
+    let header = line.line.speaker.to_uppercase();
     (
         CommsCardMarker,
         CommsLineId(line.id),
@@ -548,15 +529,14 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
             align_items: AlignItems::FlexStart,
             ..default()
         },
-        // The card is a member of the HUD chip family, in the tone its CHANNEL
-        // authored - blue for the work channel, phosphor for the crew, amber
-        // for the guard channel in the base content. That is what makes an
-        // incoming transmission instantly distinguishable from a flight
-        // readout (demo 2 `.comms`), and one channel from another.
-        BorderColor::all(tone.border().with_alpha(tone.border().alpha() * alpha)),
-        BackgroundColor(tone.fill().with_alpha(tone.fill().alpha() * alpha)),
+        // The card is a member of the HUD chip family - the shared slab, the
+        // chip border alpha - drawn in the accent THE CUE names. That is what
+        // makes an incoming transmission instantly distinguishable from a
+        // flight readout (demo 2 `.comms`), and one voice from another.
+        BorderColor::all(accent.with_alpha(CHIP_BORDER_ALPHA * alpha)),
+        BackgroundColor(CHIP_FILL.with_alpha(CHIP_FILL.alpha() * alpha)),
         children![
-            comms_icon(line.id, &line.line, tone, alpha, asset_server),
+            comms_icon(line.id, &line.line, accent, alpha, asset_server),
             (
                 Node {
                     flex_grow: 1.0,
@@ -570,14 +550,14 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                         CommsLineId(line.id),
                         Text::new(header),
                         TextFont::from_font_size(COMMS_SPEAKER_FONT_SIZE_PX),
-                        TextColor(tone.text().with_alpha(alpha)),
+                        TextColor(accent.with_alpha(alpha)),
                     ),
                     (
                         CommsTextMarker,
                         CommsLineId(line.id),
                         Text::new(line.line.text.clone()),
                         TextFont::from_font_size(COMMS_BODY_FONT_SIZE_PX),
-                        TextColor(channel.body().with_alpha(alpha)),
+                        TextColor(body_colour(accent).with_alpha(alpha)),
                         TextLayout {
                             linebreak: LineBreak::WordBoundary,
                             ..default()
@@ -592,7 +572,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
 fn comms_icon(
     id: u64,
     line: &StoryLine,
-    tone: ChipTone,
+    accent: Color,
     alpha: f32,
     asset_server: Option<&AssetServer>,
 ) -> impl Bundle {
@@ -618,7 +598,7 @@ fn comms_icon(
                     .unwrap_or_default(),
             )
             .with_color(Color::WHITE.with_alpha(alpha)),
-            BorderColor::all(tone.text().with_alpha(alpha)),
+            BorderColor::all(accent.with_alpha(alpha)),
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
             children![],
         ),
@@ -629,8 +609,8 @@ fn comms_icon(
             CommsLineId(id),
             node,
             ImageNode::default(),
-            BorderColor::all(tone.text().with_alpha(alpha)),
-            BackgroundColor(tone.text().with_alpha(0.18 * alpha)),
+            BorderColor::all(accent.with_alpha(alpha)),
+            BackgroundColor(accent.with_alpha(ICON_FILL_ALPHA * alpha)),
             children![],
         ),
     }
@@ -641,7 +621,8 @@ mod tests {
     use core::time::Duration;
 
     use bevy::time::TimeUpdateStrategy;
-    use nova_gameplay::narrative_channel::prelude::{CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD};
+    use nova_gameplay::narrative_accent::prelude::default_comms_accent;
+    use nova_ui::hud::ChipTone;
 
     use super::*;
 
@@ -743,7 +724,7 @@ mod tests {
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
-                channel: work_channel(),
+                accent: default_comms_accent(),
                 speaker: speaker.to_string(),
                 text: text.to_string(),
                 dwell,
@@ -751,43 +732,17 @@ mod tests {
             });
     }
 
-    /// The base game's three channels, as authored in
-    /// `assets/base/channels/base.content.ron`. Spelled out here rather than
-    /// loaded, because these tests are about how the panel DRAWS a channel and
-    /// must keep asserting that whatever the base content later becomes.
-    fn work_channel() -> NarrativeChannelConfig {
-        NarrativeChannelConfig {
-            id: CHANNEL_COMMS.to_string(),
-            tone: ChipTone::Comms,
-            tag: None,
-            signal_strength: 1.0,
-        }
-    }
+    /// A cue that names its own colour - the distress orange of the task's
+    /// worked example. Any accent that is not the comms blue would do; this one
+    /// is far enough from it that a card drawn in the wrong one is obvious.
+    const DISTRESS: Color = Color::srgb(1.0, 0.55, 0.2);
 
-    fn crew_channel() -> NarrativeChannelConfig {
-        NarrativeChannelConfig {
-            id: CHANNEL_CREW.to_string(),
-            tone: ChipTone::Phosphor,
-            tag: None,
-            signal_strength: 1.0,
-        }
-    }
-
-    fn guard_channel() -> NarrativeChannelConfig {
-        NarrativeChannelConfig {
-            id: CHANNEL_GUARD.to_string(),
-            tone: ChipTone::Amber,
-            tag: Some("GUARD".to_string()),
-            signal_strength: 0.7,
-        }
-    }
-
-    fn push_channel_line(app: &mut App, channel: NarrativeChannelConfig, speaker: &str) {
+    fn push_accent_line(app: &mut App, accent: Color, speaker: &str) {
         app.world_mut()
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
-                channel,
+                accent,
                 speaker: speaker.to_string(),
                 text: "Say again.".to_string(),
                 dwell: None,
@@ -795,13 +750,27 @@ mod tests {
             });
     }
 
+    /// A colour's channels alone, so an assertion about WHICH colour a node was
+    /// painted is not also an assertion about the fade it was caught in.
+    fn rgb(color: Color) -> [u8; 3] {
+        let [red, green, blue, _] = color.to_srgba().to_u8_array();
+        [red, green, blue]
+    }
+
     /// The border alpha of each drawn card, in stack order.
     fn card_border_alphas(app: &mut App) -> Vec<f32> {
+        card_border_colours(app)
+            .into_iter()
+            .map(|border| border.alpha())
+            .collect()
+    }
+
+    /// The border colour of each drawn card, in stack order.
+    fn card_border_colours(app: &mut App) -> Vec<Color> {
         per_card(app, |card| {
             card.get::<BorderColor>()
                 .expect("a card draws a border")
                 .top
-                .alpha()
         })
     }
 
@@ -826,6 +795,20 @@ mod tests {
             .into_iter()
             .filter_map(|card| text_under::<CommsSpeakerMarker>(app.world(), card))
             .collect()
+    }
+
+    /// The node inside `card` marked with `M`, if there is one.
+    fn node_under<M: Component>(world: &World, card: Entity) -> Option<Entity> {
+        fn walk<M: Component>(world: &World, at: Entity) -> Option<Entity> {
+            if world.get::<M>(at).is_some() {
+                return Some(at);
+            }
+            world
+                .get::<Children>(at)?
+                .iter()
+                .find_map(|child| walk::<M>(world, child))
+        }
+        walk::<M>(world, card)
     }
 
     /// The `Text` of the node inside `card` marked with `M`.
@@ -902,7 +885,7 @@ mod tests {
     fn an_overflow_episode_is_reported_once_and_a_later_one_again() {
         let mut queue = CommsQueue::default();
         let line = StoryLine {
-            channel: work_channel(),
+            accent: default_comms_accent(),
             speaker: "MERIDIAN".to_string(),
             text: "overrun".to_string(),
             dwell: None,
@@ -1344,85 +1327,126 @@ mod tests {
         assert_eq!(found, vec![(Vec2::ONE, false), (Vec2::ONE, false)]);
     }
 
-    /// The channel is what the card is drawn in. Two lines from the same desk
-    /// on two channels have to read as two different things: one addressed to
-    /// this ship, one caught off the guard channel. The header carries the
-    /// channel, and the crew - who are in the room, not on a radio - carry no
-    /// channel at all.
+    /// A cue that names no accent is ordinary comms traffic, and comms traffic
+    /// is blue. With channels gone this default is the panel's whole fallback
+    /// behaviour: no catalog to consult, no unknown id to get wrong, one
+    /// colour - and it has to stay the blue the HUD already speaks in.
     #[test]
-    fn each_channel_draws_its_own_header() {
-        let mut app = comms_app();
-        app.update();
-
-        push_channel_line(&mut app, work_channel(), "Meridian Control");
-        push_channel_line(&mut app, crew_channel(), "Copilot");
-        push_channel_line(&mut app, guard_channel(), "Meridian Control");
-        app.update();
-
+    fn a_cue_that_names_no_accent_is_drawn_in_the_comms_blue() {
         assert_eq!(
-            visible_speakers(&mut app),
-            vec![
-                "MERIDIAN CONTROL".to_string(),
-                "COPILOT".to_string(),
-                "MERIDIAN CONTROL / GUARD".to_string(),
-            ],
-            "only the line this ship was NOT sent names its channel"
+            default_comms_accent(),
+            ChipTone::Comms.text(),
+            "the cue default IS the HUD's comms tone, not a second blue beside it"
         );
-    }
 
-    /// A guard-channel line is something the cockpit CAUGHT. It is drawn weak
-    /// for its whole dwell, not only while it fades - that is what makes a
-    /// fragment read as a fragment.
-    #[test]
-    fn a_guard_channel_line_is_drawn_fainter_than_one_sent_to_this_ship() {
         let mut app = comms_app();
         app.update();
-
-        push_channel_line(&mut app, work_channel(), "Meridian Control");
-        push_channel_line(&mut app, guard_channel(), "Meridian Control");
-        // Past the fade-in and well short of the dwell, where both cards are
-        // at their steady strength and only the channel separates them.
+        push_line(&mut app, "Meridian Control", "Say again.", None);
+        // Past the fade-in, where the card is at its steady strength.
         for _ in 0..3 {
             app.update();
         }
 
-        let alphas = card_border_alphas(&mut app);
-        assert_eq!(alphas.len(), 2);
-        // The two cards are the same age, so they share a fade factor; what
-        // separates them is the channel's own strength. Read the fade off the
-        // comms card rather than assuming the frame it was measured on.
-        let fade = alphas[0] / ChipTone::Comms.border().alpha();
-        let full_amber = ChipTone::Amber.border().alpha() * fade;
-        assert!(
-            (alphas[1] - full_amber * guard_channel().signal_strength).abs() < 1e-4,
-            "the guard card is drawn at its channel's strength: {alphas:?}"
-        );
-        assert!(
-            alphas[1] < full_amber,
-            "a guard-channel catch is weaker than a full-strength amber card"
+        let borders = card_border_colours(&mut app);
+        assert_eq!(borders.len(), 1);
+        assert_eq!(
+            rgb(borders[0]),
+            rgb(default_comms_accent()),
+            "a default cue is framed in the comms blue"
         );
     }
 
-    /// A channel's body colour is its own tone, not a shared pale blue. A crew
-    /// line drawn in phosphor with blue words under it would be a card wearing
-    /// two channels at once.
+    /// One authored colour drives the whole card. A cue that sets an accent and
+    /// gets a blue speaker over an orange frame is a card wearing two voices at
+    /// once, which is exactly what the channel lookup used to allow.
     ///
-    /// Asserted through the panel's own reading rather than against a hex
-    /// value: what matters is that the three differ and each follows its tone.
+    /// The body is the one part that is NOT the accent itself: it is the accent
+    /// lifted toward white, so the words stay the brightest thing on the card
+    /// while still reading as the same voice. The slab underneath belongs to
+    /// the HUD, not to the cue.
     #[test]
-    fn a_card_reads_in_the_colour_of_its_own_channel() {
-        let bodies = [work_channel(), crew_channel(), guard_channel()]
-            .map(|channel| channel.body().to_srgba().to_u8_array());
-        for (index, body) in bodies.iter().enumerate() {
-            assert!(
-                !bodies[index + 1..].contains(body),
-                "two channels read in the same colour: {bodies:?}"
-            );
+    fn a_custom_accent_draws_the_border_speaker_icon_and_body() {
+        let mut app = comms_app();
+        app.update();
+        push_accent_line(&mut app, DISTRESS, "Meridian Control");
+        for _ in 0..3 {
+            app.update();
         }
+
+        let card = *cards_in_stack_order(&mut app)
+            .first()
+            .expect("the accented line is showing");
+        let border = app
+            .world()
+            .entity(card)
+            .get::<BorderColor>()
+            .expect("a card draws a border")
+            .top;
+        assert_eq!(rgb(border), rgb(DISTRESS), "the frame is the accent");
+        // Every other node shares this card's fade, so read it off the frame
+        // rather than assuming the frame the cards were measured on.
+        let fade = border.alpha() / CHIP_BORDER_ALPHA;
+
+        let fill = app
+            .world()
+            .entity(card)
+            .get::<BackgroundColor>()
+            .expect("a card draws a slab")
+            .0;
         assert_eq!(
-            bodies[1],
-            ChipTone::Phosphor.body().to_srgba().to_u8_array(),
-            "the crew read in phosphor, the tone their card is framed in"
+            rgb(fill),
+            rgb(CHIP_FILL),
+            "the slab stays the shared HUD dark, whatever the cue is accented"
+        );
+
+        let speaker = node_under::<CommsSpeakerMarker>(app.world(), card)
+            .and_then(|node| {
+                app.world()
+                    .entity(node)
+                    .get::<TextColor>()
+                    .map(|text| text.0)
+            })
+            .expect("the card names its speaker");
+        assert_eq!(
+            speaker,
+            DISTRESS.with_alpha(fade),
+            "the speaker is the accent"
+        );
+
+        let icon =
+            node_under::<CommsIconMarker>(app.world(), card).expect("the card draws an icon");
+        let icon_border = app
+            .world()
+            .entity(icon)
+            .get::<BorderColor>()
+            .expect("the icon tile is framed")
+            .top;
+        let icon_fill = app
+            .world()
+            .entity(icon)
+            .get::<BackgroundColor>()
+            .expect("the icon tile is washed")
+            .0;
+        assert_eq!(icon_border, DISTRESS.with_alpha(fade));
+        assert_eq!(
+            icon_fill,
+            DISTRESS.with_alpha(ICON_FILL_ALPHA * fade),
+            "the fallback tile is a faint wash of the same accent"
+        );
+
+        let body = node_under::<CommsTextMarker>(app.world(), card)
+            .and_then(|node| {
+                app.world()
+                    .entity(node)
+                    .get::<TextColor>()
+                    .map(|text| text.0)
+            })
+            .expect("the card carries its line");
+        assert_eq!(body, body_colour(DISTRESS).with_alpha(fade));
+        assert_ne!(
+            rgb(body),
+            rgb(DISTRESS),
+            "the words are the accent LIFTED, not the accent itself"
         );
     }
 }

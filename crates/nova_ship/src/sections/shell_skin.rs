@@ -981,7 +981,7 @@ impl SkinAssets {
                 let material = dressed
                     .entry(role)
                     .or_insert_with(|| {
-                        let dress = style.and_then(|style| style.surface(role));
+                        let dress = style.and_then(|style| style.finish(role));
                         materials.add(StandardMaterial {
                             base_color: dress.map_or_else(|| role.colour(), |dress| dress.color),
                             perceptual_roughness: dress
@@ -2138,20 +2138,24 @@ mod tests {
         ShipStyleConfig {
             id: "test".to_string(),
             name: "Test".to_string(),
-            surfaces: Vec::new(),
+            palette: default(),
             fixtures: vec![crate::sections::skin_style::StyleFixtureConfig {
                 id: "block".to_string(),
                 model: nova_gameplay::prelude::AssetRef::from(
                     "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
                 ),
                 health: 10.0,
-                density: 0.1,
-                collider: Vec3::new(0.2, 0.1, 0.2),
-                // Seated anywhere: the subject here is a LONE CUBE, so every
-                // one of its six plates is a stud, and a default rule would
-                // leave a test about parenting with nothing to parent.
-                scatter: crate::sections::skin_style::ScatterRule {
-                    seat: crate::sections::skin_style::ScatterSeat::Any,
+                // TRIM, five hundredths of a cell proud, which is what drops
+                // the seat gate: the subject is a LONE CUBE and every one of
+                // its six plates is a cone, so a seated piece would leave a
+                // test about parenting with nothing to parent.
+                collider: Vec3::new(0.2, 0.05, 0.2),
+                // `Anywhere` and `Every`: nothing filtered and nothing thinned,
+                // so the rule takes all six faces. `HighGround` would take one
+                // - it faces UP - and the claim below is about every plate.
+                placement: crate::sections::skin_style::FixturePlacement {
+                    region: crate::sections::skin_style::FixtureRegion::Anywhere,
+                    density: crate::sections::skin_style::FixtureDensity::Every,
                     ..default()
                 },
             }],

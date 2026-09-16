@@ -174,7 +174,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -238,7 +238,7 @@
                             kind: Asteroid((
                                 radius: 15.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -343,7 +343,6 @@
                         verb: "STOP",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Fly out to mark ALPHA and stop on it. STOP hands the ship to the flight computer, which turns the ship around and thrusts until your speed reads zero.",
                     )),
@@ -368,7 +367,6 @@
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "You are on the mark but still moving. Use STOP and let the flight computer take your speed down to zero.",
                     )),
@@ -462,7 +460,6 @@
                         verb: "RCS",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Stopped. Now use the RCS thrusters: they move the ship sideways without turning it. Move onto mark BRAVO.",
                     )),
@@ -502,7 +499,6 @@
                         expression: Term(Factor(Literal(Number(90.0)))),
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Both marks done. You stopped the ship with STOP and placed it with RCS.",
                     )),

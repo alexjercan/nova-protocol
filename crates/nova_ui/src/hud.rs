@@ -18,7 +18,7 @@
 
 /// Glob-import surface for the flight-HUD chip language.
 pub mod prelude {
-    pub use super::{chip_node, chip_paint, quiet_chip, text_chip, ChipTone};
+    pub use super::{body_colour, chip_node, chip_paint, quiet_chip, text_chip, ChipTone};
 }
 
 use bevy::prelude::*;
@@ -117,22 +117,32 @@ impl ChipTone {
     /// while the words stay the brightest thing on the card.
     ///
     /// Derived rather than authored so a tone cannot ship a reading colour that
-    /// disagrees with its own accent - and so a channel a MOD authors gets one
-    /// without picking a hex value out of the air.
+    /// disagrees with its own accent - and so a cue a MOD accents gets one
+    /// without picking a second hex value out of the air.
     pub fn body(self) -> Color {
-        let accent = self.text().to_srgba();
-        Color::srgb(lift(accent.red), lift(accent.green), lift(accent.blue))
+        body_colour(self.text())
     }
 }
 
-/// How far [`ChipTone::body`] lifts an accent toward white.
+/// Any accent as a colour to READ a sentence in.
+///
+/// [`ChipTone::body`]'s rule, opened up to an accent nothing in this crate
+/// named: an authored narrative cue carries its own colour, and the reading
+/// copy under it has to be derived from that rather than authored beside it -
+/// two hex values that can disagree is a card drawn in two voices.
+pub fn body_colour(accent: Color) -> Color {
+    let accent = accent.to_srgba();
+    Color::srgb(lift(accent.red), lift(accent.green), lift(accent.blue))
+}
+
+/// How far [`body_colour`] lifts an accent toward white.
 const BODY_LIFT: f32 = 0.75;
 
-/// One channel of [`BODY_LIFT`], in linear-free sRGB space - the same space the
-/// palette constants are written in, so the result reads as a paler version of
-/// the hex it came from.
-fn lift(channel: f32) -> f32 {
-    channel + (1.0 - channel) * BODY_LIFT
+/// One component of [`BODY_LIFT`], in linear-free sRGB space - the same space
+/// the palette constants are written in, so the result reads as a paler version
+/// of the hex it came from.
+fn lift(component: f32) -> f32 {
+    component + (1.0 - component) * BODY_LIFT
 }
 
 /// The chip's [`Node`] geometry: 1px border, the demo's 4x9 padding, centred

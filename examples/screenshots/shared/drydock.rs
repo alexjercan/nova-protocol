@@ -150,7 +150,7 @@ pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: PLANETOID_RADIUS,
             texture: game_assets.asteroid_texture.clone().into(),
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: None,
             mass: Some(PLANETOID_MASS),
             invulnerable: true,

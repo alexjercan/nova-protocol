@@ -14,8 +14,6 @@
 //!   wears: materials per surface role plus the decoration it scatters,
 //! - [`Content::Ship`] - a [`ShipDesignPrototype`], a whole hull a scenario spawns by id,
 //!   and
-//! - [`Content::Grammar`] - a [`ShipGrammarConfig`], the table a procedurally
-//!   generated hull is drawn from, and
 //! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
@@ -46,13 +44,12 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype};
-use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
+use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 use serde::{Deserialize, Serialize};
 
@@ -97,23 +94,6 @@ pub enum Content {
     /// authored once and spawned by id, so a scenario names a corvette instead
     /// of carrying a copy of one.
     Ship(ShipDesignPrototype),
-    /// A [`ShipGrammarConfig`] - registers into `GameGrammars` keyed by its id.
-    /// The taste a procedural hull is drawn from: which prototypes are offered
-    /// and how often, which way a drive may point, and how big and how sparse
-    /// a hull is. The RULE is not here - that is read off the catalog's link
-    /// points - so a mod that ships a grammar changes what a generator builds
-    /// without any code changing.
-    Grammar(ShipGrammarConfig),
-    /// One row of the impact table ([`ImpactSoundConfig`]) - registers into
-    /// `GameImpacts` keyed by its id. One row per item rather than one nested
-    /// table, so a mod can re-voice a single (damage type, material) pair
-    /// without restating the rest.
-    Impact(ImpactSoundConfig),
-    /// A [`NarrativeChannelConfig`] - registers into `GameChannels` keyed by
-    /// its id. Where a story line was HEARD, and how the comms panel draws one
-    /// that was: a mod authors a distress band or a corporate net and its cues
-    /// name it, instead of borrowing one of the base game's three.
-    Channel(NarrativeChannelConfig),
     /// A [`Lesson`] - registers into `TrainingCatalog` keyed by its id. One
     /// screen of the training handbook: a demonstration, a few lines, the
     /// actions it is about and, when there is something to fly, the focused
@@ -141,9 +121,6 @@ impl Content {
             Content::Campaign(_) => "campaign",
             Content::Style(_) => "style",
             Content::Ship(_) => "ship",
-            Content::Grammar(_) => "grammar",
-            Content::Impact(_) => "impact",
-            Content::Channel(_) => "channel",
             Content::Lesson(_) => "lesson",
         }
     }
@@ -157,9 +134,6 @@ impl Content {
             Content::Campaign(cfg) => &cfg.id,
             Content::Style(cfg) => &cfg.id,
             Content::Ship(cfg) => &cfg.id,
-            Content::Grammar(cfg) => &cfg.id,
-            Content::Impact(cfg) => &cfg.id,
-            Content::Channel(cfg) => &cfg.id,
             Content::Lesson(lesson) => &lesson.id,
         }
     }

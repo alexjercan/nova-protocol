@@ -170,7 +170,7 @@ fn rock(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: kind.to_string(),
+            kind: kind.to_string(),
             destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
             radius,
             texture: texture.clone().into(),

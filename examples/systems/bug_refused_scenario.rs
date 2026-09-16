@@ -214,7 +214,7 @@ fn refused_probe_live(game_assets: &GameAssets, sections: &GameSections) -> Scen
             }),
             EventActionConfig::Objective(ObjectiveActionConfig::new(OBJECTIVE_ID, "Hold the line")),
             EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                channel: "comms".to_string(),
+                accent: default_comms_accent(),
                 speaker: "Fleet".to_string(),
                 text: "Stand by for the next leg.".to_string(),
                 dwell: None,

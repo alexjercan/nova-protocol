@@ -292,12 +292,6 @@ impl EventWorld for NovaEventWorld {
         // teardown. Guarded on the resource existing so event-world rigs
         // without the HUD half (unit tests, headless tools) keep working.
         let story = world.resource::<Self>().story_messages.clone();
-        // Resolve each cue's channel id against the merged catalog HERE, once,
-        // so the panel is handed a drawn channel and never a lookup of its own.
-        let channels = world
-            .get_resource::<GameChannels>()
-            .cloned()
-            .unwrap_or_default();
         if let Some(mut feed) = world.get_resource_mut::<StoryFeed>() {
             if feed.0.len() != story.len() {
                 feed.0 = story
@@ -307,7 +301,7 @@ impl EventWorld for NovaEventWorld {
                         text: m.text.clone(),
                         dwell: m.dwell,
                         icon: m.icon.clone(),
-                        channel: channels.resolve(&m.channel),
+                        accent: m.accent,
                     })
                     .collect();
             }
@@ -1469,7 +1463,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "Strip it clean.".to_string(),
                 dwell: None,
@@ -1506,7 +1500,7 @@ mod tests {
         bare.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "No HUD here.".to_string(),
                 dwell: None,
@@ -1526,7 +1520,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "Read this slowly.".to_string(),
                 dwell: Some(12.0),
@@ -1556,7 +1550,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_narrative_cue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "Look at me.".to_string(),
                 dwell: None,
@@ -1634,30 +1628,25 @@ mod tests {
         );
     }
 
-    /// A cue names a channel by id; the sync is where that id becomes the
-    /// channel the panel draws. It is tone, tag and signal strength - so a line
-    /// that reached the HUD holding only its id is a line in the wrong voice.
+    /// The accent a cue names is a presentation fact the panel must be HANDED.
+    /// A line that reached the HUD without it would be drawn in the default
+    /// blue whatever colour its author picked, and the accent would be dead
+    /// content.
     #[test]
-    fn story_sync_resolves_each_cue_id_against_the_authored_catalog() {
+    fn story_sync_carries_each_cue_accent_to_the_panel() {
         let mut app = App::new();
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
         app.init_resource::<StoryFeed>();
-        app.insert_resource(GameChannels(vec![
-            NarrativeChannelConfig::new(CHANNEL_COMMS, ChipTone::Comms),
-            NarrativeChannelConfig::new(CHANNEL_CREW, ChipTone::Phosphor),
-            NarrativeChannelConfig::new(CHANNEL_GUARD, ChipTone::Amber)
-                .with_tag("GUARD")
-                .with_signal_strength(0.55),
-        ]));
         app.add_systems(Update, NovaEventWorld::state_to_world_system);
 
-        let authored = [CHANNEL_COMMS, CHANNEL_CREW, CHANNEL_GUARD];
-        for id in authored {
+        let distress = Color::srgb(1.0, 0.55, 0.2);
+        let authored = [default_comms_accent(), distress];
+        for accent in authored {
             app.world_mut()
                 .resource_mut::<NovaEventWorld>()
                 .push_narrative_cue(NarrativeCueActionConfig {
-                    channel: id.to_string(),
+                    accent,
                     speaker: "Alpha".to_string(),
                     text: "Say again.".to_string(),
                     dwell: None,
@@ -1668,14 +1657,12 @@ mod tests {
             app.update();
         }
 
-        let catalog = app.world().resource::<GameChannels>().clone();
         let feed = app.world().resource::<StoryFeed>();
         assert_eq!(feed.0.len(), authored.len());
-        for (line, id) in feed.0.iter().zip(authored) {
+        for (line, accent) in feed.0.iter().zip(authored) {
             assert_eq!(
-                Some(&line.channel),
-                catalog.get_channel(id),
-                "the line kept its id instead of the channel it names"
+                line.accent, accent,
+                "the line reached the panel in some other colour than its own"
             );
         }
     }

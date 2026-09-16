@@ -24,7 +24,7 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef};
 use nova_scenario::prelude::*;
 
 use crate::{
@@ -601,10 +601,11 @@ impl ActionChoiceExt for ActionChoice {
             }
             ActionChoice::NarrativeCue => {
                 EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    // Empty like the speaker and the text beside it: a new cue
-                    // is a blank the author fills in, and a channel guessed for
-                    // them is the one field they would never think to check.
-                    channel: String::new(),
+                    // The speaker and the text are blanks the author fills in;
+                    // the accent is not, because every cue has a sensible one
+                    // and ordinary comms traffic is what a new cue almost
+                    // always turns out to be.
+                    accent: default_comms_accent(),
                     speaker: String::new(),
                     text: String::new(),
                     dwell: None,
@@ -875,7 +876,7 @@ fn stock_object() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters(30.0),
             texture: AssetRef::from(crate::node::ASTEROID_TEXTURE),
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from(crate::node::DESTROY_SOUND)),
             mass: None,
             invulnerable: false,
@@ -2278,7 +2279,6 @@ mod name_coverage {
                 &scenario,
                 &KnownSections::default(),
                 &KnownShipDesigns::default(),
-                &HashSet::new(),
                 &HashSet::new(),
             );
             let dangling = issues

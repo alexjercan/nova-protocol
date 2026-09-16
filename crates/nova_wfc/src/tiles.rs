@@ -9,16 +9,18 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_ship::prelude::{
-    exit_normal, GameSections, GrammarPart, GrammarZone, SectionCollider, SectionConfig,
-    SectionFootprint, ShipGrammarConfig,
+    exit_normal, GameSections, SectionCollider, SectionConfig, SectionFootprint,
 };
 
-use crate::grid::{face_index, mirror_face, snapped, FACES, GRID_EPSILON};
+use crate::{
+    grid::{face_index, mirror_face, snapped, FACES, GRID_EPSILON},
+    plan::{WfcPart, WfcPlan, WfcZone},
+};
 
 /// Index of the vacuum tile, which [`build`] always puts first.
 pub(crate) const VACUUM: usize = 0;
 
-/// One part of the grammar's draw, resolved against the catalog.
+/// One part of the plan's draw, resolved against the catalog.
 pub(crate) struct Family {
     /// The catalog section id.
     pub(crate) prototype: String,
@@ -30,7 +32,7 @@ pub(crate) struct Family {
     pub(crate) aim: Option<usize>,
     /// The only region of the hull this part may stand in, or `None` for a part
     /// free to stand anywhere the mating rule allows.
-    pub(crate) zone: Option<GrammarZone>,
+    pub(crate) zone: Option<WfcZone>,
 }
 
 /// What one cell may hold.
@@ -55,7 +57,7 @@ pub(crate) struct Tile {
     /// The face the PART this tile belongs to fires through, on every one of
     /// its cells, or `None` for a part that fires nowhere.
     ///
-    /// Which way a part POINTS is a property of the part, and the grammar's
+    /// Which way a part POINTS is a property of the part, and the plan's
     /// aim rules on it ([`Family::aim`]). Reading `exit` for that was a bug a
     /// one-cell part could not show: on a multi-cell part only the muzzle
     /// layer carries an exit, so an aimed drive had its whole mount layer
@@ -138,21 +140,21 @@ fn vacuum_tile() -> Tile {
 /// generator plant ramps on their sides. The camera can tell orientations apart
 /// even where the rule cannot, so they are kept apart.
 ///
-/// `Err` carries the line the caller shows: a grammar naming a part the
+/// `Err` carries the line the caller shows: a plan naming a part the
 /// catalog does not hold, or one whose geometry cannot be mirrored.
 pub(crate) fn build(
     sections: &GameSections,
-    grammar: &ShipGrammarConfig,
+    plan: &WfcPlan,
 ) -> Result<(Vec<Tile>, Vec<Family>), String> {
     let quarter = std::f32::consts::FRAC_PI_2;
     let mut tiles = vec![vacuum_tile()];
     let mut families = Vec::new();
 
-    for part in &drawn_and_seeded(grammar) {
+    for part in &drawn_and_seeded(plan) {
         let config = sections.get_section(&part.prototype).ok_or_else(|| {
             format!(
-                "grammar '{}' draws '{}', which the catalog does not hold",
-                grammar.id, part.prototype
+                "the hull plan draws '{}', which the catalog does not hold",
+                part.prototype
             )
         })?;
         if !mirror_symmetric(config) {
@@ -204,17 +206,17 @@ pub(crate) fn build(
     Ok((tiles, families))
 }
 
-/// Every prototype the grammar NAMES, in one list: the parts it draws, then
+/// Every prototype the plan NAMES, in one list: the parts it draws, then
 /// any role it seeds that the draw does not already price.
 ///
 /// A seeded role needs tiles as much as a drawn one does - the collapse assigns
 /// it by hand - but it is not a draw, so it joins at weight zero and is never
-/// offered. Without this a grammar that seeds a part it does not also list
+/// offered. Without this a plan that seeds a part it does not also list
 /// fails deep in the seed with "cannot stand on the grid at all", which names
 /// the symptom rather than the omission.
-fn drawn_and_seeded(grammar: &ShipGrammarConfig) -> Vec<GrammarPart> {
-    let mut parts = grammar.parts.clone();
-    let keel = &grammar.keel;
+fn drawn_and_seeded(plan: &WfcPlan) -> Vec<WfcPart> {
+    let mut parts = plan.parts.clone();
+    let keel = &plan.keel;
     let seeded = [
         keel.hull.as_str(),
         keel.bridge.as_str(),
@@ -227,7 +229,7 @@ fn drawn_and_seeded(grammar: &ShipGrammarConfig) -> Vec<GrammarPart> {
         if parts.iter().any(|part| part.prototype == prototype) {
             continue;
         }
-        parts.push(GrammarPart {
+        parts.push(WfcPart {
             prototype: prototype.to_string(),
             weight: 0.0,
             aim: None,
@@ -238,7 +240,7 @@ fn drawn_and_seeded(grammar: &ShipGrammarConfig) -> Vec<GrammarPart> {
 }
 
 /// One authored draw entry with its aim resolved to a [`FACES`] index.
-fn resolved(part: &GrammarPart) -> Result<Family, String> {
+fn resolved(part: &WfcPart) -> Result<Family, String> {
     let aim = match part.aim {
         Some(aim) => Some(face_index(aim.normal()).ok_or_else(|| {
             format!(

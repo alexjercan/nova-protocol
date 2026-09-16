@@ -197,7 +197,7 @@ fn arena_planetoid() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             // DIRECT paths, not `dep://` - see `crate::node::ASTEROID_TEXTURE`.
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
             radius: ARENA_PLANETOID_RADIUS,
             texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -230,7 +230,7 @@ fn ring_scatter(ring: &Ring) -> EventActionConfig {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: ring.radius.0,
                 texture: AssetRef::from(ASTEROID_TEXTURE),

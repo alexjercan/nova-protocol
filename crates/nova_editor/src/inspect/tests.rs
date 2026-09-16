@@ -172,7 +172,7 @@ fn stock_asteroid() -> AsteroidConfig {
     AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        material: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -370,12 +370,9 @@ fn the_kind_reads_as_a_pick_list_of_the_shipped_kinds() {
         options,
         hints,
         chosen,
-    } = &row(&rows, "Material").value
+    } = &row(&rows, "Kind").value
     else {
-        panic!(
-            "the kind is {:?}, not a choice",
-            row(&rows, "Material").value
-        );
+        panic!("the kind is {:?}, not a choice", row(&rows, "Kind").value);
     };
     assert_eq!(options.as_slice(), ASTEROID_KINDS);
     assert_eq!(options[*chosen], KIND_ROCK);
@@ -392,23 +389,23 @@ fn the_kind_reads_as_a_pick_list_of_the_shipped_kinds() {
 #[test]
 fn a_kind_the_game_does_not_ship_stays_the_text_it_is() {
     let rock = asteroid(AsteroidConfig {
-        material: "obsidian".to_string(),
+        kind: "obsidian".to_string(),
         ..stock_asteroid()
     });
 
     let rows = object_rows(&rock, &Transform::default());
 
-    assert_eq!(text_of(&rows, "Material"), "obsidian");
+    assert_eq!(text_of(&rows, "Kind"), "obsidian");
 }
 
-/// The vocabulary belongs to the OBJECT, not to every field called `material`:
-/// a ship section is made of something too, and it names a paint id rather
-/// than a rock.
+/// The vocabulary belongs to the OBJECT, not to every field called `kind`: a
+/// ship section carries one too, and it names a section class rather than a
+/// rock.
 #[test]
 fn only_an_asteroid_gets_the_asteroid_vocabulary() {
     let mut rows = vec![walked(
         FieldRoot::Config,
-        vec![PathStep::Field("material".to_string())],
+        vec![PathStep::Field("kind".to_string())],
         false,
         RowValue::Text(KIND_ROCK.to_string()),
     )];
@@ -421,7 +418,7 @@ fn only_an_asteroid_gets_the_asteroid_vocabulary() {
         &mut rows,
     );
 
-    assert_eq!(text_of(&rows, "Material"), KIND_ROCK);
+    assert_eq!(text_of(&rows, "Kind"), KIND_ROCK);
 }
 
 /// The picker writes a STRING, which the walk had no path for: every choice
@@ -430,7 +427,7 @@ fn only_an_asteroid_gets_the_asteroid_vocabulary() {
 fn choosing_a_kind_writes_the_id_into_the_config() {
     let mut object = asteroid(stock_asteroid());
     let rows = object_rows(&object, &Transform::default());
-    let path = row(&rows, "Material").path.clone();
+    let path = row(&rows, "Kind").path.clone();
 
     let config = object_config_mut(&mut object.kind).expect("a rock has a config");
     choose_field(config, &path, KIND_ICE).expect("the kind takes an id");
@@ -438,7 +435,7 @@ fn choosing_a_kind_writes_the_id_into_the_config() {
     let ScenarioObjectKind::Asteroid(tuned) = &object.kind else {
         panic!("still an asteroid");
     };
-    assert_eq!(tuned.material, KIND_ICE);
+    assert_eq!(tuned.kind, KIND_ICE);
 }
 
 #[test]
@@ -794,7 +791,7 @@ fn a_rock_opens_on_its_size_and_not_its_texture() {
         "a rock is authored by how big it is: {labels:?}"
     );
     assert!(
-        labels.contains(&"Material".to_string()),
+        labels.contains(&"Kind".to_string()),
         "and by what it is MADE of, which is what decides its whole surface: {labels:?}"
     );
     assert!(
@@ -1375,7 +1372,7 @@ fn a_scrub_of_a_whole_number_stays_whole() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        material: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -1403,7 +1400,7 @@ fn a_scrub_of_an_unsigned_number_stops_at_zero() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        material: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -1434,7 +1431,7 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        material: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -1908,7 +1905,7 @@ fn an_id_nothing_spawns_does_not_resolve() {
 fn a_row_that_names_a_file_says_what_kind_of_file() {
     let action = ActionNode {
         kind: ActionKind::Leaf(EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-            channel: nova_gameplay::prelude::CHANNEL_COMMS.to_string(),
+            accent: nova_gameplay::prelude::default_comms_accent(),
             speaker: "Alpha".to_string(),
             text: "Strip it clean.".to_string(),
             dwell: None,

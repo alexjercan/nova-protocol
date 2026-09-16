@@ -190,7 +190,7 @@ fn planet_stage(game_assets: &GameAssets) -> ScenarioConfig {
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: TODAY_RADIUS,
                 texture: game_assets.asteroid_texture.clone().into(),
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 mass: None,
                 invulnerable: true,

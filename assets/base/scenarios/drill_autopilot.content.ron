@@ -172,7 +172,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -236,7 +236,7 @@
                             kind: Asteroid((
                                 radius: 15.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -321,7 +321,6 @@
                         verb: "RADAR",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Keep your weapons lowered for this flight. Hold radar on the planetoid until the white travel lock takes. The flight computer only flies to a white lock.",
                     )),
@@ -342,7 +341,6 @@
                 ],
                 actions: [
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "That red lock is the weapon lock. Lower your weapons and take the lock again. The flight computer will not fly to a red lock.",
                     )),
@@ -373,7 +371,6 @@
                         verb: "GOTO",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Travel lock set. Give the GOTO order and the flight computer flies the whole leg for you.",
                     )),
@@ -411,7 +408,6 @@
                         verb: "ORBIT",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "You have arrived, and you are inside the planetoid\'s gravity. ORBIT settles the ship into a circle and holds it.",
                     )),
@@ -500,7 +496,6 @@
                         verb: "GOTO",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "The orbit is stable. Mark CHARLIE next, then use GOTO to fly back to it.",
                     )),
@@ -540,7 +535,6 @@
                         expression: Term(Factor(Literal(Number(90.0)))),
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "You are on mark CHARLIE. The flight computer flew the whole route, out and back.",
                     )),

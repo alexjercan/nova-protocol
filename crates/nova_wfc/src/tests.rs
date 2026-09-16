@@ -1,15 +1,13 @@
 //! What the collapse has to keep doing, checked against the shipped content.
 //!
-//! The catalog and the grammar come out of the BUILDERS rather than off disk,
-//! so these run without an asset server and fail on a content change rather
-//! than on a missing file.
+//! The catalog comes out of the BUILDERS rather than off disk and the plan is
+//! this crate's own default, so these run without an asset server and fail on a
+//! content change rather than on a missing file.
 
 use bevy::prelude::{default, Quat, UVec3, Vec3};
 use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
 use nova_ship::prelude::{
-    BaseSectionConfig, GameGrammars, GameSections, GrammarGrid, GrammarPart, GrammarZone,
-    HullSectionConfig, LinkPoint, SectionConfig, SectionKind, ShipGrammarConfig,
-    STANDARD_HULL_GRAMMAR_ID,
+    BaseSectionConfig, GameSections, HullSectionConfig, LinkPoint, SectionConfig, SectionKind,
 };
 
 use crate::{
@@ -20,13 +18,12 @@ use crate::{
     tiles::{compatible, upright_tile, Tile, TileBody, VACUUM},
 };
 
-/// The shipped catalog and the shipped grammar read against each other - the
+/// The shipped catalog and the standard plan read against each other - the
 /// same pair the running game builds.
 fn catalog_tiles() -> (GameSections, TileSet) {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let grammars = GameGrammars(nova_authoring::generation::build_grammars());
-    let tiles = TileSet::from_catalog(&sections, &grammars, STANDARD_HULL_GRAMMAR_ID)
-        .expect("the shipped grammar reads against the shipped catalog");
+    let tiles = TileSet::build(&sections, &WfcPlan::standard_hull())
+        .expect("the standard plan reads against the shipped catalog");
     (sections, tiles)
 }
 
@@ -133,18 +130,15 @@ fn one_seed_names_one_hull() {
     }
 }
 
-/// The grammar is read at BUILD time, so a mod that names a part the catalog
+/// The plan is read at BUILD time, so a caller that names a part the catalog
 /// does not hold gets a line rather than a hull with a hole in its draw.
 #[test]
-fn a_grammar_naming_an_absent_prototype_is_refused_with_the_id_in_the_line() {
+fn a_plan_naming_an_absent_prototype_is_refused_with_the_id_in_the_line() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let mut grammar = nova_authoring::generation::build_grammars()
-        .into_iter()
-        .find(|grammar| grammar.id == STANDARD_HULL_GRAMMAR_ID)
-        .expect("the base grammar ships");
-    grammar.parts[0].prototype = "no_such_section".to_string();
+    let mut plan = WfcPlan::standard_hull();
+    plan.parts[0].prototype = "no_such_section".to_string();
 
-    let Err(error) = TileSet::build(&sections, &grammar) else {
+    let Err(error) = TileSet::build(&sections, &plan) else {
         panic!("an absent prototype is refused")
     };
     assert!(
@@ -171,19 +165,19 @@ fn a_grammar_naming_an_absent_prototype_is_refused_with_the_id_in_the_line() {
 /// and the drive - which is what makes this the solver's own refusal rather
 /// than the gate's.
 #[test]
-fn a_grammar_that_collapses_into_a_contradiction_is_refused_rather_than_photographed() {
+fn a_plan_that_collapses_into_a_contradiction_is_refused_rather_than_photographed() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let mut grammar = shipped_grammar();
-    grammar.grid.length = 6;
-    grammar.keel.bow_gun = Some(LANCE.to_string());
-    grammar.parts.push(GrammarPart {
+    let mut plan = WfcPlan::standard_hull();
+    plan.grid.length = 6;
+    plan.keel.bow_gun = Some(LANCE.to_string());
+    plan.parts.push(WfcPart {
         prototype: LANCE.to_string(),
         weight: 1.0,
         aim: None,
-        zone: Some(GrammarZone::Bow),
+        zone: Some(WfcZone::Bow),
     });
 
-    let refused = TileSet::build(&sections, &grammar).and_then(|set| set.hull(0, false, None));
+    let refused = TileSet::build(&sections, &plan).and_then(|set| set.hull(0, false, None));
     let Err(line) = refused else {
         panic!("a grid that cannot hold the block it seeds has to come back as a line");
     };
@@ -192,11 +186,11 @@ fn a_grammar_that_collapses_into_a_contradiction_is_refused_rather_than_photogra
         "refused, but for `{line}` rather than for the contradiction"
     );
 
-    // The same grammar with the zone lifted collapses, so it is the zone that
+    // The same plan with the zone lifted collapses, so it is the zone that
     // cut the block and not the shorter grid.
-    grammar.parts.last_mut().expect("just pushed").zone = None;
+    plan.parts.last_mut().expect("just pushed").zone = None;
     assert!(
-        TileSet::build(&sections, &grammar)
+        TileSet::build(&sections, &plan)
             .and_then(|set| set.hull(0, false, None))
             .is_ok(),
         "the six-cell grid itself is fine; only the zone that cuts the lance is not"
@@ -224,23 +218,16 @@ fn generated_hulls_clear_the_games_own_content_lint() {
     }
 }
 
-/// The shipped grammar, for a test to bend one field of and watch refused.
-fn shipped_grammar() -> ShipGrammarConfig {
-    GameGrammars(nova_authoring::generation::build_grammars())
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .expect("the base content ships one")
-        .clone()
-}
-
-/// A grammar is CONTENT: a mod ships one and the editor's Generate block
-/// builds one out of what the builder ticked. Every table below reaches an
-/// unchecked subtraction, an index past the end of the grid, or an empty
-/// `rand` range if it is let through, and each of those takes the game down.
+/// A plan is built at RUNTIME: the editor's Generate block makes one out of
+/// what the builder ticked, and each example makes its own. Every table below
+/// reaches an unchecked subtraction, an index past the end of the grid, or an
+/// empty `rand` range if it is let through, and each of those takes the game
+/// down.
 ///
 /// The point of the test is the absence of a panic as much as the `Err`: it
 /// runs `build`, which is where the collapse would otherwise start indexing.
 #[test]
-fn a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run() {
+fn a_plan_the_collapse_cannot_run_in_is_refused_rather_than_run() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
     // Each row carries the line it must be refused WITH: an `Err` alone cannot
     // tell "the gate caught this" from "something further in fell over first",
@@ -248,67 +235,67 @@ fn a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run() {
     // what to change.
     let bent = [
         ("half_width", "across its half-width", {
-            let mut grammar = shipped_grammar();
-            grammar.grid.half_width = 1;
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.grid.half_width = 1;
+            plan
         }),
         ("height", "cell(s) tall", {
-            let mut grammar = shipped_grammar();
-            grammar.grid.height = 0;
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.grid.height = 0;
+            plan
         }),
         ("length", "cell(s) long", {
-            let mut grammar = shipped_grammar();
-            grammar.grid.length = 1;
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.grid.length = 1;
+            plan
         }),
         ("a grid too big to hold", "stops at", {
-            let mut grammar = shipped_grammar();
+            let mut plan = WfcPlan::standard_hull();
             // Exactly 2^32 cells, the product that used to wrap to a grid of
             // nothing rather than be refused.
-            grammar.grid = GrammarGrid {
+            plan.grid = WfcGrid {
                 half_width: 2048,
                 height: 2048,
                 length: 1024,
             };
-            grammar
+            plan
         }),
         ("a negative weight", "which is not a weight", {
-            let mut grammar = shipped_grammar();
-            grammar.parts[0].weight = -1.0;
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.parts[0].weight = -1.0;
+            plan
         }),
         ("a weight that is not a number", "which is not a weight", {
-            let mut grammar = shipped_grammar();
-            grammar.parts[0].weight = f32::NAN;
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.parts[0].weight = f32::NAN;
+            plan
         }),
         ("vacuum priced at infinity", "prices vacuum base", {
-            let mut grammar = shipped_grammar();
-            grammar.vacuum.base = f32::INFINITY;
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.vacuum.base = f32::INFINITY;
+            plan
         }),
         ("nothing drawable", "draws nothing", {
-            let mut grammar = shipped_grammar();
-            for part in &mut grammar.parts {
+            let mut plan = WfcPlan::standard_hull();
+            for part in &mut plan.parts {
                 part.weight = 0.0;
             }
-            grammar
+            plan
         }),
         ("no parts at all", "draws nothing", {
-            let mut grammar = shipped_grammar();
-            grammar.parts.clear();
-            grammar
+            let mut plan = WfcPlan::standard_hull();
+            plan.parts.clear();
+            plan
         }),
     ];
-    for (what, expected, grammar) in bent {
-        let refused = TileSet::build(&sections, &grammar).and_then(|set| set.hull(0, false, None));
+    for (what, expected, plan) in bent {
+        let refused = TileSet::build(&sections, &plan).and_then(|set| set.hull(0, false, None));
         let Err(line) = refused else {
-            panic!("a grammar with {what} has to come back as a line, not as a hull");
+            panic!("a plan with {what} has to come back as a line, not as a hull");
         };
         assert!(
             line.contains(expected),
-            "a grammar with {what} is refused, but for `{line}` rather than for {expected}"
+            "a plan with {what} is refused, but for `{line}` rather than for {expected}"
         );
     }
 }
@@ -320,48 +307,48 @@ fn a_grammar_the_collapse_cannot_run_in_is_refused_rather_than_run() {
 #[test]
 fn a_cell_whose_taste_cancelled_out_still_draws_something() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let mut grammar = shipped_grammar();
+    let mut plan = WfcPlan::standard_hull();
     // Legal by the gate - one part carries the whole draw - and every other
     // weight is zero, which is what leaves most cells with nothing to spend.
-    for part in &mut grammar.parts {
+    for part in &mut plan.parts {
         part.weight = 0.0;
     }
-    grammar.parts[0].weight = f32::MIN_POSITIVE;
-    grammar.vacuum = nova_ship::prelude::GrammarVacuum::default();
-    let set = TileSet::build(&sections, &grammar).expect("the gate accepts this one");
+    plan.parts[0].weight = f32::MIN_POSITIVE;
+    plan.vacuum = WfcVacuum::default();
+    let set = TileSet::build(&sections, &plan).expect("the gate accepts this one");
     for seed in 0..8 {
         // Either answer is fine. What is not fine is a panic.
         let _ = set.hull(seed, false, None);
     }
 }
 
-/// The shipped grammar with `id` seeded as its stern drive and drawn beside
+/// The shipped plan with `id` seeded as its stern drive and drawn beside
 /// the parts it already draws, in a grid of the given size.
-fn grammar_driven_by(id: &str, half_width: u32, height: u32, length: u32) -> ShipGrammarConfig {
-    let mut grammar = shipped_grammar();
-    grammar.grid.half_width = half_width;
-    grammar.grid.height = height;
-    grammar.grid.length = length;
-    grammar.keel.stern_drive = id.to_string();
-    let aim = grammar
+fn plan_driven_by(id: &str, half_width: u32, height: u32, length: u32) -> WfcPlan {
+    let mut plan = WfcPlan::standard_hull();
+    plan.grid.half_width = half_width;
+    plan.grid.height = height;
+    plan.grid.length = length;
+    plan.keel.stern_drive = id.to_string();
+    let aim = plan
         .parts
         .iter()
         .find(|part| part.prototype == "basic_thruster_section")
         .and_then(|part| part.aim);
     assert!(
         aim.is_some(),
-        "the shipped grammar aims its drives aft, which is the rule a multi-cell drive has \
+        "the shipped plan aims its drives aft, which is the rule a multi-cell drive has \
          to survive: only its exhaust layer carries an exit"
     );
-    if !grammar.parts.iter().any(|part| part.prototype == id) {
-        grammar.parts.push(GrammarPart {
+    if !plan.parts.iter().any(|part| part.prototype == id) {
+        plan.parts.push(WfcPart {
             prototype: id.to_string(),
             weight: 4.0,
             aim,
             zone: None,
         });
     }
-    grammar
+    plan
 }
 
 /// A drive several cells ACROSS is laid as one block, not refused for being
@@ -379,7 +366,7 @@ fn a_drive_wider_than_one_cell_is_read_as_a_block_of_joined_cells() {
         ("vector_thruster_section", UVec3::new(3, 3, 2)),
         ("capital_thruster_section", UVec3::new(5, 5, 3)),
     ] {
-        let set = TileSet::build(&sections, &grammar_driven_by(id, 7, 7, 15))
+        let set = TileSet::build(&sections, &plan_driven_by(id, 7, 7, 15))
             .unwrap_or_else(|why| panic!("'{id}' reads against the catalog: {why}"));
         let block: Vec<usize> = (0..set.tiles.len())
             .filter(|index| {
@@ -442,8 +429,8 @@ fn a_drive_bigger_than_one_cell_reaches_the_transom_of_every_hull() {
         ("vector_thruster_section", 4, 5, 11),
         ("capital_thruster_section", 6, 5, 13),
     ] {
-        let grammar = grammar_driven_by(id, half_width, height, length);
-        let set = TileSet::build(&sections, &grammar).expect("the grammar builds");
+        let plan = plan_driven_by(id, half_width, height, length);
+        let set = TileSet::build(&sections, &plan).expect("the plan builds");
         for seed in 0..8u64 {
             let hull = set
                 .hull(seed, true, None)
@@ -487,16 +474,16 @@ fn a_drive_bigger_than_one_cell_reaches_the_transom_of_every_hull() {
 #[test]
 fn a_bare_transom_leaves_the_seeded_drive_bolted_to_the_keel() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let mut grammar = shipped_grammar();
-    grammar.keel.bow_gun = Some("railgun_lance_section".to_string());
-    let set = TileSet::build(&sections, &grammar).expect("the grammar builds");
-    let drive = grammar.keel.stern_drive.clone();
+    let mut plan = WfcPlan::standard_hull();
+    plan.keel.bow_gun = Some("railgun_lance_section".to_string());
+    let set = TileSet::build(&sections, &plan).expect("the plan builds");
+    let drive = plan.keel.stern_drive.clone();
     // The shipped drive is one cell, so `seed_stern` writes it to the column
     // beside the seam, on the keel line, in the stern-most row.
     let corner = format!(
         "starboard_1_{}_{}",
-        grammar.grid.height / 2,
-        grammar.grid.length - 1
+        plan.grid.height / 2,
+        plan.grid.length - 1
     );
 
     for seed in 0..64u64 {
@@ -524,8 +511,8 @@ fn a_grid_too_small_for_its_stern_drive_says_how_big_it_has_to_be() {
         ("capital_thruster_section", 6, 4, 11, "needs 5"),
         ("capital_thruster_section", 6, 5, 3, "needs 4"),
     ] {
-        let grammar = grammar_driven_by(id, half_width, height, length);
-        let refused = TileSet::build(&sections, &grammar)
+        let plan = plan_driven_by(id, half_width, height, length);
+        let refused = TileSet::build(&sections, &plan)
             .err()
             .unwrap_or_else(|| panic!("a {half_width}x{height}x{length} grid cannot hold '{id}'"));
         assert!(
@@ -547,9 +534,9 @@ fn a_grid_too_small_for_its_stern_drive_says_how_big_it_has_to_be() {
 #[test]
 fn a_seeded_bow_gun_stands_on_the_nose_of_every_hull() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let mut grammar = shipped_grammar();
-    grammar.keel.bow_gun = Some("railgun_lance_section".to_string());
-    let set = TileSet::build(&sections, &grammar).expect("the grammar builds");
+    let mut plan = WfcPlan::standard_hull();
+    plan.keel.bow_gun = Some("railgun_lance_section".to_string());
+    let set = TileSet::build(&sections, &plan).expect("the plan builds");
 
     for seed in 0..8u64 {
         let hull = set
@@ -593,16 +580,16 @@ fn a_seeded_bow_gun_stands_on_the_nose_of_every_hull() {
 fn a_zoned_part_stands_only_in_the_region_it_is_zoned_to() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
     for (zone, holds) in [
-        (GrammarZone::Dorsal, (|y: f32| y > 0.0) as fn(f32) -> bool),
-        (GrammarZone::Ventral, |y: f32| y < 0.0),
+        (WfcZone::Dorsal, (|y: f32| y > 0.0) as fn(f32) -> bool),
+        (WfcZone::Ventral, |y: f32| y < 0.0),
     ] {
-        let mut grammar = shipped_grammar();
-        for part in &mut grammar.parts {
+        let mut plan = WfcPlan::standard_hull();
+        for part in &mut plan.parts {
             if part.prototype.starts_with("pdc_") {
                 part.zone = Some(zone);
             }
         }
-        let set = TileSet::build(&sections, &grammar).expect("the grammar builds");
+        let set = TileSet::build(&sections, &plan).expect("the plan builds");
         let mut seen = 0;
         for seed in 0..8u64 {
             let hull = set
@@ -633,10 +620,10 @@ fn a_zoned_part_stands_only_in_the_region_it_is_zoned_to() {
 #[test]
 fn a_grid_whose_two_seeded_ends_meet_is_refused() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let mut grammar = shipped_grammar();
-    grammar.keel.bow_gun = Some("railgun_lance_section".to_string());
-    grammar.grid.length = 4;
-    let Err(refusal) = TileSet::build(&sections, &grammar) else {
+    let mut plan = WfcPlan::standard_hull();
+    plan.keel.bow_gun = Some("railgun_lance_section".to_string());
+    plan.grid.length = 4;
+    let Err(refusal) = TileSet::build(&sections, &plan) else {
         panic!("a grid 4 cells long holds no keel between the two seeded ends");
     };
     assert!(
@@ -645,9 +632,9 @@ fn a_grid_whose_two_seeded_ends_meet_is_refused() {
     );
 
     // A spinal gun stands in the keel COLUMN, so it cannot be a block.
-    let mut grammar = shipped_grammar();
-    grammar.keel.bow_gun = Some("vector_thruster_section".to_string());
-    let Err(refusal) = TileSet::build(&sections, &grammar) else {
+    let mut plan = WfcPlan::standard_hull();
+    plan.keel.bow_gun = Some("vector_thruster_section".to_string());
+    let Err(refusal) = TileSet::build(&sections, &plan) else {
         panic!("a 3x3x2 block cannot stand in the keel column as a spinal gun");
     };
     assert!(
@@ -705,8 +692,8 @@ fn a_bow_cell_erosion_dropped_stays_dropped_and_takes_its_island_with_it() {
         families: &[],
         grid,
         keel_row: 0,
-        vacuum: nova_ship::prelude::GrammarVacuum::default(),
-        keel: &nova_ship::prelude::GrammarKeel::default(),
+        vacuum: WfcVacuum::default(),
+        keel: &WfcKeel::default(),
     };
     let bow = grid.index(0, 0, 0);
     let stub = grid.index(1, 0, 0);

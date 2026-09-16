@@ -106,10 +106,10 @@ pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig)
         PlanetRadius(radius),
         PlanetMass(config.mass),
         PlanetInvulnerable(config.invulnerable),
-        // A planet is stone, so it answers the impact table as stone. Nothing
-        // here is authorable yet: an ice or metal world is a palette question
-        // first, and this follows whatever that decides.
-        SurfaceMaterial::new(MATERIAL_ROCK.to_string()),
+        // A planet is stone, so a round into it sounds like stone. Nothing
+        // here is authorable: the engine knows two substances, and a world is
+        // the second one.
+        ImpactSurface::Rock,
         // A world is the loudest thing a scanner ever hears: it is the one
         // body whose own size dwarfs the wave, so it returns a large multiple
         // of it and is a landmark from anywhere the sensor reaches. Measured

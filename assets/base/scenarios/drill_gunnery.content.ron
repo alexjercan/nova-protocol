@@ -173,7 +173,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -237,7 +237,7 @@
                             kind: Asteroid((
                                 radius: 15.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -853,7 +853,6 @@
                         verb: "RADAR",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Five unarmed targets are on the range, and none of them shoot back. Find Target 1 with the radar, raise your weapons, and destroy it.",
                     )),
@@ -874,7 +873,6 @@
                 ],
                 actions: [
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "That white lock is the travel lock and it does not feed the guns. Raise your weapons and take the lock again.",
                     )),
@@ -902,7 +900,6 @@
                         verb: "RADAR",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "That red lock is the weapon lock. Scroll the wheel to step the lock onto one section, such as a drive or a turret.",
                     )),
@@ -929,7 +926,6 @@
                         expression: Term(Factor(Literal(Number(90.0)))),
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Target 1 is destroyed. The other four stay on the range, so you can come back and practise.",
                     )),

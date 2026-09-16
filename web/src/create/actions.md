@@ -15,7 +15,7 @@ never panics a scenario). All 46 at a glance:
 | [`ObjectiveComplete`](#objectivecomplete) | [mission](#mission-story) | complete and remove the HUD objective with an id |
 | [`ObjectiveMarkerAttach`](#objectivemarkerattach) | [mission](#mission-story) | pin the gold HUD marker chip on a scoped object |
 | [`ObjectiveMarkerDetach`](#objectivemarkerdetach) | [mission](#mission-story) | remove that marker |
-| [`NarrativeCue`](#narrativecue) | [mission](#mission-story) | speak one line on an authored channel, named by id |
+| [`NarrativeCue`](#narrativecue) | [mission](#mission-story) | speak one line into the comms stack |
 | [`HudReadout`](#hudreadout) | [mission](#mission-story) | bind a live HUD readout to a scenario variable |
 | [`HintEmphasisSet`](#hintemphasisset) | [mission](#mission-story) | pulse one keybind-dock chip gold |
 | [`HintEmphasisClear`](#hintemphasisclear) | [mission](#mission-story) | drop the gold emphasis on one chip |
@@ -77,7 +77,7 @@ object and carries its config - the seven kinds are the
 ```ron
 SpawnScenarioObject((
     base: (id: "rock_1", name: "Rock", position: (100.0, 0.0, -400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", material: "rock", invulnerable: false)),
+    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", kind: "rock", invulnerable: false)),
 )),
 ```
 
@@ -116,7 +116,7 @@ ScatterObjects((
     region: Box(min: (-1000.0, -200.0, -1000.0), max: (1000.0, 200.0, 1000.0)),
     template: (
         base: (id: "asteroid_", name: "Asteroid", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", material: "rock", invulnerable: false)),
+        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", kind: "rock", invulnerable: false)),
     ),
     asteroid_radius: Some((10.0, 30.0)),
     asteroid_kinds: [("rock", 12), ("carbon", 4), ("ice", 3), ("metal", 1)],
@@ -306,9 +306,13 @@ each, at most three visible). Pending lines wait without being dropped. One
 line per beat is still the style; the queue is the safety net.
 
 ```ron
-NarrativeCue((channel: "comms", speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
-NarrativeCue((channel: "crew", speaker: "Copilot", text: "You heard the man.")),
-NarrativeCue((channel: "guard", speaker: "Unknown Signal", text: "- state registry and -")),
+NarrativeCue((speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
+NarrativeCue((speaker: "Copilot", text: "You heard the man.")),
+NarrativeCue((
+    speaker: "Unknown Signal",
+    text: "- state registry and -",
+    accent: LinearRgba((red: 1.0, green: 0.55, blue: 0.2, alpha: 1.0)),
+)),
 ```
 
 <details class="explain">
@@ -316,33 +320,33 @@ NarrativeCue((channel: "guard", speaker: "Unknown Signal", text: "- state regist
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `channel` | string | required | the id of the [channel](../channels/) the line is heard on; see below |
 | `speaker` | string | required | the distinct uppercase speaker header |
 | `text` | string | required | the line |
 | `dwell` | `Option` number | `None` | per-line hold override in seconds, clamped to [3, 30] (lint warns outside); `Some(12.0)` |
 | `icon` | `Option` asset ref | `None` | speaker portrait (`Some("self://icons/okono.png")`); omitted = the cockpit fallback tile |
+| `accent` | color | the comms blue | the one colour the card is drawn in; see below |
 
-**Channels.** Not a faction and not a speaker: the same person reaches the
-cockpit down two different channels and the difference matters. Control on the
-work channel is talking TO you; the same desk read over the guard channel is
-something you overheard.
+**The accent.** A line carries ONE presentation fact, and it is a colour, not an
+id. The panel derives everything it paints from it: the border, the speaker
+header, the fallback icon tile, and the reading copy lifted toward white. The
+background is the same dark for every card, and a card's opacity depends only on
+its normal display and fade.
 
-A channel is [authored content](../channels/), not a fixed list, so a mod ships
-a distress band or a corporate net and its lines are drawn in it. Three come
-with the base game and any mod may name them:
+Leave it out and the line is drawn in the comms blue - the work channel, traffic
+addressed to this ship, which is what nearly every line in a scenario is.
+Authoring the blue on all of them would bury the few that differ, so the default
+is written nowhere and the generated base scenarios carry no `accent:` line at
+all.
 
-| id | drawn | tagged | means |
-|---|---|---|---|
-| `comms` | incoming-transmission blue | no | the work channel: traffic addressed to this ship |
-| `crew` | phosphor green | no | inside the hull, off the radio - a voice in the room |
-| `guard` | amber, at 70% strength | `GUARD` | everybody's channel, nobody's conversation - a fragment the cockpit caught |
+Name a colour when the line is NOT ordinary traffic: a distress band, a
+corporate net, a voice in the room off the radio, something the cockpit merely
+overheard. Nothing looks an id up, so nothing can fail to resolve one, and a mod
+invents as many voices as it has colours. Colour is tagged the same way it is
+everywhere else in content - `LinearRgba((..))` or `Srgba((..))`.
 
-The channel is REQUIRED on every cue, and an id no bundle authors is an Error at
-lint and a refusal at load. A line whose channel was guessed is a line drawn in
-the wrong voice, and the wrong voice is the whole difference between being called
-and overhearing. Only `guard` carries a tag: the work channel is what the panel
-IS and the crew are in the room, so tagging either would label every line to
-distinguish it from nothing.
+Two lines the player must tell apart should differ by more than a shade. The
+useful distance is being CALLED versus OVERHEARING, and blue against amber reads
+at a glance where two blues do not.
 
 Scenario-scoped: teardown clears the log.
 
@@ -469,7 +473,6 @@ Sequence((
             after: Some(2.0),
             actions: [
                 NarrativeCue((
-                    channel: "comms",
                     speaker: "Capt. Halloran",
                     text: "Kestrel, you are cleared to burn.",
                 )),
@@ -573,7 +576,7 @@ Cinematic((
         (
             after: Some(14.0),
             actions: [
-                NarrativeCue((channel: "guard", speaker: "Unknown Signal", text: "- vessel this net -")),
+                NarrativeCue((speaker: "Unknown Signal", text: "- vessel this net -", accent: LinearRgba((red: 1.0, green: 0.55, blue: 0.2, alpha: 1.0)))),
             ],
         ),
     ],

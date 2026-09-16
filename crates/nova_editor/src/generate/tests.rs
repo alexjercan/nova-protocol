@@ -1,12 +1,12 @@
 //! What Generate has to do to the document, run as the live verb: the observer
-//! the button carries, over the SHIPPED catalog and the SHIPPED grammar.
+//! the button carries, over the SHIPPED catalog and the code-owned plan.
 //!
 //! The catalog comes out of the builders rather than off disk, so these fail on
 //! a content change rather than on a missing asset server.
 
 use bevy::ui_widgets::observe;
 use nova_input::prelude::InputSource;
-use nova_ship::prelude::{LinkPoint, LIGHT_HULL_SECTION_ID, REINFORCED_HULL_SECTION_ID};
+use nova_ship::prelude::LinkPoint;
 use nova_wfc::prelude::GRID_EPSILON;
 
 use super::*;
@@ -20,11 +20,9 @@ fn generate_app() -> (App, Entity) {
     app.init_resource::<crate::config::EditorStatus>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<HullSeed>();
-    app.init_resource::<HullGrammar>();
     app.insert_resource(GameSections(
         nova_authoring::generation::build_section_catalog(),
     ));
-    app.insert_resource(GameGrammars(nova_authoring::generation::build_grammars()));
     app.insert_resource(GameStyles(nova_authoring::generation::build_styles()));
     let scenario = app
         .world_mut()
@@ -48,27 +46,15 @@ fn generate_app() -> (App, Entity) {
     app.world_mut().insert_resource(EditContext {
         path: vec![scenario, ship],
     });
-    tick_the_grammars_own_draw(&mut app);
+    tick_the_standard_draw(&mut app);
     (app, ship)
 }
 
-/// The rows the rail spawns ticked: the shipped grammar's own draw. The rows
-/// ARE the setting, so a test that wants the base game's roll spawns them.
-fn tick_the_grammars_own_draw(app: &mut App) {
-    let drawn: Vec<String> = app
-        .world()
-        .resource::<GameGrammars>()
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .map(|grammar| {
-            grammar
-                .parts
-                .iter()
-                .map(|part| part.prototype.clone())
-                .collect()
-        })
-        .unwrap_or_default();
-    for prototype in drawn {
-        app.world_mut().spawn((ticked(&prototype), Selected));
+/// The rows the rail spawns ticked: the standard plan's own draw. The rows ARE
+/// the setting, so a test that wants the base game's roll spawns them.
+fn tick_the_standard_draw(app: &mut App) {
+    for part in WfcPlan::standard_hull().parts {
+        app.world_mut().spawn((ticked(&part.prototype), Selected));
     }
 }
 
@@ -80,7 +66,7 @@ fn ticked(prototype: &str) -> PartChoice {
     }
 }
 
-/// One entry of the list `drawn_grammar` reads, unzoned.
+/// One entry of the list `drawn_plan` reads, unzoned.
 fn drawn(prototype: &str) -> Drawn {
     Drawn {
         prototype: prototype.to_string(),
@@ -88,32 +74,6 @@ fn drawn(prototype: &str) -> Drawn {
     }
 }
 
-/// A SECOND hull line, the way a mod ships one: a new id beside the base one,
-/// not on top of it.
-///
-/// Built off the shipped grammar and changed only where the test reads it, so
-/// what an assert catches is the LINE being picked rather than a hand-authored
-/// grammar happening to differ everywhere.
-const SECOND_LINE_ID: &str = "freighter_hull";
-
-fn two_lines() -> GameGrammars {
-    let mut catalog = nova_authoring::generation::build_grammars();
-    let mut second = catalog
-        .iter()
-        .find(|grammar| grammar.id == STANDARD_HULL_GRAMMAR_ID)
-        .expect("the base content ships one")
-        .clone();
-    second.id = SECOND_LINE_ID.to_string();
-    second.name = "Freighter Hull".to_string();
-    // The keel is what survives the draw: `drawn_grammar` replaces the parts
-    // with what is ticked and re-seeds the two roles the ticks decide, so the
-    // stern DECK is a fact only the picked line can put there.
-    second.keel.stern_deck = LIGHT_HULL_SECTION_ID.to_string();
-    catalog.push(second);
-    GameGrammars(catalog)
-}
-
-/// The button the builder presses, with the verb on it.
 /// The button the builder presses, with the verb on it.
 fn generate_button(app: &mut App) -> Entity {
     app.world_mut()
@@ -254,7 +214,7 @@ fn every_weapon_the_collapse_lays_comes_out_bound() {
     }
     assert!(
         bindable > 0,
-        "the shipped grammar draws thrusters and guns, so a hull with none is a broken roll"
+        "the standard plan draws thrusters and guns, so a hull with none is a broken roll"
     );
 }
 
@@ -349,19 +309,6 @@ fn reroll_puts_the_new_seed_in_the_field() {
 /// which is the whole contract: a generator that panics takes the game with it.
 #[test]
 fn a_roll_that_cannot_be_made_says_so_and_leaves_the_ship_alone() {
-    // A grammar the merged content does not hold.
-    let (mut app, ship) = generate_app();
-    app.insert_resource(GameGrammars(vec![]));
-    let button = generate_button(&mut app);
-    app.world_mut().trigger(Activate { entity: button });
-    app.update();
-    assert!(hull_of(&mut app, ship).is_empty(), "nothing was laid");
-    assert!(
-        status_line(&app).contains(STANDARD_HULL_GRAMMAR_ID),
-        "the refusal names the grammar it could not find: {:?}",
-        status_line(&app)
-    );
-
     // Nothing ticked at all.
     let (mut app, ship) = generate_app();
     for row in app
@@ -444,84 +391,32 @@ fn generate_outside_a_ship_says_where_to_stand() {
     );
 }
 
-/// The picked line is the BASE of the roll, not a label on the shipped one.
-///
-/// The keel is where that shows: `drawn_grammar` replaces the parts with what
-/// the builder ticked and re-seeds the two roles the ticks decide, so the stern
-/// deck can only have come from the grammar the id named.
-#[test]
-fn the_picked_line_is_the_base_of_the_roll() {
-    let grammars = two_lines();
-    let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let ticked = [drawn(REINFORCED_HULL_SECTION_ID)];
-
-    let base = drawn_grammar(&sections, &grammars, STANDARD_HULL_GRAMMAR_ID, &ticked)
-        .expect("the shipped line is there");
-    let second =
-        drawn_grammar(&sections, &grammars, SECOND_LINE_ID, &ticked).expect("so is the second");
-
-    assert_eq!(
-        base.keel.stern_deck, REINFORCED_HULL_SECTION_ID,
-        "the shipped line keeps its own keel"
-    );
-    assert_eq!(
-        second.keel.stern_deck, LIGHT_HULL_SECTION_ID,
-        "and the picked one brings its own: a second id is a second hull line, \
-         not a second name for the first"
-    );
-}
-
-/// The verb reads the RESOURCE, not the constant.
-///
-/// Read off the refusal, which names the id it could not find: with the shipped
-/// content loaded and an unknown line picked, a Generate that still asked for
-/// `standard_hull` would build a hull instead of saying anything.
-#[test]
-fn generate_asks_for_the_line_the_builder_picked() {
-    let (mut app, ship) = generate_app();
-    app.insert_resource(HullGrammar("no_such_line".to_string()));
-    let button = generate_button(&mut app);
-    app.world_mut().trigger(Activate { entity: button });
-    app.update();
-
-    assert!(hull_of(&mut app, ship).is_empty(), "nothing was laid");
-    assert!(
-        status_line(&app).contains("no_such_line"),
-        "the refusal names the line the builder picked: {:?}",
-        status_line(&app)
-    );
-}
-
-/// A part the shipped grammar does not price still joins the draw, on the
-/// A part the shipped grammar does not price still joins the draw, on the
-/// terms the block's own note puts on screen. The railgun is the one a builder
+/// A part the standard plan does not price still joins the draw, on the terms
+/// the block's own note puts on screen. The railgun is the one a builder
 /// reaches for first, and it is not in the base draw.
 #[test]
-fn a_section_the_grammar_does_not_price_joins_the_draw_at_the_stated_weight() {
-    let grammars = GameGrammars(nova_authoring::generation::build_grammars());
+fn a_section_the_plan_does_not_price_joins_the_draw_at_the_stated_weight() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let grammar = drawn_grammar(
+    let plan = drawn_plan(
         &sections,
-        &grammars,
-        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("railgun_lance_section"),
         ],
     )
-    .expect("the shipped grammar is there to subset");
+    .expect("the standard plan is there to subset");
 
-    let priced = grammar
+    let priced = plan
         .parts
         .iter()
         .find(|part| part.prototype == "reinforced_hull_section")
         .expect("the hull cube is ticked");
     assert!(
         priced.weight > UNAUTHORED_WEIGHT,
-        "a part the grammar prices keeps the weight it was tuned at"
+        "a part the plan prices keeps the weight it was tuned at"
     );
 
-    let joined = grammar
+    let joined = plan
         .parts
         .iter()
         .find(|part| part.prototype == "railgun_lance_section")
@@ -533,22 +428,18 @@ fn a_section_the_grammar_does_not_price_joins_the_draw_at_the_stated_weight() {
     );
     // The ticks decide what is ROLLED, and nothing else does: a role the
     // builder did not tick is seeded, never drawn, so it stays off the draw
-    // list entirely. `nova_wfc` gives every role the grammar NAMES its tiles.
+    // list entirely. `nova_wfc` gives every role the plan NAMES its tiles.
     for seeded in ["basic_controller_section", "basic_thruster_section"] {
         assert!(
-            !grammar.parts.iter().any(|part| part.prototype == seeded),
+            !plan.parts.iter().any(|part| part.prototype == seeded),
             "'{seeded}' was not ticked, so the roll must never draw one"
         );
     }
-    TileSet::build(&sections, &grammar)
-        .expect("a grammar whose seeded roles are off the draw list still builds");
+    TileSet::build(&sections, &plan)
+        .expect("a plan whose seeded roles are off the draw list still builds");
     assert_eq!(
-        grammar.grid.half_width,
-        grammars
-            .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-            .expect("shipped")
-            .grid
-            .half_width,
+        plan.grid.half_width,
+        WfcPlan::standard_hull().grid.half_width,
         "no big drive was ticked, so the grid stays the size a standard hull is"
     );
 }
@@ -557,41 +448,35 @@ fn a_section_the_grammar_does_not_price_joins_the_draw_at_the_stated_weight() {
 /// becomes the seeded main engine, and the grid grows to hold it.
 #[test]
 fn ticking_a_capital_drive_builds_the_ship_around_it() {
-    let grammars = GameGrammars(nova_authoring::generation::build_grammars());
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let shipped = grammars
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .expect("shipped")
-        .grid;
-    let grammar = drawn_grammar(
+    let shipped = WfcPlan::standard_hull().grid;
+    let plan = drawn_plan(
         &sections,
-        &grammars,
-        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
             drawn("capital_thruster_section"),
         ],
     )
-    .expect("the shipped grammar is there to subset");
+    .expect("the standard plan is there to subset");
 
     assert_eq!(
-        grammar.keel.stern_drive, "capital_thruster_section",
+        plan.keel.stern_drive, "capital_thruster_section",
         "the biggest drive ticked is the one the ship is built around"
     );
     // 5 cells across, standing one column off the seam.
     assert!(
-        grammar.grid.half_width >= 6 && grammar.grid.half_width > shipped.half_width,
+        plan.grid.half_width >= 6 && plan.grid.half_width > shipped.half_width,
         "the grid grew to hold the drive: {:?}",
-        grammar.grid
+        plan.grid
     );
     assert!(
-        grammar.grid.length >= shipped.length,
+        plan.grid.length >= shipped.length,
         "a grid big enough already is never shrunk: {:?}",
-        grammar.grid
+        plan.grid
     );
 
-    let hull = TileSet::build(&sections, &grammar)
+    let hull = TileSet::build(&sections, &plan)
         .expect("a grown grid holds its own drive")
         .hull(7, false, None)
         .expect("and collapses");
@@ -614,26 +499,23 @@ fn ticking_a_capital_drive_builds_the_ship_around_it() {
 /// derived from the same ticks.
 #[test]
 fn ticking_a_spinal_gun_seats_it_on_the_bow() {
-    let grammars = GameGrammars(nova_authoring::generation::build_grammars());
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let grammar = drawn_grammar(
+    let plan = drawn_plan(
         &sections,
-        &grammars,
-        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
             drawn("railgun_lance_section"),
         ],
     )
-    .expect("the shipped grammar is there to subset");
+    .expect("the standard plan is there to subset");
 
     assert_eq!(
-        grammar.keel.bow_gun.as_deref(),
+        plan.keel.bow_gun.as_deref(),
         Some("railgun_lance_section"),
         "the biggest spinal gun ticked is the one the nose is built around"
     );
-    let tiles = TileSet::build(&sections, &grammar)
+    let tiles = TileSet::build(&sections, &plan)
         .expect("the grid holds a lance and a drive with keel between");
     let hull = tiles.hull(7, false, None).expect("and collapses");
     // The lance is ticked, so the roll may ALSO hang one wherever its bore
@@ -657,50 +539,45 @@ fn ticking_a_spinal_gun_seats_it_on_the_bow() {
     );
 
     // Untick it and the nose goes back to being a nose.
-    let plain = drawn_grammar(
+    let plain = drawn_plan(
         &sections,
-        &grammars,
-        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
         ],
     )
-    .expect("the shipped grammar is there to subset");
+    .expect("the standard plan is there to subset");
     assert!(
         plain.keel.bow_gun.is_none(),
         "no spinal gun ticked, no spinal gun seeded"
     );
 }
 
-/// The zone on a row reaches the grammar, and clearing it clears the grammar's
-/// own - the row IS the setting, so it beats what the shipped table authored.
+/// The zone on a row reaches the plan, and clearing it clears the plan's own -
+/// the row IS the setting, so it beats what the code default states.
 #[test]
-fn a_zoned_row_carries_its_zone_into_the_grammar() {
-    let grammars = GameGrammars(nova_authoring::generation::build_grammars());
+fn a_zoned_row_carries_its_zone_into_the_plan() {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
-    let grammar = drawn_grammar(
+    let plan = drawn_plan(
         &sections,
-        &grammars,
-        STANDARD_HULL_GRAMMAR_ID,
         &[
             drawn("reinforced_hull_section"),
             drawn("basic_thruster_section"),
             Drawn {
                 prototype: "pdc_kinetic_turret_section".to_string(),
-                zone: Some(GrammarZone::Dorsal),
+                zone: Some(WfcZone::Dorsal),
             },
         ],
     )
-    .expect("the shipped grammar is there to subset");
-    let turret = grammar
+    .expect("the standard plan is there to subset");
+    let turret = plan
         .parts
         .iter()
         .find(|part| part.prototype == "pdc_kinetic_turret_section")
         .expect("the turret is ticked");
-    assert_eq!(turret.zone, Some(GrammarZone::Dorsal));
-    let hull = TileSet::build(&sections, &grammar)
-        .expect("a zone cannot make a grammar unbuildable")
+    assert_eq!(turret.zone, Some(WfcZone::Dorsal));
+    let hull = TileSet::build(&sections, &plan)
+        .expect("a zone cannot make a plan unbuildable")
         .hull(3, false, None)
         .expect("and collapses");
     for section in &hull.sections {
@@ -760,26 +637,20 @@ fn the_collapse_dresses_the_hull_in_the_ship_it_is_built_for() {
     let (app, _) = generate_app();
     let sections = app.world().resource::<GameSections>();
     let styles = app.world().resource::<GameStyles>();
-    let grammar = app
-        .world()
-        .resource::<GameGrammars>()
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .expect("the base content ships one")
-        .clone();
+    let plan = WfcPlan::standard_hull();
     let second = styles.get(1).expect("more than one style").id.clone();
 
-    let bare = collapse(sections, &grammar, Some(styles), 7, false, None).expect("a hull");
+    let bare = collapse(sections, &plan, Some(styles), 7, false, None).expect("a hull");
     assert!(
         !bare.presentation.skin,
         "a ship with its plating off gets a bare hull"
     );
     assert_eq!(bare.presentation.style, None, "and no style to wear it in");
 
-    let chosen =
-        collapse(sections, &grammar, Some(styles), 7, true, Some(&second)).expect("a hull");
+    let chosen = collapse(sections, &plan, Some(styles), 7, true, Some(&second)).expect("a hull");
     assert_eq!(chosen.presentation.style.as_deref(), Some(second.as_str()));
 
-    let unchosen = collapse(sections, &grammar, Some(styles), 7, true, None).expect("a hull");
+    let unchosen = collapse(sections, &plan, Some(styles), 7, true, None).expect("a hull");
     assert_eq!(
         unchosen.presentation.style.as_deref(),
         styles.first().map(|style| style.id.as_str()),
@@ -813,14 +684,7 @@ fn a_hull_the_lint_refuses_never_enters_the_document() {
     let laid = hull_of(&mut app, ship);
     assert!(!laid.is_empty(), "the first press is the one that works");
 
-    let keel = app
-        .world()
-        .resource::<GameGrammars>()
-        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
-        .expect("the base content ships one")
-        .keel
-        .hull
-        .clone();
+    let keel = WfcPlan::standard_hull().keel.hull;
     {
         let mut sections = app.world_mut().resource_mut::<GameSections>();
         let block = sections

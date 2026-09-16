@@ -690,9 +690,9 @@ const MUZZLE_SPEED: FieldSpec = floored("muzzle_speed", "m/s", 5.0);
 const BULLET_DAMAGE: FieldSpec = floored("bullet_damage", "hp", 0.5);
 const BULLET_KIND: FieldSpec = plain("bullet_kind");
 /// An asteroid's kind. The row's VOCABULARY is not declared here - see
-/// [`offer_object_vocabularies`] - because a ship section has a `material` too
+/// [`offer_object_vocabularies`] - because a ship section carries a `kind` too
 /// and this table matches by name at any depth.
-const MATERIAL: FieldSpec = plain("material");
+const KIND: FieldSpec = plain("kind");
 const AMMUNITION: FieldSpec = FieldSpec {
     name: "ammunition",
     unit: "rounds",
@@ -834,7 +834,7 @@ const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
 /// What the rock is MADE of comes second only to how big it is: the kind
 /// decides the whole surface, so a curated panel that showed the radius and hid
 /// the kind would be hiding the thing a builder came to pick.
-const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MATERIAL, MASS, INVULNERABLE, SEED];
+const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, KIND, MASS, INVULNERABLE, SEED];
 /// A planet's first screen. `planet_type` leads because it is the field that
 /// changes everything else about the body; `seed` is second for the same
 /// reason it is on a rock - it picks WHICH world of that kind.
@@ -2490,8 +2490,8 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
 ///
 /// Keyed on the object's kind rather than declared in [`DECLARED`], because a
 /// vocabulary belongs to the OBJECT and that table matches by field name at any
-/// depth: a ship section has a `material` too, and it names a paint rather than
-/// a rock.
+/// depth: a ship section carries a `kind` too, and it names a section class
+/// rather than a rock.
 ///
 /// A picker rather than a text box because the ids are the answer to "what is
 /// this made of" and nobody guesses `carbon` from an empty box. It is also the
@@ -2501,7 +2501,7 @@ fn offer_object_vocabularies(kind: &ScenarioObjectKind, rows: &mut [InspectorRow
         return;
     };
     for row in rows {
-        if leaf_name(&row.path) != Some(MATERIAL.name) {
+        if leaf_name(&row.path) != Some(KIND.name) {
             continue;
         }
         let RowValue::Text(held) = &row.value else {

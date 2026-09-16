@@ -519,7 +519,6 @@ fn mission_block(world: &World) -> serde_json::Value {
                     serde_json::json!({
                         "speaker": line.speaker,
                         "text": line.text,
-                        "channel": line.channel.id,
                     })
                 })
                 .collect()
@@ -1944,7 +1943,7 @@ mod tests {
 
     #[test]
     fn the_mission_block_and_the_beacons_say_what_the_player_is_asked_to_do() {
-        use nova_gameplay::prelude::{ChipTone, NarrativeChannelConfig, Objective};
+        use nova_gameplay::prelude::{default_comms_accent, Objective};
         use nova_hud::prelude::StoryLine;
         use nova_scenario::prelude::{OutcomeActionConfig, ScenarioOutcomeKind};
 
@@ -1975,26 +1974,20 @@ mod tests {
             ScenarioOutcomeKind::Victory,
             "The shift is over.",
         ))));
-        let channel = NarrativeChannelConfig {
-            id: "comms".to_string(),
-            tone: ChipTone::default(),
-            tag: None,
-            signal_strength: 1.0,
-        };
         app.insert_resource(StoryFeed(vec![
             StoryLine {
                 speaker: "Halloran".to_string(),
                 text: "Bring us to a full stop first.".to_string(),
                 dwell: None,
                 icon: None,
-                channel: channel.clone(),
+                accent: default_comms_accent(),
             },
             StoryLine {
                 speaker: "Control".to_string(),
                 text: "Copy.".to_string(),
                 dwell: None,
                 icon: None,
-                channel,
+                accent: default_comms_accent(),
             },
         ]));
         app.world_mut().spawn((
@@ -2026,7 +2019,6 @@ mod tests {
         );
         assert_eq!(snapshot["mission"]["comms"][0]["speaker"], "Halloran");
         assert_eq!(snapshot["mission"]["comms"][1]["text"], "Copy.");
-        assert_eq!(snapshot["mission"]["comms"][1]["channel"], "comms");
         // Beacons are value-ordered by id like every other entity list.
         assert_eq!(snapshot["beacons"][0]["id"], "alpha");
         assert_eq!(snapshot["beacons"][1]["id"], "work_mark");

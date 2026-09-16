@@ -187,7 +187,7 @@ pub(crate) fn insert_preview_object(
             let texture = rock.texture.resolve(&art.asset_server);
             let material = art
                 .materials
-                .add(asteroid_preview_material(&rock.material, texture));
+                .add(asteroid_preview_material(&rock.kind, texture));
             sphere_body(entity, art, radius, material);
         }
         // The one preview that is NOT schematic, because for a planet the
@@ -331,7 +331,7 @@ fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
         ScenarioObjectKind::Anchor(_) => &["body_radius"],
         // The SEED is drawn from too: it picks the silhouette, and with it how
         // far the body reaches past its authored radius.
-        ScenarioObjectKind::Asteroid(_) => &["radius", "seed", "texture", "material"],
+        ScenarioObjectKind::Asteroid(_) => &["radius", "seed", "texture", "kind"],
         // Every field the surface is generated from, because the editor draws
         // the real surface: a seed change IS a different world.
         ScenarioObjectKind::Planet(_) => &["radius", "planet_type", "seed", "relief", "sea_level"],
@@ -434,7 +434,7 @@ mod tests {
         let rock = ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters(30.0),
             texture: default(),
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: None,
             mass: None,
             invulnerable: false,
@@ -444,7 +444,7 @@ mod tests {
 
         assert!(body_is_drawn_from(
             &rock,
-            &[PathStep::Field("material".to_string())]
+            &[PathStep::Field("kind".to_string())]
         ));
     }
 

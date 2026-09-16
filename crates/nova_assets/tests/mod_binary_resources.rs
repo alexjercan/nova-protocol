@@ -423,7 +423,7 @@ fn a_nested_dep_ref_is_rewritten() {
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "dep://art/textures/rock.png",
-                            material: "rock",
+                            kind: "rock",
                             health: 50.0,
                             mass: None,
                             invulnerable: false,

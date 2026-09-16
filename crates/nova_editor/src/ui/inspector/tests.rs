@@ -79,7 +79,7 @@ fn asteroid(app: &mut App, scenario: Entity, id: &str, radius: Meters) -> Entity
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius,
                     texture: default(),
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,
@@ -1684,7 +1684,7 @@ fn a_file_row_offers_the_bundles_files_and_marks_one_they_do_not_ship() {
             EditorNode,
             ActionNode {
                 kind: ActionKind::Leaf(EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    channel: nova_gameplay::prelude::CHANNEL_COMMS.to_string(),
+                    accent: nova_gameplay::prelude::default_comms_accent(),
                     speaker: "Alpha".to_string(),
                     text: "Strip it clean.".to_string(),
                     dwell: None,

@@ -175,7 +175,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -239,7 +239,7 @@
                             kind: Asteroid((
                                 radius: 15.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -341,7 +341,6 @@
                         message: "Fly out to mark ALPHA.",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "The flight computer is switched off for this flight. You have the nose and the main drive only. Fly out to mark ALPHA.",
                     )),
@@ -430,7 +429,6 @@
                         message: "Fly to mark BRAVO.",
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Mark ALPHA reached. BRAVO is off to your right. Turn to face it first, then thrust: the drive only pushes where the nose points.",
                     )),
@@ -467,7 +465,6 @@
                         expression: Term(Factor(Literal(Number(90.0)))),
                     )),
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Training",
                         text: "Both marks reached. With no flight computer, every change of speed came from your own thrust.",
                     )),

@@ -33,8 +33,7 @@ Follow this path in order:
   torpedo bays.
 - **Ships and styles** author whole hulls once, spawn them by id, and restyle
   the cladding they wear.
-- **Impact rows** voice a hit by pairing a damage type with the material it
-  struck.
+- **Lessons** add screens to the in-game handbook.
 - **Resources** provide your own images, models, sounds, thumbnails, and
   skyboxes.
 
@@ -52,8 +51,8 @@ The [modding reference](reference/) is the exhaustive catalog:
 - [Ship sections for mods](sections/) - every section kind and field.
 - [Ships for mods](ships/) - whole hulls authored once and spawned by id.
 - [Ship skin styles for mods](styles/) - the look a hull's cladding wears.
-- [The impact table for mods](impacts/) - what a round sounds like against what
-  it hit.
+- [Training lessons for mods](lessons/) - a handbook screen and the practice
+  range it hands off to.
 - [Base content catalog](base-content/) - reusable ids and
   `dep://base/` assets.
 

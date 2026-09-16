@@ -1,4 +1,4 @@
-//! The wave-function-collapse ship generator: a catalog and a grammar in, a
+//! The wave-function-collapse ship generator: a catalog and a plan in, a
 //! hull nobody drew out.
 //!
 //! # What the rule IS
@@ -14,8 +14,8 @@
 //!
 //! What the catalog cannot carry is TASTE - how often a part should be offered,
 //! which one part is only allowed to point one way, how big and how sparse a
-//! hull is. That is the [`ShipGrammarConfig`], authored as content beside the
-//! sections it draws from.
+//! hull is. That is the [`WfcPlan`], generator policy written in code beside
+//! the collapse that reads it.
 //!
 //! # What comes out
 //!
@@ -29,7 +29,7 @@
 //!
 //! # Failing rather than photographing
 //!
-//! Every entry point returns `Result`. A grammar naming a part the catalog does
+//! Every entry point returns `Result`. A plan naming a part the catalog does
 //! not hold, a keel role that cannot meet its own reflection, a seed whose
 //! collapse blocks its own exits - each of those is a line the caller shows,
 //! never a hull handed out anyway. The examples turn them into a failed run;
@@ -39,6 +39,7 @@
 mod check;
 mod collapse;
 mod grid;
+mod plan;
 mod tiles;
 
 #[cfg(test)]
@@ -48,14 +49,12 @@ use bevy::prelude::*;
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::{
-    GameGrammars, GameSections, GameStyles, GrammarGrid, SectionFootprint, ShipGrammarConfig,
-    MAX_GRAMMAR_CELLS,
-};
+use nova_ship::prelude::{GameSections, GameStyles, SectionFootprint};
 
 use crate::{
     collapse::Collapse,
     grid::{mirrored, Grid},
+    plan::{WfcGrid, WfcPlan, MAX_WFC_CELLS},
     tiles::{Family, Tile},
 };
 
@@ -65,33 +64,31 @@ pub mod prelude {
     pub use crate::{
         check::{hull_errors, lint_errors, place, unmated_contacts, Placed},
         grid::GRID_EPSILON,
+        plan::{WfcAim, WfcGrid, WfcKeel, WfcPart, WfcPlan, WfcVacuum, WfcZone, MAX_WFC_CELLS},
         tiles::rotated_half_extents,
     };
 }
 
-/// Refuse a grammar the collapse cannot be run in, BEFORE anything indexes a
-/// cell or draws a weight.
-///
-/// How many cells the grammar's seeded stern drive spans, upright.
+/// How many cells the plan's seeded stern drive spans, upright.
 ///
 /// `UVec3::ONE` for a drive the catalog does not hold: naming what is missing
 /// is [`tiles::build`]'s line to say, and a wrong grid bound said first would
 /// bury it.
-pub(crate) fn stern_drive_span(sections: &GameSections, grammar: &ShipGrammarConfig) -> UVec3 {
+pub(crate) fn stern_drive_span(sections: &GameSections, plan: &WfcPlan) -> UVec3 {
     sections
-        .get_section(&grammar.keel.stern_drive)
+        .get_section(&plan.keel.stern_drive)
         .map_or(UVec3::ONE, |config| {
             SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0
         })
 }
 
-/// How many cells the grammar's seeded bow gun spans, upright, or zero for a
+/// How many cells the plan's seeded bow gun spans, upright, or zero for a
 /// hull plan that seats none.
 ///
 /// `UVec3::ONE` for a gun the catalog does not hold, for the reason
 /// [`stern_drive_span`] gives.
-pub(crate) fn bow_gun_span(sections: &GameSections, grammar: &ShipGrammarConfig) -> UVec3 {
-    let Some(prototype) = grammar.keel.bow_gun.as_deref() else {
+pub(crate) fn bow_gun_span(sections: &GameSections, plan: &WfcPlan) -> UVec3 {
+    let Some(prototype) = plan.keel.bow_gun.as_deref() else {
         return UVec3::ZERO;
     };
     sections
@@ -101,24 +98,27 @@ pub(crate) fn bow_gun_span(sections: &GameSections, grammar: &ShipGrammarConfig)
         })
 }
 
-/// The gate exists because a grammar is content: a mod ships one, and the
-/// editor's Generate block builds one out of what the builder ticked. Neither
-/// is a compile-time constant, and every bound below is one the solve would
+/// Refuse a plan the collapse cannot be run in, BEFORE anything indexes a cell
+/// or draws a weight.
+///
+/// The gate exists because a plan is built at runtime: the editor's Generate
+/// block makes one out of what the builder ticked, and each example makes its
+/// own. None of it is a compile-time constant, and every bound below is one the
+/// solve would
 /// otherwise reach by subtracting past zero, indexing off the end of the grid,
 /// or asking `rand` for a number out of an empty range. A generator that
 /// panics on a bad table is a generator that takes the game down with it, so
 /// each of these is a line the caller can put on a status bar instead.
-fn runnable(sections: &GameSections, grammar: &ShipGrammarConfig) -> Result<(), String> {
-    let grid = grammar.grid;
+fn runnable(sections: &GameSections, plan: &WfcPlan) -> Result<(), String> {
+    let grid = plan.grid;
     // Bounded from ABOVE before anything else, because every check under this
     // one is about a grid small enough to be worth measuring. A domain per
     // cell is laid down before the first contradiction can be found, so an
     // authored size is an allocation this crate is asked to make on trust.
-    if grid.cells() > MAX_GRAMMAR_CELLS {
+    if grid.cells() > MAX_WFC_CELLS {
         return Err(format!(
-            "grammar '{}' asks for a {}x{}x{} grid, which is {} cells; the collapse holds one \
-             domain per cell and stops at {MAX_GRAMMAR_CELLS}",
-            grammar.id,
+            "the hull plan asks for a {}x{}x{} grid, which is {} cells; the collapse holds one \
+             domain per cell and stops at {MAX_WFC_CELLS}",
             grid.half_width,
             grid.height,
             grid.length,
@@ -129,12 +129,12 @@ fn runnable(sections: &GameSections, grammar: &ShipGrammarConfig) -> Result<(), 
     // deck plate in front of it, so the grid has to hold the block AND leave
     // the seam column beside it free. A one-cell drive asks for the two
     // columns the collapse has always needed; a 5x5x3 capital asks for six.
-    let drive = stern_drive_span(sections, grammar);
+    let drive = stern_drive_span(sections, plan);
     let wanted = UVec3::new(drive.x + 1, drive.y, drive.z + 1);
     let short = |axis: &str, have: u32, want: u32| {
         format!(
-            "grammar '{}' is {have} cell(s) {axis} and its seeded stern drive '{}' needs {want}",
-            grammar.id, grammar.keel.stern_drive
+            "the hull plan is {have} cell(s) {axis} and its seeded stern drive '{}' needs {want}",
+            plan.keel.stern_drive
         )
     };
     if grid.half_width < wanted.x {
@@ -150,27 +150,27 @@ fn runnable(sections: &GameSections, grammar: &ShipGrammarConfig) -> Result<(), 
     // The bow gun stands IN the keel column, so unlike the drive it cannot be
     // centred on a block of cells: one column is all it has. A wider gun is
     // refused by name rather than seeded crooked.
-    let bow = bow_gun_span(sections, grammar);
-    if let Some(prototype) = grammar.keel.bow_gun.as_deref() {
+    let bow = bow_gun_span(sections, plan);
+    if let Some(prototype) = plan.keel.bow_gun.as_deref() {
         if bow.x != 1 || bow.y != 1 {
             return Err(format!(
-                "grammar '{}' seats '{prototype}' as its bow gun, but a spinal gun stands on \
+                "the hull plan seats '{prototype}' as its bow gun, but a spinal gun stands on \
                  the keel line and that one is {} cell(s) across and {} tall",
-                grammar.id, bow.x, bow.y
+                bow.x, bow.y
             ));
         }
         // Both seeds eat into the same column, and what is left has to hold a
         // keel: a hull cell and the flight computer at least.
         if grid.length < bow.z + drive.z + 2 {
             return Err(format!(
-                "grammar '{}' is {} cell(s) long, and its bow gun '{prototype}' and stern \
+                "the hull plan is {} cell(s) long, and its bow gun '{prototype}' and stern \
                  drive '{}' leave no keel between them",
-                grammar.id, grid.length, grammar.keel.stern_drive
+                grid.length, plan.keel.stern_drive
             ));
         }
     }
 
-    let vacuum = grammar.vacuum;
+    let vacuum = plan.vacuum;
     for (label, value) in [
         ("base", vacuum.base),
         ("taper", vacuum.taper),
@@ -179,27 +179,25 @@ fn runnable(sections: &GameSections, grammar: &ShipGrammarConfig) -> Result<(), 
     ] {
         if !value.is_finite() || value < 0.0 {
             return Err(format!(
-                "grammar '{}' prices vacuum {label} at {value}, which is not a weight",
-                grammar.id
+                "the hull plan prices vacuum {label} at {value}, which is not a weight"
             ));
         }
     }
 
-    for part in &grammar.parts {
+    for part in &plan.parts {
         if !part.weight.is_finite() || part.weight < 0.0 {
             return Err(format!(
-                "grammar '{}' draws '{}' at {}, which is not a weight",
-                grammar.id, part.prototype, part.weight
+                "the hull plan draws '{}' at {}, which is not a weight",
+                part.prototype, part.weight
             ));
         }
     }
     // Something has to be drawable. With every weight at zero the draw has
     // nothing to spend and the cell it is asked about has no answer.
-    if !grammar.parts.iter().any(|part| part.weight > 0.0) {
-        return Err(format!(
-            "grammar '{}' draws nothing: give at least one part a weight above zero",
-            grammar.id
-        ));
+    if !plan.parts.iter().any(|part| part.weight > 0.0) {
+        return Err(
+            "the hull plan draws nothing: give at least one part a weight above zero".to_string(),
+        );
     }
     Ok(())
 }
@@ -221,7 +219,7 @@ pub fn style_at(styles: &GameStyles, index: usize) -> StyleId<'_> {
         .map(|style| style.id.as_str())
 }
 
-/// One grammar read against one catalog: every orientation of every drawable
+/// One plan read against one catalog: every orientation of every drawable
 /// part, and the block they are laid in.
 ///
 /// Built ONCE and collapsed many times. Reading the catalog is the expensive
@@ -231,56 +229,37 @@ pub fn style_at(styles: &GameStyles, index: usize) -> StyleId<'_> {
 pub struct TileSet {
     tiles: Vec<Tile>,
     families: Vec<Family>,
-    grammar: ShipGrammarConfig,
+    plan: WfcPlan,
     grid: Grid,
 }
 
 impl TileSet {
-    /// Read `grammar` against `sections`.
+    /// Read `plan` against `sections`.
     ///
-    /// `Err` carries the line to show: a grammar the collapse cannot be run in
+    /// `Err` carries the line to show: a plan the collapse cannot be run in
     /// at all, a part the catalog does not hold, one whose sockets do not
     /// survive the centreline mirror, or one that fires through a face it also
     /// offers a socket on.
-    pub fn build(sections: &GameSections, grammar: &ShipGrammarConfig) -> Result<Self, String> {
-        runnable(sections, grammar)?;
-        let (tiles, families) = tiles::build(sections, grammar)?;
-        let grid = Grid::starboard_half(
-            grammar.grid.half_width,
-            grammar.grid.height,
-            grammar.grid.length,
-        );
+    pub fn build(sections: &GameSections, plan: &WfcPlan) -> Result<Self, String> {
+        runnable(sections, plan)?;
+        let (tiles, families) = tiles::build(sections, plan)?;
+        let grid = Grid::starboard_half(plan.grid.half_width, plan.grid.height, plan.grid.length);
         Ok(Self {
             tiles,
             families,
-            grammar: grammar.clone(),
+            plan: plan.clone(),
             grid,
         })
     }
 
-    /// Read the grammar named by `id` out of the merged catalog, then build it.
-    ///
-    /// The lookup is separate from the read so that "no such grammar" and "that
-    /// grammar cannot be built" are two different lines.
-    pub fn from_catalog(
-        sections: &GameSections,
-        grammars: &GameGrammars,
-        id: &str,
-    ) -> Result<Self, String> {
-        let grammar = grammars
-            .get_grammar(id)
-            .ok_or_else(|| format!("no ship grammar '{id}' in the merged content"))?;
-        Self::build(sections, grammar)
-    }
-
-    /// The grammar this set was read from.
-    pub fn grammar(&self) -> &ShipGrammarConfig {
-        &self.grammar
+    /// The plan this set was read from.
+    pub fn plan(&self) -> &WfcPlan {
+        &self.plan
     }
 
     /// The block of cells a hull is collapsed in, as authored.
-    pub fn grid(&self) -> GrammarGrid {
-        self.grammar.grid
+    pub fn grid(&self) -> WfcGrid {
+        self.plan.grid
     }
 
     /// The ship-space z of the grid's own BOW FACE: the front of the `z = 0`
@@ -290,7 +269,7 @@ impl TileSet {
     /// is needed by exactly the callers that bolt something onto a finished
     /// hull: a stamp has to know where the nose is.
     pub fn bow_face(&self) -> f32 {
-        -(self.grammar.grid.length as f32) * 0.5
+        -(self.plan.grid.length as f32) * 0.5
     }
 
     /// One collapsed ship: structure mirrored into a whole hull, and a flag
@@ -303,9 +282,9 @@ impl TileSet {
             tiles: &self.tiles,
             families: &self.families,
             grid: self.grid,
-            keel_row: self.grammar.grid.height as usize / 2,
-            vacuum: self.grammar.vacuum,
-            keel: &self.grammar.keel,
+            keel_row: self.plan.grid.height as usize / 2,
+            vacuum: self.plan.vacuum,
+            keel: &self.plan.keel,
         };
         let (chosen, kept) = collapse.run(seed)?;
 

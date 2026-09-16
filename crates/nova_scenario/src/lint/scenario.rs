@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use bevy::prelude::Alpha;
 use nova_gameplay::prelude::SectionClass;
 
 use super::{ship::check_object_prototypes, KnownSections, KnownShipDesigns, LintIssue};
@@ -35,7 +36,6 @@ struct Catalog<'a> {
     sections: &'a KnownSections,
     ships: &'a KnownShipDesigns,
     scenarios: &'a HashSet<String>,
-    channels: &'a HashSet<String>,
 }
 
 /// What the lint knows about one ship a spawn declares.
@@ -106,21 +106,18 @@ pub fn lint_campaign(
 /// Lint one scenario against the identifier sets the caller knows about:
 /// `sections` (the section-prototype catalog visible to this scenario's
 /// bundle), `ships` (the ship catalog it may spawn by id), `known_scenarios`
-/// (every scenario id a `NextScenario` may target) and `known_channels` (every
-/// channel id a `NarrativeCue` may name) - all of them normally base + all
-/// installed bundles.
+/// and `known_scenarios` (every scenario id a `NextScenario` may target) - all
+/// of them normally base + all installed bundles.
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
     sections: &KnownSections,
     ships: &KnownShipDesigns,
     known_scenarios: &HashSet<String>,
-    known_channels: &HashSet<String>,
 ) -> Vec<LintIssue> {
     let catalog = Catalog {
         sections,
         ships,
         scenarios: known_scenarios,
-        channels: known_channels,
     };
     let id = scenario.id.as_str();
     let mut issues = Vec::new();
@@ -496,12 +493,12 @@ fn check_asteroid_kind(config: &ScenarioObjectConfig, scenario: &str, issues: &m
     let ScenarioObjectKind::Asteroid(asteroid) = &config.kind else {
         return;
     };
-    if !is_asteroid_kind(&asteroid.material) {
+    if !is_asteroid_kind(&asteroid.kind) {
         issues.push(LintIssue::error(
             scenario,
             format!(
                 "asteroid '{}': '{}' is not a kind - author one of {:?}",
-                config.base.id, asteroid.material, ASTEROID_KINDS
+                config.base.id, asteroid.kind, ASTEROID_KINDS
             ),
         ));
     }
@@ -833,21 +830,15 @@ fn check_action(
             }
         }
         EventActionConfig::NarrativeCue(config) => {
-            // The channel is what the panel draws the card IN - tone, tag and
-            // signal strength. An id nothing authored has no card to draw, so
-            // this is an Error and not a fallback: a line in a guessed voice is
-            // a line whose beat does not land.
-            if config.channel.trim().is_empty() {
-                issues.push(LintIssue::error(
-                    scenario,
-                    format!("NarrativeCue '{}' names no channel", config.text),
-                ));
-            } else if !catalog.channels.contains(&config.channel) {
+            // An accent the card cannot be seen against is a line the player
+            // never reads. Transparent is the one value that guarantees it,
+            // and it is the easy slip: a colour authored with `alpha: 0.0`.
+            if config.accent.alpha() <= 0.0 {
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
-                        "NarrativeCue names channel '{}', which no bundle authors",
-                        config.channel
+                        "NarrativeCue '{}' is accented fully transparent, so its card                          draws nothing",
+                        config.text
                     ),
                 ));
             }
@@ -1650,7 +1641,7 @@ fn compares_the_clock_to_a_non_literal(
 mod tests {
     use bevy::prelude::*;
     use nova_events::prelude::*;
-    use nova_gameplay::prelude::CHANNEL_COMMS;
+    use nova_gameplay::prelude::default_comms_accent;
 
     use super::*;
     use crate::lint::{fixtures::*, LintSeverity};
@@ -1671,13 +1662,7 @@ mod tests {
                 key: String::new(),
             })],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert_eq!(
             issues
                 .iter()
@@ -1706,13 +1691,7 @@ mod tests {
                 vec![EventActionConfig::CinematicTitle(card(seconds))],
                 Vec::new(),
             );
-            let issues = lint_scenario(
-                &s,
-                &sections(&[]),
-                &ships(&[]),
-                &known(&[]),
-                &base_channels(),
-            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
             assert!(
                 issues.iter().any(|issue| {
                     issue.severity == LintSeverity::Error
@@ -1726,13 +1705,7 @@ mod tests {
             vec![EventActionConfig::CinematicTitle(card(8.0))],
             Vec::new(),
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             !issues
                 .iter()
@@ -1759,13 +1732,7 @@ mod tests {
                 key: "oribt_hold".to_string(),
             })],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             issues.iter().any(|issue| {
                 issue.severity == LintSeverity::Error
@@ -1938,19 +1905,19 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario", "next_chapter"]),
-            &base_channels(),
         );
         assert!(issues.is_empty(), "clean scenario flagged: {issues:?}");
     }
 
-    /// A cue is drawn in the channel it names. An id nothing authored has no
-    /// card to draw, so the scenario is refused rather than given a voice
-    /// nobody chose.
+    /// An accent is the whole of a cue's presentation now, so the one way to
+    /// author a line the player cannot read is to make it invisible. A default
+    /// cue and an ordinary custom accent both have to pass, or the lint would
+    /// be refusing the feature it exists to protect.
     #[test]
-    fn a_cue_naming_an_unauthored_channel_is_an_error() {
-        let cue = |channel: &str| {
+    fn a_cue_accented_fully_transparent_is_an_error() {
+        let cue = |accent: Color| {
             EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                channel: channel.to_string(),
+                accent,
                 speaker: "Alpha".to_string(),
                 text: "Say again.".to_string(),
                 dwell: None,
@@ -1958,29 +1925,20 @@ mod tests {
             })
         };
         let s = scenario(
-            vec![cue("smuggler_band"), cue(""), cue(CHANNEL_COMMS)],
+            vec![
+                cue(Color::srgba(1.0, 0.55, 0.2, 0.0)),
+                cue(Color::srgb(1.0, 0.55, 0.2)),
+                cue(default_comms_accent()),
+            ],
             vec![],
         );
 
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
 
         let errs = errors(&issues);
-        assert_eq!(errs.len(), 2, "{issues:?}");
+        assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(
-            errs.iter().any(|issue| issue
-                .message
-                .contains("channel 'smuggler_band', which no bundle authors")),
-            "{issues:?}"
-        );
-        assert!(
-            errs.iter()
-                .any(|issue| issue.message.contains("names no channel")),
+            errs[0].message.contains("accented fully transparent"),
             "{issues:?}"
         );
     }
@@ -1995,13 +1953,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("gone"));
@@ -2028,13 +1980,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
         assert!(errs[0].message.contains("SetInfiniteAmmo"));
@@ -2061,13 +2007,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
         assert!(errs[0].message.contains("`anchor`"));
@@ -2091,13 +2031,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("ghost"));
@@ -2116,7 +2050,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -2136,7 +2069,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -2147,7 +2079,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -2169,13 +2100,7 @@ mod tests {
                 ],
                 vec![],
             );
-            let issues = lint_scenario(
-                &s,
-                &sections(&[]),
-                &ships(&[]),
-                &known(&["test_scenario"]),
-                &base_channels(),
-            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
             errors(&issues)
                 .into_iter()
                 .filter(|issue| issue.message.contains("StopShip"))
@@ -2214,13 +2139,7 @@ mod tests {
                 ],
                 vec![],
             );
-            let issues = lint_scenario(
-                &s,
-                &sections(&[]),
-                &ships(&[]),
-                &known(&["test_scenario"]),
-                &base_channels(),
-            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
             let refusals: Vec<_> = errors(&issues)
                 .into_iter()
                 .filter(|issue| {
@@ -2247,13 +2166,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let refusals: Vec<_> = errors(&issues)
             .into_iter()
             .filter(|issue| issue.message.contains("SetAIEngageRange"))
@@ -2280,13 +2193,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             errors(&issues)
                 .iter()
@@ -2321,13 +2228,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
@@ -2356,13 +2257,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert!(
             errs.iter()
@@ -2440,13 +2335,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         for id in [
             "no_size",
@@ -2492,13 +2381,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
@@ -2526,13 +2409,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 3, "{issues:?}");
         assert!(
@@ -2572,13 +2449,7 @@ mod tests {
                 ..default()
             })],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
         assert!(errs.iter().any(|e| e.message.contains("ForceAlign")));
@@ -2615,7 +2486,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -2624,7 +2494,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(
             issues.is_empty(),
@@ -2636,7 +2505,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -2657,13 +2525,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
         assert!(errs[0].message.contains("ghost_battery"));
@@ -2674,13 +2536,7 @@ mod tests {
     #[test]
     fn duplicate_spawn_ids_in_one_handler_are_an_error() {
         let s = scenario(vec![spawn_object("twin"), spawn_object("twin")], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("twin"));
@@ -2698,13 +2554,7 @@ mod tests {
             filters: vec![],
             actions: vec![spawn_object("boss")],
         });
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("mutually exclusive"));
@@ -2715,7 +2565,7 @@ mod tests {
     /// which is exactly the failure a static check should beat the frame to.
     #[test]
     fn an_unknown_asteroid_kind_is_a_lint_error() {
-        let rock = |material: &str| {
+        let rock = |kind: &str| {
             EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
                     id: "lone_rock".to_string(),
@@ -2724,7 +2574,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: material.to_string(),
+                    kind: kind.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -2742,7 +2592,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(
             errors(&issues)
@@ -2757,7 +2606,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -2787,7 +2635,7 @@ mod tests {
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                        material: KIND_ROCK.to_string(),
+                        kind: KIND_ROCK.to_string(),
                         destroy_sound: None,
                         radius: Meters(20.0),
                         texture: nova_gameplay::prelude::AssetRef::default(),
@@ -2804,13 +2652,7 @@ mod tests {
         };
         let lint_of = |action| {
             let s = scenario(vec![action], vec![]);
-            lint_scenario(
-                &s,
-                &sections(&[]),
-                &ships(&[]),
-                &known(&["test_scenario"]),
-                &base_channels(),
-            )
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]))
         };
 
         let issues = lint_of(field(vec![]));
@@ -2874,13 +2716,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             errors(&issues)
                 .iter()
@@ -2922,13 +2758,7 @@ mod tests {
                 }),
             ],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "only the ghost flags: {issues:?}");
         assert!(errs[0].message.contains("ghost"));
@@ -2966,13 +2796,7 @@ mod tests {
                 ..Default::default()
             })],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             errors(&issues).iter().any(|i| i.message.contains("ghost")),
             "a blank prefix satisfies nothing, so the dangling id still errors: {issues:?}"
@@ -2998,13 +2822,7 @@ mod tests {
                 ),
             ))],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
@@ -3032,34 +2850,16 @@ mod tests {
         };
 
         let s = scenario(vec![outcome(), next(false, None)], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("non-lingering"));
 
         let s = scenario(vec![outcome(), next(false, Some(4.0))], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "delayed is the same trap: {issues:?}");
 
         let s = scenario(vec![outcome(), next(true, None)], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues.is_empty(),
             "the lingering pair is the good shape: {issues:?}"
@@ -3072,7 +2872,7 @@ mod tests {
     fn beat_sheet_arms_warn() {
         let line = |text: &str| {
             EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: text.to_string(),
                 dwell: None,
@@ -3088,36 +2888,19 @@ mod tests {
         };
 
         let s = scenario(vec![line("one"), line("two")], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("one line per beat"));
 
         let s = scenario(vec![line("dead"), outcome()], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("never read"));
 
         let s = scenario(vec![line("solo")], vec![]);
-        assert!(lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels()
-        )
-        .is_empty());
+        assert!(
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]),).is_empty()
+        );
     }
 
     /// Pacing-field ranges: absurd/non-finite delays warn, a delay on a
@@ -3142,13 +2925,7 @@ mod tests {
         // Range/dead-field warns, isolated from the same-handler swallow
         // trap (which is its own test): switches only.
         let s = scenario(vec![next(false, Some(1e30)), next(true, Some(4.0))], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("outside (0, 60]")));
@@ -3156,13 +2933,7 @@ mod tests {
 
         // The outcome range warn, without a hard switch in the handler.
         let s = scenario(vec![outcome_adv(Some(f64::INFINITY))], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
 
@@ -3170,45 +2941,23 @@ mod tests {
         // Timer that finishes on tick one, so the banner never shows. Both
         // fields, since both read as "omit the field instead".
         let s = scenario(vec![outcome_adv(Some(0.0))], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
         let s = scenario(vec![next(false, Some(0.0))], vec![]);
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("outside (0, 60]"));
 
         // Sane values, trap-free shapes: clean.
         let s = scenario(vec![next(false, Some(4.0))], vec![]);
-        assert!(lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels()
-        )
-        .is_empty());
+        assert!(
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]),).is_empty()
+        );
         let s = scenario(vec![outcome_adv(Some(6.0))], vec![]);
-        assert!(lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels()
-        )
-        .is_empty());
+        assert!(
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]),).is_empty()
+        );
     }
 
     /// NarrativeCue dwell range: out-of-range warns, in-range and omitted stay
@@ -3217,7 +2966,7 @@ mod tests {
     fn story_dwell_out_of_range_warns() {
         let line = |dwell| {
             EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: "Alpha".to_string(),
                 text: "test".to_string(),
                 dwell,
@@ -3235,13 +2984,7 @@ mod tests {
                 actions: vec![l],
             });
         }
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&["test_scenario"]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("120"));
@@ -3278,7 +3021,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(
             issues.is_empty(),
@@ -3301,7 +3043,6 @@ mod tests {
             &sections(&[]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert_eq!(
             errors(&issues).len(),
@@ -3345,7 +3086,6 @@ mod tests {
             &sections(&["hull"]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert!(
             issues.is_empty(),
@@ -3371,7 +3111,6 @@ mod tests {
             &sections(&["hull"]),
             &ships(&[]),
             &known(&["test_scenario"]),
-            &base_channels(),
         );
         assert_eq!(
             errors(&issues).len(),
@@ -3395,7 +3134,7 @@ mod tests {
 
     fn story(text: &str) -> EventActionConfig {
         EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-            channel: CHANNEL_COMMS.to_string(),
+            accent: default_comms_accent(),
             speaker: "Control".to_string(),
             text: text.to_string(),
             dwell: None,
@@ -3439,13 +3178,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             errors(&issues)
                 .iter()
@@ -3465,13 +3198,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             errors(&issues)
                 .iter()
@@ -3497,13 +3224,7 @@ mod tests {
             filters: vec![],
             actions: vec![sequence("outro", vec![SequenceStepConfig::default()])],
         });
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             !issues
                 .iter()
@@ -3537,13 +3258,7 @@ mod tests {
                 ..default()
             })],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             errors(&issues).is_empty(),
             "a step's spawn declares its id like a handler's would: {issues:?}"
@@ -3568,13 +3283,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &paced,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&paced, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             !issues.iter().any(|i| i.message.contains("NarrativeCues")),
             "clock-spaced steps are one line per beat: {issues:?}"
@@ -3590,13 +3299,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(
-            &burst,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&burst, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             issues.iter().any(|i| i.message.contains("NarrativeCues")),
             "two lines inside ONE step are still a burst: {issues:?}"
@@ -3626,13 +3329,7 @@ mod tests {
             ))],
             actions: vec![story("late")],
         }];
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             issues
                 .iter()
@@ -3670,13 +3367,7 @@ mod tests {
             ],
             actions: vec![story("too late")],
         }];
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             issues
                 .iter()
@@ -3713,13 +3404,7 @@ mod tests {
             ],
             actions: vec![story("wave two")],
         }];
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             !issues
                 .iter()
@@ -3754,13 +3439,7 @@ mod tests {
             ))],
             actions: vec![story("all aboard")],
         });
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             !issues
                 .iter()
@@ -3790,13 +3469,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             errors(&issues).iter().any(|issue| {
                 issue.message.contains("Cinematic")
@@ -3822,13 +3495,7 @@ mod tests {
                 })],
                 vec![],
             );
-            let issues = lint_scenario(
-                &s,
-                &sections(&[]),
-                &ships(&[]),
-                &known(&[]),
-                &base_channels(),
-            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
             errors(&issues)
                 .iter()
                 .filter(|issue| issue.message.contains("PlaySound"))
@@ -3859,13 +3526,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert_eq!(
             errors(&issues)
                 .iter()
@@ -3898,13 +3559,7 @@ mod tests {
         };
 
         let typo = scenario(plays("strike"), filter("strke"));
-        let issues = lint_scenario(
-            &typo,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&typo, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             errors(&issues)
                 .iter()
@@ -3914,13 +3569,7 @@ mod tests {
         );
 
         let matched = scenario(plays("strike"), filter("strike"));
-        let issues = lint_scenario(
-            &matched,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&matched, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             !errors(&issues)
                 .iter()
@@ -3949,13 +3598,7 @@ mod tests {
             ],
             vec![],
         );
-        let issues = lint_scenario(
-            &s,
-            &sections(&[]),
-            &ships(&[]),
-            &known(&[]),
-            &base_channels(),
-        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             issues.iter().any(|issue| {
                 issue.severity == LintSeverity::Warn

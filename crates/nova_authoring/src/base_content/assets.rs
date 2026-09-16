@@ -108,23 +108,6 @@ pub struct BaseContentAssets {
     /// structure lets go the same way whatever killed it.
     pub section_destroy_sound: AssetRef<AudioSource>,
 
-    /// The impact table's four rows - what a round sounds like against what it
-    /// hit. Three defaults, one per damage type, plus the one material the base
-    /// game has a second voice for.
-    ///
-    /// A slug on ship plate: the default kinetic hit, and the sound every
-    /// target the table does not name takes.
-    pub impact_kinetic_sound: AssetRef<AudioSource>,
-    /// A slug on stone. Drier and higher, with grit in the tail where the plate
-    /// has ring.
-    pub impact_kinetic_rock_sound: AssetRef<AudioSource>,
-    /// A penetrator, which does not punch - it bites through. Narrower and
-    /// longer than the slug, because the round is still going.
-    pub impact_pierce_sound: AssetRef<AudioSource>,
-    /// A warhead's pressure arriving on a surface. The low half of a hit with
-    /// the transient taken off, and deliberately not the detonation itself,
-    /// which is the warhead's own voice going off in the same instant.
-    pub impact_explosive_sound: AssetRef<AudioSource>,
     /// The whole SHIP coming apart, which is a different event from the last
     /// section dying: structural collapse fires once on the root and the peel
     /// that follows runs for several frames under it. Authored on the hull, not
@@ -259,12 +242,6 @@ impl BaseContentAssets {
             ship_warn_hull_sound: AssetRef::from("self://sounds/warn_hull.wav".to_string()),
             ship_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
-            impact_kinetic_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
-            impact_kinetic_rock_sound: AssetRef::from("self://sounds/impact_rock.wav".to_string()),
-            impact_pierce_sound: AssetRef::from("self://sounds/impact_pierce.wav".to_string()),
-            impact_explosive_sound: AssetRef::from(
-                "self://sounds/impact_explosive.wav".to_string(),
-            ),
             ship_collapse_sound: AssetRef::from("self://sounds/destroy_ship.wav".to_string()),
             thruster_loop_sound: AssetRef::from("self://sounds/thruster_loop.wav".to_string()),
             thruster_vector_loop_sound: AssetRef::from(

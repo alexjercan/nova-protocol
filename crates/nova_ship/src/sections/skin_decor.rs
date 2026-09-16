@@ -45,7 +45,7 @@ use crate::sections::{
     shell_shape::REACH,
     shell_skin::SkinPlate,
     skin_reading::PlateReading,
-    skin_style::{ScatterAlign, ShipStyleConfig, StyleFixtureConfig},
+    skin_style::{FixtureOrientation, ShipStyleConfig, StyleFixtureConfig, DECOR_DENSITY},
 };
 
 /// The scatter, the placement it answers with, the decoration bundle, and the
@@ -235,7 +235,7 @@ pub fn decor_tally(style: &ShipStyleConfig, taken: &[usize], reach: &[usize]) ->
 /// matter - and because the share must be the LAST word, or a rule's density
 /// would change when an unrelated filter did.
 fn claims(fixture: &StyleFixtureConfig, plate: &SkinPlate, reading: &PlateReading) -> bool {
-    let rule = &fixture.scatter;
+    let rule = fixture.scatter();
     if !eligible(fixture, plate, reading) {
         return false;
     }
@@ -255,15 +255,22 @@ fn claims(fixture: &StyleFixtureConfig, plate: &SkinPlate, reading: &PlateReadin
 /// floor piece is one the share happened to thin away, not one the rule never
 /// wanted, and it stands on the same grid the rest of the rule does.
 fn eligible(fixture: &StyleFixtureConfig, plate: &SkinPlate, reading: &PlateReading) -> bool {
-    fixture.scatter.accepts(reading) && on_lattice(plate.cell, reading.out, fixture.scatter.stride)
+    let rule = fixture.scatter();
+    rule.accepts(reading) && on_lattice(plate.cell, reading.out, rule.stride)
 }
 
-/// The best unclaimed plate in one block of hull, and whether the block already
-/// carries a piece of the rule looking at it.
+/// The best plate this rule could take in one block of hull, and whether the
+/// block already carries a piece of it.
 #[derive(Default)]
 struct Patch {
-    /// The lowest hash seen in this block, and the plate that carried it.
-    best: Option<(u64, usize)>,
+    /// The lowest hash among the plates NOTHING holds, and the plate that
+    /// carried it. Always preferred: a floor that can land on bare plate has no
+    /// business taking one off another rule.
+    free: Option<(u64, usize)>,
+    /// The same, among the plates a LOWER-priority rule took by share, with
+    /// that rule beside it. The fallback, and the only way a block whose every
+    /// plate is spoken for can still seat the rule that outranks them all.
+    borrowed: Option<(u64, usize, usize)>,
     /// Whether the share already put a piece of this rule here.
     served: bool,
 }
@@ -272,11 +279,33 @@ struct Patch {
 /// bare - the density normalisation, applied after the share and only to the
 /// rules that asked for one.
 ///
-/// See [`ScatterRule::patch`](super::skin_style::ScatterRule::patch) for why
-/// this exists and exactly how much a growing hull can move. The two properties
-/// it rests on are here: a block is a fixed division of the SHIP's own cells, so
-/// nothing shifts when a hull grows, and the floor only ever lands on a plate
-/// nothing else took, so priority still means what it says.
+/// See the `patch` field of `skin_style`'s private `ScatterRule` for why this
+/// exists and exactly how much a growing hull can move. The two properties it
+/// rests on are here: a block is a fixed division of the SHIP's own cells, so
+/// nothing shifts when a hull grows, and the floor reads PRIORITY, so what it
+/// lands is what the author ordered.
+///
+/// Priority is why the floor may BORROW - take a plate a lower-priority rule
+/// won by share - and it may do so only under the narrowest terms that make a
+/// thin rung honest. Without borrowing, a rule whose region is shared with
+/// denser rules below it is starved by the very rules it outranks: the measured
+/// case is a `Rare` piece, whose share is zero on purpose, so its every
+/// eligible plate goes to the next rule down and the floor - its only source of
+/// pieces - finds nothing left to stand on. `armoured_sensor` is first in its
+/// kit and landed NOTHING on all three bench seeds.
+///
+/// The terms, all three measured against the shipped kits on the bench row:
+///
+/// - The holder's rung must be strictly DENSER. One plate out of a field is
+///   invisible where one plate out of a thin scatter IS the scatter.
+/// - The holder must keep a piece SOMEWHERE on the ship. A borrow thins a rule;
+///   it must never empty it, and without this every kit's tail went to zero as
+///   the floors above it took the one plate each held.
+/// - The holder must have a floor of its own, which excludes `Every` alone. An
+///   `Every` rule is a LINE, and a line with a piece taken out of it is a dashed
+///   line. A rule under an `Every` rule in its own region is starved by design,
+///   and the fix for that is the author's - put the specific piece above the
+///   line.
 fn fill_patches(
     plates: &[SkinPlate],
     readings: &[PlateReading],
@@ -284,38 +313,90 @@ fn fill_patches(
     claimed: &mut [Option<usize>],
 ) {
     for (index, fixture) in style.fixtures.iter().enumerate() {
-        let size = fixture.scatter.patch;
+        let size = fixture.scatter().patch;
         if size == 0 {
             continue;
         }
         // The face is in the key as well as the block: a corner of a ship is
         // clad from two directions, and a piece on the roof does not stand in
         // for one on the flank.
+        // Recomputed per rule, because the rules above this one have already
+        // borrowed and a holder may be down to its last piece since.
+        let mut held = vec![0usize; style.fixtures.len()];
+        for taken in claimed.iter().flatten() {
+            held[*taken] += 1;
+        }
         let mut blocks: HashMap<(IVec3, IVec3), Patch> = HashMap::new();
         for (slot, (plate, reading)) in plates.iter().zip(readings).enumerate() {
             let key = (block_of(plate.cell, size), reading.out);
+            // A plate an EARLIER rule holds is not on offer at any price; one a
+            // later rule holds is, but only after every free plate in the block.
+            let borrowed = match claimed[slot] {
+                Some(taken) if taken == index => {
+                    blocks.entry(key).or_default().served = true;
+                    continue;
+                }
+                Some(taken)
+                    if taken < index
+                        || held[taken] < 2
+                        || !lends(&style.fixtures[taken], fixture) =>
+                {
+                    continue;
+                }
+                Some(_) => true,
+                None => false,
+            };
+            if !eligible(fixture, plate, reading) {
+                continue;
+            }
+            let hash = cell_hash(plate.cell, reading.out, &fixture.id);
+            let patch = blocks.entry(key).or_default();
             match claimed[slot] {
-                Some(taken) if taken == index => blocks.entry(key).or_default().served = true,
-                Some(_) => continue,
-                None => {
-                    if !eligible(fixture, plate, reading) {
-                        continue;
+                Some(taken) if borrowed => {
+                    if patch.borrowed.is_none_or(|(seen, ..)| hash < seen) {
+                        patch.borrowed = Some((hash, slot, taken));
                     }
-                    let hash = cell_hash(plate.cell, reading.out, &fixture.id);
-                    let patch = blocks.entry(key).or_default();
-                    if patch.best.is_none_or(|(best, _)| hash < best) {
-                        patch.best = Some((hash, slot));
+                }
+                _ => {
+                    if patch.free.is_none_or(|(seen, _)| hash < seen) {
+                        patch.free = Some((hash, slot));
                     }
                 }
             }
         }
         for patch in blocks.values() {
-            match (patch.served, patch.best) {
-                (false, Some((_, slot))) => claimed[slot] = Some(index),
-                _ => continue,
+            if patch.served {
+                continue;
             }
+            let slot = match patch
+                .free
+                .or(patch.borrowed.map(|(hash, slot, _)| (hash, slot)))
+            {
+                Some((_, slot)) => slot,
+                None => continue,
+            };
+            // Re-read, because an earlier block of this same rule may have
+            // taken the holder's second-to-last piece already.
+            if let Some(holder) = claimed[slot] {
+                if held[holder] < 2 {
+                    continue;
+                }
+                held[holder] -= 1;
+            }
+            claimed[slot] = Some(index);
+            held[index] += 1;
         }
     }
+}
+
+/// Whether `holder` may give up a plate it won by share to `taker`'s floor.
+///
+/// Both halves are read off the expanded rungs rather than off the authored
+/// words, because the floor is expansion machinery: the share is how dense a
+/// rung is, and a zero patch is what `Every` alone has.
+fn lends(holder: &StyleFixtureConfig, taker: &StyleFixtureConfig) -> bool {
+    let (holder, taker) = (holder.scatter(), taker.scatter());
+    holder.patch > 0 && holder.chance > taker.chance
 }
 
 /// Which block of `size` cells a cell falls in, as a fixed division of the
@@ -371,12 +452,12 @@ fn plane_axes(out: IVec3) -> (usize, usize) {
 /// is supposed to shroud. A plate with no fall is left unturned, which is why
 /// [`Outward`] is a rule for the falling plate.
 ///
-/// [`Outward`]: ScatterAlign::Outward
+/// [`Outward`]: FixtureOrientation::Outward
 fn turns_for(plate: &SkinPlate, reading: &PlateReading, fixture: &StyleFixtureConfig) -> u8 {
-    let (axis, signed) = match fixture.scatter.align {
-        ScatterAlign::Free => return 0,
-        ScatterAlign::Run => (reading.along, false),
-        ScatterAlign::Outward => (reading.fall, true),
+    let (axis, signed) = match fixture.placement.orientation {
+        FixtureOrientation::Free => return 0,
+        FixtureOrientation::Along => (reading.along, false),
+        FixtureOrientation::Outward => (reading.fall, true),
     };
     if axis == IVec3::ZERO {
         return 0;
@@ -491,7 +572,7 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
         ShipDecorMarker(fixture.model.clone()),
         pose,
         // Health, density and `Visibility::Inherited` in one bundle.
-        destructible_body(fixture.health, fixture.density),
+        destructible_body(fixture.health, DECOR_DENSITY),
         decor_collider(fixture.collider),
     )
 }
@@ -539,8 +620,8 @@ mod tests {
     use super::*;
     use crate::sections::{
         shell_skin::{derive_skin, SkinStructure},
-        skin_reading::{read_plates, PlateRelief},
-        skin_style::{ScatterRule, ScatterSeat, ShipStyleConfig},
+        skin_reading::read_plates,
+        skin_style::{FixtureDensity, FixturePlacement, FixtureRegion, ShipStyleConfig},
     };
 
     /// A section that mates on every face, like a hull cube.
@@ -564,14 +645,24 @@ mod tests {
         scatter_decor(&plates, &readings, style)
     }
 
-    fn fixture(id: &str, scatter: ScatterRule) -> StyleFixtureConfig {
+    /// A piece small enough that its derived run gate admits any plate, so a
+    /// test names only the placement word it is actually about.
+    fn fixture(
+        id: &str,
+        region: FixtureRegion,
+        density: FixtureDensity,
+        orientation: FixtureOrientation,
+    ) -> StyleFixtureConfig {
         StyleFixtureConfig {
             id: id.to_string(),
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
-            density: 0.1,
             collider: Vec3::new(0.2, 0.1, 0.2),
-            scatter,
+            placement: FixturePlacement {
+                region,
+                density,
+                orientation,
+            },
         }
     }
 
@@ -579,9 +670,19 @@ mod tests {
         ShipStyleConfig {
             id: "test".to_string(),
             name: "Test".to_string(),
-            surfaces: Vec::new(),
+            palette: default(),
             fixtures,
         }
+    }
+
+    /// How many plates of a hull have a whole seat on them - the reach of a
+    /// placement that filters nothing.
+    fn seated(structure: &SkinStructure) -> usize {
+        let plates = derive_skin(structure);
+        read_plates(structure, &plates)
+            .iter()
+            .filter(|reading| reading.coplanar)
+            .count()
     }
 
     /// The claim on a plate is a pure function of the structure: the same hull
@@ -596,10 +697,9 @@ mod tests {
         let plates = derive_skin(&structure);
         let style = style(vec![fixture(
             "vent",
-            ScatterRule {
-                chance: 0.5,
-                ..default()
-            },
+            FixtureRegion::Anywhere,
+            FixtureDensity::Dense,
+            FixtureOrientation::Free,
         )]);
 
         let first = scatter_decor(&plates, &read_plates(&structure, &plates), &style);
@@ -619,55 +719,156 @@ mod tests {
         assert_eq!(first, reversed, "the scatter depends on insertion order");
     }
 
-    /// A share of one half takes roughly half the eligible plates, and the same
-    /// half every time. A rule at 1.0 takes all of them.
+    /// The density ladder is MONOTONIC: each rung covers at least as much of a
+    /// hull as the one below it.
+    ///
+    /// The property that makes the words mean anything. The three dials under a
+    /// rung - lattice, share and patch floor - interact, so a ladder assembled
+    /// by eye can easily have a rung that covers less than the one it is
+    /// supposed to beat, and no screenshot of one hull would show it.
     #[test]
-    fn the_share_thins_a_rule_out_without_moving_it() {
+    fn a_denser_rung_never_covers_less_of_a_hull() {
         let structure = slab(8);
-        let plates = derive_skin(&structure);
-        let flat = ScatterRule {
-            relief: vec![PlateRelief::Flat],
-            ..default()
-        };
+        let rungs = [
+            FixtureDensity::Rare,
+            FixtureDensity::Sparse,
+            FixtureDensity::Regular,
+            FixtureDensity::Dense,
+            FixtureDensity::Every,
+        ];
+        let counts: Vec<usize> = rungs
+            .iter()
+            .map(|density| {
+                scatter(
+                    &structure,
+                    &style(vec![fixture(
+                        "panel",
+                        FixtureRegion::Anywhere,
+                        *density,
+                        FixtureOrientation::Free,
+                    )]),
+                )
+                .len()
+            })
+            .collect();
 
-        let readings = read_plates(&structure, &plates);
-        let all = scatter_decor(
-            &plates,
-            &readings,
-            &style(vec![fixture("panel", flat.clone())]),
-        );
-        let half = scatter_decor(
-            &plates,
-            &readings,
-            &style(vec![fixture(
-                "panel",
-                ScatterRule {
-                    chance: 0.5,
-                    ..flat
-                },
-            )]),
-        );
-
-        assert!(all.len() > 20, "an 8x8 deck has plenty of flat plate");
-        let taken = half.len() as f32 / all.len() as f32;
-        assert!(
-            (0.3..0.7).contains(&taken),
-            "half a share took {taken} of the eligible plates",
-        );
-        // Thinning REMOVES claims, it does not move them: every survivor stood
-        // on a plate the full rule had already claimed.
-        for placement in &half {
+        assert!(counts[0] > 0, "even the rarest rung puts something down");
+        for pair in counts.windows(2) {
             assert!(
-                all.iter().any(|other| other.plate == placement.plate),
-                "the share moved a piece instead of dropping one",
+                pair[0] <= pair[1],
+                "the ladder goes backwards: {counts:?} for {rungs:?}",
             );
         }
+        assert_eq!(
+            counts[4],
+            seated(&structure),
+            "`Every` is supposed to take every plate its region admits",
+        );
     }
 
-    /// A stride claims cells on a lattice, which is what makes a run of vents
-    /// read as a row rather than as a sprinkle.
+    /// `Rare` is the thinnest rung, and the floor is what keeps it from
+    /// vanishing on a hull too small for its share to land anything.
+    ///
+    /// The measured failure the floor exists for: every knob is per plate and
+    /// they multiply, so a rule tuned on a generated hull put ONE visible piece
+    /// on a hand-built one.
     #[test]
-    fn a_stride_claims_a_lattice_and_not_a_sprinkle() {
+    fn the_rarest_rung_is_thinner_than_the_next_and_still_lands() {
+        let deck = slab(8);
+        let count = |rung| {
+            scatter(
+                &deck,
+                &style(vec![fixture(
+                    "beacon",
+                    FixtureRegion::Anywhere,
+                    rung,
+                    FixtureOrientation::Free,
+                )]),
+            )
+            .len()
+        };
+
+        let rare = count(FixtureDensity::Rare);
+        assert!(rare > 0, "the rarest rung put nothing on an 8x8 deck");
+        // Not strictly thinner HERE: a deck this small is all floor, and the
+        // two rungs share a patch size, which is the floor doing its job. What
+        // is pinned is that the rung never comes out heavier; the share that
+        // separates the two is pinned in `skin_style`'s own ladder test.
+        assert!(
+            rare <= count(FixtureDensity::Sparse),
+            "`Rare` came out heavier than `Sparse`: {rare} piece(s)",
+        );
+    }
+
+    /// A thin rule placed FIRST outranks the denser rules under it, and the
+    /// floor is what makes that true: the share pass hands a plate to whichever
+    /// rule claims it, and a rule thin enough to pass on every plate would
+    /// otherwise watch the rules it outranks take the lot.
+    ///
+    /// The shipped case is `armoured_sensor` - first in its kit, `Rare`, and on
+    /// the same panel plate three denser rules want. It landed NOTHING on any
+    /// of the three bench seeds before the floor learned to borrow.
+    #[test]
+    fn a_rare_rule_over_a_dense_one_is_not_starved_by_it() {
+        let deck = slab(8);
+        let placements = scatter(
+            &deck,
+            &style(vec![
+                fixture(
+                    "sensor",
+                    FixtureRegion::Anywhere,
+                    FixtureDensity::Rare,
+                    FixtureOrientation::Free,
+                ),
+                fixture(
+                    "cladding",
+                    FixtureRegion::Anywhere,
+                    FixtureDensity::Dense,
+                    FixtureOrientation::Free,
+                ),
+            ]),
+        );
+
+        assert!(
+            placements.iter().any(|placement| placement.fixture == 0),
+            "the rule on top took nothing: {placements:?}",
+        );
+    }
+
+    /// ...and the borrow stops there. A rule may be THINNED to seat the rule
+    /// above it; it may not be emptied, and lifting that limit took the whole
+    /// tail of every shipped kit to zero on the bench row.
+    #[test]
+    fn a_borrowed_plate_never_takes_a_rule_s_last_piece() {
+        let deck = slab(8);
+        let placements = scatter(
+            &deck,
+            &style(vec![
+                fixture(
+                    "sensor",
+                    FixtureRegion::Anywhere,
+                    FixtureDensity::Rare,
+                    FixtureOrientation::Free,
+                ),
+                fixture(
+                    "cladding",
+                    FixtureRegion::Anywhere,
+                    FixtureDensity::Dense,
+                    FixtureOrientation::Free,
+                ),
+            ]),
+        );
+
+        assert!(
+            placements.iter().any(|placement| placement.fixture == 1),
+            "the rule underneath was emptied: {placements:?}",
+        );
+    }
+
+    /// Every rung but `Every` claims cells on a lattice, which is what makes a
+    /// run of vents read as a row rather than as a sprinkle.
+    #[test]
+    fn a_thinned_rung_claims_a_lattice_and_not_a_sprinkle() {
         let structure = slab(8);
         let plates = derive_skin(&structure);
         let placements = scatter_decor(
@@ -675,11 +876,9 @@ mod tests {
             &read_plates(&structure, &plates),
             &style(vec![fixture(
                 "row",
-                ScatterRule {
-                    relief: vec![PlateRelief::Flat],
-                    stride: 2,
-                    ..default()
-                },
+                FixtureRegion::Panel,
+                FixtureDensity::Dense,
+                FixtureOrientation::Free,
             )]),
         );
 
@@ -696,44 +895,49 @@ mod tests {
         }
     }
 
-    /// One plate takes at most one piece, and the FIRST rule that matches gets
-    /// it - so a style's authored order is its priority order.
+    /// One plate takes at most one piece, and the FIRST fixture that matches
+    /// gets it - so a style's authored order is its priority order.
     #[test]
-    fn a_plate_takes_one_piece_and_the_first_rule_wins() {
+    fn a_plate_takes_one_piece_and_the_first_fixture_wins() {
         let structure = slab(5);
         let plates = derive_skin(&structure);
-        // Seated anywhere, so "every plate" means every plate: the deck's
-        // outer corners are cones and a default rule would leave them bare.
-        let anywhere = ScatterRule {
-            seat: ScatterSeat::Any,
-            ..default()
-        };
         let placements = scatter_decor(
             &plates,
             &read_plates(&structure, &plates),
             &style(vec![
-                fixture("first", anywhere.clone()),
-                fixture("second", anywhere),
+                fixture(
+                    "first",
+                    FixtureRegion::Anywhere,
+                    FixtureDensity::Every,
+                    FixtureOrientation::Free,
+                ),
+                fixture(
+                    "second",
+                    FixtureRegion::Anywhere,
+                    FixtureDensity::Every,
+                    FixtureOrientation::Free,
+                ),
             ]),
         );
 
         assert_eq!(
             placements.len(),
-            plates.len(),
-            "an unfiltered rule covers every plate",
+            seated(&structure),
+            "an unfiltered fixture covers every seated plate",
         );
         assert!(
             placements.iter().all(|placement| placement.fixture == 0),
-            "the second rule claimed a plate the first had already taken",
+            "the second fixture claimed a plate the first had already taken",
         );
     }
 
-    /// An aligned piece is yawed so its own `+Z` lies along the run, and the
-    /// yaw is a quarter turn - the pieces line up with each other and with the
-    /// hull.
+    /// An `Along` piece is yawed so its own `+Z` lies down the run, and the yaw
+    /// is a quarter turn - the pieces line up with each other and with the hull.
     #[test]
     fn an_aligned_piece_turns_to_the_run() {
-        // A spine four cells long: its roof is a one-cell run down +Z.
+        // A spine four cells long: its roof is a one-cell run down +Z, and a
+        // one-cell run comes out a RIDGE - which is high ground, so a rib on
+        // one is a piece that asked for it.
         let mut structure = SkinStructure::default();
         for z in 0..4 {
             structure.insert(IVec3::new(0, 0, z), OPEN);
@@ -744,14 +948,9 @@ mod tests {
             &read_plates(&structure, &plates),
             &style(vec![fixture(
                 "rib",
-                ScatterRule {
-                    relief: vec![PlateRelief::Ridge],
-                    // A crest is a cone every time, so a rib on one is a rule
-                    // that asked for the high ground.
-                    seat: ScatterSeat::Any,
-                    align: ScatterAlign::Run,
-                    ..default()
-                },
+                FixtureRegion::HighGround,
+                FixtureDensity::Every,
+                FixtureOrientation::Along,
             )]),
         );
 
@@ -768,9 +967,9 @@ mod tests {
         }
     }
 
-    /// A piece is BEDDED on the plate it stands on: its own `+Y` comes out
-    /// along the plate's top normal, so it lies on the surface rather than
-    /// standing upright in the cell.
+    /// A piece is BEDDED on the plate it stands on: its own `+Y` comes out along
+    /// the plate's top normal, so it lies on the surface rather than standing
+    /// upright in the cell.
     ///
     /// The measured defect this closes: 82% of plates lean more than 15 degrees
     /// off their own out face, and a lifted-and-yawed piece stood upright on
@@ -829,7 +1028,7 @@ mod tests {
         );
     }
 
-    /// An OUTWARD piece is turned off the ship, square to the run and with a
+    /// An `Outward` piece is turned off the ship, square to the run and with a
     /// sign - which is the whole difference between a fairing shrouding an edge
     /// and one leaning back over the hull behind it.
     ///
@@ -849,11 +1048,9 @@ mod tests {
             &readings,
             &style(vec![fixture(
                 "fairing",
-                ScatterRule {
-                    relief: vec![PlateRelief::Brink],
-                    align: ScatterAlign::Outward,
-                    ..default()
-                },
+                FixtureRegion::Edge,
+                FixtureDensity::Every,
+                FixtureOrientation::Outward,
             )]),
         );
 
@@ -876,43 +1073,6 @@ mod tests {
         }
     }
 
-    /// The DENSITY FLOOR: a rule thinned to nothing over a block of hull gets
-    /// one piece back there, and a rule the share already served does not.
-    ///
-    /// The measured failure this exists for: every knob is per plate and they
-    /// multiply, so a rule tuned on a generated hull put one visible piece on a
-    /// hand-built one.
-    #[test]
-    fn a_patch_puts_one_piece_back_where_the_share_left_none() {
-        let structure = slab(8);
-        // A share far too thin to cover the deck: what a rule tuned for a big
-        // hull does to a small one.
-        let thin = ScatterRule {
-            relief: vec![PlateRelief::Flat],
-            chance: 0.02,
-            ..default()
-        };
-        let bare = scatter(&structure, &style(vec![fixture("panel", thin.clone())]));
-        let floored = scatter(
-            &structure,
-            &style(vec![fixture("panel", ScatterRule { patch: 3, ..thin })]),
-        );
-
-        assert!(
-            floored.len() > bare.len(),
-            "the floor put nothing back: {} against {}",
-            floored.len(),
-            bare.len(),
-        );
-        // A FLOOR and not a move: everything the share claimed is still there.
-        for placement in &bare {
-            assert!(
-                floored.contains(placement),
-                "the floor moved a piece the share had already placed",
-            );
-        }
-    }
-
     /// A hull that GROWS keeps the decoration it had everywhere the new cell is
     /// not - which is the promise the whole derivation rests on, and the one a
     /// density normalisation is most likely to break.
@@ -921,16 +1081,13 @@ mod tests {
         let mut structure = slab(8);
         let style = style(vec![fixture(
             "panel",
-            ScatterRule {
-                relief: vec![PlateRelief::Flat],
-                chance: 0.25,
-                patch: 3,
-                ..default()
-            },
+            FixtureRegion::Panel,
+            FixtureDensity::Regular,
+            FixtureOrientation::Free,
         )]);
 
-        // Placements as CELLS, since the plate indices themselves shift when
-        // the derivation gains a plate.
+        // Placements as CELLS, since the plate indices themselves shift when the
+        // derivation gains a plate.
         let cells = |structure: &SkinStructure| -> Vec<(IVec3, u8)> {
             let plates = derive_skin(structure);
             let readings = read_plates(structure, &plates);
@@ -964,48 +1121,53 @@ mod tests {
         }
     }
 
-    /// The reach a priority order hides: what each rule WOULD take on its own,
-    /// which is what says a rule landed nothing because it was starved rather
-    /// than because its filter was too tight.
+    /// The reach a priority order hides: what each fixture WOULD take on its
+    /// own, which is what says a fixture landed nothing because it was starved
+    /// rather than because its region was too tight.
     #[test]
-    fn the_reach_of_a_rule_is_what_it_would_take_alone() {
+    fn the_reach_of_a_fixture_is_what_it_would_take_alone() {
         let structure = slab(6);
         let plates = derive_skin(&structure);
         let readings = read_plates(&structure, &plates);
         let style = style(vec![
             fixture(
                 "greedy",
-                ScatterRule {
-                    seat: ScatterSeat::Any,
-                    ..default()
-                },
+                FixtureRegion::Anywhere,
+                FixtureDensity::Every,
+                FixtureOrientation::Free,
             ),
             fixture(
                 "starved",
-                ScatterRule {
-                    relief: vec![PlateRelief::Flat],
-                    ..default()
-                },
+                FixtureRegion::Panel,
+                FixtureDensity::Every,
+                FixtureOrientation::Free,
             ),
         ]);
 
         let reach = decor_reach(&plates, &readings, &style);
         let taken = scatter_decor(&plates, &readings, &style);
-        assert_eq!(reach[0], plates.len(), "an empty rule reaches every plate");
+        assert_eq!(
+            reach[0],
+            seated(&structure),
+            "`Anywhere` reaches every seated plate",
+        );
         assert!(reach[1] > 0, "a 6x6 deck has flat plate on its roof");
         assert!(
             !taken.iter().any(|placement| placement.fixture == 1),
-            "the greedy rule was supposed to starve the one under it",
+            "the greedy fixture was supposed to starve the one under it",
         );
 
-        // The reach is an UPPER BOUND, which is what makes it readable: a rule
-        // can never take more plates than its own filter admits.
+        // The reach is an UPPER BOUND, which is what makes it readable: a
+        // fixture can never take more plates than its own region admits.
         let mut took = vec![0usize; style.fixtures.len()];
         for placement in &taken {
             took[placement.fixture] += 1;
         }
         for (index, took) in took.into_iter().enumerate() {
-            assert!(took <= reach[index], "rule {index} took more than it can");
+            assert!(
+                took <= reach[index],
+                "fixture {index} took more than it can"
+            );
         }
     }
 

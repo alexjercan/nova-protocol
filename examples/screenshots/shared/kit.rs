@@ -231,7 +231,7 @@ impl NearField {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: self.radius.0,
                     texture: game_assets.asteroid_texture.clone().into(),
-                    material: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     // No wells in the dressing: a near-field rock strong enough
                     // to pull the posed subject would drift it out of frame

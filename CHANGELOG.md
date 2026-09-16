@@ -166,6 +166,9 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- **(breaking)** Impact rows, narrative channels and ship grammars are code,
+  not content. A style takes a `palette` and a three-word placement, an
+  asteroid `kind` not `material`, a cue an `accent`.
 - A mod can teach: a `Lesson` content item adds a handbook lesson, or overlays
   one by id - category, order, a still or a sprite-sheet loop, body, the
   actions it names, a wiki path, a practice range.

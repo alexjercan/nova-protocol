@@ -1543,12 +1543,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: the kind row offers every kind the game ships")
         .on_enter(|world: &mut World| {
             assert_eq!(
-                inspector_reading(world, "Material"),
+                inspector_reading(world, "Kind"),
                 KIND_ROCK,
                 "a rock from the palette is stone until it is told otherwise"
             );
             for kind in ASTEROID_KINDS {
-                let option = format!("Inspector Choice Material {kind}");
+                let option = format!("Inspector Choice Kind {kind}");
                 assert!(
                     named_widget_exists(world, &option),
                     "the picker is the vocabulary, so every shipped kind is in                      it - `{kind}` is not"
@@ -1561,7 +1561,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
         })
         .add()
-        .click_a_widget("editor: make the rock ice", "Inspector Choice Material ice")
+        .click_a_widget("editor: make the rock ice", "Inspector Choice Kind ice")
         .step("editor: the rock says it is ice")
         .until(the_kind_row_reads(KIND_ICE))
         .deadline(BEAT_DEADLINE_SECS)
@@ -2613,14 +2613,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // The hull LINE list: which grammar the collapse below draws from.
-        // The base game ships one line, so what this beat proves is that the
-        // control is REACHABLE - the block spawns a row per grammar in the
-        // merged content, and a mod's line is a row in exactly this list.
-        .step("editor: the hull line list is up with the shipped line on it")
+        // The DRAW list: which sections the collapse below may use. There is no
+        // line to pick any more - the plan the generator collapses against is
+        // editor code, not content - so the only authored input left is this
+        // list, and what the beat proves is that it is REACHABLE and carries
+        // the merged catalog. A mod's section is a row in exactly this list.
+        .step("editor: the draw list is up with the merged catalog on it")
         .until(and(
-            ui_node_present("Grammar List"),
-            ui_node_present("Line: standard_hull"),
+            ui_node_present("Part List"),
+            ui_node_present("Part: railgun_lance_section"),
         ))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
@@ -3385,7 +3386,7 @@ fn the_camera_frames_the_selection() -> Wait {
 /// Advance once the kind row reads `wanted`.
 #[cfg(feature = "debug")]
 fn the_kind_row_reads(wanted: &'static str) -> Wait {
-    std::sync::Arc::new(move |world: &World| inspector_reading(world, "Material") == wanted)
+    std::sync::Arc::new(move |world: &World| inspector_reading(world, "Kind") == wanted)
 }
 
 /// Whether the editor has a widget called `name` at all.

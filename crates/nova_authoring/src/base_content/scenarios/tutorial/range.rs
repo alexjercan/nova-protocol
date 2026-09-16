@@ -452,7 +452,7 @@ pub(crate) fn belts(texture: &AssetRef<Image>) -> Vec<EventActionConfig> {
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                        material: KIND_ROCK.to_string(),
+                        kind: KIND_ROCK.to_string(),
                         destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                         radius: belt.radius.0,
                         texture: texture.clone(),

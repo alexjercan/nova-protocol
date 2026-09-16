@@ -33,7 +33,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Allegiance, AssetRef, CHANNEL_COMMS};
+use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
@@ -677,7 +677,7 @@ fn planetoid() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             // DIRECT paths, not dep://: the editor's world is built at runtime
             // outside the mod merge, so scheme refs would never rewrite.
-            material: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
             radius: Meters::from_engine(PLANETOID_RADIUS),
             texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -974,7 +974,7 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep:// - see `planetoid`.
-                material: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: Meters::from_engine(belt.radius.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -1039,7 +1039,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
             allegiance: Allegiance::Enemy,
         }),
         EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-            channel: CHANNEL_COMMS.to_string(),
+            accent: default_comms_accent(),
             speaker: picket.callsign.to_string(),
             text: "Contact acknowledged. Weapons free.".to_string(),
             dwell: None,
@@ -1114,7 +1114,7 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
         actions: vec![
             EventActionConfig::SetSkybox(SetSkyboxActionConfig::new(beacon.cubemap)),
             EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                channel: CHANNEL_COMMS.to_string(),
+                accent: default_comms_accent(),
                 speaker: beacon.label.to_string(),
                 text: beacon.line.to_string(),
                 dwell: None,
@@ -1272,7 +1272,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
                     "Free flight: press F1 to return to the editor",
                 )),
                 EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
-                    channel: CHANNEL_COMMS.to_string(),
+                    accent: default_comms_accent(),
                     speaker: "Range Control".to_string(),
                     text: "Range is yours. Hulks to port, live pickets deeper in - they wake if \
                            you paint them or crowd them. F1 puts you back on the build deck."

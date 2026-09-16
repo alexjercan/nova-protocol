@@ -33,7 +33,7 @@ for responsibilities and the dependency graph.
 | `nova_core` | Wiring only: `AppBuilder` assembles the whole plugin stack. No gameplay. |
 | `nova_gameplay` | The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns `GameStates`/`PauseStates`/`GameMode`. |
 | `nova_ship` | The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship's soundtrack. |
-| `nova_wfc` | Generated hulls: a catalog plus an authored `Grammar` in, a `ShipDesign` out. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
+| `nova_wfc` | Generated hulls: a catalog plus a code-owned `WfcPlan` in, a `ShipDesign` out. Owns the plan types; every caller builds its own plan. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
 | `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
 | `nova_os` | NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI. |
 | `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
@@ -82,7 +82,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](scenario-system.md) |
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/), [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/) |
 | A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Create your first scenario](https://alexjercan.github.io/nova-protocol/create/author-a-scenario/) |
-| A generated hull, or the grammar it is drawn from | `crates/nova_wfc/` + `crates/nova_authoring/src/base_content/grammars.rs`, then `content -- gen` | [Concept index](concept-index.md), [Create: grammars](https://alexjercan.github.io/nova-protocol/create/grammars/) |
+| A generated hull, or the plan it is drawn from | `crates/nova_wfc/` (`plan.rs` for the plan, `WfcPlan::standard_hull` for the shipped one) and each caller's own plan builder | [Concept index](concept-index.md), [Ship layout sense](ship-layout-sense.md) |
 | The ship editor | `crates/nova_editor/` | -- |
 | Shared UI theme / widgets | `crates/nova_ui/` | -- |
 | The web site / wiki | `web/` | [Building & running](development.md) |
