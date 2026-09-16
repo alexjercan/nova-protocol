@@ -85,6 +85,7 @@ PRODUCERS=(
     "lesson_build_sections|build_sections:still,build_mass:still,build_balance:still"
     "lesson_build_geometry|build_turning:still,build_weapon_mounts:still,build_docking_port:still"
     "lesson_build_generate|build_generate:loop"
+    "lesson_dock_envelope|build_dock_envelope:loop"
     "lesson_build_flight_test|build_flight_test:loop"
     "lesson_novaos|novaos_open:loop,novaos_view:loop"
     "lesson_novaos_contacts|novaos_contacts:still"

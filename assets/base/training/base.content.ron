@@ -690,9 +690,13 @@
         category: Shipbuilding,
         order: 75,
         title: "Making a dock",
-        media: Image(
-            image: "self://training/build_dock_envelope.webp",
-            alt: "two port faces squared up on a final approach, the docking sight green on all three counts",
+        media: Loop(
+            sheet: "self://training/build_dock_envelope.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a tender lining up on a moored spar: the docking sight\'s face plates square up and go green, then the gap line as the hull brakes inside the capture distance, and a DOCK chip joins the verb row",
         ),
         body: "Four things at once: the port faces within 10 m, the ports within 15 degrees of opposed, under 5 m/s of closing rate, under 5 degrees a second of relative spin. Roll is ignored. Docked, your drive and helm are inert.",
         actions: [

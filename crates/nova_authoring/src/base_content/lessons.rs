@@ -803,10 +803,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Shipbuilding,
             75,
             "Making a dock",
-            still(
+            looping(
                 "build_dock_envelope",
-                "two port faces squared up on a final approach, the docking sight green on all \
-                 three counts",
+                "a tender lining up on a moored spar: the docking sight's face plates square up \
+                 and go green, then the gap line as the hull brakes inside the capture distance, \
+                 and a DOCK chip joins the verb row",
             ),
             "Four things at once: the port faces within 10 m, the ports within 15 degrees of \
              opposed, under 5 m/s of closing rate, under 5 degrees a second of relative spin. Roll \
