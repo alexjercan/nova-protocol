@@ -725,8 +725,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "What decides your turn rate",
             still(
                 "build_turning",
-                "the editor readout on a long hull, its arm and turn rate printed beside the \
-                 build",
+                "a long spine in the editor, the rail printing its turn ceiling with the \
+                 structure-limited note under it",
             ),
             "A hull turns at the lower of two ceilings: what its computers can twist against its \
              mass, and what 8 G allows at the furthest section's face. The base gunship's 55.2 m \
@@ -764,8 +764,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Where a weapon can point",
             still(
                 "build_weapon_mounts",
-                "a turret sweeping its arc on one flank while a railgun holds the line of the \
-                 face it sits on",
+                "a turret bolted on a hull's top face and a railgun on its nose, the turret's \
+                 card open in the inspector",
             ),
             "Where you bolt a weapon decides what it points at. A turret traverses freely and owns \
              58.7 percent of the sky from wherever it sits, blind under its keel. A railgun does \
@@ -785,7 +785,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Bolting on a docking port",
             still(
                 "build_docking_port",
-                "a docking port seated on a hull face in the editor, its hatch face left clear",
+                "a docking port seated on a hull face in the editor, its capture envelope open \
+                 in the inspector",
             ),
             "No base hull carries a docking port, so a ship that can dock is one you built. The \
              port carries 90 health, the lightest part on a hull, and takes neighbours on every \

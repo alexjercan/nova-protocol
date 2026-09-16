@@ -627,7 +627,7 @@
         title: "What decides your turn rate",
         media: Image(
             image: "self://training/build_turning.webp",
-            alt: "the editor readout on a long hull, its arm and turn rate printed beside the build",
+            alt: "a long spine in the editor, the rail printing its turn ceiling with the structure-limited note under it",
         ),
         body: "A hull turns at the lower of two ceilings: what its computers can twist against its mass, and what 8 G allows at the furthest section\'s face. The base gunship\'s 55.2 m arm caps it at 1.42 rad/s2, where its computers could push 8.74.",
         wiki_path: "wiki/sections/controller#what-sets-how-hard-a-ship-turns",
@@ -658,7 +658,7 @@
         title: "Where a weapon can point",
         media: Image(
             image: "self://training/build_weapon_mounts.webp",
-            alt: "a turret sweeping its arc on one flank while a railgun holds the line of the face it sits on",
+            alt: "a turret bolted on a hull\'s top face and a railgun on its nose, the turret\'s card open in the inspector",
         ),
         body: "Where you bolt a weapon decides what it points at. A turret traverses freely and owns 58.7 percent of the sky from wherever it sits, blind under its keel. A railgun does not traverse: the face it sits on is its line of fire.",
         wiki_path: "wiki/sections/turret#what-it-can-bear-on",
@@ -673,7 +673,7 @@
         title: "Bolting on a docking port",
         media: Image(
             image: "self://training/build_docking_port.webp",
-            alt: "a docking port seated on a hull face in the editor, its hatch face left clear",
+            alt: "a docking port seated on a hull face in the editor, its capture envelope open in the inspector",
         ),
         body: "No base hull carries a docking port, so a ship that can dock is one you built. The port carries 90 health, the lightest part on a hull, and takes neighbours on every face but the hatch it docks through.",
         wiki_path: "wiki/sections/docking#variants",
