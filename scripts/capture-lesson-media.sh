@@ -71,6 +71,7 @@ done
 PRODUCERS=(
     "lesson_start_welcome|start_welcome:still"
     "lesson_start_scene|start_hud:still,start_camera:loop"
+    "lesson_start_dock|start_cinematic:loop,start_verbs:loop"
     "lesson_flight_aim|flight_aim:loop"
     "lesson_flight_basics|flight_momentum:loop,flight_stop:loop,flight_rcs:loop"
     "lesson_flight_orders|flight_goto:loop,flight_orbit:loop"

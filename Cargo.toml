@@ -705,6 +705,10 @@ name = "lesson_start_scene"
 path = "examples/screenshots/lesson_start_scene.rs"
 
 [[example]]
+name = "lesson_start_dock"
+path = "examples/screenshots/lesson_start_dock.rs"
+
+[[example]]
 name = "lesson_flight_aim"
 path = "examples/screenshots/lesson_flight_aim.rs"
 

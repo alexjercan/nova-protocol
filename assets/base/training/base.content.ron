@@ -31,9 +31,13 @@
         category: StartHere,
         order: 25,
         title: "The keybind dock",
-        media: Image(
-            image: "self://training/start_verbs.webp",
-            alt: "the chip row along the bottom of the screen, one verb inverted while it is engaged",
+        media: Loop(
+            sheet: "self://training/start_verbs.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "the verb chips along the bottom of a cruising ship, then STOP engaged: its chip inverts and a CANCEL chip joins the row",
         ),
         body: "The chip row along the bottom shows the verbs this ship can use right now: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS and DOCK. Each draws your own keycap; a verb the ship cannot use is off the row, and an engaged one inverts.",
         wiki_path: "wiki/hud#flight-readouts",
@@ -70,9 +74,13 @@
         category: StartHere,
         order: 40,
         title: "Two HUD levels",
-        media: Image(
-            image: "self://training/start_cinematic.webp",
-            alt: "the same cockpit view drawn twice: the contextual HUD, then a clean Cinematic frame",
+        media: Loop(
+            sheet: "self://training/start_cinematic.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a cruising ship with its velocity sphere, speed readout and verb chips drawn, then the HUD toggle clearing them to a bare view",
         ),
         body: "The HUD is contextual: a quiet cruise draws the velocity sphere, your speed and the dock\'s live verbs, and everything else arrives with its moment. The HUD toggle cycles two levels: On, and Cinematic, a clean screen that clears every instrument and chip.",
         actions: [

@@ -93,9 +93,9 @@ COLUMNS, ROWS, FRAMES = 4, 5, 20
 LESSONS = [
     ("start_welcome", "How training works", "still"),
     ("start_hud", "Reading the HUD", "still"),
-    ("start_verbs", "The keybind dock", "still"),
+    ("start_verbs", "The keybind dock", "loop"),
     ("start_camera", "Looking around", "loop"),
-    ("start_cinematic", "Two HUD levels", "still"),
+    ("start_cinematic", "Two HUD levels", "loop"),
     ("flight_aim", "Turn, then thrust", "loop"),
     ("flight_momentum", "You keep your speed", "loop"),
     ("flight_speedcap", "The speed cap", "loop"),
