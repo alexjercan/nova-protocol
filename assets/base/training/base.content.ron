@@ -922,9 +922,13 @@
         category: Advanced,
         order: 35,
         title: "Mouse sensitivity",
-        media: Image(
-            image: "self://training/advanced_mouse.webp",
-            alt: "the settings screen on its MOUSE group, three sliders and no bindings",
+        media: Loop(
+            sheet: "self://training/advanced_mouse.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "the settings screen on its MOUSE group: three sensitivity sliders and no bindings, with the Look handle dragged up to 300% and down to 100% as its readout counts",
         ),
         body: "The MOUSE group in Settings holds three sliders: Look scales ship steering, free look and turret aim (100-300%, default 200%); RCS scales mouse translation (100-500%, default 100%); Free Camera scales the free camera. Each 100% is its own baseline; the gamepad is untouched.",
         wiki_path: "wiki/settings#mouse",

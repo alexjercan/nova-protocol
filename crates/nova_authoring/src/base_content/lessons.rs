@@ -1041,9 +1041,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Advanced,
             35,
             "Mouse sensitivity",
-            still(
+            looping(
                 "advanced_mouse",
-                "the settings screen on its MOUSE group, three sliders and no bindings",
+                "the settings screen on its MOUSE group: three sensitivity sliders and no \
+                 bindings, with the Look handle dragged up to 300% and down to 100% as its \
+                 readout counts",
             ),
             "The MOUSE group in Settings holds three sliders: Look scales ship steering, free look \
              and turret aim (100-300%, default 200%); RCS scales mouse translation (100-500%, \

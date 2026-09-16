@@ -54,9 +54,10 @@ pub mod prelude {
     // names it; the `press_action` / `release_action` beats do not.
     pub use nova_autopilot::{
         input::{
-            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_edit_key,
-            press_key, press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels,
-            type_text, ui_node_centre, ui_node_diagnosis, ui_node_rect,
+            assert_named_visible, click_at, click_named, hover_named, keep_hovering_named,
+            move_cursor, press_edit_key, press_key, press_mouse, release_key, release_mouse,
+            scroll_lines, scroll_pixels, type_text, ui_node_centre, ui_node_diagnosis,
+            ui_node_rect,
         },
         predicate::{
             and, any_entity, elapsed, frames, loop_written, or, pointer_at, pointer_at_node,

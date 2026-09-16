@@ -137,7 +137,7 @@ LESSONS = [
     ("advanced_scenarios", "Scenarios and campaigns", "still"),
     ("advanced_mods", "Mods", "still"),
     ("advanced_bindings", "Rebinding controls", "still"),
-    ("advanced_mouse", "Mouse sensitivity", "still"),
+    ("advanced_mouse", "Mouse sensitivity", "loop"),
 ]
 
 
