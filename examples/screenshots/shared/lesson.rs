@@ -1,6 +1,6 @@
 //! The training handbook's demonstrations: the grid every lesson loop is cut
-//! on, the profile a producer records at, and the camera device that makes a
-//! one-second sheet close.
+//! on, the profile a producer records at, and the two camera devices a lesson
+//! sheet is shot with.
 //!
 //! A lesson's art is REAL FOOTAGE of the game at
 //! `assets/base/training/<lesson>.webp`, and the game cuts a loop by the grid
@@ -25,6 +25,14 @@
 //! and the rest of the sheet holding the state after. It wraps the way a
 //! tutorial clip wraps - back to the start to do it again - which reads as a
 //! repeat rather than as a glitch precisely because the camera never moved.
+//!
+//! When the act is the SHIP MOVING, a camera fixed in the world loses it in
+//! two seconds, and the player's own chase camera sits close astern where the
+//! hull is a drive bell filling the cell. [`LessonChase`] is the third thing:
+//! a camera that holds a fixed offset IN THE WORLD from the moving hull. The
+//! ship keeps its place in the cell and its attitude on the screen, the rock
+//! field goes past behind it, and a hull the flight computer turns end for end
+//! is SEEN to turn, because the eye it turns under did not turn with it.
 
 // Each producer includes the whole module and uses the part its lesson needs;
 // the unused half is not dead code, it is another lesson's tool.
@@ -77,8 +85,9 @@ pub const LESSON_STILL: (u32, u32) = CAPTURE_RESOLUTION;
 /// with no output scale of its own - a sheet is scaled by its own cell size at
 /// tile time, and a still by the packaging script.
 ///
-/// The frame cap is four sheets' worth. A sheet closes itself at twelve, so
-/// the cap only catches a producer that opened a loop it never closes.
+/// The frame cap is four sheets' worth. A sheet closes itself at its own
+/// twenty, so the cap only catches a producer that opened a loop it never
+/// closes.
 pub fn lesson_profile() -> LoopProfile {
     LoopProfile {
         window_resolution: (1920, 1080),
@@ -172,4 +181,66 @@ pub fn sweep_lesson_camera(world: &mut World) {
     };
     pose_camera(world, sweep.position(), sweep.subject);
     world.resource_mut::<LessonSweep>().frame += 1;
+}
+
+/// A camera that rides beside the player's hull: the same offset from it in
+/// WORLD axes on every frame, looking at it.
+///
+/// World axes, not ship axes, and that is the whole design. A rig bolted to
+/// the hull's own frame shows a flip as the background spinning round a still
+/// ship, which is the opposite of what a braking order looks like to fly. Held
+/// in world axes, the hull turns on the screen and the field behind it only
+/// slides, so the sheet reads the way the maneuver feels.
+#[derive(Resource, Debug, Clone, Copy)]
+pub struct LessonChase {
+    /// Where the eye stands relative to the hull, in world axes.
+    pub offset: Meters3,
+    /// What it looks at, relative to the hull, in world axes.
+    ///
+    /// Zero for the lessons whose subject IS the ship. A lesson about the ship
+    /// against something far bigger than it - a hull on a ring around a
+    /// planetoid - aims PAST the hull instead, so the body takes the middle of
+    /// the cell and the ship falls out to a corner on the end of its spoke.
+    pub aim: Meters3,
+}
+
+impl LessonChase {
+    /// An eye `offset` from the hull, looking at the hull.
+    pub fn new(offset: Meters3) -> Self {
+        Self {
+            offset,
+            aim: Meters3::ZERO,
+        }
+    }
+
+    /// Aim `aim` from the hull rather than at it.
+    pub fn looking(mut self, aim: Meters3) -> Self {
+        self.aim = aim;
+        self
+    }
+}
+
+/// Ride beside the hull: an `Update` system a lesson producer adds once, inert
+/// until its step inserts a [`LessonChase`].
+///
+/// The hull it follows is the player's, which is the subject of every lesson
+/// shot this way. A frame with no player ship yet poses nothing and says so
+/// once per frame is too noisy to warn about, so it simply waits.
+pub fn chase_lesson_camera(world: &mut World) {
+    let Some(chase) = world.get_resource::<LessonChase>().copied() else {
+        return;
+    };
+    let mut hulls = world.query_filtered::<&GlobalTransform, (
+        With<SpaceshipRootMarker>,
+        With<PlayerSpaceshipMarker>,
+    )>();
+    let Some(hull) = hulls.iter(world).next() else {
+        return;
+    };
+    let subject = Meters3::from_engine(hull.translation());
+    pose_camera(
+        world,
+        Meters3(subject.0 + chase.offset.0),
+        Meters3(subject.0 + chase.aim.0),
+    );
 }

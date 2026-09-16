@@ -357,8 +357,13 @@ def captured_lessons():
     owned = set()
     for line in table.splitlines():
         line = line.strip().strip('"')
-        if line.count("|") == 2:
-            owned.add(line.split("|")[1])
+        if "|" not in line:
+            continue
+        # `example|lesson:kind[,lesson:kind...]` - one row may own several.
+        for pair in line.split("|", 1)[1].split(","):
+            lesson = pair.split(":", 1)[0].strip()
+            if lesson:
+                owned.add(lesson)
     return owned
 
 

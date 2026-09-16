@@ -38,6 +38,28 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
 
+/// Take the menu card's footer out of shot.
+///
+/// The footer reads `v<version>+<commit>`, and the card sits behind every menu
+/// modal with its bottom corner still in frame. A wiki figure can carry that
+/// string - it is reshot with the page. Art the GAME SHIPS cannot: every
+/// re-capture of a lesson would bake a different build id into the handbook,
+/// which is the same reason `hide_status_bar` exists for the HUD.
+///
+/// Despawned rather than hidden, because nothing re-asserts it and a capture
+/// process is throwaway.
+pub fn hide_menu_version(world: &mut World) {
+    let footers: Vec<Entity> = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .filter(|(_, name)| name.as_str() == "Menu Footer")
+        .map(|(entity, _)| entity)
+        .collect();
+    for footer in footers {
+        world.entity_mut(footer).despawn();
+    }
+}
+
 /// Where the editor camera is put before the ship is built.
 ///
 /// The editor's own camera sits at `(0, 50, 100)` m looking down the -Z axis,

@@ -319,6 +319,166 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
     }
 }
 
+/// The SOLO set: the player's hull alone in a thinned rock shell.
+///
+/// For the lessons whose subject is one ship and the instruments drawn around
+/// it. The fighting sets put another hull, a torpedo boat and a wall of close
+/// rock in every framing, and all three read as clutter when the thing being
+/// pointed at is a glow on the player's own shell.
+///
+/// The shell is thinned and pushed back rather than removed: with no rock at
+/// all the hull floats on a star field with no sense of place or scale, and
+/// the frame stops looking like the game.
+pub fn solo_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Meters3::ZERO,
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: BTreeMap::new(),
+            speed_cap: None,
+        }),
+        None,
+        kit::catalog_ship(ships, "block_gunship"),
+    );
+    let shell = kit::NearField {
+        id_prefix: "solo_rock_",
+        count: 20,
+        seed: 40507,
+        center: Meters3::ZERO,
+        distance: (Meters(700.0), Meters(1_600.0)),
+        radius: (Meters(14.0), Meters(38.0)),
+        y_spread: Meters(520.0),
+    };
+
+    ScenarioConfig {
+        description: "The rock hollow with one ship in it.".to_string(),
+        events: vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: [
+                vec![shell.action(game_assets), player],
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
+        }],
+        ..ScenarioConfig::new(
+            "rock_hollow_solo".to_string(),
+            "Rock Hollow - Solo".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
+    }
+}
+
+/// The DUEL set: the player armed and the raider parked in front of it, with
+/// nothing else in the hollow.
+///
+/// [`ambush_hollow`] with the background fight taken out. The combat lessons
+/// each point at ONE thing - the mounts coming up, a bracket stepping onto a
+/// section, a gun that will not bear - and four AI craft working the flanks
+/// put tracers and banking hulls over every one of them. What it keeps from
+/// the ambush set is the armament: the trigger is bound to the player's guns
+/// and their magazines never run out, because a lesson that shows a gun firing
+/// cannot cut to a reload.
+pub fn duel_hollow(
+    game_assets: &GameAssets,
+    sections: &GameSections,
+    ships: &GameShipDesigns,
+) -> ScenarioConfig {
+    let player_hull = kit::catalog_ship(ships, "block_gunship");
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Meters3::ZERO,
+        // Square with the world, for the reason `ambush_hollow` gives: the
+        // radar picks by the CAMERA's look ray, which opens down world -Z, and
+        // the raider is parked a few degrees off it.
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: turret_bindings(sections, &player_hull.sections),
+            speed_cap: None,
+        }),
+        None,
+        unlimited_turrets(sections, player_hull.clone()),
+    );
+    let raider = ship(
+        RAIDER_ID,
+        "Raider",
+        RAIDER_POSITION,
+        Quat::from_rotation_y(std::f32::consts::PI - 0.4),
+        SpaceshipController::None,
+        Some(Allegiance::Enemy),
+        kit::catalog_ship(ships, "block_raider"),
+    );
+
+    ScenarioConfig {
+        description: "The rock hollow with one armed ship and one target in it.".to_string(),
+        events: vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: [
+                vec![shell().action(game_assets), player, raider],
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
+        }],
+        ..ScenarioConfig::new(
+            "rock_hollow_duel".to_string(),
+            "Rock Hollow - Duel".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
+    }
+}
+
+/// The FLYING set: the player's hull alone in the standard shell, for the
+/// lessons whose subject is the ship actually moving.
+///
+/// The shell is the fighting sets' own ([`shell`]) rather than the solo set's
+/// thinned one, and that is the whole difference: a lesson about momentum, a
+/// braking order or a thruster nudge is READ off the background going past,
+/// and rocks pushed out to 1600 m barely move in the two seconds a sheet
+/// lasts. The pocket is 480 m of clear space, which is more than a burn
+/// covers before the sheet closes.
+pub fn flight_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Meters3::ZERO,
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: BTreeMap::new(),
+            speed_cap: None,
+        }),
+        None,
+        kit::catalog_ship(ships, "block_gunship"),
+    );
+
+    ScenarioConfig {
+        description: "The rock hollow with one ship flying in it.".to_string(),
+        events: vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: [
+                vec![shell().action(game_assets), player],
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
+        }],
+        ..ScenarioConfig::new(
+            "rock_hollow_flight".to_string(),
+            "Rock Hollow - Flight".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
+    }
+}
+
 /// The hollow itself - and it is a HOLLOW: the field starts outside the raider's
 /// station (340 m) with room to spare, so the pocket the fight happens in is
 /// clear and the rocks read as the wall around it. Tried tighter (280 m):

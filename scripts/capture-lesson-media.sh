@@ -60,11 +60,26 @@ done
 # Both arrive at the size they ship at, so this only checks the size and
 # encodes. The lesson id IS the file name, in both cases, because that is the
 # path the lesson authors.
-#   example|lesson|loop|still
+#
+# ONE PRODUCER MAY OWN SEVERAL LESSONS. A walk that has already opened a screen
+# is the cheapest place to photograph the next one, so a row lists every lesson
+# its example writes:
+#   example|lesson:kind[,lesson:kind...]
+# The example catalog in `Cargo.toml` caps a producer at three frames, so a row
+# never grows past three.
 PRODUCERS=(
-    "lesson_flight_aim|flight_aim|loop"
-    "lesson_combat_radar|combat_radar|loop"
-    "lesson_build_sections|build_sections|still"
+    "lesson_flight_aim|flight_aim:loop"
+    "lesson_flight_basics|flight_momentum:loop,flight_stop:loop,flight_rcs:loop"
+    "lesson_flight_orders|flight_goto:loop,flight_orbit:loop"
+    "lesson_combat_radar|combat_radar:loop"
+    "lesson_combat_moves|combat_stance:loop,combat_components:loop,combat_turrets:still"
+    "lesson_combat_torpedoes|combat_torpedoes:loop"
+    "lesson_build_sections|build_sections:still,build_mass:still,build_balance:still"
+    "lesson_build_flight_test|build_flight_test:loop"
+    "lesson_novaos|novaos_open:loop,novaos_view:loop,novaos_contacts:still"
+    "lesson_start_welcome|start_welcome:still"
+    "lesson_start_scene|start_hud:still,start_camera:loop"
+    "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
 )
 
 # What the authored lessons cut a sheet on
@@ -91,10 +106,25 @@ selected() {
     return 1
 }
 
+# The lessons one row writes, as `lesson:kind` words.
+row_lessons() {
+    local row="$1"
+    printf '%s' "${row#*|}" | tr ',' ' '
+}
+
+# Whether any lesson on this row was asked for.
+row_selected() {
+    local row="$1" pair
+    for pair in $(row_lessons "$row"); do
+        selected "${pair%%:*}" && return 0
+    done
+    return 1
+}
+
 examples=()
 for row in "${PRODUCERS[@]}"; do
-    IFS='|' read -r example lesson _ <<<"$row"
-    selected "$lesson" && examples+=(--example "$example")
+    IFS='|' read -r example _ <<<"$row"
+    row_selected "$row" && examples+=(--example "$example")
 done
 [[ "${#examples[@]}" -gt 0 ]] || {
     echo "!! no producer for: $*" >&2
@@ -118,12 +148,14 @@ encode() {
 
 captured=0
 for row in "${PRODUCERS[@]}"; do
-    IFS='|' read -r example lesson kind <<<"$row"
-    selected "$lesson" || continue
+    IFS='|' read -r example _ <<<"$row"
+    row_selected "$row" || continue
 
-    file="$STAGE/${lesson}.png"
-    rm -f "$file"
-    echo ">> ${example}: capturing ${lesson} under Xvfb..."
+    pairs="$(row_lessons "$row")"
+    for pair in $pairs; do
+        rm -f "$STAGE/${pair%%:*}.png"
+    done
+    echo ">> ${example}: capturing under Xvfb..."
     # A fresh server per run (-a picks a free display). `cargo run` rather than
     # the built binary so the asset root resolves at the repo, the way every
     # capture flow runs.
@@ -131,42 +163,49 @@ for row in "${PRODUCERS[@]}"; do
         xvfb-run -a -s "-screen 0 1920x1080x24" \
         cargo run --features debug --example "$example"
 
-    [[ -s "$file" ]] || {
-        echo "!! ${example} exited cleanly but ${lesson}.png is not in ${STAGE}" >&2
-        exit 1
-    }
-
-    size="$(dimensions "$file")"
-    case "$kind" in
-    loop)
-        # The producer tiled it, so the size IS the contract with the lesson.
-        [[ "$size" == "${SHEET_W}x${SHEET_H}" ]] || {
-            echo "!! ${lesson}.png is ${size}, and the lesson cuts it as" \
-                "${SHEET_W}x${SHEET_H} - the cells would be cut in the wrong" \
-                "places" >&2
+    # Every lesson on the row, even one nobody asked for: a producer writes all
+    # of its frames in one walk, so re-encoding the others costs a millisecond
+    # and leaves the bundle consistent with the run that just happened.
+    for pair in $pairs; do
+        lesson="${pair%%:*}"
+        kind="${pair##*:}"
+        file="$STAGE/${lesson}.png"
+        [[ -s "$file" ]] || {
+            echo "!! ${example} exited cleanly but ${lesson}.png is not in ${STAGE}" >&2
             exit 1
         }
-        encode "$file" "$OUT/${lesson}.webp"
-        ;;
-    still)
-        # Shot at the capture window, which IS what a still ships at - there is
-        # no grid to pay for, so nothing is gained by shrinking it.
-        [[ "$size" == "${STILL_W}x${STILL_H}" ]] || {
-            echo "!! ${lesson}.png is ${size}, and a still ships at" \
-                "${STILL_W}x${STILL_H}" >&2
-            exit 1
-        }
-        encode "$file" "$OUT/${lesson}.webp"
-        ;;
-    *)
-        echo "!! ${lesson}: unknown kind '${kind}'" >&2
-        exit 1
-        ;;
-    esac
 
-    echo ">> ${lesson}.webp: $(dimensions "$OUT/${lesson}.webp"), \
+        size="$(dimensions "$file")"
+        case "$kind" in
+        loop)
+            # The producer tiled it, so the size IS the contract with the lesson.
+            [[ "$size" == "${SHEET_W}x${SHEET_H}" ]] || {
+                echo "!! ${lesson}.png is ${size}, and the lesson cuts it as" \
+                    "${SHEET_W}x${SHEET_H} - the cells would be cut in the wrong" \
+                    "places" >&2
+                exit 1
+            }
+            ;;
+        still)
+            # Shot at the capture window, which IS what a still ships at - there
+            # is no grid to pay for, so nothing is gained by shrinking it.
+            [[ "$size" == "${STILL_W}x${STILL_H}" ]] || {
+                echo "!! ${lesson}.png is ${size}, and a still ships at" \
+                    "${STILL_W}x${STILL_H}" >&2
+                exit 1
+            }
+            ;;
+        *)
+            echo "!! ${lesson}: unknown kind '${kind}'" >&2
+            exit 1
+            ;;
+        esac
+
+        encode "$file" "$OUT/${lesson}.webp"
+        echo ">> ${lesson}.webp: $(dimensions "$OUT/${lesson}.webp"), \
 $(stat -c%s "$OUT/${lesson}.webp") bytes (${example}, ${kind})"
-    captured=$((captured + 1))
+        captured=$((captured + 1))
+    done
 done
 
 echo ">> ${captured} lesson demonstration(s) in ${OUT}"

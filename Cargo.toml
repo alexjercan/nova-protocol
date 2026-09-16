@@ -705,8 +705,44 @@ name = "lesson_combat_radar"
 path = "examples/screenshots/lesson_combat_radar.rs"
 
 [[example]]
+name = "lesson_build_flight_test"
+path = "examples/screenshots/lesson_build_flight_test.rs"
+
+[[example]]
 name = "lesson_build_sections"
 path = "examples/screenshots/lesson_build_sections.rs"
+
+[[example]]
+name = "lesson_combat_torpedoes"
+path = "examples/screenshots/lesson_combat_torpedoes.rs"
+
+[[example]]
+name = "lesson_combat_moves"
+path = "examples/screenshots/lesson_combat_moves.rs"
+
+[[example]]
+name = "lesson_flight_basics"
+path = "examples/screenshots/lesson_flight_basics.rs"
+
+[[example]]
+name = "lesson_flight_orders"
+path = "examples/screenshots/lesson_flight_orders.rs"
+
+[[example]]
+name = "lesson_novaos"
+path = "examples/screenshots/lesson_novaos.rs"
+
+[[example]]
+name = "lesson_start_welcome"
+path = "examples/screenshots/lesson_start_welcome.rs"
+
+[[example]]
+name = "lesson_start_scene"
+path = "examples/screenshots/lesson_start_scene.rs"
+
+[[example]]
+name = "lesson_menu_advanced"
+path = "examples/screenshots/lesson_menu_advanced.rs"
 
 [[example]]
 name = "loop_derived_skin"

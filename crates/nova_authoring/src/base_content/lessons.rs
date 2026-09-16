@@ -311,7 +311,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Raising weapons",
             looping(
                 "combat_stance",
-                "weapons coming up and the flight computer changing how it flies",
+                "a ship's gun mounts rising out of the deck as the weapons come up",
             ),
             "Raising weapons changes how the flight computer flies. Instead of \
              taking the shortest line to your mark, it holds the nose where the \
@@ -329,7 +329,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Lock a component",
             looping(
                 "combat_components",
-                "the lock stepping from a whole ship to its drive, then its turret",
+                "the fine lock stepping from one section of a marked ship to the next",
             ),
             "A lock can target one section instead of the whole ship. Step it \
              onto the drive to stop the ship moving, or onto a turret to stop \
@@ -345,7 +345,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Combat,
             40,
             "Turret arcs",
-            still("combat_turrets", "turret firing arcs drawn over a ship"),
+            still(
+                "combat_turrets",
+                "a ship from above, its turrets swung onto one target and firing",
+            ),
             "A turret only fires within its own arc. Your own ship blocks part \
              of that arc, so a turret cannot shoot a target hidden behind your \
              drive.",
@@ -501,7 +504,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Scenarios and campaigns",
             still(
                 "advanced_scenarios",
-                "the scenario picker with a campaign expanded",
+                "the scenario picker with a scenario chosen and its briefing \
+                 beside it",
             ),
             "A scenario is a single flight. A campaign is a set of scenarios \
              played in order. Both are loaded from content files, so a mod can \
