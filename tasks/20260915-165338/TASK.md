@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: backlog, feature, docking, ship, spike, rendering
+- TAGS: v0.14.0, feature, docking, ship, spike, rendering
 
 ## Goal
 
