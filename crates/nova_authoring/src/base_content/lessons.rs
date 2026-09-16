@@ -623,10 +623,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Combat,
             70,
             "The hull is the aim",
-            still(
+            looping(
                 "combat_railgun",
-                "a railgun charging on a spinal mount, its bore sight line laid across a target \
-                 hull",
+                "a gunboat committing its spinal railgun on a patrol gunship a hundred and fifty \
+                 meters off, the bore sight thread thickening across the gap as the charge runs, \
+                 and then the shell opening the target hull into tumbling plates",
             ),
             "A railgun has no traverse: it fires down its own axis, so the face you bolt it to is \
              the line. A tap starts a 1.5 second charge that only lowering your weapons aborts; it \
@@ -644,9 +645,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Combat,
             90,
             "When a ship comes apart",
-            still(
+            looping(
                 "combat_collapse",
-                "a hull tearing itself apart from the outside in once its structure runs out",
+                "one siege railgun shell boring a corridor through a block of reinforced hull, and \
+                 the block then letting go of every section it has left and opening into a \
+                 drifting cloud of plates",
             ),
             "You do not have to shoot every section off. A hull carrying less than a twentieth of \
              the structure it was built with collapses. A ship that loses every weapon, or its last \
