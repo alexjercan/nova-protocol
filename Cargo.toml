@@ -757,6 +757,10 @@ name = "lesson_flight_limits"
 path = "examples/screenshots/lesson_flight_limits.rs"
 
 [[example]]
+name = "lesson_flight_well"
+path = "examples/screenshots/lesson_flight_well.rs"
+
+[[example]]
 name = "loop_derived_skin"
 path = "examples/screenshots/loop_derived_skin.rs"
 

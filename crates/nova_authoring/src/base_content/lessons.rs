@@ -331,10 +331,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Flight,
             45,
             "Gravity wells",
-            still(
+            looping(
                 "flight_gravity",
-                "a ship falling toward a planetoid, the yellow gravity sphere up beside the \
-                 velocity sphere",
+                "a hull coasting inside a sphere of influence with its drive out: the yellow pull \
+                 shell and the blue velocity shell stand off in different directions while the \
+                 speed chip climbs from 122 to 139 m/s",
             ),
             "Gravity pulls you inward at a = mu / r^2. mu is the body's number, never your mass, \
              so a laden hauler falls as fast as a stripped fighter. The pull ends at the sphere of \
@@ -368,10 +369,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Flight,
             55,
             "The arrival envelope",
-            still(
+            looping(
                 "flight_arrival",
-                "a GOTO leg flipped retrograde on its braking ramp, the AP GOTO - BURN chip \
-                 beside it",
+                "a GOTO leg flipped retrograde on its braking ramp, drives firing up the track \
+                 under an amber AP GOTO - BURN chip, swinging once through ALIGN and back as the \
+                 speed falls",
             ),
             "GOTO obeys one rule: at any distance it caps closing speed at what a flip-and-brake \
              from there can still cancel. It flips one swing early, brakes at 85% of the drive's \

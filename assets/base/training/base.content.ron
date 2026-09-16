@@ -241,9 +241,13 @@
         category: Flight,
         order: 45,
         title: "Gravity wells",
-        media: Image(
-            image: "self://training/flight_gravity.webp",
-            alt: "a ship falling toward a planetoid, the yellow gravity sphere up beside the velocity sphere",
+        media: Loop(
+            sheet: "self://training/flight_gravity.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a hull coasting inside a sphere of influence with its drive out: the yellow pull shell and the blue velocity shell stand off in different directions while the speed chip climbs from 122 to 139 m/s",
         ),
         body: "Gravity pulls you inward at a = mu / r^2. mu is the body\'s number, never your mass, so a laden hauler falls as fast as a stripped fighter. The pull ends at the sphere of influence, where it has decayed to 2.5 m/s2.",
         wiki_path: "wiki/gravity-wells#sphere-of-influence",
@@ -284,9 +288,13 @@
         category: Flight,
         order: 55,
         title: "The arrival envelope",
-        media: Image(
-            image: "self://training/flight_arrival.webp",
-            alt: "a GOTO leg flipped retrograde on its braking ramp, the AP GOTO - BURN chip beside it",
+        media: Loop(
+            sheet: "self://training/flight_arrival.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a GOTO leg flipped retrograde on its braking ramp, drives firing up the track under an amber AP GOTO - BURN chip, swinging once through ALIGN and back as the speed falls",
         ),
         body: "GOTO obeys one rule: at any distance it caps closing speed at what a flip-and-brake from there can still cancel. It flips one swing early, brakes at 85% of the drive\'s authority down to a 15 m/s floor, then settles on RCS.",
         actions: [
