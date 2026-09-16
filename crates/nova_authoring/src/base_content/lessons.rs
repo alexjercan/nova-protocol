@@ -561,10 +561,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Combat,
             45,
             "A magazine is a rate limit",
-            still(
+            looping(
                 "combat_magazines",
-                "a turret's ammo ring draining through a burst, then filling again through a \
-                 quiet stretch",
+                "a gunship's dorsal mounts firing, the ammo ring beside each one losing pips \
+                 through the burst and coming back full on one batch a few frames after the \
+                 trigger comes up",
             ),
             "No weapon runs out for good. A PDC holds 500 rounds at 100 a second and gets 200 back \
              for every three quiet seconds, all at once. Every shot restarts that interval, so \
@@ -602,8 +603,9 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Your battery defends itself",
             still(
                 "combat_point_defense",
-                "idle mounts swinging onto inbound torpedoes, a thin line drawn from each mount \
-                 to its pick",
+                "a gunship with its weapons lowered working its own mounts against an inbound \
+                 salvo, a thin line running from each engaged mount out to the torpedo it picked \
+                 and its rounds streaming along that line",
             ),
             "With no combat lock and your weapons lowered, the flight computer works your idle \
              mounts against inbound torpedoes - no toggle and no key. A thin line runs from each \

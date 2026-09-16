@@ -81,6 +81,7 @@ PRODUCERS=(
     "lesson_combat_moves|combat_stance:loop,combat_components:loop,combat_turrets:still"
     "lesson_combat_field|combat_allegiance:still,combat_cover:loop"
     "lesson_combat_rounds|combat_damage_types:loop"
+    "lesson_combat_battery|combat_magazines:loop,combat_point_defense:still"
     "lesson_combat_torpedoes|combat_torpedoes:loop"
     "lesson_build_sections|build_sections:still,build_mass:still,build_balance:still"
     "lesson_build_geometry|build_turning:still,build_weapon_mounts:still,build_docking_port:still"
