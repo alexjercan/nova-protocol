@@ -48,6 +48,12 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
 nova_scenario = { path = "../nova_scenario", features = ["test-support"] }
 # The lint and RON-parity gates build throwaway content trees on disk.
 tempfile = "3"
+# `lesson_media.rs` decodes each committed demonstration to check its size
+# against the grid the lesson cuts it on. This is the SAME decoder the engine
+# uses - bevy_image is a wrapper over `image` - so a file that decodes here
+# decodes in the game, on every target, which is what makes a WebP sheet
+# provable without a browser.
+image = { version = "0.25", default-features = false, features = ["webp"] }
 
 [lints]
 workspace = true

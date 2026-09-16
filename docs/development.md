@@ -647,7 +647,16 @@ nix develop --command scripts/capture-web-shots.sh screenshot_railgun  # or a fe
 
 It stages into `target/shots`, runs each producer under Xvfb, and then packages
 with `scripts/gen-web-screenshots.py`. It is the stills half of a pair:
-`scripts/capture-web-media.sh` does the same for the webm loops. Both point
+`scripts/capture-web-media.sh` does the same for the webm loops, and
+`scripts/capture-lesson-media.sh` the same again for the training handbook's
+demonstrations - the `lesson_*` producers, each writing one lesson's still or
+4x3 sprite sheet into `assets/base/training/<lesson>.webp`. That one ships
+WEBP, not PNG: the Lessons pane draws a demonstration about 900 logical pixels
+wide, so a sheet carries 960x540 cells (3840x1620 in all), and at that size a
+lossless sheet is about 1.6 MB against about 150 KB encoded. A lesson with no
+producer keeps the placeholder `scripts/gen-lesson-media.py` draws - lossless
+WebP, at the lower resolution it is drawn at - and that generator REFUSES to
+redraw over captured footage, so the two can be run in either order. Both point
 `NOVA_MODDING_CACHE_ROOT` and `NOVA_CONFIG_ROOT` at the capture sandbox and stamp
 a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
 producer that enables one on purpose (`screenshot_scenario_picker` does) can

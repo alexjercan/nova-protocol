@@ -127,14 +127,15 @@ pub mod prelude {
             ui_node_rect,
         },
         loops::{
-            loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopProfile, LoopRecorder,
-            LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
+            loop_end, loop_file_name, loop_start, sheet_file_name, sheet_start, LoopCapturePlugin,
+            LoopProfile, LoopRecorder, SheetGrid, LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
+            LOOP_RESOLUTION,
         },
         predicate::{
             and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_at_node,
             pointer_hover_diagnosis, pointer_over_node, pointer_pressed, pointer_released,
-            resource_where, shot_written, state_is, ui_node_present, window_scale_factor_is,
-            window_size_is, Predicate,
+            resource_where, sheet_written, shot_written, state_is, ui_node_present,
+            window_scale_factor_is, window_size_is, Predicate,
         },
     };
 }

@@ -219,6 +219,21 @@ pub fn loop_written(name: impl Into<String>) -> Arc<Predicate> {
     resource_where::<crate::capture::CaptureLog>(move |log| log.wrote(&file))
 }
 
+/// Advance once the sprite sheet `name` has been tiled and is on disk.
+///
+/// The closing wait of a sheet, and the whole of it: a sheet has no `end` call
+/// because its grid is its length, so this is the ONLY thing the script holds
+/// on. Like [`loop_written`] it is an await of the recorder's ack, not a guess
+/// at how long the tile takes. True at once on the smoke path, where nothing
+/// records.
+pub fn sheet_written(name: impl Into<String>) -> Arc<Predicate> {
+    if !crate::capture::capturing() {
+        return Arc::new(|_: &World| true);
+    }
+    let file = crate::loops::sheet_file_name(&name.into());
+    resource_where::<crate::capture::CaptureLog>(move |log| log.wrote(&file))
+}
+
 /// Advance once a laid-out, VISIBLE UI node called `name` has a box a pointer
 /// can be put in.
 ///

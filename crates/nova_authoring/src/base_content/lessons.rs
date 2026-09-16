@@ -38,9 +38,16 @@ use super::scenarios::{
 /// Where a lesson's demonstration lives inside the base bundle. Listed in
 /// `assets/base/base.bundle.ron` like every other base resource, so the
 /// content gate can prove each one exists and a mod can reuse one through
-/// `dep://base/training/<id>.png`.
+/// `dep://base/training/<id>.webp`.
+///
+/// WEBP, not PNG. The pane draws a demonstration at its own width - about 900
+/// logical pixels at a 1920 window - so a cell has to carry that many pixels
+/// or the screen shows an upscale. At that size a lossless sheet of captured
+/// footage is megabytes; the same sheet as WebP is a tenth of it. `nova_menu`
+/// turns the decoder on (`bevy/webp`), and nothing else in the pipeline cares
+/// which codec a demonstration arrives in.
 fn media_path(id: &str) -> String {
-    format!("self://training/{id}.png")
+    format!("self://training/{id}.webp")
 }
 
 /// A still frame.
@@ -57,6 +64,11 @@ fn still(id: &str, alt: &str) -> LessonMedia {
 /// 12 fps, which is one second of motion. The grid is authored rather than
 /// inferred because a sheet is just an image - nothing in the file says where
 /// the cells are, and a guess would silently cut the frames wrong.
+///
+/// Captured footage fills those cells at 960x540 each, so a 3840x1620 sheet -
+/// one screen pixel per cell pixel at a 1920 window, and inside the texture
+/// size every target supports. A lesson still on placeholder art carries a
+/// smaller sheet on the same grid; the cell size follows the file.
 fn looping(id: &str, alt: &str) -> LessonMedia {
     LessonMedia::Loop {
         sheet: media_path(id).into(),
@@ -165,7 +177,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Turn, then thrust",
             looping(
                 "flight_aim",
-                "a ship turning onto a heading, then firing its main drive",
+                "a ship holding a heading with its main drive lit behind it",
             ),
             "The main drive only pushes in the direction the nose points. Turn \
              to face where you want to go, then thrust. Thrust while you are \
@@ -274,7 +286,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Using the radar",
             looping(
                 "combat_radar",
-                "the radar sweep picking up contacts around the ship",
+                "a contact marked ahead of the ship, its range beside the bracket",
             ),
             "Hold radar to sweep for contacts and mark one. A tap clears the \
              mark. Autopilot orders and weapon locks both work from the contact \

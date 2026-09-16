@@ -5,7 +5,7 @@
         order: 10,
         title: "How training works",
         media: Image(
-            image: "self://training/start_welcome.png",
+            image: "self://training/start_welcome.webp",
             alt: "the training screen with a lesson open",
         ),
         body: "Each lesson is one screen: a picture or a short loop, a few lines of text, and the controls it uses. Some lessons open a practice flight. Every lesson links to a longer page on the wiki.",
@@ -17,7 +17,7 @@
         order: 20,
         title: "Reading the HUD",
         media: Image(
-            image: "self://training/start_hud.png",
+            image: "self://training/start_hud.webp",
             alt: "the velocity sphere and speed readout drawn around a ship",
         ),
         body: "The HUD only shows what you need right now. Your speed and a velocity sphere sit around your ship. The sphere points the way you are actually moving, which is not always where the nose points.",
@@ -35,7 +35,7 @@
         order: 30,
         title: "Looking around",
         media: Loop(
-            sheet: "self://training/start_camera.png",
+            sheet: "self://training/start_camera.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -58,12 +58,12 @@
         order: 10,
         title: "Turn, then thrust",
         media: Loop(
-            sheet: "self://training/flight_aim.png",
+            sheet: "self://training/flight_aim.webp",
             columns: 4,
             rows: 3,
             frames: 12,
             frames_per_second: 12.0,
-            alt: "a ship turning onto a heading, then firing its main drive",
+            alt: "a ship holding a heading with its main drive lit behind it",
         ),
         body: "The main drive only pushes in the direction the nose points. Turn to face where you want to go, then thrust. Thrust while you are still turning and you push yourself onto a heading you are leaving.",
         actions: [
@@ -85,7 +85,7 @@
         order: 20,
         title: "You keep your speed",
         media: Loop(
-            sheet: "self://training/flight_momentum.png",
+            sheet: "self://training/flight_momentum.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -111,7 +111,7 @@
         order: 30,
         title: "The STOP order",
         media: Loop(
-            sheet: "self://training/flight_stop.png",
+            sheet: "self://training/flight_stop.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -138,7 +138,7 @@
         order: 40,
         title: "Using the RCS thrusters",
         media: Loop(
-            sheet: "self://training/flight_rcs.png",
+            sheet: "self://training/flight_rcs.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -163,7 +163,7 @@
         order: 50,
         title: "GOTO a mark",
         media: Loop(
-            sheet: "self://training/flight_goto.png",
+            sheet: "self://training/flight_goto.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -190,7 +190,7 @@
         order: 60,
         title: "ORBIT a mark",
         media: Loop(
-            sheet: "self://training/flight_orbit.png",
+            sheet: "self://training/flight_orbit.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -218,12 +218,12 @@
         order: 10,
         title: "Using the radar",
         media: Loop(
-            sheet: "self://training/combat_radar.png",
+            sheet: "self://training/combat_radar.webp",
             columns: 4,
             rows: 3,
             frames: 12,
             frames_per_second: 12.0,
-            alt: "the radar sweep picking up contacts around the ship",
+            alt: "a contact marked ahead of the ship, its range beside the bracket",
         ),
         body: "Hold radar to sweep for contacts and mark one. A tap clears the mark. Autopilot orders and weapon locks both work from the contact you mark here.",
         actions: [
@@ -242,7 +242,7 @@
         order: 20,
         title: "Raising weapons",
         media: Loop(
-            sheet: "self://training/combat_stance.png",
+            sheet: "self://training/combat_stance.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -269,7 +269,7 @@
         order: 30,
         title: "Lock a component",
         media: Loop(
-            sheet: "self://training/combat_components.png",
+            sheet: "self://training/combat_components.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -296,7 +296,7 @@
         order: 40,
         title: "Turret arcs",
         media: Image(
-            image: "self://training/combat_turrets.png",
+            image: "self://training/combat_turrets.webp",
             alt: "turret firing arcs drawn over a ship",
         ),
         body: "A turret only fires within its own arc. Your own ship blocks part of that arc, so a turret cannot shoot a target hidden behind your drive.",
@@ -315,7 +315,7 @@
         order: 50,
         title: "Torpedoes",
         media: Loop(
-            sheet: "self://training/combat_torpedoes.png",
+            sheet: "self://training/combat_torpedoes.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -334,7 +334,7 @@
         order: 10,
         title: "Ships are built from sections",
         media: Image(
-            image: "self://training/build_sections.png",
+            image: "self://training/build_sections.webp",
             alt: "the editor with one section selected on a frame",
         ),
         body: "Ships are built from sections bolted to a frame, and each section does one job. Every section you add costs mass, so nothing on a ship is there only for looks.",
@@ -346,7 +346,7 @@
         order: 20,
         title: "Mass and thrust",
         media: Image(
-            image: "self://training/build_mass.png",
+            image: "self://training/build_mass.webp",
             alt: "the same frame with a heavier loadout, its numbers beside it",
         ),
         body: "Every section you add is mass the drive has to move and stop. The same drive handles a light ship and a heavy ship very differently. The clearest sign is how long STOP takes.",
@@ -361,7 +361,7 @@
         order: 30,
         title: "Thruster placement",
         media: Image(
-            image: "self://training/build_balance.png",
+            image: "self://training/build_balance.webp",
             alt: "thrusters on a lopsided frame firing at different throttles",
         ),
         body: "Thrusters sit wherever you bolt them, so an off-centre burn would spin the ship. The flight computer sets each throttle to cancel that spin. A lopsided or damaged ship still flies straight, with less thrust.",
@@ -376,7 +376,7 @@
         order: 40,
         title: "Fly what you built",
         media: Loop(
-            sheet: "self://training/build_flight_test.png",
+            sheet: "self://training/build_flight_test.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -392,7 +392,7 @@
         order: 10,
         title: "Opening NOVA OS",
         media: Loop(
-            sheet: "self://training/novaos_open.png",
+            sheet: "self://training/novaos_open.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -414,7 +414,7 @@
         order: 20,
         title: "Turning the model",
         media: Loop(
-            sheet: "self://training/novaos_view.png",
+            sheet: "self://training/novaos_view.webp",
             columns: 4,
             rows: 3,
             frames: 12,
@@ -433,7 +433,7 @@
         order: 30,
         title: "Reading contacts",
         media: Image(
-            image: "self://training/novaos_contacts.png",
+            image: "self://training/novaos_contacts.webp",
             alt: "the contacts list with one entry selected",
         ),
         body: "The contacts list shows what is known about each contact. Selecting one here sets the same mark the flight computer uses for GOTO and ORBIT.",
@@ -449,7 +449,7 @@
         order: 10,
         title: "Scenarios and campaigns",
         media: Image(
-            image: "self://training/advanced_scenarios.png",
+            image: "self://training/advanced_scenarios.webp",
             alt: "the scenario picker with a campaign expanded",
         ),
         body: "A scenario is a single flight. A campaign is a set of scenarios played in order. Both are loaded from content files, so a mod can add or replace them.",
@@ -461,7 +461,7 @@
         order: 20,
         title: "Mods",
         media: Image(
-            image: "self://training/advanced_mods.png",
+            image: "self://training/advanced_mods.webp",
             alt: "the mods screen with one enabled mod selected",
         ),
         body: "Ships, weapons and scenarios all come from content files. A mod adds or replaces those files. The base game is itself a mod, so you can open and read every file in it.",
@@ -476,7 +476,7 @@
         order: 30,
         title: "Rebinding controls",
         media: Image(
-            image: "self://training/advanced_bindings.png",
+            image: "self://training/advanced_bindings.webp",
             alt: "the settings screen on its bindings tab",
         ),
         body: "You can rebind every control in Settings. Lessons read your current bindings, so the key each lesson shows is the key you have set.",

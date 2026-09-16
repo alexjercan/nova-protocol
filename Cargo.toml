@@ -697,6 +697,18 @@ name = "loop_player_flight"
 path = "examples/screenshots/loop_player_flight.rs"
 
 [[example]]
+name = "lesson_flight_aim"
+path = "examples/screenshots/lesson_flight_aim.rs"
+
+[[example]]
+name = "lesson_combat_radar"
+path = "examples/screenshots/lesson_combat_radar.rs"
+
+[[example]]
+name = "lesson_build_sections"
+path = "examples/screenshots/lesson_build_sections.rs"
+
+[[example]]
 name = "loop_derived_skin"
 path = "examples/screenshots/loop_derived_skin.rs"
 

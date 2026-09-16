@@ -1,6 +1,6 @@
 //! The handbook's demonstrations, end to end over the REAL authored lessons.
 //!
-//! A sprite sheet is just pixels: nothing in a PNG says where its cells are,
+//! A sprite sheet is just pixels: nothing in the file says where its cells are,
 //! so the game cuts one by the grid the LESSON authors. That makes the
 //! generator that draws the placeholder art and the builder that authors the
 //! lesson two halves of one contract, and nothing else in the pipeline would
@@ -130,5 +130,52 @@ fn every_lesson_ships_a_declared_demonstration_that_exists() {
             "'{}' names '{rel}', and there is no file there - run scripts/gen-lesson-media.py",
             lesson.id
         );
+    }
+}
+
+/// A demonstration has to DECODE, and a sheet has to divide by the grid the
+/// lesson cuts it on.
+///
+/// The screen cuts a sheet by the AUTHORED `columns`/`rows` and nothing in the
+/// file argues back: a sheet whose width is not a multiple of its columns is
+/// drawn as twelve frames sliced through their own edges, on the one screen a
+/// new player is sent to first. That is a data error, not a code error, so it
+/// is caught here rather than at runtime.
+///
+/// Decoding is the second half. A demonstration is WebP (see `media_path` in
+/// `base_content/lessons.rs`), and `image` is the crate `bevy_image` decodes
+/// with - a pure-Rust decoder with no platform half - so a file this test
+/// reads is a file the game reads, native or wasm.
+#[test]
+fn every_demonstration_decodes_and_a_loop_divides_by_its_grid() {
+    let root = repo_root();
+
+    for lesson in generation::build_lessons() {
+        let media = match &lesson.media {
+            LessonMedia::Image { image, .. } => image,
+            LessonMedia::Loop { sheet, .. } => sheet,
+        };
+        let rel = media
+            .path()
+            .and_then(|path| path.strip_prefix("self://"))
+            .expect("an authored lesson carries a `self://` media path")
+            .to_string();
+        let file = root.join("assets/base").join(&rel);
+        let decoded = image::open(&file).unwrap_or_else(|why| {
+            panic!(
+                "'{}' names '{rel}', which will not decode: {why}",
+                lesson.id
+            )
+        });
+        let (width, height) = (decoded.width(), decoded.height());
+
+        if let LessonMedia::Loop { columns, rows, .. } = &lesson.media {
+            assert!(
+                width % columns == 0 && height % rows == 0,
+                "'{}' authors a {columns}x{rows} grid over a {width}x{height} sheet, which does \
+                 not divide: the cells would be cut through their own edges",
+                lesson.id
+            );
+        }
     }
 }

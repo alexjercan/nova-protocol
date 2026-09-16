@@ -190,8 +190,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Interface & HUD
 - The main menu opens a training handbook: 24 lessons in six categories, one
-  screen each with a still or looping demonstration, your own bindings, a wiki
-  link, and a Practice button that flies a range.
+  screen each with a demonstration recorded from the game - a still, or a
+  one-second loop - your own bindings, a wiki link, and a Practice button that
+  flies a range.
 - A first launch is offered Basic Training from the menu's corner. Taking it or
   answering `Not now` puts the card away for good; Settings > Interface brings
   it back.

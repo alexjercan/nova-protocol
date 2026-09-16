@@ -114,9 +114,11 @@ pub use nova_autopilot::{
     // The loop idiom rides the same route as the shot one: loop_start /
     // loop_end are the step calls, LoopCapturePlugin is the recorder an
     // example adds next to its autopilot, and the knobs are what the capture
-    // script sizes its budget against.
+    // script sizes its budget against. A sprite sheet is the same recorder
+    // with a grid for a length: sheet_start opens it and there is no end call.
     loops::{
-        loop_end, loop_start, LoopCapturePlugin, LoopProfile, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
+        loop_end, loop_start, sheet_start, LoopCapturePlugin, LoopProfile, SheetGrid, LOOP_CRF,
+        LOOP_FPS, LOOP_FRAME_CAP,
     },
     // `not` reaches the examples HERE rather than through the prelude: the
     // name collides with `bevy::prelude::not`, which every example globs, so

@@ -130,12 +130,25 @@ Start only after the Phase 1 owner review is recorded on this task.
 - [~] Add representative visuals: at least one flight loop, one targeting or
       combat loop, and one editor-style visual. Validate all media on native and
       wasm. Every lesson ships a demonstration and 14 of the 24 loop, so all
-      three are covered. BOTH PLATFORMS ARE NOW PROVEN: the wasm build was
-      served and driven with a real pointer into a Loop lesson, and two frames
-      1.2 s apart differ, so the sheet is cut AND animating
-      (`captures/web-training-*.png`). ONE THING IS NOT DONE: the art is
-      generated placeholder, and every still says so on its own frame - real
-      footage is owner work and drops onto the same 24 paths.
+      three FORMS are covered, and all three ASKED-FOR visuals are now real
+      footage of the game: the flight loop (`lesson_flight_aim`), the targeting
+      loop (`lesson_combat_radar`) and the editor still
+      (`lesson_build_sections`). Each is an ordinary capture producer run by
+      `scripts/capture-lesson-media.sh`; `examples/screenshots/shared/lesson.rs`
+      carries the device that makes a one-second sheet CLOSE (a frozen scene
+      under a camera on one sine period). A demonstration is WEBP at the size
+      the pane draws it - a sheet of 960x540 cells, 3840x1620 in all - because
+      the pane is about 900 logical pixels wide and the first cut of this shipped
+      240x135 cells, which the owner rightly called unreadable.
+      WASM: the browser run proved the sheet is CUT and ANIMATING with a real
+      pointer (`captures/web-training-*.png`), and that mechanism did not
+      change; the CODEC is held by
+      `every_demonstration_decodes_and_a_loop_divides_by_its_grid`, which
+      decodes every committed file with the crate `bevy_image` wraps - the same
+      pure-Rust decoder on both targets. A browser re-run since the codec change
+      is NOT done. STILL OPEN: the other 21 lessons keep generated placeholder
+      art, which `scripts/gen-lesson-media.py` refuses to redraw over a capture,
+      so each lands by writing its own producer.
 - [x] Wire `Start Training` and applicable Practice actions through the existing
       New Game/scenario handoff. Basic Training is the base bundle's declared
       `tutorial`; do not add a competing launch path. Practice launches four

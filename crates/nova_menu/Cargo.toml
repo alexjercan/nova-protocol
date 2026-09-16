@@ -8,7 +8,11 @@ description = "Main menu scene for the Nova Protocol game"
 
 [dependencies]
 avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
+# `webp` is what lets the Lessons screen load a demonstration: bevy ships the
+# PNG decoder by default and nothing else, and a lesson sheet is WebP (a sheet
+# large enough to fill the pane is megabytes as PNG). The feature unifies
+# across the graph, so turning it on here turns it on for the game binary.
+bevy = { version = "0.19.0", features = ["webp"] }
 # The menu-backdrop rotation draws its random pick from the shared GlobalRng
 # entity (EntropyPlugin is registered by nova_gameplay's plugin in production).
 bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }

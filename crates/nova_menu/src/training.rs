@@ -125,8 +125,8 @@ pub(crate) struct PendingLessonMedia(pub(crate) Option<Handle<Image>>);
 
 /// A running sprite-sheet demonstration: which cell to draw next, and when.
 ///
-/// The sheet is cut by the AUTHORED grid, not by anything in the file - a PNG
-/// says nothing about where its cells are - so the frame count lives here and
+/// The sheet is cut by the AUTHORED grid, not by anything in the file - an
+/// image says nothing about where its cells are - so the frame count lives here and
 /// the layout was built from the lesson's own `columns`/`rows`.
 #[derive(Component)]
 pub(crate) struct LessonLoop {

@@ -467,6 +467,31 @@ not), so the window, the frame clock and the encode cannot disagree about the
 framing - and a profile whose output equals its window encodes with no scale
 filter at all, rather than resampling a master through itself.
 
+A SPRITE SHEET is the same recorder with a grid for a length. The training
+handbook draws a lesson loop from one image of cells - the game has no video
+decoder, so an atlas is how a panel animates - and a producer opens the
+recording with `sheet_start(world, name, grid)` and holds the closing step on
+`sheet_written(name)`. There is no `sheet_end`: the grid IS the length, so the
+recorder stops at `SheetGrid::frames()` frames, tiles them left to right and
+top to bottom, and acks `<name>.png` itself. Calling `loop_end` on a sheet is
+an error that names the predicate to hold on instead.
+
+```rust
+sheet_start(world, "flight_aim", SheetGrid {
+    columns: 4, rows: 3, cell: (960, 540),  // the grid the LESSON authors
+});
+```
+
+The cells are recorded frames, so the motion under a sheet has to CLOSE: a
+sheet plays on a cycle, and twelve frames at twelve a second is one second of
+it. `examples/screenshots/shared/lesson.rs` is the handbook's answer - a
+frozen scene with the camera on one period of a sine arc, so the last cell
+hands back to the first. A one-way clip of gameplay jump-cuts every second
+instead. `scripts/capture-lesson-media.sh` runs the `lesson_*` producers and
+packages what they write into `assets/base/training/`, encoding the staged PNG
+as the WebP the handbook ships - a sheet sized to fill the Lessons pane is
+megabytes lossless and about 150 KB encoded.
+
 Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot
 frames, which puts timing and framing in different files - and they drift. A

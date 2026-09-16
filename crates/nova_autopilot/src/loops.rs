@@ -206,9 +206,84 @@ impl LoopProfile {
     }
 }
 
+/// The grid a recorded loop is tiled into when its product is a sprite sheet.
+///
+/// A SHEET IS A LOOP WITH A LENGTH. Nothing in a PNG says where its cells are,
+/// so whoever draws the sheet and whoever cuts it have to agree on the grid;
+/// this is the capture half of that agreement, and the consumer's half is
+/// authored beside the art (the training handbook's lessons author
+/// `columns`/`rows`/`frames` on the lesson itself). The grid is therefore also
+/// the loop's LENGTH: a sheet records exactly [`SheetGrid::frames`] frames and
+/// closes itself, rather than recording whatever the script happened to hold
+/// for and tiling a short set.
+///
+/// The cells are filled in recording order, left to right and top to bottom -
+/// ffmpeg's `tile` order, and the order every cutter reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SheetGrid {
+    /// Cells across.
+    pub columns: u32,
+    /// Cells down.
+    pub rows: u32,
+    /// Pixel size of ONE cell. Every recorded frame is scaled to this, so the
+    /// capture window's aspect should match it or the scale will squash.
+    pub cell: (u32, u32),
+}
+
+impl SheetGrid {
+    /// How many frames fill the grid - the loop's length, and the frame count
+    /// the sheet closes itself at.
+    pub fn frames(&self) -> u32 {
+        self.columns * self.rows
+    }
+
+    /// Check what a tiler cannot work around: an empty grid or a zero cell.
+    /// The error NAMES the field, because this is read while a caller is
+    /// writing the grid.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.columns == 0 || self.rows == 0 {
+            return Err(format!(
+                "sheet grid {}x{} has no cells",
+                self.columns, self.rows
+            ));
+        }
+        if self.cell.0 == 0 || self.cell.1 == 0 {
+            return Err(format!("sheet cell {:?} has a zero dimension", self.cell));
+        }
+        Ok(())
+    }
+}
+
+/// What a closed loop becomes.
+///
+/// One recorder, one drain, one frame cap: the only thing that differs between
+/// a documentation loop and a sprite sheet is what the staged frames are
+/// encoded into at the end, so it is the only thing this splits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoopOutput {
+    /// A VP9 webm at the profile's output resolution - what the docs fleet
+    /// captures. Closed by [`loop_end`].
+    Webm,
+    /// One PNG sprite sheet on this grid. Closes itself at the grid's frame
+    /// count; [`LoopProfile::output_resolution`] plays no part, because the
+    /// grid's own cell size is the scale.
+    Sheet(SheetGrid),
+}
+
+impl Default for LoopOutput {
+    fn default() -> Self {
+        Self::Webm
+    }
+}
+
 /// The webm file name a loop acks and writes: `<name>.webm`.
 pub fn loop_file_name(name: &str) -> String {
     format!("{name}.webm")
+}
+
+/// The PNG file name a sheet acks and writes: `<name>.png`.
+pub fn sheet_file_name(name: &str) -> String {
+    format!("{name}.png")
 }
 
 /// Where a loop's numbered staging frames go, under the shot dir.
@@ -246,6 +321,8 @@ pub struct LoopRecorder {
     requested: u32,
     /// Frames whose PNG write has completed.
     written: u32,
+    /// What the open loop's frames become when it closes.
+    output: LoopOutput,
     /// Whether the collector has reported done (guards double reporting).
     reported_done: bool,
 }
@@ -254,7 +331,7 @@ impl LoopRecorder {
     /// Open the loop `name`, staging into `staging`. Clears any stale frames
     /// from an earlier run of the same loop - leftovers past this run's
     /// frame count would otherwise be encoded into the tail of the webm.
-    fn start(&mut self, name: &str, staging: PathBuf) -> Result<(), String> {
+    fn start(&mut self, name: &str, staging: PathBuf, output: LoopOutput) -> Result<(), String> {
         if name.is_empty() || name.contains(['/', '\\']) {
             return Err(format!(
                 "loop capture: `{name}` is not a loop name (empty or contains a path separator)"
@@ -274,6 +351,7 @@ impl LoopRecorder {
                 self.staging = staging;
                 self.requested = 0;
                 self.written = 0;
+                self.output = output;
                 Ok(())
             }
             LoopPhase::Recording(open) | LoopPhase::Draining(open) => Err(format!(
@@ -290,6 +368,14 @@ impl LoopRecorder {
     fn end(&mut self, name: &str) -> Result<(), String> {
         match &self.phase {
             LoopPhase::Recording(open) if open == name => {
+                if let LoopOutput::Sheet(grid) = self.output {
+                    return Err(format!(
+                        "loop capture: loop_end(\"{name}\") on a sheet - a sheet closes \
+                         itself at its own {} frames; hold on sheet_written(\"{name}\") \
+                         instead",
+                        grid.frames()
+                    ));
+                }
                 if self.requested == 0 {
                     return Err(format!(
                         "loop capture: loop_end(\"{name}\") with zero frames recorded"
@@ -393,9 +479,57 @@ pub fn loop_start(world: &mut World, name: &str) {
         return;
     }
     let staging = staging_dir(name);
-    let result = world.resource_mut::<LoopRecorder>().start(name, staging);
+    let result = world
+        .resource_mut::<LoopRecorder>()
+        .start(name, staging, LoopOutput::Webm);
     match result {
         Ok(()) => info!("loop capture: `{name}` opens"),
+        Err(message) => fail(world, &message),
+    }
+}
+
+/// Open the sprite sheet `name` on `grid` from a step's `on_enter`, then let the
+/// beats that follow play the motion. A no-op on the smoke path.
+///
+/// There is no `sheet_end`: the grid is the length, so the recorder stops at
+/// [`SheetGrid::frames`] frames, tiles them and acks `<name>.png` on its own.
+/// The closing step holds on
+/// [`sheet_written`](crate::predicate::sheet_written), which is an await of
+/// that ack.
+///
+/// The frames are one per RENDERED frame at [`LoopProfile::fps`], so a grid of
+/// twelve at twelve fps is one second of game time - and a sheet is played back
+/// on a cycle, so the motion under it has to close: capture a period (an orbit,
+/// a sweep, a pulse), not a one-way move that jump-cuts on the wrap.
+///
+/// Requires [`LoopCapturePlugin`]; an armed run without it is a hard failure
+/// rather than a silently unrecorded sheet.
+pub fn sheet_start(world: &mut World, name: &str, grid: SheetGrid) {
+    if !capture::capturing() {
+        return;
+    }
+    if world.get_resource::<LoopRecorder>().is_none() {
+        fail(
+            world,
+            &format!("loop capture: sheet_start(\"{name}\") without LoopCapturePlugin"),
+        );
+        return;
+    }
+    if let Err(message) = grid.validate() {
+        fail(world, &format!("loop capture: `{name}` {message}"));
+        return;
+    }
+    let staging = staging_dir(name);
+    let result = world
+        .resource_mut::<LoopRecorder>()
+        .start(name, staging, LoopOutput::Sheet(grid));
+    match result {
+        Ok(()) => info!(
+            "loop capture: sheet `{name}` opens, {} frames on a {}x{} grid",
+            grid.frames(),
+            grid.columns,
+            grid.rows
+        ),
         Err(message) => fail(world, &message),
     }
 }
@@ -473,6 +607,14 @@ fn loop_capture_drive(world: &mut World) {
                 );
                 return;
             }
+            // A sheet is its own length: once the grid is full, stop asking
+            // for frames and drain. Nothing in the script counts them.
+            if let LoopOutput::Sheet(grid) = world.resource::<LoopRecorder>().output {
+                if world.resource::<LoopRecorder>().requested >= grid.frames() {
+                    world.resource_mut::<LoopRecorder>().phase = LoopPhase::Draining(name);
+                    return;
+                }
+            }
             let frame = {
                 let mut recorder = world.resource_mut::<LoopRecorder>();
                 recorder.requested += 1;
@@ -494,9 +636,19 @@ fn loop_capture_drive(world: &mut World) {
             }
             let profile = *world.resource::<LoopProfile>();
             let staging = world.resource::<LoopRecorder>().staging.clone();
-            let file = loop_file_name(&name);
+            let kind = world.resource::<LoopRecorder>().output;
+            let file = match kind {
+                LoopOutput::Webm => loop_file_name(&name),
+                LoopOutput::Sheet(_) => sheet_file_name(&name),
+            };
             let output = capture::capture_path(&file);
-            match encode_frames("ffmpeg", &profile, &staging, &output) {
+            let encoded = match kind {
+                LoopOutput::Webm => encode_frames("ffmpeg", &profile, &staging, &output),
+                LoopOutput::Sheet(grid) => {
+                    tile_frames("ffmpeg", &grid, requested, &staging, &output)
+                }
+            };
+            match encoded {
                 Ok(()) => {
                     if let Err(error) = std::fs::remove_dir_all(&staging) {
                         warn!("loop capture: could not clean staging {staging:?}: {error}");
@@ -593,6 +745,61 @@ fn encode_args(profile: &LoopProfile, staging: &Path, output: &Path) -> Vec<std:
     args
 }
 
+/// The full ffmpeg argument list for one sheet tile: numbered staging PNGs in,
+/// one PNG of `grid.columns` x `grid.rows` cells out, each frame scaled to
+/// `grid.cell`.
+///
+/// `-frames:v 1` because `tile` emits one output frame per FULL grid: without
+/// it a run that somehow staged more than the grid holds would write a second
+/// image over the first. Split from [`tile_frames`] so the command line is
+/// assertable without running anything.
+fn sheet_args(grid: &SheetGrid, staging: &Path, output: &Path) -> Vec<std::ffi::OsString> {
+    let input = staging.join("frame_%05d.png");
+    vec![
+        "-y".into(),
+        "-start_number".into(),
+        "1".into(),
+        "-i".into(),
+        input.into_os_string(),
+        "-vf".into(),
+        format!(
+            "scale={}:{}:flags=lanczos,tile={}x{}",
+            grid.cell.0, grid.cell.1, grid.columns, grid.rows
+        )
+        .into(),
+        "-frames:v".into(),
+        "1".into(),
+        "-pix_fmt".into(),
+        "rgb24".into(),
+        output.as_os_str().to_os_string(),
+    ]
+}
+
+/// Tile the staged frames into one sprite sheet, blocking until ffmpeg exits.
+///
+/// A short set is refused BEFORE ffmpeg runs: `tile` pads a partial grid with
+/// black rather than failing, so a sheet that recorded eleven of twelve frames
+/// would ship a black twelfth cell that flickers once a second on a screen
+/// nobody is looking at closely. The recorder closes a sheet at exactly the
+/// grid's count, so this is a guard on that, not a path a script can take.
+fn tile_frames(
+    ffmpeg: &str,
+    grid: &SheetGrid,
+    recorded: u32,
+    staging: &Path,
+    output: &Path,
+) -> Result<(), String> {
+    if recorded != grid.frames() {
+        return Err(format!(
+            "a {}x{} sheet needs exactly {} frames, {recorded} were staged",
+            grid.columns,
+            grid.rows,
+            grid.frames()
+        ));
+    }
+    run_ffmpeg(ffmpeg, sheet_args(grid, staging, output), output)
+}
+
 /// Run `ffmpeg` over the staging frames, blocking until it exits. A launch
 /// failure (the binary is not on PATH) and a nonzero exit are both errors
 /// carrying ffmpeg's own output; so is an exit that left no file behind.
@@ -602,6 +809,13 @@ fn encode_frames(
     staging: &Path,
     output: &Path,
 ) -> Result<(), String> {
+    run_ffmpeg(ffmpeg, encode_args(profile, staging, output), output)
+}
+
+/// The shared half of both encodes: make the output's directory, run ffmpeg
+/// with the given argument list, and turn a launch failure, a nonzero exit or
+/// a missing file into a named error.
+fn run_ffmpeg(ffmpeg: &str, args: Vec<std::ffi::OsString>, output: &Path) -> Result<(), String> {
     if let Some(parent) = output.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)
@@ -609,7 +823,7 @@ fn encode_frames(
         }
     }
     let result = Command::new(ffmpeg)
-        .args(encode_args(profile, staging, output))
+        .args(args)
         .output()
         .map_err(|error| format!("could not run `{ffmpeg}`: {error} (is ffmpeg installed?)"))?;
     if !result.status.success() {
@@ -683,7 +897,7 @@ mod tests {
         let staging = temp_staging(tag);
         app.world_mut()
             .resource_mut::<LoopRecorder>()
-            .start(name, staging)
+            .start(name, staging, LoopOutput::Webm)
             .expect("the loop opens from idle");
     }
 
@@ -699,11 +913,15 @@ mod tests {
         );
 
         recorder
-            .start("first", temp_staging("transitions"))
+            .start("first", temp_staging("transitions"), LoopOutput::Webm)
             .expect("a loop opens from idle");
         assert!(
             recorder
-                .start("second", temp_staging("transitions-second"))
+                .start(
+                    "second",
+                    temp_staging("transitions-second"),
+                    LoopOutput::Webm
+                )
                 .unwrap_err()
                 .contains("`first` is still open"),
             "a second start while one is open names the open loop"
@@ -728,11 +946,15 @@ mod tests {
     #[test]
     fn a_loop_name_is_not_a_path_and_a_loop_is_not_empty() {
         let mut recorder = LoopRecorder::default();
-        assert!(recorder.start("", temp_staging("empty")).is_err());
-        assert!(recorder.start("a/b", temp_staging("slash")).is_err());
+        assert!(recorder
+            .start("", temp_staging("empty"), LoopOutput::Webm)
+            .is_err());
+        assert!(recorder
+            .start("a/b", temp_staging("slash"), LoopOutput::Webm)
+            .is_err());
 
         recorder
-            .start("ok", temp_staging("zero-frames"))
+            .start("ok", temp_staging("zero-frames"), LoopOutput::Webm)
             .expect("a valid name opens");
         assert!(
             recorder.end("ok").unwrap_err().contains("zero frames"),
@@ -750,7 +972,9 @@ mod tests {
         std::fs::write(&stale, b"stale").unwrap();
 
         let mut recorder = LoopRecorder::default();
-        recorder.start("fresh", staging.clone()).unwrap();
+        recorder
+            .start("fresh", staging.clone(), LoopOutput::Webm)
+            .unwrap();
 
         assert!(staging.exists(), "the staging dir itself is recreated");
         assert!(!stale.exists(), "the stale frame is gone");
@@ -1050,6 +1274,180 @@ mod tests {
         }
     }
 
+    /// A sheet is a loop with a LENGTH: the driver stops asking for frames at
+    /// the grid's own count and drains, without the script counting anything.
+    #[test]
+    fn a_sheet_closes_itself_at_the_grids_frame_count() {
+        let mut app = armed_app();
+        completion::register(&mut app, completion::AUTOPILOT);
+        let grid = SheetGrid {
+            columns: 2,
+            rows: 2,
+            cell: (240, 135),
+        };
+        // Through the recorder, like `open_loop`: `sheet_start` is behind the
+        // arming gate, and the test binary is unarmed by construction.
+        app.world_mut()
+            .resource_mut::<LoopRecorder>()
+            .start(
+                "orbit",
+                temp_staging("sheet-driver"),
+                LoopOutput::Sheet(grid),
+            )
+            .expect("the sheet opens from idle");
+
+        for _ in 0..grid.frames() {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<LoopRecorder>().requested,
+            grid.frames(),
+            "the grid's four cells are four recorded frames"
+        );
+        assert_eq!(
+            app.world().resource::<LoopRecorder>().phase,
+            LoopPhase::Recording("orbit".into()),
+            "the frame that fills the grid is still a recording frame"
+        );
+
+        app.update();
+        assert_eq!(
+            app.world().resource::<LoopRecorder>().requested,
+            grid.frames(),
+            "a full grid asks for no further frames"
+        );
+        assert_eq!(
+            app.world().resource::<LoopRecorder>().phase,
+            LoopPhase::Draining("orbit".into()),
+            "the sheet closes itself"
+        );
+        assert!(exits(&mut app).is_empty(), "closing itself is not an exit");
+    }
+
+    /// ...so `loop_end` on one is an authoring mistake, and the error says
+    /// which call to hold on instead rather than just refusing.
+    #[test]
+    fn ending_a_sheet_by_hand_points_at_the_predicate_to_hold_on() {
+        let mut recorder = LoopRecorder::default();
+        recorder
+            .start(
+                "sweep",
+                temp_staging("sheet-end"),
+                LoopOutput::Sheet(SheetGrid {
+                    columns: 4,
+                    rows: 3,
+                    cell: (240, 135),
+                }),
+            )
+            .expect("a sheet opens from idle");
+        recorder.requested = 12;
+
+        let error = recorder.end("sweep").unwrap_err();
+        assert!(
+            error.contains("12 frames") && error.contains("sheet_written(\"sweep\")"),
+            "the error names the length and the call that waits for it: {error}"
+        );
+        assert_eq!(
+            recorder.phase,
+            LoopPhase::Recording("sweep".into()),
+            "a refused end leaves the sheet recording"
+        );
+    }
+
+    /// Validation names the field a caller got wrong, the same way the
+    /// profile's does - an empty grid or a zero cell is not a sheet.
+    #[test]
+    fn a_zero_valued_sheet_grid_is_rejected_by_name() {
+        let handbook = SheetGrid {
+            columns: 4,
+            rows: 3,
+            cell: (240, 135),
+        };
+        handbook.validate().expect("the handbook grid is valid");
+        assert_eq!(handbook.frames(), 12, "the grid IS the frame count");
+
+        let cases = [
+            (
+                SheetGrid {
+                    rows: 0,
+                    ..handbook
+                },
+                "no cells",
+            ),
+            (
+                SheetGrid {
+                    cell: (240, 0),
+                    ..handbook
+                },
+                "zero dimension",
+            ),
+        ];
+        for (grid, complaint) in cases {
+            let error = grid.validate().unwrap_err();
+            assert!(
+                error.contains(complaint),
+                "{error} does not say {complaint}"
+            );
+        }
+    }
+
+    /// The tile command is the documented one: every staged frame scaled to
+    /// the cell, tiled in recording order, one image out.
+    #[test]
+    fn the_tile_command_scales_each_frame_and_emits_one_image() {
+        let line = sheet_args(
+            &SheetGrid {
+                columns: 4,
+                rows: 3,
+                cell: (240, 135),
+            },
+            Path::new("/stage/helm"),
+            Path::new("/art/helm.png"),
+        )
+        .iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+        assert!(line.contains("/stage/helm/frame_%05d.png"));
+        assert!(line.contains("scale=240:135:flags=lanczos,tile=4x3"));
+        assert!(
+            line.contains("-frames:v 1"),
+            "a sheet is ONE image, however many frames staged: {line}"
+        );
+        assert!(line.ends_with("/art/helm.png"));
+        assert_eq!(sheet_file_name("helm"), "helm.png");
+    }
+
+    /// A short set is refused BEFORE ffmpeg runs, because `tile` would pad the
+    /// grid with black rather than fail: the unreachable ffmpeg path here is
+    /// the proof that it never launched.
+    #[test]
+    fn a_short_set_is_refused_before_ffmpeg_runs() {
+        let staging = temp_staging("short-sheet");
+        let grid = SheetGrid {
+            columns: 4,
+            rows: 3,
+            cell: (240, 135),
+        };
+        let error = tile_frames(
+            "/nonexistent/ffmpeg-for-the-sheet-test",
+            &grid,
+            11,
+            &staging,
+            &staging.join("out.png"),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("exactly 12 frames") && error.contains("11 were staged"),
+            "the error names both counts: {error}"
+        );
+        assert!(
+            !error.contains("could not run"),
+            "the guard runs before ffmpeg is launched: {error}"
+        );
+    }
+
     /// The collector negotiates: idle at run completion reports done exactly
     /// once and the watcher exits Success.
     #[test]
@@ -1077,7 +1475,8 @@ mod tests {
 /// The loop calls, their plugin, the capture profile and its defaults.
 pub mod prelude {
     pub use super::{
-        loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopProfile, LoopRecorder,
-        LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
+        loop_end, loop_file_name, loop_start, sheet_file_name, sheet_start, LoopCapturePlugin,
+        LoopProfile, LoopRecorder, SheetGrid, LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
+        LOOP_RESOLUTION,
     };
 }

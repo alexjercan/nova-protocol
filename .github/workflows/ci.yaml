@@ -318,11 +318,20 @@ jobs:
             examples: >-
               screenshot_flip_burn screenshot_goto_burn screenshot_orbit
               loop_cockpit loop_goto_arrival loop_goto_standoff
-              loop_helm_orders loop_player_flight system_attitude_hold
+              loop_helm_orders loop_player_flight docking_approach
+              system_docking_ports system_attitude_hold
               system_flight_legs system_gravity_wells system_helm_orders
               system_turn_limit system_thrust_and_plume system_player_path
               system_cinematic system_scenario_grammar system_outcomes
               system_ship_audio first_shift_map
+          # The training handbook: the screens a new player is sent to first,
+          # the journey through them, and the producers that record the
+          # lessons' own demonstrations. Not yet measured.
+          - shard: training
+            examples: >-
+              screenshot_training screenshot_loading_fact
+              system_training_journey lesson_flight_aim lesson_combat_radar
+              lesson_build_sections
           # Everything a generator makes before a scenario picks it up:
           # asteroids, planets, greebles, WFC ships, thrusters. 867 s.
           - shard: worldgen

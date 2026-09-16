@@ -14,21 +14,35 @@ the grid `crates/nova_authoring/src/base_content/lessons.rs` authors - carrying
 one second of periodic motion, so the frame the screen cuts out genuinely
 animates instead of flickering between two stills.
 
+That is a QUARTER of the size captured footage ships at, and deliberately so:
+this art is drawn a pixel at a time in Python, and the screen it imitates is a
+low-resolution CRT. The grid is what the game cuts on, not the cell size, so a
+placeholder and a capture sit at the same path on the same lesson.
+
 Overwrite any generated file with real art at the same path and no code change
-is needed, the same contract the scenario thumbnails have. The grid must keep
-matching the authored `columns`/`rows`/`frames`, and `--check` is what proves
-that: it re-renders every sheet in memory and compares byte for byte, so a
-stale commit or a non-deterministic edit fails instead of silently drifting.
+is needed, the same contract the scenario thumbnails have - and REAL ART WINS:
+a file that is not this generator's own output is left exactly as it is, by
+both modes. That is what makes `scripts/capture-lesson-media.sh` safe to run
+against the same paths; a re-run of this generator cannot quietly replace
+captured footage with a placeholder again.
+
+The grid must keep matching the authored `columns`/`rows`/`frames`, and
+`--check` is what proves that for the lessons still on placeholders: it
+re-renders every sheet in memory and compares pixels, so a stale commit
+or a non-deterministic edit fails instead of silently drifting.
 
 Run from anywhere (paths are resolved from this file):
 
-    python3 scripts/gen-lesson-media.py            # write every PNG
+    python3 scripts/gen-lesson-media.py            # write every demonstration
     python3 scripts/gen-lesson-media.py --check    # verify, write nothing
 
-Stdlib only (no Pillow), like its sibling generators: the raster, the 5x7
-bitmap font and the PNG encoder are imported from
+The raster, the 5x7 bitmap font and the drawing primitives are imported from
 `scripts/gen-scenario-thumbnails.py` rather than copied, so the two sets of
-placeholder art cannot drift into two different looks.
+placeholder art cannot drift into two different looks. The one thing this does
+not do in Python is the file format: a lesson demonstration is WEBP (see
+`lessons.rs`), so the finished raster goes through ffmpeg as LOSSLESS WebP -
+which is also what lets `--check` compare pixels instead of file bytes, and so
+survive a different libwebp.
 """
 
 import argparse
@@ -37,6 +51,7 @@ import importlib.util
 import math
 import os
 import random
+import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -51,7 +66,6 @@ _THUMBS = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_THUMBS)
 
 Frame = _THUMBS.Frame
-encode_png = _THUMBS.encode_png
 draw_glyph_line = _THUMBS.draw_glyph_line
 glyph_mask = _THUMBS.glyph_mask
 layout_title = _THUMBS.layout_title
@@ -72,8 +86,8 @@ CELL_W, CELL_H = 240, 135
 COLUMNS, ROWS, FRAMES = 4, 3, 12
 
 # Every base lesson: (lesson id, screen title, "still" or "loop"). The output
-# path is `assets/base/training/<id>.png` for all of them, listed in
-# `assets/base/base.bundle.ron` and referenced as `self://training/<id>.png`.
+# path is `assets/base/training/<id>.webp` for all of them, listed in
+# `assets/base/base.bundle.ron` and referenced as `self://training/<id>.webp`.
 LESSONS = [
     ("start_welcome", "How training works", "still"),
     ("start_hud", "Reading the HUD", "still"),
@@ -281,59 +295,112 @@ def render_loop(lesson_id, title):
     return sheet.bytes()
 
 
-def encoded(lesson_id, title, kind):
-    """The exact PNG file bytes for one lesson, without touching the disk."""
+def raster(lesson_id, title, kind):
+    """One lesson's finished art as (width, height, RGBA bytes)."""
     if kind == "still":
-        return encode_png(STILL_W, STILL_H, render_still(lesson_id, title))
-    return encode_png(CELL_W * COLUMNS, CELL_H * ROWS, render_loop(lesson_id, title))
+        return STILL_W, STILL_H, render_still(lesson_id, title)
+    return CELL_W * COLUMNS, CELL_H * ROWS, render_loop(lesson_id, title)
+
+
+def ffmpeg(args, stdin=None):
+    """Run ffmpeg over a pipe, or say which tool is missing."""
+    try:
+        done = subprocess.run(["ffmpeg", "-v", "error", *args],
+                              input=stdin, stdout=subprocess.PIPE, check=True)
+    except FileNotFoundError:
+        print("!! ffmpeg is not on PATH - run inside `nix develop`", file=sys.stderr)
+        raise SystemExit(1)
+    return done.stdout
+
+
+def encoded(lesson_id, title, kind):
+    """The exact WebP file bytes for one lesson, without touching the disk.
+
+    LOSSLESS: this art is flat phosphor drawing, where lossy chroma would eat
+    the one-pixel scanlines and the type. Lossy WebP is for the captured
+    footage (`scripts/capture-lesson-media.sh`), which is photographic."""
+    width, height, pixels = raster(lesson_id, title, kind)
+    return ffmpeg(["-f", "rawvideo", "-pix_fmt", "rgba",
+                   "-s", f"{width}x{height}", "-i", "-",
+                   "-c:v", "libwebp", "-lossless", "1", "-pix_fmt", "bgra",
+                   "-f", "webp", "-"], stdin=pixels)
+
+
+def decoded(path):
+    """The committed file as raw RGBA, or `None` if it will not decode."""
+    try:
+        return ffmpeg(["-i", path, "-f", "rawvideo", "-pix_fmt", "rgba", "-"])
+    except subprocess.CalledProcessError:
+        return None
 
 
 def path_of(lesson_id):
-    return os.path.join(REPO_ROOT, "assets", "base", "training", f"{lesson_id}.png")
+    return os.path.join(REPO_ROOT, "assets", "base", "training", f"{lesson_id}.webp")
 
 
 def is_generated_placeholder(lesson_id, title, kind):
-    """True when the committed file is still exactly this generator's output.
+    """True when the committed file still draws exactly this generator's art.
 
     How the advisory coverage report tells a placeholder from real art without
-    a marker file: real art overwrites the same path and stops matching."""
-    try:
-        with open(path_of(lesson_id), "rb") as handle:
-            return handle.read() == encoded(lesson_id, title, kind)
-    except OSError:
+    a marker file: real art overwrites the same path and stops matching.
+
+    PIXELS, not file bytes. The comparison has to survive a libwebp that packs
+    the same image differently, and a lossless format is what makes comparing
+    the decode exact."""
+    path = path_of(lesson_id)
+    if not os.path.exists(path):
         return False
+    _, _, pixels = raster(lesson_id, title, kind)
+    return decoded(path) == pixels
 
 
 def check():
-    stale, missing = [], []
+    """Placeholders must match a fresh render; captured footage is left alone.
+
+    A file that differs from a fresh render is REAL ART, not a stale
+    placeholder: the capture producers write the same paths, so "differs" is
+    how this tells the two apart (`is_generated_placeholder`). Only a missing
+    file is a failure - there is nothing on the screen for that lesson."""
+    missing, captured = [], []
     for lesson_id, title, kind in LESSONS:
         path = path_of(lesson_id)
         if not os.path.exists(path):
             missing.append(lesson_id)
-            continue
-        with open(path, "rb") as handle:
-            if handle.read() != encoded(lesson_id, title, kind):
-                stale.append(lesson_id)
+        elif not is_generated_placeholder(lesson_id, title, kind):
+            captured.append(lesson_id)
     for lesson_id in missing:
-        print(f"  MISSING  assets/base/training/{lesson_id}.png")
-    for lesson_id in stale:
-        print(f"  STALE    assets/base/training/{lesson_id}.png (differs from a fresh render)")
-    if missing or stale:
-        print(f"\n{len(missing) + len(stale)} of {len(LESSONS)} lesson demonstration(s) out of "
-              "date - run scripts/gen-lesson-media.py", file=sys.stderr)
+        print(f"  MISSING  assets/base/training/{lesson_id}.webp")
+    for lesson_id in captured:
+        print(f"  CAPTURED assets/base/training/{lesson_id}.webp (real footage, not regenerated)")
+    if missing:
+        print(f"\n{len(missing)} of {len(LESSONS)} lesson demonstration(s) missing - "
+              "run scripts/gen-lesson-media.py", file=sys.stderr)
         return 1
-    print(f"{len(LESSONS)} lesson demonstration(s) match a fresh render (byte for byte).")
+    drawn = len(LESSONS) - len(captured)
+    print(f"{drawn} placeholder(s) match a fresh render (pixel for pixel); "
+          f"{len(captured)} captured.")
     return 0
 
 
 def generate():
+    """Draw a placeholder for every lesson that is still on one.
+
+    Captured footage is NEVER overwritten: a lesson whose file is not this
+    generator's own output is real art, and redrawing it would undo a capture
+    run. Delete the file to go back to a placeholder."""
     os.makedirs(os.path.join(REPO_ROOT, "assets", "base", "training"), exist_ok=True)
+    drawn, kept = 0, []
     for lesson_id, title, kind in LESSONS:
-        with open(path_of(lesson_id), "wb") as handle:
+        path = path_of(lesson_id)
+        if os.path.exists(path) and not is_generated_placeholder(lesson_id, title, kind):
+            kept.append(lesson_id)
+            continue
+        with open(path, "wb") as handle:
             handle.write(encoded(lesson_id, title, kind))
-    stills = sum(1 for _, _, kind in LESSONS if kind == "still")
-    print(f"wrote {len(LESSONS)} lesson demonstration(s) to assets/base/training/ "
-          f"({stills} still, {len(LESSONS) - stills} loop)")
+        drawn += 1
+    print(f"wrote {drawn} placeholder demonstration(s) to assets/base/training/")
+    for lesson_id in kept:
+        print(f"  kept     assets/base/training/{lesson_id}.webp (captured footage)")
     return 0
 
 

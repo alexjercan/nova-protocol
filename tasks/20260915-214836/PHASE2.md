@@ -189,6 +189,9 @@ beside STOP and RCS with no GOTO or ORBIT.
   `<lesson id> - placeholder` under its title card. A loop carries its title
   and the motion only. It is deterministic and per-lesson, and real footage is
   owner work that drops onto the same 24 paths with no code change.
+  SUPERSEDED on 2026-09-16: three of them are real footage now, the
+  demonstrations are WebP rather than PNG, and the generator compares pixels
+  rather than file bytes. See the visuals line in `TASK.md`.
 - THE BROWSER RUN IS DONE. Built with Trunk, served, and driven with a real
   pointer through the main menu into the handbook and onto a Loop lesson:
   `captures/web-training-lessons.png` is the list, and

@@ -61,8 +61,8 @@ pub mod prelude {
         predicate::{
             and, any_entity, elapsed, frames, loop_written, or, pointer_at, pointer_at_node,
             pointer_hover_diagnosis, pointer_over_node, pointer_pressed, pointer_released,
-            resource_where, shot_written, state_is, ui_node_present, window_scale_factor_is,
-            window_size_is,
+            resource_where, sheet_written, shot_written, state_is, ui_node_present,
+            window_scale_factor_is, window_size_is,
         },
         // The logical key `press_edit_key` takes. Bevy's prelude carries
         // `KeyCode` - the PHYSICAL key - but not this one.
@@ -83,9 +83,9 @@ pub mod prelude {
             hide_status_bar, loop_end, loop_start, nova_autopilot, nova_os_app_owns_the_screen,
             nova_os_command_line_reads, nova_os_raster_open, nova_screenshot, player_ship_present,
             pose_camera, press_action, release_action, scenario_camera_present,
-            scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
-            LoopCapturePlugin, LoopProfile, BEAT_DEADLINE_SECS, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES,
-            SHOT_DEADLINE_SECS, STEP_DEADLINE_SECS,
+            scenario_variable_is, script_reports_done, section_gone, sheet_start, shoot,
+            CaptureLog, LoopCapturePlugin, LoopProfile, SheetGrid, BEAT_DEADLINE_SECS,
+            NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS, STEP_DEADLINE_SECS,
         },
         DebugPlugin,
     };
