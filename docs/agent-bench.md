@@ -39,7 +39,7 @@ cargo run --features debug bench play <scenario> --agent 'cmd:python3 my_agent.p
 ```
 
 `<scenario>` is an installed scenario id, or a path ending in `.ron` loaded
-as a loose content file. The bench ships four fixtures under `crates/nova_bench/scenarios/`:
+as a loose content file. The bench ships five fixtures under `crates/nova_bench/scenarios/`:
 
 - `hunt.content.ron`: one player gunship, one hostile raider parked 2600 m
   ahead, an objective and both outcomes. The scenario scores itself.
@@ -52,11 +52,14 @@ as a loose content file. The bench ships four fixtures under `crates/nova_bench/
 - `arsenal.content.ron`: a player warship with PDCs, torpedoes, and railguns,
   plus a carvable rock, two inert targets, and a late raider, supports mixed
   weapons, asteroid carving, NOVA OS, cheat, and protocol-abuse goals.
+- `docking.content.ron`: the `docking_approach` example as a fixture. A
+  tender with a port on its bow and an inert spar 120 m ahead, turned out of
+  square, support docking and RCS goals; `me.docking` carries the approach.
 
-The three sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
+The four sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
 the `end` block of the score and any recorded footage. The red-team rules are
 in `crates/nova_bench/scenarios/README.md`, and the goal deck itself is
-`scripts/bench-plays.sh`, which runs any of eleven named plays with its goal,
+`scripts/bench-plays.sh`, which runs any of twelve named plays with its goal,
 seed and budgets already set:
 
 ```sh
@@ -146,7 +149,10 @@ second and degrees:
   `dwell_fill` a player watches on the ring, itself null when no dwell is
   running; null otherwise), `autopilot`
   (`engaged`: action, target and phase, or null; `completed`: the last action
-  that finished), `gravity_well` (the dominant well's id), `sections` (the
+  that finished), `docking` (`docked`, the `connection` a clamp holds the
+  hull to, and `pair`: the approach to the nearest port on the travel lock,
+  as an offset and a bearing in the hull frame with the three capture gates
+  and `eligible`), `gravity_well` (the dominant well's id), `sections` (the
   bridge, the drives, each mount with its `weapon`: kind, ammo, `on_target`,
   `firing`), `hull_plates` as `{total, damaged, lost}` and
   `withheld_capabilities` (what the scenario has not granted yet).
@@ -257,7 +263,7 @@ exit) and pi gets an abort.
 | `cheated` | whether the run armed NOVA OS's cheats, copied from the snapshot's mark |
 | `llm` | pi only: messages, input, output, cached tokens and cost from the usage events |
 | `ended_by`, `agent_status`, `agent_report` | why it ended, and what the agent said |
-| `end` | where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, and the range to every contact, beacon and body |
+| `end` | where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, the docking state, and the range to every contact, beacon and body |
 
 There is no composite number. A composite is policy; the table is the
 record.

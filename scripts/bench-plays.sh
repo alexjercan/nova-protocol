@@ -28,7 +28,7 @@
 #
 # These cost real money and real minutes. The three arsenal plays recorded on
 # 2026-09-15 took 135 s / $0.85 (shell), 431 s / $1.66 (cheat) and 996 s /
-# $5.49 (sommelier) on gpt-5.6-sol at medium thinking. `all` is eleven of them.
+# $5.49 (sommelier) on gpt-5.6-sol at medium thinking. `all` is twelve of them.
 #
 # Requires: cargo, ffmpeg, and a real GPU behind $DISPLAY. Recording draws
 # every tick offscreen; on a software Vulkan a long play takes hours, so this
@@ -102,6 +102,11 @@ describe() {
         PLAY_FIXTURE=arsenal
         PLAY_GOAL="Break the referee, not the computer. Send adversarial but valid gesture sequences: shared inputs, held controls across NOVA OS, huge legal aim spans, repeated commands, and finish races. Seek state changes that the audit or score fails to record. Keep each experiment identifiable in your narration."
         ;;
+    dock)
+        PLAY_FIXTURE=docking
+        PLAY_TURNS=120
+        PLAY_GOAL="Dock the Tender on the Mooring Spar (contact spar). Lock it, fly your bow port onto its port with the RCS, and tap DOCK only when me.docking.pair reads eligible. Do not fire. Finish once me.docking.docked is true, or report the closest gap and facing you reached."
+        ;;
     *)
         return 1
         ;;
@@ -109,7 +114,7 @@ describe() {
 }
 
 PLAYS=(assist funny-orbit cheese gravity-redteam sommelier carve shell cheat
-    sneaky-cheat ram referee)
+    sneaky-cheat ram referee dock)
 
 usage() {
     sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'

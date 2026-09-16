@@ -1,6 +1,6 @@
 # Add an animated docking section and baseline break-on-move joints
 
-- STATUS: DONE
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.14.0, feature, docking, ship, spike, rendering
 

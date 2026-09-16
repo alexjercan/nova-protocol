@@ -1,0 +1,225 @@
+// The bench's docking approach: the `docking_approach` example as a loose
+// fixture, for a goal the referee is handed on the command line ("dock the
+// tender on the Mooring Spar") and bounded by the tick and wall-clock
+// budgets. Loaded loose, never installed:
+//   cargo run --features dev bench play crates/nova_bench/scenarios/docking.content.ron \
+//       --agent pi --goal "..." --ticks 14000
+// The only outcome is Defeat when the tender breaks up; nothing here shoots,
+// so that takes ramming the spar hard enough to shed sections.
+//
+// The furniture, all from the tender's spawn point facing -Z:
+//   - the tender: a docking port on the very bow (its face 25 m ahead of the
+//     hull's origin), a spine, two shoulder plates and one drive. The player
+//     flies it with the drive, the RCS and the DOCK key, all granted;
+//   - the Mooring Spar, 120 m ahead and a little up and to starboard, turned
+//     to face the tender and then deliberately put 18 degrees out of square
+//     (a yaw and a pitch). One port on its near end, nothing that flies, no
+//     controller. Its port face stands at about (27, 4, -96) m, so the two
+//     faces start 76 m apart - inside the 80 m the docking sight draws at;
+//   - the three-point rig around the spar, so the footage reads.
+// The capture envelope is the shipped port's: a 10 m face gap, 15 degrees
+// of facing, 5 m/s of relative speed. A hand-built pair of hulls, not
+// shipped content: both are catalog PROTOTYPE sections, the way the example
+// builds them.
+[
+    Scenario((
+        id: "bench_docking",
+        name: "Bench: Docking",
+        description: "A ported tender and the spar it docks with. No objective; the goal is yours.",
+        cubemap: "base/textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "approach_key",
+                            name: "Key Light",
+                            position: (-460.0, 408.0, 360.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+                            shadows: true,
+                            aim: Some((20.0, 8.0, -120.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "approach_rim",
+                            name: "Rim Light",
+                            position: (260.0, 328.0, -760.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((red: 0.72, green: 0.86, blue: 1.0, alpha: 1.0)),
+                            shadows: false,
+                            aim: Some((20.0, 8.0, -120.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "approach_fill",
+                            name: "Fill Light",
+                            position: (580.0, -152.0, 200.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((red: 0.62, green: 0.72, blue: 0.95, alpha: 1.0)),
+                            shadows: false,
+                            aim: Some((20.0, 8.0, -120.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Tender",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "dock_bow",
+                                        position: (0.0, 0.0, -2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "docking_port_section"),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (0.0, 0.0, -1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bridge",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "shoulder_port",
+                                        position: (-1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "light_hull_section"),
+                                    ),
+                                    (
+                                        id: "shoulder_starboard",
+                                        position: (1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "light_hull_section"),
+                                    ),
+                                    (
+                                        id: "drive",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (
+                                    skin: true,
+                                    style: Some("industrial"),
+                                    collapse_sound: Some("base/sounds/destroy_ship.wav"),
+                                    lock_on_sound: Some("base/sounds/lock_on.wav"),
+                                    lock_off_sound: Some("base/sounds/lock_off.wav"),
+                                    radar_deny_sound: Some("base/sounds/radar_deny.wav"),
+                                    radar_retarget_sound: Some("base/sounds/radar_retarget.wav"),
+                                    safety_on_sound: Some("base/sounds/safety_on.wav"),
+                                    warn_lock_sound: Some("base/sounds/warn_lock.wav"),
+                                    ammo_dry_sound: Some("base/sounds/ammo_dry.wav"),
+                                    warn_hull_sound: Some("base/sounds/warn_hull.wav"),
+                                    rcs_loop_sound: Some("base/sounds/rcs_loop.wav"),
+                                ),
+                            )),
+                            controller: Player((
+                                input_mapping: {},
+                                speed_cap: None,
+                            )),
+                        )),
+                    )),
+                    // Quat::from_rotation_y(PI + 0.28) * Quat::from_rotation_x(-0.16),
+                    // as (x, y, z, w): the half turn to face the tender, then the
+                    // yaw and the pitch that are the pilot's problem.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "spar",
+                            name: "Mooring Spar",
+                            position: (20.0, 8.0, -120.0),
+                            rotation: (0.011152, 0.987049, 0.079133, -0.139097),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "dock_fore",
+                                        position: (0.0, 0.0, -2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "docking_port_section"),
+                                    ),
+                                    (
+                                        id: "fore",
+                                        position: (0.0, 0.0, -1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "midships",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "aft",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "mast_high",
+                                        position: (0.0, 1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "light_hull_section"),
+                                    ),
+                                    (
+                                        id: "mast_low",
+                                        position: (0.0, -1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "light_hull_section"),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (
+                                    skin: true,
+                                    style: Some("industrial"),
+                                    collapse_sound: Some("base/sounds/destroy_ship.wav"),
+                                ),
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The tender broke up."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

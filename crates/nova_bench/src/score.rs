@@ -80,8 +80,8 @@ pub struct Score {
     /// The agent's own report, verbatim; data, never a score input.
     pub agent_report: Option<String>,
     /// Where things stood when the run ended, for a goal the scenario does
-    /// not score itself: the autopilot, the well, and the range to every
-    /// contact, beacon and body. See [`end_state`].
+    /// not score itself: the autopilot, the well, the docking state, and the
+    /// range to every contact, beacon and body. See [`end_state`].
     pub end: Value,
 }
 
@@ -120,6 +120,12 @@ fn end_row(end: &Value) -> Option<String> {
     if let Some(contact) = nearest(&end["contacts"], "distance_m") {
         parts.push(format!("contact {contact}"));
     }
+    if end["docking"]["docked"] == true {
+        let ship = end["docking"]["connection"]["ship"].as_str().unwrap_or("?");
+        parts.push(format!("docked {ship}"));
+    } else if let Some(gap) = end["docking"]["pair"]["gap_m"].as_f64() {
+        parts.push(format!("dock gap {gap:.0} m"));
+    }
     Some(parts.join(", "))
 }
 
@@ -130,7 +136,8 @@ fn list(value: &Value) -> Vec<Value> {
 
 /// The end state a reader grades an open goal against, cut from the last
 /// pilot's view: the helm (autopilot engaged and completed, the dominant
-/// well, speed) and the range to every contact, beacon and body.
+/// well, speed), the docking state, and the range to every contact, beacon
+/// and body.
 ///
 /// Pass a view condensed with `expand: ["all"]`: a summary view carries only
 /// the bodies the pilot was acting on, and an end state is read by a person
@@ -156,6 +163,7 @@ pub fn end_state(view: &Value) -> Value {
         "gravity_well": me["gravity_well"],
         "speed_mps": me["speed_mps"],
         "travel_lock": me["travel_lock"],
+        "docking": me["docking"],
         "contacts": ranges(&list(&view["contacts"]), &["distance_m", "defeated"]),
         "beacons": ranges(&list(&view["beacons"]), &["distance_m"]),
         "bodies": ranges(&bodies_of(view), &["surface_m", "radius_m"]),
@@ -391,6 +399,16 @@ mod tests {
         assert_eq!(end_row(&Value::Null), None);
         let manual = end_state(&json!({ "me": { "autopilot": { "engaged": null } } }));
         assert_eq!(end_row(&manual).unwrap(), "helm manual");
+        let docked = end_state(&json!({ "me": {
+            "autopilot": { "engaged": null },
+            "docking": { "docked": true, "connection": { "ship": "spar" }, "pair": null }
+        } }));
+        assert_eq!(end_row(&docked).unwrap(), "helm manual, docked spar");
+        let approaching = end_state(&json!({ "me": {
+            "autopilot": { "engaged": null },
+            "docking": { "docked": false, "connection": null, "pair": { "gap_m": 76.3 } }
+        } }));
+        assert_eq!(end_row(&approaching).unwrap(), "helm manual, dock gap 76 m");
     }
 
     fn world(health: f64, rounds: u64, raider_defeated: bool, objectives: &[&str]) -> Value {

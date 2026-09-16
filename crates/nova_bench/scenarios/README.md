@@ -31,6 +31,11 @@ appear in the scenario.
   two railguns. A carvable rock blocks an inert target barge, a carrier-sized
   ram target sits to port, and a raider wakes after 60 seconds. Use it for
   weapon choice, carving, NOVA OS commands, cheats, and destructive tests.
+- `docking.content.ron`: the `docking_approach` example as a fixture. A
+  tender with a bow port and an inert Mooring Spar 120 m ahead, turned 18
+  degrees out of square, with the RCS and DOCK granted. Use it for docking,
+  RCS and close-quarters tests. `me.docking` is the readout; the score's end
+  row says `docked spar` or the gap the run ended at.
 
 ## Goal deck
 
@@ -56,6 +61,7 @@ nix develop -c scripts/bench-plays.sh sommelier shell cheat
 | `sneaky-cheat` | arsenal | a cheat the score fails to mark |
 | `ram` | arsenal | a kill with zero ammunition |
 | `referee` | arsenal | valid gestures the audit or score fails to record |
+| `dock` | docking | a hand-flown RCS approach and a dock, no firing |
 
 The script pins fixture, goal, agent, model, thinking level, seed and budgets.
 It does not pin the run: the model is the other half and does not repeat

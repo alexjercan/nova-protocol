@@ -502,6 +502,7 @@ fn self_record(me: &Value, frame: Option<&Frame>) -> Value {
         "travel_lock": me["travel_lock"],
         "autopilot": me["autopilot"],
         "radar": me["radar"],
+        "docking": docking_view(&me["docking"], frame),
         "gravity_well": me["gravity_well"],
         "collapsing": me["collapsing"],
         "defeated": me["defeated"],
@@ -510,9 +511,66 @@ fn self_record(me: &Value, frame: Option<&Frame>) -> Value {
     })
 }
 
+/// The docking readout, in meters, degrees and meters per second: whether a
+/// clamp holds the hull and to whom, and - while a travel lock stands on a
+/// ported hull - the nearest pair of ports with the approach measured from
+/// the pilot's seat.
+///
+/// The snapshot gives the two faces and axes in world space; a pilot cannot
+/// fly a world-space vector, so the view turns them into the two numbers the
+/// controls answer to. `their_face_offset_m` is where the other port's face
+/// stands from your own port's face in YOUR hull frame, `[starboard, up,
+/// ahead]` - the frame the RCS pushes in. `align_bearing_deg` is where the
+/// nose has to point for a port on the bow to look straight down the other
+/// port's axis - the frame the helm turns in. `pair` is `null` with no lock,
+/// no free ports, or once either hull is docked.
+fn docking_view(docking: &Value, frame: Option<&Frame>) -> Value {
+    let pair = docking["pair"].as_object().map(|pair| {
+        let their_face = vec3(&pair["their_face"]);
+        let their_axis = vec3(&pair["their_axis"]);
+        let offset = sub(their_face, vec3(&pair["my_face"]));
+        let (offset_m, face_bearing, align_bearing) =
+            frame.map_or((Value::Null, Value::Null, Value::Null), |frame| {
+                let local = rotate(frame.inverse, offset);
+                (
+                    json!(scale([local[0], local[1], -local[2]])),
+                    json!(bearing(frame, sub(their_face, frame.position))),
+                    json!(bearing(
+                        frame,
+                        [-their_axis[0], -their_axis[1], -their_axis[2]]
+                    )),
+                )
+            });
+        json!({
+            "my_port": pair["my_port"],
+            "their_port": pair["their_port"],
+            "gap_m": meters(&pair["gap"]),
+            "capture_m": meters(&pair["capture_distance"]),
+            "their_face_offset_m": offset_m,
+            "their_face_bearing_deg": face_bearing,
+            "align_bearing_deg": align_bearing,
+            "facing_deg": tenth(&pair["facing_deg"]),
+            "capture_deg": tenth(&pair["capture_deg"]),
+            "relative_mps": meters(&pair["relative_speed"]),
+            "max_relative_mps": meters(&pair["maximum_relative_speed"]),
+            "relative_spin_dps": tenth(&pair["relative_spin_dps"]),
+            "max_relative_spin_dps": tenth(&pair["maximum_relative_spin_dps"]),
+            "gap_ok": pair["gap_holds"],
+            "facing_ok": pair["facing_holds"],
+            "motion_ok": pair["motion_holds"],
+            "eligible": pair["eligible"],
+        })
+    });
+    json!({
+        "docked": docking["docked"].as_bool().unwrap_or(false),
+        "connection": docking["connection"],
+        "pair": pair,
+    })
+}
+
 /// The capabilities the ship is not allowed to use right now, named as the
-/// scenario withheld them: `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`,
-/// `Stop`.
+/// scenario withheld them: `Dock`, `Goto`, `Lock`, `Orbit`, `PointDefense`,
+/// `Rcs`, `Stop`.
 ///
 /// A tutorial hands the capabilities over one lesson at a time, and a player
 /// sees that on the hint strip. Without it the pilot cannot tell "I pressed it
@@ -525,6 +583,7 @@ fn self_record(me: &Value, frame: Option<&Frame>) -> Value {
 /// which is the spawn default.
 fn withheld_capabilities(capabilities: &Value) -> Vec<Value> {
     [
+        ("dock", "Dock"),
         ("goto", "Goto"),
         ("lock", "Lock"),
         ("orbit", "Orbit"),
@@ -729,6 +788,21 @@ fn vec3(value: &Value) -> [f64; 3] {
         .unwrap_or([0.0; 3])
 }
 
+/// A snapshot scalar already in the pilot's unit (degrees, degrees per
+/// second), cut to the view's one decimal; `null` stays `null`.
+fn tenth(value: &Value) -> Value {
+    value
+        .as_f64()
+        .map_or(Value::Null, |value| json!(round1(value)))
+}
+
+/// One engine-unit scalar to meters, one decimal; `null` stays `null`.
+fn meters(value: &Value) -> Value {
+    value
+        .as_f64()
+        .map_or(Value::Null, |units| json!(round1(units * METERS_PER_UNIT)))
+}
+
 /// Engine units to meters, one decimal.
 fn scale(v: [f64; 3]) -> [f64; 3] {
     [
@@ -775,6 +849,24 @@ fn command_acks(applied: &Value) -> Vec<Value> {
 mod tests {
     use super::*;
 
+    /// The player's approach: a port on the bow, the other face 83 m off,
+    /// two up, one to starboard, looking straight back down the nose. Its own
+    /// `json!` because the fixture above it is already at the macro's
+    /// recursion limit.
+    fn docking() -> Value {
+        json!({
+            "docked": false, "connection": null,
+            "pair": {
+                "my_port": "dock_bow", "their_port": "dock_fore",
+                "my_face": [0, 0, -2.5], "my_axis": [0, 0, -1],
+                "their_face": [2, 1, -10.5], "their_axis": [0, 0, 1],
+                "gap": 8.3, "facing_deg": 0, "relative_speed": 2, "relative_spin_dps": 0,
+                "capture_distance": 1, "capture_deg": 15, "maximum_relative_speed": 0.5, "maximum_relative_spin_dps": 5,
+                "gap_holds": false, "facing_holds": true, "motion_holds": false, "eligible": false
+            }
+        })
+    }
+
     fn snapshot() -> Value {
         json!({
             "game_state": "Playing",
@@ -807,7 +899,8 @@ mod tests {
                         { "id": "hull", "class": "Hull", "health": { "current": 100, "max": 100 }, "alive": true, "disabled": false, "weapon": null },
                         { "id": "bridge", "class": "Controller", "health": { "current": 300, "max": 300 }, "alive": true, "disabled": false, "weapon": null }
                     ],
-                    "capabilities": { "stop": true, "goto": true, "orbit": false, "lock": false, "rcs": true, "point_defense": true }
+                    "capabilities": { "stop": true, "goto": true, "orbit": false, "lock": false, "rcs": true, "point_defense": true, "dock": true },
+                    "docking": docking()
                 },
                 {
                     "id": "raider_1", "name": "Raider", "controller": "AI", "allegiance": "Hostile",
@@ -843,6 +936,32 @@ mod tests {
 
     fn view() -> Value {
         condense(&snapshot(), &BTreeSet::new(), &[])
+    }
+
+    /// The approach as the RCS and the helm need it: the other face as an
+    /// offset in the hull frame, the bearing the nose must take, and every
+    /// distance and speed in meters.
+    #[test]
+    fn the_pilot_reads_the_docking_approach_in_the_hull_frame() {
+        let docking = &view()["me"]["docking"];
+        assert_eq!(docking["docked"], false);
+        let pair = &docking["pair"];
+        assert_eq!(pair["gap_m"], 83.0);
+        assert_eq!(pair["capture_m"], 10.0);
+        assert_eq!(pair["their_face_offset_m"], json!([20.0, 10.0, 80.0]));
+        assert_eq!(pair["their_face_bearing_deg"], json!([10.8, 5.3]));
+        assert_eq!(pair["align_bearing_deg"], json!([0.0, 0.0]));
+        assert_eq!(pair["relative_mps"], 20.0);
+        assert_eq!(pair["max_relative_mps"], 5.0);
+        assert_eq!(pair["facing_deg"], 0.0);
+        assert_eq!(pair["capture_deg"], 15.0);
+        assert_eq!(pair["motion_ok"], false);
+        assert_eq!(pair["eligible"], false);
+        let mut bare = snapshot();
+        bare["ships"][0].as_object_mut().unwrap().remove("docking");
+        let docking = &condense(&bare, &BTreeSet::new(), &[])["me"]["docking"];
+        assert_eq!(docking["docked"], false);
+        assert_eq!(docking["pair"], Value::Null);
     }
 
     #[test]

@@ -24,6 +24,10 @@
 //! - `ships[].capabilities` - what the root is permitted to do (stop, goto,
 //!   orbit, lock, rcs, point_defense), as the flight gate reads it. A root
 //!   carrying no component is the all-enabled default.
+//! - `ships[].docking` - whether a clamp holds the hull and to whom, and the
+//!   approach: the nearest pair of free ports between the ship and its travel
+//!   lock, measured the way the docking sight draws it and graded against the
+//!   envelope the verb applies (`eligible`), whether or not it passes.
 //! - `ships[].skin` - the DERIVED SKIN as a whole, for a clad ship: the relief
 //!   histogram, how many plates have a flat top rather than a cone, how many
 //!   are the diagonal saddle, the mean flat area, the per-rule decoration
@@ -108,13 +112,14 @@ pub mod prelude {
 }
 
 use std::{
+    collections::HashMap,
     fs::{File, OpenOptions, TryLockError},
     io::{BufWriter, Write},
     path::PathBuf,
 };
 
 use avian3d::prelude::{AngularVelocity, ComputedMass, LinearVelocity};
-use bevy::{diagnostic::FrameCount, prelude::*};
+use bevy::{diagnostic::FrameCount, ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_gameplay::{
     prelude::{
@@ -141,13 +146,14 @@ use nova_scenario::{
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, on_target_cone, read_plates, read_structure, section_cell,
     skin_report, skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock,
-    GameStyles, PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
-    RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
-    SectionLinkPoints, SectionReload, ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker,
-    ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
-    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock,
-    TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
-    TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
+    DockedShip, DockingConnection, DockingPair, DockingPorts, GameStyles, PlacedPart, PlateReport,
+    PlayerAutopilotCompleted, PointDefenseMount, RadarState, RailgunCharge, RailgunSectionInput,
+    SectionAmmo, SectionExit, SectionFixture, SectionFootprint, SectionLinkPoints, SectionReload,
+    ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle, SkinReport,
+    StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
+    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
+    TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionTargetInput,
+    TurretSectionTargetRadius, WeaponsHot,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -414,6 +420,9 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
 
     let mut q_ships = world.query_filtered::<Entity, With<SpaceshipRootMarker>>();
     let ship_entities: Vec<Entity> = q_ships.iter(world).collect();
+    // The port search is a `SystemParam`, and the records below read a plain
+    // `&World`: run it once here, before the world is borrowed shared.
+    let docking = world.run_system_once(docking_pairs).unwrap_or_default();
     let mut q_ordnance = world.query_filtered::<Entity, Or<(
         With<TorpedoProjectileMarker>,
         With<TurretBulletProjectileMarker>,
@@ -423,7 +432,7 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
     let ships = ordered(
         ship_entities
             .into_iter()
-            .map(|entity| ship_record(world, entity))
+            .map(|entity| ship_record(world, entity, docking.get(&entity)))
             .collect(),
     );
     let ordnance = ordered(
@@ -681,6 +690,94 @@ fn autopilot_record(world: &World, entity: Entity) -> serde_json::Value {
     })
 }
 
+/// The nearest pair of free ports between every ship holding a travel lock
+/// and the ship it locks, keyed by the locking ship.
+///
+/// The mechanic's own search ([`DockingPorts::nearest_pair`], what the docking
+/// sight draws), so a record can never disagree with the instrument or with
+/// the verb. A ship with no lock, no free port, or a clamp already holding
+/// either hull has no entry.
+fn docking_pairs(
+    ports: DockingPorts,
+    ships: Query<(Entity, &TravelLock), With<SpaceshipRootMarker>>,
+) -> HashMap<Entity, DockingPair> {
+    ships
+        .iter()
+        .filter_map(|(ship, lock)| {
+            let target = lock.0?;
+            ports.nearest_pair(ship, target).map(|pair| (ship, pair))
+        })
+        .collect()
+}
+
+/// The ship's docking state as the DOCK chip and the docking sight read it.
+///
+/// `docked` and `connection` say whether a clamp holds this hull, and name
+/// the other ship and the two reserved ports when one does. `pair` is the
+/// approach: the nearest pair of free ports between this ship and its travel
+/// lock, graded against the stricter of the two envelopes whether or not it
+/// passes, so a reader watches the gap and the facing close all the way in
+/// and `eligible` is the exact gate the verb applies. Faces and axes are
+/// world-space in engine units; angles are degrees, because a reader compares
+/// them to the authored cone and nobody authors radians. `pair` is `null`
+/// while nothing is measurable: no lock, no free ports, or either hull
+/// already docked.
+fn docking_record(world: &World, entity: Entity, pair: Option<&DockingPair>) -> serde_json::Value {
+    let connection = world
+        .get::<DockedShip>(entity)
+        .and_then(|docked| world.get::<DockingConnection>(docked.connection))
+        .map(|connection| {
+            let (ship, my_port, their_port) = if connection.first_ship == entity {
+                (
+                    connection.second_ship,
+                    connection.first_section,
+                    connection.second_section,
+                )
+            } else {
+                (
+                    connection.first_ship,
+                    connection.second_section,
+                    connection.first_section,
+                )
+            };
+            serde_json::json!({
+                "ship": label(world, ship),
+                "my_port": label(world, my_port),
+                "their_port": label(world, their_port),
+            })
+        });
+    let pair = pair.map(|pair| {
+        // `opposition` is the dot of the two outward axes, -1 when they look
+        // straight at each other; the angle off that is what a pilot flies.
+        let facing = (-pair.opposition).clamp(-1.0, 1.0).acos().to_degrees();
+        serde_json::json!({
+            "my_port": label(world, pair.first_section),
+            "their_port": label(world, pair.second_section),
+            "my_face": vec3(pair.first.face),
+            "my_axis": vec3(pair.first.axis),
+            "their_face": vec3(pair.second.face),
+            "their_axis": vec3(pair.second.axis),
+            "gap": num(pair.gap),
+            "facing_deg": num(facing),
+            "relative_speed": num(pair.relative_speed),
+            "relative_spin_dps": num(pair.relative_spin.to_degrees()),
+            "capture_distance": num(pair.envelope.capture_distance),
+            "capture_deg": num(pair.envelope.capture_angle.to_degrees()),
+            "maximum_relative_speed": num(pair.envelope.maximum_relative_speed),
+            "maximum_relative_spin_dps": num(pair.envelope.maximum_relative_angular_speed.to_degrees()),
+            "gap_holds": pair.gap_holds(),
+            "facing_holds": pair.facing_holds(),
+            "motion_holds": pair.motion_holds(),
+            "eligible": pair.is_eligible(),
+        })
+    });
+    serde_json::json!({
+        "docked": connection.is_some(),
+        "connection": connection,
+        "pair": pair,
+    })
+}
+
 /// The screen a GUI player sees, as data: the pause rung, the terminal model
 /// while NOVA OS owns the screen, every named clickable rect, and the CRT
 /// glass slice. This is what makes a driven `pointer to "Resume"` honest -
@@ -886,8 +983,13 @@ fn key(value: &serde_json::Value) -> String {
     value.as_str().unwrap_or_default().to_string()
 }
 
-/// One ship, keyed by its scenario object id.
-fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
+/// One ship, keyed by its scenario object id. `pair` is the ship's docking
+/// approach out of [`docking_pairs`], for a ship that has one.
+fn ship_record(
+    world: &World,
+    entity: Entity,
+    pair: Option<&DockingPair>,
+) -> (String, serde_json::Value) {
     let id = label(world, entity);
     let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
     let skin = skin_index(world, entity);
@@ -929,6 +1031,7 @@ fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "ai_target": label_of(world, world.get::<AITarget>(entity).and_then(|target| target.0)),
         "autopilot": autopilot_record(world, entity),
         "radar": radar_record(world, entity),
+        "docking": docking_record(world, entity, pair),
         "gravity_well": label_of(world, world.get::<DominantWell>(entity).map(|well| well.0)),
         // The derived skin as a whole: the histogram, the measurements and the
         // cells it refused. Per-plate detail hangs off the plate's own fixture
@@ -1777,6 +1880,66 @@ mod tests {
         assert_eq!(me["autopilot"]["engaged"]["phase"], "Align");
         assert_eq!(me["autopilot"]["completed"], serde_json::Value::Null);
         assert_eq!(me["gravity_well"], "planetoid");
+    }
+
+    /// Two ported hulls nose to nose, 30 m apart and square. The record
+    /// carries the mechanic's own measurement of the pair, graded against the
+    /// shipped envelope - the gap fails, the facing and the motion hold - and
+    /// says no clamp holds either hull. The hull with no lock has no approach.
+    #[test]
+    fn the_docking_record_measures_the_pair_the_sight_draws() {
+        use avian3d::prelude::{Position, Rotation};
+        use nova_ship::prelude::{docking_section, DockingSectionConfig};
+
+        let mut app = rig();
+        let tender = ship(&mut app, "tender", Vec3::ZERO);
+        let spar = ship(&mut app, "spar", Vec3::new(0.0, 0.0, -8.0));
+        for (root, at, facing) in [
+            (tender, Vec3::ZERO, Quat::IDENTITY),
+            (
+                spar,
+                Vec3::new(0.0, 0.0, -8.0),
+                Quat::from_rotation_y(std::f32::consts::PI),
+            ),
+        ] {
+            app.world_mut().entity_mut(root).insert((
+                Position(at),
+                Rotation(facing),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+            ));
+        }
+        for (root, id) in [(tender, "dock_bow"), (spar, "dock_fore")] {
+            app.world_mut().spawn((
+                SectionMarker,
+                EntityId::new(id),
+                Transform::from_xyz(0.0, 0.0, -2.0),
+                ChildOf(root),
+                docking_section(DockingSectionConfig::default()),
+            ));
+        }
+        app.world_mut()
+            .entity_mut(tender)
+            .insert(TravelLock(Some(spar)));
+
+        let snapshot = capture_snapshot(app.world_mut(), "test");
+        let ships = snapshot["ships"].as_array().expect("a list");
+        let by_id = |id: &str| ships.iter().find(|ship| ship["id"] == id).expect(id);
+        let docking = &by_id("tender")["docking"];
+        assert_eq!(docking["docked"], false);
+        assert_eq!(docking["connection"], serde_json::Value::Null);
+        let pair = &docking["pair"];
+        assert_eq!(pair["my_port"], "dock_bow");
+        assert_eq!(pair["their_port"], "dock_fore");
+        assert!((pair["gap"].as_f64().unwrap() - 3.0).abs() < 1e-3, "{pair}");
+        assert!(pair["facing_deg"].as_f64().unwrap() < 0.1, "{pair}");
+        assert_eq!(pair["capture_distance"], 1.0);
+        assert_eq!(pair["capture_deg"], 15.0);
+        assert_eq!(pair["gap_holds"], false);
+        assert_eq!(pair["facing_holds"], true);
+        assert_eq!(pair["motion_holds"], true);
+        assert_eq!(pair["eligible"], false);
+        assert_eq!(by_id("spar")["docking"]["pair"], serde_json::Value::Null);
     }
 
     #[test]

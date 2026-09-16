@@ -13,9 +13,10 @@ need to think; the game waits.
   ticks and return the view after. 60 ticks is one second. `ticks` defaults
   to 30. Use 60 to 300 while flying, 5 to 15 while aiming.
 - `page {name}`: read one page of the flight manual. Free. The pages are
-  `targeting`, `weapons`, `travel`, `orbit` and `fighting`. They hold what a
-  player learns about the game; THIS document holds how to drive it from a
-  terminal. Read the page before you attempt the thing for the first time.
+  `targeting`, `weapons`, `travel`, `orbit`, `fighting` and `docking`. They
+  hold what a player learns about the game; THIS document holds how to
+  drive it from a terminal. Read the page before you attempt the thing for
+  the first time.
 - `finish {status, report}`: end the run. `status` is `done` or `gave_up`.
   Call it once the outcome is declared, or when you cannot make progress.
   The referee scores the run from the game state, not from your report.
@@ -42,12 +43,16 @@ All lengths are meters, speeds meters per second, angles degrees.
   `dwell_needed`, `dwell_fill`, `candidate`), `autopilot` (`engaged`: the
   action, its target and phase, or `null` on manual helm; `completed`: an
   action that finished on this very tick, so it is rarely caught: read
-  `engaged` going back to `null` instead), `gravity_well` (the body whose
-  gravity you are inside, or `null`), `sections` (the bridge, the drives and
-  each mount, with its `weapon`: `kind`, `ammo`, `on_target`, `firing`),
-  `hull_plates` (the armour, as a count of `total`, `damaged` and `lost`) and
+  `engaged` going back to `null` instead), `docking` (`docked`; `connection`,
+  the ship and the two ports a clamp holds you to, or `null`; `pair`, the
+  approach to the nearest port on your `travel_lock` with its gates, or
+  `null` without a lock - see `page {"name": "docking"}`), `gravity_well`
+  (the body whose gravity you are inside, or `null`), `sections` (the bridge,
+  the drives and each mount, with its `weapon`: `kind`, `ammo`, `on_target`,
+  `firing`), `hull_plates` (the armour, as a count of `total`, `damaged` and
+  `lost`) and
   `withheld_capabilities` (what the scenario has NOT handed over yet -
-  `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`, `Stop`. A withheld
+  `Dock`, `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`, `Stop`. A withheld
   capability does nothing however well you drive it: a tutorial grants them
   one lesson at a time).
 - `contacts`: every other ship. `distance_m`, `bearing_deg`, `closing_mps`
@@ -121,6 +126,20 @@ Flight:
   Needs a well: with `gravity_well` `null` the tap does nothing.
 - `flight.autopilot_off`: tap to hand the controls back to you. A second tap
   of `autopilot_goto` or `autopilot_orbit` also disengages that action.
+- `flight.dock`: tap to clamp your docking port to a port on the ship under
+  `travel_lock`. Needs the lock and `me.docking.pair.eligible` true; before
+  that the tap does nothing. The dock is MODAL: while `me.docking.docked` is
+  true your drive, RCS and helm are inert, and a second tap lets go.
+- `flight.rcs_modifier`: hold to engage the RCS, the fine translation jets.
+  While it is held `camera.camera_rotate` is frozen; release it to steer.
+- `flight.rcs_aim` (aim, only while `flight.rcs_modifier` is held): pushes
+  the hull along its own axes WITHOUT turning it. Positive `delta[0]` pushes
+  starboard, positive `delta[1]` pushes aft, negative `delta[1]` pushes
+  ahead. There is no up or down. About 33 of delta per tick is a full push,
+  which accelerates at 5 g (a full push for 3 ticks adds about 2.5 m/s, for
+  10 ticks about 8 m/s) and caps at 100 m/s. The push follows the motion and
+  fades a few ticks after it stops, so aim for every tick you want to push,
+  and cancel a push with an equal push the other way: there is no brake.
 - `camera.camera_rotate` (aim): turns the nose. Positive `delta[0]` turns
   right (starboard), positive `delta[1]` pitches the nose down. About 27
   pixels of delta per degree, summed over the ticks: `delta [80, 0]` for 10
@@ -151,7 +170,8 @@ Weapons:
   point at anything.
 
 Read `page {"name": "targeting"}` and `page {"name": "weapons"}` before your
-first fight, `travel` and `orbit` before your first long leg.
+first fight, `travel` and `orbit` before your first long leg, and `docking`
+before your first approach.
 
 ## Discipline
 
@@ -166,6 +186,8 @@ first fight, `travel` and `orbit` before your first long leg.
     `ammo.rounds` going down.
   - Turned? `bearing_deg`. Moving? `speed_mps` and
     `velocity_bearing_deg`.
+  - Lined up? `me.docking.pair` and its `gap_ok`, `facing_ok`, `motion_ok`
+    and `eligible`. Docked? `me.docking.docked`.
   - Objective met? `objectives` and `objective_log`.
   - Nothing at all happening? Check `me.withheld_capabilities` before you
     conclude you drove it wrong.

@@ -324,9 +324,12 @@ does NOT get an entry - and it is the only place they are written down.
 - A movie of a run the game marked as cheated says CHEATED in amber across its
   header from the tick of the mark, so no clip of it can be lifted out of the
   run looking clean.
-- `scripts/bench-plays.sh` runs any of the bench's eleven named red-team plays
-  with its fixture, goal, seed, budgets and recording set, and holds the one
-  copy of the goal deck the docs point at.
+- `scripts/bench-plays.sh` runs any of the bench's twelve named plays with its
+  fixture, goal, seed, budgets and recording set, and holds the one copy of
+  the goal deck the docs point at.
+- The agent bench flies the docking approach: a `docking` fixture and a `dock`
+  play, a `me.docking` readout in the hull frame, DOCK and the RCS in the
+  pilot manual, and the dock in the score's end row.
 - Debug section gizmos are measured: a barrel line runs the mount's authored
   reach, and round and drive stubs one interval of their own flight or burn.
 - The app holds exactly one seeded global RNG, pinned by an assembly test: a
