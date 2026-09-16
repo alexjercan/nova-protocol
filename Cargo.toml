@@ -741,6 +741,10 @@ name = "lesson_build_geometry"
 path = "examples/screenshots/lesson_build_geometry.rs"
 
 [[example]]
+name = "lesson_build_generate"
+path = "examples/screenshots/lesson_build_generate.rs"
+
+[[example]]
 name = "lesson_build_flight_test"
 path = "examples/screenshots/lesson_build_flight_test.rs"
 

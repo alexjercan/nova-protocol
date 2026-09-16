@@ -821,10 +821,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Shipbuilding,
             90,
             "Generate a hull",
-            still(
+            looping(
                 "build_generate",
-                "the editor's Generate block with a seed typed and the hull it rolled standing \
-                 on the stage",
+                "a three-part stub in the editor with seed 2026 typed in the Generate block, then \
+                 the hull Generate rolls in its place",
             ),
             "Generate rolls a whole hull into the ship you are inside, from a seed you can type or \
              reroll, drawing only the sections you ticked. It replaces what that ship holds. The \

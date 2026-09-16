@@ -126,7 +126,7 @@ LESSONS = [
     ("build_weapon_mounts", "Where a weapon can point", "still"),
     ("build_docking_port", "Bolting on a docking port", "still"),
     ("build_dock_envelope", "Making a dock", "still"),
-    ("build_generate", "Generate a hull", "still"),
+    ("build_generate", "Generate a hull", "loop"),
     ("novaos_open", "Opening NOVA OS", "loop"),
     ("novaos_terminal", "The prompt", "loop"),
     ("novaos_view", "Turning the model", "loop"),

@@ -704,9 +704,13 @@
         category: Shipbuilding,
         order: 90,
         title: "Generate a hull",
-        media: Image(
-            image: "self://training/build_generate.webp",
-            alt: "the editor\'s Generate block with a seed typed and the hull it rolled standing on the stage",
+        media: Loop(
+            sheet: "self://training/build_generate.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a three-part stub in the editor with seed 2026 typed in the Generate block, then the hull Generate rolls in its place",
         ),
         body: "Generate rolls a whole hull into the ship you are inside, from a seed you can type or reroll, drawing only the sections you ticked. It replaces what that ship holds. The result is ordinary section nodes, already bound to their kind\'s key.",
         wiki_path: "wiki/keybinds#generate-a-hull",
