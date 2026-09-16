@@ -98,7 +98,10 @@ fn every_activity_is_replayable_and_continues_only_to_its_neighbor() {
         6
     );
     for (index, scenario) in activities(&content).iter().enumerate() {
-        assert!(!scenario.menu_backdrop);
+        assert!(
+            scenario.role.picker_lists(),
+            "a campaign member is a chapter the picker can list"
+        );
         let actions = actions(scenario);
         let transitions: BTreeSet<_> = actions
             .iter()

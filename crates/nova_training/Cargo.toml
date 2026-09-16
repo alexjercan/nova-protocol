@@ -1,0 +1,26 @@
+[package]
+name = "nova_training"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The player training handbook: lesson catalog, progress, and the field notes the menu and loading screens show"
+
+[dependencies]
+bevy = { version = "0.19.0" }
+# `AssetRef<Image>` - a lesson's media is authored as a path and resolves to a
+# live handle at draw time, exactly like a scenario's thumbnail. `serde` is what
+# puts the derives on it, and on the config types this crate's own lesson format
+# is read beside.
+nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
+# Lessons are authored content: the whole catalog is serde, always, so the
+# format needs no feature to exist.
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# The authored-RON tests parse a mod author's literal, not a round-trip of our
+# own value.
+ron = { version = "0.12" }
+
+[lints]
+workspace = true

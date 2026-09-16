@@ -56,7 +56,8 @@ play should continue directly into the next member.
 Every member is an ordinary row in the Scenarios list as well; the campaign
 heading groups the rows in play order, so a continuation chapter can be
 replayed without flying up to it. A member must be a launchable chapter: naming
-a `menu_backdrop: true` scenario is a lint error.
+a [`role: Backdrop` or `role: Lesson`](../scenarios/#roles) scenario is a lint
+error.
 
 ```ron
 NextScenario((

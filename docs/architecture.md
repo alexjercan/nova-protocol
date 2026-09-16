@@ -13,7 +13,7 @@ real code lives under `crates/`.
 |-----------------|----------------|
 | `nova-protocol` (root) | `src/main.rs` = clap CLI + entrypoint. `src/lib.rs` re-exports `nova_core`. Runnable examples in `examples/`. |
 | `nova_core`     | Thin wiring only: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. |
-| `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in `nova_input`, one binding group at a time) is shared by both entry points. Persistence is NOT the menu's: `settings_store` owns `SettingsStorePlugin`, which `nova_core` adds to every app, and it reads the same cross-platform store (RON file / localStorage), keybind overrides included. The two directions are split: every app READS, and only an app that builds the settings panel calls `allow_settings_saves` and earns the write direction. |
+| `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in `nova_input`, one binding group at a time) is shared by both entry points. Persistence is NOT the menu's: `settings_store` owns `SettingsStorePlugin`, which `nova_core` adds to every app, and it reads the same cross-platform store (RON file / localStorage), keybind overrides included. The two directions are split: every app READS, and only an app that builds the settings panel calls `allow_settings_saves` and earns the write direction. What the player has LEARNED is a second file beside it, `training_store`: opening a lesson reads it, and only a scenario Victory that a lesson's `proven_by` names completes it. Same root, same access split, separate file - deleting `settings.ron` to fix your audio must not erase your progress. |
 | `nova_editor`   | The ship editor scene (`NovaEditorPlugin`). Comes up on entering `Playing`, only in `GameMode::Sandbox`. |
 | `nova_gameplay` | The shared gameplay layer under the ship: `integrity/` (health, the two damage readings `erosion` and `carve`, and the debris a carve leaves in `spew`/`chunk`), `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the bus-and-route sound engine every voice in the game goes through: `bus` for the four routes and the three volume tracks, `mixing` for the distance rolloff and the cue throttle, `spatial` for the stereo placement, `voice` for the one playback path), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems; the per-bus `InterfaceVolume`/`WorldVolume`/`MusicVolume` live in `audio/bus`), `mesh` (the procedural `TriangleMeshBuilder`, plus the `SignedField` an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
 | `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull, its ammo, and the authored damage looks in `damage_effects`/`damage_cracks`/`damage_sparks`/`damage_plume`), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into `nova_input`), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
@@ -28,6 +28,7 @@ real code lives under `crates/`.
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (`assets/base/`) through the same bundle machinery as mods. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`), safe mode (`safe_mode.rs`: the optional half of the installed set loads outside the boot gate, and a broken mod is disabled, persisted off and reported), the portal client and downloads (`portal/`), and prefs persistence. |
 | `nova_modding`  | Bundle/content/catalog ASSET LOADERS and the `Content` routing enum. See [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/). |
 | `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`, not a crate. See [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/). |
+| `nova_training` | The training handbook's DATA, a leaf under everything that teaches: the `Lesson` content type and its catalog ordering, the field notes the menu and both loading screens draw, the progress record, and the pure `validate` both `content lint` and the runtime merge run. It knows nothing about drawing a lesson or loading one - `nova_modding` routes `Content::Lesson`, `nova_assets` merges the catalog, `nova_menu` draws it, and `nova_authoring` builds the base set. Its only game dependency is `nova_gameplay`, for the `AssetRef<Image>` a lesson's media resolves through. |
 | `nova_input`    | The bindings registry, a leaf crate under every rig and every rebind surface: the one table (`InputBindings`) that says which named actions exist, what each is called on screen, and which physical sources it holds, plus the shared capture (`poll::InputSources`) every rebind row reads and the by-name `dispatch`. Owners register their own defaults into it; nothing here knows what an action DOES. |
 | `nova_ui`       | Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (`theme::*`), the `UiSkin` visual-language switch (`skin`), the themed widgets (`widget`: button, slider, segmented control, list rows, panel chrome), screen-level composition (`screen`: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (`hud`), player-facing unit formatting (`units`), the shared typeface (`font`), the generic `status_bar` and the keyboard-ownership arbiter (`input_mode`: one app-global `InputMode` resolved from per-frame claims, with `InputModeSystems` as the ordering handle every keyboard consumer gates behind). Consumed by `nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor` and `nova_assets`. |
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
@@ -88,7 +89,11 @@ graph TD
     scenario --> hud
     assets --> modding["nova_modding"]
     assets --> scenario
+    assets --> training["nova_training"]
     modding --> modfmt["nova_mod_format"]
+    modding --> training
+    menu --> training
+    training --> gameplay
     core --> debug["nova_debug"]
     core --> info["nova_info"]
 ```
@@ -548,10 +553,11 @@ live UNDER `assets/base/` (exported `gltf/` models `.glb`, `textures/`,
 web (Trunk `copy-dir`) and native (`release.yaml`) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the `gltf/` models are exported
 from live OUT of the shipped tree, in top-level `art/blender/`, because nothing
-loads them at runtime. The built-in sections, ships, styles and scenarios ARE
-data: the Rust builders under `crates/nova_authoring/src/base_content/`
-(`sections/`, `ships/`, `styles.rs`, `scenarios/`, `assets.rs`) are the single
-source, and `cargo run content gen` serializes them to the committed
+loads them at runtime. The built-in sections, ships, styles, scenarios and training
+lessons ARE data: the Rust builders under
+`crates/nova_authoring/src/base_content/` (`sections/`, `ships/`, `styles.rs`,
+`scenarios/`, `lessons.rs`, `assets.rs`) are the single source, and
+`cargo run content gen` serializes them to the committed
 `assets/base/**/*.content.ron` the game loads like any other bundle.
 Never hand-edit the generated files; edit the builders and re-run `gen`.
 
@@ -579,4 +585,14 @@ Never hand-edit the generated files; edit the builders and re-run `gen`.
 - Asset gate and mod merge: `GameAssetsPlugin` -
   `crates/nova_assets/src/plugin.rs`; `register_bundles` -
   `crates/nova_assets/src/merge.rs`.
+- The training handbook: the lesson format and catalog ordering -
+  `crates/nova_training/src/catalog.rs`; the validation both `content lint` and
+  the merge run - `crates/nova_training/src/validate.rs`; the screen -
+  `crates/nova_menu/src/training.rs`; the progress record and what a won
+  scenario proves - `crates/nova_menu/src/training_store.rs`; the base lessons,
+  their practice ranges and what each one is `proven_by` -
+  `crates/nova_authoring/src/base_content/lessons.rs` and
+  `.../scenarios/drills.rs`. A lesson's `wiki_path` points into the web manual
+  under `web/src/`, and `crates/nova_authoring/tests/lesson_wiki_links.rs`
+  fails if a page or heading it names stops existing.
 - API detail: `cargo doc --open -p nova_core` (any crate from the map works).

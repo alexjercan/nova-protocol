@@ -16,9 +16,12 @@ use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, CampaignConfig, EventActionConfig,
     KnownSections, KnownShipDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
-    ShipDesignPrototype, SpaceshipController,
+    ScenarioRole, ShipDesignPrototype, SpaceshipController,
 };
 use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig, ShipGrammarConfig};
+use nova_training::prelude::{
+    lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
+};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},
@@ -47,6 +50,7 @@ struct WalkedBundle {
     campaigns: Vec<CampaignConfig>,
     grammars: Vec<ShipGrammarConfig>,
     channels: Vec<NarrativeChannelConfig>,
+    lessons: Vec<Lesson>,
     /// Every parsed content item paired with the bundle-relative file it was
     /// read from (a bundle lists several content files). Kept so the
     /// mod-relative `self://` resource-ref check can see every kind, and so
@@ -110,6 +114,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut campaigns = Vec::new();
     let mut grammars = Vec::new();
     let mut channels = Vec::new();
+    let mut lessons = Vec::new();
     for (_, item) in &content {
         match item {
             Content::Section(section) => sections.push(section.as_ref().clone()),
@@ -118,6 +123,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Grammar(grammar) => grammars.push(grammar.clone()),
             Content::Channel(channel) => channels.push(channel.clone()),
+            Content::Lesson(lesson) => lessons.push(lesson.clone()),
             // Styles and impact rows have no cross-content references of their
             // own - each names asset paths and nothing else - so they are
             // walked for their resource refs (below) and need no bucket here.
@@ -133,8 +139,22 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         campaigns,
         grammars,
         channels,
+        lessons,
         content,
         acks: read_acks(dir),
+    }
+}
+
+/// A lesson finding in the scenario checks' own vocabulary: the report groups
+/// findings by element, and a lesson id is an element like a scenario id.
+fn lesson_issue(issue: LessonIssue) -> LintIssue {
+    LintIssue {
+        severity: match issue.severity {
+            LessonSeverity::Error => LintSeverity::Error,
+            LessonSeverity::Warn => LintSeverity::Warn,
+        },
+        scenario: issue.lesson,
+        message: issue.message,
     }
 }
 
@@ -196,15 +216,25 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .flat_map(|b| b.scenarios.iter().map(|s| s.id.clone()))
         .collect();
     known_scenarios.extend(bundle.scenarios.iter().map(|s| s.id.clone()));
-    // The backdrop subset of the same set: a campaign member must be a
-    // launchable chapter, and a backdrop is scenery the picker renders no row
-    // for.
-    let menu_backdrops: HashSet<String> = all
+    // The same set keyed by declared role: a campaign member must be a
+    // launchable chapter, and a lesson's practice target must be a range built
+    // for practising. Both checks read this one map.
+    let roles: HashMap<String, ScenarioRole> = all
         .iter()
         .flat_map(|b| b.scenarios.iter())
         .chain(bundle.scenarios.iter())
-        .filter(|s| s.menu_backdrop)
-        .map(|s| s.id.clone())
+        .map(|s| (s.id.clone(), s.role))
+        .collect();
+    let practice_ranges: HashSet<String> = roles
+        .iter()
+        .filter(|(_, role)| role.is_lesson())
+        .map(|(id, _)| id.clone())
+        .collect();
+    // What may PROVE a lesson: a chapter or a range, never a menu backdrop.
+    let launchable: HashSet<String> = roles
+        .iter()
+        .filter(|(_, role)| !role.is_backdrop())
+        .map(|(id, _)| id.clone())
         .collect();
     // Channels overlay like sections do, not like scenarios: a cue may only
     // name a channel its own bundle can SEE, so a mod cannot lean on a channel
@@ -303,9 +333,38 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // known scenario (base + all bundles + this bundle's own), or the picker
     // renders a header row launching nothing.
     for campaign in &bundle.campaigns {
-        for issue in lint_campaign(campaign, &known_scenarios, &menu_backdrops) {
+        for issue in lint_campaign(campaign, &known_scenarios, &roles) {
             issues.push((bundle.id.clone(), issue));
         }
+    }
+
+    // Lesson well-formedness: required fields, the body cap, a loop grid that
+    // can actually be cut into frames, and a practice target that both exists
+    // and declares itself a range. Keyed by lesson id in the same channel the
+    // scenario checks use, so a broken lesson is addressable by name.
+    //
+    // The orphan check runs over a DIFFERENT pair of sets: the ranges judged
+    // are the ones this bundle ships, and the lessons that keep one reachable
+    // are every lesson in the walked tree, because a mod's lesson may practise
+    // in a base range. Judging base's ranges against a mod's own lessons would
+    // report all of them as unreachable in every other bundle's report.
+    let own_ranges: HashSet<String> = bundle
+        .scenarios
+        .iter()
+        .filter(|s| s.role.is_lesson())
+        .map(|s| s.id.clone())
+        .collect();
+    let all_lessons: Vec<&Lesson> = all.iter().flat_map(|b| b.lessons.iter()).collect();
+    let findings = lint_lessons(
+        bundle.lessons.iter(),
+        &known_scenarios,
+        &practice_ranges,
+        &launchable,
+    )
+    .into_iter()
+    .chain(unused_practice_ranges(all_lessons, &own_ranges));
+    for issue in findings {
+        issues.push((bundle.id.clone(), lesson_issue(issue)));
     }
 
     // Section-config well-formedness (turret joint trees today): validate
@@ -854,6 +913,13 @@ mod tests {
                 _ => None,
             })
             .collect();
+        let lessons = content
+            .iter()
+            .filter_map(|c| match c {
+                Content::Lesson(lesson) => Some(lesson.clone()),
+                _ => None,
+            })
+            .collect();
         WalkedBundle {
             id: id.to_string(),
             manifest: BundleManifest {
@@ -871,6 +937,7 @@ mod tests {
             campaigns,
             grammars,
             channels,
+            lessons,
             // The tests do not exercise multi-file provenance; a single
             // synthetic file name carries every item.
             content: content

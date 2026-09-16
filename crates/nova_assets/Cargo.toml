@@ -28,6 +28,9 @@ nova_hud = { path = "../nova_hud" }
 nova_ui = { path = "../nova_ui" }
 nova_scenario = { path = "../nova_scenario" }
 nova_modding = { path = "../nova_modding" }
+# The merged handbook: this crate routes `Content::Lesson` items into the
+# `TrainingCatalog` the menu reads, and runs the lesson half of the content gate.
+nova_training = { path = "../nova_training" }
 # The portal wire schema (PortalCatalog et al) - engine-free, shared verbatim
 # with the generator.
 nova_mod_format = { path = "../nova_mod_format" }

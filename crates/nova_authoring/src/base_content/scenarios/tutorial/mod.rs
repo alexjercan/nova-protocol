@@ -23,13 +23,12 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-mod range;
+pub(crate) mod range;
 mod script;
 #[cfg(test)]
 mod tests;
 
 use range::*;
-use script::{PLAYER, RANGE_CONTROL};
 
 use super::pacing;
 use crate::scenario_helpers::prelude::*;
@@ -149,13 +148,6 @@ const LINE_GAP: f64 = 6.0;
 /// line lands and fades first.
 const LIVE_GAP: f64 = 8.4;
 
-/// The keybind-dock chips a lesson pulses.
-const HINT_STOP: &str = "STOP";
-const HINT_RCS: &str = "RCS";
-const HINT_RADAR: &str = "RADAR";
-const HINT_GOTO: &str = "GOTO";
-const HINT_ORBIT: &str = "ORBIT";
-
 // --- helpers -----------------------------------------------------------------
 
 fn advance(beat: f64) -> EventActionConfig {
@@ -164,12 +156,6 @@ fn advance(beat: f64) -> EventActionConfig {
 
 fn in_beat(beat: f64) -> EventFilterConfig {
     number_equals(VAR_BEAT, beat)
-}
-
-/// The trainer paired with `id`: the shape a lock, a GOTO arrival, an orbit
-/// and an area event all report, the target first.
-fn trainer_at(id: impl Into<String>) -> EventFilterConfig {
-    entity_pair(id, ID_TRAINER)
 }
 
 /// A lesson's world - its beat number, its verb, its card, its marks, its
@@ -315,30 +301,6 @@ fn outro() -> EventActionConfig {
     )
 }
 
-/// The two faces on the channel. Both are the base game's own art.
-fn portrait(speaker: &str) -> Option<AssetRef<Image>> {
-    let name = match speaker {
-        RANGE_CONTROL => "range-control",
-        PLAYER => "player",
-        _ => return None,
-    };
-    Some(AssetRef::from(format!("self://portraits/{name}.png")))
-}
-
-fn apply_portraits(events: &mut [ScenarioEventConfig]) {
-    for event in events {
-        for action in &mut event.actions {
-            action.walk_mut(&mut |action| {
-                if let EventActionConfig::NarrativeCue(cue) = action {
-                    if cue.icon.is_none() {
-                        cue.icon = portrait(&cue.speaker);
-                    }
-                }
-            });
-        }
-    }
-}
-
 // --- the card ----------------------------------------------------------------
 
 /// Build the training range.
@@ -353,7 +315,7 @@ pub(crate) fn tutorial(
             .iter()
             .map(|(id, name, position)| drone(id, name, *position)),
     );
-    spawns.extend(lights());
+    spawns.extend(lights(TUTORIAL_SCENARIO_ID));
 
     let mut start = spawns
         .into_iter()

@@ -17,6 +17,7 @@ use nova_scenario::prelude::{
     ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
+use nova_training::prelude::Lesson;
 
 use crate::base_content;
 
@@ -26,9 +27,10 @@ use crate::base_content;
 pub mod prelude {
     pub use super::{
         build_channel_content, build_channels, build_grammar_content, build_grammars,
-        build_impact_content, build_impacts, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        build_impact_content, build_impacts, build_lesson_content, build_lessons,
+        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
+        build_ship_content, build_ships, build_style_content, build_styles, content_files,
+        serialize_content, spawned_ship_sections,
     };
 }
 
@@ -151,6 +153,22 @@ pub fn build_channel_content() -> Vec<Content> {
     build_channels().into_iter().map(Content::Channel).collect()
 }
 
+/// The base game's training lessons, in the order the file carries them.
+pub fn build_lessons() -> Vec<Lesson> {
+    base_content::build().lessons
+}
+
+/// The lesson catalog wrapped as one `Vec<Content>` of `Content::Lesson`
+/// items - the shape the committed `assets/base/training/base.content.ron`
+/// file carries.
+///
+/// ONE file for the whole handbook: a lesson is read against its neighbours -
+/// what the category holds, where `order` puts it - and a file per lesson
+/// would hide the running order the screen actually draws.
+pub fn build_lesson_content() -> Vec<Content> {
+    build_lessons().into_iter().map(Content::Lesson).collect()
+}
+
 /// The built-in scenarios, each wrapped as its own single-item
 /// `Vec<Content>` (`[Content::Scenario(..)]`) keyed by scenario id - the
 /// shape each committed `assets/scenarios/<id>.content.ron` file carries. The
@@ -203,6 +221,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/channels/base.content.ron".to_string(),
             serialize_content(&build_channel_content()),
+        ),
+        (
+            "base/training/base.content.ron".to_string(),
+            serialize_content(&build_lesson_content()),
         ),
     ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {

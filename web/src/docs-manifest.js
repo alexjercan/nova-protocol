@@ -504,7 +504,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, impacts, grammars, and channels.",
+            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, impacts, grammars, channels, and lessons.",
         related: [
             "campaigns",
             "scenarios",
@@ -514,13 +514,14 @@ const CREATE_PAGES = [
             "impacts",
             "grammars",
             "channels",
+            "lessons",
         ],
         headings: [
             "Folder structure",
             "The bundle manifest",
             "Balance acknowledgments",
             "Content files",
-            "The eight content chapters",
+            "The nine content chapters",
             "Paths and dependencies",
             "Overlay behavior",
         ],
@@ -668,6 +669,27 @@ const CREATE_PAGES = [
             "Tag and signal strength",
             "Base channels",
             "Using a channel",
+        ],
+    },
+    {
+        slug: "lessons",
+        md: "lessons.md",
+        title: "Training lessons for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference"],
+        summary:
+            "Author a screen of the in-game handbook: the Lesson item, the six categories, still and sprite-sheet demonstrations, the practice range a lesson may hand off to, field notes, and how a lesson id overlays.",
+        related: ["scenarios", "mod-files", "base-content", "reference"],
+        headings: [
+            "The Lesson item",
+            "Categories",
+            "Media",
+            "Practice",
+            "Field notes",
+            "Overlay",
+            "Check it",
         ],
     },
     {

@@ -97,12 +97,13 @@ pub(crate) struct ScenarioPlay {
 
 /// Whether the picker offers `scenario` as a row at all.
 ///
-/// One exclusion, and only one. A `menu_backdrop` is SCENERY: the menu loads
-/// one behind its own buttons, and it poses its own camera rather than handing
-/// the player a ship. Everything else installed is a row, campaign member or
-/// not.
+/// Only a CHAPTER is a row. The other two roles are scenery and furniture: a
+/// `Backdrop` is what the menu loads behind its own buttons, posing its own
+/// camera rather than handing the player a ship, and a `Lesson` range is
+/// reached from the handbook's Practice button and nowhere else. Everything
+/// else installed is a row, campaign member or not.
 pub(crate) fn picker_lists(scenario: &ScenarioConfig) -> bool {
-    !scenario.menu_backdrop
+    scenario.role.picker_lists()
 }
 
 /// The scenarios the picker lists, in a stable order by display name then id

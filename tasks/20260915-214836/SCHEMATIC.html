@@ -1,0 +1,760 @@
+<title>Training Handbook Schematic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Dark-first: the subject is a phosphor screen, so the bare :root carries the
+     dark palette and the light blocks below invert it, guarded so an explicit
+     choice beats the OS in both directions. */
+  :root {
+    --ground: #0a0e0c;
+    --plate: #101613;
+    --plate-2: #151d19;
+    --ink: #d8e4dd;
+    --ink-dim: #8ba095;
+    --ink-faint: #5d6f66;
+    --rule: #2c3830;
+    --stroke: #55685e;
+    --accent: #5fd08a;
+    --accent-soft: rgba(95, 208, 138, 0.09);
+    --flag: #e0a24a;
+    --flag-soft: rgba(224, 162, 74, 0.11);
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ground: #f3f5f2;
+      --plate: #ffffff;
+      --plate-2: #f7f9f6;
+      --ink: #18211c;
+      --ink-dim: #55655c;
+      --ink-faint: #84968c;
+      --rule: #d5ddd7;
+      --stroke: #97a79d;
+      --accent: #17804a;
+      --accent-soft: rgba(23, 128, 74, 0.08);
+      --flag: #9a6210;
+      --flag-soft: rgba(154, 98, 16, 0.1);
+      --shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f3f5f2;
+    --plate: #ffffff;
+    --plate-2: #f7f9f6;
+    --ink: #18211c;
+    --ink-dim: #55655c;
+    --ink-faint: #84968c;
+    --rule: #d5ddd7;
+    --stroke: #97a79d;
+    --accent: #17804a;
+    --accent-soft: rgba(23, 128, 74, 0.08);
+    --flag: #9a6210;
+    --flag-soft: rgba(154, 98, 16, 0.1);
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  /* -- masthead -- */
+  .masthead { border-bottom: 1px solid var(--rule); padding-bottom: 26px; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    font-size: clamp(26px, 4vw, 38px);
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede { max-width: 66ch; color: var(--ink-dim); margin: 0; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin-top: 22px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--ink-dim);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 26px; height: 0; border-top: 1px dashed var(--stroke); }
+  .swatch.new { border-top: 1.5px solid var(--accent); }
+  .dot {
+    width: 15px; height: 15px; border-radius: 50%;
+    display: inline-grid; place-items: center;
+    font-size: 9px; font-weight: 600;
+    background: var(--flag-soft); color: var(--flag);
+    border: 1px solid var(--flag);
+  }
+
+  /* -- sections -- */
+  section { margin-top: 64px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  h2 {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    font-size: 19px;
+    margin: 0;
+  }
+  .sec-meta {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .sec-note { color: var(--ink-dim); max-width: 68ch; margin: 0 0 24px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  /* -- the drawing plates -- */
+  .plate {
+    background: var(--plate);
+    border: 1px solid var(--rule);
+    position: relative;
+    display: flex;
+    box-shadow: var(--shadow);
+  }
+  .plate.wide { aspect-ratio: 16 / 9; }
+  .plate.floor { aspect-ratio: 640 / 600; max-width: 420px; }
+  .plate-cap {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 10px;
+  }
+
+  /* a wireframe box */
+  .box {
+    border: 1px dashed var(--stroke);
+    color: var(--ink-dim);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    padding: 7px 9px;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .box.new { border: 1.5px solid var(--accent); color: var(--ink); background: var(--accent-soft); }
+  .box.solid { background: var(--plate-2); }
+  .box .t {
+    display: block;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 10px;
+    color: var(--ink-faint);
+  }
+  .box.new .t { color: var(--accent); }
+  .box .s { display: block; color: var(--ink-dim); font-size: 10.5px; line-height: 1.45; }
+  .dim {
+    position: absolute;
+    right: 7px;
+    bottom: 5px;
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mark {
+    position: absolute;
+    top: -9px;
+    left: -9px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--flag-soft);
+    border: 1px solid var(--flag);
+    color: var(--flag);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+    z-index: 3;
+  }
+
+  /* menu screen composition */
+  .screen { position: absolute; inset: 0; padding: 3.5%; }
+  .backdrop {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    color: var(--ink-faint);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .anchor { position: absolute; display: flex; flex-direction: column; gap: 6px; }
+  .anchor.br { right: 3.5%; bottom: 5%; }
+  .anchor.bl { left: 3.5%; bottom: 5%; }
+
+  .menu-card { width: 100%; display: flex; flex-direction: column; gap: 5px; }
+  .menu-row {
+    border: 1px dashed var(--stroke);
+    color: var(--ink-dim);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    padding: 4px 7px;
+    text-align: center;
+  }
+  .menu-row.first { border-style: solid; border-color: var(--ink-faint); }
+  .menu-row.cut {
+    border-color: var(--flag);
+    color: var(--flag);
+    background: var(--flag-soft);
+    text-decoration: line-through;
+  }
+  .menu-title {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    text-align: center;
+    color: var(--ink-dim);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 3px;
+  }
+
+  .btn-row { display: flex; gap: 6px; margin-top: 7px; }
+  .btn {
+    flex: 1;
+    border: 1px dashed var(--stroke);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    padding: 5px 6px;
+    text-align: center;
+    color: var(--ink-dim);
+  }
+  .btn.primary { border: 1.5px solid var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .btn.ghost { flex: 0 0 auto; padding: 5px 10px; }
+
+  /* modal composition */
+  .modal {
+    position: absolute;
+    left: 7.5%; top: 7.5%;
+    width: 85%; height: 85%;
+    background: var(--plate-2);
+    border: 1px solid var(--stroke);
+    display: flex;
+    flex-direction: column;
+    gap: 2.4%;
+    padding: 2.4%;
+    z-index: 2;
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .modal-title { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); }
+  .modal-sub { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--ink-faint); }
+  .modal-body { flex: 1; display: flex; gap: 2.4%; min-height: 0; }
+  .pane-list { flex: 0 0 34%; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+  .pane-detail { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .cat {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 3px;
+  }
+  .row {
+    border: 1px dashed var(--stroke);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    padding: 4px 7px;
+    color: var(--ink-dim);
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .row.sel { border: 1.5px solid var(--accent); color: var(--ink); background: var(--accent-soft); }
+  .row .badge { color: var(--ink-faint); font-size: 9px; }
+  .loop {
+    aspect-ratio: 16 / 9;
+    border: 1.5px solid var(--accent);
+    background: var(--accent-soft);
+    display: grid;
+    place-items: center;
+    text-align: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    position: relative;
+  }
+  .textbox {
+    flex: 1;
+    border: 1.5px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 7px 9px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    color: var(--ink-dim);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .modal-foot { display: flex; justify-content: space-between; align-items: center; }
+
+  /* -- annotation column -- */
+  .notes { display: flex; flex-direction: column; gap: 18px; }
+  .note { display: grid; grid-template-columns: 22px 1fr; gap: 12px; }
+  .note-n {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 1px solid var(--flag); background: var(--flag-soft); color: var(--flag);
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+    display: grid; place-items: center; margin-top: 2px;
+  }
+  .note h3 {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin: 0 0 3px;
+    color: var(--ink);
+  }
+  .note p { margin: 0; font-size: 13.5px; color: var(--ink-dim); }
+  .note p + p { margin-top: 6px; }
+  .note code, .inline-code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--ink);
+  }
+
+  /* -- state pair -- */
+  .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-top: 8px; }
+  .state-frame { background: var(--plate); border: 1px solid var(--rule); padding: 16px; }
+  .state-frame .plate-cap { margin: 0 0 10px; }
+
+  /* -- questions -- */
+  .qs { border-top: 1px solid var(--rule); margin-top: 64px; padding-top: 28px; }
+  ol.qlist { list-style: none; counter-reset: q; padding: 0; margin: 20px 0 0; display: flex; flex-direction: column; gap: 16px; }
+  ol.qlist li { counter-increment: q; display: grid; grid-template-columns: 30px 1fr; gap: 14px; align-items: start; }
+  ol.qlist li::before {
+    content: "Q" counter(q);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--flag);
+    border: 1px solid var(--flag);
+    background: var(--flag-soft);
+    padding: 2px 0;
+    text-align: center;
+  }
+  ol.qlist strong { color: var(--ink); font-weight: 500; }
+  ol.qlist p { margin: 0; color: var(--ink-dim); }
+  ol.qlist .rec { display: block; margin-top: 4px; font-size: 13px; color: var(--ink-faint); }
+  ol.qlist .rec b { color: var(--accent); font-weight: 500; }
+
+  footer.foot {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Nova Protocol &middot; task 20260915-214836 &middot; phase 1 revision</p>
+    <h1>Training Handbook Schematic</h1>
+    <p class="lede">Box placement only, no art and no copy decisions. This revises the built prototype
+      three ways: <strong>one page per tip</strong>, a <strong>full-width loop over a text box at the
+      bottom quarter</strong>, and a <strong>wider bottom-left card that is the only way into the
+      lessons</strong> &mdash; the <code>Training</code> row comes out of the menu card, so the corner is
+      the handbook's one door.</p>
+    <div class="legend">
+      <span><i class="swatch"></i> unchanged from the shipped menu</span>
+      <span><i class="swatch new"></i> new or moved in this revision</span>
+      <span><i class="dot">1</i> numbered callout, answer by number</span>
+      <span><i class="swatch" style="border-top-style: solid; border-top-color: var(--flag);"></i> <s>struck</s> comes out</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>1 &middot; Front door</h2>
+      <span class="sec-meta">1920 &times; 1080</span>
+    </div>
+    <p class="sec-note">The card in the bottom-left corner stops being a dismissable suggestion and
+      becomes the lessons entry, at roughly twice its current width so the two actions sit side by side
+      instead of stacking.</p>
+    <div class="layout">
+      <div>
+        <div class="plate wide">
+          <div class="backdrop">menu backdrop scenario</div>
+          <div class="screen"></div>
+          <div class="anchor br" style="width: 14.6%;">
+            <div class="menu-card">
+              <div class="menu-title">Nova Protocol</div>
+              <div class="menu-row first">New Game</div>
+              <div class="menu-row cut" style="position: relative;">Training<span class="mark" style="left: -10px; top: -7px;">2</span></div>
+              <div class="menu-row">Sandbox</div>
+              <div class="menu-row">Scenarios</div>
+              <div class="menu-row">Mods</div>
+              <div class="menu-row">Settings</div>
+              <div class="menu-row">Exit</div>
+              <div class="dim" style="position: static; text-align: center; margin-top: 4px;">280 px &middot; right 40</div>
+            </div>
+          </div>
+          <div class="anchor bl" style="width: 27%;">
+            <div class="box new" style="padding: 9px 11px;">
+              <span class="mark">1</span>
+              <span class="t">Training &mdash; new pilot</span>
+              <span class="s" style="margin-top: 5px;">Field note, two lines, rotates once per menu entry.
+                Never flown one of these? Basic Training covers the controls.</span>
+              <div class="btn-row">
+                <div class="btn primary">Start Basic Training</div>
+                <div class="btn">Open lessons</div>
+                <div class="btn ghost">Not now</div>
+              </div>
+              <span class="dim" style="position: static; display: block; text-align: right; margin-top: 5px;">520 px &middot; left 40 &middot; bottom 40</span>
+            </div>
+          </div>
+        </div>
+        <p class="plate-cap">Front door, desk monitor</p>
+      </div>
+      <div class="notes">
+        <div class="note">
+          <div class="note-n">1</div>
+          <div>
+            <h3>One card, two states</h3>
+            <p>520&nbsp;px instead of 360, so the buttons sit in a row and the field note keeps its
+              two lines without wrapping to four. It is the same card for everyone &mdash; only the
+              emphasis and the button order change between a fresh profile and a returning one.</p>
+          </div>
+        </div>
+        <div class="note">
+          <div class="note-n">2</div>
+          <div>
+            <h3>The menu row comes out</h3>
+            <p>The corner card is the handbook's only door, so the menu card goes back to six rows
+              and the eye has one place to look for lessons instead of two.</p>
+            <p>That forces one thing: the card can never leave the screen. <code>Not now</code>
+              demotes it to State B below, it does not remove it &mdash; a card that could be dismissed
+              for good would take the handbook with it.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="states">
+      <div class="state-frame">
+        <p class="plate-cap">State A &mdash; fresh profile</p>
+        <div class="box new" style="padding: 9px 11px;">
+          <span class="t">Training &mdash; new pilot</span>
+          <span class="s" style="margin-top: 5px;">STOP is an order, not a brake. The flight computer
+            burns until your speed reads zero.</span>
+          <div class="btn-row">
+            <div class="btn primary">Start Basic Training</div>
+            <div class="btn">Open lessons</div>
+            <div class="btn ghost">Not now</div>
+          </div>
+        </div>
+      </div>
+      <div class="state-frame">
+        <p class="plate-cap">State B &mdash; after Not now, or after flying</p>
+        <div class="box" style="padding: 9px 11px;">
+          <span class="t">Training</span>
+          <span class="s" style="margin-top: 5px;">STOP is an order, not a brake. The flight computer
+            burns until your speed reads zero.</span>
+          <div class="btn-row">
+            <div class="btn primary" style="border-style: dashed; border-width: 1px; color: var(--ink-dim); background: none;">Open lessons</div>
+            <div class="btn" style="flex: 0 0 auto; padding: 5px 10px;">Read this one</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="sec-note" style="margin-top: 14px;">State B is permanent, and with the menu row gone it is
+      load-bearing: it is the only route to the lessons. It keeps the rotating field note, which is the
+      reason to glance at the corner at all; only the pilot-facing pitch and
+      <code>Start Basic Training</code> go away.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>2 &middot; Lesson page</h2>
+      <span class="sec-meta">one tip, one screen</span>
+    </div>
+    <p class="sec-note">Page navigation is gone. A lesson is a loop and the words that go with it, so
+      <code>Prev</code>, <code>Next</code> and <code>Page&nbsp;N&nbsp;of&nbsp;M</code> come out
+      entirely, and each of today's three-page placeholders becomes three separate tips.</p>
+    <div class="layout">
+      <div>
+        <div class="plate wide">
+          <div class="backdrop">menu backdrop</div>
+          <div class="anchor br" style="width: 14.6%; z-index: 1;">
+            <div class="menu-card" style="opacity: 0.45;">
+              <div class="menu-title">Nova Protocol</div>
+              <div class="menu-row first">New Game</div>
+              <div class="menu-row">Sandbox</div>
+              <div class="menu-row">Scenarios</div>
+              <div class="menu-row">Mods</div>
+              <div class="menu-row">Settings</div>
+              <div class="menu-row">Exit</div>
+            </div>
+          </div>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">Training</span>
+              <span class="modal-sub">1 of 24 completed &middot; 3 opened</span>
+            </div>
+            <div class="modal-body">
+              <div class="pane-list">
+                <span class="mark" style="top: -8px;">3</span>
+                <div class="cat">Start here</div>
+                <div class="row">Welcome aboard <span class="badge">[done]</span></div>
+                <div class="row">Reading the HUD <span class="badge">[read]</span></div>
+                <div class="cat">Flight</div>
+                <div class="row sel">Aim, then burn</div>
+                <div class="row">Cutting the drive <span class="badge">[read]</span></div>
+                <div class="row">STOP is an order</div>
+                <div class="row">GOTO a mark</div>
+                <div class="row">ORBIT a rock</div>
+                <div class="cat">Combat</div>
+                <div class="row">Travel lock</div>
+                <div class="row">Combat lock</div>
+                <div class="row">What a turret reaches</div>
+                <div class="box" style="border: none; padding: 2px 0 0; text-align: right;">
+                  <span class="dim" style="position: static;">6 categories &middot; scrolls</span>
+                </div>
+              </div>
+              <div class="pane-detail">
+                <div class="loop">
+                  <span class="mark">4</span>
+                  LOOP 16:9
+                  <span class="dim">full pane width &middot; &asymp; 3/4 H</span>
+                </div>
+                <div class="textbox">
+                  <span class="mark">5</span>
+                  <span>
+                    <b style="color: var(--accent); font-weight: 500;">Aim, then burn.</b>
+                    The drive only pushes where the nose points, so turn first and thrust second.
+                    Fine-adjust with the RCS: <span style="border: 1px solid var(--stroke); padding: 0 4px;">thrust</span>
+                    <span style="border: 1px solid var(--stroke); padding: 0 4px;">pitch</span> read live from the bindings.
+                  </span>
+                  <span style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px;">
+                    <span class="btn primary" style="flex: 0 0 auto; padding: 4px 10px;">Practice this</span>
+                    <span style="color: var(--ink-faint); font-size: 9.5px;">Full manual: wiki/flight</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <div class="btn" style="flex: 0 0 auto; padding: 5px 16px;">Back</div>
+              <span class="modal-sub">no page nav</span>
+            </div>
+          </div>
+        </div>
+        <p class="plate-cap">Handbook, desk monitor &mdash; modal is 85% &times; 85%</p>
+      </div>
+      <div class="notes">
+        <div class="note">
+          <div class="note-n">3</div>
+          <div>
+            <h3>Rows lose their summary line</h3>
+            <p>With the whole tip in the text box, a summary under every row said the same thing
+              twice. Title and state badge only: about eleven rows visible at once instead of six,
+              which matters more once one lesson per page doubles the list to roughly 24 tips.</p>
+          </div>
+        </div>
+        <div class="note">
+          <div class="note-n">4</div>
+          <div>
+            <h3>The loop sets the split</h3>
+            <p>A 16:9 frame at the full width of the pane lands at almost exactly three quarters of
+              its height on a 16:9 monitor, so the quarter you asked for at the bottom falls out of
+              the aspect ratio rather than being a number I picked.</p>
+            <p>Where a tip has no loop yet, the frame stays and holds the <code>art to come</code>
+              placeholder &mdash; the page must not reflow between an authored lesson and a pending one.</p>
+          </div>
+        </div>
+        <div class="note">
+          <div class="note-n">5</div>
+          <div>
+            <h3>Everything else lives in the box</h3>
+            <p>The whole tip, the binding chips inline in the sentence that needs them, and a thin
+              action strip: <code>Practice this</code> on the left, the wiki path on the right. Roughly
+              45 words is what fits at the floor without scrolling &mdash; that is the real cap on lesson
+              copy, and Phase 2 writes to it.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>3 &middot; The 640 &times; 600 floor</h2>
+      <span class="sec-meta">supported narrow window</span>
+    </div>
+    <p class="sec-note">Same two plates at the smallest window the game supports. This is where the
+      split stops being free: a 16:9 loop across a 300&nbsp;px pane is only about half its height, so the
+      text box takes the rest.</p>
+    <div class="layout">
+      <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        <div>
+          <div class="plate floor" style="max-width: 300px;">
+            <div class="backdrop">backdrop</div>
+            <div class="anchor br" style="width: 43.75%; top: 16%; bottom: 6.7%;">
+              <div class="menu-card">
+                <div class="menu-title">Nova Protocol</div>
+                <div class="menu-row first">New Game</div>
+                <div class="menu-row">Sandbox</div>
+                <div class="menu-row">Scenarios</div>
+                <div class="menu-row">Mods</div>
+                <div class="menu-row">Settings</div>
+                <div class="menu-row">Exit</div>
+              </div>
+            </div>
+            <div class="anchor bl" style="width: 40%;">
+              <div class="box new" style="padding: 7px 8px;">
+                <span class="mark">6</span>
+                <span class="t">Training</span>
+                <span class="s" style="margin-top: 4px;">Field note, two lines.</span>
+                <div class="btn-row" style="flex-direction: column; gap: 4px;">
+                  <div class="btn primary">Start Basic Training</div>
+                  <div class="btn">Open lessons</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="plate-cap">Front door at the floor</p>
+        </div>
+        <div>
+          <div class="plate floor" style="max-width: 300px;">
+            <div class="modal">
+              <div class="modal-head">
+                <span class="modal-title">Training</span>
+                <span class="modal-sub">1 of 24</span>
+              </div>
+              <div class="modal-body">
+                <div class="pane-list" style="flex: 0 0 38%;">
+                  <div class="cat">Flight</div>
+                  <div class="row sel" style="font-size: 9px;">Aim, then burn</div>
+                  <div class="row" style="font-size: 9px;">Cutting the drive</div>
+                  <div class="row" style="font-size: 9px;">STOP is an order</div>
+                  <div class="row" style="font-size: 9px;">GOTO a mark</div>
+                </div>
+                <div class="pane-detail">
+                  <div class="loop" style="font-size: 9px;">
+                    <span class="mark">7</span>
+                    LOOP 16:9
+                  </div>
+                  <div class="textbox" style="font-size: 9px;">
+                    <span>Whole tip, wrapped. Chips inline.</span>
+                    <span style="display: flex; justify-content: space-between; gap: 6px; margin-top: 4px;">
+                      <span class="btn primary" style="flex: 0 0 auto; padding: 3px 7px; font-size: 9px;">Practice</span>
+                      <span style="color: var(--ink-faint); font-size: 8.5px;">wiki/flight</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-foot">
+                <div class="btn" style="flex: 0 0 auto; padding: 4px 12px; font-size: 9px;">Back</div>
+              </div>
+            </div>
+          </div>
+          <p class="plate-cap">Handbook at the floor</p>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note">
+          <div class="note-n">6</div>
+          <div>
+            <h3>The card cannot get wider here</h3>
+            <p>The menu card is 280&nbsp;px at <code>right: 40</code>, which leaves 280&nbsp;px between
+              it and the left edge. The card takes 256 of them and stacks its two buttons. The
+              520&nbsp;px width is a desk-monitor width with a percentage cap under it.</p>
+          </div>
+        </div>
+        <div class="note">
+          <div class="note-n">7</div>
+          <div>
+            <h3>Loop shape at the floor</h3>
+            <p>Two ways to go, and this is the one real layout decision left: keep 16:9 and let the
+              text box grow to about half the pane, or hold the loop at three quarters and letterbox
+              it with bars at the sides.</p>
+            <p>The drawing shows the first. It keeps every loop the same shape on every machine,
+              which is what an authored animation wants.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="qs">
+    <div class="sec-head"><h2>Open questions</h2></div>
+    <ol class="qlist">
+      <li>
+        <p><strong>Settled: the card is the only door.</strong> The <code>Training</code> menu row comes
+          out, so the card can never be dismissed away &mdash; only demoted to State B.
+        <span class="rec">Open underneath it: does <code>Not now</code> still earn its place when all it
+          can do is change the card's emphasis? Drawn: <b>keep it</b>, so a first-time player has a way
+          to say &ldquo;read it, leave me alone&rdquo; and get the quieter corner.</span></p>
+      </li>
+      <li>
+        <p><strong>Does the pause menu need the same door?</strong> Mid-flight there is no corner card,
+          so a player who wants a tip has to quit to the main menu for it.
+        <span class="rec">Drawn: <b>nothing</b> &mdash; outside this schematic. Say the word and the pause
+          overlay gets the entry instead.</span></p>
+      </li>
+      <li>
+        <p><strong>Do lesson rows keep their one-line summary?</strong>
+        <span class="rec">Drawn: <b>no</b>. Title and badge, so more of a longer list is visible at
+          once and the text box is the only place the tip is written.</span></p>
+      </li>
+      <li>
+        <p><strong>At the floor, 16:9 loop with a taller text box, or a fixed three-quarter loop with
+          side bars?</strong>
+        <span class="rec">Drawn: <b>16:9 everywhere</b>. Pick the other and every authored loop needs
+          a safe area inside the frame.</span></p>
+      </li>
+      <li>
+        <p><strong>Roughly 45 words per tip as the hard cap?</strong>
+        <span class="rec">That is what the box holds at the floor without scrolling. Say a number and
+          Phase 2 writes to it.</span></p>
+      </li>
+    </ol>
+  </section>
+
+  <footer class="foot">
+    <span>Built prototype: sprout <span class="inline-code">training-handbook</span> &middot; 8dba97d8e</span>
+    <span>Frames: <span class="inline-code">tasks/20260915-214836/captures/</span></span>
+    <span>Schematic only &mdash; no palette, type or art decisions implied</span>
+  </footer>
+
+</div>

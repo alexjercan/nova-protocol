@@ -193,12 +193,13 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The eight content chapters
+## The nine content chapters
 
 <div id="wiki-children"></div>
 
 - A [campaign](../campaigns/) orders scenarios for the Scenarios menu.
-- A [scenario](../scenarios/) defines a playable mission or backdrop. Events,
+- A [scenario](../scenarios/) defines a playable mission, a menu backdrop or a
+  handbook practice range - see [roles](../scenarios/#roles). Events,
   filters, actions, objects, and expressions belong to scenario scripting.
 - A [section](../sections/) defines a reusable hull, thruster, controller,
   turret, or torpedo bay.
@@ -214,6 +215,9 @@ Large mods can use one scenario per file and list all of them in `content`.
 - A [channel](../channels/) is where a story line was heard, and how the comms
   panel draws one that was - the difference between a line addressed to your
   ship and one you are overhearing.
+- A [lesson](../lessons/) is one screen of the in-game training handbook: a
+  demonstration, a few lines, the actions it names, and sometimes a focused
+  range to fly.
 
 ## Paths and dependencies
 

@@ -34,7 +34,7 @@ the panel says about it, through `bevy/reflect_documentation`.
 - `GameScenarios(HashMap<ScenarioId, ScenarioConfig>)` - all known scenarios,
   populated by `nova_assets` (ready at `GameAssetsStates::Loaded`).
 - `CampaignConfig` - `id`, `name`, `scenarios` (ordered member scenario ids,
-  each a launchable chapter - naming a `menu_backdrop` scenario is a lint
+  each a launchable chapter - naming a non-`Chapter` scenario is a lint
   Error); a first-class content kind (`Campaign((..))`).
 - `GameCampaigns(HashMap<CampaignId, CampaignConfig>)` - all known campaigns, the
   ordered campaign->scenario mapping the Scenarios picker groups/launches by,

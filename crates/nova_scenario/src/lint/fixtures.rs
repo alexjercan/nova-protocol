@@ -1,6 +1,6 @@
 //! Shared config fixtures for the lint submodule tests.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -16,6 +16,12 @@ use crate::{
 
 pub(crate) fn known(ids: &[&str]) -> HashSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
+}
+
+/// A role map for `lint_campaign`: every listed id declares `role`, and
+/// anything else is a plain chapter (the absent-key case).
+pub(crate) fn roles(ids: &[&str], role: ScenarioRole) -> HashMap<String, ScenarioRole> {
+    ids.iter().map(|s| ((*s).to_string(), role)).collect()
 }
 
 /// The channel ids base content authors, so a fixture cue naming one of them

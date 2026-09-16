@@ -169,7 +169,7 @@ names its own root on `SettingsStorePlugin` instead.
 
 | Variable | Gates | Owner | For |
 | --- | --- | --- | --- |
-| `NOVA_MENU_BACKDROP` | pins the menu backdrop to one `menu_backdrop` scenario id instead of re-rolling the draw; an unknown id warns and falls back | `nova_menu` | harness |
+| `NOVA_MENU_BACKDROP` | pins the menu backdrop to one `role: Backdrop` scenario id instead of re-rolling the draw; an unknown id warns and falls back | `nova_menu` | harness |
 
 ## Not on the roster
 

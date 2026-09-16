@@ -21,7 +21,7 @@ use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
-use crate::settings::WindowModeSetting;
+use crate::settings::{TrainingPromptSetting, WindowModeSetting};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
@@ -72,6 +72,11 @@ pub struct PersistedSettings {
     /// native build has a row that moves it.
     #[serde(default)]
     pub window_mode: WindowModeSetting,
+    /// Whether the main menu shows its corner prompt. This is the ONE place
+    /// the first-launch training offer is remembered: an older store with no
+    /// field at all takes the default and shows the prompt once.
+    #[serde(default)]
+    pub training_prompt: TrainingPromptSetting,
     /// Keybinds the player moved, by action name. Only the CHANGED rows are
     /// here, so a default the game later moves reaches a player who never
     /// touched that row.
@@ -126,6 +131,7 @@ impl Default for PersistedSettings {
             nova_os_scan_detent: default_scan_detent(),
             nova_os_sound_enabled: default_sound_enabled(),
             window_mode: WindowModeSetting::default(),
+            training_prompt: TrainingPromptSetting::default(),
             keybinds: BTreeMap::new(),
         }
     }
@@ -143,6 +149,7 @@ impl PersistedSettings {
         skin: UiSkin,
         monitor: NovaOsMonitorSettings,
         window_mode: WindowModeSetting,
+        training_prompt: TrainingPromptSetting,
         bindings: &InputBindings,
     ) -> Self {
         Self {
@@ -159,6 +166,7 @@ impl PersistedSettings {
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
             window_mode,
+            training_prompt,
             keybinds: bindings.overrides(),
         }
     }
@@ -207,7 +215,10 @@ pub struct SettingsStoreRoot(pub Option<std::path::PathBuf>);
 
 impl SettingsStoreRoot {
     /// The store this root names, or `None` when the platform offers none.
-    fn store(&self) -> Option<nova_assets::storage::PlatformStorage> {
+    ///
+    /// `pub(crate)`, not private: the training record is a second file in the
+    /// same profile directory, so one override redirects both.
+    pub(crate) fn store(&self) -> Option<nova_assets::storage::PlatformStorage> {
         nova_assets::storage::platform_at(self.0.as_deref())
     }
 }
@@ -367,6 +378,7 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<UiSkin>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<WindowModeSetting>();
+        app.init_resource::<TrainingPromptSetting>();
         // The keybind overrides land on the same table every rig is built
         // from, so the load needs it present even in an app that has not added
         // `NovaInputPlugin` yet.
@@ -407,6 +419,7 @@ pub(crate) fn load_persisted_settings(
     mut skin: ResMut<UiSkin>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
     mut window_mode: ResMut<WindowModeSetting>,
+    mut training_prompt: ResMut<TrainingPromptSetting>,
     mut bindings: ResMut<InputBindings>,
     root: Res<SettingsStoreRoot>,
 ) {
@@ -422,6 +435,7 @@ pub(crate) fn load_persisted_settings(
     *skin = saved.ui_skin;
     *monitor = saved.nova_os_monitor();
     *window_mode = saved.window_mode;
+    *training_prompt = saved.training_prompt;
     // Before the first rig is built: the flight rig spawns with the player
     // ship, which is a scenario away, so a saved keybind is on the table by
     // the time anything reads it.
@@ -506,6 +520,7 @@ pub(crate) struct LiveSettings<'w> {
     skin: Res<'w, UiSkin>,
     monitor: Res<'w, NovaOsMonitorSettings>,
     window_mode: Res<'w, WindowModeSetting>,
+    training_prompt: Res<'w, TrainingPromptSetting>,
     bindings: Res<'w, InputBindings>,
 }
 
@@ -527,6 +542,10 @@ impl LiveSettings<'_> {
             || moved(self.skin.is_changed(), self.skin.is_added())
             || moved(self.monitor.is_changed(), self.monitor.is_added())
             || moved(self.window_mode.is_changed(), self.window_mode.is_added())
+            || moved(
+                self.training_prompt.is_changed(),
+                self.training_prompt.is_added(),
+            )
             || moved(self.bindings.is_changed(), self.bindings.is_added())
     }
 
@@ -542,6 +561,7 @@ impl LiveSettings<'_> {
             *self.skin,
             *self.monitor,
             *self.window_mode,
+            *self.training_prompt,
             &self.bindings,
         )
     }
@@ -593,7 +613,7 @@ mod tests {
     use nova_ui::prelude::UiSkin;
 
     use super::{PersistedSettings, KEY};
-    use crate::settings::WindowModeSetting;
+    use crate::settings::{TrainingPromptSetting, WindowModeSetting};
 
     fn temp_store(name: &str) -> NativeStorage {
         NativeStorage::at(std::env::temp_dir().join(format!("nova_settings_{name}")))
@@ -631,6 +651,7 @@ mod tests {
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
             window_mode: WindowModeSetting::Borderless,
+            training_prompt: TrainingPromptSetting::Hidden,
             keybinds: BTreeMap::new(),
         };
         save_to(&store, KEY, &settings);
@@ -706,9 +727,25 @@ mod tests {
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
                 window_mode: WindowModeSetting::default(),
+                training_prompt: TrainingPromptSetting::default(),
                 keybinds: BTreeMap::new(),
             }),
             "a missing field falls back to its serde default"
+        );
+        clear(&store);
+    }
+
+    /// The prompt is a FIRST-LAUNCH offer, so "no file yet" and "no field yet"
+    /// must both mean "offer it". Anything else and a fresh install either
+    /// never meets Basic Training or meets it forever.
+    #[test]
+    fn a_store_with_no_training_prompt_field_still_offers_the_prompt() {
+        let store = temp_store("training_prompt_absent");
+        clear(&store);
+        write_raw(&store, b"(master_volume: 0.5)");
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY).map(|saved| saved.training_prompt),
+            Some(TrainingPromptSetting::Shown)
         );
         clear(&store);
     }

@@ -96,21 +96,30 @@ fn picker_scenario(id: &str, name: &str) -> (String, ScenarioConfig) {
     )
 }
 
-/// The one kind of scenario the picker leaves out: a menu backdrop.
+/// A scenario the picker leaves out: menu scenery.
 fn picker_backdrop(id: &str, name: &str) -> (String, ScenarioConfig) {
     let (key, mut config) = picker_scenario(id, name);
-    config.menu_backdrop = true;
+    config.role = ScenarioRole::Backdrop;
     (key, config)
 }
 
-/// A registry with a listed story entry, a listed mod scenario, and the menu
-/// backdrop (so `load_menu_ambience` on menu entry still finds its scenario).
-/// The picker must show the two ordinary ones and drop the backdrop.
+/// The other one: a handbook practice range, reachable only from a lesson.
+fn picker_range(id: &str, name: &str) -> (String, ScenarioConfig) {
+    let (key, mut config) = picker_scenario(id, name);
+    config.role = ScenarioRole::Lesson;
+    (key, config)
+}
+
+/// A registry with a listed story entry, a listed mod scenario, the menu
+/// backdrop (so `load_menu_ambience` on menu entry still finds its scenario)
+/// and a handbook practice range. The picker must show the two chapters and
+/// drop both of the other roles.
 fn picker_scenarios() -> GameScenarios {
     GameScenarios(bevy::platform::collections::HashMap::from([
         picker_scenario(TEST_START_ID, "Shakedown Run"),
         picker_scenario("practice_run", "Practice Run"),
         picker_backdrop(TEST_BACKDROP_ID, "Menu Ambience"),
+        picker_range("drill_stop", "STOP Range"),
     ]))
 }
 
@@ -177,11 +186,11 @@ fn scenario_details_name(app: &mut App) -> Option<String> {
     app.world().get::<Text>(ent).map(|t| t.0.clone())
 }
 
-/// The picker lists every scenario that is not a menu backdrop: the story
-/// entry and the mod scenario show, the backdrop does not. Fails if the filter
-/// is dropped (menu_ambience would appear).
+/// The picker lists CHAPTERS and nothing else: the story entry and the mod
+/// scenario show; the menu backdrop and the handbook's practice range do not.
+/// Fails if either exclusion is dropped.
 #[test]
-fn scenarios_panel_lists_every_scenario_except_menu_backdrops() {
+fn scenarios_panel_lists_chapters_and_leaves_out_the_other_roles() {
     let mut app = scenarios_app();
     let ids = scenario_row_ids(&mut app);
     assert!(
@@ -195,6 +204,10 @@ fn scenarios_panel_lists_every_scenario_except_menu_backdrops() {
     assert!(
         !ids.contains(&TEST_BACKDROP_ID.to_string()),
         "the menu backdrop is NOT listed: {ids:?}"
+    );
+    assert!(
+        !ids.contains(&"drill_stop".to_string()),
+        "the practice range is NOT listed: it is reached from its lesson, not          from the picker: {ids:?}"
     );
 }
 

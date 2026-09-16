@@ -4,6 +4,7 @@ use nova_scenario::prelude::ScenarioConfig;
 
 use super::assets::BaseContentAssets;
 
+pub(crate) mod drills;
 pub(crate) mod main_menu;
 pub(crate) mod pacing;
 pub(crate) mod tutorial;
@@ -16,11 +17,13 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
     let cubemap = || assets.cubemap.clone();
     let texture = || assets.asteroid_texture.clone();
 
-    vec![
+    let mut catalog = vec![
         main_menu::waystation(cubemap(), texture()),
         main_menu::gauntlet(cubemap(), texture()),
         main_menu::weave(cubemap(), texture()),
         main_menu::duel(assets),
         tutorial::tutorial(cubemap(), texture()),
-    ]
+    ];
+    catalog.extend(drills::catalog(assets));
+    catalog
 }

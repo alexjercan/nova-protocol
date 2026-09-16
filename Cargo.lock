@@ -4523,6 +4523,7 @@ dependencies = [
  "nova_probe",
  "nova_probe_cli",
  "nova_scenario",
+ "nova_training",
  "nova_ui",
  "nova_wfc",
  "rand 0.10.2",
@@ -4545,6 +4546,7 @@ dependencies = [
  "nova_modding",
  "nova_scenario",
  "nova_ship",
+ "nova_training",
  "nova_ui",
  "ron",
  "serde",
@@ -4574,6 +4576,7 @@ dependencies = [
  "nova_modding",
  "nova_scenario",
  "nova_ship",
+ "nova_training",
  "ron",
  "serde",
  "tempfile",
@@ -4649,6 +4652,7 @@ dependencies = [
  "nova_os_ui",
  "nova_scenario",
  "nova_ship",
+ "nova_training",
  "nova_ui",
 ]
 
@@ -4774,6 +4778,7 @@ dependencies = [
  "nova_os_ui",
  "nova_scenario",
  "nova_ship",
+ "nova_training",
  "nova_ui",
  "rand 0.10.2",
  "serde",
@@ -4807,6 +4812,7 @@ dependencies = [
  "nova_mod_format",
  "nova_scenario",
  "nova_ship",
+ "nova_training",
  "ron",
  "serde",
 ]
@@ -4913,6 +4919,16 @@ dependencies = [
  "nova_gameplay",
  "nova_input",
  "rand 0.10.2",
+ "ron",
+ "serde",
+]
+
+[[package]]
+name = "nova_training"
+version = "0.13.2"
+dependencies = [
+ "bevy",
+ "nova_gameplay",
  "ron",
  "serde",
 ]

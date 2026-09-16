@@ -46,7 +46,7 @@ folder and bundle shape.
 | `description` | string | required | Details shown for the selected scenario. |
 | `cubemap` | asset ref | required | Skybox image, such as `dep://base/textures/cubemap.png` or `self://textures/sky.png`. |
 | `thumbnail` | `Option` asset ref | `None` | Plain 2D menu image, written as `Some("self://thumbnails/x.png")`. Do not use a cubemap. |
-| `menu_backdrop` | bool | `false` | `true` adds the scenario to the random main-menu backdrop rotation, and is the only thing that keeps a scenario out of the Scenarios list. A backdrop poses its own camera and may not be a campaign member. |
+| `role` | role | `Chapter` | What the scenario IS - see [Roles](#roles). `Chapter` is a level and the only role the Scenarios list shows. |
 | `watches` | list | `[]` | Read-only queries sampled into auto-updating variables, entries of `(variable: "...", query: ...)`. See [Queries and watched variables](../expressions/#queries-and-watched-variables). |
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
@@ -59,12 +59,46 @@ sidecar keeps the decoded pixels in main memory as well, so 1024 px faces cost
 each. On the web build both halves come out of the same budget. The base skies
 ship at 1024.
 
+## Roles
+
+`role` says what kind of thing the scenario is. It decides where the game offers
+it, and it is checked: a campaign may only list `Chapter`s, and a lesson may only
+practise in a `Lesson`.
+
+| role | what it is | where it is offered |
+|---|---|---|
+| `Chapter` | A level. The default, and what you want unless you are writing menu scenery or a training range. | The Scenarios list, and campaigns. |
+| `Backdrop` | Menu scenery: it poses its own camera and hands the player no ship. | The random main-menu backdrop rotation, and nowhere else. |
+| `Lesson` | A focused practice range for one handbook [lesson](../lessons/). | That lesson's Practice button, and nowhere else. |
+
+Omit `role` and the scenario is a `Chapter`.
+
 A menu backdrop POSES ITS OWN CAMERA: author a
 [`SetCamera`](../actions/#setcamera) in its `OnStart` (the reference shot is
 `position: (0, 570, 1920)` in meters, looking at the origin, which frames
 about 1,060 m either side of the origin in a 4:3 window). A backdrop without
 one is a content Error and never enters the menu rotation - the menu derives
 no pose of its own.
+
+A practice range TEACHES ONE THING, and owes the player four things the four
+ranges in the handbook show:
+
+- It hands over only the verbs its lesson names. Withhold the rest in the
+  player ship's [`capabilities`](../objects/#capabilities) block, so the
+  momentum range carries no flight computer at all and the keybind chip for a
+  verb the player must not press is never drawn.
+- It posts ONE objective at a time, one short imperative line, completed before
+  the next is posted. The objective chip is a notification that leaves once it
+  has been read, so the REASON goes to the comms stack in a
+  [`NarrativeCue`](../actions/#narrativecue) from the range's own voice, not
+  onto the board.
+- It lights the verb in hand with
+  [`HintEmphasisSet`](../actions/#hintemphasisset), and clears it with
+  [`HintEmphasisClear`](../actions/#hintemphasisclear) when that beat is done.
+- It ENDS. Every path reaches an [`Outcome`](../actions/#outcome): a Victory
+  with nothing queued, so the overlay sends the player back to the handbook,
+  and a Defeat that [`NextScenario`](../actions/#nextscenario)s the range
+  itself, so the overlay offers Retry.
 
 ## Handler shape
 
@@ -173,9 +207,9 @@ separate content or design each scenario to start from a complete state.
 A new id adds a scenario. Reusing an existing id replaces the whole scenario;
 it is not a field-level patch. Names and filenames do not affect matching.
 
-Every scenario you add is a row in the Scenarios list, unless it sets
-`menu_backdrop: true`. A continuation chapter is a row too: use a campaign to
-group the chapters under one header, and `NextScenario` to play on into the
+Every scenario you add is a row in the Scenarios list, unless it declares a
+`role` other than `Chapter`. A continuation chapter is a row too: use a campaign
+to group the chapters under one header, and `NextScenario` to play on into the
 next one.
 
 ## Check it
@@ -196,8 +230,11 @@ find. In the game, enable the mod, open Scenarios, and play the visible entry.
 - Optional values require `Some(...)`.
 - Initialize variables before filters read them.
 - Spawn an object before an action targets its id.
-- `menu_backdrop: true` is menu scenery, not a level. It is left out of the
+- `role: Backdrop` is menu scenery, not a level. It is left out of the
   Scenarios list, it must pose its own camera with `SetCamera`, and a campaign
   that names one is a lint error.
+- `role: Lesson` is a practice range, reachable only from the
+  [lesson](../lessons/) whose Practice button names it. A campaign that names
+  one is a lint error too, and a range no lesson practises in is a warning.
 - A mod cannot replace the base New Game selection. Use the Scenarios menu,
   campaigns, or `NextScenario`.

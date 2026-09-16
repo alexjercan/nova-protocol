@@ -10,11 +10,6 @@
 //! the lines carry besides instruction is that the Fleet is a thing worth
 //! joining.
 
-/// The range officer: the only voice on the channel besides the cadet's.
-pub(super) const RANGE_CONTROL: &str = "Range Control";
-/// The cadet's own comms label.
-pub(super) const PLAYER: &str = "You";
-
 // --- the briefing ------------------------------------------------------------
 
 /// The card the range opens on, over the shot of the trainer on the line.

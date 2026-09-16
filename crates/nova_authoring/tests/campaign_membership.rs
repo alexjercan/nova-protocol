@@ -59,13 +59,14 @@ fn merged_campaign_resolves_members_in_play_order() {
         );
     }
 
-    // Every member is a player-launchable chapter. A menu backdrop is scenery -
-    // it poses its own camera and hands the player no ship - so naming one is
-    // a lint Error, and the picker would render no row for it either.
+    // Every member is a player-launchable chapter. The other two roles are not:
+    // a backdrop is scenery that poses its own camera and hands the player no
+    // ship, and a practice range belongs to the lesson that names it. Either is
+    // a lint Error in a campaign, and the picker would render no row for one.
     for member in &campaign.scenarios {
         assert!(
-            !outcome.scenarios[member].menu_backdrop,
-            "'{member}' is a launchable chapter, not a menu backdrop"
+            outcome.scenarios[member].role.picker_lists(),
+            "'{member}' is a launchable chapter, not a backdrop or a practice range"
         );
     }
 }

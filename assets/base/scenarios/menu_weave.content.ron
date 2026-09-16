@@ -4,7 +4,7 @@
         name: "Asteroid Weave",
         description: "An AI ship weaves a waypoint circuit through a dense rock band.",
         cubemap: "self://textures/cubemap.png",
-        menu_backdrop: true,
+        role: Backdrop,
         events: [
             (
                 name: OnStart,

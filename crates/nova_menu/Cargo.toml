@@ -30,6 +30,8 @@ nova_hud = { path = "../nova_hud" }
 nova_os = { path = "../nova_os" }
 nova_os_ui = { path = "../nova_os_ui" }
 nova_scenario = { path = "../nova_scenario" }
+# The handbook's material: lessons, the progress record, the field notes.
+nova_training = { path = "../nova_training" }
 # `serde` enables Serialize/Deserialize on `UiSkin` for the persisted settings.
 nova_ui = { path = "../nova_ui", features = ["serde"] }
 # serde derives PersistedSettings; the storage backend behind it lives in

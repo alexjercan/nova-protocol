@@ -349,6 +349,22 @@ impl AppBuilder {
         self
     }
 
+    /// Supply the training-progress store in place of the environment-derived
+    /// one.
+    ///
+    /// The same shape, and for the same reason, as
+    /// [`with_settings_store`](Self::with_settings_store): `NovaMenuPlugin`
+    /// only adds [`TrainingProgressPlugin::default`] when the app has none,
+    /// and that default is inert under a scripted run. A range about what a
+    /// player LEARNED has to write, so it pins the access itself - on a
+    /// temporary root, never the player's own profile.
+    ///
+    /// The root is the settings store's: pass both to redirect both files.
+    pub fn with_training_store(mut self, store: TrainingProgressPlugin) -> Self {
+        self.app.add_plugins(store);
+        self
+    }
+
     /// Boot straight into one scenario instead of the main menu - the game
     /// binary's `--scenario <id>` / `--scenario-file <path>` flags.
     ///

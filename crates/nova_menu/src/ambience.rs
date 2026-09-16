@@ -1,7 +1,7 @@
-//! The living backdrop behind the menu: pick a `menu_backdrop` scenario,
+//! The living backdrop behind the menu: pick a `role: Backdrop` scenario,
 //! stage its camera into a fixed cinematic shot, and hide the HUD chrome.
 //!
-//! The menu names no scenario ids. The backdrop comes from the `menu_backdrop`
+//! The menu names no scenario ids. The backdrop comes from the `role: Backdrop`
 //! scenario flag (moddable), drawn at random on every menu entry.
 
 use bevy::prelude::*;
@@ -69,7 +69,7 @@ pub(crate) fn spawn_menu_ui_camera(mut commands: Commands) {
     ));
 }
 
-/// The living backdrop: load one of the `menu_backdrop`-flagged scenarios
+/// The living backdrop: load one of the `role: Backdrop` scenarios
 /// behind the menu, picked at RANDOM so several ambience scenes (base or
 /// mod-added) can rotate across menu entries. The loader brings its own
 /// camera + skybox and tears down whatever was loaded before; the uniform
@@ -101,7 +101,7 @@ pub(crate) fn load_menu_ambience(
     // bare-camera path instead.
     let mut backdrops: Vec<&ScenarioConfig> = scenarios
         .values()
-        .filter(|s| s.menu_backdrop)
+        .filter(|s| s.role.is_backdrop())
         .filter(|s| {
             let broken = issues
                 .as_ref()
@@ -119,7 +119,7 @@ pub(crate) fn load_menu_ambience(
 
     if backdrops.is_empty() {
         warn!(
-            "load_menu_ambience: no registered scenario is flagged menu_backdrop; \
+            "load_menu_ambience: no registered scenario declares `role: Backdrop`; \
              the menu renders without a living backdrop"
         );
         commands.spawn((

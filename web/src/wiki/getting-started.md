@@ -4,13 +4,18 @@ Nova Protocol is a build-and-fly space shooter. You take a modular ship into a s
 
 ## Launch and start
 
-The game boots into a main menu. **New Game** drops you into **Basic Training** - the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.
+The game boots into a main menu. On a first launch a card in the bottom-left corner offers you **Basic Training** straight away, with **Open lessons** beside it and **Not now** to put the card away for good. **New Game** does the same thing as **Start Basic Training** - the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.
+
+The card is a one-time offer, not the entrance: the menu's **Lessons** row always opens the handbook, and **Settings > Interface > Training prompt** switches the corner back on if you want it.
+
+Under it sits a **field note** - one short fact taken from the handbook, with **Open lesson** to read the page it came from. It changes each time you come back to the menu, and the same notes fill the slot at the bottom of every loading screen. While a practice range loads, the note is about what that range teaches.
 
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
 - **New Game** - drops you into **Basic Training**, the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
+- **Lessons** - opens the training handbook: one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
 - **Mods** - opens the installed-mod and online-catalog browser. A mod whose content will not load is switched off for you and named in one **MODS DISABLED** notice on the front door; its files stay installed, so you can update, remove or switch it back on from this screen.
 - **Settings** - adjusts volume, graphics quality, window mode and UI skin, and shows the control reference. The desktop build opens borderless fullscreen; **Windowed** is one click away.

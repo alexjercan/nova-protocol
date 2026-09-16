@@ -154,8 +154,9 @@ The fields are documented in [Channels](../channels/).
 ## Scenario ids
 
 What `NextScenario((scenario_id: ...))`, a `Campaign` member list, and the
-Scenarios picker can target. A `menu_backdrop` scenario stays off the picker
-but is still launchable by id.
+Scenarios picker can target. Only a [`role: Chapter`](../scenarios/#roles)
+scenario is a picker row; a backdrop or a practice range stays off it but is
+still launchable by id.
 
 | id | display name | in the picker | what it is |
 |---|---|---|---|
@@ -164,11 +165,19 @@ but is still launchable by id.
 | `menu_gauntlet` | Torpedo Gauntlet | no | menu backdrop: a doomed point-defense stand (hands off to the weave) |
 | `menu_weave` | Asteroid Weave | no | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
 | `menu_duel` | Duel Cycle | no | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
+| `drill_momentum` | Momentum Range | no | practice range: two marks and no flight computer |
+| `drill_stop` | STOP Range | no | practice range: one mark, and room to overshoot it |
+| `drill_autopilot` | Autopilot Range | no | practice range: a rock to fly out to, and a mark to come home to |
+| `drill_gunnery` | Gunnery Range | no | practice range: five hulks on the line, and none of them answer |
+
+The four `drill_*` ranges belong to the handbook: each is reached from the
+Practice button of the [lessons](../lessons/) that name it, and from nowhere
+else.
 
 The base bundle ships no campaign, and no shipped mod carries one today - a
 `Campaign` is a mod's to declare. There are no other content kinds - a content file holds
-`Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact`, `Grammar` and
-`Channel` items only; factions are not content. The base ship ids are tabled in
+`Section`, `Scenario`, `Campaign`, `Ship`, `Style`, `Impact`, `Grammar`,
+`Channel` and `Lesson` items only; factions are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
 New Game is base-owned: `new_game_scenario: Some("tutorial")` in

@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+"""Generate a placeholder demonstration for every base training lesson.
+
+The Lessons screen draws one demonstration per lesson: a still frame, or a
+looping sprite sheet cut into cells by the grid the lesson authors. Real
+recorded footage is OWNER work, so until it exists this writes a GOOD
+PLACEHOLDER per lesson the same way `scripts/gen-scenario-thumbnails.py` fills
+the picker's art gap - a deterministic PNG per lesson in the NOVA OS phosphor
+look, rendered from the lesson's own title and id so every lesson looks
+DIFFERENT and the screen stops looking broken.
+
+A still is one 480x270 frame. A loop is a 4x3 sheet of twelve 240x135 cells -
+the grid `crates/nova_authoring/src/base_content/lessons.rs` authors - carrying
+one second of periodic motion, so the frame the screen cuts out genuinely
+animates instead of flickering between two stills.
+
+Overwrite any generated file with real art at the same path and no code change
+is needed, the same contract the scenario thumbnails have. The grid must keep
+matching the authored `columns`/`rows`/`frames`, and `--check` is what proves
+that: it re-renders every sheet in memory and compares byte for byte, so a
+stale commit or a non-deterministic edit fails instead of silently drifting.
+
+Run from anywhere (paths are resolved from this file):
+
+    python3 scripts/gen-lesson-media.py            # write every PNG
+    python3 scripts/gen-lesson-media.py --check    # verify, write nothing
+
+Stdlib only (no Pillow), like its sibling generators: the raster, the 5x7
+bitmap font and the PNG encoder are imported from
+`scripts/gen-scenario-thumbnails.py` rather than copied, so the two sets of
+placeholder art cannot drift into two different looks.
+"""
+
+import argparse
+import hashlib
+import importlib.util
+import math
+import os
+import random
+import sys
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# The raster, the font and the PNG encoder live in the thumbnail generator;
+# import it by path (the module name has dashes). It runs argparse only under
+# `main()`.
+_SPEC = importlib.util.spec_from_file_location(
+    "gen_scenario_thumbnails",
+    os.path.join(REPO_ROOT, "scripts", "gen-scenario-thumbnails.py"))
+_THUMBS = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(_THUMBS)
+
+Frame = _THUMBS.Frame
+encode_png = _THUMBS.encode_png
+draw_glyph_line = _THUMBS.draw_glyph_line
+glyph_mask = _THUMBS.glyph_mask
+layout_title = _THUMBS.layout_title
+text_width = _THUMBS.text_width
+FIELD_TOP = _THUMBS.FIELD_TOP
+FIELD_BOTTOM = _THUMBS.FIELD_BOTTOM
+INKS = _THUMBS.INKS
+GLYPH_H = _THUMBS.GLYPH_H
+
+# A still is one frame this size; a loop cell is exactly half of it, so the two
+# shapes share a composition and the screen's media frame never reflows.
+STILL_W, STILL_H = 480, 270
+CELL_W, CELL_H = 240, 135
+
+# The sheet grid the base lessons author. Changing it here means changing
+# `looping()` in `lessons.rs` in the same commit - the game cuts the cells by
+# the AUTHORED grid, not by anything in the file.
+COLUMNS, ROWS, FRAMES = 4, 3, 12
+
+# Every base lesson: (lesson id, screen title, "still" or "loop"). The output
+# path is `assets/base/training/<id>.png` for all of them, listed in
+# `assets/base/base.bundle.ron` and referenced as `self://training/<id>.png`.
+LESSONS = [
+    ("start_welcome", "How training works", "still"),
+    ("start_hud", "Reading the HUD", "still"),
+    ("start_camera", "Looking around", "loop"),
+    ("flight_aim", "Turn, then thrust", "loop"),
+    ("flight_momentum", "You keep your speed", "loop"),
+    ("flight_stop", "The STOP order", "loop"),
+    ("flight_rcs", "Using the RCS thrusters", "loop"),
+    ("flight_goto", "GOTO a mark", "loop"),
+    ("flight_orbit", "ORBIT a mark", "loop"),
+    ("combat_radar", "Using the radar", "loop"),
+    ("combat_stance", "Raising weapons", "loop"),
+    ("combat_components", "Lock a component", "loop"),
+    ("combat_turrets", "Turret arcs", "still"),
+    ("combat_torpedoes", "Torpedoes", "loop"),
+    ("build_sections", "Ships are built from sections", "still"),
+    ("build_mass", "Mass and thrust", "still"),
+    ("build_balance", "Thruster placement", "still"),
+    ("build_flight_test", "Fly what you built", "loop"),
+    ("novaos_open", "Opening NOVA OS", "loop"),
+    ("novaos_view", "Turning the model", "loop"),
+    ("novaos_contacts", "Reading contacts", "still"),
+    ("advanced_scenarios", "Scenarios and campaigns", "still"),
+    ("advanced_mods", "Mods", "still"),
+    ("advanced_bindings", "Rebinding controls", "still"),
+]
+
+
+def seed_of(lesson_id):
+    return int(hashlib.sha256(lesson_id.encode("utf-8")).hexdigest(), 16)
+
+
+def ink_of(lesson_id):
+    return INKS[seed_of(lesson_id) % len(INKS)]
+
+
+def field(frame, x0, y0, w, h, stars):
+    """The phosphor screen: a SCREEN_0 -> SCREEN_1 gradient and a starfield.
+
+    `stars` is a fixed list of (x, y, amount) in cell space, so every cell of a
+    sheet shares one sky and only the moving parts move."""
+    for y in range(h):
+        t = y / (h - 1)
+        color = tuple(int(FIELD_TOP[c] + (FIELD_BOTTOM[c] - FIELD_TOP[c]) * t) for c in range(3))
+        for x in range(w):
+            frame.set(x0 + x, y0 + y, color)
+    for sx, sy, amount in stars:
+        frame.add(x0 + sx, y0 + sy, (255, 255, 255), amount)
+
+
+def starfield(rng, w, h, count):
+    return [(rng.randrange(w), rng.randrange(h), rng.uniform(0.05, 0.22))
+            for _ in range(count)]
+
+
+def chevron(frame, x0, y0, cx, cy, heading, ink, scale=1.0):
+    """A ship: a small arrowhead pointing along `heading` radians."""
+    nose = (cx + math.cos(heading) * 7 * scale, cy + math.sin(heading) * 7 * scale)
+    left = (cx + math.cos(heading + 2.5) * 6 * scale, cy + math.sin(heading + 2.5) * 6 * scale)
+    right = (cx + math.cos(heading - 2.5) * 6 * scale, cy + math.sin(heading - 2.5) * 6 * scale)
+    for a, b in ((nose, left), (nose, right), (left, right)):
+        line(frame, x0, y0, a, b, ink, 1.0)
+
+
+def line(frame, x0, y0, a, b, ink, amount):
+    steps = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) + 1
+    for step in range(steps + 1):
+        t = step / steps
+        frame.add(x0 + int(a[0] + (b[0] - a[0]) * t),
+                  y0 + int(a[1] + (b[1] - a[1]) * t), ink, amount)
+
+
+def ring(frame, x0, y0, cx, cy, radius, ink, amount):
+    steps = max(16, int(radius * 8))
+    for step in range(steps):
+        angle = step / steps * math.tau
+        frame.add(x0 + int(cx + math.cos(angle) * radius),
+                  y0 + int(cy + math.sin(angle) * radius), ink, amount)
+
+
+def scanlines(frame, x0, y0, w, h, ink):
+    for y in range(0, h, 2):
+        for x in range(w):
+            i = ((y0 + y) * frame.w + (x0 + x)) * 4
+            for c in range(3):
+                frame.px[i + c] = int(frame.px[i + c] * 0.62)
+    for x in range(w):
+        frame.add(x0 + x, y0, ink, 0.30)
+        frame.add(x0 + x, y0 + h - 1, ink, 0.30)
+    for y in range(h):
+        frame.add(x0, y0 + y, ink, 0.30)
+        frame.add(x0 + w - 1, y0 + y, ink, 0.30)
+
+
+def caption(frame, x0, y0, w, text, ink, scale, amount):
+    """One dim centred line of small type."""
+    upper = text.upper()
+    x = x0 + (w - text_width(upper, scale)) // 2
+    draw_glyph_line(frame, upper, x, y0, scale, ink, amount)
+
+
+def title_block(frame, x0, y0, w, h, title, ink):
+    """The lesson title, wrapped and centred, with the CRT misconvergence."""
+    scale, lines = layout_title(title.upper(), w - 64, 3)
+    line_height = (GLYPH_H + 2) * scale
+    block_h = line_height * len(lines) - 2 * scale
+    top = y0 + (h - block_h) // 2
+    for index, text in enumerate(lines):
+        x = x0 + (w - text_width(text, scale)) // 2
+        y = top + index * line_height
+        dots = glyph_mask(text, scale)
+        for dx, dy in dots:
+            for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                frame.add(x + dx + ox, y + dy + oy, ink, 0.18)
+        for dx, dy in dots:
+            frame.add(x + dx - 2, y + dy, (ink[0], 0, 0), 0.55)
+            frame.add(x + dx + 2, y + dy, (0, 0, ink[2]), 0.55)
+        for dx, dy in dots:
+            frame.set(x + dx, y + dy, ink)
+
+
+def render_still(lesson_id, title):
+    """One 480x270 still: the title over a schematic drawn from the id."""
+    rng = random.Random(seed_of(lesson_id))
+    ink = ink_of(lesson_id)
+    frame = Frame(STILL_W, STILL_H)
+    field(frame, 0, 0, STILL_W, STILL_H, starfield(rng, STILL_W, STILL_H, 110))
+
+    # A schematic behind the type, so the eleven stills are not eleven title
+    # cards: concentric rings, a grid, and a hull outline, chosen by the id.
+    cx, cy = STILL_W / 2, STILL_H / 2
+    shape = seed_of(lesson_id) % 3
+    if shape == 0:
+        for radius in (40, 70, 100):
+            ring(frame, 0, 0, cx, cy, radius, ink, 0.22)
+    elif shape == 1:
+        for step in range(-4, 5):
+            line(frame, 0, 0, (cx + step * 36, 24), (cx + step * 36, STILL_H - 24), ink, 0.12)
+            line(frame, 0, 0, (40, cy + step * 26), (STILL_W - 40, cy + step * 26), ink, 0.12)
+    else:
+        hull = [(cx - 90, cy), (cx - 40, cy - 34), (cx + 70, cy - 22),
+                (cx + 96, cy), (cx + 70, cy + 22), (cx - 40, cy + 34)]
+        for index in range(len(hull)):
+            line(frame, 0, 0, hull[index], hull[(index + 1) % len(hull)], ink, 0.26)
+
+    title_block(frame, 0, 0, STILL_W, STILL_H, title, ink)
+    caption(frame, 0, STILL_H - 22, STILL_W, f"{lesson_id.replace('_', ' ')} - placeholder",
+            ink, 1, 0.45)
+    scanlines(frame, 0, 0, STILL_W, STILL_H, ink)
+    return frame.bytes()
+
+
+def render_loop(lesson_id, title):
+    """One 4x3 sheet of twelve 240x135 cells carrying a second of motion."""
+    rng = random.Random(seed_of(lesson_id))
+    ink = ink_of(lesson_id)
+    stars = starfield(rng, CELL_W, CELL_H, 45)
+    motion = seed_of(lesson_id) % 3
+    sheet = Frame(CELL_W * COLUMNS, CELL_H * ROWS)
+
+    for nth in range(FRAMES):
+        x0 = (nth % COLUMNS) * CELL_W
+        y0 = (nth // COLUMNS) * CELL_H
+        t = nth / FRAMES
+        field(sheet, x0, y0, CELL_W, CELL_H, stars)
+        cx, cy = CELL_W / 2, CELL_H / 2
+
+        if motion == 0:
+            # A run across the cell, wrapping: the ship holds its heading and
+            # the marks it passes fall behind it.
+            ship_x = (t * (CELL_W + 60)) - 30
+            for mark in (0.25, 0.55, 0.85):
+                ring(sheet, x0, y0, CELL_W * mark, cy + 26, 4, ink, 0.30)
+            line(sheet, x0, y0, (0, cy), (CELL_W, cy), ink, 0.10)
+            for trail in range(1, 6):
+                line(sheet, x0, y0, (ship_x - trail * 6, cy), (ship_x - trail * 6 - 3, cy),
+                     ink, 0.30 - trail * 0.05)
+            chevron(sheet, x0, y0, ship_x, cy, 0.0, ink)
+        elif motion == 1:
+            # A circle held around a body: the orbit the flight computer flies.
+            radius = 42
+            ring(sheet, x0, y0, cx, cy, radius, ink, 0.18)
+            ring(sheet, x0, y0, cx, cy, 11, ink, 0.45)
+            angle = t * math.tau
+            ship_x = cx + math.cos(angle) * radius
+            ship_y = cy + math.sin(angle) * radius
+            chevron(sheet, x0, y0, ship_x, ship_y, angle + math.pi / 2, ink)
+        else:
+            # A sweep: the radar arm going round, contacts lighting as it
+            # passes them.
+            angle = t * math.tau
+            ring(sheet, x0, y0, cx, cy, 52, ink, 0.16)
+            ring(sheet, x0, y0, cx, cy, 26, ink, 0.10)
+            line(sheet, x0, y0, (cx, cy),
+                 (cx + math.cos(angle) * 52, cy + math.sin(angle) * 52), ink, 0.55)
+            for contact in range(4):
+                spot = contact / 4 * math.tau + 0.4
+                lit = 0.8 if abs(((angle - spot + math.pi) % math.tau) - math.pi) < 0.5 else 0.22
+                ring(sheet, x0, y0, cx + math.cos(spot) * 38, cy + math.sin(spot) * 38,
+                     3, ink, lit)
+
+        caption(sheet, x0, y0 + CELL_H - 16, CELL_W, title, ink, 1, 0.40)
+        scanlines(sheet, x0, y0, CELL_W, CELL_H, ink)
+
+    return sheet.bytes()
+
+
+def encoded(lesson_id, title, kind):
+    """The exact PNG file bytes for one lesson, without touching the disk."""
+    if kind == "still":
+        return encode_png(STILL_W, STILL_H, render_still(lesson_id, title))
+    return encode_png(CELL_W * COLUMNS, CELL_H * ROWS, render_loop(lesson_id, title))
+
+
+def path_of(lesson_id):
+    return os.path.join(REPO_ROOT, "assets", "base", "training", f"{lesson_id}.png")
+
+
+def is_generated_placeholder(lesson_id, title, kind):
+    """True when the committed file is still exactly this generator's output.
+
+    How the advisory coverage report tells a placeholder from real art without
+    a marker file: real art overwrites the same path and stops matching."""
+    try:
+        with open(path_of(lesson_id), "rb") as handle:
+            return handle.read() == encoded(lesson_id, title, kind)
+    except OSError:
+        return False
+
+
+def check():
+    stale, missing = [], []
+    for lesson_id, title, kind in LESSONS:
+        path = path_of(lesson_id)
+        if not os.path.exists(path):
+            missing.append(lesson_id)
+            continue
+        with open(path, "rb") as handle:
+            if handle.read() != encoded(lesson_id, title, kind):
+                stale.append(lesson_id)
+    for lesson_id in missing:
+        print(f"  MISSING  assets/base/training/{lesson_id}.png")
+    for lesson_id in stale:
+        print(f"  STALE    assets/base/training/{lesson_id}.png (differs from a fresh render)")
+    if missing or stale:
+        print(f"\n{len(missing) + len(stale)} of {len(LESSONS)} lesson demonstration(s) out of "
+              "date - run scripts/gen-lesson-media.py", file=sys.stderr)
+        return 1
+    print(f"{len(LESSONS)} lesson demonstration(s) match a fresh render (byte for byte).")
+    return 0
+
+
+def generate():
+    os.makedirs(os.path.join(REPO_ROOT, "assets", "base", "training"), exist_ok=True)
+    for lesson_id, title, kind in LESSONS:
+        with open(path_of(lesson_id), "wb") as handle:
+            handle.write(encoded(lesson_id, title, kind))
+    stills = sum(1 for _, _, kind in LESSONS if kind == "still")
+    print(f"wrote {len(LESSONS)} lesson demonstration(s) to assets/base/training/ "
+          f"({stills} still, {len(LESSONS) - stills} loop)")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--check", action="store_true",
+                        help="verify the committed files match a fresh render; write nothing")
+    args = parser.parse_args()
+    return check() if args.check else generate()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

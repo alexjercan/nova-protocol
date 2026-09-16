@@ -53,8 +53,8 @@ struct Cli;
 /// The live leg the run backs out of.
 #[cfg(feature = "debug")]
 const SCENARIO_A: &str = "menu_fallback_probe_live";
-/// The only `menu_backdrop`-flagged scenario left standing, and BROKEN: the
-/// draw refuses it, which is what empties the pick.
+/// The only `role: Backdrop` scenario left standing, and BROKEN: the draw
+/// refuses it, which is what empties the pick.
 #[cfg(feature = "debug")]
 const BROKEN_BACKDROP: &str = "menu_fallback_probe_backdrop";
 /// The content error filed against it - the shape a mod that removed a
@@ -190,7 +190,9 @@ fn register_probe_fixture(
     sections: Res<GameSections>,
 ) {
     for scenario in scenarios.values_mut() {
-        scenario.menu_backdrop = false;
+        if scenario.role == ScenarioRole::Backdrop {
+            scenario.role = ScenarioRole::Chapter;
+        }
     }
 
     let live = menu_fallback_probe_live(&game_assets, &sections);
@@ -228,9 +230,9 @@ fn a_backdrop_could_still_draw(
     let (Some(scenarios), Some(issues)) = (scenarios, issues) else {
         return false;
     };
-    scenarios
-        .values()
-        .any(|scenario| scenario.menu_backdrop && issues.errors(&scenario.id).is_empty())
+    scenarios.values().any(|scenario| {
+        scenario.role == ScenarioRole::Backdrop && issues.errors(&scenario.id).is_empty()
+    })
 }
 
 /// Put the draw back where [`register_probe_fixture`] left it after a re-merge
@@ -238,8 +240,8 @@ fn a_backdrop_could_still_draw(
 #[cfg(feature = "debug")]
 fn hold_the_draw_empty(mut scenarios: ResMut<GameScenarios>, mut issues: ResMut<ContentIssues>) {
     for scenario in scenarios.values_mut() {
-        if scenario.id != BROKEN_BACKDROP {
-            scenario.menu_backdrop = false;
+        if scenario.id != BROKEN_BACKDROP && scenario.role == ScenarioRole::Backdrop {
+            scenario.role = ScenarioRole::Chapter;
         }
     }
     file_the_backdrop_error(&mut issues);
@@ -290,14 +292,14 @@ fn menu_fallback_probe_live(game_assets: &GameAssets, sections: &GameSections) -
     }
 }
 
-/// The one scenario still flagged `menu_backdrop`, and broken: the draw reads
+/// The one scenario still carrying `role: Backdrop`, and broken: the draw reads
 /// the same `ContentIssues` the loader would refuse it on, so it never enters
 /// the pick and the menu takes the bare-camera branch.
 #[cfg(feature = "debug")]
 fn menu_fallback_probe_backdrop(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
         description: "The only backdrop left, and the gate refuses it.".to_string(),
-        menu_backdrop: true,
+        role: ScenarioRole::Backdrop,
         events: vec![],
         ..ScenarioConfig::new(
             BROKEN_BACKDROP.to_string(),
@@ -504,15 +506,15 @@ fn menu_fallback_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .add()
 }
 
-/// The backdrop draw's two inputs: how many scenarios are flagged, and how many
-/// of those the content gate would let through.
+/// The backdrop draw's two inputs: how many scenarios carry the role, and how
+/// many of those the content gate would let through.
 #[cfg(feature = "debug")]
 fn backdrop_counts(world: &World) -> (usize, usize) {
     let scenarios = world.resource::<GameScenarios>();
     let issues = world.get_resource::<ContentIssues>();
     let flagged: Vec<&ScenarioConfig> = scenarios
         .values()
-        .filter(|scenario| scenario.menu_backdrop)
+        .filter(|scenario| scenario.role == ScenarioRole::Backdrop)
         .collect();
     let clean = flagged
         .iter()

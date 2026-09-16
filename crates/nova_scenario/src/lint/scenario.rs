@@ -45,26 +45,27 @@ struct SpawnedShip {
 }
 
 /// Lint one campaign against the scenarios the caller knows about
-/// (`known_scenarios`, normally base + all installed bundles; `menu_backdrops`
-/// is the subset of those ids that author `menu_backdrop: true`). A campaign
-/// owns an ordered `scenarios` list; each member must resolve to a real
-/// scenario, or the picker would render a header row that launches nothing.
-/// Findings are keyed (via [`LintIssue::scenario`]) by the CAMPAIGN id, since a
-/// campaign is the element the finding is about.
+/// (`known_scenarios`, normally base + all installed bundles; `roles` is what
+/// each of those ids declares itself to be). A campaign owns an ordered
+/// `scenarios` list; each member must resolve to a real scenario, or the
+/// picker would render a header row that launches nothing. Findings are keyed
+/// (via [`LintIssue::scenario`]) by the CAMPAIGN id, since a campaign is the
+/// element the finding is about.
 ///
 /// Checks:
 /// - a member id absent from `known_scenarios` is a DANGLING reference (Error) -
 ///   the same class as a `NextScenario` targeting a missing scenario;
-/// - a member id that names a MENU BACKDROP is an Error: a campaign member is a
-///   player-launchable chapter, a backdrop is scenery that poses its own camera
-///   and hands the player no ship. The picker renders no row for one either,
-///   so a header listing one would be a chapter nobody can reach;
+/// - a member that is not a [`ScenarioRole::Chapter`] is an Error: a campaign
+///   member is a player-launchable chapter, while a backdrop is scenery that
+///   poses its own camera and a lesson range belongs to one lesson's Practice
+///   action. The picker renders no row for either, so a header listing one
+///   would be a chapter nobody can reach;
 /// - a member id listed more than once in the campaign is a duplicate (Warn) -
 ///   almost certainly an authoring slip, but the campaign still lists.
 pub fn lint_campaign(
     campaign: &CampaignConfig,
     known_scenarios: &HashSet<String>,
-    menu_backdrops: &HashSet<String>,
+    roles: &HashMap<String, ScenarioRole>,
 ) -> Vec<LintIssue> {
     let id = campaign.id.as_str();
     let mut issues = Vec::new();
@@ -77,13 +78,18 @@ pub fn lint_campaign(
                     "campaign '{id}' lists member scenario '{member}', which no bundle provides"
                 ),
             ));
-        } else if menu_backdrops.contains(member) {
+        } else if let Some(role) = roles.get(member).filter(|role| !role.picker_lists()) {
+            let what = match role {
+                ScenarioRole::Backdrop => "a menu backdrop (`role: Backdrop`)",
+                ScenarioRole::Lesson => "a lesson practice range (`role: Lesson`)",
+                ScenarioRole::Chapter => unreachable!("filtered to non-chapters above"),
+            };
             issues.push(LintIssue::error(
                 id,
                 format!(
-                    "campaign '{id}' lists member scenario '{member}', which is a menu backdrop \
-                     (`menu_backdrop: true`); a campaign member is a launchable chapter, and the \
-                     Scenarios picker renders no row for a backdrop"
+                    "campaign '{id}' lists member scenario '{member}', which is {what}; a \
+                     campaign member is a launchable chapter, and the Scenarios picker renders \
+                     no row for either"
                 ),
             ));
         }
@@ -125,7 +131,7 @@ pub fn lint_scenario(
     // blank camera forever. An ERROR on purpose: erroring scenarios are
     // filtered out of the menu draw, so the broken backdrop degrades to
     // "not in the rotation" instead of "menu with no picture".
-    if scenario.menu_backdrop
+    if scenario.role.is_backdrop()
         && !scenario
             .events
             .iter()
@@ -1789,7 +1795,7 @@ mod tests {
         let issues = lint_campaign(
             &c,
             &known(&["shakedown_run", "broadside", "final_tally"]),
-            &known(&[]),
+            &roles(&[], ScenarioRole::Backdrop),
         );
         assert!(
             issues.is_empty(),
@@ -1803,7 +1809,11 @@ mod tests {
     #[test]
     fn campaign_flags_dangling_member() {
         let c = campaign("nova_protocol", &["shakedown_run", "ghost_chapter"]);
-        let issues = lint_campaign(&c, &known(&["shakedown_run"]), &known(&[]));
+        let issues = lint_campaign(
+            &c,
+            &known(&["shakedown_run"]),
+            &roles(&[], ScenarioRole::Backdrop),
+        );
         let errors: Vec<_> = issues
             .iter()
             .filter(|i| i.severity == LintSeverity::Error)
@@ -1826,7 +1836,7 @@ mod tests {
         let issues = lint_campaign(
             &c,
             &known(&["shakedown_run", "menu_weave"]),
-            &known(&["menu_weave"]),
+            &roles(&["menu_weave"], ScenarioRole::Backdrop),
         );
         let errors: Vec<_> = issues
             .iter()
@@ -1840,12 +1850,40 @@ mod tests {
         );
     }
 
+    /// The same exclusion for the other non-chapter role: a lesson's practice
+    /// range belongs to that lesson's Practice action, so a campaign listing
+    /// one would offer a chapter the picker renders no row for.
+    #[test]
+    fn campaign_flags_a_member_that_is_a_lesson_range() {
+        let c = campaign("nova_protocol", &["shakedown_run", "drill_stop"]);
+        let issues = lint_campaign(
+            &c,
+            &known(&["shakedown_run", "drill_stop"]),
+            &roles(&["drill_stop"], ScenarioRole::Lesson),
+        );
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == LintSeverity::Error)
+            .collect();
+        assert_eq!(errors.len(), 1, "exactly the lesson-range member errors");
+        assert!(
+            errors[0].message.contains("drill_stop")
+                && errors[0].message.contains("lesson practice range"),
+            "the finding names the member and why: {}",
+            errors[0].message
+        );
+    }
+
     /// A member listed twice is a Warn (authoring slip), not an Error - the
     /// campaign still lists.
     #[test]
     fn campaign_warns_on_duplicate_member() {
         let c = campaign("nova_protocol", &["shakedown_run", "shakedown_run"]);
-        let issues = lint_campaign(&c, &known(&["shakedown_run"]), &known(&[]));
+        let issues = lint_campaign(
+            &c,
+            &known(&["shakedown_run"]),
+            &roles(&[], ScenarioRole::Backdrop),
+        );
         assert!(
             issues
                 .iter()
@@ -2072,7 +2110,7 @@ mod tests {
     #[test]
     fn a_backdrop_without_a_camera_pose_is_an_error() {
         let mut poseless = scenario(vec![], vec![]);
-        poseless.menu_backdrop = true;
+        poseless.role = ScenarioRole::Backdrop;
         let issues = lint_scenario(
             &poseless,
             &sections(&[]),
@@ -2092,7 +2130,7 @@ mod tests {
             })],
             vec![],
         );
-        posed.menu_backdrop = true;
+        posed.role = ScenarioRole::Backdrop;
         let issues = lint_scenario(
             &posed,
             &sections(&[]),

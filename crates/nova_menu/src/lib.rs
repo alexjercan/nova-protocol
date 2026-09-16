@@ -39,12 +39,16 @@ pub mod prelude {
         ambience::MENU_BACKDROP_ENV,
         pause::FocusPause,
         settings::{
-            WindowModeSetting, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
-            SETTINGS_PANEL_WIDTH_PCT,
+            TrainingPromptSetting, WindowModeSetting, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT,
+            SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
         },
         settings_store::{
             load_settings, save_settings, PersistedSettings, SettingsStoreAccess,
             SettingsStorePlugin, SettingsStoreRoot,
+        },
+        training_store::{
+            allow_training_saves, load_training, save_training, PersistedTraining,
+            TrainingProgressPlugin, TrainingStoreAccess,
         },
         widgets::MenuCueSystems,
         NewGameScenario, NovaMenuPlugin,
@@ -61,6 +65,8 @@ mod safe_mode;
 mod scenarios;
 mod settings;
 mod settings_store;
+mod training;
+mod training_store;
 mod widgets;
 
 #[cfg(test)]
@@ -75,6 +81,7 @@ use mods::{
     mod_details_dirty, mods_list_dirty, refresh_mod_details, refresh_mods_list,
     sync_mod_checkboxes, ModsActiveTab, SelectedModId,
 };
+use nova_training::prelude::{FieldNoteRotation, TrainingCatalog};
 use outcome::{
     auto_advance_outcome, clear_start_failure, regrab_cursor_on_player_spawn, sync_outcome_cursor,
     sync_outcome_overlay, sync_outcome_pause, sync_start_failure_cursor,
@@ -96,9 +103,16 @@ use scenarios::{
 use settings::{
     apply_settings_rebind, on_sensitivity_slider_change, on_volume_slider_change,
     refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider,
-    PendingRebind, SettingsActiveTab, SettingsControlsGroup, WindowModeSetting,
+    PendingRebind, SettingsActiveTab, SettingsControlsGroup, TrainingPromptSetting,
+    WindowModeSetting,
 };
 use settings_store::SettingsStorePlugin;
+use training::{
+    advance_lesson_loops, poll_lesson_media, refresh_training_details, refresh_training_list,
+    sync_menu_aside, training_details_dirty, training_list_dirty, PendingLessonMedia,
+    SelectedLessonId,
+};
+use training_store::TrainingProgressPlugin;
 use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
 
 /// The main-menu plugin: owns [`GameStates::MainMenu`] and the settings/mods/
@@ -124,6 +138,29 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<PendingScenarioThumbnail>();
         app.init_resource::<ambience::MenuCameraMemory>();
         app.init_resource::<CollapsedCampaigns>();
+        // The handbook's material and the player's record of it. The CATALOG is
+        // merged content: `register_bundles` inserts the base bundle's lessons
+        // plus every enabled mod's over this empty default, so a rig with no
+        // asset stack (slim apps, headless tests) still has the resource the
+        // screen reads. The RECORD belongs to `TrainingProgressPlugin`, which
+        // owns the resource and both directions of its store; adding it under
+        // a guard is what keeps the menu standing alone in a slim rig.
+        app.init_resource::<TrainingCatalog>();
+        // The session's field-note rotation, shared with the loading screens'
+        // own slot so a note the player just read on a load does not come
+        // straight back on the menu. `LoadingScreenPlugin` inits the same
+        // resource; whoever gets there first wins, and init_resource is
+        // idempotent, which is what lets the menu stand alone.
+        app.init_resource::<FieldNoteRotation>();
+        if !app.is_plugin_added::<TrainingProgressPlugin>() {
+            app.add_plugins(TrainingProgressPlugin::default());
+        }
+        // The handbook is where a lesson is read, so the menu is what turns a
+        // reading progress store into a writing one - the same bargain the
+        // settings panel strikes with `allow_settings_saves`.
+        training_store::allow_training_saves(app);
+        app.init_resource::<SelectedLessonId>();
+        app.init_resource::<PendingLessonMedia>();
         app.init_resource::<UpdateRequested>();
         // Ungated by menu state on purpose - an update started from the
         // menu must complete even if the player closes it mid-flight.
@@ -153,6 +190,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_observer(button_on_setting::<GraphicsQuality>);
         app.add_observer(button_on_setting::<UiSkin>);
         app.add_observer(button_on_setting::<WindowModeSetting>);
+        app.add_observer(button_on_setting::<TrainingPromptSetting>);
         app.add_systems(Update, (sync_volume_slider, sync_sensitivity_slider));
         // Ungated by menu state: the SAME body is the pause overlay's, which
         // only exists while playing.
@@ -217,6 +255,20 @@ impl Plugin for NovaMenuPlugin {
                 poll_scenario_thumbnail,
                 refresh_scenarios_list.run_if(scenarios_list_dirty),
                 refresh_scenario_details.run_if(scenario_details_dirty),
+            )
+                .chain()
+                .run_if(in_state(GameStates::MainMenu)),
+        );
+        // Same same-frame chain rule again: the list writes the default
+        // selection, the details pane renders it in the same frame.
+        app.add_systems(
+            Update,
+            (
+                poll_lesson_media,
+                refresh_training_list.run_if(training_list_dirty),
+                refresh_training_details.run_if(training_details_dirty),
+                advance_lesson_loops,
+                sync_menu_aside,
             )
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),

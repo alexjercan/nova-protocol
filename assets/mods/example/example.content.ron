@@ -11,8 +11,8 @@
 //   3. ADD a playable scenario  - `example_arena` (mod-shipped skybox + rocks,
 //                                  a NarrativeCue comms beat, an objective, a
 //                                  win check, and Victory/Defeat Outcomes)
-//   4. ADD a menu backdrop      - `example_menu` (a menu_backdrop scene: mods
-//                                  can ship main-menu ambience)
+//   4. ADD a menu backdrop      - `example_menu` (a `role: Backdrop` scene:
+//                                  mods can ship main-menu ambience)
 //   5. ADD a hull line          - `example_freighter_hull` (a `Grammar` under a
 //                                  new id: the editor's Generate block lists it
 //                                  beside the base one and collapses whichever
@@ -658,18 +658,18 @@
         ],
     )),
     // -- 4. MENU BACKDROP ---------------------------------------------------
-    // A scenario flagged `menu_backdrop: true` can drive the main-menu ambience:
-    // mods can ship their own menu scene, not just playable levels. That flag is
+    // A scenario declaring `role: Backdrop` can drive the main-menu ambience:
+    // mods can ship their own menu scene, not just playable levels. The role is
     // also what keeps it out of the player-facing Scenarios picker (it is menu
-    // dressing, not a level you launch) - every other scenario a mod ships is a
-    // picker row. It renders under this mod's own skybox and uses this mod's own
-    // rock texture, all via `self://`.
+    // dressing, not a level you launch) - a scenario with no `role` is a
+    // `Chapter`, which is a picker row. It renders under this mod's own skybox
+    // and uses this mod's own rock texture, all via `self://`.
     Scenario((
         id: "example_menu",
         name: "Example Menu Backdrop",
         description: "A menu-ambience scene shipped by the example mod, under its own skybox.",
         cubemap: "self://textures/nebula.png",
-        menu_backdrop: true,
+        role: Backdrop,
         events: [
             (
                 name: OnStart,

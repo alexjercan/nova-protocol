@@ -17,16 +17,20 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::RegisterInputActions;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{camera_bindings, flight_bindings};
+use nova_training::prelude::{Lesson, TrainingCatalog};
 
 use crate::{
     mods::{ModEnableCheckbox, ModRow, ModToggle, SelectedModId},
     settings_store::{SettingsStoreAccess, SettingsStorePlugin},
+    training_store::{TrainingProgressPlugin, TrainingStoreAccess},
     NovaMenuPlugin,
 };
 
 /// Fixture ids: the tests own their registry; production names no scenario ids.
 pub(crate) const TEST_START_ID: &str = "story_start";
 pub(crate) const TEST_BACKDROP_ID: &str = "test_backdrop";
+/// The practice range the fixture handbook's lessons hand off to.
+pub(crate) const TEST_RANGE_ID: &str = "test_range";
 
 /// A scratch settings store of this test's own, named after `what`.
 ///
@@ -71,6 +75,14 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
         access: SettingsStoreAccess::ReadWrite,
         root: Some(root.into()),
     });
+    // The same guard for the OTHER store `NovaMenuPlugin` adds. INERT, not
+    // rooted: these tests hand the handbook a fixture record (`dummy_progress`)
+    // and assert on what it draws, so a store that loaded over it - or wrote a
+    // row click into a file the next test run then loaded - would make the
+    // fixture whatever the last run happened to do.
+    app.add_plugins(TrainingProgressPlugin {
+        access: TrainingStoreAccess::Inert,
+    });
     app.add_plugins(StatesPlugin);
     // Seeded so the backdrop draw is deterministic across runs.
     app.add_plugins(EntropyPlugin::<WyRand>::with_seed(42u64.to_ne_bytes()));
@@ -85,8 +97,16 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // The base bundle's declared New Game start (register_bundles writes
     // this in production).
     app.insert_resource(NewGameStart(Some(TEST_START_ID.to_string())));
-    // Headless: no TimePlugin, so provide the clocks the pause systems
-    // touch.
+    // The handbook's material and a record with some history in it. In
+    // production the catalog is merged content (`register_bundles` inserts it
+    // too) and the record is the player's, loaded by `TrainingProgressPlugin`;
+    // the fixture supplies both so all three row states are on screen at once.
+    app.insert_resource(dummy_lessons());
+    app.insert_resource(dummy_progress());
+    // Headless: no TimePlugin, so provide the clocks the pause systems and the
+    // handbook's looping demonstrations touch. Nothing advances them, so a test
+    // that wants time to pass moves the clock itself.
+    app.insert_resource(Time::<Real>::default());
     app.insert_resource(Time::<Virtual>::default());
     app.insert_resource(Time::<Physics>::default());
     // The freeze ledger the pause and terminal holds are recorded in.
@@ -160,7 +180,15 @@ pub(crate) fn dummy_scenario(id: &str) -> (String, ScenarioConfig) {
 
 pub(crate) fn dummy_backdrop(id: &str) -> (String, ScenarioConfig) {
     let (key, mut config) = dummy_scenario(id);
-    config.menu_backdrop = true;
+    config.role = ScenarioRole::Backdrop;
+    (key, config)
+}
+
+/// A practice range: what a lesson's `practice` is allowed to name, and what
+/// the picker must keep out of its list.
+pub(crate) fn dummy_lesson_range(id: &str) -> (String, ScenarioConfig) {
+    let (key, mut config) = dummy_scenario(id);
+    config.role = ScenarioRole::Lesson;
     (key, config)
 }
 
@@ -168,8 +196,148 @@ pub(crate) fn dummy_scenarios() -> GameScenarios {
     GameScenarios(bevy::platform::collections::HashMap::from([
         dummy_scenario(TEST_START_ID),
         dummy_backdrop(TEST_BACKDROP_ID),
+        dummy_lesson_range(TEST_RANGE_ID),
     ]))
 }
+
+/// A record with some history in it, so the handbook draws all three row
+/// states at once.
+///
+/// A FIXTURE against the ids [`dummy_lessons`] carries, not a record any player
+/// ever had. The shipped game loads the player's own through
+/// `TrainingProgressPlugin`.
+pub(crate) fn dummy_progress() -> nova_training::prelude::TrainingProgress {
+    nova_training::prelude::TrainingProgress::seeded(
+        ["start_hud".to_string(), "flight_momentum".to_string()],
+        ["start_welcome".to_string()],
+    )
+}
+
+/// The handbook the menu tests draw.
+///
+/// A FIXTURE, not the shipped catalog: the screen's job is to draw whatever
+/// content hands it, so this is one lesson of every shape the layout has to
+/// hold - both media forms, a lesson with binding chips and one without, a
+/// lesson with somewhere to fly and one without - across all six categories,
+/// with the ids [`dummy_progress`] seeds. Asserting against the shipped lessons
+/// would turn a copy edit into a menu test failure.
+pub(crate) fn dummy_lessons() -> TrainingCatalog {
+    use nova_training::prelude::{LessonCategory::*, LessonMedia};
+
+    let still = |alt: &str| LessonMedia::Image {
+        image: AssetRef::from(format!("self://training/{alt}.png")),
+        alt: alt.to_string(),
+    };
+    let looping = |alt: &str| LessonMedia::Loop {
+        sheet: AssetRef::from(format!("self://training/{alt}.png")),
+        columns: 4,
+        rows: 3,
+        frames: 12,
+        frames_per_second: 12.0,
+        alt: alt.to_string(),
+    };
+    let lesson = |id: &str,
+                  category,
+                  order,
+                  title: &str,
+                  media,
+                  actions: &[&str],
+                  practice: Option<&str>| Lesson {
+        id: id.to_string(),
+        category,
+        order,
+        title: title.to_string(),
+        media,
+        body: "A short body, the length the box is built for.".to_string(),
+        actions: actions.iter().map(|a| (*a).to_string()).collect(),
+        wiki_path: format!("wiki/{id}#a-heading-on-it"),
+        practice: practice.map(str::to_string),
+        proven_by: vec![],
+        field_notes: vec![],
+    };
+
+    let mut lessons = vec![
+        lesson(
+            "start_welcome",
+            StartHere,
+            10,
+            "Welcome",
+            still("welcome"),
+            &[],
+            None,
+        ),
+        lesson(
+            "start_hud",
+            StartHere,
+            20,
+            "The HUD",
+            still("hud"),
+            &["main_drive"],
+            None,
+        ),
+        lesson(
+            "flight_momentum",
+            Flight,
+            10,
+            "Momentum",
+            looping("momentum"),
+            &["main_drive"],
+            Some(TEST_RANGE_ID),
+        ),
+        lesson(
+            "combat_turrets",
+            Combat,
+            10,
+            "Turret arcs",
+            looping("turrets"),
+            &[],
+            Some(TEST_RANGE_ID),
+        ),
+        lesson(
+            "build_mass",
+            Shipbuilding,
+            10,
+            "Mass",
+            still("mass"),
+            &[],
+            None,
+        ),
+        lesson(
+            "novaos_open",
+            NovaOs,
+            10,
+            "The computer",
+            looping("novaos"),
+            &["novaos_toggle"],
+            None,
+        ),
+        lesson(
+            "advanced_mods",
+            Advanced,
+            10,
+            "Mods",
+            still("mods"),
+            &[],
+            None,
+        ),
+    ];
+    // Exactly ONE fixture lesson carries a field note, which makes the corner's
+    // note card deterministic: whatever the rotation rolls, this is the only
+    // note there is to pick.
+    for lesson in &mut lessons {
+        if lesson.id == FIXTURE_NOTE_LESSON {
+            lesson.field_notes = vec![FIXTURE_NOTE.to_string()];
+        }
+    }
+    TrainingCatalog::new(lessons)
+}
+
+/// The one fixture lesson with a field note, and the note itself.
+///
+/// `build_mass` on purpose: [`dummy_progress`] has no history for it, so
+/// opening the lesson from the card is what moves it to Viewed.
+pub(crate) const FIXTURE_NOTE_LESSON: &str = "build_mass";
+pub(crate) const FIXTURE_NOTE: &str = "A heavier hull turns slower.";
 
 #[derive(Resource, Default)]
 pub(crate) struct Unloaded(pub(crate) bool);

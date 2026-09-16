@@ -130,11 +130,20 @@ does NOT get an entry - and it is the only place they are written down.
   flipping it on the ship root.
 - The menu duel keeps both ships on mirrored center patrols while AI aims and
   fires, and its doomed raider breaks apart below half health.
+- **(breaking)** A scenario declares a `role` - `Chapter`, `Backdrop` or
+  `Lesson` - in place of `menu_backdrop`. The picker lists chapters, a campaign
+  names chapters, a lesson practises in a `Lesson`.
 - **(breaking)** A scenario's `hidden` flag is gone. The Scenarios list shows
-  every installed scenario except a `menu_backdrop: true` one, so chained
-  chapters are one click away; a file still authoring `hidden` is refused.
-- A campaign member must be a chapter the player can launch: naming a
-  `menu_backdrop` scenario is a content-lint error.
+  every installed chapter, so chained chapters are one click away; a file still
+  authoring `hidden` is refused.
+- A campaign member must be a chapter the player can launch: naming a backdrop
+  or a practice range is a content-lint error.
+- Four practice ranges ship with the handbook: momentum, the flight computer's
+  STOP, its GOTO and ORBIT, and turret gunnery. Each is reached from its
+  lesson, not from the Scenarios list.
+- A range hands over only the verbs its lesson teaches, says why on the comms
+  channel, lights the chip for the verb in hand, and ends in a banner or a
+  Retry.
 - The scenario lint reads the same table the editor does, so an action that
   names a ship nothing spawns is an error everywhere. `SetInfiniteAmmo` and
   `RefillAmmo` passed the lint and then did nothing in the game.
@@ -157,6 +166,9 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- A mod can teach: a `Lesson` content item adds a handbook lesson, or overlays
+  one by id - category, order, a still or a sprite-sheet loop, body, the
+  actions it names, a wiki path, a practice range.
 - **(breaking)** A spawn tunes a catalog design through `section_patches`,
   keyed by the design's own section ids, instead of a `modifications` list. The
   Ledger and the example mod ship migrated.
@@ -177,6 +189,18 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
+- The main menu opens a training handbook: 24 lessons in six categories, one
+  screen each with a still or looping demonstration, your own bindings, a wiki
+  link, and a Practice button that flies a range.
+- A first launch is offered Basic Training from the menu's corner. Taking it or
+  answering `Not now` puts the card away for good; Settings > Interface brings
+  it back.
+- The handbook keeps what you have done, in its own file beside your settings: a
+  lesson you open reads `read`, one reads `done` only once you win a scenario
+  that teaches it.
+- Field notes: a two-line fact from the handbook sits on the menu's corner with
+  its lesson one click away, and in each loading screen's slot. A scenario load
+  draws a note about that range.
 - A docking sight draws the approach in the world: a cross over each port face,
   a line between them, and a tick per cell of capture distance. Each half turns
   green when its half of the envelope holds.

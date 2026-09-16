@@ -309,6 +309,48 @@ impl PendingRebind {
     }
 }
 
+/// Whether the main menu shows the corner prompt.
+///
+/// One switch for what will become a small notice corner; today the training
+/// prompt is the only thing that lands there, so the setting says exactly that
+/// and no more.
+///
+/// `Shown` is the default, so a fresh install meets the prompt once. Starting
+/// Basic Training or answering `Not now` writes `Hidden` - the prompt is a
+/// first-launch offer, not menu furniture - and this row is how a player gets
+/// it back.
+///
+/// `Resource`-only on purpose: on Bevy 0.19 a `#[derive(Resource)]` type is
+/// component-backed, so this doubles as the `Component` that
+/// `button_on_setting::<TrainingPromptSetting>` needs, and deriving
+/// `Component` too would conflict.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrainingPromptSetting {
+    /// The corner prompt is up on the main menu.
+    #[default]
+    Shown,
+    /// The player has answered it, or switched it off here.
+    Hidden,
+}
+
+impl TrainingPromptSetting {
+    /// The options, in row order.
+    const ALL: [Self; 2] = [Self::Shown, Self::Hidden];
+
+    /// What the option reads.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Shown => "On",
+            Self::Hidden => "Off",
+        }
+    }
+
+    /// Whether the corner prompt draws.
+    pub(crate) fn shown(self) -> bool {
+        matches!(self, Self::Shown)
+    }
+}
+
 /// Whether the window fills the screen. Native only: the web build already
 /// fits its canvas, and a browser cannot go fullscreen without a user gesture
 /// the settings row does not carry.
@@ -468,25 +510,32 @@ pub(crate) fn settings_tab_dirty(
         || !spawned.is_empty()
 }
 
+/// Every setting the panel DRAWS, in one param.
+///
+/// One struct rather than a dozen `Res` arguments: the reconciler already sat
+/// at bevy's system-parameter ceiling, and the next setting added to the panel
+/// would have pushed it over.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct SettingsValues<'w> {
+    volume: Res<'w, MasterVolume>,
+    interface_volume: Res<'w, InterfaceVolume>,
+    world_volume: Res<'w, WorldVolume>,
+    music_volume: Res<'w, MusicVolume>,
+    sensitivity: Res<'w, MouseSensitivity>,
+    quality: Res<'w, GraphicsQuality>,
+    skin: Res<'w, UiSkin>,
+    window_mode: Res<'w, WindowModeSetting>,
+    prompt: Res<'w, TrainingPromptSetting>,
+}
+
 /// Fill every [`SettingsTabBody`] with the open tab.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the reconciler draws every tab, so it reads every setting the panel shows"
-)]
 pub(crate) fn refresh_settings_tab(
     mut commands: Commands,
     bodies: Query<Entity, With<SettingsTabBody>>,
     headers: Query<Entity, With<SettingsControlsHeader>>,
     active: Res<SettingsActiveTab>,
     group: Res<SettingsControlsGroup>,
-    volume: Res<MasterVolume>,
-    interface_volume: Res<InterfaceVolume>,
-    world_volume: Res<WorldVolume>,
-    music_volume: Res<MusicVolume>,
-    sensitivity: Res<MouseSensitivity>,
-    quality: Res<GraphicsQuality>,
-    skin: Res<UiSkin>,
-    window_mode: Res<WindowModeSetting>,
+    values: SettingsValues,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
     // Absent on a bare menu rig that never ran asset loading, which is exactly
@@ -494,11 +543,12 @@ pub(crate) fn refresh_settings_tab(
     hud_assets: Option<Res<NovaHudAssets>>,
 ) {
     let glyphs = hud_assets.as_deref().map(|assets| &assets.key_glyphs);
+    let skin = *values.skin;
     let levels = AudioLevels {
-        master: volume.factor(),
-        interface: interface_volume.factor(),
-        world: world_volume.factor(),
-        music: music_volume.factor(),
+        master: values.volume.factor(),
+        interface: values.interface_volume.factor(),
+        world: values.world_volume.factor(),
+        music: values.music_volume.factor(),
     };
     // The fixed strip above the body. Emptied on every tab so a group bar left
     // over from Controls cannot sit above the Audio page.
@@ -506,15 +556,17 @@ pub(crate) fn refresh_settings_tab(
         commands.entity(strip).despawn_related::<Children>();
         if active.0 == SettingsTabKind::Controls {
             commands.entity(strip).with_children(|strip| {
-                build_controls_header(strip, &bindings, &rebind, group.0, *skin);
+                build_controls_header(strip, &bindings, &rebind, group.0, skin);
             });
         }
     }
     for body in &bodies {
         commands.entity(body).despawn_related::<Children>();
         commands.entity(body).with_children(|list| match active.0 {
-            SettingsTabKind::Audio => build_audio_tab(list, levels, *skin),
-            SettingsTabKind::Graphics => build_graphics_tab(list, *quality, *window_mode, *skin),
+            SettingsTabKind::Audio => build_audio_tab(list, levels, skin),
+            SettingsTabKind::Graphics => {
+                build_graphics_tab(list, *values.quality, *values.window_mode, skin);
+            }
             SettingsTabKind::Controls => {
                 build_controls_tab(
                     list,
@@ -522,11 +574,11 @@ pub(crate) fn refresh_settings_tab(
                     &rebind,
                     group.0,
                     glyphs,
-                    *sensitivity,
-                    *skin,
+                    *values.sensitivity,
+                    skin,
                 );
             }
-            SettingsTabKind::Interface => build_interface_tab(list, *skin),
+            SettingsTabKind::Interface => build_interface_tab(list, skin, *values.prompt),
         });
     }
 }
@@ -717,10 +769,15 @@ fn build_graphics_tab(
     let _ = window_mode;
 }
 
-/// INTERFACE - the UI skin choice. A segmented Phosphor|Hardware control wired
-/// through `ButtonValue<UiSkin>` + the app-global `button_on_setting::<UiSkin>`
-/// observer, exactly like the graphics preset.
-fn build_interface_tab(list: &mut ChildSpawnerCommands, skin: UiSkin) {
+/// INTERFACE - the UI skin choice and the menu's corner prompt. Both are
+/// segmented controls wired through `ButtonValue<T>` + the app-global
+/// `button_on_setting::<T>` observer, exactly like the graphics preset.
+fn build_interface_tab(
+    list: &mut ChildSpawnerCommands,
+    skin: UiSkin,
+    prompt: TrainingPromptSetting,
+) {
+    list.spawn(panel_header("Skin"));
     list.spawn((Name::new("UI Skin Row"), segmented_container(skin)))
         .with_children(|row| {
             for option in [UiSkin::Phosphor, UiSkin::Hardware] {
@@ -734,6 +791,22 @@ fn build_interface_tab(list: &mut ChildSpawnerCommands, skin: UiSkin) {
                     ButtonValue(option),
                 ));
                 if option == skin {
+                    button.insert(Selected);
+                }
+            }
+        });
+
+    list.spawn(separator());
+    list.spawn(panel_header("Training prompt"));
+    list.spawn((Name::new("Training Prompt Row"), segmented_container(skin)))
+        .with_children(|row| {
+            for option in TrainingPromptSetting::ALL {
+                let mut button = row.spawn((
+                    Name::new(format!("Training Prompt {}", option.label())),
+                    segmented_option(option.label()),
+                    ButtonValue(option),
+                ));
+                if option == prompt {
                     button.insert(Selected);
                 }
             }
@@ -1209,7 +1282,7 @@ fn spawn_chip(
 /// A keycap is sized off its measured cap rect ([`KeyCap::node`]), so the wide
 /// ones (Space, Shift, Tab) keep their proportions instead of being squashed
 /// into a square.
-fn spawn_binding_chips(
+pub(crate) fn spawn_binding_chips(
     slot: &mut ChildSpawnerCommands,
     chips: &[BindingChip],
     glyphs: Option<&KeyGlyphs>,

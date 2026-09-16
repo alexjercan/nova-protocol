@@ -273,7 +273,8 @@ nix develop --command cargo run --features dev
 When the scenario works, give it its own folder and id with
 [Mod files](../mod-files/), then follow [Publish a mod](../publish-a-mod/) to
 make it installable by other players. It appears in the Scenarios menu on its
-own: only a `menu_backdrop: true` scene is left out.
+own, because it is a [`Chapter`](../scenarios/#roles); a backdrop or a practice
+range is left out.
 
 ## 9. Common mistakes
 

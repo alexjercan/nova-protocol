@@ -362,7 +362,7 @@ pub(crate) fn menu_gauntlet(
     ScenarioConfig {
         description: "A gunship's doomed point-defense stand against batteries on both flanks."
             .to_string(),
-        menu_backdrop: true,
+        role: ScenarioRole::Backdrop,
         events,
         ..ScenarioConfig::new(
             "menu_gauntlet".to_string(),

@@ -18,9 +18,10 @@ use nova_gameplay::prelude::{
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ShipDesignPrototype,
+    GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioRole, ShipDesignPrototype,
 };
 use nova_ship::prelude::*;
+use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
 
 use crate::{
     collections::GameAssets,
@@ -305,13 +306,25 @@ pub fn register_bundles(
     let merged_ships = nova_scenario::prelude::KnownShipDesigns::from_configs(outcome.ships.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
-    // The backdrop subset, so campaign lint can refuse a member that is scenery
-    // rather than a launchable chapter.
-    let merged_backdrops: std::collections::HashSet<String> = outcome
+    // What each merged scenario declares itself to be, so campaign lint can
+    // refuse a member that is scenery or a lesson's range rather than a
+    // launchable chapter - and so lesson lint can check the other direction.
+    let merged_roles: HashMap<String, ScenarioRole> = outcome
         .scenarios
         .values()
-        .filter(|scenario| scenario.menu_backdrop)
-        .map(|scenario| scenario.id.clone())
+        .map(|scenario| (scenario.id.clone(), scenario.role))
+        .collect();
+    let merged_practice_ranges: std::collections::HashSet<String> = merged_roles
+        .iter()
+        .filter(|(_, role)| role.is_lesson())
+        .map(|(id, _)| id.clone())
+        .collect();
+    // Everything a player can be sent into, which is what may PROVE a lesson:
+    // a chapter or a range, never scenery.
+    let merged_launchable: std::collections::HashSet<String> = merged_roles
+        .iter()
+        .filter(|(_, role)| !role.is_backdrop())
+        .map(|(id, _)| id.clone())
         .collect();
     let merged_channels: std::collections::HashSet<String> = outcome
         .channels
@@ -384,7 +397,7 @@ pub fn register_bundles(
     // Findings are keyed by the campaign id in the shared ContentIssues channel.
     for campaign in outcome.campaigns.values() {
         let found =
-            nova_scenario::prelude::lint_campaign(campaign, &merged_scenarios, &merged_backdrops);
+            nova_scenario::prelude::lint_campaign(campaign, &merged_scenarios, &merged_roles);
         for issue in &found {
             warn!(
                 "register_bundles: content lint [{:?}] campaign '{}': {}",
@@ -399,6 +412,41 @@ pub fn register_bundles(
                 .extend(found);
         }
     }
+    // Lesson references: a Practice button may only hand off to a scenario
+    // that declares itself a practice range, and this is the only place that is
+    // decidable across mods - a mod's lesson may practise in a base range, and
+    // `content lint` never sees an installed mod. Findings are keyed by the
+    // LESSON id in the same channel, so the handbook can refuse to offer one.
+    let lesson_findings = nova_training::prelude::lint_lessons(
+        outcome.lessons.iter(),
+        &merged_scenarios,
+        &merged_practice_ranges,
+        &merged_launchable,
+    )
+    .into_iter()
+    .chain(nova_training::prelude::unused_practice_ranges(
+        outcome.lessons.iter(),
+        &merged_practice_ranges,
+    ));
+    for issue in lesson_findings {
+        warn!(
+            "register_bundles: content lint [{:?}] lesson '{}': {}",
+            issue.severity, issue.lesson, issue.message
+        );
+        content_issues
+            .0
+            .entry(issue.lesson.clone())
+            .or_default()
+            .push(nova_scenario::prelude::LintIssue {
+                severity: match issue.severity {
+                    LessonSeverity::Error => nova_scenario::prelude::LintSeverity::Error,
+                    LessonSeverity::Warn => nova_scenario::prelude::LintSeverity::Warn,
+                },
+                scenario: issue.lesson,
+                message: issue.message,
+            });
+    }
+
     // Fold in the resource-ref findings gathered while flattening (undeclared
     // `self://` and ungated `dep://<id>/` refs): an Error per (content id,
     // message) so the gate refuses that item.
@@ -423,6 +471,7 @@ pub fn register_bundles(
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameGrammars(outcome.grammars));
     commands.insert_resource(GameChannels(outcome.channels));
+    commands.insert_resource(TrainingCatalog::new(outcome.lessons));
 }
 
 /// The scenario ids the last merge published, so the next one knows which
@@ -479,6 +528,12 @@ pub struct MergeOutcome {
     /// a mod restyles the work channel by declaring `comms`, and adds a band of
     /// its own by declaring a new id.
     pub channels: Vec<NarrativeChannelConfig>,
+    /// Handbook lessons in registration order, overlaid last-wins by id - so a
+    /// mod re-teaches a base lesson by declaring its id, and adds one to a
+    /// category by declaring a new one. The registration order is NOT the draw
+    /// order: `TrainingCatalog::new` sorts by category, authored order and id,
+    /// so which mod arrived first never decides how the handbook reads.
+    pub lessons: Vec<Lesson>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -585,6 +640,14 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         Content::Channel(cfg) => match into.channels.iter_mut().find(|c| c.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
             None => into.channels.push(cfg.clone()),
+        },
+        // A Vec, overlaid in place, like the rest - though the handbook's own
+        // order comes from the lessons' `category`/`order` rather than from
+        // this Vec, so an overlay here is about REPLACING a lesson, never
+        // about where it draws.
+        Content::Lesson(lesson) => match into.lessons.iter_mut().find(|l| l.id == lesson.id) {
+            Some(existing) => *existing = lesson.clone(),
+            None => into.lessons.push(lesson.clone()),
         },
     }
 }
@@ -708,6 +771,57 @@ mod tests {
             outcome.scenarios.get(&id).unwrap().name,
             "modded",
             "later scenario must win"
+        );
+    }
+
+    /// A mod adds a lesson to a base category and replaces a base lesson by
+    /// declaring its id.
+    ///
+    /// A lesson id denotes a stable learning outcome, because persisted
+    /// progress is keyed by it: a replacement may change every word and the
+    /// picture, but the player who already read that lesson has still read it.
+    /// So the overlay is by id, in place, like every other content kind.
+    #[test]
+    fn a_mod_overlays_a_base_lesson_by_id_and_adds_its_own() {
+        let lesson = |id: &str, category, order, title: &str| {
+            Content::Lesson(nova_training::prelude::Lesson {
+                id: id.to_string(),
+                category,
+                order,
+                title: title.to_string(),
+                media: nova_training::prelude::LessonMedia::Image {
+                    image: AssetRef::from("self://training/x.png".to_string()),
+                    alt: "a still".to_string(),
+                },
+                body: "A short body.".to_string(),
+                actions: vec![],
+                wiki_path: "wiki/flight".to_string(),
+                practice: None,
+                proven_by: vec![],
+                field_notes: vec![],
+            })
+        };
+        use nova_training::prelude::LessonCategory::{Advanced, Flight};
+        let base = [lesson("flight_stop", Flight, 30, "STOP is an order")];
+        let modded = [
+            lesson("flight_stop", Flight, 30, "STOP, in this mod"),
+            lesson("mod_ritual", Advanced, 10, "The ritual"),
+        ];
+
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
+
+        assert!(outcome.conflicts.is_empty(), "{:?}", outcome.conflicts);
+        assert_eq!(
+            outcome
+                .lessons
+                .iter()
+                .map(|lesson| (lesson.id.as_str(), lesson.title.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("flight_stop", "STOP, in this mod"),
+                ("mod_ritual", "The ritual"),
+            ],
+            "the mod's lesson must win in place, and its new one must be added",
         );
     }
 

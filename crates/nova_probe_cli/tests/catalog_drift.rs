@@ -836,6 +836,25 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_training_journey",
+        &[
+            "the run writes an isolated training profile",
+            "a fresh profile is offered Basic Training",
+            "the corner opens the handbook on the first lesson",
+            "opening a lesson reads it and proves nothing",
+            "the handbook launches the lesson's own practice range",
+            "a won range proves only the lessons that name it",
+            "the proven record reaches the file",
+            "a relaunch loads what the last run proved",
+            "the loaded record reaches the screen",
+            "reading the handbook does not answer the offer",
+            "the dismissal is a setting and the record is not",
+            "the answered offer is gone on the next launch",
+            "the handbook is reachable without the corner",
+            "a proven lesson can be practised again",
+        ],
+    ),
+    (
         "system_headless_crt",
         &[
             "the forwarded pointer reaches the blip",
@@ -847,7 +866,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 397;
+const SYSTEMS_INVARIANTS: usize = 411;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

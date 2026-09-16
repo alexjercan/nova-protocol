@@ -393,6 +393,10 @@ name = "system_settings_persist"
 path = "examples/systems/system_settings_persist.rs"
 
 [[example]]
+name = "system_training_journey"
+path = "examples/systems/system_training_journey.rs"
+
+[[example]]
 name = "bug_outcome_pause"
 path = "examples/systems/bug_outcome_pause.rs"
 
@@ -493,6 +497,19 @@ path = "examples/screenshots/screenshot_menu.rs"
 [[example]]
 name = "screenshot_scenario_picker"
 path = "examples/screenshots/screenshot_scenario_picker.rs"
+
+# The Training handbook: the front door with its corner card, the lesson list,
+# and a tip whose media frame is the visual under review. Run twice - plain,
+# and `-- --narrow` for the supported narrow window.
+[[example]]
+name = "screenshot_training"
+path = "examples/screenshots/screenshot_training.rs"
+
+# Two frames on a fresh profile: the first-pilot recommendation, and the
+# loading screen its own button hands off to, at either window.
+[[example]]
+name = "screenshot_loading_fact"
+path = "examples/screenshots/screenshot_loading_fact.rs"
 
 [[example]]
 name = "screenshot_editor"
@@ -763,6 +780,9 @@ nova_input = { path = "crates/nova_input" }
 nova_menu = { path = "crates/nova_menu" }
 nova_probe_cli = { path = "crates/nova_probe_cli" }
 nova_scenario = { path = "crates/nova_scenario" }
+# The training journey range reads the lesson catalog and the progress record
+# the handbook draws from; both live in the leaf crate under `nova_menu`.
+nova_training = { path = "crates/nova_training" }
 # The wfc examples collapse their hulls through the shared generator; the
 # arena's own large-drive and spinal-lance stamps stay in the example.
 nova_wfc = { path = "crates/nova_wfc" }
@@ -969,6 +989,11 @@ members = [
   "crates/nova_probe_cli",
   "crates/nova_scenario",
   "crates/nova_ship",
+  # The training handbook's material: the lesson catalog, the player's
+  # progress record, and the field notes. A LEAF over bevy alone, because
+  # nova_menu draws the handbook and nova_core's loading screen draws the
+  # same notes - and nova_core is what adds nova_menu.
+  "crates/nova_training",
   "crates/nova_ui",
   # The wave-function-collapse ship generator. A LEAF over nova_ship +
   # nova_scenario: it builds no App, so the editor, the examples and the

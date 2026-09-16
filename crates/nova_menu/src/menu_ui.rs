@@ -8,6 +8,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_info::prelude::*;
 use nova_scenario::prelude::*;
+use nova_training::prelude::{catalog_field_notes, FieldNoteRotation, TrainingCatalog};
 use nova_ui::{
     prelude::UiSkin,
     screen::{
@@ -32,6 +33,7 @@ use crate::{
         SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
         SETTINGS_PANEL_WIDTH_PCT,
     },
+    training::{on_training, spawn_menu_aside, spawn_training_panel},
     widgets::{back_button, button, button_variant},
 };
 
@@ -45,6 +47,9 @@ pub(crate) fn setup_menu_ui(
     mut selected_scenario: ResMut<SelectedScenarioId>,
     skin: Res<UiSkin>,
     active_settings_tab: Res<SettingsActiveTab>,
+    catalog: Res<TrainingCatalog>,
+    mut rotation: ResMut<FieldNoteRotation>,
+    time: Res<Time<Real>>,
 ) {
     commands
         .spawn((
@@ -104,6 +109,11 @@ pub(crate) fn setup_menu_ui(
                 Name::new("Scenarios Button"),
                 button("Scenarios"),
                 observe(on_scenarios),
+            ));
+            parent.spawn((
+                Name::new("Lessons Button"),
+                button("Lessons"),
+                observe(on_training),
             ));
             parent.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
             parent.spawn((
@@ -413,6 +423,17 @@ pub(crate) fn setup_menu_ui(
                     ));
                 });
         });
+
+    // The Training handbook, reached from the `Lessons` row above, and the
+    // bottom-left notice corner: the offer to fly Basic Training on a fresh
+    // install, and a field note. The offer is a one-off - once it is answered
+    // the row is the way in - and the note is picked ONCE here, on menu entry,
+    // because the corner is never reconciled and a note must not change while
+    // the player is reading it.
+    spawn_training_panel(&mut commands, *skin);
+    let notes = catalog_field_notes(&catalog);
+    let note = rotation.pick(&notes, time.elapsed().subsec_nanos() as usize);
+    spawn_menu_aside(&mut commands, *skin, note);
 }
 
 pub(crate) fn on_new_game(

@@ -62,7 +62,7 @@ pub mod prelude {
         CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues,
         CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
         RuntimeScenarioSystems, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig,
-        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker,
+        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioRole, ScenarioScopedMarker,
         ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
         ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform,
         UnloadScenario, ORBIT_LAP_GRACE_SECS,
@@ -104,7 +104,7 @@ pub struct GameCampaigns(pub HashMap<CampaignId, CampaignConfig>);
 /// (`new_game_scenario` in `base.bundle.ron`) and written by the bundle merge.
 /// Deliberately NOT a scenario flag and NOT overlayable: only the catalog entry
 /// marked `base: true` is honored, so a non-base mod can never redirect what
-/// New Game starts (mods add PICKER entries and `menu_backdrop` scenarios
+/// New Game starts (mods add PICKER entries and `role: Backdrop` scenarios
 /// instead). `None` when base declares nothing; the menu then falls back to the
 /// first listed scenario.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
@@ -165,7 +165,7 @@ pub struct ScenarioStartFailureReport {
 /// In strict RON a campaign content item is authored
 /// as `Campaign((id: "nova_protocol", name: "Nova Protocol", scenarios: ["a",
 /// "b"]))`. A member must be a player-launchable chapter: naming a
-/// `menu_backdrop` scenario is a lint Error.
+/// `role: Backdrop` scenario is a lint Error.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CampaignConfig {
@@ -175,15 +175,68 @@ pub struct CampaignConfig {
     pub name: String,
     /// The member scenario ids, in play order (chapter 1, 2, 3, ...). Every
     /// member is also an ordinary picker row; the campaign header groups them
-    /// in this order. A `menu_backdrop` scenario is not launchable content and
+    /// in this order. A non-[`Chapter`](ScenarioRole::Chapter) scenario is not
+    /// launchable content and
     /// is refused here by lint.
     pub scenarios: Vec<ScenarioId>,
+}
+
+/// What a scenario IS, and therefore where the game offers it.
+///
+/// ONE field rather than a flag per surface. The roles are mutually exclusive -
+/// scenery is not a chapter and a lesson's range is neither - so a scenario
+/// cannot declare two of them, and the picker, the menu ambience and the
+/// handbook all filter on the same answer instead of on a growing row of
+/// bools.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScenarioRole {
+    /// A flight the player launches: a Scenarios picker row, and the only role
+    /// a campaign may list. The DEFAULT, so a scenario that says nothing about
+    /// itself is offered rather than hidden.
+    #[default]
+    Chapter,
+    /// Scenery behind the main menu. On menu entry the menu collects every
+    /// registered scenario with this role and loads one at random, so several
+    /// ambience scenes can ship and mods can add their own.
+    ///
+    /// A backdrop POSES ITS OWN CAMERA: it must author a `SetCamera` action
+    /// (lint makes a poseless backdrop an Error, and erroring backdrops are
+    /// filtered out of the menu draw - the menu derives no pose of its own).
+    Backdrop,
+    /// The focused range a training lesson hands off to. One thing to practise,
+    /// reached from that lesson's Practice action rather than browsed for, so
+    /// the picker renders no row for one.
+    ///
+    /// A lesson's `practice` must name a scenario with THIS role. That is the
+    /// whole enforcement of "a practice range is purpose-built": without it a
+    /// lesson could hand the player the campaign start and call it practice.
+    Lesson,
+}
+
+impl ScenarioRole {
+    /// Whether the Scenarios picker offers this scenario as a row. Only a
+    /// [`Chapter`](ScenarioRole::Chapter) is browsed for; the other two are
+    /// reached from the surface that owns them.
+    pub fn picker_lists(self) -> bool {
+        matches!(self, ScenarioRole::Chapter)
+    }
+
+    /// Whether this scenario is menu scenery.
+    pub fn is_backdrop(self) -> bool {
+        matches!(self, ScenarioRole::Backdrop)
+    }
+
+    /// Whether this scenario is a lesson's practice range.
+    pub fn is_lesson(self) -> bool {
+        matches!(self, ScenarioRole::Lesson)
+    }
 }
 
 /// Configuration for a game scenario.
 ///
 /// Build one with [`ScenarioConfig::new`] and fill the optional fields through
-/// struct-update syntax: `ScenarioConfig { menu_backdrop: true,
+/// struct-update syntax: `ScenarioConfig { role: ScenarioRole::Backdrop,
 /// ..ScenarioConfig::new(id, name, cubemap) }`. There is deliberately no
 /// `Default`: a defaulted `cubemap` is a handle-backed `AssetRef`, which errors
 /// on serialize (see `AssetRef`), so a fully default `ScenarioConfig` was never
@@ -233,19 +286,15 @@ pub struct ScenarioConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub thumbnail: Option<AssetRef<Image>>,
-    /// When true the scenario is a MENU BACKDROP candidate: on menu entry the
-    /// menu collects every registered scenario with this flag and loads one at
-    /// random, so several ambience scenes can ship and mods can add their own.
-    /// This is the ONLY reason a scenario is left out of the Scenarios picker:
-    /// a backdrop is scenery, not a chapter a player launches, and lint refuses
-    /// a campaign that names one. It stays loadable by id, by the ambience
-    /// system, by a test and by a tool.
-    /// A backdrop POSES ITS OWN CAMERA: it must author a `SetCamera` action
-    /// (lint makes a poseless backdrop an Error, and erroring backdrops are
-    /// filtered out of the menu draw - the menu derives no pose of its own).
-    /// Serde-defaulted to false; author as `menu_backdrop: true`.
-    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
-    pub menu_backdrop: bool,
+    /// What this scenario is, and therefore where it is offered: a picker
+    /// chapter, menu scenery, or a lesson's practice range. See
+    /// [`ScenarioRole`]. A non-chapter stays loadable by id - by the ambience
+    /// system, by a lesson's Practice action, by a test and by a tool.
+    ///
+    /// Serde-defaulted to [`ScenarioRole::Chapter`], so an unflagged scenario
+    /// writes no field; author the others as `role: Backdrop` / `role: Lesson`.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_chapter"))]
+    pub role: ScenarioRole,
     /// Read-only queries sampled into auto-updating scenario variables.
     #[cfg_attr(
         feature = "serde",
@@ -262,7 +311,7 @@ pub struct ScenarioConfig {
 
 impl ScenarioConfig {
     /// A scenario with only its three REQUIRED fields set: everything else
-    /// (`description`, `thumbnail`, `menu_backdrop`, `events`) takes
+    /// (`description`, `thumbnail`, `role`, `events`) takes
     /// its empty value, to be overridden through struct-update syntax.
     ///
     /// # Panics
@@ -296,7 +345,7 @@ impl ScenarioConfig {
             cubemap,
             skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
             thumbnail: None,
-            menu_backdrop: false,
+            role: ScenarioRole::Chapter,
             watches: Vec::new(),
             events: Vec::new(),
         }
@@ -363,6 +412,13 @@ impl ScenarioConfig {
 #[cfg(feature = "serde")]
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+/// `skip_serializing_if` predicate for [`ScenarioConfig::role`]: a chapter is
+/// the default, so an ordinary scenario writes no `role` field at all.
+#[cfg(feature = "serde")]
+fn is_chapter(role: &ScenarioRole) -> bool {
+    matches!(role, ScenarioRole::Chapter)
 }
 
 /// The `serde` default for [`ScenarioConfig::skybox_brightness`].
@@ -884,7 +940,7 @@ mod tests {
         );
     }
 
-    /// The `thumbnail`/`menu_backdrop`/`skybox_brightness` fields are
+    /// The `thumbnail`/`role`/`skybox_brightness` fields are
     /// serde-defaulted, so a scenario RON that omits them still parses, and a
     /// scenario carrying them round-trips. Guards the contract the picker, the
     /// menu-backdrop rotation and the skybox applier depend on.
@@ -895,9 +951,10 @@ mod tests {
             r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
         let parsed: ScenarioConfig = ron::from_str(bare_source).expect("bare scenario parses");
         assert_eq!(parsed.thumbnail, None, "absent thumbnail defaults to None");
-        assert!(
-            !parsed.menu_backdrop,
-            "absent menu_backdrop defaults to false"
+        assert_eq!(
+            parsed.role,
+            ScenarioRole::Chapter,
+            "absent role defaults to a picker chapter"
         );
         assert_eq!(
             parsed.skybox_brightness, DEFAULT_SKYBOX_BRIGHTNESS,
@@ -912,7 +969,7 @@ mod tests {
             description: "new".to_string(),
             cubemap: AssetRef::from("sky.png"),
             thumbnail: Some(AssetRef::from("thumb.png")),
-            menu_backdrop: true,
+            role: ScenarioRole::Backdrop,
             skybox_brightness: 250.0,
             watches: vec![],
             events: vec![],
@@ -920,7 +977,7 @@ mod tests {
         // `ron::to_string` is compact (no spaces after colons).
         let ron = ron::to_string(&configured).expect("configured scenario serializes");
         assert!(ron.contains("thumbnail:Some(\"thumb.png\")"), "ron: {ron}");
-        assert!(ron.contains("menu_backdrop:true"), "ron: {ron}");
+        assert!(ron.contains("role:Backdrop"), "ron: {ron}");
         assert!(ron.contains("skybox_brightness:250"), "ron: {ron}");
         let back: ScenarioConfig = ron::from_str(&ron).expect("configured scenario parses");
         assert_eq!(
@@ -929,21 +986,21 @@ mod tests {
                 .as_deref(),
             Some("thumb.png")
         );
-        assert!(back.menu_backdrop);
+        assert_eq!(back.role, ScenarioRole::Backdrop);
         assert_eq!(back.skybox_brightness, 250.0);
 
         // The defaulted form omits the keys.
         let bare = ron::to_string(&parsed).expect("bare scenario re-serializes");
         assert!(!bare.contains("thumbnail"), "ron: {bare}");
-        assert!(!bare.contains("menu_backdrop"), "ron: {bare}");
+        assert!(!bare.contains("role"), "ron: {bare}");
         assert!(!bare.contains("skybox_brightness"), "ron: {bare}");
     }
 
     /// The `hidden` flag is GONE, and its removal is a format break rather than
     /// a silently ignored key: a scenario still authoring it must fail to load
     /// so the author migrates instead of shipping a file the game reads
-    /// differently than it reads. `menu_backdrop: true` is the one way a
-    /// scenario stays out of the picker now.
+    /// differently than it reads. A non-default [`ScenarioRole`] is the one
+    /// way a scenario stays out of the picker now.
     #[test]
     fn a_scenario_still_authoring_hidden_refuses_to_parse() {
         let legacy = r#"(
@@ -959,6 +1016,27 @@ mod tests {
         assert!(
             message.contains("hidden"),
             "the refusal names the removed field: {message}"
+        );
+    }
+
+    /// `menu_backdrop: bool` became [`ScenarioConfig::role`], and the same
+    /// rule applies to it: a mod still authoring the old flag must FAIL to
+    /// load naming the key, not quietly register a backdrop as a picker row.
+    #[test]
+    fn a_scenario_still_authoring_menu_backdrop_refuses_to_parse() {
+        let legacy = r#"(
+            id: "legacy_menu",
+            name: "Legacy Menu",
+            description: "old",
+            cubemap: "sky.png",
+            menu_backdrop: true,
+        )"#;
+        let err = ron::from_str::<ScenarioConfig>(legacy)
+            .expect_err("a scenario authoring the replaced `menu_backdrop` field must not parse");
+        let message = err.to_string();
+        assert!(
+            message.contains("menu_backdrop"),
+            "the refusal names the replaced field: {message}"
         );
     }
 

@@ -19,13 +19,28 @@ build and review the UI before authoring the real lesson data and descriptions.
 This is an owner-approved feature exception to the v0.14.0 stabilization board
 for the itch.io release.
 
+Owner direction (2026-09-16), on the Phase 1 prototype, drawn in
+`SCHEMATIC.html` and approved: match Factorio harder. ONE page per tip - a
+full-width looping demonstration on top and a text box under it holding the
+whole tip. Main menu only for now; no pause-overlay entry.
+
+Owner direction (2026-09-16, later the same day), on the entry points: put
+`Lessons` in the main-menu card, and give the bottom-left corner back to the
+first-launch `play tutorial` prompt alone. Treat the corner as a notice centre
+that today holds one notice. Add an Interface setting that switches the corner
+on and off, and have playing the tutorial or dismissing the prompt switch it
+off. This REPLACES the earlier "the corner card is the only door" decision.
+
 ## Product contract
 
-- Add a main-menu `Training` entry that opens a large normal-menu modal. Do not
-  reuse the NOVA OS CRT casing, terminal prompt, or text-input path.
+- Open the handbook from the main-menu card's `Lessons` row, in a large
+  normal-menu modal. Do not reuse the NOVA OS CRT casing, terminal prompt, or
+  text-input path. The bottom-left corner is a first-launch prompt, not the
+  entrance: it can be switched off and the handbook must stay reachable.
 - Use the existing list-and-details screen language: categorized lesson list on
-  the left; lesson title, visual, concise pages, bindings and actions on the
-  right; progress summary and Back remain visible.
+  the left; on the right ONE tip - a full-width 16:9 demonstration over a text
+  box holding the title, the whole body, bindings and actions. No page cursor:
+  a second page is a second lesson. Progress summary and Back remain visible.
 - The in-game handbook is concise and visual. The website wiki remains the
   complete searchable manual. Lessons carry stable related-wiki paths.
 - Distinguish `Viewed` from `Completed`. Reading or acknowledging a lesson marks
@@ -44,82 +59,151 @@ for the itch.io release.
 Use placeholder lessons, placeholder text, and representative temporary media.
 Do not build the final lesson catalog or write final descriptions in this phase.
 
-- [ ] Add the Training button and full-screen modal to the shipped main menu.
-- [ ] Prototype categories, lesson rows, selected/viewed/completed states,
-      progress summary, page navigation, a media frame, a live binding chip,
-      related-wiki action, Practice action, and Back.
-- [ ] Prototype the initial information architecture: Start Here, Flight,
+- [x] Add the full-screen modal to the shipped main menu, opened from the
+      `Lessons` row of the menu card. The row sits between `Scenarios` and
+      `Mods`.
+- [x] Prototype categories, lesson rows, selected/viewed/completed states,
+      progress summary, a media frame, a live binding chip, related-wiki
+      action, Practice action, and Back. Page navigation was prototyped, then
+      CUT on the 2026-09-16 direction: one tip is one screen, and anything
+      that wanted a second page is its own lesson.
+- [x] Prototype the initial information architecture: Start Here, Flight,
       Combat, Shipbuilding, NOVA OS, and Advanced. The first shipped content set
       may be smaller, but the layout must not assume only three groups.
-- [ ] Prototype a non-blocking bottom-left first-pilot recommendation with
-      `Start Training`, `Open Lessons`, and dismissal behavior.
-- [ ] Prototype one short menu field-note card and one loading-screen fact slot.
-- [ ] Prove mouse and keyboard navigation, modal ownership, scrolling, and
+- [x] Prototype a non-blocking bottom-left first-pilot recommendation with
+      `Start Basic Training`, `Open lessons`, and dismissal behavior. Starting
+      or dismissing writes `TrainingPromptSetting::Hidden` and the corner is
+      gone for good; `Lessons` in the menu card is unaffected.
+- [x] Add `Settings > Interface > Training prompt` (On|Off), persisted in
+      `settings.ron`. OWNER DECISION recorded: the dismissal is a switch the
+      player threw, so it lives with the settings rather than with the Phase 3
+      progress record, and the player can throw it back.
+- [x] Prototype one short menu field-note card and one loading-screen fact
+      slot. Both ship. The loading slot draws on the boot screen and the
+      scenario screen; the menu card is the SECOND notice in the bottom-left
+      corner, under the first-launch prompt and outliving it. Closed in
+      Phase 4.
+- [~] Prove mouse and keyboard navigation, modal ownership, scrolling, and
       containment at the supported narrow window. Coordinate gamepad behavior
       with `20260714-001140`; do not create a second navigation policy.
-- [ ] Capture the main list, one visual lesson, first-pilot card, and loading
-      fact at desktop and narrow widths. Inspect the rendered frames.
+      Mouse, modal ownership, scrolling and narrow containment are proven.
+      KEYBOARD IS NOT: the shipped menu has no focus traversal at all (no
+      `TabIndex`, `TabGroup` or `InputFocus` anywhere in `nova_menu`/`nova_ui`),
+      so there is nothing to prove and nothing to extend. Giving the handbook
+      one of its own is the second navigation policy this line forbids; it
+      belongs to `20260714-001140` with the pad.
+- [x] Capture the main list, one visual lesson, first-pilot card, and loading
+      fact at desktop and narrow widths. Inspect the rendered frames. Ten
+      frames in `captures/`, reviewed in `PHASE1.md`.
 
 STOP after the prototype. Record the captures and get owner approval on the
 screen name, layout, information density, progress treatment, visual-media
 presentation, and first-pilot card before Phase 2. UI approval is a real gate,
 not an implementation checkpoint to pass mechanically.
 
+Built and captured 2026-09-15: see `PHASE1.md` and `captures/`. The owner
+approved the screen on 2026-09-16 - the layout, the one-tip-one-screen details
+pane, the progress treatment, the corner prompt and the Interface switch that
+owns it - and Phase 2 started against that shape.
+
 ## Phase 2 - authored lessons and media
 
 Start only after the Phase 1 owner review is recorded on this task.
 
-- [ ] Define stable `LessonId`, category, title, summary, ordered pages,
+- [x] Define stable `LessonId`, category, title, media, body, action names,
       related-wiki path, optional practice target, fact references, and explicit
       progress rule. Unknown IDs and missing required fields fail at lint, then
-      load.
-- [ ] Keep the page vocabulary narrow: concise text, image, chosen looping-media
-      form, binding/action reference, and a small diagram form only if a real
-      lesson needs it. Do not embed general Markdown or HTML.
-- [ ] Decide the content owner and asset pipeline before implementation. Keep
+      load. One tip is one screen: there are no ordered pages.
+- [x] Keep the tip vocabulary narrow: one body under the word cap
+      (`LESSON_BODY_MAX_WORDS`, 45 in the prototype - confirm the number), one
+      media shape, and binding/action references by NAME. Do not embed general
+      Markdown or HTML.
+- [x] Decide the content owner and asset pipeline before implementation. Keep
       lesson content data-driven without hand-editing generated base content.
-- [ ] Author and review the first release lesson set. At minimum cover Start
+- [x] Author and review the first release lesson set. At minimum cover Start
       Here, manual flight and momentum, STOP, GOTO, ORBIT, travel versus combat
       locks, turrets, and torpedoes. Add Shipbuilding, NOVA OS, and Advanced
       lessons only where concise reviewed text and useful visuals are ready; do
       not ship filler to populate a category.
-- [ ] Give lessons current binding chips and related links into the existing
+- [x] Give lessons current binding chips and related links into the existing
       player wiki. Update wiki anchors when needed and keep the wiki complete.
-- [ ] Add representative visuals: at least one flight loop, one targeting or
+- [~] Add representative visuals: at least one flight loop, one targeting or
       combat loop, and one editor-style visual. Validate all media on native and
-      wasm.
-- [ ] Wire `Start Training` and applicable Practice actions through the existing
+      wasm. Every lesson ships a demonstration and 14 of the 24 loop, so all
+      three are covered. BOTH PLATFORMS ARE NOW PROVEN: the wasm build was
+      served and driven with a real pointer into a Loop lesson, and two frames
+      1.2 s apart differ, so the sheet is cut AND animating
+      (`captures/web-training-*.png`). ONE THING IS NOT DONE: the art is
+      generated placeholder, and every still says so on its own frame - real
+      footage is owner work and drops onto the same 24 paths.
+- [x] Wire `Start Training` and applicable Practice actions through the existing
       New Game/scenario handoff. Basic Training is the base bundle's declared
-      `tutorial`; do not add a competing launch path.
+      `tutorial`; do not add a competing launch path. Practice launches four
+      `role: Lesson` ranges through the same hand-off.
+
+Built 2026-09-16: see `PHASE2.md` and `captures/`. The owner's drill note the
+same day - give them an ending, cut the objective text, withhold the verbs the
+topic does not need, light what matters, use comms - is landed and is the
+practice-range contract in `web/src/create/scenarios.md`.
+
+Phase 3 built 2026-09-16: see `PHASE3.md`. The progress record, `proven_by` and
+its validation, the completion writer, the store's access policy, and the
+`system_training_journey` range that walks a fresh profile through a won range
+and two restarts. Phase 4 (the facts) is untouched.
 
 ## Phase 3 - progress and first-player recommendation
 
-- [ ] Persist explicit viewed lesson IDs, completed lesson IDs, and first-pilot
-      dismissal/progress. Do not infer first use from settings-file existence,
-      and do not make player progress part of `PersistedSettings` without an
-      explicit ownership decision.
-- [ ] A fresh profile sees the recommendation. `Start Training` launches Basic
-      Training; `Open Lessons` opens Start Here. Dismissal survives restart.
-- [ ] Completing Basic Training marks only the lessons its asserted flow proves.
+- [x] Persist explicit viewed lesson IDs and completed lesson IDs. Do not infer
+      first use from settings-file existence. The first-pilot dismissal is
+      ALREADY DECIDED and shipped: it is `PersistedSettings::training_prompt`,
+      by the 2026-09-16 owner direction, and player LEARNING stays out of the
+      settings file. `PersistedTraining` is a second file beside the settings,
+      under the same root, with two explicit id lists and nothing else.
+- [x] A fresh profile sees the recommendation. `Start Basic Training` launches
+      Basic Training; `Open lessons` opens Start Here. Dismissal survives
+      restart (it is a setting) and the Interface row brings it back.
+      `system_training_journey` walks the offer, `Open lessons`, `Not now` and
+      its survival across three app lifetimes. `Start Basic Training` and the
+      Interface row stay on the menu's live-tree tests, which drive the button
+      and the switch directly.
+- [x] Completing Basic Training marks only the lessons its asserted flow proves.
       A failed, abandoned, or merely opened scenario does not grant completion.
-- [ ] Old, missing, extra, or corrupt progress data fails safely to conservative
+      A new lesson field, `proven_by`, says which scenarios may claim it;
+      `complete_what_a_won_scenario_proves` is the only writer, and it reads
+      Victory only.
+- [x] Old, missing, extra, or corrupt progress data fails safely to conservative
       defaults. Scripted runs use isolated or inert storage and never touch the
-      developer's profile.
+      developer's profile. `TrainingStoreAccess` mirrors the settings store's
+      three directions and goes inert under `harness_env_active`.
 
 ## Phase 4 - menu and loading facts
 
-- [ ] Derive field notes from the same authored learning catalog or stable
+Built 2026-09-16: see `PHASE4.md`. The destination-aware scenario note, the
+menu corner's second notice, and the corner's split visibility.
+
+- [x] Derive field notes from the same authored learning catalog or stable
       lesson IDs. Do not maintain unrelated copies of the same claim.
-- [ ] Select one fact when a menu/loading surface opens. Do not rotate it while
-      visible and do not extend loading duration so it can be read.
-- [ ] Avoid immediate repeats within a session. Facts name actions, not default
+      `catalog_field_notes` reads `Lesson::field_notes`; a derived note carries
+      the lesson id it came from, which is what the menu card opens.
+- [x] Select one fact when a menu/loading surface opens. Do not rotate it while
+      visible and do not extend loading duration so it can be read. All three
+      surfaces are built once and never reconciled;
+      `a_field_note_does_not_hold_the_load_or_take_a_click` asserts the gate and
+      the slot's `Pickable::IGNORE`, never a duration.
+- [x] Avoid immediate repeats within a session. Facts name actions, not default
       keys. Use destination context where known, but keep a valid general
-      fallback.
-- [ ] Make boot facts available before the main asset collection is loaded,
+      fallback. `FieldNoteRotation` is one session resource shared by the menu
+      and both screens; `pick_preferred` takes `notes_for_scenario` first and
+      falls back to the whole set.
+- [x] Make boot facts available before the main asset collection is loaded,
       either as compiled data or in the boot collection. Scenario-load facts may
-      use the loaded catalog.
-- [ ] Keep each fact to roughly two short lines. A menu field note may open its
-      related lesson; a transient loading fact is not interactive.
+      use the loaded catalog. `boot_field_notes` is compiled; the scenario
+      screen reads the MERGED catalog, so a mod's lesson can come up there.
+- [x] Keep each fact to roughly two short lines. A transient loading fact is
+      not interactive. A menu field note needs a place to live first: the
+      bottom-left corner is a notice slot, so a note is a second notice there.
+      `wrap_note_lines` refuses a third line; the corner now holds the offer and
+      the note, and answering the offer leaves the note standing.
 
 ## Verification
 

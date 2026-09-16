@@ -15,7 +15,8 @@
 //! - [`Content::Ship`] - a [`ShipDesignPrototype`], a whole hull a scenario spawns by id,
 //!   and
 //! - [`Content::Grammar`] - a [`ShipGrammarConfig`], the table a procedurally
-//!   generated hull is drawn from.
+//!   generated hull is drawn from, and
+//! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -52,6 +53,7 @@ use nova_gameplay::prelude::{ImpactSoundConfig, NarrativeChannelConfig};
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype};
 use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
+use nova_training::prelude::Lesson;
 use serde::{Deserialize, Serialize};
 
 /// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle
@@ -112,6 +114,17 @@ pub enum Content {
     /// that was: a mod authors a distress band or a corporate net and its cues
     /// name it, instead of borrowing one of the base game's three.
     Channel(NarrativeChannelConfig),
+    /// A [`Lesson`] - registers into `TrainingCatalog` keyed by its id. One
+    /// screen of the training handbook: a demonstration, a few lines, the
+    /// actions it is about and, when there is something to fly, the focused
+    /// range its Practice action hands off to.
+    ///
+    /// One item per lesson, in an ordinary content file, because a lesson is
+    /// content like everything else here: a mod adds a lesson to a category by
+    /// declaring a new id and re-teaches a base one by declaring that id. The
+    /// id denotes a learning OUTCOME - persisted progress names it - so an
+    /// overlay may change the presentation and must keep the meaning.
+    Lesson(Lesson),
 }
 
 impl Content {
@@ -131,6 +144,7 @@ impl Content {
             Content::Grammar(_) => "grammar",
             Content::Impact(_) => "impact",
             Content::Channel(_) => "channel",
+            Content::Lesson(_) => "lesson",
         }
     }
 
@@ -146,6 +160,7 @@ impl Content {
             Content::Grammar(cfg) => &cfg.id,
             Content::Impact(cfg) => &cfg.id,
             Content::Channel(cfg) => &cfg.id,
+            Content::Lesson(lesson) => &lesson.id,
         }
     }
 

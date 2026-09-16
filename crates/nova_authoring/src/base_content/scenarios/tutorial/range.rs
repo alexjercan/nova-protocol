@@ -6,6 +6,12 @@
 //! Layout provenance: the editor's stock range (`nova_editor::scenario`), the
 //! free-flight world every builder plays in. This is that world in metres,
 //! with the picket the Fleet trains on in place of the builder's own hull.
+//!
+//! The handbook's practice ranges (`super::super::drills`) are built from this
+//! same furniture, on purpose: a lesson sends the player back to the place
+//! they first flew, with everything the lesson is not about taken away. What
+//! they share beyond the objects is here too: the range's voice, the pairing
+//! every helm event is filtered by, and the keybind chips a lesson pulses.
 
 use std::collections::BTreeMap;
 
@@ -21,22 +27,67 @@ use crate::{
     scenario_helpers::prelude::*,
 };
 
+// --- the voices --------------------------------------------------------------
+
+/// The range's own voice: the instructor on the comms channel, in Basic
+/// Training and in every practice range.
+pub(crate) const RANGE_CONTROL: &str = "Range Control";
+
+/// The cadet, when the card puts words in their mouth.
+pub(crate) const PLAYER: &str = "You";
+
+/// The two faces on the channel. Both are the base game's own art.
+pub(crate) fn portrait(speaker: &str) -> Option<AssetRef<Image>> {
+    let name = match speaker {
+        RANGE_CONTROL => "range-control",
+        PLAYER => "player",
+        _ => return None,
+    };
+    Some(AssetRef::from(format!("self://portraits/{name}.png")))
+}
+
+/// Give every cue on `events` the face of whoever speaks it.
+///
+/// A pass over the finished events rather than an argument to each line: the
+/// speaker already says which face it is, and a scenario that authored the
+/// icon by hand keeps it.
+pub(crate) fn apply_portraits(events: &mut [ScenarioEventConfig]) {
+    for event in events {
+        for action in &mut event.actions {
+            action.walk_mut(&mut |action| {
+                if let EventActionConfig::NarrativeCue(cue) = action {
+                    if cue.icon.is_none() {
+                        cue.icon = portrait(&cue.speaker);
+                    }
+                }
+            });
+        }
+    }
+}
+
+/// The keybind-dock chips a lesson pulses, by the verb each one draws.
+pub(crate) const HINT_STOP: &str = "STOP";
+pub(crate) const HINT_RCS: &str = "RCS";
+pub(crate) const HINT_RADAR: &str = "RADAR";
+pub(crate) const HINT_GOTO: &str = "GOTO";
+pub(crate) const HINT_ORBIT: &str = "ORBIT";
+
 // --- the cadet ---------------------------------------------------------------
 
 /// The cadet's ship: a Fleet training picket, and the id every helm event
 /// names.
-pub(super) const ID_TRAINER: &str = "trainer";
+pub(crate) const ID_TRAINER: &str = "trainer";
 /// Its callsign, used in objective and banner text.
-pub(super) const TRAINER_NAME: &str = "Trainer Seven";
+pub(crate) const TRAINER_NAME: &str = "Trainer Seven";
 
 /// Soft manual-speed cap for the whole card: a cadet on a first flight stays
 /// controllable inside the range, and the pattern is a few hundred metres.
-pub(super) const TRAINER_SPEED_CAP: MetersPerSecond = MetersPerSecond(150.0);
+pub(crate) const TRAINER_SPEED_CAP: MetersPerSecond = MetersPerSecond(150.0);
 
 /// The trainer's one gun: the picket's nose mount, by the section id the
 /// catalog entry gives it. The input mapping and the range's fire lesson both
 /// name it.
-pub(super) const TRAINER_GUN: &str = ships::BLOCK_CLEANUP_TURRET_ID;
+pub(crate) const TRAINER_GUN: &str = ships::BLOCK_CLEANUP_TURRET_ID;
 
 /// The trainer's gun mount and flight computer, armoured for the card.
 ///
@@ -46,8 +97,8 @@ pub(super) const TRAINER_GUN: &str = ships::BLOCK_CLEANUP_TURRET_ID;
 /// (`DRONE_MAGAZINE` rounds each at the shared PDC's per-hit damage) fall
 /// short of either figure, so on this range the trainer is disarmed or
 /// destroyed only by flying into something.
-pub(super) const TRAINER_GUN_HEALTH: f32 = 1_300.0;
-pub(super) const TRAINER_BRIDGE_HEALTH: f32 = 1_300.0;
+pub(crate) const TRAINER_GUN_HEALTH: f32 = 1_300.0;
+pub(crate) const TRAINER_BRIDGE_HEALTH: f32 = 1_300.0;
 
 /// The trainer on the line at the range origin, facing down the range.
 ///
@@ -55,7 +106,17 @@ pub(super) const TRAINER_BRIDGE_HEALTH: f32 = 1_300.0;
 /// lesson at a time: they apply from the instant the ship is built and only to
 /// this spawn. The gun is not withheld - there is no capability for it - so
 /// the fire lessons are written to survive a cadet who shoots early.
-pub(super) fn trainer() -> ScenarioObjectConfig {
+pub(crate) fn trainer() -> ScenarioObjectConfig {
+    trainer_with(WITHHELD_CAPABILITIES)
+}
+
+/// The same trainer with whatever helm this range hands over.
+///
+/// Basic Training withholds all five and grants them one lesson at a time; a
+/// practice range gives back the helm the player already has and takes away
+/// only the verb the lesson is about - so the momentum drill is flown without
+/// STOP because that IS the drill, not because the player has not met STOP.
+pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConfig {
     let mut input_mapping = BTreeMap::new();
     input_mapping.insert(
         TRAINER_GUN.to_string(),
@@ -77,7 +138,7 @@ pub(super) fn trainer() -> ScenarioObjectConfig {
                 input_mapping,
                 speed_cap: Some(TRAINER_SPEED_CAP),
             }),
-            capabilities: WITHHELD_CAPABILITIES,
+            capabilities,
             design: ships::patched_design(
                 ships::BLOCK_PICKET_SHIP_ID,
                 [
@@ -90,6 +151,12 @@ pub(super) fn trainer() -> ScenarioObjectConfig {
             ),
         }),
     }
+}
+
+/// The trainer paired with `id`: the shape a lock, a GOTO arrival, an orbit
+/// and an area event all report, the target first.
+pub(crate) fn trainer_at(id: impl Into<String>) -> EventFilterConfig {
+    entity_pair(id, ID_TRAINER)
 }
 
 /// The helm the card teaches, withheld until its lesson. Every capability the
@@ -110,7 +177,7 @@ pub(super) const WITHHELD_CAPABILITIES: ShipCapabilities = ShipCapabilities {
 // --- the targets -------------------------------------------------------------
 
 /// How many hulks stand on the line.
-pub(super) const TARGET_COUNT: usize = 5;
+pub(crate) const TARGET_COUNT: usize = 5;
 
 /// The line: five hulks staggered down the range's port side, the first a
 /// kilometre past mark ALPHA and the last four kilometres down.
@@ -123,12 +190,12 @@ const TARGET_POSITIONS: [Meters3; TARGET_COUNT] = [
 ];
 
 /// The scenario id of the `nth` target, counted from one.
-pub(super) fn target_id(nth: usize) -> String {
+pub(crate) fn target_id(nth: usize) -> String {
     format!("target_{nth}")
 }
 
 /// What the `nth` target's HUD chip and Range Control call it.
-pub(super) fn target_label(nth: usize) -> String {
+pub(crate) fn target_label(nth: usize) -> String {
     format!("Target {nth}")
 }
 
@@ -136,7 +203,7 @@ pub(super) fn target_label(nth: usize) -> String {
 /// pilot, no allegiance. It has never carried a weapon section, so the
 /// integrity layer never NEUTRALIZES it either - it is a silhouette that
 /// takes damage and comes apart, and nothing else.
-pub(super) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
+pub(crate) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
     let plate = |id: &str, cell: Vec3, prototype: &str| SpaceshipSectionConfig {
         id: id.to_string(),
         position: cell,
@@ -169,7 +236,7 @@ pub(super) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
 
 /// The two range drones: id, name, and where they hold, one off each side of
 /// the line's far half.
-pub(super) const DRONES: [(&str, &str, Meters3); 2] = [
+pub(crate) const DRONES: [(&str, &str, Meters3); 2] = [
     (
         "drone_1",
         "Range Drone 1",
@@ -186,19 +253,19 @@ pub(super) const DRONES: [(&str, &str, Meters3); 2] = [
 /// and returns. Long enough to follow a cadet who runs to the line, and short
 /// enough that a drone still under control never reaches the range boundary
 /// from its station: only a crippled drone, coasting, ever crosses it.
-pub(super) const DRONE_LEASH: Meters = Meters(3_500.0);
+pub(crate) const DRONE_LEASH: Meters = Meters(3_500.0);
 
 /// Every section of a drone starts at this health: a few rounds of the
 /// shared PDC. A drone is a target that moves and answers, not a duel; a
 /// burst that connects anywhere takes pieces off it, and the first hit on its
 /// mount or its bridge ends it.
-pub(super) const DRONE_SECTION_HEALTH: f32 = 24.0;
+pub(crate) const DRONE_SECTION_HEALTH: f32 = 24.0;
 
 /// A drone's gun holds this many rounds and never reloads: a second and a
 /// half of fire, enough to put tracers past the cadet and teach that the
 /// range shoots back, and too little to threaten an armoured trainer even if
 /// every round lands.
-pub(super) const DRONE_MAGAZINE: u32 = 150;
+pub(crate) const DRONE_MAGAZINE: u32 = 150;
 
 /// One dormant drone: the same picket the cadet flies, under AI, spawned
 /// NEUTRAL and handicapped for a first fight.
@@ -208,7 +275,7 @@ pub(super) const DRONE_MAGAZINE: u32 = 150;
 /// beat flips the allegiance and the same pilot starts fighting - no
 /// controller swap, no second spawn. The handicap is a spawn patch on every
 /// section, so the catalog picket the cadet flies is untouched.
-pub(super) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectConfig {
+pub(crate) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectConfig {
     let section_patches = ships::picket_section_ids().into_iter().map(|section| {
         let kind = (section == TRAINER_GUN).then(|| {
             SectionKindPatch::Turret(TurretSectionConfigPatch {
@@ -247,7 +314,7 @@ pub(super) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectCo
 }
 
 /// Wake one drone: the allegiance flip that turns a parked picket hostile.
-pub(super) fn wake_drone(id: &str) -> EventActionConfig {
+pub(crate) fn wake_drone(id: &str) -> EventActionConfig {
     EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
         id: id.to_string(),
         allegiance: Allegiance::Enemy,
@@ -259,13 +326,13 @@ pub(super) fn wake_drone(id: &str) -> EventActionConfig {
 /// speed it had, and a cadet cannot always run it down before it is gone. A
 /// drone that crosses the boundary is off the range for good, and the range
 /// counts it rather than asking for a chase into the dark.
-pub(super) const ID_RANGE_BOUNDARY: &str = "range_boundary";
+pub(crate) const ID_RANGE_BOUNDARY: &str = "range_boundary";
 const RANGE_BOUNDARY_CENTER: Meters3 = Meters3::new(0.0, 0.0, -2_500.0);
 const RANGE_BOUNDARY_RADIUS: Meters = Meters(7_000.0);
 
 /// Raise the boundary. It stays up for the whole card: it is the range's
 /// edge, not a mark.
-pub(super) fn raise_range_boundary() -> EventActionConfig {
+pub(crate) fn raise_range_boundary() -> EventActionConfig {
     EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
         id: ID_RANGE_BOUNDARY.to_string(),
         name: "Range Boundary".to_string(),
@@ -276,12 +343,12 @@ pub(super) fn raise_range_boundary() -> EventActionConfig {
 }
 
 /// OnExit of the range boundary by one drone.
-pub(super) fn drone_left_range(id: &str) -> EventFilterConfig {
+pub(crate) fn drone_left_range(id: &str) -> EventFilterConfig {
     entity_pair(ID_RANGE_BOUNDARY, id)
 }
 
 /// The flag that one drone has been counted, whichever way it went.
-pub(super) fn drone_down_var(id: &str) -> String {
+pub(crate) fn drone_down_var(id: &str) -> String {
     format!("{id}_down")
 }
 
@@ -302,9 +369,9 @@ pub(super) fn drone_down_var(id: &str) -> String {
 /// while Range Control talks: at the guardrail the rock is under the hull in
 /// under five seconds, which is not a lesson. At this mass the fall runs about
 /// nine, and the ORBIT card lands inside the first two of them.
-pub(super) const ID_PLANETOID: &str = "range_planetoid";
+pub(crate) const ID_PLANETOID: &str = "range_planetoid";
 /// What the planetoid's HUD chip reads.
-pub(super) const PLANETOID_LABEL: &str = "PLANETOID";
+pub(crate) const PLANETOID_LABEL: &str = "PLANETOID";
 const PLANETOID_POS: Meters3 = Meters3::new(-5_600.0, -1_100.0, -3_800.0);
 const PLANETOID_RADIUS: Meters = Meters(600.0);
 const PLANETOID_MASS: f32 = 10_000.0;
@@ -312,7 +379,7 @@ const PLANETOID_SEED: u32 = 20_260_815;
 
 /// The planetoid: indestructible and pinned, because the map is authored
 /// against it still being there.
-pub(super) fn planetoid() -> ScenarioObjectConfig {
+pub(crate) fn planetoid() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_PLANETOID.to_string(),
@@ -365,7 +432,7 @@ const BELTS: [Belt; 2] = [
 ];
 
 /// Both belts as scatter actions, each reproducible from its own seed.
-pub(super) fn belts(texture: &AssetRef<Image>) -> Vec<EventActionConfig> {
+pub(crate) fn belts(texture: &AssetRef<Image>) -> Vec<EventActionConfig> {
     BELTS
         .iter()
         .map(|belt| {
@@ -409,8 +476,11 @@ pub(super) fn belts(texture: &AssetRef<Image>) -> Vec<EventActionConfig> {
 }
 
 /// The range lights itself: there is no engine light in this game.
-pub(super) fn lights() -> Vec<ScenarioObjectConfig> {
-    ThreePointRig::around("tutorial", Meters3::new(0.0, 0.0, -2_000.0), 25.0).objects()
+///
+/// `key` prefixes the rig's object ids, so two scenarios built from this range
+/// need not agree about what their lights are called.
+pub(crate) fn lights(key: &str) -> Vec<ScenarioObjectConfig> {
+    ThreePointRig::around(key, Meters3::new(0.0, 0.0, -2_000.0), 25.0).objects()
 }
 
 // --- the pattern's marks -----------------------------------------------------
@@ -423,21 +493,21 @@ const MARK_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
 ///
 /// Taking it down means DESPAWN, not just dropping the HUD chip: a finished
 /// mark left burning on the range is a mark the cadet keeps flying to.
-pub(super) struct Mark {
+pub(crate) struct Mark {
     /// Scenario id, and the id the marker and despawn are addressed to.
-    pub(super) id: &'static str,
+    pub(crate) id: &'static str,
     /// What the beacon and its HUD chip read.
-    pub(super) label: &'static str,
-    pub(super) position: Meters3,
+    pub(crate) label: &'static str,
+    pub(crate) position: Meters3,
     /// Trigger volume. A hand-flown mark wants a tight one.
-    pub(super) area: Meters,
+    pub(crate) area: Meters,
 }
 
 /// The burn lesson's mark: dead ahead of the line, far enough that the cadet
 /// has to hold the throttle open, close enough that they are not still
 /// braking when the next lesson starts. The wide volume is for a first
 /// flight; the STOP lesson that follows is what makes it a place.
-pub(super) const MARK_ALPHA: Mark = Mark {
+pub(crate) const MARK_ALPHA: Mark = Mark {
     id: "mark_alpha",
     label: "ALPHA",
     position: Meters3::new(0.0, 0.0, -900.0),
@@ -448,7 +518,7 @@ pub(super) const MARK_ALPHA: Mark = Mark {
 /// ALPHA, so the leg is a real translation at the RCS cap and a nudge rather
 /// than a burn. The tight volume is on purpose - the lesson is placing the
 /// hull, and a wide sphere would pass a cadet who merely drifted past.
-pub(super) const MARK_BRAVO: Mark = Mark {
+pub(crate) const MARK_BRAVO: Mark = Mark {
     id: "mark_bravo",
     label: "BRAVO",
     position: Meters3::new(350.0, 0.0, -900.0),
@@ -461,7 +531,7 @@ pub(super) const MARK_BRAVO: Mark = Mark {
 /// BRAVO would have nothing to fly home to. The volume is sized for a leg the
 /// autopilot flies: GOTO parks an arrival standoff short of the beacon, and
 /// the gate must contain that park point.
-pub(super) const MARK_CHARLIE: Mark = Mark {
+pub(crate) const MARK_CHARLIE: Mark = Mark {
     id: "mark_charlie",
     label: "CHARLIE",
     position: Meters3::new(0.0, 0.0, -1_500.0),
@@ -470,7 +540,7 @@ pub(super) const MARK_CHARLIE: Mark = Mark {
 
 impl Mark {
     /// Put the mark up and point the HUD at it.
-    pub(super) fn raise(&self) -> Vec<EventActionConfig> {
+    pub(crate) fn raise(&self) -> Vec<EventActionConfig> {
         vec![
             spawn_object(ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
@@ -492,7 +562,7 @@ impl Mark {
     }
 
     /// The id of this mark's separate ARRIVAL GATE.
-    pub(super) fn gate_id(&self) -> String {
+    pub(crate) fn gate_id(&self) -> String {
         format!("{}_gate", self.id)
     }
 
@@ -500,7 +570,7 @@ impl Mark {
     /// up in the same step as the card that names the lesson. The gate, not
     /// the beacon, decides the beat, so a handler armed for it can never be
     /// spent before its card exists.
-    pub(super) fn raise_gate(&self) -> EventActionConfig {
+    pub(crate) fn raise_gate(&self) -> EventActionConfig {
         EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
             id: self.gate_id(),
             name: format!("{} Gate", self.label),
@@ -511,12 +581,12 @@ impl Mark {
     }
 
     /// OnEnter of this mark's arrival gate by the trainer.
-    pub(super) fn gate_entered(&self) -> EventFilterConfig {
+    pub(crate) fn gate_entered(&self) -> EventFilterConfig {
         entity_pair(self.gate_id(), ID_TRAINER)
     }
 
     /// Take the mark and its gate down: the chip first, then both bodies.
-    pub(super) fn clear(&self) -> Vec<EventActionConfig> {
+    pub(crate) fn clear(&self) -> Vec<EventActionConfig> {
         vec![
             detach_objective_marker(self.id),
             despawn_object(self.id),

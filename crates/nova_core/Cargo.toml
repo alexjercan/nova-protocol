@@ -25,6 +25,10 @@ nova_menu = { path = "../nova_menu" }
 # flight HUD are peers, so the plugin that orders them sits above both.
 nova_os_ui = { path = "../nova_os_ui" }
 nova_scenario = { path = "../nova_scenario" }
+# The loading screens draw a field note from the handbook's own notes,
+# compiled rather than loaded: the boot panel is up before the asset
+# collection is.
+nova_training = { path = "../nova_training" }
 nova_events = { path = "../nova_events" }
 # The boot loading screen reads the preloaded `UiFont` for its phosphor text.
 nova_ui = { path = "../nova_ui" }

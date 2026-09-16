@@ -838,7 +838,7 @@ mod tests {
             description: String::new(),
             cubemap: "self://sky.png".into(),
             thumbnail: None,
-            menu_backdrop: false,
+            role: ScenarioRole::Chapter,
             skybox_brightness: nova_ship::prelude::DEFAULT_SKYBOX_BRIGHTNESS,
             watches: vec![],
             events,

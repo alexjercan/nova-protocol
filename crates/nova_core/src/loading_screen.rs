@@ -23,11 +23,15 @@
 //! arriving), with [`SCENARIO_MIN_DWELL`] as a floor and
 //! [`SCENARIO_SETTLED_DELTA`] as the "the machine is smooth again" test.
 
-use bevy::prelude::*;
+use bevy::{ecs::relationship::RelatedSpawner, prelude::*};
 use nova_assets::prelude::{FatalAssetFailure, GameAssetsStates};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
 use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload, ScenarioStartFailure};
+use nova_training::prelude::{
+    boot_field_notes, catalog_field_notes, notes_for_scenario, FieldNote, FieldNoteRotation,
+    TrainingCatalog,
+};
 use nova_ui::{
     font::UiFont,
     prelude::{FATAL_Z, LOADING_Z},
@@ -47,6 +51,12 @@ const LOADING_TEXT: Color = Color::srgb_u8(185, 255, 201);
 const LOADING_AMBER: Color = Color::srgb_u8(255, 184, 74);
 /// Dim phosphor for the sweep track the block runs along.
 const LOADING_TRACK: Color = Color::srgb_u8(13, 110, 53);
+
+/// How far above the bottom edge the field-note slot sits, pixels. FAR from the
+/// centred column on purpose: the note is something to read while waiting, not
+/// part of the progress report, and a slot that shared the column would move the
+/// sweep track whenever a note was one line shorter.
+const NOTE_BOTTOM_PX: f32 = 56.0;
 
 /// The block-cursor glyph (full block, present in the shipped Iosevka face).
 const CURSOR_GLYPH: &str = "\u{2588}";
@@ -125,6 +135,10 @@ pub struct LoadingScreenPlugin;
 
 impl Plugin for LoadingScreenPlugin {
     fn build(&self, app: &mut App) {
+        // The session's field-note rotation, shared with the menu's own card:
+        // one memory of what has just been read, so a note does not come up on
+        // the loading screen and then again on the menu behind it.
+        app.init_resource::<FieldNoteRotation>();
         app.add_systems(OnEnter(GameAssetsStates::Loading), spawn_loading_screen);
         app.add_systems(OnEnter(GameAssetsStates::Loaded), despawn_loading_screen);
         app.add_systems(
@@ -161,8 +175,13 @@ fn loading_text(text: &str, size: f32, color: Color, font: &Handle<Font>) -> imp
 /// the sweep track.
 ///
 /// One builder rather than three, so the screens cannot drift apart; the only
-/// difference between them is the mark and who despawns them.
-fn loading_panel(mark: &str, font: Handle<Font>) -> impl Bundle {
+/// difference between them is the mark, the field note, and who despawns them.
+///
+/// The note is ABSOLUTELY placed against the bottom edge, so a note of one line
+/// and a note of two leave the mark, the LOADING line and the sweep track in
+/// exactly the same place - and a build with no notes at all draws the same
+/// screen it drew before there were any.
+fn loading_panel(mark: &str, font: Handle<Font>, note: Option<&FieldNote>) -> impl Bundle {
     (
         Node {
             width: Val::Percent(100.0),
@@ -213,7 +232,50 @@ fn loading_panel(mark: &str, font: Handle<Font>) -> impl Bundle {
                     BackgroundColor(LOADING_AMBER),
                 )],
             ),
+            field_note_slot(note, &font),
         ],
+    )
+}
+
+/// The field-note slot: a header and the note's lines, or an empty node when
+/// there is no note.
+///
+/// NOT interactive, and nothing here holds the load: the panel comes down on
+/// the spawn gate and the settle test exactly as it did before, whether or not
+/// the note has been read. A fact that extended a load to be readable would be
+/// a fact that cost the player time.
+fn field_note_slot(note: Option<&FieldNote>, font: &Handle<Font>) -> impl Bundle {
+    let lines: Vec<String> = note.map(|note| note.lines.clone()).unwrap_or_default();
+    (
+        Name::new("Loading Field Note"),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(NOTE_BOTTOM_PX),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            row_gap: Val::Px(4.0),
+            max_width: Val::Percent(80.0),
+            ..default()
+        },
+        Pickable::IGNORE,
+        Children::spawn(SpawnWith({
+            let font = font.clone();
+            move |slot: &mut RelatedSpawner<ChildOf>| {
+                if lines.is_empty() {
+                    return;
+                }
+                slot.spawn(loading_text("FIELD NOTE", 12.0, LOADING_TRACK, &font));
+                for line in &lines {
+                    slot.spawn((
+                        loading_text(line, 14.0, LOADING_TEXT, &font),
+                        TextLayout {
+                            justify: Justify::Center,
+                            ..default()
+                        },
+                    ));
+                }
+            }
+        })),
     )
 }
 
@@ -230,18 +292,39 @@ fn ui_font_handle(font: Option<Res<UiFont>>) -> Handle<Font> {
 /// scene/menu cameras spawn later. The UI font is preloaded in `Boot` and
 /// published as [`UiFont`] at `OnExit(Boot)`, which runs before this, so the
 /// handle is normally present.
-fn spawn_loading_screen(mut commands: Commands, ui_font: Option<Res<UiFont>>) {
+fn spawn_loading_screen(
+    mut commands: Commands,
+    ui_font: Option<Res<UiFont>>,
+    time: Res<Time<Real>>,
+    mut rotation: ResMut<FieldNoteRotation>,
+) {
     commands.spawn((
         Name::new("LoadingScreenCamera"),
         LoadingScreenCameraMarker,
         Camera2d,
     ));
 
+    // COMPILED notes, not loaded ones: this screen is up because the asset
+    // collection is not here yet, so a note that came from content would have
+    // nothing to show on the one screen that needs it most.
+    let notes = boot_field_notes();
+    let note = rotation.pick(&notes, note_roll(&time));
     commands.spawn((
         Name::new("LoadingScreen"),
         LoadingScreenMarker,
-        loading_panel("NOVA OS", ui_font_handle(ui_font)),
+        loading_panel("NOVA OS", ui_font_handle(ui_font), note),
     ));
+}
+
+/// The roll a fact pick is made with.
+///
+/// `Time<Real>` rather than the shared RNG: the boot panel is raised before the
+/// gameplay plugins' entropy source is a thing this crate can reach, and which
+/// of five notes a player reads is not a decision that needs a seeded
+/// generator. [`FieldNoteRotation`] is what actually guarantees the rule - no
+/// immediate repeats - whatever this number is.
+fn note_roll(time: &Time<Real>) -> usize {
+    time.elapsed().subsec_nanos() as usize
 }
 
 /// Raise the scenario loading screen when a gameplay scenario is (re)loaded.
@@ -254,11 +337,13 @@ fn spawn_loading_screen(mut commands: Commands, ui_font: Option<Res<UiFont>>) {
 /// has one. Re-triggering while the panel is already up (a chapter chain that
 /// switches twice) restarts the hold rather than stacking a second panel.
 fn spawn_scenario_load_screen(
-    _: On<LoadScenario>,
+    load: On<LoadScenario>,
     mut commands: Commands,
     state: Option<Res<State<GameStates>>>,
     time: Res<Time<Real>>,
     ui_font: Option<Res<UiFont>>,
+    mut rotation: ResMut<FieldNoteRotation>,
+    catalog: Option<Res<TrainingCatalog>>,
     mut q_existing: Query<&mut ScenarioLoadScreenMarker>,
 ) {
     if !state.is_some_and(|state| *state.get() == GameStates::Playing) {
@@ -270,6 +355,29 @@ fn spawn_scenario_load_screen(
         return;
     }
 
+    // The AUTHORED notes, unlike the boot screen's: this panel draws after the
+    // merge, so every installed mod's lessons are here and a claim is read off
+    // the lesson that owns it. The compiled set is the fallback for a catalog
+    // that carries no note at all, not the normal path.
+    let (authored, destination) = catalog.map_or_else(
+        || (Vec::new(), Vec::new()),
+        |catalog| {
+            (
+                catalog_field_notes(&catalog),
+                notes_for_scenario(&catalog, &load.0.id),
+            )
+        },
+    );
+    let notes = if authored.is_empty() {
+        boot_field_notes()
+    } else {
+        authored
+    };
+    // Destination context where there is any: a note from a lesson this
+    // scenario teaches is about what the player is about to be asked to do. A
+    // scenario no lesson points at - a campaign chapter, a mod's own arena -
+    // has none, and falls back to the whole set rather than saying nothing.
+    let note = rotation.pick_preferred(&destination, &notes, note_roll(&time));
     commands.spawn((
         Name::new("Scenario Loading Screen"),
         ScenarioLoadScreenMarker { started },
@@ -283,7 +391,7 @@ fn spawn_scenario_load_screen(
         // frames and swallowing a click in that window is worse than letting
         // one through to a screen the player cannot see anyway.
         Pickable::IGNORE,
-        loading_panel("LOADING SCENARIO", ui_font_handle(ui_font)),
+        loading_panel("LOADING SCENARIO", ui_font_handle(ui_font), note),
     ));
 }
 
@@ -588,6 +696,7 @@ fn on_failure_quit(_activate: On<bevy::ui_widgets::Activate>, mut exit: MessageW
 mod tests {
     use bevy::state::app::StatesPlugin;
     use nova_scenario::prelude::{ScenarioConfig, ScenarioStartFailureReport};
+    use nova_training::prelude::{Lesson, LessonCategory, LessonMedia};
 
     use super::*;
 
@@ -835,6 +944,139 @@ mod tests {
         );
     }
 
+    /// The scenario panel reads the MERGED catalog, so an installed mod's note
+    /// can come up there. It draws after the merge, unlike the boot panel, so
+    /// falling back to the compiled set would silence every authored note.
+    #[test]
+    fn the_scenario_screen_draws_an_authored_field_note() {
+        let mut app = screen_app();
+        app.world_mut()
+            .insert_resource(TrainingCatalog::new([lesson(
+                "mod_docking",
+                None,
+                "A ring takes the ship at a walking pace.",
+            )]));
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+
+        let drawn = texts(&mut app);
+        assert!(
+            drawn
+                .iter()
+                .any(|text| text.contains("A ring takes the ship at a walking pace.")),
+            "the authored note must be the one on screen: {drawn:?}"
+        );
+    }
+
+    /// Destination context: the note a player reads while a range comes up is
+    /// about what that range is going to ask them to do, not a note picked at
+    /// random out of the whole book.
+    #[test]
+    fn the_scenario_screen_prefers_a_note_about_where_it_is_going() {
+        let mut app = screen_app();
+        app.world_mut().insert_resource(TrainingCatalog::new([
+            lesson("far_away", None, "Mass costs you turn rate."),
+            lesson(
+                "on_the_range",
+                Some("probe"),
+                "Hold the range and let it come.",
+            ),
+        ]));
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+
+        let drawn = texts(&mut app);
+        assert!(
+            drawn
+                .iter()
+                .any(|text| text.contains("Hold the range and let it come.")),
+            "the destination's own note must be the one on screen: {drawn:?}"
+        );
+    }
+
+    /// ... and a scenario no lesson teaches still gets a note. The fallback is
+    /// the whole set, not an empty slot.
+    #[test]
+    fn a_scenario_no_lesson_teaches_still_draws_a_note() {
+        let mut app = screen_app();
+        app.world_mut()
+            .insert_resource(TrainingCatalog::new([lesson(
+                "far_away",
+                Some("some_other_range"),
+                "Mass costs you turn rate.",
+            )]));
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+
+        let drawn = texts(&mut app);
+        assert!(
+            drawn
+                .iter()
+                .any(|text| text.contains("Mass costs you turn rate.")),
+            "with no destination note the general set is the answer: {drawn:?}"
+        );
+    }
+
+    /// The note is a PASSENGER on the load, not a party to it: it is drawn on a
+    /// slot nothing can click, and the screen it rides on comes down on exactly
+    /// the gate it came down on before there were any notes. Ownership, state
+    /// and teardown - never how long any of it took.
+    #[test]
+    fn a_field_note_does_not_hold_the_load_or_take_a_click() {
+        let mut app = screen_app();
+        app.world_mut()
+            .insert_resource(TrainingCatalog::new([lesson(
+                "on_the_range",
+                Some("probe"),
+                "Hold the range and let it come.",
+            )]));
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        let slot = app
+            .world_mut()
+            .query::<(Entity, &Name)>()
+            .iter(app.world())
+            .find(|(_, name)| name.as_str() == "Loading Field Note")
+            .map(|(entity, _)| entity)
+            .expect("the note slot is on the panel");
+        assert_eq!(
+            app.world().get::<Pickable>(slot),
+            Some(&Pickable::IGNORE),
+            "a transient loading fact is not interactive"
+        );
+
+        // The SAME teardown the note-free screen has: the dwell, then a settled
+        // frame. The note changes neither half.
+        std::thread::sleep(std::time::Duration::from_secs_f32(SCENARIO_MIN_DWELL));
+        app.update();
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            0,
+            "the note must not keep the screen up past its gate"
+        );
+    }
+
     /// The screen holds for the minimum dwell and then comes down on a settled
     /// frame. Driven on the real clock, which is what the production rule reads.
     #[test]
@@ -973,6 +1215,26 @@ mod tests {
 
     fn scenario() -> ScenarioConfig {
         ScenarioConfig::new("probe", "Probe", "sky.png".into())
+    }
+
+    /// One lesson carrying one authored note, practised on `practice`.
+    fn lesson(id: &str, practice: Option<&str>, note: &str) -> Lesson {
+        Lesson {
+            id: id.to_string(),
+            category: LessonCategory::Advanced,
+            order: 10,
+            title: "Docking".to_string(),
+            media: LessonMedia::Image {
+                image: "dep://base/training/start_welcome.png".into(),
+                alt: "a hull on the ring".to_string(),
+            },
+            body: "A short body, the length the box is built for.".to_string(),
+            actions: vec![],
+            wiki_path: "wiki/docking".to_string(),
+            practice: practice.map(ToString::to_string),
+            proven_by: vec![],
+            field_notes: vec![note.to_string()],
+        }
     }
 
     fn count<M: Component>(app: &mut App) -> usize {
