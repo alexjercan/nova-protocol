@@ -26,17 +26,20 @@ pub(crate) enum GalleryCategory {
     Weapons,
     /// Torpedo bays.
     Ordnance,
+    /// Docking ports.
+    Docking,
 }
 
 impl GalleryCategory {
     /// Every category, in the order the filter row shows them.
-    pub(crate) const ROW: [Self; 6] = [
+    pub(crate) const ROW: [Self; 7] = [
         Self::All,
         Self::Structure,
         Self::Propulsion,
         Self::Control,
         Self::Weapons,
         Self::Ordnance,
+        Self::Docking,
     ];
 
     /// The button label.
@@ -48,6 +51,7 @@ impl GalleryCategory {
             Self::Control => "Control",
             Self::Weapons => "Weapons",
             Self::Ordnance => "Ordnance",
+            Self::Docking => "Docking",
         }
     }
 
@@ -59,6 +63,7 @@ impl GalleryCategory {
             SectionKind::Controller(_) => Self::Control,
             SectionKind::Turret(_) | SectionKind::Railgun(_) => Self::Weapons,
             SectionKind::Torpedo(_) => Self::Ordnance,
+            SectionKind::Docking(_) => Self::Docking,
         }
     }
 
@@ -144,6 +149,20 @@ pub(crate) fn stats(section: &SectionConfig) -> Vec<(String, String)> {
 fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
     match kind {
         SectionKind::Hull(_) => vec![("Role".to_string(), "passive structure".to_string())],
+        SectionKind::Docking(docking) => vec![
+            (
+                "Capture".to_string(),
+                format!("{:.0} m gap", docking.capture_distance.0),
+            ),
+            (
+                "Cone".to_string(),
+                format!("{:.0} deg", docking.capture_angle),
+            ),
+            (
+                "Closing".to_string(),
+                format!("{:.1} m/s", docking.maximum_relative_speed.0),
+            ),
+        ],
         SectionKind::Thruster(thruster) => {
             vec![("Thrust".to_string(), format!("{:.2}", thruster.magnitude))]
         }

@@ -72,6 +72,15 @@ path = "src/lib.rs"
 name = "carve_asteroids"
 path = "examples/playable/carve_asteroids.rs"
 
+# The docking approach a human actually flies: a ported tender, a moored spar
+# a hundred and twenty metres off and out of square, and the world-space
+# docking sight between them. The systems/ range proves the joint; this is
+# where the APPROACH is judged, because a capture that cannot be flown is not
+# a mechanic.
+[[example]]
+name = "docking_approach"
+path = "examples/playable/docking_approach.rs"
+
 # The same generator `wfc_ships` poses in a row (shared/wfc.rs) with the safety
 # off: a `--ship` roster of collapsed hulls on two allegiances under the
 # campaign's AI pilot, in a dressed arena, fighting with all four weapon
@@ -282,6 +291,10 @@ path = "examples/systems/system_blast_penetration.rs"
 [[example]]
 name = "system_section_severing"
 path = "examples/systems/system_section_severing.rs"
+
+[[example]]
+name = "system_docking_ports"
+path = "examples/systems/system_docking_ports.rs"
 
 # Then the cross-cutting systems, at a coarser grain. Every fixture is a
 # `ScenarioConfig` built in Rust and loaded with `LoadScenario`, so the compiler
@@ -596,14 +609,6 @@ path = "examples/screenshots/screenshot_thruster_gallery.rs"
 [[example]]
 name = "screenshot_section_gallery"
 path = "examples/screenshots/screenshot_section_gallery.rs"
-
-# The docking-section mesh spike (task 20260915-165338, phase 1): every
-# candidate port under art/part-candidates/sections shown retracted, extended,
-# and mated with a copy of itself at three face gaps - the overlap the fixed
-# 0.5 travel produces is what the owner picks off.
-[[example]]
-name = "screenshot_docking_gallery"
-path = "examples/screenshots/screenshot_docking_gallery.rs"
 
 # The remodel's acceptance range: both PDC mounts and the two-cell bay under
 # live scripted fire at columns built from the new hull/controller models,

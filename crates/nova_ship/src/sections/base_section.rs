@@ -465,6 +465,8 @@ pub enum SectionKind {
     Torpedo(TorpedoSectionConfig),
     /// Spinal kinetic lance the HULL aims; see [`RailgunSectionConfig`].
     Railgun(RailgunSectionConfig),
+    /// Telescoping docking port; see [`DockingSectionConfig`].
+    Docking(DockingSectionConfig),
 }
 
 impl SectionKind {
@@ -483,6 +485,7 @@ impl SectionKind {
             SectionKind::Turret(_) => SectionClass::Turret,
             SectionKind::Torpedo(_) => SectionClass::Torpedo,
             SectionKind::Railgun(_) => SectionClass::Railgun,
+            SectionKind::Docking(_) => SectionClass::Docking,
         }
     }
 }
@@ -523,7 +526,10 @@ impl SectionConfig {
                 railgun.ammunition = AmmoCapacity::Unlimited;
                 railgun.reload = ReloadConfig::Disabled;
             }
-            SectionKind::Hull(_) | SectionKind::Thruster(_) | SectionKind::Controller(_) => {}
+            SectionKind::Hull(_)
+            | SectionKind::Thruster(_)
+            | SectionKind::Controller(_)
+            | SectionKind::Docking(_) => {}
         }
         self
     }

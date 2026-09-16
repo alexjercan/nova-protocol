@@ -57,6 +57,7 @@ part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
 | `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s |
 | `siege_railgun_lance_section` | Railgun | Siege Railgun Lance | 180 | the same lance at capital grade, mounted only by the campaign's stolen warship: Pierce 500 to every layer it rakes until 360,000 slug power runs out, rake radius 30 m. Same 1.5 s charge, same 15,000 m/s slug for 1.2 s, same recoil 45 and one round over 12 s. Deliberately overpowered siege ordnance, not a balanced duel |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | experimental and deliberately overpowered balancing kit, not intended for normal play; blast 2000 dmg over a radius of 450 m, armored ordnance (5000 hp), ammo 6 restoring +1 after 10 s idle; loads the crimson siege Breaker (cruise 700 m/s, with a shallow weave) |
+| `docking_port_section` | Docking | Docking Port Section | 90 | the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. No base ship carries one; build a hull with one in the editor |
 
 Every shipped prototype authors its [damage
 effects](../sections/#damage-effects) by kind, and the whole catalog follows one
@@ -211,6 +212,10 @@ Then the generated section parts the catalog renders
   with its animatable `stow_lid_*` nodes
 - `gltf/bay_tube.glb` - the two-cell torpedo bay, with its animatable
   `door_petal_*` iris nodes
+- `gltf/railgun_lance.glb` - the three-cell spinal lance, with its animatable
+  `charge_bolt` node
+- `gltf/dock_flush.glb` - the docking port, with its animatable `dock_tube`
+  sleeve
 
 The retired first-pass art stays in the bundle so old refs resolve, but no
 base section renders it: `gltf/hull-01.glb`, `gltf/turret-yaw-01.glb`,

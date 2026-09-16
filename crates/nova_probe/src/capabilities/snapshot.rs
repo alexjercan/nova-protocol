@@ -1178,6 +1178,7 @@ fn capabilities(world: &World, entity: Entity) -> serde_json::Value {
         "lock": capabilities.lock_enabled,
         "rcs": capabilities.rcs_enabled,
         "point_defense": capabilities.point_defense_enabled,
+        "dock": capabilities.dock_enabled,
     })
 }
 

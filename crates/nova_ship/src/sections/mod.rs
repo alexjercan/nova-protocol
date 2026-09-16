@@ -13,6 +13,7 @@ pub mod damage_cracks;
 pub mod damage_effects;
 pub mod damage_plume;
 pub mod damage_sparks;
+pub mod docking_section;
 pub mod fixture;
 pub mod hull_radius;
 pub mod hull_section;
@@ -40,9 +41,9 @@ pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, catalog_ids::prelude::*, clearance::prelude::*,
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
-        damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
-        hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
-        link_points::prelude::*, live_structure_anchor, patch::prelude::*,
+        damage_plume::prelude::*, damage_sparks::prelude::*, docking_section::prelude::*,
+        fixture::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
+        integrity::prelude::*, link_points::prelude::*, live_structure_anchor, patch::prelude::*,
         placeholder_art::prelude::*, railgun_section::prelude::*, section_animation::prelude::*,
         shell_shape::prelude::*, shell_skin::prelude::*, ship_grammar::prelude::*,
         signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
@@ -285,6 +286,9 @@ impl Plugin for SpaceshipSectionPlugin {
                 render: self.render,
             },
             railgun_section::RailgunSectionPlugin {
+                render: self.render,
+            },
+            docking_section::DockingSectionPlugin {
                 render: self.render,
             },
             // Not one of the kinds above: cladding is a FIXTURE derived from

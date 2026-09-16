@@ -58,6 +58,13 @@ pub enum SectionAnimationCue {
     /// and art that ran on a second one would promise a shot that had not
     /// arrived.
     Charge,
+    /// A docking port's telescoping sleeve: driven to 1 (fully out) while a
+    /// connection holds the port and back to 0 as it retracts. Steered by the
+    /// port's own [`DockingSectionState`](super::docking_section::DockingSectionState),
+    /// which is set by the connection rather than by the travel - the joint
+    /// is what holds the ships, so the sleeve is free to be art and arrive
+    /// whenever the authored travel says.
+    DockTube,
 }
 
 /// How each target node moves as its track's progress runs 0 -> 1, composed

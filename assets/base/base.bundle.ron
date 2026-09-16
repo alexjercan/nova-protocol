@@ -66,6 +66,7 @@
         "gltf/pdc_housing.glb",
         "gltf/bay_tube.glb",
         "gltf/railgun_lance.glb",
+        "gltf/dock_flush.glb",
         // Decoration fixtures for the derived skin, generated from the recipes
         // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
         // here so a style can name one with `self://gltf/greebles/<id>.glb` and

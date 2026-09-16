@@ -68,6 +68,8 @@ pub(crate) fn section_mark(
         Some(SectionKind::Torpedo(_)) => ("\u{25c6}", "TORPEDO"),
         // DOUBLE VERTICAL LINE - two rails, and the shot goes between them.
         Some(SectionKind::Railgun(_)) => ("\u{2016}", "RAILGUN"),
+        // BULLSEYE - a bore inside a collar, seen down the docking axis.
+        Some(SectionKind::Docking(_)) => ("\u{25ce}", "DOCKING"),
 
         None => ("?", "PART"),
     }
@@ -181,6 +183,7 @@ pub(crate) fn category_mark(category: GalleryCategory) -> &'static str {
         GalleryCategory::Control => "\u{25a6}",
         GalleryCategory::Weapons => "\u{2316}",
         GalleryCategory::Ordnance => "\u{25c6}",
+        GalleryCategory::Docking => "\u{25ce}",
     }
 }
 

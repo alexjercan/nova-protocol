@@ -29,6 +29,7 @@ readings](#damage-is-two-readings)).
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 | `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
+| `Docking`    | Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. `capture_distance`, `capture_angle` and the two relative-speed ceilings are the envelope a `DOCK` is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see [below](#docking-ports-and-what-holds-a-pair-together)). |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
 Every base prototype is GENERIC and authored in
@@ -240,6 +241,97 @@ The AI half is deliberately crude and recorded as such
 happens to sweep the bore across a target it is already fighting, inside about
 eight degrees and 60% of the slug's reach, with a per-gun cadence over the gun's
 own reload. It does not FLY the shot.
+
+### Docking ports, and what holds a pair together
+
+A dock is deliberately NOT an attachment. Two docked hulls stay two rigid
+bodies held by one avian `FixedJoint`, and every part of the mechanic follows
+from that: no authority moves, no mass is merged, and either ship can leave.
+
+The code is `crates/nova_ship/src/sections/docking_section/`: `mod.rs` is the
+config and the sleeve's state machine, `port.rs` the candidate search, and
+`connection.rs` the connection's whole life.
+
+**Finding a pair** (`DockingPorts`, a `SystemParam`). `DOCK` names two SHIPS -
+the presser and the ship it has locked - and the game picks the ports. A port
+is eligible when it carries no `DockedPort` and is not `SectionInactiveMarker`.
+Each pair is then graded on the STRICTEST of the two ports' envelopes, so a
+hull cannot loosen another's rules by offering a lax port:
+
+- the **face gap** between the two RETRACTED outer faces, not between section
+  origins. A port's face is `(0, 0, -0.5)` in its own frame, because a section's
+  outward axis is local `-Z` everywhere in Nova.
+- the **opposition** of the two outward axes, within `capture_angle`. Roll about
+  the docking axis is not read at all: the ports are cylinders, so a twist is
+  not a misalignment.
+- the **relative** linear and angular speed of the two BODIES. Absolute speed is
+  irrelevant; two hulls holding formation at 2 km/s are stationary to each
+  other.
+
+`best_candidate` ranks survivors by `(gap, opposition, first_id, second_id)`.
+The two `EntityId`s are the tie-break, so two identical pairs resolve the same
+way on every machine and in every replay.
+
+**Making the joint.** `DockingConnectionRequest` re-runs the search - the
+envelope is re-read at execution, never trusted from the frame the offer was
+drawn in - and spawns ONE connection entity carrying both the
+`DockingConnection` record and the `FixedJoint`. The joint is built with an
+explicit frame:
+
+```rust
+FixedJoint::new(first_ship, second_ship)
+    .with_anchor(world_point)
+    .with_basis(Rotation(relative))
+```
+
+`with_anchor` / `with_basis` set one GLOBAL frame that avian resolves into
+per-body local frames on its next step, which is what preserves the pose the
+two hulls met in, roll included. A bare `FixedJoint::new(a, b)` carries
+`JointFrame::IDENTITY` and would yank the two hulls into the same origin.
+
+Nothing writes a velocity anywhere on this path. The constraint is the physics'
+job, so a pair that met while drifting keeps drifting; a hull that had been
+zeroed on capture would be a hull the solver has to fight.
+
+**The sleeves.** `DockingSectionState` runs `Retracted -> Extending ->
+Extended` off the `DockTube` animation cue, and back down on release. It is
+driven only AFTER the joint exists, so the tubes can never be what holds the
+ships together. The track is a plain `Translate` on `dock_tube*` nodes: art
+only, with no collider growth, which is why two mated sleeves may overlap
+without the hulls touching.
+
+**A dock is MODAL.** While it holds, a docked hull flies nothing. `DockedShip`
+on the root is the single gate, and it is read at the FORCE, not at the key, so
+pilot, AI and scripted order are all held by the same line:
+`thruster_impulse_system` skips the impulse, `sync_controller_section_forces`
+skips the torque, and the manual balancer and the RCS writer never reach a
+drive. A throttle held through a whole dock is simply inert - and bites the
+moment the dock ends, which is what the `system_docking_ports` range reads back
+to back.
+
+`park_docked_helms_and_release_maneuvers` re-parks each docked hull's attitude
+command on the rotation it actually has, every tick. The attitude loop is off,
+so a command left where it stood at capture would be a stale order the PD snaps
+to the instant the dock ends; parking it live means a released ship inherits
+the direction it is already pointing.
+
+**Ending it.** Four paths, and each removes only the connection it owns:
+
+- **the verb** (`on_docking_release_request`): `DOCK` pressed again, from
+  EITHER hull, exactly as `ORBIT` pressed again disengages. This is the only
+  pilot-facing path, and it is ungated - a capability withdrawn while docked
+  must never strand a hull clamped to something.
+- **an engaged maneuver** (`park_docked_helms_and_release_maneuvers`, in
+  `DockingSystems::Release`, ordered BEFORE the attitude copy and the section
+  pass): an autopilot on either hull takes the dock away first, so the maneuver
+  is flown by a ship that is already free.
+- **a destroyed port** (`on_docking_port_removed_release`), which frees the
+  surviving port.
+- **a broken endpoint** (`release_broken_docking_connections`), for a ship that
+  is gone entirely.
+
+`nova_ship/src/sections/docking_section/tests.rs` grades the search; the
+`system_docking_ports` range grades what the SOLVER does with the joint.
 
 ### Meshes and colliders (authorable)
 

@@ -36,6 +36,7 @@ pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
         SectionClass::Turret => "PDC",
         SectionClass::Torpedo => "TRB",
         SectionClass::Railgun => "RAIL",
+        SectionClass::Docking => "DOCK",
     }
 }
 
@@ -50,6 +51,7 @@ pub(crate) fn kind_glyph(kind: SectionClass) -> &'static str {
         SectionClass::Turret => "T",
         SectionClass::Torpedo => "^",
         SectionClass::Railgun => "=",
+        SectionClass::Docking => "O",
     }
 }
 
@@ -62,8 +64,14 @@ pub(crate) fn kind_description(kind: SectionClass) -> &'static str {
         SectionClass::Turret => "Point-defence gun.",
         SectionClass::Torpedo => "Torpedo launch tube.",
         SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
+        SectionClass::Docking => "Docking port; locks onto another hull.",
     }
 }
+
+/// How many dense kind indices [`kind_index`] hands out. Moves with it: the
+/// per-kind counter array is sized from this, so a new section kind is one
+/// arm and one number, never a silently short array.
+pub(crate) const KIND_COUNT: usize = 7;
 
 /// A dense index for a section kind, for the per-kind next-index counters.
 pub(crate) fn kind_index(kind: SectionClass) -> usize {
@@ -74,6 +82,7 @@ pub(crate) fn kind_index(kind: SectionClass) -> usize {
         SectionClass::Turret => 3,
         SectionClass::Torpedo => 4,
         SectionClass::Railgun => 5,
+        SectionClass::Docking => 6,
     }
 }
 
@@ -110,7 +119,7 @@ pub(crate) fn assign_section_codes(
     };
     // The highest index already handed out per kind, so new sections continue the
     // sequence rather than colliding.
-    let mut next: [u32; 6] = [0; 6];
+    let mut next: [u32; KIND_COUNT] = [0; KIND_COUNT];
 
     let mut unassigned: Vec<(Entity, SectionClass, String)> = Vec::new();
     for (entity, child, code, id, class, hull, controller, thruster, turret, torpedo) in &q_sections

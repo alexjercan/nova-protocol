@@ -1,4 +1,4 @@
-//! What a ship is PERMITTED to do: the six software capabilities every
+//! What a ship is PERMITTED to do: the seven software capabilities every
 //! consumer asks the ship ROOT about, so a lit hint, a firing key, the radar
 //! and the autopilot can never disagree about the same hull.
 //!
@@ -69,6 +69,14 @@ pub struct ShipCapabilities {
         serde(default = "enabled", skip_serializing_if = "is_enabled")
     )]
     pub point_defense_enabled: bool,
+    /// DOCK: the explicit capture command a docking port answers. Permission
+    /// only - a hull with no docking section never offers the verb whatever
+    /// this says.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "enabled", skip_serializing_if = "is_enabled")
+    )]
+    pub dock_enabled: bool,
 }
 
 impl Default for ShipCapabilities {
@@ -80,6 +88,7 @@ impl Default for ShipCapabilities {
             lock_enabled: true,
             rcs_enabled: true,
             point_defense_enabled: true,
+            dock_enabled: true,
         }
     }
 }

@@ -801,7 +801,8 @@ grants one per beat, GOTO after the cadet's first lock).
 
 One action per capability: `SetShipCapabilityStop`, `SetShipCapabilityGoto`,
 `SetShipCapabilityOrbit`, `SetShipCapabilityLock`, `SetShipCapabilityRcs`,
-`SetShipCapabilityPointDefense`. All six take the same two fields.
+`SetShipCapabilityPointDefense`. All six take the same two fields. The ship's
+seventh capability, `dock_enabled`, is authored at spawn and has no action.
 
 ```ron
 SetShipCapabilityGoto((id: "player_spaceship", enabled: true)),

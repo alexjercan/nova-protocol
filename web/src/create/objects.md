@@ -237,6 +237,7 @@ permissions.
 | `lock_enabled` | `true` | LOCK: the radar gesture and the combat lock it makes |
 | `rcs_enabled` | `true` | RCS: the torque-free fine-adjust push |
 | `point_defense_enabled` | `true` | the turrets engaging incoming ordnance on their own |
+| `dock_enabled` | `true` | DOCK: clamping the hull to the ship it has locked, port to port |
 
 ```ron
 // A cadet trainer: guns on the mount, nothing else handed over yet.
@@ -251,7 +252,8 @@ capabilities: (
 
 Runtime mirror: the
 [`SetShipCapability*`](../actions/#ship-capabilities) actions, which is how a
-tutorial hands them over one lesson at a time.
+tutorial hands them over one lesson at a time. `dock_enabled` is authored at
+spawn only; it has no runtime action yet.
 
 ### Section patches
 

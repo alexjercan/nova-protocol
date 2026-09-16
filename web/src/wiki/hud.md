@@ -25,7 +25,7 @@ The heads-up display is diegetic - the instruments read the ship's real state - 
 The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise keeps a quiet screen - the velocity sphere, your speed, the dock's few live verbs, the always-on ship markers and the status bar - and everything else arrives with its moment.
 
 <div class="widget" data-widget="hud-context">
-<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
+<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a locked docking target in range puts up the docking sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
 </div>
 
 <details class="explain">
@@ -59,7 +59,7 @@ The flight instruments sit around the ship, not in a status bar:
 - **Shell size** - both spheres are drawn around your LIVE hull: the white one stands 5 m outside the furthest point your sections reach from your centre of mass, and the yellow one 6 m outside that. Fly a cutter and they hug it; fly the 360 m industrial carrier and they grow to enclose it. Lose the sections that were reaching furthest and they settle back in over about a fifth of a second, so a hull coming apart is never left standing through its own instruments.
 - **Speed and mode chips** - a speed readout (`m/s`, meters per second; see the [glossary](../glossary/)) beside the sphere, and a mode chip reading `AP GOTO - BURN` (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged. Both park just outside the outer shell, so they move out with the hull instead of landing on it.
 - **ORBIT ring and radius spoke** - while you hold an orbit, a world-space ring marks the orbit plane and a thin spoke runs from the well to your ship with the current radius.
-- **Keybind dock** - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT and RCS. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored **verb cues** are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.
+- **Keybind dock** - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS and DOCK. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored **verb cues** are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-hud-shell.png -->
@@ -102,6 +102,32 @@ A hull carrying a [railgun](../sections/railgun/) has one more instrument, becau
             >The sight line out of the muzzle onto a gunship,
             with the kill ring at the face the slug would
             enter.</span
+        >
+    </div>
+</figure>
+
+## Docking sight
+
+<!-- Behavior verified against crates/nova_hud/src/docking_sight.rs: gated on a travel lock, a dock capability and an undocked hull; DRAW_RANGE 8.0 units of face gap; one PLATE_SPAN 2.5 cross per port face, one gap line, MAX_TICKS 12 ticks spaced at the pair's capture_distance; ALLY green when the tested half of the envelope holds, NAV cyan otherwise. -->
+
+A hull carrying a [docking port](../sections/docking/) gets an instrument of its own once it locks a ship that has one too. Inside **80 m of face gap** the sight draws three things in the world: a flat **cross over each of the two port faces**, a **line between them**, and a **tick on that line for every cell of capture distance** still to cross. Fly it in that order - square the two crosses up, stand the line perpendicular to them, then close the gap until the ticks run out.
+
+It is a two-colour readout, and each half answers one question. The crosses turn **green** when the two ports are facing each other closely enough; the line and its ticks turn **green** when both the gap and the closing speed are inside the envelope. Cyan means not yet. Three green and the DOCK chip lights.
+
+Nothing on it flies for you, and the **roll is not drawn at all** - the ports are cylinders, so any twist docks, and lining one up is your business. The sight is up only while you are locked, in range, carrying the verb, and not already docked.
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-hud-docking-sight.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-hud-docking-sight.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The two port crosses and the ticked line between
+            them on a final approach.</span
         >
     </div>
 </figure>

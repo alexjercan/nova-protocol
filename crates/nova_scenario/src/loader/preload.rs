@@ -136,6 +136,7 @@ fn push_section_meshes(config: &SectionConfig, meshes: &mut Vec<AssetRef<WorldAs
         // No projectile mesh: a slug is a built-in nose cone, not an asset a
         // scenario can be waiting on.
         SectionKind::Railgun(railgun) => push_mesh(railgun.render_mesh.as_ref(), meshes),
+        SectionKind::Docking(docking) => push_mesh(docking.render_mesh.as_ref(), meshes),
     }
 }
 

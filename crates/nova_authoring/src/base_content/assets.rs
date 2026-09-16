@@ -45,6 +45,9 @@ pub struct BaseContentAssets {
     /// The spinal lance: one 1x1x3 body carrying the `charge_bolt` node the
     /// `Charge` track walks up the bore.
     pub railgun_lance: AssetRef<WorldAsset>,
+    /// The sealed-hatch docking port: a 1x1x1 cell whose `dock_tube` node the
+    /// `DockTube` track slides 0.5 out along the port face (-Z).
+    pub dock_flush: AssetRef<WorldAsset>,
 
     /// The turret fire sound, authored the same `self:/` way as the meshes.
     /// Serialized into the section config's `fire_sound` field so base turrets
@@ -228,6 +231,7 @@ impl BaseContentAssets {
             turret_housing: AssetRef::from("self://gltf/pdc_housing.glb#Scene0".to_string()),
             torpedo_bay: AssetRef::from("self://gltf/bay_tube.glb#Scene0".to_string()),
             railgun_lance: AssetRef::from("self://gltf/railgun_lance.glb#Scene0".to_string()),
+            dock_flush: AssetRef::from("self://gltf/dock_flush.glb#Scene0".to_string()),
 
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_twin_fire_sound: AssetRef::from("self://sounds/pdc_twin_fire.wav".to_string()),

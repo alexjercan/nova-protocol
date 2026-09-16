@@ -2,8 +2,8 @@
 
 A `Section` is a reusable ship part defined in a mod's `*.content.ron` file.
 Create a new id to add a part to the editor palette, or reuse a base id to
-replace that part everywhere. The six available kinds are `Hull`, `Thruster`,
-`Controller`, `Turret`, `Torpedo`, and `Railgun`.
+replace that part everywhere. The seven available kinds are `Hull`, `Thruster`,
+`Controller`, `Turret`, `Torpedo`, `Railgun`, and `Docking`.
 
 Start with the two working section items in
 `assets/mods/example/example.content.ron`: one replaces
@@ -280,6 +280,7 @@ Who raises each cue:
 | `StowLift` | The turret's stow machine. | sunk into the housing |
 | `StowDoors` | The turret's stow machine, sequenced against the lift: it shuts the lids only once the gun is fully down, and parts them before raising it. | shut over the sunk gun |
 | `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
+| `DockTube` | The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released. | the sleeve fully out, 0.5 cells past the port face |
 
 Authoring a `StowLift` track is what MAKES a turret retractable - the stow
 machine is armed on turrets that have one and on no others. Such a turret
@@ -967,6 +968,63 @@ firing player on their own hull and by an enemy across the gap. Without the
 track the gun still charges; it just charges invisibly.
 
 <!-- Grammar verified against crates/nova_ship/src/sections/railgun_section/mod.rs (config :61-147 including rake_radius, commit :179-185, charge state :187-193) and firing.rs (Pierce :207, authored-or-narrow rake :215). Rake rules: crates/nova_gameplay/src/rounds.rs sweep_raking. Values from assets/base/sections/base.content.ron (:2258-2484). Radius comparison measured in examples/systems/system_railgun_lance.rs's stand bank. -->
+
+## Docking
+
+`DockingSectionConfig` - a docking port: a cylindrical, rotationally symmetric
+collar that holds this hull to another one. One ship,
+`docking_port_section`, and no base ship carries one yet; build a hull with one
+in the editor, or author your own port on a modded craft.
+
+```ron
+kind: Docking((
+    render_mesh: Some("dep://base/gltf/dock_flush.glb#Scene0"),
+    capture_distance: 10.0,
+    capture_angle: 15.0,
+    maximum_relative_speed: 5.0,
+    maximum_relative_angular_speed: 5.0,
+)),
+```
+
+- `render_mesh`, `render_mesh_transform` (both optional) - the port mesh and a
+  visual-only transform for it. Omit the mesh and the port draws as a unit
+  cuboid, and still docks.
+- `capture_distance` (meters) - the widest FACE GAP a dock is offered at,
+  measured between the two ports' retracted outer faces and not between their
+  section origins. The shipped 10.0 is one build cell.
+- `capture_angle` (degrees) - how far the two ports' outward axes may be from
+  directly opposed. Roll about the docking axis is NOT read: the ports are
+  cylinders, so a twist is not a misalignment, and the dock simply holds
+  whatever roll the two hulls met at.
+- `maximum_relative_speed` (meters per second) - the fastest the two HULLS may
+  be closing. It is relative, so two ships holding formation at 2 km/s are
+  stationary to each other and may dock.
+- `maximum_relative_angular_speed` (radians per second) - the same ceiling for
+  their relative spin.
+
+A pair is graded on the STRICTER of its two ports' numbers, so a lax port
+cannot loosen the rules of the hull it meets. Author a
+[`DockTube` animation track](#animation-tracks) to give the port its sleeve: the
+shipped one slides `dock_tube*` nodes 0.5 cells out along the section's own
+`-Z`, so two facing ports bridge up to a full cell of gap. The travel is fixed
+and never fitted to the actual gap - at a smaller gap the two sleeves overlap on
+purpose, which a rotationally symmetric port reads as one tunnel. The track
+moves ART only: the collider does not grow, so an extended sleeve never touches
+the other hull.
+
+A port takes ONE connection at a time, and offers no link point on its own
+outward face - that face is the hatch. Docking is spent through the `DOCK`
+verb, which the ship must also be PERMITTED to use: see the `dock`
+[capability](../objects/#capabilities).
+
+A dock is MODAL: while it holds, both hulls stop flying. The drive makes no
+thrust, the RCS no trim and the attitude computer no torque, on a player hull
+and an AI one alike, because the gate is read at the forces rather than at the
+input. `DOCK` again from either hull is the way out, and it is ungated - a
+capability withdrawn mid-dock can never strand a hull clamped to something. An
+engaged maneuver (ORBIT, GOTO, STOP) also ends a dock, before it is flown.
+
+<!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
 
 ## A section in a mod
 

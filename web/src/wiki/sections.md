@@ -22,7 +22,7 @@
     </figcaption>
 </figure>
 
-A ship is an assembly of sections, each with one job: hull blocks carry the structure, a controller turns it, thrusters push it, and the turrets, torpedo bays and the railgun fight with it. There is no hidden ship underneath - what a hull can do is exactly what its parts can do, and what it loses when a part is shot off is exactly that part's job. How a whole ship holds together and comes apart is on [Ships & damage](../ships/). This chapter is the parts themselves, one page per kind.
+A ship is an assembly of sections, each with one job: hull blocks carry the structure, a controller turns it, thrusters push it, the turrets, torpedo bays and the railgun fight with it, and a docking port holds it to another ship. There is no hidden ship underneath - what a hull can do is exactly what its parts can do, and what it loses when a part is shot off is exactly that part's job. How a whole ship holds together and comes apart is on [Ships & damage](../ships/). This chapter is the parts themselves, one page per kind.
 
 <div id="wiki-children"></div>
 
@@ -66,6 +66,7 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Siege Torpedo Bay Section<span class="catalog__flag">experimental</span></span><span class="catalog__id">heavy_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">2000 blast / 450 m</td></tr>
 <tr><td>Railgun</td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">300 Pierce / 1800 power</td></tr>
 <tr><td>Railgun</td><td><span class="catalog__name">Siege Railgun Lance<span class="catalog__flag">experimental</span></span><span class="catalog__id">siege_railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">500 Pierce / 360,000 power</td></tr>
+<tr><td>Docking</td><td><span class="catalog__name">Docking Port Section</span><span class="catalog__id">docking_port_section</span></td><td class="catalog__num">90</td><td class="catalog__num">10 m gap / 15 deg</td></tr>
 </tbody>
 </table>
 </div>

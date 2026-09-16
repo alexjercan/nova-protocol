@@ -7,9 +7,9 @@
 /// The base-game prototype ids engine-side code names.
 pub mod prelude {
     pub use super::{
-        BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, LIGHT_HULL_SECTION_ID,
-        PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID, REINFORCED_HULL_SECTION_ID,
-        SIEGE_RAILGUN_LANCE_SECTION_ID,
+        BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, DOCKING_PORT_SECTION_ID,
+        LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
+        REINFORCED_HULL_SECTION_ID, SIEGE_RAILGUN_LANCE_SECTION_ID,
     };
 }
 
@@ -17,6 +17,9 @@ pub mod prelude {
 pub const BASIC_CONTROLLER_SECTION_ID: &str = "basic_controller_section";
 /// The generic drive.
 pub const BASIC_THRUSTER_SECTION_ID: &str = "basic_thruster_section";
+/// The telescoping docking port, named here so the docking example and the
+/// section gallery can mount one without reaching into the authoring crate.
+pub const DOCKING_PORT_SECTION_ID: &str = "docking_port_section";
 /// The thin-walled hull plate; scavenger grade.
 pub const LIGHT_HULL_SECTION_ID: &str = "light_hull_section";
 /// The one turret every shipped craft mounts.

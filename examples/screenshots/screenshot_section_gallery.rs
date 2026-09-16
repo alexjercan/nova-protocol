@@ -77,6 +77,12 @@ const SUBJECT_YAW: f32 = std::f32::consts::PI - 0.55;
 /// How far under a subject its name hangs, in world units. Clears the 2x2
 /// VLS block's half height.
 const LABEL_DROP: f32 = 2.0;
+/// The docking sleeve's node prefix and its fixed travel along the port face,
+/// mirrored from `gen-section-parts.py` (`DOCK_NODE_PREFIX`,
+/// `DOCK_EXTENSION`) - the generator grades the part in both poses, and this
+/// row shows the pose it graded.
+const DOCK_NODE_PREFIX: &str = "dock_tube";
+const DOCK_EXTENSION: f32 = 0.5;
 
 /// Where the generated keeper glbs live, relative to the crate root. The
 /// picked parts promoted out of `art/part-candidates/sections/` into the
@@ -146,6 +152,14 @@ enum Look {
     /// A recipe-generated candidate glb, decoded off disk and shown at
     /// native (cell-unit) size.
     Candidate { file: &'static str },
+    /// The same, with one named node group displaced - the composition the
+    /// runtime `Translate` track performs, so an animated part can stand in
+    /// both of its poses.
+    Posed {
+        file: &'static str,
+        node_prefix: &'static str,
+        offset: Vec3,
+    },
 
     /// The shipped mount: three Blender glbs posed at the joint tree's own
     /// cumulative offsets.
@@ -316,6 +330,31 @@ fn gallery_rows() -> Vec<Row> {
                 note: "PICKED - 1x1x3 spinal lance, diameter 0.60",
             }],
         },
+        // The one row that shows a part TWICE. A docking port is the same
+        // file in two poses, and the pose is the whole point of the part -
+        // retracted it must not stand proud of the cell, extended it must
+        // reach exactly half a cell with its inner end anchored.
+        Row {
+            slug: "docking",
+            items: vec![
+                Item {
+                    id: "dock_flush (retracted)",
+                    look: Look::Candidate {
+                        file: "dock_flush.glb",
+                    },
+                    note: "PICKED - sealed hatch, flush in the cell",
+                },
+                Item {
+                    id: "dock_flush (extended)",
+                    look: Look::Posed {
+                        file: "dock_flush.glb",
+                        node_prefix: DOCK_NODE_PREFIX,
+                        offset: Vec3::NEG_Z * DOCK_EXTENSION,
+                    },
+                    note: "the sleeve out 0.5, inner end anchored",
+                },
+            ],
+        },
     ]
 }
 
@@ -397,6 +436,23 @@ fn load_gallery(
                         PARTS_DIR,
                         file,
                         pose,
+                        None,
+                    );
+                }
+                Look::Posed {
+                    file,
+                    node_prefix,
+                    offset,
+                } => {
+                    spawn_candidate(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        item,
+                        PARTS_DIR,
+                        file,
+                        pose,
+                        Some((node_prefix, *offset)),
                     );
                 }
 
@@ -439,6 +495,12 @@ fn load_gallery(
 
 /// A candidate part glb at native size: authored centred on its cell box, so
 /// no recentring and no fit - the size it stands at is the size it claims.
+///
+/// `displaced` names a moving node group and where to put it, composed the
+/// way `SectionAnimationMotion::Translate` composes it at runtime, so a part
+/// with a track stands in the pose the game would play rather than a
+/// hand-built approximation of it.
+#[expect(clippy::too_many_arguments, reason = "one stand, one call site each")]
 fn spawn_candidate(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -447,9 +509,19 @@ fn spawn_candidate(
     dir: &str,
     file: &str,
     pose: Transform,
+    displaced: Option<(&str, Vec3)>,
 ) {
     let path = parts_root(dir).join(file);
-    let primitives = glb::read_glb(&path);
+    let primitives = match displaced {
+        Some((prefix, offset)) => glb::read_glb_posed(&path, &|name| {
+            if name.starts_with(prefix) {
+                offset
+            } else {
+                Vec3::ZERO
+            }
+        }),
+        None => glb::read_glb(&path),
+    };
     let (_, size) = glb::bounds(&primitives);
     info!(
         "section_gallery: `{}`: {file}, native {:.2} x {:.2} x {:.2}",

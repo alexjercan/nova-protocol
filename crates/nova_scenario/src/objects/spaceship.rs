@@ -656,6 +656,13 @@ fn insert_spaceship_sections(
                         SpaceshipController::AI(_) => {}
                     }
                 }
+                // A port is passive: nothing aims it, nothing fires it, and
+                // no controller binds a key to it. The DOCK verb finds it by
+                // looking for free ports on the two hulls, so the spawn has
+                // only to build one.
+                SectionKind::Docking(docking_config) => {
+                    section_entity.insert(docking_section(docking_config.clone()));
+                }
                 SectionKind::Railgun(railgun_config) => {
                     has_weapon = true;
                     let railgun_config = railgun_config.clone();

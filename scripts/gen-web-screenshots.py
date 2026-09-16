@@ -335,6 +335,7 @@ ICONS = [
     ("icon-turret.png",      "turret",      (0xC8, 0x55, 0x55)),
     ("icon-torpedo-bay.png", "torpedo-bay", (0x8E, 0x6F, 0xC0)),
     ("icon-railgun.png",     "railgun",     (0x7A, 0xA6, 0xD6)),
+    ("icon-docking.png",     "docking",     (0x87, 0x93, 0xA1)),
 ]
 
 ICON_SIZE = 44
@@ -677,6 +678,11 @@ def draw_icon(section, accent):
         c.rect(13, 17, 40, 20, white)
         c.rect(13, 24, 40, 27, white)
         c.circle(27, 22, 3, white)
+    elif section == "docking":
+        # A collar seen down its own axis: a rim, then an open bore.
+        c.circle(22, 22, 14, white)
+        c.circle(22, 22, 9, accent)
+        c.circle(22, 22, 5, dark)
     return c.bytes()
 
 

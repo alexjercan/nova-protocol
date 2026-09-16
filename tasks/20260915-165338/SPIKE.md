@@ -15,7 +15,8 @@ kind, joints, the `DOCK` command) is not in this spike.
 Built the same way as the hull, railgun and PDC parts: a JSON recipe through
 `scripts/gen-section-parts.py` to a deterministic `.glb` under
 `art/part-candidates/sections/`. All three sit under the 450 triangle per cell
-budget. `--check` reports 28 parts byte for byte.
+budget. `--check` reported 28 parts byte for byte at selection time; it
+reports 26 now that the two rejected recipes are gone.
 
 ## The one new primitive
 
@@ -57,10 +58,12 @@ thing to accept or reject deliberately.
 
 ## The gallery
 
-`cargo run --features debug --example screenshot_docking_gallery` under
-`NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`. Five rows, three columns: retracted,
-extended, and mated with a copy of itself at face gaps `1.0`, `0.5` (worst
-case, sleeves fully overlap) and `0.1`. The wire box is the 1x1x1 cell.
+`screenshot_docking_gallery` under `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`. Five
+rows, three columns: retracted, extended, and mated with a copy of itself at
+face gaps `1.0`, `0.5` (worst case, sleeves fully overlap) and `0.1`. The wire
+box is the 1x1x1 cell. That example is GONE - Phase 2 removed it with the
+rejected candidates (see below); the frames it shot are the six `.png` files
+kept beside this file.
 
 - `docking-gallery.png` - all five rows
 - `docking-gallery-retracted.png`, `-extended.png`
@@ -77,8 +80,25 @@ Owner selection on 2026-09-15, off the frames listed above. The sealed-hatch
 port: nothing proud of the cell retracted, a graphite sleeve that is the only
 thing that leaves the cell.
 
-`dock_collar` and `dock_bellows` are kept for now so the gallery still shows
-what the choice was made against. Phase 1 step 6 removes them with the rest of
-the rejected candidate assets, as part of the implementation phase.
+`dock_collar` and `dock_bellows` were kept for the selection so the gallery
+still showed what the choice was made against.
+
+## Phase 2 cleanup, 2026-09-16
+
+Phase 1 step 6, done with the implementation:
+
+- `scripts/section-part-recipes/dock_collar.json` and `dock_bellows.json` are
+  deleted, and with them the two candidate `.glb` files under
+  `art/part-candidates/sections/`.
+- `dock_flush` is PROMOTED: it joins `PROMOTED_STEMS` in
+  `scripts/gen-section-parts.py`, so the recipe stays the source and
+  `assets/base/gltf/dock_flush.glb` is its committed build. It is declared in
+  `assets/base/base.bundle.ron`, which content lint requires.
+- `examples/screenshots/screenshot_docking_gallery.rs` is deleted, with its
+  `Cargo.toml` block and its CI shard entry. The selected port is shown by the
+  existing all-sections gallery instead: `screenshot_section_gallery` gained a
+  `docking` row carrying `dock_flush` retracted and extended, posed through
+  `read_glb_posed` exactly as the runtime track composes it.
+- The candidate frames above stay here as the record of the choice.
 
 No change requests came with the selection.

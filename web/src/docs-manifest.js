@@ -302,6 +302,24 @@ const WIKI_PAGES = [
         ],
     },
     {
+        slug: "sections/docking",
+        md: "sections/docking.md",
+        title: "Docking port",
+        category: "Ship sections",
+        parent: "sections",
+        icon: "assets/icon-docking.png",
+        tags: ["ships"],
+        summary:
+            "A sealed hatch that clamps your hull to the ship you have locked: the approach envelope, what the clamp holds, and the first burn that lets go.",
+        related: ["sections", "flight-autopilot", "keybinds"],
+        headings: [
+            "Flying the approach",
+            "What the clamp holds",
+            "Letting go",
+            "Variants",
+        ],
+    },
+    {
         slug: "keybinds",
         md: "keybinds.md",
         title: "Keybinds",

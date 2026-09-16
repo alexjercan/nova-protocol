@@ -5,10 +5,11 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::NarrativeChannelConfig;
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
-    section_colliders_overlap, AmmoCapacity, ControllerSectionConfig, LinkPointGraphError,
-    LinkPointRef, PlacedSectionCollider, PlacedSectionLinkPoints, RailgunSectionConfig,
-    ReloadConfig, SectionCollider, SectionConfig, SectionFootprint, SectionKind, ShipGrammarConfig,
-    TorpedoSectionConfig, TurretJoint, TurretSectionConfig, MAX_GRAMMAR_CELLS,
+    section_colliders_overlap, AmmoCapacity, ControllerSectionConfig, DockingSectionConfig,
+    LinkPointGraphError, LinkPointRef, PlacedSectionCollider, PlacedSectionLinkPoints,
+    RailgunSectionConfig, ReloadConfig, SectionAnimationCue, SectionCollider, SectionConfig,
+    SectionFootprint, SectionKind, ShipGrammarConfig, TorpedoSectionConfig, TurretJoint,
+    TurretSectionConfig, MAX_GRAMMAR_CELLS,
 };
 
 use super::{KnownSections, KnownShipDesigns, LintIssue, LintSeverity};
@@ -333,6 +334,9 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
             );
             check_railgun_numbers(config.base.id.as_str(), railgun, source, &mut issues);
         }
+        SectionKind::Docking(docking) => {
+            check_docking_config(config, docking, source, &mut issues);
+        }
         _ => {}
     }
     check_link_point_config(config, source, &mut issues);
@@ -449,6 +453,96 @@ fn check_railgun_numbers(
                 "section '{section_id}': railgun rake_radius must be a finite, non-negative \
                  number of meters, got {}",
                 radius.get()
+            ),
+        ));
+    }
+}
+
+/// A docking port's capture envelope, and the two shape facts the mechanic
+/// assumes about the section it is authored on.
+///
+/// The port face is HALF A CELL along local -Z, so a port authored bigger
+/// than one cell measures its gap from a face that is not where its mouth is
+/// - the capture would fire early on one side of the hull and late on the
+/// other. That is a content error, not a tuning choice, which is why it is
+/// graded here rather than clamped at spawn.
+///
+/// The missing sleeve track is a WARNING: a port with no authored animation
+/// docks correctly and simply never moves, which is exactly what a headless
+/// fixture wants and almost never what a shipped section does.
+fn check_docking_config(
+    config: &SectionConfig,
+    docking: &DockingSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let section_id = config.base.id.as_str();
+    if docking.capture_distance <= Meters::ZERO || !docking.capture_distance.is_finite() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': docking capture_distance must be a finite, positive \
+                 number of meters, got {}",
+                docking.capture_distance.get()
+            ),
+        ));
+    }
+    if !(0.0..90.0).contains(&docking.capture_angle) || !docking.capture_angle.is_finite() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': docking capture_angle must be at least 0 and under 90 \
+                 degrees, got {}",
+                docking.capture_angle
+            ),
+        ));
+    }
+    if docking.maximum_relative_speed < MetersPerSecond::ZERO
+        || !docking.maximum_relative_speed.is_finite()
+    {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': docking maximum_relative_speed must be a finite, \
+                 non-negative speed, got {}",
+                docking.maximum_relative_speed.get()
+            ),
+        ));
+    }
+    if docking.maximum_relative_angular_speed < 0.0
+        || !docking.maximum_relative_angular_speed.is_finite()
+    {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': docking maximum_relative_angular_speed must be a \
+                 finite, non-negative rate in degrees per second, got {}",
+                docking.maximum_relative_angular_speed
+            ),
+        ));
+    }
+    if let Some(SectionCollider::Cuboid { size }) = config.base.collider {
+        if size.x > 1.0 || size.y > 1.0 || size.z > 1.0 {
+            issues.push(LintIssue::error(
+                source,
+                format!(
+                    "section '{section_id}': a docking port must fit one cell - its face is half \
+                     a cell along -Z - got a collider of {size:?}"
+                ),
+            ));
+        }
+    }
+    if !config
+        .base
+        .animations
+        .iter()
+        .any(|track| track.cue == SectionAnimationCue::DockTube)
+    {
+        issues.push(LintIssue::warn(
+            source,
+            format!(
+                "section '{section_id}': docking port authors no DockTube animation track, so \
+                 its sleeve never moves"
             ),
         ));
     }

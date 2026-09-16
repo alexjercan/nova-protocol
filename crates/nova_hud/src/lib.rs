@@ -49,6 +49,7 @@ pub mod cinematic_prompt;
 pub mod cinematic_title;
 pub mod comms_panel;
 pub mod component_lock;
+pub mod docking_sight;
 pub mod edge_indicators;
 pub mod emphasis;
 pub mod flight_status;
@@ -82,10 +83,10 @@ pub mod prelude {
         allegiance_markers::prelude::*, ammo_readout::prelude::*, anchored_chip::prelude::*,
         beacon_chips::prelude::*, bore_sight::prelude::*, cinematic_prompt::prelude::*,
         cinematic_title::prelude::*, comms_panel::prelude::*, component_lock::prelude::*,
-        edge_indicators::prelude::*, emphasis::prelude::*, flight_status::prelude::*,
-        holo_instruments::prelude::*, hull_shell::prelude::*, item_highlights::prelude::*,
-        key_glyphs::prelude::*, keybind_dock::prelude::*, lock_crosshairs::prelude::*,
-        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        docking_sight::prelude::*, edge_indicators::prelude::*, emphasis::prelude::*,
+        flight_status::prelude::*, holo_instruments::prelude::*, hull_shell::prelude::*,
+        item_highlights::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
+        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
         objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
         readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
         target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
@@ -338,6 +339,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(keybind_dock::KeybindDockPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
         app.add_plugins(bore_sight::BoreSightPlugin);
+        app.add_plugins(docking_sight::DockingSightPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
         app.add_plugins(cinematic_prompt::CinematicPromptPlugin);
         app.add_plugins(cinematic_title::CinematicTitlePlugin);

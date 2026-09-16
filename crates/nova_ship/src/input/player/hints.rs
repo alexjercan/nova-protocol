@@ -56,6 +56,11 @@ pub struct FlightVerbHints {
     /// The radar gesture (hold = radar, tap = clear), labelled off
     /// `radar_hold`; available while the computer grants Lock.
     pub radar: VerbHint,
+    /// The DOCK verb hint (capture the locked ship with a docking port).
+    /// Available only while a port pair on the two hulls would actually be
+    /// accepted right now, so the chip is the offer and not an invitation to
+    /// press a key that refuses.
+    pub dock: VerbHint,
     /// The RCS fine-adjust modifier, labelled off `rcs_modifier`; available
     /// while the computer grants the `Rcs` verb, so the row shows only where
     /// RCS is enabled - the same opt-out the mainline campaign uses while RCS
@@ -95,6 +100,7 @@ pub(super) fn update_flight_verb_hints(
             Option<&TravelLock>,
             Option<&CombatLock>,
             Option<&LockFocus>,
+            Has<DockedShip>,
         ),
         With<PlayerSpaceshipMarker>,
     >,
@@ -102,10 +108,11 @@ pub(super) fn update_flight_verb_hints(
     q_capabilities: ShipCapabilityQuery,
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
     q_rig: Query<(), With<Action<AutopilotStopInput>>>,
+    ports: DockingPorts,
     bindings: Option<Res<InputBindings>>,
 ) {
     // The rig is the gate, not the source: a row is drawn only while the rig
-    // that answers it exists, so all seven vanish together on a ship with no
+    // that answers it exists, so all eight vanish together on a ship with no
     // flight computer.
     let rig_exists = !q_rig.is_empty();
     // The keycap an action draws, off the LIVE table. Reading the rig's own
@@ -125,21 +132,33 @@ pub(super) fn update_flight_verb_hints(
     };
 
     // Exactly one player ship, same rule as the Single-based observers.
-    let (ship, autopilot, dominant, travel, combat, focus) = match q_ship.single() {
-        Ok((entity, autopilot, dominant, travel, combat, focus)) => {
-            (Some(entity), autopilot, dominant, travel, combat, focus)
-        }
-        Err(_) => (None, None, None, None, None, None),
+    let (ship, autopilot, dominant, travel, combat, focus, docked) = match q_ship.single() {
+        Ok((entity, autopilot, dominant, travel, combat, focus, docked)) => (
+            Some(entity),
+            autopilot,
+            dominant,
+            travel,
+            combat,
+            focus,
+            docked,
+        ),
+        Err(_) => (None, None, None, None, None, None, false),
     };
     let travel = travel.and_then(|travel| travel.0);
     let combat = combat.and_then(|combat| combat.0);
     // The autopilot needs a live flight computer and at least one live
     // engine or it disengages on its next tick; a hint below that bar
     // would light a key that visibly does nothing.
-    let flyable = ship.is_some_and(|ship| {
-        ship_has_attitude_authority(ship, &q_computer)
-            && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
-    });
+    // A DOCKED hull flies nothing: its drive, its trim and its attitude loop
+    // are all held by the joint until it lets go. Folding that in here empties
+    // the verb row down to DOCK itself, which is the one key that still does
+    // something - and the row is then an honest picture of a modal state
+    // rather than four keys that quietly no-op.
+    let flyable = !docked
+        && ship.is_some_and(|ship| {
+            ship_has_attitude_authority(ship, &q_computer)
+                && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
+        });
     // The individual maneuvers are the SHIP's own capabilities, read from the
     // same root the input observers read, so a lit hint and a firing key can
     // never disagree. Kept SEPARATE from `flyable` above (which only asks "is
@@ -200,10 +219,25 @@ pub(super) fn update_flight_verb_hints(
             available: capabilities.lock_enabled,
             anchor: None,
         },
+        // The one verb whose availability is the real answer: the search that
+        // lights the chip is the search the command runs, so a lit DOCK means
+        // a pair exists on these two hulls at this instant. While the hull IS
+        // docked the same key undocks, so the chip stays lit - and the HUD
+        // draws it inverted, because that is the state the key would leave.
+        dock: VerbHint {
+            key: label("dock"),
+            available: docked
+                || ship.is_some_and(|ship| {
+                    capabilities.dock_enabled
+                        && travel.is_some_and(|target| ports.best_candidate(ship, target).is_some())
+                }),
+            anchor: travel,
+        },
         rcs: VerbHint {
-            // Shown only while the computer grants RCS.
+            // Shown only while the computer grants RCS. A docked hull has no
+            // trim authority, so the chip goes with the rest of the row.
             key: label("rcs_modifier"),
-            available: capabilities.rcs_enabled,
+            available: !docked && capabilities.rcs_enabled,
             anchor: None,
         },
         engaged,

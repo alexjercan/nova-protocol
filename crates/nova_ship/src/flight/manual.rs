@@ -156,7 +156,13 @@ pub(super) fn manual_burn_system(
             &Rotation,
             &LinearVelocity,
         ),
-        (With<SpaceshipRootMarker>, Without<Autopilot>),
+        (
+            With<SpaceshipRootMarker>,
+            Without<Autopilot>,
+            // A docked hull is held by its joint: no throttle is commanded,
+            // so no plume lights for a burn that cannot move it.
+            Without<DockedShip>,
+        ),
     >,
     mut q_thruster: Query<
         (
@@ -281,7 +287,8 @@ pub(super) fn manual_burn_system(
 ///   acts in full. So RCS can only reshuffle velocity inside one sphere of
 ///   radius `cap`, never accumulate speed by spamming it diagonally.
 ///
-/// Gated on the ship's `rcs_enabled` capability.
+/// Gated on the ship's `rcs_enabled` capability, and on the hull not being
+/// docked.
 /// Deliberately NOT gated on `Without<Autopilot>`: the autopilot follow-up
 /// drives this very primitive while engaged.
 pub(super) fn rcs_burn_system(
@@ -296,7 +303,9 @@ pub(super) fn rcs_burn_system(
             &ComputedMass,
             Forces,
         ),
-        With<SpaceshipRootMarker>,
+        // Docked is excluded for the same reason the main drive is: the joint
+        // holds the hull, and a trim fighting it would only heat the solver.
+        (With<SpaceshipRootMarker>, Without<DockedShip>),
     >,
     q_capabilities: ShipCapabilityQuery,
 ) {

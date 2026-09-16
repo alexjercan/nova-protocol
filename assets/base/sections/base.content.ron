@@ -2904,4 +2904,106 @@
             )),
         )),
     )),
+    Section((
+        base: (
+            id: "docking_port_section",
+            name: "Docking Port Section",
+            description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. A clamped hull flies nothing: its drive and its helm stay dead until DOCK is pressed again, from either side.",
+            health: 90.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: DockTube,
+                    node_prefix: "dock_tube",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            -0.5,
+                        ),
+                    ),
+                    open_seconds: 1.2,
+                    close_seconds: 0.8,
+                ),
+            ],
+        ),
+        kind: Docking((
+            render_mesh: Some("self://gltf/dock_flush.glb#Scene0"),
+            capture_distance: 10.0,
+            capture_angle: 15.0,
+            maximum_relative_speed: 5.0,
+            maximum_relative_angular_speed: 5.0,
+        )),
+    )),
 ]

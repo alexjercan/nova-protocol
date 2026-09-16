@@ -728,6 +728,10 @@ const SLUG_POWER: FieldSpec = floored("slug_power", "", 10.0);
 const SLUG_LIFETIME: FieldSpec = floored("slug_lifetime", "s", 0.05);
 const RECOIL_IMPULSE: FieldSpec = floored("recoil_impulse", "", 5.0);
 
+const CAPTURE_DISTANCE: FieldSpec = floored("capture_distance", "m", 0.5);
+const CAPTURE_ANGLE: FieldSpec = floored("capture_angle", "deg", 0.5);
+const MAXIMUM_RELATIVE_SPEED: FieldSpec = floored("maximum_relative_speed", "m/s", 0.1);
+
 const BODY_RADIUS: FieldSpec = floored("body_radius", "m", 0.5);
 const MASS: FieldSpec = floored("mass", "", 0.5);
 const RADIUS: FieldSpec = floored("radius", "m", 0.5);
@@ -823,6 +827,9 @@ const RAILGUN_PICKS: &[FieldSpec] = &[
     RELOAD,
     SLUG_LIFETIME,
 ];
+/// The whole capture envelope, because every one of the three is a reason a
+/// `DOCK` a builder expected did not appear.
+const DOCKING_PICKS: &[FieldSpec] = &[CAPTURE_DISTANCE, CAPTURE_ANGLE, MAXIMUM_RELATIVE_SPEED];
 const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
 /// What the rock is MADE of comes second only to how big it is: the kind
 /// decides the whole surface, so a curated panel that showed the radius and hid
@@ -869,6 +876,7 @@ const DECLARED: &[&[FieldSpec]] = &[
     TURRET_PICKS,
     TORPEDO_PICKS,
     RAILGUN_PICKS,
+    DOCKING_PICKS,
     ANCHOR_PICKS,
     ASTEROID_PICKS,
     PLANET_PICKS,
@@ -2066,6 +2074,7 @@ pub(crate) fn section_config(kind: &SectionKind) -> &dyn PartialReflect {
         SectionKind::Turret(config) => config,
         SectionKind::Torpedo(config) => config,
         SectionKind::Railgun(config) => config,
+        SectionKind::Docking(config) => config,
     }
 }
 
@@ -2078,6 +2087,7 @@ pub(crate) fn section_config_mut(kind: &mut SectionKind) -> &mut dyn PartialRefl
         SectionKind::Turret(config) => config,
         SectionKind::Torpedo(config) => config,
         SectionKind::Railgun(config) => config,
+        SectionKind::Docking(config) => config,
     }
 }
 
@@ -2166,6 +2176,7 @@ fn section_picks(kind: &SectionKind) -> &'static [FieldSpec] {
         SectionKind::Turret(_) => TURRET_PICKS,
         SectionKind::Torpedo(_) => TORPEDO_PICKS,
         SectionKind::Railgun(_) => RAILGUN_PICKS,
+        SectionKind::Docking(_) => DOCKING_PICKS,
     }
 }
 

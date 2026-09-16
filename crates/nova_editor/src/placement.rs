@@ -166,7 +166,7 @@ impl HeldBind<'_, '_> {
 /// can be flown the moment it is made the player's.
 pub(crate) fn default_binds(kind: &SectionKind) -> Vec<InputSource> {
     match kind {
-        SectionKind::Hull(_) | SectionKind::Controller(_) => vec![],
+        SectionKind::Hull(_) | SectionKind::Controller(_) | SectionKind::Docking(_) => vec![],
         SectionKind::Thruster(_) => vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
         SectionKind::Turret(_) => vec![
             MouseButton::Left.into(),

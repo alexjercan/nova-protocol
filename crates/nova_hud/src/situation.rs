@@ -56,6 +56,8 @@ pub struct HudSituations {
     pub low_ammo: bool,
     /// Some player weapon is restoring an idle reload batch.
     pub reloading: bool,
+    /// The ship is held by a docking connection - the DOCK chip's hot state.
+    pub docked: bool,
 }
 
 impl HudSituations {
@@ -82,6 +84,7 @@ pub fn sense_hud_situations(
             Option<&Autopilot>,
             Option<&CombatLock>,
             Option<&WeaponsHot>,
+            Has<DockedShip>,
         ),
         With<PlayerSpaceshipMarker>,
     >,
@@ -96,7 +99,7 @@ pub fn sense_hud_situations(
     >,
 ) {
     let next = match q_ship.single() {
-        Ok((ship, autopilot, combat, hot)) => {
+        Ok((ship, autopilot, combat, hot, docked)) => {
             let weapons_hot = hot.is_some_and(|hot| hot.0);
             let mut firing = false;
             let mut low_ammo = false;
@@ -121,6 +124,7 @@ pub fn sense_hud_situations(
                 firing,
                 low_ammo,
                 reloading,
+                docked,
             }
         }
         Err(_) => HudSituations::default(),

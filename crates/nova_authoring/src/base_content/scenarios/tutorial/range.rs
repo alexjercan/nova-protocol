@@ -94,8 +94,9 @@ pub(super) fn trainer() -> ScenarioObjectConfig {
 
 /// The helm the card teaches, withheld until its lesson. Every capability the
 /// cadet has not been shown is one they can fly the pattern with by accident,
-/// so the trainer spawns with all five off. Point defence is left alone: the
-/// trainer has no point-defense mount to stand down.
+/// so the trainer spawns with all five off. Point defence and docking are left
+/// alone: the trainer carries neither a point-defense mount nor a docking port
+/// to stand down.
 pub(super) const WITHHELD_CAPABILITIES: ShipCapabilities = ShipCapabilities {
     stop_enabled: false,
     rcs_enabled: false,
@@ -103,6 +104,7 @@ pub(super) const WITHHELD_CAPABILITIES: ShipCapabilities = ShipCapabilities {
     goto_enabled: false,
     orbit_enabled: false,
     point_defense_enabled: true,
+    dock_enabled: true,
 };
 
 // --- the targets -------------------------------------------------------------

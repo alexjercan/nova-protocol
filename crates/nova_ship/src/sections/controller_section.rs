@@ -12,7 +12,7 @@ use nova_gameplay::prelude::{
 };
 
 use crate::prelude::{
-    AttitudeEnvelope, HullRadius, PDController, PDControllerInput, PDControllerOutput,
+    AttitudeEnvelope, DockedShip, HullRadius, PDController, PDControllerInput, PDControllerOutput,
     PDControllerSystems, PDControllerTarget, PlaceholderArt, RenderMeshTransform,
     SectionRenderMeshTransform, SectionRenderOf,
 };
@@ -472,7 +472,14 @@ pub(crate) fn update_controller_section_rotation_input(
 }
 
 pub(crate) fn sync_controller_section_forces(
-    mut q_root: Query<Forces>,
+    // A DOCKED hull is held by its joint, not by its computer. Excluding the
+    // root here is what switches the attitude loop off for the duration: the
+    // PD keeps computing an output nobody applies, exactly as it does for a
+    // disabled controller below, and the two ships stop pushing against the
+    // constraint that is already holding them. The release pass re-parks the
+    // helm every tick it holds, so the loop that comes back on at undock is
+    // aimed where the hull already points.
+    mut q_root: Query<Forces, Without<DockedShip>>,
     // A disabled-in-place controller (zero-health, non-leaf, still attached ->
     // `SectionInactiveMarker`) must stop stabilizing the hull: with no live
     // computer the flight layer's semantics are "adrift" (the autopilot

@@ -139,7 +139,10 @@ fn empty_magazine(kind: &SectionKind) -> Option<SectionKindPatch> {
             ammunition: dry,
             ..default()
         })),
-        SectionKind::Hull(_) | SectionKind::Thruster(_) | SectionKind::Controller(_) => None,
+        SectionKind::Hull(_)
+        | SectionKind::Thruster(_)
+        | SectionKind::Controller(_)
+        | SectionKind::Docking(_) => None,
     }
 }
 

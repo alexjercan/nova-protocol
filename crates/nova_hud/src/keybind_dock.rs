@@ -80,7 +80,7 @@ pub const DOCK_BOTTOM_PX: f32 = 14.0;
 /// The verb names, in dock display order (left to right). The component-cycle
 /// chip documents the wheel gesture: plain scroll steps the component
 /// fine-lock; CTRL+scroll steps the ship lock through the tracked candidates.
-pub const DOCK_VERBS: [&str; 7] = [
+pub const DOCK_VERBS: [&str; 8] = [
     "STOP",
     "GOTO",
     "ORBIT",
@@ -88,6 +88,7 @@ pub const DOCK_VERBS: [&str; 7] = [
     "RADAR",
     "COMPONENT",
     "RCS",
+    "DOCK",
 ];
 
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized chip
@@ -328,6 +329,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
             chip_of(4),
             chip_of(5),
             chip_of(6),
+            chip_of(7),
         ],
     )
 }
@@ -448,7 +450,8 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         3 => &hints.cancel,
         4 => &hints.radar,
         5 => &hints.component_cycle,
-        _ => &hints.rcs,
+        6 => &hints.rcs,
+        _ => &hints.dock,
     }
 }
 
@@ -458,8 +461,9 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
 /// The `Hot` rules are the demo's, mapped onto the real verbs: the engaged
 /// maneuver's own chip is hot (GOTO while a GOTO burns, STOP while stopping,
 /// ORBIT while parking), CANCEL is hot whenever anything is engaged (it is the
-/// live way out), and RADAR is hot while a combat lock is held - the lock IS the
-/// radar's product, and it is the chip you press to change it.
+/// live way out), RADAR is hot while a combat lock is held - the lock IS the
+/// radar's product, and it is the chip you press to change it - and DOCK is hot
+/// while the hull is held by a docking joint.
 ///
 /// `Hot` is checked BEFORE availability, because it means "this is what the
 /// ship is doing", not "press this": the ORBIT offer is retired the moment you
@@ -473,6 +477,11 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
         "ORBIT" => situations.maneuver == Some(ManeuverChip::Orbit),
         "CANCEL" => hints.engaged,
         "RADAR" => situations.combat_lock,
+        // DOCK is the only chip whose hot state is not a maneuver: it says the
+        // hull is HELD. Its offer is retired the instant the joint exists (the
+        // ports are spoken for), so without this the chip would vanish at the
+        // exact moment docking becomes worth reporting.
+        "DOCK" => situations.docked,
         _ => false,
     };
     if hot {
@@ -895,6 +904,11 @@ mod tests {
                 available: false,
                 anchor: None,
             },
+            dock: VerbHint {
+                key: "D".into(),
+                available: false,
+                anchor: None,
+            },
             engaged,
         }
     }
@@ -908,6 +922,7 @@ mod tests {
             &mut resource.cancel,
             &mut resource.component_cycle,
             &mut resource.rcs,
+            &mut resource.dock,
         ] {
             hint.available = true;
         }
@@ -963,7 +978,7 @@ mod tests {
     fn dock_renders_glyph_chip_per_verb_with_availability() {
         let mut app = glyph_app();
         app.init_resource::<HintEmphasis>();
-        // Every verb available, so the keycap sweep below sees all seven chips
+        // Every verb available, so the keycap sweep below sees all eight chips
         // docked; the hide rule itself is `unavailable_verbs_leave_the_dock`.
         app.insert_resource(all_available_hints());
         app.add_systems(Update, update_dock);
@@ -981,7 +996,7 @@ mod tests {
         let chips = chips(&app);
         assert_eq!(chips.len(), DOCK_VERBS.len(), "one chip per verb");
 
-        let expected_key = ["X", "G", "O", "Z", "CTRL", "SCROLL", "SHIFT"];
+        let expected_key = ["X", "G", "O", "Z", "CTRL", "SCROLL", "SHIFT", "D"];
         for (index, verb) in DOCK_VERBS.iter().enumerate() {
             let stem = key_glyph_stem(expected_key[index]).unwrap();
             assert_eq!(

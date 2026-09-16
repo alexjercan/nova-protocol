@@ -52,6 +52,12 @@ pub(super) struct AutopilotOrbitInput;
 #[action_output(bool)]
 pub(super) struct AutopilotOffInput;
 
+/// Dock with the currently locked ship: the explicit capture command the
+/// docking ports answer.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(super) struct DockInput;
+
 /// The RCS fine-adjust modifier: held (SHIFT) to enter the docking translation
 /// mode. A plain Down action read as a held modifier (the `action_held` pattern,
 /// not a binding Chord - see `modal-input-observer-dispatch`), whose Start/Stop
@@ -152,6 +158,15 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("autopilot_off"),
+                ),
+                (
+                    Name::new("Input: Dock"),
+                    Action::<DockInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("dock"),
                 ),
                 (
                     // The radar hold: Start = search opens (slot latched),
@@ -506,6 +521,51 @@ pub(super) fn on_autopilot_off_input(
         debug!("on_autopilot_off_input: disengaging");
         commands.entity(entity).remove::<Autopilot>();
     }
+}
+
+/// Dock with the current TRAVEL lock, or let go of the dock already held.
+///
+/// The key only ASKS. Which pair of ports is used - and whether any pair is
+/// eligible at all - is decided by
+/// [`on_docking_connection_request`](crate::prelude::DockingConnectionRequest)
+/// when the request lands, so the offer the HUD drew a frame ago can never be
+/// the pair that is built. A press with no candidate is a silent no-op, which
+/// is what the dark chip already says.
+///
+/// A dock is MODAL, so the same key is the way out, exactly as `ORBIT` is
+/// left by pressing `ORBIT`. The undock branch is deliberately ahead of the
+/// capability gate: a `dock_enabled` withdrawn while a hull is clamped to
+/// something must never be able to strand it.
+pub(super) fn on_dock_input(
+    _: On<Start<DockInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, Option<&TravelLock>, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
+    q_capabilities: ShipCapabilityQuery,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+) {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+
+    let (entity, travel, docked) = ship.into_inner();
+    if docked.is_some() {
+        debug!("on_dock_input: undocking");
+        commands.trigger(DockingReleaseRequest { entity });
+        return;
+    }
+
+    if !ship_capabilities(entity, &q_capabilities).dock_enabled {
+        debug!("on_dock_input: DOCK is not enabled on this ship");
+        return;
+    }
+    let Some(target) = travel.and_then(|travel| travel.0) else {
+        debug!("on_dock_input: no travel lock, nothing to dock with");
+        return;
+    };
+
+    debug!("on_dock_input: requesting a dock with {target:?}");
+    commands.trigger(DockingConnectionRequest { entity, target });
 }
 
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller

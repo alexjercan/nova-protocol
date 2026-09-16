@@ -133,6 +133,8 @@ pub enum SectionClass {
     Torpedo,
     /// Railgun section: the spinal kinetic lance the HULL aims.
     Railgun,
+    /// Docking section: the telescoping port two hulls lock together with.
+    Docking,
 }
 
 impl SectionClass {

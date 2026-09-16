@@ -14,7 +14,10 @@ use nova_gameplay::prelude::{
 };
 
 use crate::{
-    prelude::{PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf},
+    prelude::{
+        DockedShip, PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform,
+        SectionRenderOf,
+    },
     sections::damage_plume::prelude::{plume_scale, DamagePlume},
 };
 
@@ -578,8 +581,17 @@ pub(crate) fn thruster_impulse_system(
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_root: Query<Forces>,
+    q_docked: Query<(), With<DockedShip>>,
 ) {
     for (transform, &ChildOf(root), magnitude, input) in &q_thruster {
+        // A DOCKED hull is held by its joint. Skipping the force here is what
+        // makes the dock modal for EVERY driver at once - pilot, AI and
+        // scripted order alike - the way the docked root is skipped in
+        // `sync_controller_section_forces` for torque. Silently, because a
+        // held hull is not an error.
+        if q_docked.contains(root) {
+            continue;
+        }
         let Ok(mut force) = q_root.get_mut(root) else {
             error!(
                 "thruster_impulse_system: entity {:?} not found in q_root",

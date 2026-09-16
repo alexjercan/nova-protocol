@@ -42,6 +42,18 @@ does NOT get an entry - and it is the only place they are written down.
 - A flight computer carries 9760 of torque, not 1501: an intact carrier turns at
   the rate its metal allows (0.40 rad/s2, up from 0.07) and goes back to being a
   barge once its bridge is shot up. Small hulls are unchanged.
+- DOCK (D) holds two hulls together: the nearest free port pair on your ship
+  and the ship you have locked, joined at the pose they met in.
+- A dock is modal: a docked hull's drive, helm and RCS stay dead until DOCK is
+  pressed again, from either hull. An engaged maneuver takes the dock apart
+  before it flies.
+- A dock is only offered inside its envelope: 1 cell of face gap, axes opposed
+  within 15 deg, under 5 m/s of closing speed. Roll about the axis is ignored,
+  so two ports meet at any twist.
+- A docked hull keeps the drift it arrived with. Nothing is zeroed on capture,
+  so a pair that met while moving sails on together.
+- A ship says whether it may dock at all: the new `dock` capability, on by
+  default and withheld on the tutorial range.
 
 ### Combat & Weapons
 - Cover takes both lock slots, not just the weapons one: a rock crossing the
@@ -108,6 +120,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A torpedo bay must author a positive, finite `fire_rate` **(breaking)**:
   lint rejects anything else, and a bay that still reaches the game is built
   with no launcher rather than firing every tick.
+- **(breaking)** A new `Docking` section kind, authored with a capture
+  distance, a capture angle and speed ceilings. Its `dock_flush` sleeve reaches
+  out once the dock holds and never grows a collider.
 
 ### Scenarios & Objectives
 - **(breaking)** Six `SetShipCapability*` actions replace `SetControllerVerb`,
@@ -162,6 +177,9 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
+- A docking sight draws the approach in the world: a cross over each port face,
+  a line between them, and a tick per cell of capture distance. Each half turns
+  green when its half of the envelope holds.
 - The comms backlog holds 24 waiting lines, what three cards can reach while a
   line is still worth reading. A scenario posting faster drops the oldest cue,
   not the line about the fight you are in.
@@ -241,6 +259,8 @@ does NOT get an entry - and it is the only place they are written down.
   the pause menu, and a timed outcome that advances unfocused hands its pause
   to the menu rather than dropping a live frame.
 
+- The verb row carries a DOCK chip. It lights while a port pair on the two
+  locked hulls is eligible, and stays lit for as long as the dock holds.
 ### Audio & Visuals
 - A hull dies at its own size: the fireball, its debris and its flash are drawn
   from the ship's live structure, so a carrier's death reaches 479 m instead of
@@ -266,9 +286,14 @@ does NOT get an entry - and it is the only place they are written down.
   about 28% of its frame time, 33% at its worst.
 
 ### Internals & Tooling
+- New `docking_approach` example: a tender with a port on its nose, a drifting
+  spar to dock with, and nothing else to do - the verb flown by hand.
 - Section parts can carry a sliding sleeve. `gen-section-parts.py` grades a
-  `dock` frame retracted and extended, and `screenshot_docking_gallery` shows
-  each candidate port mated with itself.
+  `dock` frame retracted and extended, and the section gallery shows
+  `dock_flush` in both poses.
+- `system_docking_ports` grades what the solver does with a dock: one joint per
+  command, the pose it holds under tow, the throttle it swallows while docked,
+  and the ways it ends.
 - One resolver builds every ship: the spawn, the content lint, the preload
   walk, the editor preview and the balance audit read the same finished
   sections, so an audit quotes the numbers the ship flies with.

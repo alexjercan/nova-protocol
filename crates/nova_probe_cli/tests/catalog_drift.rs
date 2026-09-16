@@ -392,6 +392,21 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_docking_ports",
+        &[
+            "one command builds one connection and one root joint",
+            "both sleeves reach out once the joint holds",
+            "the sleeve never changes what the hull collides with",
+            "the joint carries the pair without zeroing its drift",
+            "the joint holds the pose the two hulls met in",
+            "a docked hull ignores the throttle",
+            "the dock verb takes the dock away from either hull",
+            "the throttle bites the moment the dock lets go",
+            "a destroyed port frees its partner",
+            "the dock geometry is recorded",
+        ],
+    ),
+    (
         "system_scenario_grammar",
         &[
             "onstart seeds variables and objectives",
@@ -832,7 +847,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 387;
+const SYSTEMS_INVARIANTS: usize = 397;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

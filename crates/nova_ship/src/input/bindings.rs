@@ -44,6 +44,15 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("autopilot_off", "FLIGHT", "Autopilot: Off")
             .keyboard([Keyboard(KeyCode::KeyZ)])
             .gamepad([Gamepad(GamepadButton::West)]),
+        // `D` because DOCK is modal and its own undo: the same key clamps and
+        // lets go, the way `O` does for ORBIT. Free on the flight rig - the
+        // ship has no strafe keys, and NOVA OS's WASD pan lives in the Viewer
+        // context. Keyboard only: every pad button the flight, camera and
+        // targeting rigs can reach is already spoken for, and the four face
+        // buttons are the autopilot verbs, so DOCK waits for the keybind
+        // rework rather than taking a maneuver's button away (the same call
+        // `ship_repair` made).
+        ActionBinding::new("dock", "FLIGHT", "Dock").keyboard([Keyboard(KeyCode::KeyD)]),
         // Hold and tap share the key and the threshold constant so the
         // boundary frame cannot fall between them. `radar_clear` FOLLOWS the
         // hold: one settings row, one rebind, and the tap cannot be left
@@ -150,10 +159,10 @@ mod tests {
         assert_eq!(before, names.len(), "duplicate action name in {names:?}");
     }
 
-    /// The fixed rigs this task names: 11 flight and targeting, 3 camera.
+    /// The fixed rigs this task names: 12 flight and targeting, 3 camera.
     #[test]
-    fn the_fixed_rigs_name_fourteen_actions() {
-        assert_eq!(flight_bindings().len(), 11);
+    fn the_fixed_rigs_name_fifteen_actions() {
+        assert_eq!(flight_bindings().len(), 12);
         assert_eq!(camera_bindings().len(), 3);
     }
 
@@ -174,6 +183,7 @@ mod tests {
                 "autopilot_goto",
                 "autopilot_orbit",
                 "autopilot_off",
+                "dock",
                 "radar_hold",
                 "radar_clear",
                 "component_next",
@@ -247,6 +257,7 @@ mod tests {
                 ("Autopilot: Go To", "G", "Y"),
                 ("Autopilot: Orbit", "O", "A"),
                 ("Autopilot: Off", "Z", "X"),
+                ("Dock", "D", "Unbound"),
                 ("Radar (hold / tap)", "Ctrl", "D-Pad Up"),
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
                 ("Lock Next Component", "] / Scroll Up", "D-Pad Right"),

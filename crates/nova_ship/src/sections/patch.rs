@@ -30,9 +30,9 @@ use crate::prelude::*;
 /// patch and an editor row address a turret's barrels by.
 pub mod prelude {
     pub use super::{
-        duplicate_muzzle_id, muzzle_ids, ControllerSectionConfigPatch, HullSectionConfigPatch,
-        MuzzleConfigPatch, RailgunSectionConfigPatch, SectionConfigPatch, SectionKindPatch,
-        SectionPatchError, ThrusterSectionConfigPatch, TorpedoSectionConfigPatch,
+        duplicate_muzzle_id, muzzle_ids, ControllerSectionConfigPatch, DockingSectionConfigPatch,
+        HullSectionConfigPatch, MuzzleConfigPatch, RailgunSectionConfigPatch, SectionConfigPatch,
+        SectionKindPatch, SectionPatchError, ThrusterSectionConfigPatch, TorpedoSectionConfigPatch,
         TurretSectionConfigPatch,
     };
 }
@@ -166,6 +166,8 @@ pub enum SectionKindPatch {
     Torpedo(TorpedoSectionConfigPatch),
     /// A railgun.
     Railgun(RailgunSectionConfigPatch),
+    /// A docking port.
+    Docking(DockingSectionConfigPatch),
 }
 
 impl SectionKindPatch {
@@ -178,6 +180,7 @@ impl SectionKindPatch {
             SectionKindPatch::Turret(_) => SectionClass::Turret,
             SectionKindPatch::Torpedo(_) => SectionClass::Torpedo,
             SectionKindPatch::Railgun(_) => SectionClass::Railgun,
+            SectionKindPatch::Docking(_) => SectionClass::Docking,
         }
     }
 
@@ -192,6 +195,7 @@ impl SectionKindPatch {
             SectionKindPatch::Turret(patch) => unchanged(patch),
             SectionKindPatch::Torpedo(patch) => unchanged(patch),
             SectionKindPatch::Railgun(patch) => unchanged(patch),
+            SectionKindPatch::Docking(patch) => unchanged(patch),
         }
     }
 
@@ -222,6 +226,9 @@ impl SectionKindPatch {
             (SectionKind::Railgun(prototype), SectionKind::Railgun(edited)) => Some(
                 SectionKindPatch::Railgun(RailgunSectionConfigPatch::between(prototype, edited)),
             ),
+            (SectionKind::Docking(prototype), SectionKind::Docking(edited)) => Some(
+                SectionKindPatch::Docking(DockingSectionConfigPatch::between(prototype, edited)),
+            ),
             _ => None,
         }
     }
@@ -250,6 +257,10 @@ impl SectionKindPatch {
                 Ok(())
             }
             (SectionKindPatch::Railgun(patch), SectionKind::Railgun(config)) => {
+                patch.apply(config);
+                Ok(())
+            }
+            (SectionKindPatch::Docking(patch), SectionKind::Docking(config)) => {
                 patch.apply(config);
                 Ok(())
             }
@@ -562,6 +573,60 @@ impl RailgunSectionConfigPatch {
         }
         if let Some(reload) = self.reload {
             config.reload = reload;
+        }
+    }
+}
+
+/// A docking port's capture envelope. The art - the mesh and its transform -
+/// is the prototype's: a placement may tune what the port ACCEPTS, never what
+/// it looks like.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
+pub struct DockingSectionConfigPatch {
+    /// The widest gap that still captures.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub capture_distance: Option<Meters>,
+    /// How far off opposed the two axes may point, in degrees.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub capture_angle: Option<f32>,
+    /// The fastest the two hulls may be closing.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub maximum_relative_speed: Option<MetersPerSecond>,
+    /// The fastest they may be turning relative to each other, in degrees per
+    /// second.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub maximum_relative_angular_speed: Option<f32>,
+}
+
+impl DockingSectionConfigPatch {
+    fn between(prototype: &DockingSectionConfig, edited: &DockingSectionConfig) -> Self {
+        Self {
+            capture_distance: changed(prototype.capture_distance, edited.capture_distance),
+            capture_angle: changed(prototype.capture_angle, edited.capture_angle),
+            maximum_relative_speed: changed(
+                prototype.maximum_relative_speed,
+                edited.maximum_relative_speed,
+            ),
+            maximum_relative_angular_speed: changed(
+                prototype.maximum_relative_angular_speed,
+                edited.maximum_relative_angular_speed,
+            ),
+        }
+    }
+
+    fn apply(&self, config: &mut DockingSectionConfig) {
+        if let Some(capture_distance) = self.capture_distance {
+            config.capture_distance = capture_distance;
+        }
+        if let Some(capture_angle) = self.capture_angle {
+            config.capture_angle = capture_angle;
+        }
+        if let Some(maximum_relative_speed) = self.maximum_relative_speed {
+            config.maximum_relative_speed = maximum_relative_speed;
+        }
+        if let Some(speed) = self.maximum_relative_angular_speed {
+            config.maximum_relative_angular_speed = speed;
         }
     }
 }

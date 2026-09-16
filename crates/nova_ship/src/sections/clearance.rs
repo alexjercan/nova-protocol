@@ -73,6 +73,11 @@ pub fn exit_normal(kind: &SectionKind) -> Option<Vec3> {
         // exit on the ship - anything standing there is a shot the gun takes
         // through its own hull, every time.
         SectionKind::Railgun(_) => Some(Vec3::NEG_Z),
+        // A port is a mouth: the sleeve leaves through -Z and another ship
+        // parks in front of it. The lane matters for the same reason the
+        // bay's does - and the skin must not clad the one face the mechanic
+        // needs bare.
+        SectionKind::Docking(_) => Some(Vec3::NEG_Z),
         SectionKind::Hull(_) | SectionKind::Controller(_) => None,
     }
 }

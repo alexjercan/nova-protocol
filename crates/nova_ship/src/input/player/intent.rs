@@ -14,7 +14,8 @@ use crate::prelude::*;
 /// System that takes the point rotation output from the chase camera and applies it to the
 /// controller of the player's spaceship.
 ///
-/// Gated on `Without<Autopilot>`: while a maneuver is engaged the autopilot
+/// Gated on `Without<Autopilot>` and `Without<DockedShip>`: while a maneuver
+/// is engaged the autopilot
 /// owns the rotation command, and the mouse - which keeps driving the camera
 /// rig - becomes camera-only free-look for free.
 pub(super) fn update_controller_target_rotation_torque(
@@ -40,6 +41,10 @@ pub(super) fn update_controller_target_rotation_torque(
             // RCS fine-adjust repurposes the mouse to translation and freezes
             // the heading, exactly as an engaged maneuver does.
             Without<RcsActive>,
+            // A docked hull is held by its joint: the mouse still swings the
+            // camera, the ship holds. Writing a command here would only leave
+            // a stale order for the undock to snap to.
+            Without<DockedShip>,
         ),
     >,
     q_computer: Query<
