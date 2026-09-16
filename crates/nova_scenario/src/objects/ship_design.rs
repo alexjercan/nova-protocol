@@ -192,6 +192,35 @@ impl Default for ShipPresentationConfig {
     }
 }
 
+impl ShipPresentationConfig {
+    /// The base fleet's cockpit voice, for a hull built in Rust rather than
+    /// authored in a mod: every cue the catalog ships name, at the base
+    /// content's asset paths. `skin` and `style` stay the default, so a
+    /// caller spells its look on top with `..Self::base_voice()`.
+    ///
+    /// AUTHORED-OR-SILENT is the rule, and this is how an example, a bench
+    /// fixture or a generated hull authors it in one line instead of ten -
+    /// the ten it forgets are a ship whose radar never beeps and whose RCS
+    /// never hisses, which reads as a broken scene rather than a mute hull.
+    /// A mod's own designs author their voice in RON and never come through
+    /// here.
+    pub fn base_voice() -> Self {
+        Self {
+            collapse_sound: Some(AssetRef::from("base/sounds/destroy_ship.wav")),
+            lock_on_sound: Some(AssetRef::from("base/sounds/lock_on.wav")),
+            lock_off_sound: Some(AssetRef::from("base/sounds/lock_off.wav")),
+            radar_deny_sound: Some(AssetRef::from("base/sounds/radar_deny.wav")),
+            radar_retarget_sound: Some(AssetRef::from("base/sounds/radar_retarget.wav")),
+            safety_on_sound: Some(AssetRef::from("base/sounds/safety_on.wav")),
+            warn_lock_sound: Some(AssetRef::from("base/sounds/warn_lock.wav")),
+            ammo_dry_sound: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
+            warn_hull_sound: Some(AssetRef::from("base/sounds/warn_hull.wav")),
+            rcs_loop_sound: Some(AssetRef::from("base/sounds/rcs_loop.wav")),
+            ..Self::default()
+        }
+    }
+}
+
 /// `skip_serializing_if` predicate for a `bool` that defaults to false, so an
 /// unclad design keeps the field out of its RON entirely.
 #[cfg(feature = "serde")]

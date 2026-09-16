@@ -581,7 +581,7 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
             presentation: ShipPresentationConfig {
                 // Clad in every column but the last - see `CLAD`.
                 skin: CLAD[level_index],
-                ..default()
+                ..ShipPresentationConfig::base_voice()
             },
             ..default()
         }),

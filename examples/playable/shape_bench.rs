@@ -343,7 +343,7 @@ fn subject_ship(subject: &Subject, roster: Roster, style: StyleId) -> SpaceshipC
             presentation: ShipPresentationConfig {
                 skin: roster.clad,
                 style: roster.clad.then_some(style).flatten().map(str::to_string),
-                ..default()
+                ..ShipPresentationConfig::base_voice()
             },
             ..default()
         }),

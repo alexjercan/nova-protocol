@@ -882,19 +882,15 @@ fn combat_hull(tiles: &TileSet, seed: u64, style: StyleId, sections: &GameSectio
 /// ship whose radar never beeps and whose thrusters never hiss is a ship the
 /// player is flying blind.
 fn give_voice(hull: &mut ShipDesign) {
-    // Field by field, so the skin and the style the collapse already decided
-    // stay the collapse's.
-    let voice = &mut hull.presentation;
-    voice.collapse_sound = Some(AssetRef::from("base/sounds/destroy_ship.wav"));
-    voice.lock_on_sound = Some(AssetRef::from("base/sounds/lock_on.wav"));
-    voice.lock_off_sound = Some(AssetRef::from("base/sounds/lock_off.wav"));
-    voice.radar_deny_sound = Some(AssetRef::from("base/sounds/radar_deny.wav"));
-    voice.radar_retarget_sound = Some(AssetRef::from("base/sounds/radar_retarget.wav"));
-    voice.safety_on_sound = Some(AssetRef::from("base/sounds/safety_on.wav"));
-    voice.warn_lock_sound = Some(AssetRef::from("base/sounds/warn_lock.wav"));
-    voice.ammo_dry_sound = Some(AssetRef::from("base/sounds/ammo_dry.wav"));
-    voice.warn_hull_sound = Some(AssetRef::from("base/sounds/warn_hull.wav"));
-    voice.rcs_loop_sound = Some(AssetRef::from("base/sounds/rcs_loop.wav"));
+    // The skin, the style and the hull alarm's threshold are the collapse's
+    // decisions and stay so; only the cues are the game's.
+    let collapse = std::mem::take(&mut hull.presentation);
+    hull.presentation = ShipPresentationConfig {
+        skin: collapse.skin,
+        style: collapse.style,
+        warn_hull_fraction: collapse.warn_hull_fraction,
+        ..ShipPresentationConfig::base_voice()
+    };
 }
 
 /// Field a hull per roster slot: a pinned seed as asked for, everything else

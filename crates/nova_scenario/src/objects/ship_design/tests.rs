@@ -389,3 +389,35 @@ fn a_spawn_patch_moves_and_turns_the_placement_it_names() {
         "a placement the patch does not name keeps the design's own"
     );
 }
+
+/// The base voice names every cue, and every path it names is a file the
+/// base content ships: a typo here is silence at run time, logged once by
+/// the asset server and noticed by nobody.
+#[test]
+fn the_base_voice_names_every_cue_at_a_file_that_exists() {
+    let voice = ShipPresentationConfig::base_voice();
+    let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+    for (cue, sound) in [
+        ("collapse", &voice.collapse_sound),
+        ("lock on", &voice.lock_on_sound),
+        ("lock off", &voice.lock_off_sound),
+        ("radar deny", &voice.radar_deny_sound),
+        ("radar retarget", &voice.radar_retarget_sound),
+        ("safety on", &voice.safety_on_sound),
+        ("warn lock", &voice.warn_lock_sound),
+        ("ammo dry", &voice.ammo_dry_sound),
+        ("warn hull", &voice.warn_hull_sound),
+        ("rcs loop", &voice.rcs_loop_sound),
+    ] {
+        let path = sound
+            .as_ref()
+            .and_then(AssetRef::path)
+            .unwrap_or_else(|| panic!("the base voice leaves {cue} silent"));
+        assert!(
+            assets.join(path).is_file(),
+            "{cue}: no file at assets/{path}"
+        );
+    }
+    assert!(!voice.skin, "the voice is not a look");
+    assert_eq!(voice.style, None);
+}

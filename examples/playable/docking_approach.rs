@@ -172,7 +172,7 @@ fn clad(sections: Vec<SpaceshipSectionConfig>, style: &str) -> ShipDesign {
         presentation: ShipPresentationConfig {
             skin: true,
             style: Some(style.to_string()),
-            ..default()
+            ..ShipPresentationConfig::base_voice()
         },
         ..default()
     }
@@ -259,6 +259,22 @@ fn check_lock(world: &mut World) {
     );
 }
 
+/// The tender flies with a voice: the lock that just landed beeped, and the
+/// RCS the approach is flown on will hiss. A hull built in Rust authors
+/// nothing by default, and a mute approach reads as a broken scene.
+#[cfg(feature = "debug")]
+fn check_voice(world: &mut World) {
+    let mut voices = world.query_filtered::<&ShipFeedbackSounds, With<PlayerSpaceshipMarker>>();
+    let voice = voices
+        .iter(world)
+        .next()
+        .expect("docking_approach: the tender must carry its feedback sounds");
+    assert!(
+        voice.lock_on.is_some() && voice.rcs_loop.is_some(),
+        "docking_approach: the tender flies mute - author its voice"
+    );
+}
+
 /// The sight is up: the spar is staged inside the instrument's draw range, so
 /// a pilot who locks it is immediately given the line to fly.
 #[cfg(feature = "debug")]
@@ -296,8 +312,9 @@ fn approach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .on_enter(release_action("radar_hold"))
         .until(elapsed(0.5))
         .add()
-        .step("check the lock and the sight")
+        .step("check the lock, the voice and the sight")
         .on_enter(check_lock)
+        .on_enter(check_voice)
         .on_enter(check_sight)
         .until(elapsed(0.5))
         .add()
