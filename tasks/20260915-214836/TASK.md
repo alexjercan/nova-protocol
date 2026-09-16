@@ -228,6 +228,37 @@ menu corner's second notice, and the corner's split visibility.
       `FieldNoteSetting`, the way `Not now` writes `TrainingPromptSetting`, and
       Settings > Interface holds both. Neither touches the loading screens.
 
+## Phase 5 - content review against the wiki
+
+Owner direction (2026-09-16): review the shipped lesson content against the
+wiki pages out of context. Cover all sections and all the important details,
+in technical wording, so a lesson is direct about what a thing does and what it
+means.
+
+Done 2026-09-16: two reviewers read the wiki corpus (22 pages, 3075 lines) and
+the 24 shipped lessons cold and traced every claim to the code. The findings
+are in `LESSON-COVERAGE.md`: fifteen lessons carrying a wrong or hollow claim,
+six wiki areas with no lesson at all, and forty specced candidates with bodies
+inside the word cap, verified action ids and verified anchors.
+
+- [ ] Fix the sixteen corrections (`LESSON-COVERAGE.md` section 1). Eight tell
+      the player the game does something it does not do; the worst is
+      `novaos_open` and `novaos_view` claiming the ship keeps flying while the
+      computer is open, when `PauseStates::NovaOs` stops the clocks. Four wiki
+      pages repeat the autopilot-disengage error and are fixed with them.
+- [ ] Close the six areas with no lesson: the railgun (231 wiki lines), the
+      docking port, the controller section, gravity wells, the NOVA OS terminal
+      and its command set, and the editor's gesture set.
+- [ ] Author the tier A candidates (section 4). Tier B is a second pass.
+- [ ] Decide the two blockers (section 5): whether the editor gains registered
+      actions so an editor lesson can draw chips, and whether new `role: Lesson`
+      drills are worth it - the one trainer mounts a single kinetic PDC, so no
+      torpedo, railgun, Pierce, point-defense or docking lesson can be
+      practised or proven today.
+- [ ] Write the three missing wiki headings first: Generate, the editor build
+      readout, and a docking-capable hull. The anchor test resolves every
+      `wiki_path`, so those lessons cannot ship before their headings do.
+
 ## Verification
 
 - Focused unit tests cover catalog validation, stable ordering, progress
