@@ -769,6 +769,10 @@ name = "lesson_flight_well"
 path = "examples/screenshots/lesson_flight_well.rs"
 
 [[example]]
+name = "lesson_combat_field"
+path = "examples/screenshots/lesson_combat_field.rs"
+
+[[example]]
 name = "loop_derived_skin"
 path = "examples/screenshots/loop_derived_skin.rs"
 

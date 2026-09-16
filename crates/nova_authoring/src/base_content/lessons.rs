@@ -443,7 +443,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Who shoots whom",
             still(
                 "combat_allegiance",
-                "a mixed field of ships with green, red and grey allegiance triangles over them",
+                "a gunship holding station in a rock pocket with a green triangle over a friendly \
+                 gunship, a red one over a raider and a grey one over an unaligned salvage hull",
             ),
             "Every ship is Player, Enemy or Neutral, and any pair resolves to Own, Hostile or \
              Neutral. A round copies its shooter's side at launch and keeps it, so your own \
@@ -479,9 +480,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Combat,
             25,
             "Cover and the firing line",
-            still(
+            looping(
                 "combat_cover",
-                "a burst breaking up against a rock between the shooter and a hostile behind it",
+                "a gunship's tracers crossing to a boulder and dying on it while the red-marked \
+                 hostile beyond the stone sits untouched",
             ),
             "Put a rock between you and a hostile and the rounds stop at it - and so does the \
              radar, which needs the same clear line the guns do. A hostile that loses the line \

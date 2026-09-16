@@ -79,6 +79,7 @@ PRODUCERS=(
     "lesson_flight_well|flight_gravity:loop,flight_arrival:loop"
     "lesson_combat_radar|combat_radar:loop"
     "lesson_combat_moves|combat_stance:loop,combat_components:loop,combat_turrets:still"
+    "lesson_combat_field|combat_allegiance:still,combat_cover:loop"
     "lesson_combat_torpedoes|combat_torpedoes:loop"
     "lesson_build_sections|build_sections:still,build_mass:still,build_balance:still"
     "lesson_build_flight_test|build_flight_test:loop"

@@ -109,7 +109,7 @@ LESSONS = [
     ("combat_radar", "Using the radar", "loop"),
     ("combat_allegiance", "Who shoots whom", "still"),
     ("combat_stance", "Raising weapons", "loop"),
-    ("combat_cover", "Cover and the firing line", "still"),
+    ("combat_cover", "Cover and the firing line", "loop"),
     ("combat_components", "Lock a component", "loop"),
     ("combat_damage_types", "Kinetic and Pierce", "still"),
     ("combat_turrets", "Turret arcs", "still"),
