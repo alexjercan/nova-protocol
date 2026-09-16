@@ -1,6 +1,6 @@
 # Simplify authored content boundaries
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.14.0, refactor, content, modding
 
