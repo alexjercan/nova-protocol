@@ -493,4 +493,44 @@ the skin and the plating closes over it before you click. A placement the editor
 refuses stays bare. The toggle carries through to Play, so the ship you built
 clad is the ship you fly clad.
 
+### Generate a hull
+
+**Generate**, in the same left-rail block, rolls a whole hull into the ship you
+are inside. It is a ship verb: a hull is what one ship IS, so what the roll
+produces REPLACES the sections that ship is already holding. That is what makes
+a seed a dial you turn until you like the answer rather than a way to fill a
+scenario with drafts.
+
+Three controls and a list:
+
+- **Hull Seed** is the number the roll is built from. It starts random, so the
+  first press is a ship rather than everyone's ship zero, and **Reroll Seed**
+  hands you a fresh one. A hull you liked is a number you can write down and
+  type back in. Anything that is not a whole positive number is refused in the
+  field - `Enter an unsigned integer` - and greys the **Generate** button with
+  it, because a button that cannot work should not look like it can.
+- **HULL PLAN** reads back what your ticks add up to, stern and bow. The roles
+  are derived, not chosen: the biggest ticked drive becomes the ship's main
+  engine and the biggest ticked spinal gun its bow gun, and the engine is what
+  decides how big the ship comes out.
+- **DRAW FROM** lists every section the merged catalog holds, a mod's included.
+  Only the ticked rows are drawn, at the weights the standard hull plan already
+  prices them at; a section that plan does not name joins the draw at `1`. The
+  chip on a ticked row says where on the hull that part may stand, and the zone
+  you set on the row beats the plan's own.
+
+The order is collapse, lint, then place. A roll that fails - or a hull the
+game's own content lint would reject - writes one line to the status bar and
+leaves the document exactly as it was, so the ship on the stage is never left
+holding something that will not save. Generate outside a ship, or with nothing
+ticked, and you get the same treatment: `go inside a ship to generate a hull
+into it`, `tick at least one section for the collapse to draw`.
+
+The ship's current **Ship Skin** and style go INTO the collapse, so rolling the
+seed asks for a different hull under the same ship rather than the cladding back
+at its factory setting. What lands is ordinary section nodes - selectable,
+movable, deletable - and each one arrives already bound to the flight key its
+kind answers to, so a generated ship can be set to the player's and flown as it
+is. The status bar names the seed and the part count it built.
+
 Button glyphs from [PromptFont](https://shinmera.com/promptfont/) by Yukari "Shinmera" Hafner (SIL Open Font License).

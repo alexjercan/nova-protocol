@@ -156,11 +156,30 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
              velocity sphere sit around your ship. The sphere points the way \
              you are actually moving, which is not always where the nose \
              points.",
-            &["hud_cinematic"],
+            &[],
             "wiki/hud",
             None,
             &[],
             &["The velocity sphere points the way you are moving. That is not always where the nose points."],
+        ),
+        lesson(
+            "start_verbs",
+            StartHere,
+            25,
+            "The keybind dock",
+            still(
+                "start_verbs",
+                "the chip row along the bottom of the screen, one verb inverted while it is \
+                 engaged",
+            ),
+            "The chip row along the bottom shows the verbs this ship can use right now: STOP, \
+             GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS and DOCK. Each draws your own keycap; a \
+             verb the ship cannot use is off the row, and an engaged one inverts.",
+            &[],
+            "wiki/hud#flight-readouts",
+            Some(DRILL_AUTOPILOT_ID),
+            &[],
+            &["The chip row draws only the verbs this ship can use now, each with your own keycap."],
         ),
         lesson(
             "start_camera",
@@ -176,6 +195,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["The mouse is the helm. Hold free look to turn the camera without turning the ship."],
+        ),
+        lesson(
+            "start_cinematic",
+            StartHere,
+            40,
+            "Two HUD levels",
+            still(
+                "start_cinematic",
+                "the same cockpit view drawn twice: the contextual HUD, then a clean Cinematic \
+                 frame",
+            ),
+            "The HUD is contextual: a quiet cruise draws the velocity sphere, your speed and the \
+             dock's live verbs, and everything else arrives with its moment. The HUD toggle cycles \
+             two levels: On, and Cinematic, a clean screen that clears every instrument and chip.",
+            &["hud_cinematic"],
+            "wiki/hud#what-is-on-screen-and-when",
+            None,
+            &[],
+            &["Cinematic is the HUD's second level: a clean screen with every instrument and chip gone."],
         ),
         lesson(
             "flight_aim",
@@ -215,6 +253,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["Nothing slows you down in space. Release the drive and your speed stays the same."],
         ),
         lesson(
+            "flight_speedcap",
+            Flight,
+            25,
+            "The speed cap",
+            still(
+                "flight_speedcap",
+                "a held burn levelling off against the range's soft speed cap, the speed chip \
+                 steady",
+            ),
+            "A scenario can put a soft cap on your manual burn: Basic Training flies under 150 \
+             m/s. It caps your TOTAL speed, not the heading you point, so a held throttle tapers \
+             off there instead of accelerating forever. A braking burn is never capped.",
+            &["main_drive"],
+            "wiki/flight-autopilot#manual-flight",
+            Some(DRILL_MOMENTUM_ID),
+            &[],
+            &["A range can cap your manual speed. It caps your total speed, not the heading you point."],
+        ),
+        lesson(
             "flight_stop",
             Flight,
             30,
@@ -231,6 +288,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Some(DRILL_STOP_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_STOP_ID],
             &["STOP settles into a deadband, not a dead stop: a sideways drift is handed back at up to 7.5 m/s."],
+        ),
+        lesson(
+            "flight_cancel",
+            Flight,
+            35,
+            "Taking the ship back",
+            still(
+                "flight_cancel",
+                "an engaged maneuver dropping the moment the main drive lights, the mode chip \
+                 clearing",
+            ),
+            "CANCEL drops any engaged maneuver and hands the ship back already moving. So does a \
+             main-drive burn, a bound thruster key, entering RCS, or pressing the engaged verb \
+             again. Moving the mouse does not: while the computer flies, the mouse is camera only.",
+            &["autopilot_off", "main_drive", "rcs_modifier"],
+            "wiki/flight-autopilot#the-autopilot-flies-the-hull",
+            Some(DRILL_STOP_ID),
+            &[],
+            &["Moving the mouse does not cancel a maneuver. CANCEL, a burn or a thruster key does."],
         ),
         lesson(
             "flight_rcs",
@@ -251,6 +327,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
         ),
         lesson(
+            "flight_gravity",
+            Flight,
+            45,
+            "Gravity wells",
+            still(
+                "flight_gravity",
+                "a ship falling toward a planetoid, the yellow gravity sphere up beside the \
+                 velocity sphere",
+            ),
+            "Gravity pulls you inward at a = mu / r^2. mu is the body's number, never your mass, \
+             so a laden hauler falls as fast as a stripped fighter. The pull ends at the sphere of \
+             influence, where it has decayed to 2.5 m/s2.",
+            &[],
+            "wiki/gravity-wells#sphere-of-influence",
+            Some(DRILL_AUTOPILOT_ID),
+            &[],
+            &["Gravity is an acceleration, so a laden hauler falls as fast as a stripped fighter."],
+        ),
+        lesson(
             "flight_goto",
             Flight,
             50,
@@ -267,6 +362,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Some(DRILL_AUTOPILOT_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_AUTOPILOT_ID],
             &["GOTO parks 500 m off the target's surface, measured from your own hull face."],
+        ),
+        lesson(
+            "flight_arrival",
+            Flight,
+            55,
+            "The arrival envelope",
+            still(
+                "flight_arrival",
+                "a GOTO leg flipped retrograde on its braking ramp, the AP GOTO - BURN chip \
+                 beside it",
+            ),
+            "GOTO obeys one rule: at any distance it caps closing speed at what a flip-and-brake \
+             from there can still cancel. It flips one swing early, brakes at 85% of the drive's \
+             authority down to a 15 m/s floor, then settles on RCS.",
+            &["autopilot_goto"],
+            "wiki/flight-autopilot#the-autopilot-flies-the-hull",
+            Some(DRILL_AUTOPILOT_ID),
+            &[],
+            &["GOTO never closes faster than a flip-and-brake from where it is can still cancel."],
         ),
         lesson(
             "flight_orbit",
@@ -307,6 +421,24 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["There are two lock slots. Lowered writes the white travel lock, raised the red combat lock."],
         ),
         lesson(
+            "combat_allegiance",
+            Combat,
+            15,
+            "Who shoots whom",
+            still(
+                "combat_allegiance",
+                "a mixed field of ships with green, red and grey allegiance triangles over them",
+            ),
+            "Every ship is Player, Enemy or Neutral, and any pair resolves to Own, Hostile or \
+             Neutral. A round copies its shooter's side at launch and keeps it, so your own \
+             ordnance never hits you. A triangle over each ship reads green, red or grey.",
+            &[],
+            "wiki/factions#the-relation-model",
+            None,
+            &[],
+            &["A round takes its shooter's side at launch, so your own ordnance never hits you."],
+        ),
+        lesson(
             "combat_stance",
             Combat,
             20,
@@ -323,6 +455,24 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Some(DRILL_GUNNERY_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_GUNNERY_ID],
             &["Raising weapons writes the red combat lock and moves the mouse from the helm to turret aim."],
+        ),
+        lesson(
+            "combat_cover",
+            Combat,
+            25,
+            "Cover and the firing line",
+            still(
+                "combat_cover",
+                "a burst breaking up against a rock between the shooter and a hostile behind it",
+            ),
+            "Put a rock between you and a hostile and the rounds stop at it - and so does the \
+             radar, which needs the same clear line the guns do. A hostile that loses the line \
+             loses its pick and goes passive.",
+            &[],
+            "wiki/combat-weapons#cover-line-of-fire",
+            None,
+            &[],
+            &["A rock on the line eats the round and the radar lock. Cover is a full disengage."],
         ),
         lesson(
             "combat_components",
@@ -343,6 +493,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["Killing a ship's drives costs it thrust, not speed. Its last flight computer leaves it drifting."],
         ),
         lesson(
+            "combat_damage_types",
+            Combat,
+            35,
+            "Kinetic and Pierce",
+            still(
+                "combat_damage_types",
+                "an amber Kinetic tracer beside a steel-blue Pierce dart raking a stack of \
+                 sections",
+            ),
+            "A damage type is not a multiplier: both hit a hull and a drive for the same number. \
+             What changes is travel. Kinetic carries on only through what it destroys; Pierce rakes \
+             every section it crosses, spending a power budget per layer.",
+            &[],
+            "wiki/combat-weapons#damage-types",
+            None,
+            &[],
+            &["A damage type is not a multiplier. Kinetic stops at what it fails to kill; Pierce rakes."],
+        ),
+        lesson(
             "combat_turrets",
             Combat,
             40,
@@ -361,6 +530,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["A turret's barrel stops 10 degrees below level, so each mount is blind under its own keel."],
         ),
         lesson(
+            "combat_magazines",
+            Combat,
+            45,
+            "A magazine is a rate limit",
+            still(
+                "combat_magazines",
+                "a turret's ammo ring draining through a burst, then filling again through a \
+                 quiet stretch",
+            ),
+            "No weapon runs out for good. A PDC holds 500 rounds at 100 a second and gets 200 back \
+             for every three quiet seconds, all at once. Every shot restarts that interval, so \
+             firing in batches sustains 40 rounds a second.",
+            &[],
+            "wiki/combat-weapons#magazines",
+            Some(DRILL_GUNNERY_ID),
+            &[],
+            &["A magazine is a rate limit, not a budget. Nothing in the game runs out for good."],
+        ),
+        lesson(
             "combat_torpedoes",
             Combat,
             50,
@@ -377,6 +565,62 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["A torpedo arms 324 m off a small boat and 494 m off a carrier. Inside that it is a dud."],
+        ),
+        lesson(
+            "combat_point_defense",
+            Combat,
+            60,
+            "Your battery defends itself",
+            still(
+                "combat_point_defense",
+                "idle mounts swinging onto inbound torpedoes, a thin line drawn from each mount \
+                 to its pick",
+            ),
+            "With no combat lock and your weapons lowered, the flight computer works your idle \
+             mounts against inbound torpedoes - no toggle and no key. A thin line runs from each \
+             mount to its pick. Lock or raise, and every mount is yours that instant.",
+            &["combat_stance"],
+            "wiki/combat-weapons#your-own-battery",
+            None,
+            &[],
+            &["Your idle mounts shoot torpedoes down on their own. Lock or raise and they are yours."],
+        ),
+        lesson(
+            "combat_railgun",
+            Combat,
+            70,
+            "The hull is the aim",
+            still(
+                "combat_railgun",
+                "a railgun charging on a spinal mount, its bore sight line laid across a target \
+                 hull",
+            ),
+            "A railgun has no traverse: it fires down its own axis, so the face you bolt it to is \
+             the line. A tap starts a 1.5 second charge that only lowering your weapons aborts; it \
+             never re-checks the nose. One shell every 13.5 seconds.",
+            &[],
+            "wiki/sections/railgun#committing-the-shot",
+            None,
+            &[],
+            &["A railgun fires down its own axis. The face you bolted it to is the line it shoots."],
+        ),
+        lesson(
+            "combat_collapse",
+            Combat,
+            90,
+            "When a ship comes apart",
+            still(
+                "combat_collapse",
+                "a hull tearing itself apart from the outside in once its structure runs out",
+            ),
+            "You do not have to shoot every section off. A hull carrying less than a twentieth of \
+             the structure it was built with collapses. A ship that loses every weapon, or its last \
+             flight computer, is NEUTRALIZED: it keeps its hull and stops answering.",
+            &[],
+            "wiki/ships#taking-a-ship-apart",
+            Some(DRILL_GUNNERY_ID),
+            &[],
+            &["A hull left under a twentieth of the structure it was built with collapses on its own."],
         ),
         lesson(
             "build_sections",
@@ -435,6 +679,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["The flight computer balances your thrusters, so a lopsided ship still flies straight."],
         ),
         lesson(
+            "build_turning",
+            Shipbuilding,
+            35,
+            "What decides your turn rate",
+            still(
+                "build_turning",
+                "the editor readout on a long hull, its arm and turn rate printed beside the \
+                 build",
+            ),
+            "A hull turns at the lower of two ceilings: what its computers can twist against its \
+             mass, and what 8 G allows at the furthest section's face. The base gunship's 55.2 m \
+             arm caps it at 1.42 rad/s2, where its computers could push 8.74.",
+            &[],
+            "wiki/sections/controller#what-sets-how-hard-a-ship-turns",
+            None,
+            &[],
+            &["A hull turns at the lower of two ceilings: computer torque, and 8 G at its furthest face."],
+        ),
+        lesson(
             "build_flight_test",
             Shipbuilding,
             40,
@@ -453,6 +716,81 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
         ),
         lesson(
+            "build_weapon_mounts",
+            Shipbuilding,
+            60,
+            "Where a weapon can point",
+            still(
+                "build_weapon_mounts",
+                "a turret sweeping its arc on one flank while a railgun holds the line of the \
+                 face it sits on",
+            ),
+            "Where you bolt a weapon decides what it points at. A turret traverses freely and owns \
+             58.7 percent of the sky from wherever it sits, blind under its keel. A railgun does \
+             not traverse: the face it sits on is its line of fire.",
+            &[],
+            "wiki/sections/turret#what-it-can-bear-on",
+            None,
+            &[],
+            &["A turret owns 58.7 percent of the sky. A railgun only owns the face you bolted it to."],
+        ),
+        lesson(
+            "build_docking_port",
+            Shipbuilding,
+            70,
+            "Bolting on a docking port",
+            still(
+                "build_docking_port",
+                "a docking port seated on a hull face in the editor, its hatch face left clear",
+            ),
+            "No base hull carries a docking port, so a ship that can dock is one you built. The \
+             port carries 90 health, the lightest part on a hull, and takes neighbours on every \
+             face but the hatch it docks through.",
+            &[],
+            "wiki/sections/docking#variants",
+            None,
+            &[],
+            &["No base hull carries a docking port. A ship that can dock is one you built."],
+        ),
+        lesson(
+            "build_dock_envelope",
+            Shipbuilding,
+            75,
+            "Making a dock",
+            still(
+                "build_dock_envelope",
+                "two port faces squared up on a final approach, the docking sight green on all \
+                 three counts",
+            ),
+            "Four things at once: the port faces within 10 m, the ports within 15 degrees of \
+             opposed, under 5 m/s of closing rate, under 5 degrees a second of relative spin. Roll \
+             is ignored. Docked, your drive and helm are inert.",
+            &["dock"],
+            "wiki/sections/docking#flying-the-approach",
+            None,
+            &[],
+            &["A dock needs 10 m of gap, 15 degrees of facing, and both hulls almost still."],
+        ),
+        lesson(
+            "build_generate",
+            Shipbuilding,
+            90,
+            "Generate a hull",
+            still(
+                "build_generate",
+                "the editor's Generate block with a seed typed and the hull it rolled standing \
+                 on the stage",
+            ),
+            "Generate rolls a whole hull into the ship you are inside, from a seed you can type or \
+             reroll, drawing only the sections you ticked. It replaces what that ship holds. The \
+             result is ordinary section nodes, already bound to their kind's key.",
+            &[],
+            "wiki/keybinds#generate-a-hull",
+            None,
+            &[],
+            &["Generate rolls a hull from a seed and REPLACES what the ship you are inside holds."],
+        ),
+        lesson(
             "novaos_open",
             NovaOs,
             10,
@@ -466,6 +804,24 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["Opening NOVA OS freezes the game. The clocks stop until you close the screen."],
+        ),
+        lesson(
+            "novaos_terminal",
+            NovaOs,
+            15,
+            "The prompt",
+            still(
+                "novaos_terminal",
+                "the NOVA OS prompt mid-line, a dim ghost suffix ahead of the caret",
+            ),
+            "NOVA OS has a prompt you type at, and it reads nova>. Completion fills in command \
+             names, subcommands and the live section or contact codes an argument wants. It keeps \
+             200 lines of history and 500 rows of scrollback, and reddens an unknown word.",
+            &[],
+            "wiki/nova-os#the-terminal",
+            None,
+            &[],
+            &["NOVA OS has a prompt you type at. Completion fills in commands and live section codes."],
         ),
         lesson(
             "novaos_view",
@@ -487,6 +843,24 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
         ),
         lesson(
+            "novaos_commands",
+            NovaOs,
+            25,
+            "What you can type",
+            still(
+                "novaos_commands",
+                "the terminal answering help with the registered command list printed under it",
+            ),
+            "help lists everything. log prints the flight log, objectives the open objectives, \
+             clear wipes back to the boot report. map and ship hand the screen to an app; map view \
+             and ship view print the same data as a table. exit returns to flight.",
+            &[],
+            "wiki/nova-os#command-reference",
+            None,
+            &[],
+            &["help lists every command. map and ship open an app; map view and ship view print a table."],
+        ),
+        lesson(
             "novaos_contacts",
             NovaOs,
             30,
@@ -504,6 +878,44 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &[],
+        ),
+        lesson(
+            "novaos_service",
+            NovaOs,
+            35,
+            "Repair and reload a section",
+            still(
+                "novaos_service",
+                "the SHIP app with one damaged section selected, its ASCII integrity meter in \
+                 the inspector",
+            ),
+            "Sections carry short codes - HULL-1, THR-1, CTL-1, PDC-1, TRB-1 - stable for the \
+             session and shared by the app and the prompt. Select one and repair restores its \
+             integrity; reload refills a weapon's magazine. Both are instant, and a hull section \
+             refuses reload.",
+            &["novaos_next", "novaos_prev", "ship_repair", "ship_reload"],
+            "wiki/nova-os#the-ship",
+            None,
+            &[],
+            &["Sections carry short codes like THR-1. Select one and repair or reload acts on it."],
+        ),
+        lesson(
+            "novaos_rebind_section",
+            NovaOs,
+            45,
+            "Rebinding a section",
+            still(
+                "novaos_rebind_section",
+                "the SHIP app armed for a rebind, PRESS A KEY OR MOUSE BUTTON across the panel",
+            ),
+            "Your thrusters, turrets and tubes fire on per-ship triggers that Settings does not \
+             list. Select the section in the SHIP app and arm rebind; the next key or mouse button \
+             takes over its keyboard trigger. A reserved flight control is refused by name.",
+            &["ship_rebind", "novaos_next", "novaos_prev"],
+            "wiki/nova-os#rebinding-a-section",
+            None,
+            &[],
+            &["A section's trigger is per ship, not in Settings. Rebind it in the SHIP app."],
         ),
         lesson(
             "advanced_scenarios",
@@ -553,6 +965,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &[],
+        ),
+        lesson(
+            "advanced_mouse",
+            Advanced,
+            35,
+            "Mouse sensitivity",
+            still(
+                "advanced_mouse",
+                "the settings screen on its MOUSE group, three sliders and no bindings",
+            ),
+            "The MOUSE group in Settings holds three sliders: Look scales ship steering, free look \
+             and turret aim (100-300%, default 200%); RCS scales mouse translation (100-500%, \
+             default 100%); Free Camera scales the free camera. Each 100% is its own baseline; the \
+             gamepad is untouched.",
+            &[],
+            "wiki/settings#mouse",
+            None,
+            &[],
+            &["The MOUSE group is three sliders, not bindings, and each 100% is its own baseline."],
         ),
     ]
 }
