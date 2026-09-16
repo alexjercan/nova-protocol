@@ -519,10 +519,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             Combat,
             35,
             "Kinetic and Pierce",
-            still(
+            looping(
                 "combat_damage_types",
-                "an amber Kinetic tracer beside a steel-blue Pierce dart raking a stack of \
-                 sections",
+                "two identical gun rigs firing down two spaced stacks of hull plates, the \
+                 Kinetic lane chipping only the plate it cannot destroy and the Pierce lane \
+                 chipping every plate in its stack",
             ),
             "A damage type is not a multiplier: both hit a hull and a drive for the same number. \
              What changes is travel. Kinetic carries on only through what it destroys; Pierce rakes \

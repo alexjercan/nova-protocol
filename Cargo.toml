@@ -781,6 +781,10 @@ name = "lesson_combat_field"
 path = "examples/screenshots/lesson_combat_field.rs"
 
 [[example]]
+name = "lesson_combat_rounds"
+path = "examples/screenshots/lesson_combat_rounds.rs"
+
+[[example]]
 name = "loop_derived_skin"
 path = "examples/screenshots/loop_derived_skin.rs"
 

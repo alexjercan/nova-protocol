@@ -462,9 +462,13 @@
         category: Combat,
         order: 35,
         title: "Kinetic and Pierce",
-        media: Image(
-            image: "self://training/combat_damage_types.webp",
-            alt: "an amber Kinetic tracer beside a steel-blue Pierce dart raking a stack of sections",
+        media: Loop(
+            sheet: "self://training/combat_damage_types.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "two identical gun rigs firing down two spaced stacks of hull plates, the Kinetic lane chipping only the plate it cannot destroy and the Pierce lane chipping every plate in its stack",
         ),
         body: "A damage type is not a multiplier: both hit a hull and a drive for the same number. What changes is travel. Kinetic carries on only through what it destroys; Pierce rakes every section it crosses, spending a power budget per layer.",
         wiki_path: "wiki/combat-weapons#damage-types",

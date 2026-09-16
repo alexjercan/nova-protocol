@@ -111,7 +111,7 @@ LESSONS = [
     ("combat_stance", "Raising weapons", "loop"),
     ("combat_cover", "Cover and the firing line", "loop"),
     ("combat_components", "Lock a component", "loop"),
-    ("combat_damage_types", "Kinetic and Pierce", "still"),
+    ("combat_damage_types", "Kinetic and Pierce", "loop"),
     ("combat_turrets", "Turret arcs", "still"),
     ("combat_magazines", "A magazine is a rate limit", "still"),
     ("combat_torpedoes", "Torpedoes", "loop"),
