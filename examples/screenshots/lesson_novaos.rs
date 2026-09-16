@@ -1,13 +1,15 @@
-//! lesson_novaos: the three NOVA OS demonstrations - `novaos_open` (the
-//! monitor coming up over the flight), `novaos_view` (the schematic turning
-//! and then snapping back to its framing) and `novaos_contacts` (the local map
-//! with one contact picked).
+//! lesson_novaos: two of the three NOVA OS demonstrations - `novaos_open` (the
+//! monitor coming up over the flight) and `novaos_view` (the schematic turning
+//! and then snapping back to its framing).
 //!
-//! One producer, three frames, because they are one session at one machine:
-//! the monitor is raised over the cockpit, the ship app is launched and turned
-//! and reset, and the map app is opened and a contact cycled onto. Nothing is
-//! staged twice, and each frame is recorded where the one before it left the
-//! screen.
+//! One producer, two sheets, because they are one session at one machine: the
+//! monitor is raised over the cockpit and the ship app is launched, turned and
+//! reset. Nothing is staged twice, and the second sheet is recorded where the
+//! first left the screen.
+//!
+//! The third NOVA OS frame, `novaos_contacts`, is shot by its own producer
+//! (`lesson_novaos_contacts`) on its own range: the map app plots EVERY body
+//! in the scenario, and this set's rock shell is forty-eight of them.
 //!
 //! The set is `hollow::duel_hollow`: the player, one hostile on station, and
 //! the rock shell around them.
@@ -51,7 +53,7 @@ mod lesson;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use computer::{press_enter, press_escape, type_word};
+use computer::{press_enter, type_word};
 #[cfg(feature = "debug")]
 use lesson::{lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID};
 use nova_protocol::prelude::*;
@@ -68,9 +70,6 @@ const OPEN_LESSON: &str = "novaos_open";
 /// The sheet for "Turning the model".
 #[cfg(feature = "debug")]
 const VIEW_LESSON: &str = "novaos_view";
-/// The still for "Reading contacts".
-#[cfg(feature = "debug")]
-const CONTACTS_SHOT: &str = "novaos_contacts.png";
 
 /// What the cockpit view looks at: a point far down the player's own bearing,
 /// so the camera sits over its shoulder and the sheet opens on the view a
@@ -252,43 +251,6 @@ fn novaos_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(release_action("novaos_reframe"))
         .until(sheet_written(VIEW_LESSON))
         .deadline(60.0)
-        .add()
-        // READING CONTACTS, in the map app. Escape leaves the ship app for the
-        // prompt, and the command line is typed in the same beat - the shell
-        // takes a whole word in one frame, so there is nothing to wait between.
-        .step("type the map command")
-        .on_enter(|world: &mut World| {
-            press_escape(world);
-            type_word(world, "map");
-        })
-        .until(nova_os_command_line_reads("map"))
-        .deadline(STEP_DEADLINE_SECS)
-        .add()
-        .step("launch the map app")
-        .on_enter(press_enter)
-        .until(nova_os_app_owns_the_screen("map"))
-        .deadline(STEP_DEADLINE_SECS)
-        .add()
-        .step("settle the map")
-        .until(frames(SETTLE_FRAMES))
-        .add()
-        // The still's whole subject: the map with a contact PICKED, which is
-        // what puts its range and bearing under the plot.
-        .step("cycle onto the contact")
-        .on_enter(press_action("novaos_next"))
-        .until(frames(1))
-        .add()
-        .step("let the cycle key up")
-        .on_enter(release_action("novaos_next"))
-        .until(frames(2))
-        .add()
-        .step("settle on the picked contact")
-        .until(frames(SETTLE_FRAMES))
-        .add()
-        .step("capture the contacts screen")
-        .on_enter(|world: &mut World| shoot(world, CONTACTS_SHOT))
-        .until(shot_written(CONTACTS_SHOT))
-        .deadline(SHOT_DEADLINE_SECS)
         .add()
         .step("park the view")
         .on_enter(|world: &mut World| {

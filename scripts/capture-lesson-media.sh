@@ -18,8 +18,9 @@
 #
 #     nix develop -c scripts/capture-lesson-media.sh [lesson ...]
 #
-# With no arguments it captures every lesson that has a producer. Name lessons
-# to capture only those. The lessons with no producer keep the placeholder art
+# With no arguments it captures every lesson that has a producer, which is
+# currently every lesson the handbook authors. Name lessons to capture only
+# those. A lesson authored WITHOUT a producer keeps the placeholder art
 # scripts/gen-lesson-media.py draws, which this never touches.
 #
 # Requires: cargo, ffmpeg, ffprobe, xvfb-run (all in the flake devshell). The
@@ -68,6 +69,8 @@ done
 # The example catalog in `Cargo.toml` caps a producer at three frames, so a row
 # never grows past three.
 PRODUCERS=(
+    "lesson_start_welcome|start_welcome:still"
+    "lesson_start_scene|start_hud:still,start_camera:loop"
     "lesson_flight_aim|flight_aim:loop"
     "lesson_flight_basics|flight_momentum:loop,flight_stop:loop,flight_rcs:loop"
     "lesson_flight_orders|flight_goto:loop,flight_orbit:loop"
@@ -76,9 +79,8 @@ PRODUCERS=(
     "lesson_combat_torpedoes|combat_torpedoes:loop"
     "lesson_build_sections|build_sections:still,build_mass:still,build_balance:still"
     "lesson_build_flight_test|build_flight_test:loop"
-    "lesson_novaos|novaos_open:loop,novaos_view:loop,novaos_contacts:still"
-    "lesson_start_welcome|start_welcome:still"
-    "lesson_start_scene|start_hud:still,start_camera:loop"
+    "lesson_novaos|novaos_open:loop,novaos_view:loop"
+    "lesson_novaos_contacts|novaos_contacts:still"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
 )
 
@@ -209,4 +211,4 @@ $(stat -c%s "$OUT/${lesson}.webp") bytes (${example}, ${kind})"
 done
 
 echo ">> ${captured} lesson demonstration(s) in ${OUT}"
-echo ">> the rest keep their placeholder art (scripts/gen-lesson-media.py)"
+echo ">> any lesson with no producer keeps its placeholder (scripts/gen-lesson-media.py)"

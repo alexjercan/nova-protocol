@@ -652,11 +652,12 @@ with `scripts/gen-web-screenshots.py`. It is the stills half of a pair:
 demonstrations - the `lesson_*` producers, each writing one lesson's still or
 4x5 sprite sheet into `assets/base/training/<lesson>.webp`. That one ships
 WEBP, not PNG: the Lessons pane draws a demonstration about 900 logical pixels
-wide, so a sheet carries 960x540 cells (3840x1620 in all), and at that size a
-lossless sheet is about 1.6 MB against about 150 KB encoded. A lesson with no
-producer keeps the placeholder `scripts/gen-lesson-media.py` draws - lossless
-WebP, at the lower resolution it is drawn at - and that generator REFUSES to
-redraw over captured footage, so the two can be run in either order. Both point
+wide, so a sheet carries 960x540 cells (3840x2700 in all), and at that size a
+lossless sheet is about 1.6 MB against about 150 KB encoded. Every lesson the
+base handbook authors has a producer; one authored WITHOUT one keeps the
+placeholder `scripts/gen-lesson-media.py` draws - lossless WebP, at the lower
+resolution it is drawn at - and that generator REFUSES to redraw over captured
+footage, so the two can be run in either order. Both point
 `NOVA_MODDING_CACHE_ROOT` and `NOVA_CONFIG_ROOT` at the capture sandbox and stamp
 a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
 producer that enables one on purpose (`screenshot_scenario_picker` does) can

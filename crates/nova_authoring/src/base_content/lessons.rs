@@ -419,7 +419,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Thruster placement",
             still(
                 "build_balance",
-                "thrusters on a lopsided frame firing at different throttles",
+                "two thrusters on a lopsided frame in the editor, with the ship's turn and \
+                 thrust figures beside it",
             ),
             "Thrusters sit wherever you bolt them, so an off-centre burn would \
              spin the ship. The flight computer sets each throttle to cancel \
@@ -438,7 +439,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Fly what you built",
             looping(
                 "build_flight_test",
-                "a newly built ship leaving the yard under its own drive",
+                "a newly built four-block ship running past a rock under its own drive",
             ),
             "Test a new ship before you use it. Take it out, run the drive up \
              to speed, then STOP. That shows you how quickly it accelerates and \
@@ -471,7 +472,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Turning the model",
             looping(
                 "novaos_view",
-                "the ship model turning under the cursor, then reframing",
+                "the ship schematic turning on the NOVA OS screen, then snapping back to \
+                 its framing",
             ),
             "Drag to turn and pan the ship model, and use reframe to put it \
              back where it started. Moving the model does not move the ship. \
@@ -487,7 +489,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             NovaOs,
             30,
             "Reading contacts",
-            still("novaos_contacts", "the contacts list with one entry selected"),
+            still(
+                "novaos_contacts",
+                "the local-space plot with one hostile picked and its range and \
+                 bearing under it",
+            ),
             "The contacts list shows what is known about each contact. \
              Selecting one here sets the same mark the flight computer uses for \
              GOTO and ORBIT.",

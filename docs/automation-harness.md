@@ -488,9 +488,13 @@ seconds of it. `examples/screenshots/shared/lesson.rs` carries both answers. A
 POSE loop freezes the scene and puts the camera on one period of a sine arc, so
 the last cell hands back to the first. An ACTION loop holds the camera still
 and lets the act be the motion - a few cells before, the press, and the rest of
-the sheet holding the result - which wraps the way a tutorial clip wraps. What
-does not work is a one-way clip of gameplay under a moving camera: that
-jump-cuts every two seconds. `scripts/capture-lesson-media.sh` runs the `lesson_*` producers and
+the sheet holding the result - which wraps the way a tutorial clip wraps. When
+the act is the SHIP MOVING, a camera fixed in the world loses it inside two
+seconds, so `LessonChase` holds a fixed offset IN WORLD AXES from the moving
+hull: the ship keeps its place in the cell and its attitude on the screen, and
+a hull the flight computer turns end for end is SEEN to turn. What does not
+work is a one-way clip of gameplay under a camera bolted to the hull's own
+frame: that shows a still ship with the background spinning round it. `scripts/capture-lesson-media.sh` runs the `lesson_*` producers and
 packages what they write into `assets/base/training/`, encoding the staged PNG
 as the WebP the handbook ships - a sheet sized to fill the Lessons pane is
 megabytes lossless and about 150 KB encoded.

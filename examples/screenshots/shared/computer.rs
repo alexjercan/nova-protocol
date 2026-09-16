@@ -132,6 +132,101 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
     }
 }
 
+/// Where the plot range parks its three contacts, in the map's own screen
+/// axes rather than the world's.
+///
+/// The map opens at a fixed heading (`MAP_THETA_DEFAULT`, 45.8 degrees off
+/// world +Z, tilted 35.5 degrees down), and its viewport is two and a half
+/// times wider than it is tall. So the plot has ROOM to the sides and none to
+/// speak of top and bottom: the default framing fits the furthest contact
+/// exactly at the vertical edge. These three sit on the screen's horizontal,
+/// where that margin is generous - one hostile close to starboard, the tender
+/// out to port, the second hostile furthest out and still well inside the
+/// frame it sets.
+const PLOT_SCREEN_RIGHT: Vec3 = Vec3::new(0.697, 0.0, -0.717);
+
+/// The contacts the plot range carries, as (id, name, allegiance, screen
+/// offset, range in metres). The RAIDER IS FIRST, and the order matters: the
+/// map's contact list is the own ship followed by the ships in spawn order, so
+/// a walk that cycles twice lands on this one.
+const PLOT_CONTACTS: [(&str, &str, Allegiance, f32, f32); 3] = [
+    ("plot_raider", "Raider", Allegiance::Enemy, 1.0, 340.0),
+    ("plot_tender", "Ore Tender", Allegiance::Player, -1.0, 420.0),
+    ("plot_lance", "Lance", Allegiance::Enemy, 1.0, 620.0),
+];
+
+/// How far each contact rides off the plot's plane, so three hulls at one
+/// height do not read as a drawn line. Indexed alongside [`PLOT_CONTACTS`].
+const PLOT_CONTACT_HEIGHTS: [f32; 3] = [30.0, -60.0, 90.0];
+
+/// [`nova_os_range`] with traffic around it: the same one ship, plus a hostile
+/// close in, a friendly tender to port and a second hostile further out.
+///
+/// The map app plots what is in the scenario, and the rock hollow the flight
+/// lessons are shot in has forty-eight asteroids in it - every one of them a
+/// contact, each drawn at its own projected size, which buries the two ships
+/// the lesson is about under a field of white discs. A plot is READ, so the
+/// range it is read on carries the traffic and nothing else.
+pub fn nova_os_plot_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+    let section = |id: &str| {
+        sections
+            .get_section(id)
+            .unwrap_or_else(|| panic!("section '{id}' not found"))
+            .clone()
+    };
+    let contact = |index: usize| {
+        let (id, name, allegiance, side, range) = PLOT_CONTACTS[index];
+        let offset = PLOT_SCREEN_RIGHT * side * range;
+        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: id.to_string(),
+                name: name.to_string(),
+                position: Meters3::new(offset.x, PLOT_CONTACT_HEIGHTS[index], offset.z),
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::None,
+                allegiance: Some(allegiance),
+                design: ShipDesignSource::Inline(ShipDesign {
+                    sections: vec![
+                        SpaceshipSectionConfig {
+                            id: format!("{id}_controller"),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Inline(section("basic_controller_section")),
+                        },
+                        SpaceshipSectionConfig {
+                            id: format!("{id}_hull"),
+                            position: Vec3::new(0.0, 0.0, 1.0),
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Inline(section("reinforced_hull_section")),
+                        },
+                        SpaceshipSectionConfig {
+                            id: format!("{id}_thruster"),
+                            position: Vec3::new(0.0, 0.0, 2.0),
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Inline(section("basic_thruster_section")),
+                        },
+                    ],
+                    ..default()
+                }),
+                ..default()
+            }),
+        })
+    };
+
+    let mut config = nova_os_range(game_assets, sections);
+    let event = config
+        .events
+        .first_mut()
+        .expect("the NOVA OS range authors one OnStart event");
+    event.actions.extend((0..PLOT_CONTACTS.len()).map(contact));
+    config.id = "nova_os_plot_range".to_string();
+    config.name = "NOVA OS Plot Range".to_string();
+    config.description = "A range with traffic on it, for the NOVA OS map.".to_string();
+    config
+}
+
 /// Press Tab to toggle the computer via the real `ButtonInput<KeyCode>` edge.
 #[cfg(feature = "debug")]
 pub fn press_tab(world: &mut World) {
@@ -141,16 +236,26 @@ pub fn press_tab(world: &mut World) {
 }
 
 /// Send one printable character to the terminal through the real keyboard path.
+///
+/// A PRESS AND A RELEASE, because this goes through the real path and the real
+/// path has a latch at the end of it: bevy's own keyboard system folds these
+/// messages into `ButtonInput<KeyCode>`, so a press with no release leaves the
+/// carrier key held down for the rest of the walk. The carrier is `KeyA` for
+/// every character (the terminal reads `logical_key`, not the code), and `A` is
+/// `novaos_pan_left` - so typing `map` used to open the map app with the pan
+/// key stuck, and the plot slid off its own contacts while the still was taken.
 #[cfg(feature = "debug")]
 pub fn type_char(world: &mut World, ch: &str) {
-    world.write_message(KeyboardInput {
-        key_code: KeyCode::KeyA,
-        logical_key: Key::Character(ch.into()),
-        state: ButtonState::Pressed,
-        text: Some(ch.into()),
-        repeat: false,
-        window: Entity::PLACEHOLDER,
-    });
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        world.write_message(KeyboardInput {
+            key_code: KeyCode::KeyA,
+            logical_key: Key::Character(ch.into()),
+            state,
+            text: Some(ch.into()),
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+    }
 }
 
 /// Type a whole word (one event per character).

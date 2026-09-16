@@ -247,7 +247,7 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "weapons coming up and the flight computer changing how it flies",
+            alt: "a ship\'s gun mounts rising out of the deck as the weapons come up",
         ),
         body: "Raising weapons changes how the flight computer flies. Instead of taking the shortest line to your mark, it holds the nose where the guns can reach the target.",
         actions: [
@@ -274,7 +274,7 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "the lock stepping from a whole ship to its drive, then its turret",
+            alt: "the fine lock stepping from one section of a marked ship to the next",
         ),
         body: "A lock can target one section instead of the whole ship. Step it onto the drive to stop the ship moving, or onto a turret to stop it shooting back.",
         actions: [
@@ -297,7 +297,7 @@
         title: "Turret arcs",
         media: Image(
             image: "self://training/combat_turrets.webp",
-            alt: "turret firing arcs drawn over a ship",
+            alt: "a ship from above, its turrets swung onto one target and firing",
         ),
         body: "A turret only fires within its own arc. Your own ship blocks part of that arc, so a turret cannot shoot a target hidden behind your drive.",
         wiki_path: "wiki/sections/turret",
@@ -362,7 +362,7 @@
         title: "Thruster placement",
         media: Image(
             image: "self://training/build_balance.webp",
-            alt: "thrusters on a lopsided frame firing at different throttles",
+            alt: "two thrusters on a lopsided frame in the editor, with the ship\'s turn and thrust figures beside it",
         ),
         body: "Thrusters sit wherever you bolt them, so an off-centre burn would spin the ship. The flight computer sets each throttle to cancel that spin. A lopsided or damaged ship still flies straight, with less thrust.",
         wiki_path: "wiki/sections/thruster",
@@ -381,7 +381,7 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "a newly built ship leaving the yard under its own drive",
+            alt: "a newly built four-block ship running past a rock under its own drive",
         ),
         body: "Test a new ship before you use it. Take it out, run the drive up to speed, then STOP. That shows you how quickly it accelerates and how long it needs to stop.",
         wiki_path: "wiki/flight-autopilot#the-hull-decides-the-handling",
@@ -419,7 +419,7 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "the ship model turning under the cursor, then reframing",
+            alt: "the ship schematic turning on the NOVA OS screen, then snapping back to its framing",
         ),
         body: "Drag to turn and pan the ship model, and use reframe to put it back where it started. Moving the model does not move the ship. The ship keeps flying while you look.",
         actions: [
@@ -434,7 +434,7 @@
         title: "Reading contacts",
         media: Image(
             image: "self://training/novaos_contacts.webp",
-            alt: "the contacts list with one entry selected",
+            alt: "the local-space plot with one hostile picked and its range and bearing under it",
         ),
         body: "The contacts list shows what is known about each contact. Selecting one here sets the same mark the flight computer uses for GOTO and ORBIT.",
         actions: [
@@ -450,7 +450,7 @@
         title: "Scenarios and campaigns",
         media: Image(
             image: "self://training/advanced_scenarios.webp",
-            alt: "the scenario picker with a campaign expanded",
+            alt: "the scenario picker with a scenario chosen and its briefing beside it",
         ),
         body: "A scenario is a single flight. A campaign is a set of scenarios played in order. Both are loaded from content files, so a mod can add or replace them.",
         wiki_path: "wiki/scenarios#browsing-and-replaying-scenarios",

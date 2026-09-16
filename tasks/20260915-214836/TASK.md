@@ -152,9 +152,10 @@ Start only after the Phase 1 owner review is recorded on this task.
       `every_demonstration_decodes_and_a_loop_divides_by_its_grid`, which
       decodes every committed file with the crate `bevy_image` wraps - the same
       pure-Rust decoder on both targets. A browser re-run since the codec change
-      is NOT done. STILL OPEN: the other 21 lessons keep generated placeholder
-      art, which `scripts/gen-lesson-media.py` refuses to redraw over a capture,
-      so each lands by writing its own producer.
+      is NOT done. All 24 lessons now ship captured footage, from
+      thirteen producers: `scripts/gen-lesson-media.py --check` reports 24
+      captured and 0 placeholders, so the generator is the fallback for a
+      lesson authored without a producer rather than the source of the art.
 - [x] Wire `Start Training` and applicable Practice actions through the existing
       New Game/scenario handoff. Basic Training is the base bundle's declared
       `tutorial`; do not add a competing launch path. Practice launches four
