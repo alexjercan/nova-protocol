@@ -721,9 +721,13 @@
         category: NovaOs,
         order: 15,
         title: "The prompt",
-        media: Image(
-            image: "self://training/novaos_terminal.webp",
-            alt: "the NOVA OS prompt mid-line, a dim ghost suffix ahead of the caret",
+        media: Loop(
+            sheet: "self://training/novaos_terminal.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "the prompt completing a subcommand: `ship re` carries a dim `load` suffix, Tab prints the `ship reload` / `ship repair` row and takes the first, Tab again steps onto `ship repair`, and a space then Tab lists the hull\'s live section codes",
         ),
         body: "NOVA OS has a prompt you type at, and it reads nova>. Completion fills in command names, subcommands and the live section or contact codes an argument wants. It keeps 200 lines of history and 500 rows of scrollback, and reddens an unknown word.",
         wiki_path: "wiki/nova-os#the-terminal",
@@ -755,9 +759,13 @@
         category: NovaOs,
         order: 25,
         title: "What you can type",
-        media: Image(
-            image: "self://training/novaos_commands.webp",
-            alt: "the terminal answering help with the registered command list printed under it",
+        media: Loop(
+            sheet: "self://training/novaos_commands.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "`help` typed at a wiped prompt and run: the registered command list prints under it, `help` through `exit` and then `map`, `ship` and their subcommands, each with the line that says what it does",
         ),
         body: "help lists everything. log prints the flight log, objectives the open objectives, clear wipes back to the boot report. map and ship hand the screen to an app; map view and ship view print the same data as a table. exit returns to flight.",
         wiki_path: "wiki/nova-os#command-reference",

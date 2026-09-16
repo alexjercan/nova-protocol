@@ -810,9 +810,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             NovaOs,
             15,
             "The prompt",
-            still(
+            looping(
                 "novaos_terminal",
-                "the NOVA OS prompt mid-line, a dim ghost suffix ahead of the caret",
+                "the prompt completing a subcommand: `ship re` carries a dim `load` suffix, Tab \
+                 prints the `ship reload` / `ship repair` row and takes the first, Tab again steps \
+                 onto `ship repair`, and a space then Tab lists the hull's live section codes",
             ),
             "NOVA OS has a prompt you type at, and it reads nova>. Completion fills in command \
              names, subcommands and the live section or contact codes an argument wants. It keeps \
@@ -847,9 +849,11 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             NovaOs,
             25,
             "What you can type",
-            still(
+            looping(
                 "novaos_commands",
-                "the terminal answering help with the registered command list printed under it",
+                "`help` typed at a wiped prompt and run: the registered command list prints under \
+                 it, `help` through `exit` and then `map`, `ship` and their subcommands, each with \
+                 the line that says what it does",
             ),
             "help lists everything. log prints the flight log, objectives the open objectives, \
              clear wipes back to the boot report. map and ship hand the screen to an app; map view \

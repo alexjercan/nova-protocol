@@ -82,6 +82,7 @@ PRODUCERS=(
     "lesson_build_flight_test|build_flight_test:loop"
     "lesson_novaos|novaos_open:loop,novaos_view:loop"
     "lesson_novaos_contacts|novaos_contacts:still"
+    "lesson_novaos_prompt|novaos_terminal:loop,novaos_commands:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
 )
 
