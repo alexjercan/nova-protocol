@@ -6,11 +6,11 @@
 //! reference hulls. Neither asks what happens when the thing the HUD is drawn
 //! OVER changes size by three orders of magnitude, or when the window it is
 //! drawn IN changes shape. This range asks only that, and it asks it as a cross
-//! product: the smallest possible hull and the largest shipped one, each read
+//! product: the smallest possible hull and the largest fixture one, each read
 //! at a tall 4:3 window and at a wide one.
 //!
 //! One gunship flies. Two things are locked in turn: a one-section drone - the
-//! minimum a ship can be - and `block_carrier`, 2 081 sections and 194 m of
+//! minimum a ship can be - and the carrier fixture, 2 081 sections and 194 m of
 //! containment radius. Four claims:
 //!
 //! - Every visible screen indicator lands on the LIVE window, at both hull
@@ -36,6 +36,9 @@
 //! #           `hud scales: the lead pip holds the intercept`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
+
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 use std::collections::BTreeMap;
 
@@ -67,9 +70,8 @@ const PLAYER_GUN: &str = "player_gun";
 const DRONE_ID: &str = "drone";
 const DRONE_SECTION: &str = "drone_core";
 
-/// The capital, and the shipped prototype it is built from.
+/// The capital.
 const CARRIER_ID: &str = "carrier";
-const CARRIER_HULL: &str = "block_carrier";
 
 /// Where each target is parked. Both sit off the bow far enough to be framed
 /// whole and far enough apart that neither hides the other: the lock upkeep
@@ -248,7 +250,7 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 
     let carrier = SpaceshipConfig {
         controller: SpaceshipController::None,
-        design: ShipDesignSource::prototype(CARRIER_HULL),
+        design: ShipDesignSource::Inline(dev_fixtures::carrier()),
         ..default()
     };
 

@@ -125,13 +125,13 @@ the content lint reports it as an error, and so does a patch that argues with
 the section's kind. The full patch surface is in
 [the sections list](../objects/#the-sections-list).
 
-Reach for a second ship id instead when the difference is what the design IS - the
-base game ships `block_gunship` and `block_raider` as separate hulls because
-thinner plating, mismatched drives and guns welded where they fitted are a
-different ship to fight, not a tweak. The Ledger does the same with its two
-hauler loads, `cargob` and `cargob_lance`: which torpedo TYPE the pods carry
-decides whether a defender's point defense can answer the salvo at all, and that
-is the ship, not a tweak to it.
+Reach for a second ship id instead when the difference is what the design IS -
+the base game ships `block_frame_tender` and `block_frame_tender_damaged` as
+separate hulls because a missing drive, transom and arch are a different ship to
+fly, not a tweak. The Ledger does the same with its two hauler loads, `cargob`
+and `cargob_lance`: which torpedo TYPE the pods carry decides whether a
+defender's point defense can answer the salvo at all, and that is the ship, not
+a tweak to it.
 
 ## One-off designs
 
@@ -184,17 +184,7 @@ painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
 | `block_frame_tender` | Frame Tender - a long keel under a cargo body with two open gantry arches standing over it, carrying the same port-flank collar the workship docks on |
 | `block_frame_tender_damaged` | Frame Tender: Damaged - the same tender after a raid took its stern: no main drive, the transom and the service stack gone, and the aft arch broken off along a ragged, column-by-column edge. Everything forward of the hit, the cab and the collar included, is whole |
 | `block_gunship` | Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres |
-| `block_raider` | Salvage Raider - the scavenger: thin plating, an outrigger down one flank, a scrap boom up the other, two turrets welded where they fitted |
-| `block_carrier` | Industrial Carrier - the campaign's home, thirty-three cells long, with a cutter berth cut into each shoulder |
-| `block_warship` | Stolen Warship - the only capital combatant: two spinal lances and six flank siege bays, all carved flush into the hull |
-| `block_skiff` | Salvage Skiff - the cleanup group's unarmed sensor needle. It searches; it cannot answer |
-| `block_tug` | Salvage Tug - the unarmed fork tug that carries away what the search finds |
-| `block_picket` | Salvage Picket - the group's armed picket, its one gun pushed onto the nose face |
-| `block_claw` | Salvage Claw - a machinery pod against a long grapple arm, with the gun riding the arm |
-| `block_cleanup_leader` | Cleanup Leader - one dorsal gun, one flank Serpent bay: the only ordnance in the search group |
-| `block_wreck_bridge` | Carrier Wreck: Bridge - the carrier's tower sheared off whole |
-| `block_wreck_spine` | Carrier Wreck: Spine - a length of refinery spine, open at both ends |
-| `block_wreck_shoulder` | Carrier Wreck: Shoulder - a cargo shoulder torn along the deck it was welded to |
+| `block_picket` | Salvage Picket - the armed picket, its one gun pushed onto the nose face |
 | `block_wreck_plate` | Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is |
 
 A mod may ship MODELLED craft instead, and The Ledger does: its `racer`,

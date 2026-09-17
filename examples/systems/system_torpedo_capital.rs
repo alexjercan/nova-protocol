@@ -13,7 +13,8 @@
 //! says which hull each shot was committed to instead of letting a targeting
 //! sweep choose:
 //!
-//! - shot one at `block_carrier`, 2 081 sections and ~420 m across;
+//! - shot one at the industrial carrier fixture, 2 081 sections and ~420 m
+//!   across;
 //! - shot two at a one-section drone, the minimum a ship can be.
 //!
 //! Four claims, all measured against the run's own matched pair:
@@ -33,7 +34,7 @@
 //! - A one-section hull is fuzed, not overflown: the burst lands on the approach
 //!   side of the drone and the drone's one section pays for it.
 //!
-//! What the shipped pair reads (2026-09-14, `block_carrier` at 2 081 sections):
+//! What the pair reads (2026-09-14, the carrier at 2 081 sections):
 //!
 //! | | capital | one-section drone |
 //! |---|---|---|
@@ -68,6 +69,9 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
+
 #[cfg(feature = "debug")]
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -88,9 +92,8 @@ const SCENARIO_ID: &str = "torpedo_capital";
 const BATTERY_ID: &str = "battery";
 const BAY_SECTION: &str = "bay";
 
-/// The capital target and the shipped prototype it is built from.
+/// The capital target.
 const CAPITAL_ID: &str = "capital";
-const CAPITAL_HULL: &str = "block_carrier";
 
 /// The minimum hull: one section, nothing else.
 const DRONE_ID: &str = "drone";
@@ -128,10 +131,10 @@ const STANDOFF_BAND: f32 = CONTACT_FUZE;
 /// How many times further behind the face the capital's aim point sits than the
 /// drone's.
 ///
-/// A floor, not a measurement: measured on the shipped pair the capital's aim
-/// point stands 165 m behind the face the warhead reached and the drone's 7 m,
-/// which is 23x. Stated at 5 so the claim is about the ORDER of the difference
-/// and not about `block_carrier`'s current section count.
+/// A floor, not a measurement: measured on the pair the capital's aim point
+/// stands 165 m behind the face the warhead reached and the drone's 7 m, which
+/// is 23x. Stated at 5 so the claim is about the ORDER of the difference and
+/// not about the carrier's current section count.
 #[cfg(feature = "debug")]
 const AIM_DEPTH_RATIO: f32 = 5.0;
 
@@ -239,7 +242,7 @@ fn capital_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 
     let capital = SpaceshipConfig {
         controller: SpaceshipController::None,
-        design: ShipDesignSource::prototype(CAPITAL_HULL),
+        design: ShipDesignSource::Inline(dev_fixtures::carrier()),
         ..default()
     };
 
@@ -431,8 +434,8 @@ fn record_delivery(
 
     // The skin comes off the body's OWN collider list, which is the set the
     // fuze walks (`distance_to_skin`). Reading it off the root's section
-    // children instead misses whatever else is bolted to the hull, and on
-    // `block_carrier` that difference is a fifth of a unit - enough to put the
+    // children instead misses whatever else is bolted to the hull, and on the
+    // carrier that difference is a fifth of a unit - enough to put the
     // burst outside a window it is actually inside.
     //
     // Box distance, not the shape's: an AABB encloses its collider, so this can

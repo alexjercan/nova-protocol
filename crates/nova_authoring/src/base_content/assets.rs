@@ -121,17 +121,12 @@ pub struct BaseContentAssets {
     pub thruster_vector_loop_sound: AssetRef<AudioSource>,
     pub thruster_capital_loop_sound: AssetRef<AudioSource>,
     /// The decoration models a skin style scatters, generated from the recipes
-    /// in `scripts/greeble-recipes/`. The `greeble_*` four with no kit in their
-    /// name are the scaffolding style's; the rest are the four authored kits.
-    pub greeble_blister: AssetRef<WorldAsset>,
-    pub greeble_block: AssetRef<WorldAsset>,
-    pub greeble_mast: AssetRef<WorldAsset>,
-    pub greeble_vent: AssetRef<WorldAsset>,
+    /// in `scripts/greeble-recipes/`. One kit per authored look.
     /// The ARMOURED kit: a belt down the straight edges, a boss on the outer
     /// corners, a flush hatch on the flat panels, the one blister that breaks
-    /// the plane, and the vocabulary batch (task 20260816-222644): a stub
-    /// mast, a shuttered intake, a ready magazine, a chaff tube, an applique
-    /// tile grid and the white rounds-count tally beside the gun wells.
+    /// the plane, a stub mast, a shuttered intake, a ready magazine, a chaff
+    /// tube, an applique tile grid, and the white rounds-count tally beside
+    /// the gun wells.
     pub greeble_armoured_ammo_stripes: AssetRef<WorldAsset>,
     pub greeble_armoured_applique: AssetRef<WorldAsset>,
     pub greeble_armoured_cap: AssetRef<WorldAsset>,
@@ -249,18 +244,6 @@ impl BaseContentAssets {
             ),
             thruster_capital_loop_sound: AssetRef::from(
                 "self://sounds/thruster_capital_loop.wav".to_string(),
-            ),
-            greeble_blister: AssetRef::from(
-                "self://gltf/greebles/placeholder_blister.glb#Scene0".to_string(),
-            ),
-            greeble_block: AssetRef::from(
-                "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
-            ),
-            greeble_mast: AssetRef::from(
-                "self://gltf/greebles/placeholder_mast.glb#Scene0".to_string(),
-            ),
-            greeble_vent: AssetRef::from(
-                "self://gltf/greebles/placeholder_vent.glb#Scene0".to_string(),
             ),
             greeble_armoured_ammo_stripes: AssetRef::from(
                 "self://gltf/greebles/armoured_ammo_stripes.glb#Scene0".to_string(),

@@ -111,6 +111,8 @@
 //!   cargo run --example lesson_combat_reach --features debug
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/hollow.rs"]
 mod hollow;
 #[path = "shared/kit.rs"]
@@ -144,7 +146,7 @@ const PLAYER_ID: &str = "reach_player";
 const BOAT_ID: &str = "reach_boat";
 
 /// How far a PDC round gets: 1,000 m/s for a 2.0 s lifetime
-/// (`base_content/sections/standard.rs`). Not authored anywhere as a range -
+/// (`base_content/sections/turret.rs`). Not authored anywhere as a range -
 /// this is the product, and the frame exists to show it as a place.
 const PDC_REACH: Meters = Meters(2_000.0);
 
@@ -229,7 +231,7 @@ const DISCIPLINE_AIM: Meters3 = Meters3::new(0.0, 6.0, -4.0);
 /// A step and not a sweep, because the lesson's sentence is about a mount
 /// CHASING something: a player's crosshair snaps to a new bearing and the
 /// barrels spend the next half second getting there. Both hinges turn at
-/// 180 deg/s (`base_content/sections/standard.rs`), so this is about half a
+/// 180 deg/s (`base_content/sections/turret.rs`), so this is about half a
 /// second of travel - five of the sheet's twenty cells held, and five firing,
 /// on each side of the loop.
 ///
@@ -323,7 +325,7 @@ fn the_gun_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_cleanup_leader"),
+        dev_fixtures::cleanup_leader(),
     );
 
     ScenarioConfig {
@@ -623,7 +625,7 @@ fn loose_the_salvo(world: &mut World) {
     assert!(
         !bays.is_empty(),
         "no torpedo bays in the set: the reach still would show one rung of a ladder. Check the \
-         hostile is still built from block_cleanup_leader."
+         hostile is still built from the cleanup leader fixture."
     );
     for bay in bays {
         if let Some(mut input) = world.entity_mut(bay).get_mut::<TorpedoSectionInput>() {

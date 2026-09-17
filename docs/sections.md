@@ -31,9 +31,10 @@ readings](#damage-is-two-readings)).
 | `Docking`    | Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. `capture_distance`, `capture_angle` and the two relative-speed ceilings are the envelope a `DOCK` is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see [below](#docking-ports-and-what-holds-a-pair-together)). |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
-Every base prototype is GENERIC and authored in
-`crates/nova_authoring/src/base_content/sections/standard.rs`; a mod that brings
-modelled craft declares their parts itself. The explicit `section_catalog()` is
+Every base prototype is GENERIC and authored under
+`crates/nova_authoring/src/base_content/sections/`, one module per family
+(`hull`, `controller`, `thruster`, `turret`, `torpedo_bay`, `railgun`,
+`docking_port`); a mod that brings modelled craft declares their parts itself. The explicit `section_catalog()` is
 generated into `assets/base/sections/base.content.ron` by `content -- gen` and
 merged into the resource by
 `crates/nova_assets/src/merge.rs`. The outer-skin cladding is not a prototype at
@@ -651,7 +652,7 @@ is not, so `HULK_PYRE` is the look and the dying root's `IntegrityEnvelope` is
 the size it is drawn at: every length is multiplied by the hull's containment
 radius over the 55.2 m gunship the look was cut on, and the flash by the square
 of it, because lumens stand in for a burning surface. The shipped hulls run
-from 0.88 on `block_skiff` to 3.52 on `block_carrier`, so a carrier's debris
+from 0.88 on a skiff-sized hull to 3.52 on a carrier-sized one, so a carrier's debris
 reaches 479 m rather than ending 58 m inside its own wreck. Durations and
 particle counts are NOT scaled: a bigger ship does not burn for longer, and the
 count is what the frame budget was written against. A body that publishes no

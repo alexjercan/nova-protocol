@@ -129,6 +129,12 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** A new `Docking` section kind, authored with a capture
   distance, a capture angle and speed ceilings. Its `dock_flush` sleeve reaches
   out once the dock holds and never grows a collider.
+- **(breaking)** The base catalog drops the hulls no shipped scenario flies:
+  raider, carrier, warship, skiff, tug, claw, cleanup leader and the three
+  carrier wrecks. A mod that names one must ship it.
+- **(breaking)** The siege railgun and the Breaker torpedo bay leave the base
+  sections, and the `placeholder` style with them. The menu duel authors its
+  own Breaker inline; nothing player-buildable changed.
 
 ### Scenarios & Objectives
 - The base game ships a story campaign. Season 1, chapter one - A Useful Job:
@@ -391,6 +397,15 @@ does NOT get an entry - and it is the only place they are written down.
 - Every seeded look draws from one FNV-1a derivation - sparks, asteroid shapes,
   planet palettes. The two spark sites disagreed on which bits aim them; the
   well-mixed half now does.
+- Section prototypes are one module per family - hull, thruster, controller,
+  turret, torpedo bay, railgun and docking port - each owning its own art
+  helpers, prototypes and tests.
+- Examples own the fixtures they fly: `examples/shared/dev_fixtures` registers
+  the fixture hulls, sections and style, so base content carries only shipped
+  content.
+- The arsenal bench authors its player hull inline, out of base prototypes: one
+  railgun, two bays and two mounts on five keys. Its revision moved, so an
+  arsenal set taken before this is no longer a matched comparison.
 
 ### Fixes
 - A ship built in the editor flies with the cockpit's voice: the lock cues,

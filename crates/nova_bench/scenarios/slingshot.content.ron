@@ -106,7 +106,7 @@
                             rotation: (0.0, 1.0, 0.0, 0.0),
                         ),
                         kind: Spaceship((
-                            design: Prototype(id: "block_raider"),
+                            design: Prototype(id: "block_picket"),
                             controller: AI((
                                 engage_delay: Some(45.0),
                                 leash: Some(20000.0),

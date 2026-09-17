@@ -1,5 +1,5 @@
-//! first_shift_map: a fixed spatial layout at mission scale, with shipped ships
-//! posed in it for scale.
+//! first_shift_map: a fixed spatial layout at mission scale, with ships posed
+//! in it for scale.
 //!
 //! The bench is the belt of `shared/first_shift_stage.rs` with a route laid
 //! over it: the carrier and launch, first flight beacon, the cutter-only rock
@@ -18,6 +18,8 @@
 //! cargo run --example first_shift_map --features debug -- --pilot camera
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/first_shift_stage.rs"]
 mod stage;
 
@@ -168,7 +170,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             PLAYER_START_POS,
             Quat::IDENTITY,
             controller_for(pilot, Pilot::Cutter),
-            BLOCK_CUTTER_SHIP_ID,
+            design(BLOCK_CUTTER_SHIP_ID),
         )),
         spawn(ship_object(
             "industrial_carrier",
@@ -176,7 +178,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             stage::CARRIER_POS,
             Quat::IDENTITY,
             SpaceshipController::None,
-            BLOCK_CARRIER_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::carrier()),
         )),
         spawn(ship_object(
             "stolen_warship",
@@ -184,7 +186,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             WARSHIP_POS,
             facing(WARSHIP_POS, stage::CARRIER_POS),
             controller_for(pilot, Pilot::Warship),
-            BLOCK_WARSHIP_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::warship()),
         )),
         spawn(beacon(
             "start_marker",
@@ -363,7 +365,7 @@ fn ship_object(
     position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
-    ship: &str,
+    design: ShipDesignSource,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -374,7 +376,7 @@ fn ship_object(
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller,
-            design: design(ship),
+            design,
             ..default()
         }),
     }
@@ -387,13 +389,13 @@ fn controller_for(pilot: Pilot, ship: Pilot) -> SpaceshipController {
 
     let input_mapping = if ship == Pilot::Warship {
         let mut bindings = BTreeMap::new();
-        for id in BLOCK_WARSHIP_TURRET_IDS {
+        for id in dev_fixtures::block::WARSHIP_TURRET_IDS {
             bindings.insert(id.to_string(), vec![MouseButton::Left.into()]);
         }
-        for id in BLOCK_WARSHIP_RAILGUN_IDS {
+        for id in dev_fixtures::block::WARSHIP_RAILGUN_IDS {
             bindings.insert(id.to_string(), vec![KeyCode::KeyR.into()]);
         }
-        for id in BLOCK_WARSHIP_BAY_IDS {
+        for id in dev_fixtures::block::WARSHIP_BAY_IDS {
             bindings.insert(id.to_string(), vec![KeyCode::KeyF.into()]);
         }
         bindings

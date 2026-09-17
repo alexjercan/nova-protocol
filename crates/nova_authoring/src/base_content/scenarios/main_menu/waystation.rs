@@ -8,6 +8,11 @@ use nova_scenario::prelude::*;
 use super::shared::*;
 use crate::base_content::scenarios::SCATTER_SEED;
 
+/// The scatter prefix the cargo drift takes, and the rotation limit this
+/// endless scene hands off on.
+const CARGO_ID_PREFIX: &str = "waystation_cargo_";
+const TIMER_ROTATE: &str = "waystation_rotate";
+
 pub(crate) fn menu_waystation(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -52,7 +57,7 @@ pub(crate) fn menu_waystation(
     // ring, same safety floor (inner past any plausible geometric radius,
     // whole band below the orbit plane).
     let lane_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-        id_prefix: "waystation_cargo_".to_string(),
+        id_prefix: CARGO_ID_PREFIX.to_string(),
         count: 18,
         seed: SCATTER_SEED ^ 0x1,
         region: ScatterRegion::Ring {
@@ -64,7 +69,7 @@ pub(crate) fn menu_waystation(
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: "waystation_cargo_".to_string(),
+                id: CARGO_ID_PREFIX.to_string(),
                 name: "Cargo Rock".to_string(),
                 position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
@@ -117,7 +122,7 @@ pub(crate) fn menu_waystation(
                     // never ends on its own, so after a couple of freight
                     // laps the menu turns to the next backdrop.
                     EventActionConfig::TimerStart(TimerStartActionConfig {
-                        key: "waystation_rotate".to_string(),
+                        key: TIMER_ROTATE.to_string(),
                         seconds: crate::scenario_helpers::number(150.0),
                     }),
                 ])
@@ -128,10 +133,10 @@ pub(crate) fn menu_waystation(
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "waystation_rotate".to_string(),
+                key: TIMER_ROTATE.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_gauntlet".to_string(),
+                scenario_id: super::MENU_GAUNTLET_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -143,7 +148,7 @@ pub(crate) fn menu_waystation(
         role: ScenarioRole::Backdrop,
         events,
         ..ScenarioConfig::new(
-            "menu_waystation".to_string(),
+            super::MENU_WAYSTATION_SCENARIO_ID.to_string(),
             "Waystation Traffic".to_string(),
             cubemap,
         )

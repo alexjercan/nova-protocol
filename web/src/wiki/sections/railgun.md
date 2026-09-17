@@ -21,7 +21,7 @@ A railgun is a **spinal gun**: three cells of rails and capacitor bank with no t
 
 It is the opposite weapon to a turret in every way that matters. A turret is a mount you assign and forget; a railgun is a shot you set up. It fires once every thirteen seconds or so, the trigger cannot call it back once it is pulled, and it shoves the ship that fired it.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs: charge_seconds 1.5 :928, slug_speed 15,000 m/s :929, slug_damage 300 :943, slug_power 1800 :949, rake_radius 10 m :968, slug_lifetime 1.2 :971 (18 km of reach), recoil_impulse 45 :975, ammo_capacity 1 :982, reload delay 12 :987. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/railgun.rs: charge_seconds 1.5, slug_speed 15,000 m/s, slug_damage 300, slug_power 1800, rake_radius 10 m, slug_lifetime 1.2 (18 km of reach), recoil_impulse 45, ammo_capacity 1, reload delay 12. -->
 
 | The railgun at a glance | |
 |---|---|
@@ -34,7 +34,7 @@ It is the opposite weapon to a turret in every way that matters. A turret is a m
 
 ## The hull is the aim
 
-<!-- Behavior verified against crates/nova_ship/src/sections/railgun_section/mod.rs (RailgunSectionConfig :69, RailgunSectionInput :210) and firing.rs (the slug is born at the muzzle along the section's own -Z; recoil applied at that point). Sockets: crates/nova_authoring/src/base_content/sections/standard.rs lance_link_points :1088 - thirteen, none on the muzzle face, held by `no_lance_sockets_the_face_it_fires_through`. -->
+<!-- Behavior verified against crates/nova_ship/src/sections/railgun_section/mod.rs (RailgunSectionConfig :69, RailgunSectionInput :210) and firing.rs (the slug is born at the muzzle along the section's own -Z; recoil applied at that point). Sockets: crates/nova_authoring/src/base_content/sections/railgun.rs lance_link_points - thirteen, none on the muzzle face, held by `no_lance_sockets_the_face_it_fires_through`. -->
 
 A railgun fires down its own axis, so where it points is decided when you **bolt it on**, not when you shoot. Mounted on the spine it points where the nose points. Mounted on a flank it points wherever that flank faces, which is not where you are looking - and there is no HUD crosshair that will tell you otherwise, which is why the [bore sight](#the-bore-sight) exists.
 
@@ -131,7 +131,7 @@ The line thickens as the charge runs, so the seconds you are committed to holdin
 
 ## What one shot takes out
 
-<!-- Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier :258, which clamps at 3.0 (PIERCE_POWER_CEILING :197), and a slug at 15,000 m/s is always at that ceiling. No Pierce round has a layer cap; a layer costing zero power stops the round. The rake: rake_radius 10 m standard.rs:957, swept in crates/nova_gameplay/src/rounds.rs sweep_raking :708 (the sphere trails the tip by its radius; only a body the tip hit directly is armed; contacts charged by depth then from the axis outward). The stand table and the three-times figure are examples/systems/system_railgun_lance.rs's stand bank (200 hp cells, 5 x 5 x 4 wall and 3 x 1 x 4 line), reproduced by the scope's model in web/tests/widgets.test.ts. Section healths standard.rs:596 (200), :675 (480), :692 (1250). -->
+<!-- Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier :258, which clamps at 3.0 (PIERCE_POWER_CEILING :197), and a slug at 15,000 m/s is always at that ceiling. No Pierce round has a layer cap; a layer costing zero power stops the round. The rake: rake_radius 10 m in crates/nova_authoring/src/base_content/sections/railgun.rs, swept in crates/nova_gameplay/src/rounds.rs sweep_raking :708 (the sphere trails the tip by its radius; only a body the tip hit directly is armed; contacts charged by depth then from the axis outward). The stand table and the three-times figure are examples/systems/system_railgun_lance.rs's stand bank (200 hp cells, 5 x 5 x 4 wall and 3 x 1 x 4 line), reproduced by the scope's model in web/tests/widgets.test.ts. Section healths: hull.rs reinforced 200, thruster.rs vector 480 and capital 1250. -->
 
 <div class="widget" data-widget="lance-corridor">
 <p>The scope shoots a block of 200 hp reinforced hull cells, five across, five tall and four deep, with the shipped railgun. The slug's tip cuts the centre column, and a 10 m sphere trailing the tip widens that cut to the eight cells around it - the face neighbours and the diagonals, never the second ring. Every cell in the corridor takes 300 and pays a third of its max health out of the one 1800-point budget, so the shot takes 28 cells as nine, nine, nine and one, removes 5600 hp, and stops with the exit hole as wide as the entry. Set the radius to zero and the same shot takes four cells in a line; set it to 40 m and it takes the same 28 as the whole entry face plus three, and stops one layer in.</p>
@@ -215,7 +215,7 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (railgun_lance_prototype and its two call sites in standard_section_prototypes) and assets/base/sections/base.content.ron. Only the campaign's stolen warship mounts one - the siege grade, both spinal guns (ships/block.rs stolen_warship); the editor sandbox's `picket_lance` carries the standard one (crates/nova_editor/src/scenario.rs). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/railgun.rs (railgun_lance_prototype and its call site in prototypes()) and assets/base/sections/base.content.ron. No base hull mounts one; the editor sandbox's `picket_lance` carries it (crates/nova_editor/src/scenario.rs). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-railgun.png</span></span></span><span class="catalog__title">Railgun - shipped prototypes</span></div>
 <table>
 <thead>
@@ -223,9 +223,8 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">10 m rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-siege-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Siege Railgun Lance<span class="catalog__flag">experimental</span></span><span class="catalog__id">siege_railgun_lance_section</span></td><td class="catalog__num">500</td><td>Pierce</td><td class="catalog__num">360,000 power</td><td class="catalog__num">30 m rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
 </tbody>
 </table>
 </div>
 
-Two railguns ship, and they are the same gun at two grades. The standard lance is the one you bolt on yourself in the ship editor; no hull in the base fleet carries it. The siege lance is the campaign's - the stolen warship's two spinal guns, priced to cross a carrier rather than bore a corridor through a gunship, and it is deliberately overpowered for that one scene. See [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.
+One railgun ships. It is the one you bolt on yourself in the ship editor; no hull in the base fleet carries it. See [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.

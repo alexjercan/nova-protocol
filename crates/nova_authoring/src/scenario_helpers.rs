@@ -167,8 +167,8 @@ pub fn clear_hint_emphasis(verb: impl Into<String>) -> EventActionConfig {
 /// Build a speaker-attributed narrative cue with default dwell and no icon.
 ///
 /// `accent` is the colour the comms panel draws the whole card in. Prefer the
-/// three named voices below; reach for this only for a line that belongs to
-/// neither the work traffic, the crew, nor the Fleet.
+/// three named helpers below; reach for this only for a line that needs an
+/// accent none of them carries.
 pub fn cue(
     accent: Color,
     speaker: impl Into<String>,
@@ -183,21 +183,20 @@ pub fn cue(
     })
 }
 
-/// A line of work traffic: what a shift is paid to answer. The comms blue, and
-/// the accent a cue that names none already has.
+/// A line received over the radio, in the comms blue - the accent [`cue`]
+/// already uses when none is named.
 pub fn comms(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
     cue(default_comms_accent(), speaker, text)
 }
 
-/// A line spoken inside the cutter, heard by nobody else - drawn in the
-/// instrument green, because the voice is in the room rather than on a radio.
+/// A line spoken inside the player's own ship, drawn in the instrument green
+/// the HUD uses for its own readouts.
 pub fn crew(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
     cue(ChipTone::Phosphor.text(), speaker, text)
 }
 
-/// A line bleeding off the Fleet guard band: never addressed to the cutter, and
-/// heard in fragments. Drawn in the amber the HUD keeps for what demands
-/// attention.
+/// A line the player overhears rather than receives, drawn in the amber the
+/// HUD keeps for what demands attention.
 pub fn guard(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
     cue(ChipTone::Amber.text(), speaker, text)
 }

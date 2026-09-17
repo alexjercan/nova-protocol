@@ -358,14 +358,13 @@ const SECTION_PYRE: PyreScale = PyreScale {
 /// silhouette, because a debris field that stopped at the hull's own outline
 /// says the ship has merely broken rather than been destroyed. At up to 8
 /// units per second for 1.7 s a gunship's cross about 13 units, 130 m, out of
-/// a hull 9 units long. A carrier is 37 units stem to stern - `block_warship`
-/// is 22 - and gets the same picture only because the scale carries the speeds
-/// with it. A flat cut lit the middle of a wreck whose ends the fragments
-/// never got near.
+/// a hull 9 units long. A capital hull is 37 units stem to stern and gets the
+/// same picture only because the scale carries the speeds with it. A flat cut
+/// lit the middle of a wreck whose ends the fragments never got near.
 ///
 /// Those spans are outer FACE to outer face, so each includes the overhang a
-/// multi-cell drive has past its own centre cell - half a unit on the gunship
-/// and the warship, a whole one on the carrier. A centre-to-centre span reads
+/// multi-cell drive has past its own centre cell - half a unit on the gunship,
+/// a whole one on a capital hull. A centre-to-centre span reads
 /// each of them short.
 const HULK_PYRE: PyreScale = PyreScale {
     core: PyreCore {
@@ -1025,10 +1024,10 @@ fn burn(
 /// death rather than no death: the figure is a multiplier on a LOOK, so the
 /// safe answer is the one the look was authored at.
 ///
-/// Unclamped in both directions. The shipped hulls run from `block_skiff` at
-/// 48.3 m of containment radius, 0.88, to `block_carrier` at 194.3 m, 3.52 -
-/// and a hull outside that band is a hull this look was never cut for, which
-/// is a reason to see it at its own size rather than at a bound.
+/// Unclamped in both directions. The measured hulls run from a skiff at 48.3 m
+/// of containment radius, 0.88, to a carrier at 194.3 m, 3.52 - and a hull
+/// outside that band is a hull this look was never cut for, which is a reason
+/// to see it at its own size rather than at a bound.
 fn hulk_scale(envelope: Option<f32>) -> f32 {
     match envelope {
         Some(envelope) if envelope > 0.0 => envelope / PYRE_REFERENCE_RADIUS.to_engine(),

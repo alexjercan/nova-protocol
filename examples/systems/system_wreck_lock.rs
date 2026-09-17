@@ -39,6 +39,9 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
+
 use std::collections::BTreeMap;
 
 use avian3d::prelude::*;
@@ -225,7 +228,7 @@ fn gunner(sections: &GameSections) -> SpaceshipConfig {
     }
 }
 
-/// The target: the shipped salvage skiff, neutral, driven by nobody.
+/// The target: the salvage skiff fixture, neutral, driven by nobody.
 ///
 /// Neutral and pilotless on purpose. A hostile with a pilot would manoeuvre and
 /// shoot back, and every phase here is a claim about what the LOCK does while
@@ -234,7 +237,7 @@ fn gunner(sections: &GameSections) -> SpaceshipConfig {
 fn derelict(sections: &GameSections) -> SpaceshipConfig {
     let _ = sections;
     SpaceshipConfig {
-        design: ShipDesignSource::prototype("block_skiff"),
+        design: ShipDesignSource::Inline(dev_fixtures::skiff()),
         controller: SpaceshipController::None,
         allegiance: Some(Allegiance::Neutral),
         ..default()

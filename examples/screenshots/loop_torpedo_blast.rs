@@ -43,6 +43,8 @@
 //!   cargo run --example loop_torpedo_blast --features debug
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/kit.rs"]
 mod kit;
 
@@ -199,7 +201,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCon
             .looking_at(Vec3::ZERO, Vec3::Y)
             .rotation,
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_cleanup_leader"),
+        dev_fixtures::cleanup_leader(),
     );
     // The same shell, radii and seed as screenshot_combat's hollow: proven to
     // keep the pocket clear of the subject and the salvo's bearing.

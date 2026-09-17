@@ -148,21 +148,21 @@ mod tests {
             ship
         };
         let player = ship("block_gunship", &["hull_front", "pdc_aft_port"]);
-        let raider = ship("block_raider", &["pdc_aft_port"]);
-        (world, player, raider)
+        let picket = ship("block_picket", &["pdc_aft_port"]);
+        (world, player, picket)
     }
 
     /// A section id is unique to its hull, not to the field, so the ship is
     /// part of the address and the same id on two ships is not ambiguous.
     #[test]
     fn a_section_id_resolves_within_the_ship_that_holds_it() {
-        let (mut world, player, raider) = two_ships();
+        let (mut world, player, picket) = two_ships();
         let found = |world: &mut World, ship, id| match section(world, ship, id) {
             Found::One(entity) => Some(entity),
             _ => None,
         };
         let mine = found(&mut world, player, "pdc_aft_port").expect("the player's turret");
-        let theirs = found(&mut world, raider, "pdc_aft_port").expect("the raider's turret");
+        let theirs = found(&mut world, picket, "pdc_aft_port").expect("the picket's turret");
         assert_ne!(mine, theirs, "each ship answers with its own section");
     }
 
@@ -180,6 +180,6 @@ mod tests {
         let Found::Missing(detail) = ship(&mut world, "nobody") else {
             panic!("no ship is called `nobody`");
         };
-        assert!(detail.contains("block_gunship, block_raider"), "{detail}");
+        assert!(detail.contains("block_gunship, block_picket"), "{detail}");
     }
 }

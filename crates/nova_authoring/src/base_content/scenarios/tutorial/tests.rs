@@ -2,7 +2,7 @@
 //!
 //! These enforce the SHAPE the card is built to - a lesson's verb, card and
 //! beat land together and a beat after the line, every mark comes down, every
-//! withheld verb comes back, a cadet who works ahead of the card is never
+//! withheld verb comes back, a player who works ahead of the card is never
 //! stalled - rather than a transcript of the script. A dialogue or pacing
 //! pass should be able to move every line and every delay without touching
 //! an assertion below.
@@ -131,7 +131,7 @@ fn the_opening_panel_stays_empty_until_the_briefing_hands_over() {
 #[test]
 fn every_lesson_grants_its_capability_in_the_same_step_as_its_card() {
     // A capability granted at the line arms the lesson's handler before its
-    // card exists; one granted after the card leaves a cadet reading an order
+    // card exists; one granted after the card leaves a player reading an order
     // they cannot follow. The grant rides the card's step.
     let config = config();
     let mut grants_beside_cards = 0;
@@ -247,7 +247,7 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
     let well = GravityWell::from_mass(mass, surface, &gravity);
     let standoff = flight.arrival_standoff;
     let park = surface + standoff;
-    // The card sends the cadet from GOTO's park point straight into ORBIT, so
+    // The card sends the player from GOTO's park point straight into ORBIT, so
     // the park point has to be a ring ORBIT will actually fly. The band is the
     // engine's own rule (a floor over the surface, a ceiling inside the well's
     // unfaded core), and it is published for exactly this: content that gates
@@ -260,7 +260,7 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
         "GOTO parks {park} u from the planetoid's centre; ORBIT's band is {min}..{max} u"
     );
 
-    // And the cadet's clock. GOTO hands the trainer back at the park point with
+    // And the player's clock. GOTO hands the trainer back at the park point with
     // ORBIT still withheld, so the trainer is falling while Range Control talks
     // it through the key: the mass has to leave enough fall to hear the line,
     // read the card and answer. Radial free-fall from rest, closed form.
@@ -500,7 +500,7 @@ fn the_drones_are_handicapped_and_the_trainer_cannot_be_shot_dry_of_its_gun() {
 }
 
 /// A drone that loses its drive or its flight computer keeps its speed, and
-/// a cadet cannot always run it down. The range boundary catches it: a drone
+/// a player cannot always run it down. The range boundary catches it: a drone
 /// under control can never reach the boundary, a drone that coasts out is
 /// counted and taken away, and no drone is counted twice however it goes.
 #[test]

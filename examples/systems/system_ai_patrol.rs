@@ -47,6 +47,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "../screenshots/shared/kit.rs"]
 mod kit;
 
@@ -69,18 +71,10 @@ struct Cli;
 /// The hull under test: the cleanup group's armed picket, one nose gun.
 ///
 /// Armed on purpose - the claims are about a combatant that can leave its
-/// routine for a fight and be pulled back out of one. `block_carrier` cannot
+/// routine for a fight and be pulled back out of one. An unarmed hull cannot
 /// stand in: it carries no weapon, so it spawns an `AINonCombatant` and never
 /// engages at all.
 const PICKET: &str = "block_picket";
-
-/// The hostile that crosses the beat: the scavenger raider.
-///
-/// Armed, and so a hull the production neutralize rule can take out of the
-/// fight by its bridge alone; an unarmed hull is never "out of the fight"
-/// (`nova_gameplay/src/integrity/neutralize.rs`) and would have to be blown
-/// apart instead.
-const RAIDER: &str = "block_raider";
 
 /// The picket's scenario id.
 const PICKET_ID: &str = "ai_patrol_picket";
@@ -198,12 +192,10 @@ fn patrol_range(
 ) -> ScenarioConfig {
     let ship = |id: &str,
                 name: &str,
-                catalog: &str,
+                mut hull: ShipDesign,
                 at: Meters3,
                 rotation: Quat,
                 spec: SpaceshipConfig| {
-        let hull = kit::catalog_ship(ships, catalog);
-        let mut hull = hull;
         kit::dry_magazines(&mut hull, sections);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -259,15 +251,20 @@ fn patrol_range(
                     ship(
                         PICKET_ID,
                         "Picket",
-                        PICKET,
+                        kit::catalog_ship(ships, PICKET),
                         beat_route()[0],
                         Quat::IDENTITY,
                         picket,
                     ),
+                    // The raider fixture is ARMED, and so a hull the
+                    // production neutralize rule can take out of the fight by
+                    // its bridge alone; an unarmed hull is never "out of the
+                    // fight" (`nova_gameplay/src/integrity/neutralize.rs`) and
+                    // would have to be blown apart instead.
                     ship(
                         RAIDER_ID,
                         "Intruder",
-                        RAIDER,
+                        dev_fixtures::raider(),
                         Meters3::new(-INTRUDER_RANGE.get(), 0.0, 0.0),
                         nose_up,
                         intruder,

@@ -187,7 +187,7 @@ export function engineMetersPerSec2(
 // exactly as `AttitudeEnvelope::new` takes `Meters::from_engine(arm)`
 // (controller_section.rs:487-489).
 const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:17 (MetersPerSecondSquared)
-const CONTROLLER_MAX_TORQUE = 9760; // standard.rs:718
+const CONTROLLER_MAX_TORQUE = 9760; // controller.rs
 // The Patrol Gunship: its structural arm, centre of mass to the outer FACE of
 // its furthest section (attitude.rs, `structural_arm`). WORLD UNITS - it is measured off
 // avian collider boxes, and the cell tables below are the same geometry.
@@ -202,15 +202,15 @@ export const GUNSHIP_ARM_U = 5.52;
 // acceleration comes out in WORLD UNITS per second squared. Nothing configures
 // `Time<Fixed>`, so the rate is Bevy's own.
 const FIXED_TICK_HZ = 64; // thruster_section.rs:489
-const THRUSTER_MAGNITUDE = 1.0; // standard.rs:642, and the ledger's own drives
+const THRUSTER_MAGNITUDE = 1.0; // thruster.rs, and the ledger's own drives
 
-// Catalog fixtures (crates/nova_authoring/src/base_content/sections/standard.rs).
+// Catalog fixtures (crates/nova_authoring/src/base_content/sections/).
 // Authored content is METERS now, so the blast radius is the metric number.
-const LIGHT_HULL_HP = 60; // standard.rs:750 (light_hull_section)
+const LIGHT_HULL_HP = 60; // hull.rs (light_hull_section)
 const TORPEDO_BLAST_DAMAGE = 750; // the tube bay's `blast_damage` (Serpent/Lance warhead)
 const TORPEDO_BLAST_RADIUS = 300; // the tube bay's `blast_radius` (Meters)
 
-// The shared turret mount (standard.rs `turret_joint_tree`). Traverse is
+// The shared turret mount (turret.rs `turret_joint_tree`). Traverse is
 // unbounded (the yaw joint's `min`/`max` are None) and elevation runs from the
 // depression floor to straight up (the pitch joint's `min`/`max`), so what a
 // mount cannot see is a cone under its own keel and nothing else. Every hinge
@@ -218,7 +218,7 @@ const TORPEDO_BLAST_RADIUS = 300; // the tube bay's `blast_radius` (Meters)
 //
 // Cited by FIELD, not by line: the six line numbers this block used to carry
 // had all drifted off their values.
-const TURRET_DEPRESSION_DEG = -10; // standard.rs `TURRET_DEPRESSION_LIMIT` (PI / 18)
+const TURRET_DEPRESSION_DEG = -10; // turret.rs `TURRET_DEPRESSION_LIMIT` (PI / 18)
 const TURRET_ELEVATION_DEG = 90; // the pitch joint's `max` (FRAC_PI_2)
 const TURRET_SLEW_DEG_S = 180; // every joint's `speed` (PI rad/s)
 // A turret has no range field: muzzle speed times projectile lifetime IS its
@@ -232,10 +232,10 @@ const PDC_REACH = 2000; // meters; the PDC's `muzzle_speed` x `projectile_lifeti
 // the delay (ammo.rs:171-174), and the total is clamped at capacity
 // (ammo.rs:156). An EMPTY trigger pull never resets it (ammo.rs:134), so a
 // dry weapon reloads while the trigger is still held down.
-const PDC_CAPACITY = 500; // standard.rs:495
-const PDC_RELOAD_DELAY = 3.0; // standard.rs:497
-const PDC_RELOAD_AMOUNT = 200; // standard.rs:498
-const PDC_FIRE_RATE = 100; // standard.rs:74 (rounds per second)
+const PDC_CAPACITY = 500; // turret.rs
+const PDC_RELOAD_DELAY = 3.0; // turret.rs
+const PDC_RELOAD_AMOUNT = 200; // turret.rs
+const PDC_FIRE_RATE = 100; // turret.rs (rounds per second)
 const BAY_CAPACITY = 6; // the tube bay's `ammo_capacity`
 const BAY_RELOAD_DELAY = 10.0; // the tube bay's `reload.delay`
 const BAY_RELOAD_AMOUNT = 1; // the tube bay's `reload.amount`
@@ -250,18 +250,18 @@ const WEAVE_ZERO_RADII = 0.5; // projectile.rs:436
 const SERPENT_WEAVE_ANGLE = 0.44; // mod.rs:414 (rad, the balance knob)
 const SERPENT_WEAVE_RATE = 1.4; // mod.rs:415 (rad/s)
 
-// The spinal lance (standard.rs, `railgun_lance_section`). Its slug is a
+// The spinal lance (railgun.rs, `railgun_lance_section`). Its slug is a
 // Pierce round, and no Pierce round has a layer cap (damage.rs
 // `pierce_remainder`), so `slug_power` alone bounds what one shot takes, and
 // at 15 000 m/s the pierce curve sits at its 3.0 ceiling whatever the ships are
 // doing. The shot's cycle is the charge plus the one-shell reload.
-const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:920
-const LANCE_SLUG_SPEED = 15000; // standard.rs:1157 (MetersPerSecond)
-const LANCE_SLUG_DAMAGE = 300; // standard.rs:932
-const LANCE_SLUG_POWER = 1800; // standard.rs:938
-const LANCE_RAKE_RADIUS = 10; // standard.rs:957 (Meters)
-const LANCE_SLUG_LIFETIME = 1.2; // standard.rs:960
-const LANCE_RELOAD_DELAY = 12; // standard.rs:976
+const LANCE_CHARGE_SECONDS = 1.5; // railgun.rs
+const LANCE_SLUG_SPEED = 15000; // railgun.rs (MetersPerSecond)
+const LANCE_SLUG_DAMAGE = 300; // railgun.rs
+const LANCE_SLUG_POWER = 1800; // railgun.rs
+const LANCE_RAKE_RADIUS = 10; // railgun.rs (Meters)
+const LANCE_SLUG_LIFETIME = 1.2; // railgun.rs
+const LANCE_RELOAD_DELAY = 12; // railgun.rs
 const LANCE_CYCLE_SECS = LANCE_CHARGE_SECONDS + LANCE_RELOAD_DELAY;
 const LANCE_REACH = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME; // meters
 // The corridor scope counts BUILD CELLS, and a cell is one world unit - the
@@ -269,21 +269,21 @@ const LANCE_REACH = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME; // meters
 // `radius.to_engine()` (railgun_section/firing.rs:215-218). This is the one
 // place the authored corridor meets the lattice.
 export const LANCE_RAKE_RADIUS_CELLS = LANCE_RAKE_RADIUS / METERS_PER_UNIT;
-const REINFORCED_HULL_HP = 200; // standard.rs:596
+const REINFORCED_HULL_HP = 200; // hull.rs
 
-// The kinetic PDC round (standard.rs:59; the pierce round is half of it,
-// :69) and the torpedoes' reach at the bay's 100 s lifetime (standard.rs:1180),
-// from the measured along-the-line table at the head of ordnance.rs:13-21 -
+// The kinetic PDC round (turret.rs; the pierce round is half of it) and the
+// torpedoes' reach at the bay's 100 s lifetime (torpedo_bay.rs), from the
+// measured along-the-line table at the head of torpedo_bay.rs -
 // that table is still quoted in world units, so the reaches and cruise caps
 // below are its numbers stated in meters. A torpedo's cruise cap is authored:
-// ordnance.rs:49 (Lance) and torpedo_section/mod.rs:413 (Serpent).
-const KINETIC_PDC_BULLET_DAMAGE = 4.0; // standard.rs:59
-const PDC_MUZZLE_SPEED = 1000; // standard.rs:478 (MetersPerSecond)
-const SERPENT_REACH = 29140; // meters; ordnance.rs:21 (2 914 u)
-const LANCE_TORPEDO_REACH = 31300; // meters; ordnance.rs:21 (3 130 u)
+// torpedo_bay.rs (Lance) and torpedo_section/mod.rs:413 (Serpent).
+const KINETIC_PDC_BULLET_DAMAGE = 4.0; // turret.rs
+const PDC_MUZZLE_SPEED = 1000; // turret.rs (MetersPerSecond)
+const SERPENT_REACH = 29140; // meters; torpedo_bay.rs (2 914 u)
+const LANCE_TORPEDO_REACH = 31300; // meters; torpedo_bay.rs (3 130 u)
 const SERPENT_CRUISE = 320; // torpedo_section/mod.rs:413 (MetersPerSecond)
-const LANCE_TORPEDO_CRUISE = 350; // ordnance.rs:49 (MetersPerSecond)
-// Rounds one stock PDC spends to stop each type (ordnance.rs:18).
+const LANCE_TORPEDO_CRUISE = 350; // torpedo_bay.rs (MetersPerSecond)
+// Rounds one stock PDC spends to stop each type (torpedo_bay.rs).
 const ROUNDS_PER_LANCE_TORPEDO = 116;
 const ROUNDS_PER_SERPENT = 390;
 // The starter ship's soft manual-speed cap: what a torpedo has to catch when
@@ -847,7 +847,7 @@ export interface AmmoRule {
 }
 
 // The rate a weapon holds forever by firing each batch the moment it lands:
-// `amount / (delay + amount / rate)`. standard.rs:586 works the shipped PDC
+// `amount / (delay + amount / rate)`. turret.rs works the shipped PDC
 // through it - 200 / (3 + 200/100) = 40 rounds/s against a 100/s cyclic rate.
 export function sustainedRate(w: AmmoRule): number {
     return w.amount / (w.delay + w.amount / w.rate);
@@ -1058,7 +1058,7 @@ export function lanceCorridor(
 
 // The three weapon families' reach and time of flight to a target `range`
 // METERS out. Reach is never authored: a round's is muzzle speed times its
-// lifetime (config.rs:135-144), the slug's the same (standard.rs:1157,:1167),
+// lifetime (config.rs:135-144), the slug's the same (railgun.rs),
 // and a torpedo's is the along-the-line speed it settles at over the bay's
 // lifetime. Every speed and reach here is SI, so the flight time is seconds
 // with no conversion anywhere. Infinity: the shot never arrives.
@@ -2583,7 +2583,7 @@ interface ShipPart {
 }
 
 // The base section prototypes a built hull is assembled from
-// (crates/nova_authoring/src/base_content/sections/standard.rs). `cells` is the
+// (crates/nova_authoring/src/base_content/sections/). `cells` is the
 // authored collider box in build-grid cells, and a section's mass IS that
 // volume - density is 1 and not authorable (base_section.rs:470-471), and a
 // prototype with no authored collider falls back to the unit cube
@@ -2594,63 +2594,65 @@ interface SectionProto {
     cells: Vec3T;
 }
 const HULL_CELL: SectionProto = {
-    // reinforced_hull_section, standard.rs:596 (no collider: the unit cube)
+    // reinforced_hull_section, hull.rs (no collider: the unit cube)
     label: "HULL",
     health: 200,
     cells: [1, 1, 1],
 };
 const CONTROLLER_CELL: SectionProto = {
-    // basic_controller_section, standard.rs:701 (no collider)
+    // basic_controller_section, controller.rs (no collider)
     label: "CTRL",
     health: 100,
     cells: [1, 1, 1],
 };
 const VECTOR_DRIVE: SectionProto = {
-    // vector_thruster_section, standard.rs:663-667, collider 3x3x2 (:551-553)
+    // vector_thruster_section, thruster.rs, collider 3x3x2
     label: "DRIVE",
     health: 480,
     cells: [3, 3, 2],
 };
 const LIGHT_HULL: SectionProto = {
-    // light_hull_section, standard.rs:744-750 (no collider) - scavenger grade,
+    // light_hull_section, hull.rs (no collider) - scavenger grade,
     // a third of a reinforced plate's health for the same box.
     label: "LIGHT",
     health: 60,
     cells: [1, 1, 1],
 };
 const CAPITAL_DRIVE: SectionProto = {
-    // capital_thruster_section, standard.rs:677-691, collider 5x5x3 - the
+    // capital_thruster_section, thruster.rs, collider 5x5x3 - the
     // heaviest thing the base catalog offers, and the least health per mass.
     label: "CAPITAL",
     health: 1250,
     cells: [5, 5, 3],
 };
 const RAILGUN_LANCE: SectionProto = {
-    // Both shipped lances - the standard one and siege_railgun_lance_section
-    // (standard.rs:923-926) - are built by `railgun_lance_prototype`, which
-    // gives each the same RAILGUN_BASE_HEALTH (standard.rs:40,:1126) and the
-    // same LANCE_CELLS collider, 1x1x3 (standard.rs:321,:1131).
+    // railgun_lance_section, built by `railgun_lance_prototype` in railgun.rs:
+    // RAILGUN_BASE_HEALTH and the LANCE_CELLS collider, 1x1x3.
     label: "LANCE",
     health: 180,
     cells: [1, 1, 3],
 };
-const HEAVY_BAY: SectionProto = {
-    // heavy_torpedo_section, standard.rs:952-960, collider BAY_CELLS 1x1x2
-    // (standard.rs:318,:963).
+const TORPEDO_BAY: SectionProto = {
+    // torpedo_section, torpedo_bay.rs, collider BAY_CELLS 1x1x2.
     label: "BAY",
     health: 100,
     cells: [1, 1, 2],
 };
 const BASIC_DRIVE: SectionProto = {
-    // basic_thruster_section, standard.rs:611-622 (no collider), magnitude 1.0
-    // (standard.rs:642).
+    // basic_thruster_section, thruster.rs (no collider), magnitude 1.0.
     label: "DRIVE",
     health: 70,
     cells: [1, 1, 1],
 };
+const DOCK_PORT: SectionProto = {
+    // docking_port_section, docking_port.rs (no collider: the unit cube)
+    label: "DOCK",
+    health: 90,
+    cells: [1, 1, 1],
+};
 const PDC_MOUNT: SectionProto = {
     // The shared PDC mount: a 0.5-cell cube that sits ON a hull face rather
-    // than standing in for one (standard.rs:91,:434,:446-448).
+    // than standing in for one (turret.rs).
     label: "PDC",
     health: 130,
     cells: [0.5, 0.5, 0.5],
@@ -5992,7 +5994,7 @@ interface TorpedoType {
 
 // The run-in the harness measured: 3 km, one stock PDC. Every number in the
 // table is the module header of
-// crates/nova_authoring/src/base_content/sections/ordnance.rs:13-21 - a
+// crates/nova_authoring/src/base_content/sections/torpedo_bay.rs - a
 // measurement, not a derivation, so nothing here is interpolated. That table
 // is still quoted in world units, so each figure below is its number stated
 // in meters (300 u = 3 000 m, 35 u/s = 350 m/s, and so on).
@@ -6328,7 +6330,7 @@ function initTorpedoRun(host: HTMLElement): void {
 
 // Thrust is authored per drive; MASS is not authored at all. A section weighs
 // exactly its own box (base_section.rs:470-471), so the same two drives move
-// three salvage hulls at three different rates and nothing anywhere says so.
+// three hulls at three different rates and nothing anywhere says so.
 // The three are chosen because they fly the SAME drive fit - two basic
 // thrusters each, in assets/base/ships/base.content.ron - so the only thing
 // separating their curves is how many plates sit behind them.
@@ -6340,12 +6342,13 @@ interface DriveRig {
 }
 const DRIVE_RIGS: DriveRig[] = [
     {
-        name: "skiff",
-        detail: "block_skiff, 21 sections",
+        name: "picket",
+        detail: "block_picket, 29 sections",
         bom: [
-            { proto: LIGHT_HULL, count: 18 },
+            { proto: LIGHT_HULL, count: 25 },
             { proto: CONTROLLER_CELL, count: 1 },
             { proto: BASIC_DRIVE, count: 2 },
+            { proto: PDC_MOUNT, count: 1 },
         ],
         drives: 2,
     },
@@ -6360,12 +6363,13 @@ const DRIVE_RIGS: DriveRig[] = [
         drives: 2,
     },
     {
-        name: "tug",
-        detail: "block_tug, 41 sections",
+        name: "workship",
+        detail: "block_workship, 48 sections",
         bom: [
-            { proto: LIGHT_HULL, count: 38 },
+            { proto: HULL_CELL, count: 44 },
             { proto: CONTROLLER_CELL, count: 1 },
             { proto: BASIC_DRIVE, count: 2 },
+            { proto: DOCK_PORT, count: 1 },
         ],
         drives: 2,
     },
@@ -6391,7 +6395,7 @@ function initThrusterMass(host: HTMLElement): void {
     const y = (a: number): number =>
         Y0 - (clamp(a, 0, ACCEL_MAX) / ACCEL_MAX) * (Y0 - Y1);
     // A basic drive is a unit cube (base_section.rs:79-85) pushing 1.0
-    // (standard.rs:642), so each one added is +1 of impulse over +1 of mass.
+    // (thruster.rs), so each one added is +1 of impulse over +1 of mass.
     // The impulse, the tick rate and the box masses are all ENGINE figures, so
     // the quotient is world units per second squared - and this is the one
     // place it crosses into the m/s^2 every reading below is in.
@@ -6638,9 +6642,9 @@ const ARMOUR_PARTS: ArmourPart[] = [
     CAPITAL_ROW,
     armourPart(VECTOR_DRIVE, "Vector Thruster Section"),
     armourPart(HULL_CELL, "Reinforced Hull Section"),
-    armourPart(RAILGUN_LANCE, "Siege Railgun Lance"),
+    armourPart(RAILGUN_LANCE, "Railgun Lance"),
     PDC_ROW,
-    armourPart(HEAVY_BAY, "Siege Torpedo Bay Section"),
+    armourPart(TORPEDO_BAY, "Torpedo Bay Section"),
     armourPart(CONTROLLER_CELL, "Basic Controller Section"),
     armourPart(BASIC_DRIVE, "Basic Thruster Section"),
     armourPart(LIGHT_HULL, "Light Hull Section"),
@@ -7021,7 +7025,7 @@ function initBattlefieldLoad(host: HTMLElement): void {
 // step is exponential decay to within a rounding error, so the widget models
 // the coast as `v(t) = v0 * exp(-k t)`.
 const TORPEDO_LINEAR_DAMPING = 0.8; // torpedo_section/mod.rs:265 (1/s)
-const TORPEDO_EJECT_SPEED = 80; // standard.rs:1179 (MetersPerSecond)
+const TORPEDO_EJECT_SPEED = 80; // torpedo_bay.rs (MetersPerSecond)
 const TORPEDO_IGNITION_DELAY = 0.6; // torpedo_section/mod.rs:451
 // The shipped warhead mesh is `nose_cone_mesh(0.16, 0.65, 0.35)` - a 0.65 body
 // under a 0.35 nose, so one world unit end to end, which is 10 m
@@ -8768,18 +8772,18 @@ function arrowPoints(x: number, y: number, dx: number, dy: number): string {
 // ---- v0.13.0: the gun shoves the ship -------------------------------------
 
 // The lance's recoil is one raw impulse per shot, in the register a thruster's
-// per-tick magnitude uses (standard.rs:1162-1165; both shipped lances are
+// per-tick magnitude uses (railgun.rs; the shipped lance is
 // built by `railgun_lance_prototype` and the impulse is hardcoded in it rather
-// than taken from the spec, standard.rs:1120,:1165), applied at the MUZZLE
+// than taken from the spec, railgun.rs), applied at the MUZZLE
 // along minus the bore direction with `apply_linear_impulse_at_point`
 // (railgun_section/firing.rs:222-232), so the lever arm from the balance point
 // to the muzzle is what turns the hull. The muzzle is the lance's brake face,
-// half the part forward of its centre (standard.rs:1145, `muzzle_offset =
-// NEG_Z * LANCE_CELLS.z / 2`), and the lance is a 1x1x3 box (standard.rs:321).
+// half the part forward of its centre (railgun.rs, `muzzle_offset =
+// NEG_Z * LANCE_CELLS.z / 2`), and the lance is a 1x1x3 box (railgun.rs).
 // Engine register throughout: mass is box volume (base_section.rs:470-474,
 // density 1), the impulse is mass x world units per second, and only the
 // readout converts.
-export const LANCE_RECOIL_IMPULSE = 45; // standard.rs:1165
+export const LANCE_RECOIL_IMPULSE = 45; // railgun.rs
 // Where the widget's lance stands on the gunship: ahead of the bow spur,
 // which ends at z = -4 (`plate_43` above), so the part runs z -7..-4.
 const LANCE_MOUNT_Z = -5.5;
@@ -9424,15 +9428,15 @@ interface ZonePart {
 /** The parts on offer, with the box each stands in. */
 export const ZONE_PARTS: ZonePart[] = [
     // reinforced_hull_section: no authored collider, so the unit cube
-    // (standard.rs:590,:599).
+    // (hull.rs).
     { label: "HULL CELL", cells: [1, 1, 1] },
-    // BAY_CELLS, standard.rs:318.
+    // BAY_CELLS, torpedo_bay.rs.
     { label: "TORPEDO BAY", cells: [1, 1, 2] },
-    // LANCE_CELLS, standard.rs:321.
+    // LANCE_CELLS, railgun.rs.
     { label: "LANCE", cells: [1, 1, 3] },
-    // vector_thruster_section, standard.rs:666.
+    // vector_thruster_section, thruster.rs.
     { label: "VECTOR DRIVE", cells: [3, 3, 2] },
-    // capital_thruster_section, standard.rs:683.
+    // capital_thruster_section, thruster.rs.
     { label: "CAPITAL DRIVE", cells: [5, 5, 3] },
 ];
 
@@ -10857,7 +10861,7 @@ export const CUTTER_CELLS: ShipPart[] = unionCells([
 
 // The industrial carrier (block.rs:262-337): the spine, two shoulders with
 // their berths cut out, decks, keel, transom, the berthed cutter laid on its
-// side with two lugs, and two capital drives (5x5x3, standard.rs:683) hung
+// side with two lugs, and two capital drives (5x5x3, thruster.rs) hung
 // off the transom.
 export const CARRIER_CELLS: ShipPart[] = (() => {
     const cells = unionCells([

@@ -18,14 +18,8 @@
 use bevy::prelude::*;
 use nova_ship::prelude::{
     BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID,
-    REINFORCED_HULL_SECTION_ID,
+    PDC_PIERCE_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID, TORPEDO_SECTION_ID,
 };
-
-/// The pierce PDC: the same housing as the kinetic mount wearing a different
-/// round, drawn so a generated hull comes out with a MIXED battery.
-const PDC_PIERCE_TURRET_SECTION_ID: &str = "pdc_pierce_turret_section";
-/// The two-cell torpedo tube.
-const TORPEDO_SECTION_ID: &str = "torpedo_section";
 
 /// The most cells one plan's grid may hold.
 ///

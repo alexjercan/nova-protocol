@@ -1,24 +1,15 @@
 //! Scenario pacing primitives for the mainline scenarios.
 //!
-//! Owner playtest (2026-07-22): objectives were showing in the same frame as
-//! the conversation that introduces them, and completing an objective was
-//! immediately followed by the next one - no breathing room. The fix is a beat
-//! of scenario time between a conversation (or an objective completing) and the
-//! objective that follows it: the objective posts a beat LATER, never the same
-//! frame.
+//! An objective must never post in the same frame as the conversation that
+//! introduces it, or in the same frame as the objective it follows: it posts a
+//! beat of scenario time LATER.
 //!
 //! Mechanism: [`beat_later`] - the introducing handler starts a one-step
 //! `Sequence`, and the ENGINE holds the delay. The delay itself belongs to the
-//! BEAT: each scenario names its own, beside the line it follows.
-//!
-//! This used to be spelled with three moving parts per beat: a `mark_clock`
-//! action stamping `scenario_elapsed + delay` into a gate variable, a
-//! `clock_past` filter reading it back, and a `gated_once` handler of its own
-//! carrying both plus an act guard to prove it belonged to the beat that
-//! stamped it. The cursor makes all three structural - the chain is owned by
-//! the handler that started it - so a beat costs one action and no variable.
-//! The clock is engine-owned and pauses behind menus/outcome, so a gap measures
-//! play time, not wall time.
+//! BEAT: each scenario names its own, beside the line it follows. The chain is
+//! owned by the handler that started it, so a beat costs one action and no
+//! scenario variable. The clock is engine-owned and pauses behind menus and
+//! the outcome overlay, so a gap measures play time, not wall time.
 
 use nova_scenario::prelude::*;
 
@@ -51,26 +42,23 @@ pub(crate) const OUTRO_SEQUENCE: &str = "outro";
 
 /// The winning blow -> the tease line.
 pub(crate) const OUTRO_TEASE_AFTER: f64 = 4.0;
-/// The tease line -> the Victory banner. Together these reproduce the finale's
-/// playtested epilogue cadence (a line at +4s, the banner at +9s).
+/// The tease line -> the Victory banner. Together these hold the epilogue
+/// cadence: a line at +4 s, the banner at +9 s.
 pub(crate) const OUTRO_BANNER_AFTER: f64 = 5.0;
 
 /// The two beats between the winning blow and the Victory overlay, as ONE
 /// action the winning handler runs.
 ///
-/// A win used to fire its modal overlay on the same frame as the killing hit,
-/// so everything the moment had to carry - what just happened AND what it
-/// means for the next chapter - was crammed into one banner string, read
-/// against a paused world. The win handler now posts only the beat it just
-/// earned (which is why that line stays variant-specific, per handler) and
+/// The modal overlay must not land on the same frame as the killing hit, or
+/// one banner string has to carry both what happened and what comes next,
+/// read against a paused world. The win handler posts only the beat it just
+/// earned - which is why that line stays variant-specific, per handler - and
 /// starts this chain: the tease lands [`OUTRO_TEASE_AFTER`] later while the
 /// wreck is still on screen, then the banner and the queued next scenario
 /// [`OUTRO_BANNER_AFTER`] after that.
 ///
-/// The chain used to be two `OnTimerEnd` handlers on two timer keys, each
-/// re-checking an epilogue-act variable to prove it belonged to the win that
-/// opened it. The cursor makes that structural: the chain is owned by the
-/// handler that started it, so there is nothing left to re-check.
+/// The chain is owned by the handler that started it, so no beat has to
+/// re-check which win opened it.
 ///
 /// `banner_extra` rides the LAST beat. An objective belongs there rather than
 /// on either comms beat: the mainline forbids posting one in the same frame as

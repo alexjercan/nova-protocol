@@ -1,8 +1,8 @@
-//! Balance audit over shipped scenario content (spike).
+//! Balance audit over shipped scenario content.
 //!
 //! Balance regressions do not fail loaders or lints: a scenario that
 //! spawns a top-tier gunner on top of the player parses, loads and plays -
-//! it is just unfair. This module derives the spike's fairness metrics
+//! it is just unfair. This module derives fairness metrics
 //! from the SHIPPED data (authored-vs-derived-values): per spawn group,
 //! the hostile head-count, combined BURST dps (first-magazine rate;
 //! reload cycles make true sustained lower, but every shipped TTK lands
@@ -30,11 +30,11 @@
 //!   better-turret capital 3,010 m out (inside its 4,500 m reach) is on top of
 //!   the fight the frame it exists.
 //!
-//! The per-scenario invariant PINS for base's own encounters live in their own
-//! tests (broadside_assault.rs); this module is the repo-wide generalization
-//! that also covers content nobody hand-pinned (installed mods). `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs
-//! it in one pass with the reference checks (the balance audit was folded into
-//! `lint`).
+//! Per-scenario invariant PINS live beside the scenarios that own them; this
+//! module is the repo-wide generalization that also covers content nobody
+//! hand-pinned (installed mods). `tests/balance_audit_gate.rs` runs it in CI,
+//! and the `content` CLI's `lint` runs it in one pass with the reference
+//! checks.
 
 use std::collections::HashMap;
 
@@ -280,8 +280,8 @@ pub struct HostileAudit {
 pub struct SpawnGroupAudit {
     /// A short trigger label ("OnStart", "OnEnter(area)", "OnUpdate", ...).
     pub trigger: String,
-    /// Whether the handler fires at scenario start (the spike the TTK rules
-    /// grade hardest - the player has no warning). Qualified per hostile by
+    /// Whether the handler fires at scenario start, which the TTK rules grade
+    /// hardest because the player has no warning. Qualified per hostile by
     /// [`HostileAudit::immediate`]: a start handler's CHAINED spawns arrive
     /// later, so they grade as reinforcements.
     pub on_start: bool,
@@ -452,7 +452,7 @@ pub struct ScenarioAudit {
 
 impl ScenarioAudit {
     /// Sustained seconds the player survives a group's combined aligned
-    /// fire - the spike's TTK metric. Infinite (None) for unarmed groups.
+    /// fire. Infinite (None) for unarmed groups.
     pub fn ttk_against(&self, group: &SpawnGroupAudit) -> Option<f32> {
         let dps = group.combined_dps();
         (dps > 0.0).then(|| self.player.hp / dps)

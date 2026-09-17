@@ -13,6 +13,9 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also record the two arrivals as
 //!   `news-0130-goto-standoff.webm` (staged under `NOVA_CAPTURE_DIR`).
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
+
 use std::collections::HashSet;
 
 use bevy::prelude::*;
@@ -95,13 +98,13 @@ fn standoff(game_assets: &GameAssets) -> ScenarioConfig {
             WARSHIP_ID,
             "Stolen Warship",
             WARSHIP_BEARING,
-            BLOCK_WARSHIP_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::warship()),
         ),
         ship_object(
             GUNSHIP_ID,
             "Patrol Gunship",
             GUNSHIP_BEARING,
-            BLOCK_GUNSHIP_SHIP_ID,
+            design(BLOCK_GUNSHIP_SHIP_ID),
         ),
     ];
 
@@ -147,9 +150,14 @@ fn beacon() -> ScenarioObjectConfig {
     }
 }
 
-/// One catalog hull on its bearing, nose on the mark, with nobody at the helm:
-/// the script engages the flight computer, and nothing else drives it.
-fn ship_object(id: &str, name: &str, bearing: Vec3, ship: &str) -> ScenarioObjectConfig {
+/// One hull on its bearing, nose on the mark, with nobody at the helm: the
+/// script engages the flight computer, and nothing else drives it.
+fn ship_object(
+    id: &str,
+    name: &str,
+    bearing: Vec3,
+    design: ShipDesignSource,
+) -> ScenarioObjectConfig {
     let position = Meters3(bearing * START_DISTANCE.0);
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -160,7 +168,7 @@ fn ship_object(id: &str, name: &str, bearing: Vec3, ship: &str) -> ScenarioObjec
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            design: design(ship),
+            design,
             ..default()
         }),
     }

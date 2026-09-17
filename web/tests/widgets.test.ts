@@ -394,8 +394,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
 // copied from. Engine constants are compared in world units and the authored
 // ones in meters, because that is the register each is written in.
 {
-    const STANDARD =
-        "crates/nova_authoring/src/base_content/sections/standard.rs";
+    const RAILGUN =
+        "crates/nova_authoring/src/base_content/sections/railgun.rs";
     const FLIGHT = "crates/nova_ship/src/flight/state.rs";
     const MIXING = "crates/nova_gameplay/src/audio/mixing.rs";
     const SPATIAL = "crates/nova_gameplay/src/audio/spatial.rs";
@@ -404,11 +404,11 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     const WFC_PLAN = "crates/nova_wfc/src/plan.rs";
     const OCCLUSION = "crates/nova_ship/src/input/targeting/occlusion.rs";
 
-    // The lance's recoil, hardcoded in the shared `railgun_lance_prototype`
-    // rather than taken from either lance's spec.
+    // The lance's recoil, hardcoded in `railgun_lance_prototype` rather than
+    // taken from the lance's spec.
     assert.equal(
         LANCE_RECOIL_IMPULSE,
-        rustNumber(STANDARD, /\n {12}recoil_impulse: ([0-9.]+),/),
+        rustNumber(RAILGUN, /\n {12}recoil_impulse: ([0-9.]+),/),
         "railgun_lance_prototype's recoil_impulse"
     );
 

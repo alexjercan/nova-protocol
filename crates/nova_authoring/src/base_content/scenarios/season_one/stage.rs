@@ -2,10 +2,8 @@
 //! and its marks, the rock the lane runs through, and the moons it runs
 //! between.
 //!
-//! The place is Saturn's inner network, between Aquila and Baikal, and it is
-//! drawn with three things and no station: a lane of small rock, two icy
-//! bodies standing off it, and a hazy one further out. Baikal and Aquila are
-//! in the dialogue and nowhere else - the chapter is the hour between them.
+//! The sky is drawn with three things and no station: a lane of small rock,
+//! two icy bodies standing off it, and a hazy one further out.
 //!
 //! The lane is the chapter's teaching ground. Four marks, each one offset
 //! from the last across two axes, with rock thick enough between them that
@@ -34,9 +32,8 @@ pub(crate) const GANTRY_NAME: &str = "Gantry";
 
 /// Soft manual-speed cap for the whole chapter.
 ///
-/// A working ship with an outsized load strapped to an open cradle is flown
-/// deliberately, and the lane is a few kilometres of rock: the cap is what
-/// makes threading it a matter of placing the hull rather than of reflexes.
+/// The lane is a few kilometres of rock, and the cap is what makes threading
+/// it a matter of placing the hull rather than of reflexes.
 pub(crate) const KAVERI_SPEED_CAP: MetersPerSecond = MetersPerSecond(120.0);
 
 /// Kaveri's flight computer and docking collar, armoured for the chapter.
@@ -50,8 +47,7 @@ const KAVERI_BRIDGE_HEALTH: f32 = 1_800.0;
 const KAVERI_COLLAR_HEALTH: f32 = 1_800.0;
 
 /// Gantry's surviving collar, armoured for the same reason and one more: it
-/// is the port the story says survived the raid, and the only way home for
-/// three people.
+/// is the chapter's only dock point, so losing it would strand the rescue.
 const GANTRY_COLLAR_HEALTH: f32 = 1_800.0;
 
 /// Where Gantry drifts, and the pose it drifts in.
@@ -60,8 +56,8 @@ const GANTRY_COLLAR_HEALTH: f32 = 1_800.0;
 /// course change out of the rock rather than more of the same lane. Its
 /// heading is the lane's, which puts its PORT collar on the side the rescue
 /// arrives from: Kaveri comes about, stands off that flank, and the two hulls
-/// end up facing opposite ways with their two hatches looking at each other -
-/// the arrangement the story docks in.
+/// end up facing opposite ways with their two hatches looking at each other,
+/// which is the arrangement the dock needs.
 const GANTRY_POSITION: Meters3 = Meters3::new(2_400.0, 0.0, -6_000.0);
 
 /// Kaveri on the lane, loaded and running home.
@@ -79,10 +75,8 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
                 input_mapping: Default::default(),
                 speed_cap: Some(KAVERI_SPEED_CAP),
             }),
-            // Every verb is in the player's hands from the first frame. The
-            // crew are professionals who have flown this ship for years, and
-            // the chapter is the job rather than the lesson: what it teaches,
-            // it teaches by asking for it.
+            // Every verb is in the player's hands from the first frame: what
+            // the chapter teaches, it teaches by asking for it.
             capabilities: ShipCapabilities::default(),
             design: ships::patched_design(
                 ships::BLOCK_WORKSHIP_SHIP_ID,
@@ -104,12 +98,10 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
 /// Gantry, stranded: nobody at the helm, nothing hostile aboard, and a stern
 /// that is not there any more.
 ///
-/// It flies the DAMAGED tender, which is the same hull with its drive, its
-/// transom, its service stack and half its aft arch missing - the shape of the
-/// hit the story gives it, and the reason the crew are on the radio instead of
-/// on their way home. Nothing drives it and nothing is authored to move it, so
-/// the wreck the player closes on is exactly as still as the intact hull was:
-/// the ship LOOKS worse and the clamp is no harder.
+/// It flies the DAMAGED tender: the same hull with its drive, its transom,
+/// its service stack and half its aft arch missing. Nothing drives it and
+/// nothing is authored to move it, so the hull the player closes on is exactly
+/// as still as the intact one: it LOOKS worse and the clamp is no harder.
 pub(crate) fn gantry() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -139,8 +131,8 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
 /// and the starboard arch the hull is missing, so they sit off those two faces
 /// and nowhere else. The port side - the flank Kaveri comes about onto, and
 /// the one the collar is on - is deliberately clear. A field of loose rock
-/// around the one place the player has to fly precisely would be a different
-/// chapter.
+/// around the one place the player has to fly precisely would make the dock a
+/// collision test.
 pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
     const PIECES: [(&str, Meters3, f32, f32); 3] = [
         (
@@ -222,7 +214,7 @@ pub(crate) const LANE: [Mark; 4] = [
 ///
 /// A gate and nothing else - no beacon, because a stranded ship a kilometre
 /// across the sky IS the landmark, and a lit buoy hung next to it would say
-/// the scenario put it there. The radius is wide enough that a captain who
+/// the scenario put it there. The radius is wide enough that a player who
 /// stands off to look at the hull has already arrived.
 pub(crate) const APPROACH: Mark = Mark {
     id: "gantry_approach",
@@ -231,17 +223,16 @@ pub(crate) const APPROACH: Mark = Mark {
     area: Meters(700.0),
 };
 
-/// A second ring inside the first, on the same place: where the crew stop
-/// looking at the wreck and start talking about docking with it.
+/// A second ring inside the first, on the same place: the gate the collar
+/// dialogue runs on.
 ///
 /// Two rings rather than one, because the two things that used to happen at
-/// 700 m want different distances. ARRIVING is a milestone and belongs where
-/// the hull fills the canopy - the card comes down, the marker comes off, and
-/// somebody says they can see it. TALKING about the collar is four cards' worth
-/// of reading, and at 700 m the player is still braking out of a course change
-/// while they land. Inside this ring the approach is nearly over: the ship is
-/// slow, the flying left is the last hundred metres of it, and the dialogue has
-/// somebody's attention.
+/// 700 m need different distances. ARRIVING is a milestone and belongs where
+/// the hull fills the canopy: the card comes down and the marker comes off.
+/// The collar dialogue is four cards' worth of reading, and at 700 m the player
+/// is still braking out of a course change while they land. Inside this ring
+/// the approach is nearly over - the ship is slow and the flying left is the
+/// last hundred metres of it.
 ///
 /// A gate and nothing else, like the ring outside it.
 pub(crate) const STANDOFF: Mark = Mark {
@@ -343,9 +334,8 @@ fn scatter(
             }),
         },
         asteroid_radius: Some(radius),
-        // Saturn's rock is mostly water ice, with stone and carbon in it. The
-        // mix is the region's geology, and it is why the lane reads white
-        // rather than as another grey belt.
+        // Mostly water ice, with stone and carbon in it: the mix is what
+        // makes the lane read white rather than as another grey belt.
         asteroid_kinds: vec![
             (KIND_ICE.to_string(), 10),
             (KIND_ROCK.to_string(), 4),
@@ -373,9 +363,8 @@ struct Moon {
 /// Their mass is the same small figure for all three, and it is deliberate:
 /// the sphere of influence a mass that size buys (about 1.3 km) is smaller
 /// than any of these bodies, so each well floors at its own surface and NONE
-/// of them pulls on the lane. The chapter is flown between them, not around
-/// them, and a rescue that drifted off course because a decorative moon had
-/// a grip on it would be a bug wearing a story's clothes.
+/// of them pulls on the lane, so a decorative body can never drag the flight
+/// off course.
 const MOON_MASS: f32 = 4_000.0;
 
 const MOONS: [Moon; 3] = [

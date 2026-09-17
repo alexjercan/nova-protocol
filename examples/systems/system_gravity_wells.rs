@@ -1,6 +1,6 @@
 //! system_gravity_wells: which well owns a hull that is inside two of them.
 //!
-//! One piloted `block_skiff` flies, on the production autopilot, straight down
+//! One piloted skiff fixture flies, on the production autopilot, straight down
 //! the line between two equal authored wells whose spheres of influence cover
 //! the whole segment between them. The subject is the OWNERSHIP policy the
 //! force system runs while both wells reach the ship: a hull is pulled by one
@@ -32,8 +32,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "../screenshots/shared/kit.rs"]
-mod kit;
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 #[cfg(feature = "debug")]
 use std::sync::Arc;
@@ -50,14 +50,6 @@ use nova_protocol::prelude::*;
     long_about = None
 )]
 struct Cli;
-
-/// The hull that flies the crossing: the smallest shipped hull there is.
-///
-/// Gravity is an acceleration, so it is mass-independent by construction
-/// (`gravity_well_system` applies a linear ACCELERATION) and a capital hull
-/// would buy this range nothing but frames. Hull scale is staged where it is
-/// part of the claim, in `system_flight_legs`.
-const SKIFF: &str = "block_skiff";
 
 /// The flying hull's scenario id.
 const SKIFF_ID: &str = "gravity_skiff";
@@ -165,8 +157,8 @@ fn range_plugin(app: &mut App) {
     );
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
-    commands.trigger(LoadScenario(crossing_range(&game_assets, &ships)));
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>) {
+    commands.trigger(LoadScenario(crossing_range(&game_assets)));
 }
 
 /// The range: two invisible equal wells on one line, and a piloted skiff on the
@@ -176,7 +168,7 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
 /// and an authored strength with no mesh, no collider and no `BodyRadius`, so
 /// the geometry this range computes its own pulls from is the geometry the
 /// scenario wrote, not a noise seed's.
-fn crossing_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
+fn crossing_range(game_assets: &GameAssets) -> ScenarioConfig {
     let well = |id: &str, name: &str, at: Meters3| {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -200,7 +192,12 @@ fn crossing_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scenario
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            design: ShipDesignSource::Inline(kit::catalog_ship(ships, SKIFF)),
+            // The smallest fixture hull. Gravity is an acceleration, so it is
+            // mass-independent by construction (`gravity_well_system` applies
+            // a linear ACCELERATION) and a capital hull would buy this range
+            // nothing but frames. Hull scale is staged where it is part of the
+            // claim, in `system_flight_legs`.
+            design: ShipDesignSource::Inline(dev_fixtures::skiff()),
             controller: SpaceshipController::Player(PlayerControllerConfig::default()),
             allegiance: Some(Allegiance::Player),
             ..default()

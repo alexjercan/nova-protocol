@@ -9,9 +9,9 @@
 //! heading and never thrust at all. This range is where the weave is read.
 //!
 //! Two weaves run side by side, far enough apart that neither scanner can hear
-//! the other: an escort weave (`block_picket`) and a capital weave
-//! (`block_warship`, the largest hull that can fly a fight at all - see
-//! [`WARSHIP`]). Each mover closes on a parked hostile `block_skiff` whose
+//! the other: an escort weave (`block_picket`) and a capital weave (the
+//! warship fixture, the largest hull that can fly a fight at all - see
+//! [`WARSHIP`]). Each mover closes on a parked hostile skiff fixture whose
 //! nose is held on it, which is the threat signal by itself - no shot is fired
 //! anywhere on this range, and every magazine on it is empty. A hull that
 //! jinks because it was hit is the same cycle with a different trigger, and
@@ -49,6 +49,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "../screenshots/shared/kit.rs"]
 mod kit;
 
@@ -71,22 +73,16 @@ struct Cli;
 /// The escort weave's mover: the cleanup group's armed picket.
 const PICKET: &str = "block_picket";
 
-/// The capital weave's mover: the stolen Earth warship, the only capital
-/// combatant the base game ships.
+/// The capital weave's mover: the stolen Earth warship fixture, the only
+/// capital combatant the fixtures build.
 ///
-/// NOT `block_carrier`, which is bigger. A hull that ships no weapon section
-/// is an `AINonCombatant` by the shipped rule - it never acquires a target,
-/// so it never engages, and a ship that never engages can never be broken out
-/// of an engagement. The carrier is staged as the thing an AI ship fights
+/// NOT the carrier, which is bigger. A hull that carries no weapon section is
+/// an `AINonCombatant` by the shipped rule - it never acquires a target, so it
+/// never engages, and a ship that never engages can never be broken out of an
+/// engagement. The carrier is staged as the thing an AI ship fights
 /// (`system_ai_combat`) and as an arm to read (`system_hull_scaling`); the
 /// jink belongs to the largest hull that can fly one.
-const WARSHIP: &str = "block_warship";
-
-/// What holds the gun on each mover: the cleanup group's unarmed needle,
-/// parked and pointed. The threat model reads a hostile's HULL AXIS, so the
-/// smallest shipped hull is as much of a threat as a capital and costs the
-/// range the least to stage.
-const THREAT: &str = "block_skiff";
+const WARSHIP: &str = "fixture_warship";
 
 /// The escort mover's scenario id.
 const PICKET_ID: &str = "ai_evade_picket";
@@ -196,12 +192,10 @@ fn evade_range(
 ) -> ScenarioConfig {
     let ship = |id: &str,
                 name: &str,
-                catalog: &str,
+                mut hull: ShipDesign,
                 at: Meters3,
                 rotation: Quat,
                 spec: SpaceshipConfig| {
-        let hull = kit::catalog_ship(ships, catalog);
-        let mut hull = hull;
         kit::dry_magazines(&mut hull, sections);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -255,7 +249,7 @@ fn evade_range(
                     ship(
                         PICKET_THREAT_ID,
                         "Escort Threat",
-                        THREAT,
+                        dev_fixtures::skiff(),
                         escort,
                         pointed,
                         threat.clone(),
@@ -263,7 +257,7 @@ fn evade_range(
                     ship(
                         PICKET_ID,
                         "Picket",
-                        PICKET,
+                        kit::catalog_ship(ships, PICKET),
                         escort + approach,
                         Quat::IDENTITY,
                         mover.clone(),
@@ -271,7 +265,7 @@ fn evade_range(
                     ship(
                         WARSHIP_THREAT_ID,
                         "Capital Threat",
-                        THREAT,
+                        dev_fixtures::skiff(),
                         capital,
                         pointed,
                         threat,
@@ -279,7 +273,7 @@ fn evade_range(
                     ship(
                         WARSHIP_ID,
                         "Warship",
-                        WARSHIP,
+                        dev_fixtures::warship(),
                         capital + approach,
                         Quat::IDENTITY,
                         mover,

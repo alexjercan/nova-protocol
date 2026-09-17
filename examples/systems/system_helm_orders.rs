@@ -55,6 +55,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "../screenshots/shared/kit.rs"]
 mod kit;
 
@@ -81,14 +83,6 @@ struct Cli;
 /// take a helm back for a fight. An unarmed hull spawns an `AINonCombatant`
 /// and never acquires anything, so its order could never be interrupted.
 const GUNSHIP: &str = "block_gunship";
-
-/// The hostile the order is interrupted for: the scavenger raider.
-///
-/// Armed, and so a hull the production neutralize rule can take out of the
-/// fight by its bridge alone; an unarmed hull is never "out of the fight"
-/// (`nova_gameplay/src/integrity/neutralize.rs`) and would have to be blown
-/// apart instead.
-const RAIDER: &str = "block_raider";
 
 /// The ordered ship's scenario id.
 const GUNSHIP_ID: &str = "helm_orders_gunship";
@@ -203,12 +197,10 @@ fn orders_range(
 ) -> ScenarioConfig {
     let ship = |id: &str,
                 name: &str,
-                catalog: &str,
+                mut hull: ShipDesign,
                 at: Meters3,
                 rotation: Quat,
                 spec: SpaceshipConfig| {
-        let hull = kit::catalog_ship(ships, catalog);
-        let mut hull = hull;
         kit::dry_magazines(&mut hull, sections);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -258,12 +250,24 @@ fn orders_range(
         ship(
             GUNSHIP_ID,
             "Patrol Gunship",
-            GUNSHIP,
+            kit::catalog_ship(ships, GUNSHIP),
             Meters3::ZERO,
             Quat::IDENTITY,
             gunship,
         ),
-        ship(RAIDER_ID, "Contact", RAIDER, CONTACT_AT, nose_up, contact),
+        // The raider fixture is ARMED, and so a hull the production neutralize
+        // rule can take out of the fight by its bridge alone; an unarmed hull
+        // is never "out of the fight"
+        // (`nova_gameplay/src/integrity/neutralize.rs`) and would have to be
+        // blown apart instead.
+        ship(
+            RAIDER_ID,
+            "Contact",
+            dev_fixtures::raider(),
+            CONTACT_AT,
+            nose_up,
+            contact,
+        ),
         EventActionConfig::PatrolShip(PatrolShipActionConfig {
             order: ORDER_KEY.to_string(),
             ship: GUNSHIP_ID.to_string(),

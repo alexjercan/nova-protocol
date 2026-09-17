@@ -1371,7 +1371,7 @@ mod patrol_physics_tests {
     /// the author did not measure.
     #[test]
     fn a_patrol_ship_rounds_a_rock_on_its_leg_with_its_whole_hull() {
-        // The task's reference hulls: block_skiff and block_carrier.
+        // The two reference arms: a skiff's and a carrier's.
         for hull_arm in [4.0_f32, 18.3] {
             let mut app = patrol_physics_app();
 

@@ -13,8 +13,8 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: two capitals may come alongside for free` | a `block_carrier` pair closing at a docking speed rests against itself without trading a hit point |
-//! | 2 | `outcome: a touch under the safe speed is free at either hull size` | the same holds for a `block_skiff` pair, so the threshold is a speed and not a mass |
+//! | 1 | `outcome: two capitals may come alongside for free` | a carrier pair closing at a docking speed rests against itself without trading a hit point |
+//! | 2 | `outcome: a touch under the safe speed is free at either hull size` | the same holds for a skiff pair, so the threshold is a speed and not a mass |
 //! | 3 | `outcome: a ram spends hit points on both bodies` | a skiff pair over the safe speed damages BOTH sides of the contact |
 //! | 4 | `outcome: the bite grows with the closing speed` | twice the closing speed costs more than twice the hit points, because the energy term is quadratic |
 //! | 5 | `outcome: a ram on a rock is paid out of both durabilities` | a hull flown into an asteroid spends hit points AND opens the rock's carve field, because the two structures keep their durability in different stores |
@@ -53,12 +53,12 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_collision_damage --features debug
-//! # look for: `collision damage: block_carrier pair: ...`,
+//! # look for: `collision damage: carrier dock: ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "../screenshots/shared/kit.rs"]
-mod kit;
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 #[cfg(feature = "debug")]
 use std::sync::Arc;
@@ -82,19 +82,29 @@ struct Cli;
 #[cfg(feature = "debug")]
 const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(5.0);
 
-/// The large reference hull: the campaign's home, and the largest hull the base
-/// game ships.
-const CARRIER: &str = "block_carrier";
+/// The large reference hull: the largest hull the fixtures build.
+const CARRIER: Side = Side::Hull {
+    label: "carrier",
+    design: dev_fixtures::carrier,
+};
 
-/// The small reference hull: the cleanup group's unarmed needle.
-const SKIFF: &str = "block_skiff";
+/// The small reference hull: the unarmed needle.
+const SKIFF: Side = Side::Hull {
+    label: "skiff",
+    design: dev_fixtures::skiff,
+};
 
 /// What one side of a staged contact is made of.
 #[derive(Clone, Copy)]
 enum Side {
-    /// A catalog hull, spawned unflown and unsteered. Its durability is the
+    /// A fixture hull, spawned unflown and unsteered. Its durability is the
     /// health pools under its root.
-    Hull(&'static str),
+    Hull {
+        /// What the log and the census call this hull.
+        label: &'static str,
+        /// How the hull is built.
+        design: fn() -> ShipDesign,
+    },
     /// A rock of this nominal radius. Its durability is the carve field on its
     /// collider node - an asteroid carries no `Health` at all.
     Rock(Meters),
@@ -149,8 +159,8 @@ struct RamPair {
 const PAIRS: [RamPair; 6] = [
     RamPair {
         label: "carrier dock",
-        left: Side::Hull(CARRIER),
-        right: Side::Hull(CARRIER),
+        left: CARRIER,
+        right: CARRIER,
         left_id: "dock_carrier_left",
         right_id: "dock_carrier_right",
         // The task's own case: 0.32 u/s, well inside what a docking clamp
@@ -163,8 +173,8 @@ const PAIRS: [RamPair; 6] = [
     },
     RamPair {
         label: "skiff touch",
-        left: Side::Hull(SKIFF),
-        right: Side::Hull(SKIFF),
+        left: SKIFF,
+        right: SKIFF,
         left_id: "touch_skiff_left",
         right_id: "touch_skiff_right",
         #[cfg(feature = "debug")]
@@ -175,8 +185,8 @@ const PAIRS: [RamPair; 6] = [
     },
     RamPair {
         label: "skiff ram",
-        left: Side::Hull(SKIFF),
-        right: Side::Hull(SKIFF),
+        left: SKIFF,
+        right: SKIFF,
         left_id: "ram_skiff_left",
         right_id: "ram_skiff_right",
         #[cfg(feature = "debug")]
@@ -187,8 +197,8 @@ const PAIRS: [RamPair; 6] = [
     },
     RamPair {
         label: "skiff hard ram",
-        left: Side::Hull(SKIFF),
-        right: Side::Hull(SKIFF),
+        left: SKIFF,
+        right: SKIFF,
         left_id: "hard_skiff_left",
         right_id: "hard_skiff_right",
         #[cfg(feature = "debug")]
@@ -199,7 +209,7 @@ const PAIRS: [RamPair; 6] = [
     },
     RamPair {
         label: "skiff into rock",
-        left: Side::Hull(SKIFF),
+        left: SKIFF,
         right: Side::Rock(ROCK_RADIUS),
         left_id: "rock_ram_skiff",
         right_id: "rock_ram_rock",
@@ -211,8 +221,8 @@ const PAIRS: [RamPair; 6] = [
     },
     RamPair {
         label: "wrecking ram",
-        left: Side::Hull(SKIFF),
-        right: Side::Hull(CARRIER),
+        left: SKIFF,
+        right: CARRIER,
         left_id: "wreck_ram_skiff",
         right_id: "wreck_ram_carrier",
         #[cfg(feature = "debug")]
@@ -268,7 +278,7 @@ const ROCK_RAM: usize = 4;
 const WRECKING_RAM: usize = 5;
 
 /// Where a pair is staged before the script places it, m from the lane centre.
-/// Clear of the largest envelope the catalog ships, so no pair starts inside
+/// Clear of the largest envelope the fixtures build, so no pair starts inside
 /// itself while it waits to be weighed.
 const STAGING_HALF_GAP: Meters = Meters(600.0);
 
@@ -343,13 +353,13 @@ fn range_plugin(app: &mut App) {
     );
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
-    commands.trigger(LoadScenario(ram_range(&game_assets, &ships)));
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>) {
+    commands.trigger(LoadScenario(ram_range(&game_assets)));
 }
 
 /// The range: four pairs of hulls in four lanes of flat space, none of them
 /// flown and none of them steered.
-fn ram_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
+fn ram_range(game_assets: &GameAssets) -> ScenarioConfig {
     let body = |id: &str, name: &str, side: Side, at: Meters3| {
         let base = BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -358,10 +368,10 @@ fn ram_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfi
             rotation: Quat::IDENTITY,
         };
         let kind = match side {
-            Side::Hull(catalog) => ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            Side::Hull { design, .. } => ScenarioObjectKind::Spaceship(SpaceshipConfig {
                 controller: SpaceshipController::None,
                 allegiance: None,
-                design: ShipDesignSource::Inline(kit::catalog_ship(ships, catalog)),
+                design: ShipDesignSource::Inline(design()),
                 ..default()
             }),
             Side::Rock(radius) => ScenarioObjectKind::Asteroid(AsteroidConfig {
@@ -1021,7 +1031,7 @@ fn measure_every_pair(world: &mut World) {
 #[cfg(feature = "debug")]
 fn side_name(side: Side) -> String {
     match side {
-        Side::Hull(catalog) => catalog.to_string(),
+        Side::Hull { label, .. } => label.to_string(),
         Side::Rock(radius) => format!("rock r={:.0} m", radius.get()),
     }
 }

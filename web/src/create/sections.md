@@ -429,7 +429,7 @@ A hull may mount several controllers, but they do NOT each steer it: the ship
 derives ONE attitude loop and shares it out. The turn ceiling it derives is
 never authored:
 
-<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 9760.0 :384). -->
+<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/controller.rs (steering_lag 0.5, max_torque 9760.0). -->
 
 ```text
 ceiling = min( sum(max_torque) / I , 78.48 / r )   rad/s2
@@ -771,13 +771,9 @@ kind: Torpedo((
   ordnance point defense has to chew through across the closing window.
 - `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
   opposed to the tube it loads into. A type is DATA, not an enum: base authors
-  its three (the straight-running Lance, the weaving Serpent, and the crimson
-  siege Breaker - a cruise of 700 m/s with a shallow 0.22 rad weave - that only
-  the experimental, deliberately overpowered `heavy_torpedo_section` bay loads),
-  and a mod authors its own by writing the
-  same five fields:
-  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`,
-    `"Breaker"`). It names
+  two (the straight-running Lance and the weaving Serpent), and a mod authors its
+  own by writing the same five fields:
+  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`). It names
     the launched projectile, so a log line or a probe snapshot says WHICH torpedo
     is in the air.
   - `tint` - the warhead's colour in flight, as
@@ -850,11 +846,8 @@ cases:
 ## Railgun
 
 `RailgunSectionConfig` - a spinal railgun with no traverse of its own: the HULL
-aims it, and tapping the trigger COMMITS the shot. Two ship, and they are the
-same gun at two grades: `railgun_lance_section` is the balanced one every
-buildable hull can mount, and `siege_railgun_lance_section` is the campaign's
-stolen warship, which differs in `slug_damage`, `slug_power` and `rake_radius`
-and in nothing else. The standard one:
+aims it, and tapping the trigger COMMITS the shot. One ships:
+`railgun_lance_section`, the balanced lance every buildable hull can mount.
 
 ```ron
 kind: Railgun((
@@ -922,10 +915,9 @@ kind: Railgun((
   and spends it sideways on the entry face instead of forward through the hull:
   the standard lance's 10 m bores three cells wide through a four-deep wall and
   out the back, while 40 m on the same 1800 power strips the front layer and
-  stops one cell in. Widen only when the power is no longer the constraint -
-  which is what the siege grade buys with 360,000, and why it is the one lance
-  that can afford 30 m. Pick the radius for the SHAPE you want, then let the
-  power decide how much of it you get.
+  stops one cell in. Widen only when the power is no longer the constraint.
+  Pick the radius for the SHAPE you want, then let the power decide how much of
+  it you get.
 - `recoil_impulse` - impulse applied backwards along the bore at the muzzle
   point on the tick the slug leaves. Raw impulse with no `dt`, in the units a
   thruster's magnitude carries. Because it lands at the muzzle and not at the

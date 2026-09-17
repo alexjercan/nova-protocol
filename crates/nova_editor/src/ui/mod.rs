@@ -1203,13 +1203,6 @@ pub(crate) fn on_skin_toggle(
     }
 }
 
-/// Styles a release build does not list. `placeholder` is the scaffolding the
-/// base bundle ships to prove the pipeline dresses plates at all (it is built
-/// by `nova_authoring::base_content::styles`), and it is not a look anybody
-/// would choose - but a debug build is exactly where somebody wants to look at
-/// it on a hull.
-const DEBUG_ONLY_STYLES: &[&str] = &["placeholder"];
-
 /// The style rows to build, out of the MERGED catalog - so a mod's style is
 /// listed beside the base ones without the editor knowing any id.
 ///
@@ -1219,7 +1212,6 @@ const DEBUG_ONLY_STYLES: &[&str] = &["placeholder"];
 fn listed_styles(styles: &GameStyles) -> Vec<(String, String, Color)> {
     styles
         .iter()
-        .filter(|style| cfg!(feature = "debug") || !DEBUG_ONLY_STYLES.contains(&style.id.as_str()))
         .map(|style| {
             (
                 style.id.clone(),
@@ -4742,24 +4734,6 @@ mod tests {
 
         assert_eq!(ship_node(&app).style, Some("second".to_string()),);
         assert_eq!(marked(&mut app), vec!["second".to_string()]);
-    }
-
-    /// The scaffolding style proves the plate pipeline dresses a hull at all.
-    /// It is not a look anybody would choose, so a release build leaves it out
-    /// of the list - and a debug build is exactly where somebody wants to put
-    /// it on a ship and look at it.
-    #[test]
-    fn the_scaffolding_style_is_listed_only_in_a_debug_build() {
-        let styles = GameStyles(vec![style("civilian"), style("placeholder")]);
-        let ids: Vec<String> = listed_styles(&styles)
-            .into_iter()
-            .map(|(id, _, _)| id)
-            .collect();
-        if cfg!(feature = "debug") {
-            assert_eq!(ids, vec!["civilian", "placeholder"]);
-        } else {
-            assert_eq!(ids, vec!["civilian"]);
-        }
     }
 
     /// A row shows the paint its style puts on a hull's top surface: five words

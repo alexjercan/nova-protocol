@@ -1,18 +1,11 @@
 //! Season 1, chapter one: "A Useful Job".
 //!
-//! Kaveri is three hours out of Aquila with Baikal's replacement pump assembly
-//! strapped to an open cradle, threading a working lane home. A distress call
-//! arrives from a ship the crew met that morning, the company that owns it
-//! refuses to pay for the diversion, and Clearwell covers it instead. The
-//! chapter is the hour that decision costs: a lane of rock flown slowly, a
-//! course change, a clamp, and three people brought aboard.
-//!
-//! What the player does is fly the ship. There are no weapons in the chapter
-//! and nothing to shoot, so the two skills it asks for are the two the story
-//! asks for: put the hull where you mean to put it (the lane teaches that by
-//! its LAYOUT, not by a lesson), and bring it gently onto somebody else's
-//! collar. Baikal and Aquila are in the dialogue and nowhere in the sky - the
-//! chapter starts and ends in open space, and the stations stay in the book.
+//! An unarmed flight: a lane of rock flown slowly, a course change, a clamp
+//! onto another hull, and a timed transfer. The chapter carries no weapon and
+//! nothing to shoot, so the two skills it asks for are placing the hull - the
+//! lane teaches that by its LAYOUT rather than by a lesson - and bringing it
+//! gently onto another ship's collar. No station is in the sky; the chapter
+//! starts and ends in open space.
 //!
 //! Script shape follows the mainline convention: one `beat` counter gates
 //! every handler, and an objective posts a beat LATER than the line that
@@ -20,18 +13,16 @@
 //! `stage`, so a dialogue pass and a layout pass are two separate edits.
 //!
 //! The evacuation is the one chain written on TIMERS rather than as a
-//! sequence, and deliberately: a sequence runs to its end, and a captain who
-//! lets go of the collar halfway through would be told that everybody was
-//! aboard while Gantry drifted away behind them. Every transfer beat is gated
-//! on the clamp still being on, so releasing early stops the chain where it
-//! stands and re-docking starts it again.
+//! sequence, and deliberately: a sequence runs to its end, so a player who
+//! releases the clamp halfway through would be told the transfer finished.
+//! Every transfer beat is gated on the clamp still being on, so releasing
+//! early stops the chain where it stands and re-docking starts it again.
 //!
-//! Every voice has a face. The portraits are generated from the story's own
-//! character palette (see `script::portrait`), and they are attached in one
-//! pass over the finished events rather than line by line, because the speaker
-//! already says which face it is. The channel colour keeps doing its own work
-//! on top: the crew speak in the room (green), Gantry and Baikal over the
-//! radio (blue).
+//! Portraits are attached in one pass over the finished events rather than
+//! line by line, because the speaker already names its face (see
+//! `script::portrait`). The accent is independent of the portrait: a line
+//! authored with `crew` is drawn in instrument green, one authored with
+//! `comms` in the radio blue.
 
 use bevy::prelude::Image;
 use nova_events::prelude::Meters3;
@@ -68,7 +59,7 @@ const VAR_BEAT: &str = "beat";
 /// The opening scene is running.
 const BEAT_OPEN: f64 = 1.0;
 /// One beat per mark of the lane. A mark's gate is raised by the beat before
-/// it, so a captain who wanders through a volume early finds nothing there.
+/// it, so a player who flies through a volume early finds nothing there.
 const LANE_BEATS: [f64; 4] = [2.0, 3.0, 4.0, 5.0];
 /// The lane is flown; the distress call and the decision run.
 const BEAT_CALL: f64 = 6.0;
@@ -79,12 +70,12 @@ const BEAT_REACH: f64 = 7.0;
 /// it sets the beat, which is what makes completing that card on the clamp
 /// safe.
 const BEAT_DOCK: f64 = 8.0;
-/// Let go of the collar with people still to come, and the chapter stands
-/// here until the card comes back: the release has happened, the crew have
-/// said so, and the ask is still a beat away.
+/// Let go of the collar before the transfer is done, and the chapter stands
+/// here until the card comes back: the release has fired, its lines have run,
+/// and the ask is still a beat away.
 ///
 /// A beat of its own rather than an early return to [`BEAT_DOCK`], because a
-/// captain who lets go and clamps again inside the same breath would otherwise
+/// player who lets go and clamps again in the same second would otherwise
 /// complete a card that was never posted and then be handed one that nothing
 /// can take down.
 const BEAT_REGRIP: f64 = 8.5;
@@ -103,8 +94,8 @@ const BEAT_WON: f64 = 13.0;
 //
 // Authored timings, not physics: nudge them after playtest.
 //
-// The gaps below are all at least the six seconds the 2026-09-17 playtest
-// asked for, and they are gaps between ARRIVALS rather than holds. The comms
+// The gaps below are all at least six seconds, and they are gaps between
+// ARRIVALS rather than holds. The comms
 // panel keeps a card for eight seconds and shows three at once, so it was
 // never the panel rushing the reader: a four-second gap simply put a new card
 // on the stack while the two before it were still worth reading, and the
@@ -134,19 +125,18 @@ const LANE_GAP: f64 = 3.0;
 ///
 /// A SCENE rather than a sequence: the player is not flying during it, so the
 /// chapter takes the helm, brings Kaveri to rest behind the cut and holds the
-/// picture on Gantry for the whole call. It is the one look at the ship the
-/// chapter gets before the rescue, and the hull says what the dialogue is
-/// about to - no drive, no stern, three people still aboard.
+/// picture on Gantry for the whole call. It is the only framed look at that
+/// hull before the dock, so its damage has to read from this shot.
 const SCENE_CALL: &str = "call";
 /// The shot: off Gantry's starboard BOW and above, looking aft down the length
 /// of the hull.
 ///
-/// The angle is the composition. From here the ship reads intact at the near
-/// end and opens up at the far one - the stack gone, the arch cut in half, the
-/// transom empty where the drive was - with its own plating still drifting
-/// past the stern behind it. Standing off the stern instead would put that
-/// plating between the lens and the ship. Kaveri arrives on the opposite
-/// flank, so the player never flies this angle.
+/// From here the hull reads intact at the near end and open at the far one -
+/// the stack gone, the arch cut in half, the transom empty where the drive
+/// was - with its own plating drifting past the stern behind it. Standing off
+/// the stern instead would put that plating between the lens and the ship.
+/// Kaveri arrives on the opposite flank, so the player never flies this
+/// angle.
 const CALL_OFFSET: Meters3 = Meters3::new(150.0, 45.0, -120.0);
 /// LANE-4 -> the traffic. Long enough that the lane feels finished first.
 const CALL_OPEN_AT: f64 = 6.0;
@@ -154,8 +144,8 @@ const CALL_OPEN_AT: f64 = 6.0;
 const CALL_GAP: f64 = 6.5;
 /// Around a short answer, or the second half of a line somebody split in two.
 const CALL_REPLY_GAP: f64 = 5.0;
-/// The captain's order -> the course change on the HUD. Long enough that the
-/// order is still on screen, and read, when the objective chip pops under it.
+/// The order line -> the course change on the HUD. Long enough that the line
+/// is still on screen, and read, when the objective chip pops under it.
 const CALL_ORDER_GAP: f64 = 4.5;
 
 /// The approach chain: the port check, and the commitment. It runs from the
@@ -170,8 +160,8 @@ const NEAR_DOCK_GAP: f64 = 5.0;
 /// The timer the docking card is posted on, rather than the last step of the
 /// approach sequence itself.
 ///
-/// The card has to be able to NOT arrive. A captain who is already on the
-/// collar when this lands has moved the beat past `BEAT_REACH`, and a pending
+/// The card has to be able to NOT arrive. A player already on the collar when
+/// this lands has moved the beat past `BEAT_REACH`, and a pending
 /// timer whose beat has moved fires into a handler that no longer matches - the
 /// same device the evacuation is written on. A sequence step would have run
 /// regardless and posted a card for a dock that had already happened.
@@ -196,8 +186,8 @@ const TRANSFER_GAP: f64 = 6.0;
 const TRANSFER_DONE_AFTER: f64 = 4.0;
 
 /// An early release -> the card asking for the collar again. A timer rather
-/// than a sequence, so the beat it lands in is checked when it lands: a
-/// captain who is back on the collar by then is not asked to dock again.
+/// than a sequence, so the beat it lands in is checked when it lands: a player
+/// back on the collar by then is not asked to dock again.
 const TIMER_REGRIP: &str = "regrip";
 const REGRIP_GAP: f64 = 2.5;
 
@@ -247,8 +237,8 @@ fn apply_portraits(events: &mut [ScenarioEventConfig]) {
 }
 
 /// A handler that may fire again: the dock, the release, and every beat of the
-/// evacuation. A captain is allowed to let go and come back, and the chapter
-/// has to be able to run the same beats a second time.
+/// evacuation. The player may let go and come back, so the chapter has to be
+/// able to run the same beats a second time.
 fn repeatable(
     name: EventConfig,
     filters: Vec<EventFilterConfig>,
@@ -300,8 +290,8 @@ fn transfer_beat(
     )
 }
 
-/// Let go of the collar before everybody is across: the crew say so, and the
-/// chapter parks on [`BEAT_REGRIP`] until the card comes back.
+/// Let go of the collar before the transfer is done: the chapter parks on
+/// [`BEAT_REGRIP`] until the card comes back.
 ///
 /// `posted` carries the hold objective when there is one to take down - the
 /// release can land before the card does, and completing an objective that was
@@ -321,8 +311,7 @@ fn early_release(beat: f64, posted: Vec<EventActionConfig>) -> ScenarioEventConf
 }
 
 /// The Defeat pair. Nothing in the chapter shoots, so the only way to lose is
-/// to fly a loaded workship into something - either the rock, or the hull with
-/// three people on it.
+/// to fly the workship into something: a rock, or Gantry.
 fn defeat(id: &str, message: &str) -> ScenarioEventConfig {
     once(
         EventConfig::OnDestroyed,
@@ -507,11 +496,10 @@ pub(crate) fn chapter_one(
                             radio_line(CALL_REPLY_GAP, script::ELENA, script::CALL_REED),
                             radio_line(CALL_GAP, script::ELENA, script::CALL_BACKING),
                             crew_line(CALL_REPLY_GAP, script::JONAH, script::CALL_DECISION),
-                            // The hold: the captain's order lands, and the
-                            // shot stays on the ship they have just agreed to
-                            // go and get. Nothing to run - the beat IS the
-                            // action, and it is what keeps the course change
-                            // off the same frame as the line that caused it.
+                            // The hold: the order line lands and the shot
+                            // stays on Gantry. Nothing to run - the beat IS
+                            // the action, and it keeps the course change off
+                            // the same frame as the line that caused it.
                             step(CALL_ORDER_GAP, vec![]),
                         ],
                     ),
@@ -521,8 +509,8 @@ pub(crate) fn chapter_one(
         // Every way out of the call ends here, a skip included: the camera and
         // the helm come back, and the course change is on the HUD. Kaveri is
         // at rest when it lands, which is the whole reason the scene took the
-        // ship's speed off - a captain handed the helm back mid-lane at full
-        // manual cap has been given a problem, not an order.
+        // ship's speed off: handing the helm back mid-lane at the full manual
+        // cap would leave the player braking instead of turning.
         once(
             EventConfig::OnCinematicFinished,
             vec![scene(SCENE_CALL)],
@@ -536,10 +524,9 @@ pub(crate) fn chapter_one(
                 show_hint_emphasis(HINT_RADAR),
             ],
         ),
-        // Arriving. The card comes down, the marker comes off the hull, and
-        // somebody says they can see it: one line for a moment that is worth
-        // one line. The conversation about docking waits for the ring inside
-        // this one, where the ship is slow enough to be read to.
+        // Arriving: the card comes down, the marker comes off the hull, and
+        // one line runs. The collar dialogue waits for the ring inside this
+        // one, where the ship is slow enough to read four cards.
         once(
             EventConfig::OnEnter,
             vec![APPROACH.entered_by(ID_KAVERI), in_beat(BEAT_REACH)],
@@ -586,7 +573,7 @@ pub(crate) fn chapter_one(
                 show_hint_emphasis(HINT_RCS),
             ],
         ),
-        // A captain already on the collar when the card would have arrived.
+        // The player is already on the collar when the card would arrive.
         // DOCK is in the player's hands from the first frame of the chapter, so
         // this is reachable - and without it the clamp lands in a beat nothing
         // listens to, the card posts behind it, and the chapter has no way
@@ -604,7 +591,7 @@ pub(crate) fn chapter_one(
                 start_timer(TRANSFER_KEYS[0], TRANSFER_CARD_AFTER),
             ],
         ),
-        // The clamp. Repeatable on purpose: a captain who lets go and comes
+        // The clamp. Repeatable on purpose: a player who lets go and comes
         // back runs the evacuation again from its first beat.
         repeatable(
             EventConfig::OnDocked,

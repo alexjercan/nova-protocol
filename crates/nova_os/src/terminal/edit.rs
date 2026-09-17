@@ -1036,22 +1036,22 @@ mod tests {
         terminal.merge_live_values([
             (
                 live::SHIP.to_string(),
-                vec!["block_gunship".to_string(), "block_raider".to_string()],
+                vec!["block_gunship".to_string(), "block_picket".to_string()],
             ),
             (
                 format!("{}:block_gunship", live::SECTION),
                 vec!["hull_front".to_string(), "pdc_aft_port".to_string()],
             ),
             (
-                format!("{}:block_raider", live::SECTION),
+                format!("{}:block_picket", live::SECTION),
                 vec!["pdc_aft_port".to_string()],
             ),
         ]);
 
         // First position: the ships.
-        type_text(&mut terminal, "section block_r");
+        type_text(&mut terminal, "section block_p");
         assert!(terminal.complete());
-        assert_eq!(terminal.prompt(), "section block_raider");
+        assert_eq!(terminal.prompt(), "section block_picket");
 
         // Second position: only THAT ship's sections, and the settled first
         // argument is kept.
@@ -1060,9 +1060,9 @@ mod tests {
         assert!(terminal.complete());
         assert_eq!(terminal.prompt(), "section block_gunship hull_front");
 
-        // The raider carries no `hull_front`, so nothing completes there.
+        // The picket carries no `hull_front`, so nothing completes there.
         terminal.reset_prompt();
-        type_text(&mut terminal, "section block_raider hu");
+        type_text(&mut terminal, "section block_picket hu");
         assert!(!terminal.complete());
     }
 

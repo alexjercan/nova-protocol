@@ -9,6 +9,14 @@ use nova_scenario::prelude::*;
 use super::shared::{backdrop_beacon, backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::base_content::{scenarios::SCATTER_SEED, ships};
 
+/// The flying hull, and the scatter prefix the rock band takes.
+const RUNNER_ID: &str = "weave_runner";
+const ROCK_ID_PREFIX: &str = "weave_rock_";
+/// The timer keys: the rotation limit this endless scene carries, and the
+/// aftermath drift when the runner is lost.
+const TIMER_ROTATE: &str = "weave_rotate";
+const TIMER_RESET: &str = "weave_reset";
+
 /// The circuit's center, nudged left of the frame center: the menu panel
 /// owns the right half of the shot, so the loop leans into the open side.
 const LOOP_CENTER: Meters3 = Meters3::new(-400.0, 0.0, 0.0);
@@ -67,7 +75,7 @@ pub(crate) fn menu_weave(
     // thread reads as deliberate rather than as a fly-through.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: "weave_runner".to_string(),
+            id: RUNNER_ID.to_string(),
             name: "Weave Runner".to_string(),
             position: WEAVE_LOOP[0],
             rotation: Quat::IDENTITY,
@@ -97,7 +105,7 @@ pub(crate) fn menu_weave(
     // penetration-shoved into each other (worst-case geometric extent is
     // radius * 6, so 30 m nominal rocks need ~360 m plus ship room).
     let band = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-        id_prefix: "weave_rock_".to_string(),
+        id_prefix: ROCK_ID_PREFIX.to_string(),
         count: 40,
         seed: SCATTER_SEED ^ 0x4,
         region: ScatterRegion::Ring {
@@ -109,7 +117,7 @@ pub(crate) fn menu_weave(
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: "weave_rock_".to_string(),
+                id: ROCK_ID_PREFIX.to_string(),
                 name: "Weave Rock".to_string(),
                 position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
@@ -160,7 +168,7 @@ pub(crate) fn menu_weave(
                     // ending, so after a couple of laps the menu turns to
                     // the next backdrop.
                     EventActionConfig::TimerStart(TimerStartActionConfig {
-                        key: "weave_rotate".to_string(),
+                        key: TIMER_ROTATE.to_string(),
                         seconds: crate::scenario_helpers::number(150.0),
                     }),
                 ])
@@ -171,10 +179,10 @@ pub(crate) fn menu_weave(
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "weave_rotate".to_string(),
+                key: TIMER_ROTATE.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_duel".to_string(),
+                scenario_id: super::MENU_DUEL_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -186,9 +194,9 @@ pub(crate) fn menu_weave(
             label: None,
             name: EventConfig::OnDefeated,
             once: false,
-            filters: vec![crate::scenario_helpers::entity("weave_runner")],
+            filters: vec![crate::scenario_helpers::entity(RUNNER_ID)],
             actions: vec![EventActionConfig::TimerStart(TimerStartActionConfig {
-                key: "weave_reset".to_string(),
+                key: TIMER_RESET.to_string(),
                 seconds: crate::scenario_helpers::number(6.0),
             })],
         },
@@ -197,10 +205,10 @@ pub(crate) fn menu_weave(
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "weave_reset".to_string(),
+                key: TIMER_RESET.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_duel".to_string(),
+                scenario_id: super::MENU_DUEL_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -212,7 +220,7 @@ pub(crate) fn menu_weave(
         role: ScenarioRole::Backdrop,
         events,
         ..ScenarioConfig::new(
-            "menu_weave".to_string(),
+            super::MENU_WEAVE_SCENARIO_ID.to_string(),
             "Asteroid Weave".to_string(),
             cubemap,
         )

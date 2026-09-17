@@ -1,19 +1,17 @@
 //! "Basic Training" - the range New Game opens on.
 //!
-//! A Fleet cadet on a gunnery range, talked through a qualification card by
-//! Range Control: burn to a mark, STOP, slide across on the thrusters, travel-
-//! lock the planetoid and let GOTO fly the leg, ORBIT it, GOTO home, then the
-//! gun: lock a target, shoot it apart, clear the line, and beat two drones
-//! that shoot back. No story. The range is the editor's stock world - rocks,
-//! five hulks, two dormant pickets, a planetoid - so what a cadet learns here
-//! is what a builder's range asks for.
+//! The card, in order: burn to a mark, STOP, slide across on the thrusters,
+//! travel-lock the planetoid and let GOTO fly the leg, ORBIT it, GOTO home,
+//! then the gun - lock a target, shoot it apart, clear the line, and beat two
+//! drones that shoot back. The range is the editor's stock world: rocks, five
+//! hulks, two dormant pickets and a planetoid.
 //!
 //! Script shape follows the mainline convention: one `beat` counter gates
 //! every handler, and an objective posts a beat LATER than the line that
 //! introduces it (see `pacing`). A lesson's verb is granted in that same
 //! deferred step, beside its card and its beat number, so no handler is armed
 //! before the card that names it exists. The gun has no verb to withhold, so
-//! the two fire lessons are written to survive a cadet who shoots early: a
+//! the two fire lessons are written to survive a player who shoots early: a
 //! target that dies ahead of its lesson moves the card on instead of stalling
 //! it. The lines live in `script` and the map in `range`, so a dialogue pass
 //! and a layout pass are two separate edits.
@@ -59,7 +57,7 @@ const VAR_SCRAPPED: &str = "targets_scrapped";
 /// Whether Target 1 is gone: the two fire lessons read it to move on.
 const VAR_TARGET_1_DOWN: &str = "target_1_down";
 /// Whether Target 1 was ever combat-locked. The lock lesson schedules the
-/// fire beat a gap later, so a cadet who locks and kills inside that gap is
+/// fire beat a gap later, so a player who locks and kills inside that gap is
 /// still in [`BEAT_LOCK`] when the target dies - and would draw the "shot
 /// apart before the lock landed" line for a lock that did land.
 const VAR_TARGET_1_LOCKED: &str = "target_1_locked";
@@ -102,7 +100,7 @@ const SEQ_BRIEFING: &str = "briefing";
 const BRIEF_FIRST_AT: f64 = 2.0;
 /// Between two Range Control lines.
 const BRIEF_GAP: f64 = 4.5;
-/// Before and after the cadet's acknowledgement.
+/// Before and after the player's acknowledgement.
 const BRIEF_REPLY_GAP: f64 = 2.5;
 /// How long the opening card stays up.
 const OPEN_CARD_SECONDS: f32 = 8.0;
@@ -112,11 +110,11 @@ const OPEN_OFFSET: Meters3 = Meters3::new(-140.0, 50.0, 160.0);
 
 // Each lesson's gap: how long the card waits after the line that hands it
 // over. One value per beat, authored where the beat is - a line the objective
-// echoes wants the card mid-read, and a line the cadet should absorb first
+// echoes wants the card mid-read, and a line the player should absorb first
 // wants the card after it. Nudge them after playtest.
 
 /// Range Control hands the helm over -> the helm and the first card. The card
-/// arrives while the cadet is still reading the line that gives it.
+/// arrives while the player is still reading the line that gives it.
 const HELM_GAP: f64 = 4.0;
 /// "Stop her" -> the STOP card. The line names the key the card asks for.
 const STOP_GAP: f64 = 4.0;
@@ -127,10 +125,10 @@ const NAV_GAP: f64 = 4.0;
 /// The flight-computer line -> the GOTO card.
 const GOTO_GAP: f64 = 4.0;
 /// The ORBIT lesson's gap. Short on purpose: every other lesson on the card
-/// waits for the cadet, and this one does not. GOTO hands the trainer back
+/// waits for the player, and this one does not. GOTO hands the trainer back
 /// inside the planetoid's pull, so the key the line names has to answer while
 /// there is still fall left to spend - and the beat this step advances is what
-/// arms the handler that reads the orbit, so the cadet must not be able to fly
+/// arms the handler that reads the orbit, so the player must not be able to fly
 /// it before the step lands.
 const ORBIT_GAP: f64 = 1.5;
 /// The leg home -> the RETURN card and the CHARLIE mark.
@@ -140,11 +138,11 @@ const LOCK_GAP: f64 = 4.0;
 /// "She is hot" -> the FIRE card.
 const FIRE_GAP: f64 = 4.0;
 /// The scrap line -> the rest of the firing line. Longer than a lesson gap and
-/// shorter than a reveal: the line tells the cadet what just happened and then
-/// what to do with it, so the card lands as the cadet reaches the second half.
+/// shorter than a reveal: the line tells the player what just happened and then
+/// what to do with it, so the card lands as the player reaches the second half.
 const LINE_GAP: f64 = 6.0;
 /// The drones go LIVE. The longest gap on the card: the range turning hostile
-/// is a reveal the cadet should take in before a card asks for anything, so the
+/// is a reveal the player should take in before a card asks for anything, so the
 /// line lands and fades first.
 const LIVE_GAP: f64 = 8.4;
 
@@ -288,7 +286,7 @@ fn defeat(message: &str, event: EventConfig) -> ScenarioEventConfig {
 }
 
 /// The epilogue: the tease line, then the banner. Nothing is handed off to:
-/// the card ends, and the Scenarios board is where the cadet goes next.
+/// the card ends, and the Scenarios board is where the player goes next.
 fn outro() -> EventActionConfig {
     pacing::outro_sequence(
         VAR_BEAT,
@@ -477,9 +475,9 @@ pub(crate) fn tutorial(
             ],
         ),
         // Parked off the planetoid, inside its pull: ORBIT. The computer hands
-        // the trainer back here rather than parking it for the cadet, because
+        // the trainer back here rather than parking it for the player, because
         // ORBIT is still withheld - so this is the one lesson on the card that
-        // does not wait for its cadet. The trainer is falling from the moment
+        // does not wait for its player. The trainer is falling from the moment
         // the line lands, and the rock is roughly nine seconds under it.
         once(
             EventConfig::OnGotoComplete,
@@ -501,7 +499,7 @@ pub(crate) fn tutorial(
             ],
         ),
         // The orbit holds: the leg home, the same two keys on a mark. The
-        // gate, not the arrival, closes it: a cadet who flies home by hand is
+        // gate, not the arrival, closes it: a player who flies home by hand is
         // home all the same.
         once(
             EventConfig::OnOrbitStable,
@@ -652,7 +650,7 @@ pub(crate) fn tutorial(
         ),
     ];
 
-    // The tallies. Ungated: a target counts whenever it dies, so a cadet who
+    // The tallies. Ungated: a target counts whenever it dies, so a player who
     // works ahead of the card is never asked to do it again.
     for nth in 1..=TARGET_COUNT {
         let mut actions = vec![
@@ -668,7 +666,7 @@ pub(crate) fn tutorial(
             actions,
         ));
     }
-    // A drone counts once, whichever way it goes: defeated where the cadet
+    // A drone counts once, whichever way it goes: defeated where the player
     // can see it, or crippled and coasting off the range. Its flag is what
     // keeps a drone that is disarmed and then drifts out from counting twice,
     // and what keeps the boundary's line off a drone that blew up inside it.

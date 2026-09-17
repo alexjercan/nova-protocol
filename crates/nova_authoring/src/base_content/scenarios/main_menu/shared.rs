@@ -6,12 +6,15 @@ use nova_scenario::prelude::*;
 
 use crate::base_content::ships;
 
+/// The body every backdrop is framed around, by the id an orbiter names to
+/// orbit it.
+const MENU_PLANETOID_ID: &str = "menu_planetoid";
+
 /// The body the menu is framed around.
 ///
-/// A TEMPERATE world, and deliberately the showiest type there is: this is the
-/// game's first frame, and a blue-green world with a coastline says "space
-/// game with real planets" before a single word of the menu is read. Every
-/// other type is available to a backdrop that wants a different mood.
+/// A TEMPERATE world, the most detailed type available: this is the game's
+/// first frame, so the backdrop carries visible coastline and cloud. Every
+/// other type is available to a backdrop that wants a different look.
 ///
 /// 900 m of mean radius puts the surface at 945 m, within 0.5% of the 940.6 m
 /// body the rock here published, so the orbiter's ring and the well the menu
@@ -19,7 +22,7 @@ use crate::base_content::ships;
 pub(super) fn backdrop_planetoid(mass: f32) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: "menu_planetoid".to_string(),
+            id: MENU_PLANETOID_ID.to_string(),
             name: "Menu Planetoid".to_string(),
             position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
@@ -50,8 +53,8 @@ pub(super) const MENU_PLANETOID_SEED: u32 = 7;
 /// heard through the same rolloff flight uses
 /// (`nova_gameplay::audio::SFX_FAR_DISTANCE`, 3.2 km to silence), so an actor
 /// further out than that is mute however good the shot is. The duel and the
-/// weave came IN for that reason - the first cut framed the duel from 3,130 m,
-/// which put the whole fight past the rolloff's far end. The gauntlet and the
+/// weave are framed inside that distance for this reason: at 3,130 m the whole
+/// fight sits past the rolloff's far end. The gauntlet and the
 /// waystation did NOT: each is pinned by its own composition, and both say so
 /// at their own `SetCamera`.
 pub(super) fn backdrop_camera(position: Meters3) -> EventActionConfig {
@@ -70,11 +73,10 @@ pub(super) fn backdrop_orbiter(
     id: &str,
     name: &str,
     position: Meters3,
-    // The silhouette knob: `true` flies the wide block hauler (the waystation
-    // freighters), `false` the small block cutter (the scrapyard tug). Both
-    // are hand-built cube ships in the industrial look - a backdrop asks the
-    // player to read TONNAGE at two kilometres, and width reads at that
-    // range where detail does not.
+    // The silhouette knob: `true` flies the wide block hauler, `false` the
+    // small block cutter. Both are hand-built cube ships in the industrial
+    // look - a backdrop is read at two kilometres, where width separates two
+    // hulls and detail does not.
     cargo: bool,
 ) -> ScenarioObjectConfig {
     let hull = if cargo {
@@ -92,7 +94,7 @@ pub(super) fn backdrop_orbiter(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
-                orbit: Some("menu_planetoid".to_string()),
+                orbit: Some(MENU_PLANETOID_ID.to_string()),
                 ..Default::default()
             }),
             design: ships::design(hull),

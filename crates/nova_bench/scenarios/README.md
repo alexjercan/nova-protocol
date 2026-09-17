@@ -27,9 +27,10 @@ appear in the scenario.
 - `slingshot.content.ron`: Kestrel sits off the direct line to EXIT. A hostile
   pursuer wakes after 45 seconds. Use it for gravity assists, unsafe speed,
   collision, evasion, and route-cheese tests.
-- `arsenal.content.ron`: a player warship with point defence, torpedoes, and
-  two railguns. A carvable rock blocks an inert target barge, a carrier-sized
-  ram target sits to port, and a raider wakes after 60 seconds. Use it for
+- `arsenal.content.ron`: a player hull authored inline in the fixture - a
+  railgun spine, a Serpent bay to port, a Lance bay to starboard and two
+  point-defence mounts. A carvable rock blocks an inert target barge, a hauler
+  ram target sits to port, and a picket wakes after 60 seconds. Use it for
   weapon choice, carving, NOVA OS commands, cheats, and destructive tests.
 - `docking.content.ron`: the `docking_approach` example as a fixture. A
   tender with a bow port and an inert Mooring Spar 120 m ahead, turned 18

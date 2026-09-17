@@ -160,7 +160,7 @@ fn finish_hands_back(config: &ScenarioConfig, key: &str) -> Vec<EventActionConfi
 ///
 /// The pin is the pairing rather than the shot: a scene that takes the helm
 /// and cuts the camera away has to take the ship's speed off as well, or a
-/// skip hands a suspended captain back a hull still running at the manual cap
+/// skip would hand the player back a hull still running at the manual cap
 /// through the end of a rock lane. The course change is the scene's exit, so
 /// it lands however the player leaves.
 #[test]
@@ -218,8 +218,8 @@ fn the_lane_arms_one_mark_at_a_time() {
         );
         assert!(handler.once, "a mark is arrived at once");
 
-        // The gate a handler arms belongs to the NEXT mark, never its own: a
-        // captain cannot be standing in a volume that does not exist yet.
+        // The gate a handler arms belongs to the NEXT mark, never its own:
+        // the player cannot stand in a volume that does not exist yet.
         let raised: BTreeSet<String> = handler
             .action_groups()
             .into_iter()
@@ -325,7 +325,7 @@ fn every_beat_of_the_evacuation_is_gated_on_the_clamp() {
         );
         assert!(
             !event.once,
-            "the '{key}' beat runs again for a captain who re-docks"
+            "the '{key}' beat runs again when the player re-docks"
         );
     }
 }
@@ -443,7 +443,7 @@ fn the_docking_card_and_the_docking_beat_arrive_together() {
 /// Arriving is a milestone and happens where the hull fills the canopy; the
 /// four cards' worth of docking talk happens 250 m further in, where the ship
 /// is nearly stopped. A pass that moved the conversation back out to the
-/// arrival gate would hand it to a captain who is still braking.
+/// arrival gate would hand it to a player who is still braking.
 #[test]
 fn the_approach_talks_from_the_inner_ring() {
     let config = config();
@@ -502,13 +502,12 @@ fn the_approach_talks_from_the_inner_ring() {
 
 /// Nothing the chapter puts on screen asks for more than one thought.
 ///
-/// The 2026-09-17 playtest: cards were landing on top of each other while the
-/// ship was being flown, and the two worst offenders were a comms line long
-/// enough to need two cards' worth of reading and an objective carrying three
-/// separate instructions. The comms panel holds a card for
-/// [`COMMS_DWELL_SECS`] and shows three at once, which is the budget these two
-/// ceilings are drawn from - an objective is read at a glance, a line is read
-/// once.
+/// Cards land on top of each other while the ship is being flown, so a comms
+/// line that needs two cards' worth of reading, or an objective carrying three
+/// instructions, pushes a readable card off the stack. The comms panel holds a
+/// card for [`COMMS_DWELL_SECS`] and shows three at once, which is the budget
+/// these two ceilings are drawn from: an objective is read at a glance, a line
+/// is read once.
 #[test]
 fn no_card_asks_for_more_than_one_thought() {
     const LINE_CEILING: usize = 90;
@@ -596,7 +595,7 @@ fn every_beat_a_clamp_can_land_in_is_heard() {
         .expect("the regrip beat hears a clamp of its own");
     assert!(
         !fast.once,
-        "a captain may let go and come back more than once"
+        "the player may let go and come back more than once"
     );
     assert!(
         !fast

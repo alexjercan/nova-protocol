@@ -317,7 +317,7 @@ mod torpedo_tests {
         // The same 900 m of tactical margin, and the same anchor-to-anchor
         // range: what differs is how much of that range each pair of hulls
         // spends on itself. Both arms are the live figures measured on the
-        // reference hulls (block_skiff 47.8 m, block_carrier 194.2 m).
+        // reference hulls (a skiff at 47.8 m, a carrier at 194.2 m).
         let blast_radius = 30.0;
         let forward = Vec3::NEG_Z;
         let skiff = 4.78;

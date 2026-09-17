@@ -6,18 +6,10 @@
 //! is an edit to this file alone.
 //!
 //! Provenance: the season outline (`web/src/lore/seasons/season-1.md`) and the
-//! opening episode (`web/src/comics/season-1/episode-1/`). The comic is the
-//! approved script, so the lines the two tellings share are the comic's own,
-//! word for word - Nadia's hail, Rina's answer, Elena's instruction. The rest
-//! is bridging written in the same register, because a ship being flown says
-//! less than a page with three panels on it.
+//! opening episode (`web/src/comics/season-1/episode-1/`). Lines the comic
+//! also carries are quoted from it word for word; the rest is bridging.
 //!
-//! The voice is a working crew: short, practical, nobody explains anything to
-//! anybody who would already know it. A player who has read the book should
-//! recognise the hour; a player who has not should be able to fly the whole
-//! chapter as a rescue and miss nothing they need.
-//!
-//! Two rules the playtest put here, both about reading while flying:
+//! Two rules, both about reading while flying:
 //!
 //! - A LINE is one thought. The comms card holds for eight seconds and three
 //!   of them can be on screen at once, so a line that needs longer than that
@@ -32,30 +24,29 @@
 
 // --- the voices --------------------------------------------------------------
 
-/// The captain. The player flies the ship; these are the words the captain
-/// puts on the channel while they do.
+/// Kaveri's captain. The player flies the ship; these are the lines the
+/// captain puts on the channel.
 pub(super) const JONAH: &str = "Jonah";
-/// Chief engineer, and the one who reads a damaged hull for a living.
+/// Kaveri's chief engineer.
 pub(super) const LEILA: &str = "Leila";
-/// Pilot and navigator: the lane, the intercept, and what both cost.
+/// Kaveri's pilot and navigator.
 pub(super) const TOMAS: &str = "Tomas";
-/// Work operations: the load, and the people coming across.
+/// Kaveri's work operations.
 pub(super) const RINA: &str = "Rina";
-/// Systems and first aid: the traffic nobody else heard.
+/// Kaveri's systems and first aid.
 pub(super) const SAMIR: &str = "Samir";
 
 /// Gantry's captain, on the radio for the whole chapter.
 pub(super) const NADIA: &str = "Nadia - Gantry";
-/// Clearwell's manager at Baikal, and the shore end of the decision.
+/// Clearwell's manager at Baikal, on the radio.
 pub(super) const ELENA: &str = "Elena - Baikal";
 
 /// The face each voice wears on the comms panel.
 ///
-/// The art is the BOOK's: `scripts/generate-campaign-portraits.py` reads every
-/// skin, hair and coat colour below out of the same palette the encyclopedia
-/// portrait studies are drawn from, so these seven are the story's people in
-/// the game's medium rather than a second cast that happens to share their
-/// names. An unlisted speaker draws the panel's fallback tile.
+/// `scripts/generate-campaign-portraits.py` draws every tile below from the
+/// same palette as the encyclopedia portrait studies, so a speaker's face is
+/// generated rather than authored here. An unlisted speaker draws the panel's
+/// fallback tile.
 pub(super) fn portrait(speaker: &str) -> Option<&'static str> {
     Some(match speaker {
         JONAH => "jonah",
@@ -130,15 +121,15 @@ pub(super) const NEAR_PORT_CHECK: &str = "Gantry, did the fault reach your docki
 pub(super) const NEAR_PORT_SOUND: &str =
     "Not that branch. The collar on our port side is sound, and we can hold attitude.";
 /// The commitment, and the one thing the card cannot leave to the HUD: the
-/// docking verb reads the radar lock, so a captain who never locks Gantry can
-/// follow every other instruction exactly and have nothing happen. The captain
-/// gives it as the order it is, rather than the card carrying a third clause.
+/// docking verb reads the radar lock, so a player who never locks Gantry can
+/// follow every other instruction exactly and have nothing happen. The line
+/// carries the lock, so the card does not need a third clause.
 pub(super) const NEAR_COMMIT: &str = "Understood, we come to you. Tomas - hold her on the radar.";
 
 /// The goal. The lock is the line above and [D] is the DOCK chip, lit by the
 /// same handler that posts this.
 pub(super) const OBJ_TEXT_DOCK: &str = "Bring Kaveri's collar onto Gantry's port side.";
-/// The same ask, for a captain who let go early.
+/// The same ask, for a player who let go early.
 pub(super) const OBJ_TEXT_DOCK_AGAIN: &str = "Get back on Gantry's collar.";
 
 // --- the transfer ------------------------------------------------------------
@@ -149,7 +140,7 @@ pub(super) const OBJ_TEXT_HOLD: &str = "Hold the clamp while Gantry's crew come 
 pub(super) const HOLD_OWEN: &str = "I'm Rina. Tell me what he can manage, and we move together.";
 pub(super) const HOLD_ABOARD: &str = "Owen is aboard and supported. Ivo behind him.";
 pub(super) const HOLD_ALL_THREE: &str = "That's everyone. Three aboard Kaveri.";
-/// A captain who released the clamp with people still on the other hull.
+/// Posted when the clamp is released with people still on the other hull.
 pub(super) const HOLD_EARLY_RELEASE: &str = "We have not got them all. Get back on that collar.";
 
 pub(super) const OBJ_TEXT_RELEASE: &str = "Let go and take them home.";

@@ -55,13 +55,12 @@ use crate::scenario_helpers::prelude::*;
 #[cfg(test)]
 mod tests;
 
-/// Who the comms card is from. A label, not a character: a practice flight
-/// explains itself in its own voice, and Basic Training's cast
-/// (`super::tutorial`) stays where it belongs.
+/// Who the comms card is from: a label rather than a speaker, so a practice
+/// flight carries no cast.
 const TRAINING: &str = "Training";
 
-/// What the player's ship is called here. Basic Training's cadet picket has a
-/// callsign; on a practice flight it is just your ship.
+/// What the player's ship is called here. Basic Training's picket carries a
+/// callsign; a practice flight uses a plain name.
 const PLAYER_SHIP: &str = "Your ship";
 
 /// Momentum practice: fly out, release the drive, and keep the speed.
@@ -413,7 +412,7 @@ fn autopilot(assets: &BaseContentAssets) -> ScenarioConfig {
         "Your ship was destroyed. Starting again.",
         vec![
             on_start(start),
-            // The cadet who sweeps with weapons raised: the red lock is the
+            // The player who sweeps with weapons raised: the red lock is the
             // gun's, and the computer will not fly it.
             once(
                 EventConfig::OnCombatLockStart,
@@ -534,7 +533,7 @@ fn gunnery(assets: &BaseContentAssets) -> ScenarioConfig {
         "Your ship was destroyed. Starting again.",
         vec![
             on_start(start),
-            // The cadet who sweeps with weapons lowered: the white lock is
+            // The player who sweeps with weapons lowered: the white lock is
             // real, and it feeds no gun.
             once(
                 EventConfig::OnTravelLockStart,

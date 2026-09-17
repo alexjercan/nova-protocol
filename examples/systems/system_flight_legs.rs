@@ -33,13 +33,13 @@
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=600 \
 //!   cargo run --example system_flight_legs --features debug
-//! # look for: `flight legs: block_skiff flew the chain ...`,
-//! #           `flight legs: block_carrier flew the chain ...`,
+//! # look for: `flight legs: fixture_skiff flew the chain ...`,
+//! #           `flight legs: fixture_carrier flew the chain ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "../screenshots/shared/kit.rs"]
-mod kit;
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 #[cfg(feature = "debug")]
 use std::sync::Arc;
@@ -52,7 +52,7 @@ use nova_protocol::prelude::*;
 #[command(name = "system_flight_legs")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "One composed STOP/GOTO/GotoPos/ORBIT chain on the smallest and the largest shipped hull. Autopilot-only correctness range",
+    about = "One composed STOP/GOTO/GotoPos/ORBIT chain on the smallest and the largest fixture hull. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -158,7 +158,7 @@ const LEG_DEADLINE_SECS: f32 = 90.0;
 /// How far the game clock may advance in one frame of a harnessed lane.
 ///
 /// Bevy clamps `Time<Virtual>` to a quarter second a frame. The carrier lane
-/// flies the largest hull the game ships, and on a software rasterizer one of
+/// flies the largest fixture hull, and on a software rasterizer one of
 /// its frames costs seconds - the draw count, not the pixels - so the clamp ran
 /// the lane at a fraction of wall speed and the carrier's GOTO outran both its
 /// own beat deadline and the run's. Nothing in this range reads a FRAME: both
@@ -178,21 +178,30 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 /// Which hull is flying the lane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Subject {
-    /// The fleet's smallest hull.
+    /// The smallest fixture hull.
     Skiff,
-    /// The largest hull the base game ships. Only the scripted walk flies it,
-    /// so the variant is gated with the script that constructs it.
+    /// The largest fixture hull. Only the scripted walk flies it, so the
+    /// variant is gated with the script that constructs it.
     #[cfg(feature = "debug")]
     Carrier,
 }
 
 impl Subject {
-    /// The catalog ship id this subject spawns.
+    /// What the run log calls this subject's hull.
     fn ship(self) -> &'static str {
         match self {
-            Subject::Skiff => "block_skiff",
+            Subject::Skiff => "fixture_skiff",
             #[cfg(feature = "debug")]
-            Subject::Carrier => "block_carrier",
+            Subject::Carrier => "fixture_carrier",
+        }
+    }
+
+    /// The fixture hull this subject spawns.
+    fn design(self) -> ShipDesign {
+        match self {
+            Subject::Skiff => dev_fixtures::skiff(),
+            #[cfg(feature = "debug")]
+            Subject::Carrier => dev_fixtures::carrier(),
         }
     }
 
@@ -289,8 +298,8 @@ fn hold_the_lane_clock(mut time: ResMut<Time<Virtual>>) {
     }
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
-    commands.trigger(LoadScenario(lane(&game_assets, &ships, Subject::Skiff)));
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>) {
+    commands.trigger(LoadScenario(lane(&game_assets, Subject::Skiff)));
 }
 
 /// One lane: the well at the origin, the beacon out along +X, and the subject
@@ -299,8 +308,8 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
 /// Piloted rather than uncontrolled because [`PlayerAutopilotCompleted`] - the
 /// production seam a scenario reads a finished errand off - is published for
 /// the player's ship. ONE hull per lane for the same reason: two player ships
-/// in one world is not a shape the game ships.
-fn lane(game_assets: &GameAssets, ships: &GameShipDesigns, subject: Subject) -> ScenarioConfig {
+/// in one world is not a shape the game supports.
+fn lane(game_assets: &GameAssets, subject: Subject) -> ScenarioConfig {
     let well = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: WELL_ID.to_string(),
@@ -338,7 +347,7 @@ fn lane(game_assets: &GameAssets, ships: &GameShipDesigns, subject: Subject) -> 
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            design: ShipDesignSource::Inline(kit::catalog_ship(ships, subject.ship())),
+            design: ShipDesignSource::Inline(subject.design()),
             controller: SpaceshipController::Player(PlayerControllerConfig::default()),
             allegiance: Some(Allegiance::Player),
             ..default()
@@ -644,8 +653,7 @@ fn lane_staged(subject: Subject) -> Arc<nova_protocol::nova_debug::harness::Pred
 fn open_lane(world: &mut World, subject: Subject) {
     let config = {
         let game_assets = world.resource::<GameAssets>();
-        let ships = world.resource::<GameShipDesigns>();
-        lane(game_assets, ships, subject)
+        lane(game_assets, subject)
     };
     {
         let mut legs = world.resource_mut::<Legs>();

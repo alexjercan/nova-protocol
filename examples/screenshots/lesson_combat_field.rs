@@ -70,6 +70,8 @@
 //!   cargo run --example lesson_combat_field --features debug
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/hollow.rs"]
 mod hollow;
 // The kit is included here as well as inside `shared/hollow.rs`, which that
@@ -353,7 +355,7 @@ fn the_field(
         Quat::from_rotation_y(std::f32::consts::PI),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
     let wing = hollow::ship(
         WING_ID,

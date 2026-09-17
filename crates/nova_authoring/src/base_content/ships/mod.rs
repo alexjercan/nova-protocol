@@ -2,15 +2,11 @@
 //! spawns them by.
 //!
 //! Every one of them is BLOCK-BUILT: cells on a grid wearing a derived skin,
-//! with no modelled part anywhere in the fleet. That is the base game's
-//! identity, and it is why a mod bringing its own GLB craft (The Ledger)
-//! reads as a different game rather than as more of this one.
+//! with no modelled part.
 //!
-//! A grade is a build-time knob, not a spawn-time one: the salvage raider
-//! carries thinner plating and mounts that are quicker to shoot off, which is a
-//! different ship to fight and to read about, so it is a second CATALOG entry
-//! rather than a flag a scenario flips. Two entries cost one line each here and
-//! no machinery anywhere else.
+//! A hull variant is a second CATALOG entry, not a spawn-time flag. Thinner
+//! plating or a missing drive changes the section list, so it is authored once
+//! here rather than patched at every spawn.
 
 use nova_scenario::prelude::{
     SectionId, SectionSource, ShipDesign, ShipDesignPrototype, ShipDesignSource,
@@ -26,61 +22,33 @@ use super::assets::BaseContentAssets;
 mod block;
 
 pub(crate) use block::BLOCK_CLEANUP_TURRET_ID;
-pub use block::{
-    BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_PORT_COLLAR_SECTION_ID,
-    BLOCK_WARSHIP_BAY_IDS, BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_TURRET_IDS,
-};
+pub use block::{BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_PORT_COLLAR_SECTION_ID};
 
 /// The id the block-built utility cutter is spawned by: the small unarmed
-/// workboat, and the base game's plainest craft.
+/// workboat.
 pub const BLOCK_CUTTER_SHIP_ID: &str = "block_cutter";
 /// The id the block-built bulk hauler is spawned by: unarmed freight on one
 /// vectoring drive.
 pub const BLOCK_HAULER_SHIP_ID: &str = "block_hauler";
 /// The id the block-built civilian workship is spawned by: an open work
-/// cradle, a port-flank docking collar, and no gun anywhere. The campaign's
-/// player hull.
+/// cradle, a port-flank docking collar, and no gun. Season one's player
+/// hull.
 pub const BLOCK_WORKSHIP_SHIP_ID: &str = "block_workship";
 /// The id the block-built frame tender is spawned by: a cargo body under two
 /// open gantry arches, carrying the same collar the workship docks on.
 pub const BLOCK_FRAME_TENDER_SHIP_ID: &str = "block_frame_tender";
-/// The id the raided frame tender is spawned by: the same hull with its stern
-/// and its main drive gone. Chapter one's casualty, and a second CATALOG entry
-/// rather than a spawn-time flag for the reason the module doc gives.
+/// The id the damaged frame tender is spawned by: the same hull with its
+/// stern and its main drive gone. A second CATALOG entry for the reason the
+/// module doc gives.
 pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
 
-/// The id the block-built patrol gunship is spawned by: armoured, six point
-/// defense mounts, the fleet's warship.
+/// The id the block-built patrol gunship is spawned by: armoured, with six
+/// point-defense mounts.
 pub const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
-/// The id the block-built salvage raider is spawned by: the same tonnage worn
-/// down to two guns and a scrap boom, in the scavenger look.
-pub const BLOCK_RAIDER_SHIP_ID: &str = "block_raider";
-
-/// The id the industrial carrier is spawned by: the campaign's home, and the
-/// largest hull the base game ships.
-pub const BLOCK_CARRIER_SHIP_ID: &str = "block_carrier";
-/// The id the stolen Earth warship is spawned by: two spinal lances, six siege
-/// bays, ten point-defense mounts. The opening's antagonist.
-pub const BLOCK_WARSHIP_SHIP_ID: &str = "block_warship";
-
-/// The unarmed needle of the cleanup group.
-pub const BLOCK_SKIFF_SHIP_ID: &str = "block_skiff";
-/// The unarmed fork tug of the cleanup group.
-pub const BLOCK_TUG_SHIP_ID: &str = "block_tug";
-/// The cleanup group's balanced armed picket: one nose gun.
+/// The id the block-built picket is spawned by: one nose gun on thin
+/// plating.
 pub const BLOCK_PICKET_SHIP_ID: &str = "block_picket";
-/// The cleanup group's asymmetric armed claw: one gun on the grapple arm.
-pub const BLOCK_CLAW_SHIP_ID: &str = "block_claw";
-/// The cleanup group's leader: one gun and the group's only torpedo bay.
-pub const BLOCK_CLEANUP_LEADER_SHIP_ID: &str = "block_cleanup_leader";
-
-/// The carrier's severed bridge tower.
-pub const BLOCK_WRECK_BRIDGE_SHIP_ID: &str = "block_wreck_bridge";
-/// A length of the carrier's refinery spine.
-pub const BLOCK_WRECK_SPINE_SHIP_ID: &str = "block_wreck_spine";
-/// A torn-off carrier cargo shoulder.
-pub const BLOCK_WRECK_SHOULDER_SHIP_ID: &str = "block_wreck_shoulder";
-/// Loose carrier plating - the small pieces a debris field is mostly made of.
+/// The id loose debris plating is spawned by: no computer, drive or gun.
 pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// Every shipped ship, in stable generated-content order.
@@ -124,69 +92,9 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototyp
         ),
         block_ship(
             assets,
-            BLOCK_RAIDER_SHIP_ID,
-            "Salvage Raider",
-            block::salvage_raider(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_CARRIER_SHIP_ID,
-            "Industrial Carrier",
-            block::industrial_carrier(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_WARSHIP_SHIP_ID,
-            "Stolen Warship",
-            block::stolen_warship(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_SKIFF_SHIP_ID,
-            "Salvage Skiff",
-            block::salvage_skiff(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_TUG_SHIP_ID,
-            "Salvage Tug",
-            block::salvage_tug(),
-        ),
-        block_ship(
-            assets,
             BLOCK_PICKET_SHIP_ID,
             "Salvage Picket",
             block::salvage_picket(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_CLAW_SHIP_ID,
-            "Salvage Claw",
-            block::salvage_claw(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_CLEANUP_LEADER_SHIP_ID,
-            "Cleanup Leader",
-            block::salvage_leader(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_WRECK_BRIDGE_SHIP_ID,
-            "Carrier Wreck: Bridge",
-            block::carrier_wreck_bridge(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_WRECK_SPINE_SHIP_ID,
-            "Carrier Wreck: Spine",
-            block::carrier_wreck_spine(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_WRECK_SHOULDER_SHIP_ID,
-            "Carrier Wreck: Shoulder",
-            block::carrier_wreck_shoulder(),
         ),
         block_ship(
             assets,
@@ -213,8 +121,8 @@ pub(crate) fn patched_design(
     }
 }
 
-/// A one-off copy of the salvage raider for a set piece that changes an
-/// intrinsic hull property without retuning the shared catalog ship.
+/// An inline copy of the raider hull with its own collapse threshold, which
+/// is a design-level field no spawn patch can reach.
 pub(crate) fn inline_raider(
     assets: &BaseContentAssets,
     collapse_threshold: f32,
@@ -339,9 +247,8 @@ pub(crate) fn turret_magazine(rounds: u32) -> SpaceshipSectionConfigPatch {
     }
 }
 
-/// The feedback voice every shipped design speaks with. Authored once here:
-/// the sounds are the GAME's, not one hull's, and a ship that shipped without
-/// them would simply be mute.
+/// The sound set every shipped design carries. These sounds belong to the
+/// game rather than to one hull, so they are authored once here.
 pub(crate) fn default_presentation(assets: &BaseContentAssets) -> ShipPresentationConfig {
     ShipPresentationConfig {
         collapse_sound: Some(assets.ship_collapse_sound.clone()),
@@ -358,9 +265,8 @@ pub(crate) fn default_presentation(assets: &BaseContentAssets) -> ShipPresentati
     }
 }
 
-/// One catalog entry over a built section list. Every shipped ship takes the
-/// engine's collapse threshold, so the hull is its sections plus the one voice
-/// no section can own: the ship coming apart.
+/// One catalog entry over a built section list. Every shipped ship keeps the
+/// engine's default collapse threshold.
 fn ship(
     assets: &BaseContentAssets,
     id: &str,
@@ -379,8 +285,7 @@ fn ship(
 }
 
 /// One catalog entry over a BLOCK hull: the entry above plus the two fields a
-/// cell-built hull carries - a derived skin, which reads a hull as unit cells,
-/// and the style it wears.
+/// cell-built hull carries, a derived skin and the style it wears.
 fn block_ship(
     assets: &BaseContentAssets,
     id: &str,

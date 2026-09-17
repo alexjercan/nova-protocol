@@ -85,6 +85,9 @@
 //! cargo run --features debug probe run stress_hull_collapse
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use avian3d::prelude::*;
@@ -179,11 +182,6 @@ const HULL_DEPTH: i32 = 16;
 /// The lattice every shipped hull is built on, so the corridor arithmetic below
 /// is the game's own geometry and not a rig's.
 const HULL_CELL: f32 = 1.0;
-
-/// The plate every cell is built from, and the one computer that makes the
-/// block a ship the rest of the stack recognizes.
-const HULL_PLATE: &str = REINFORCED_HULL_SECTION_ID;
-const HULL_BRIDGE: &str = BASIC_CONTROLLER_SECTION_ID;
 
 /// Where the bridge sits, in cells: the far corner, well outside the corridor.
 /// A computer in the bore would be destroyed with everything else and take the
@@ -556,14 +554,15 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![
-                at(
-                    LANCE_ID.to_string(),
-                    SIEGE_RAILGUN_LANCE_SECTION_ID,
-                    Vec3::new(0.0, 0.0, -1.0),
-                ),
+                SpaceshipSectionConfig {
+                    id: LANCE_ID.to_string(),
+                    position: Vec3::new(0.0, 0.0, -1.0),
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(dev_fixtures::sections::siege_railgun_lance()),
+                },
                 at(
                     "controller".to_string(),
-                    HULL_BRIDGE,
+                    BASIC_CONTROLLER_SECTION_ID,
                     Vec3::new(0.0, 0.0, 1.0),
                 ),
                 at(
@@ -585,9 +584,9 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 .into_iter()
                 .map(|cell| {
                     let plate = if cell == BRIDGE_CELL {
-                        HULL_BRIDGE
+                        BASIC_CONTROLLER_SECTION_ID
                     } else {
-                        HULL_PLATE
+                        REINFORCED_HULL_SECTION_ID
                     };
                     at(
                         format!("cell_{}_{}_{}", cell.x, cell.y, cell.z),

@@ -8,12 +8,12 @@
 //! BEFORE it lands and a reading after. This range is where the fight is read.
 //!
 //! Two engagements run side by side, far enough apart that neither scanner can
-//! hear the other: an escort fight (`block_picket` against a parked
-//! `block_skiff`) and a capital fight (`block_warship`, the only capital
-//! combatant the base game ships, against a parked `block_carrier`, the
-//! largest hull it ships). The two are chosen to put a factor of three between
-//! the summed hull radii of the two fights, because that sum is what the
-//! standoff item is about.
+//! hear the other: an escort fight (the shipped `block_picket` against a
+//! parked salvage skiff fixture) and a capital fight (the capital warship
+//! fixture against a parked industrial carrier fixture, the largest hull in
+//! the fixture set). The two are chosen to put a factor of three between the
+//! summed hull radii of the two fights, because that sum is what the standoff
+//! item is about.
 //!
 //! Both movers fly with EMPTY MAGAZINES. The subject here is how an AI ship
 //! flies a fight, and a live one is over before the flying settles: a picket
@@ -44,6 +44,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "../screenshots/shared/kit.rs"]
 mod kit;
 
@@ -66,16 +68,16 @@ struct Cli;
 /// The escort fight's mover: the cleanup group's armed picket, one nose gun.
 const PICKET: &str = "block_picket";
 
-/// The escort fight's target: the cleanup group's unarmed needle.
-const SKIFF: &str = "block_skiff";
+/// The escort fight's target: the unarmed salvage needle fixture.
+const SKIFF: &str = "fixture_skiff";
 
-/// The capital fight's mover: the stolen Earth warship, the only capital
-/// combatant the base game ships.
-const WARSHIP: &str = "block_warship";
+/// The capital fight's mover: the capital warship fixture, the only hull in
+/// the set that carries a capital battery.
+const WARSHIP: &str = "fixture_warship";
 
-/// The capital fight's target: the campaign's home, and the largest hull the
-/// base game ships.
-const CARRIER: &str = "block_carrier";
+/// The capital fight's target: the industrial carrier fixture, the largest
+/// hull in the set.
+const CARRIER: &str = "fixture_carrier";
 
 /// The escort mover's scenario id.
 const PICKET_ID: &str = "ai_combat_picket";
@@ -183,12 +185,10 @@ fn combat_range(
 ) -> ScenarioConfig {
     let ship = |id: &str,
                 name: &str,
-                catalog: &str,
+                mut hull: ShipDesign,
                 at: Meters3,
                 rotation: Quat,
                 spec: SpaceshipConfig| {
-        let hull = kit::catalog_ship(ships, catalog);
-        let mut hull = hull;
         kit::dry_magazines(&mut hull, sections);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -242,20 +242,34 @@ fn combat_range(
             filters: vec![],
             actions: [
                 vec![
-                    ship(SKIFF_ID, "Skiff", SKIFF, escort, nose_up, target.clone()),
+                    ship(
+                        SKIFF_ID,
+                        "Skiff",
+                        dev_fixtures::skiff(),
+                        escort,
+                        nose_up,
+                        target.clone(),
+                    ),
                     ship(
                         PICKET_ID,
                         "Picket",
-                        PICKET,
+                        kit::catalog_ship(ships, PICKET),
                         escort + approach,
                         Quat::IDENTITY,
                         mover.clone(),
                     ),
-                    ship(CARRIER_ID, "Carrier", CARRIER, capital, nose_up, target),
+                    ship(
+                        CARRIER_ID,
+                        "Carrier",
+                        dev_fixtures::carrier(),
+                        capital,
+                        nose_up,
+                        target,
+                    ),
                     ship(
                         WARSHIP_ID,
                         "Warship",
-                        WARSHIP,
+                        dev_fixtures::warship(),
                         capital + approach,
                         Quat::IDENTITY,
                         mover,

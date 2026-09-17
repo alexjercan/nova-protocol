@@ -13,6 +13,9 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also record the cycle as
 //!   `news-0130-helm-orders.webm` (staged under `NOVA_CAPTURE_DIR`).
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
+
 use std::collections::HashSet;
 
 use bevy::prelude::*;
@@ -126,8 +129,8 @@ fn gunship() -> ScenarioObjectConfig {
     }
 }
 
-/// The crosser: an unarmed salvage skiff nobody drives, a bystander until the
-/// script sends it across the route and declares it.
+/// The crosser: the unarmed salvage skiff fixture nobody drives, a bystander
+/// until the script sends it across the route and declares it.
 fn crosser() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -139,7 +142,7 @@ fn crosser() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
-            design: design(BLOCK_SKIFF_SHIP_ID),
+            design: dev_fixtures::design(dev_fixtures::skiff()),
             ..default()
         }),
     }

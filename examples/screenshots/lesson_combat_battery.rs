@@ -106,6 +106,8 @@
 //!   cargo run --example lesson_combat_battery --features debug
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/hollow.rs"]
 mod hollow;
 #[path = "shared/kit.rs"]
@@ -323,7 +325,7 @@ fn the_battery(
                     .rotation,
                 SpaceshipController::None,
                 Some(Allegiance::Enemy),
-                kit::catalog_ship(ships, "block_cleanup_leader"),
+                dev_fixtures::cleanup_leader(),
             )
         })
         .collect();
@@ -431,7 +433,7 @@ fn loose_the_salvo(world: &mut World) {
     assert!(
         !bays.is_empty(),
         "no torpedo bays in the set: the point-defence frame would be a picture of an idle \
-         battery. Check the boats are still built from block_cleanup_leader."
+         battery. Check the boats are still built from the cleanup leader fixture."
     );
     for bay in bays {
         if let Some(mut input) = world.entity_mut(bay).get_mut::<TorpedoSectionInput>() {

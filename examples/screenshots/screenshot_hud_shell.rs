@@ -1,10 +1,10 @@
-//! screenshot_hud_shell: the directional-HUD shells around the biggest hull in
-//! the fleet.
+//! screenshot_hud_shell: the directional-HUD shells around the biggest hull the
+//! examples build.
 //!
 //! The visual fixture for task 20260909-212917. The velocity sphere and the
 //! gravity sphere have to ENCLOSE the hull they belong to, whatever its size,
-//! so the set stages the 33-cell industrial carrier - 2 081 sections, 360 m
-//! stem to stern - under way and inside a real well, and films both shells
+//! so the set stages the 33-cell industrial carrier fixture - 2 081 sections,
+//! 360 m stem to stern - under way inside a real well, and films both shells
 //! around it from one pinned broadside.
 //!
 //! Everything the frame shows is live: the player's own carrier flying the
@@ -36,8 +36,8 @@
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "shared/kit.rs"]
-mod kit;
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 use std::collections::BTreeMap;
 
@@ -122,13 +122,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
-    commands.trigger(LoadScenario(hud_shell_set(&game_assets, &ships)));
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>) {
+    commands.trigger(LoadScenario(hud_shell_set(&game_assets)));
 }
 
 /// The set: the player's carrier at the origin and the well it is falling
 /// around, lit by the photo rig.
-fn hud_shell_set(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
+fn hud_shell_set(game_assets: &GameAssets) -> ScenarioConfig {
     let carrier = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: CARRIER_ID.to_string(),
@@ -145,7 +145,7 @@ fn hud_shell_set(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
                 speed_cap: None,
             }),
             allegiance: None,
-            design: ShipDesignSource::Inline(kit::catalog_ship(ships, "block_carrier")),
+            design: ShipDesignSource::Inline(dev_fixtures::carrier()),
             ..default()
         }),
     });

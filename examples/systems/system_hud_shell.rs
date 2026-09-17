@@ -7,8 +7,8 @@
 //! itself. They are now derived from the hull's own `HullEnvelopeRadius` about
 //! its live centre of mass, and the flight chips park off the outer one.
 //!
-//! The range runs the same round twice - `block_carrier` as the player hull,
-//! then `block_skiff` - because the whole defect was a number that worked at
+//! The range runs the same round twice - the carrier fixture as the player
+//! hull, then the skiff - because the whole defect was a number that worked at
 //! one size. The big hull goes FIRST so the run's one appended picture is of
 //! the small one: under the software rasterizer CI renders with, thirty settle
 //! frames of 2 081 sections cost more than every assertion in this file put
@@ -44,6 +44,8 @@
 //! # naming the BEAT.
 //! ```
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "../screenshots/shared/kit.rs"]
 mod kit;
 
@@ -63,13 +65,14 @@ struct Cli;
 /// replaces the hull rather than adding one.
 const SHIP_ID: &str = "hud_shell_ship";
 
-/// The small hull: the first round's player ship.
+/// What the readings call the small hull: the second round's player ship.
 #[cfg(feature = "debug")]
-const SKIFF: &str = "block_skiff";
+const SKIFF: &str = "fixture_skiff";
 
-/// The big hull: the first round's player ship, and the one the fixed 56 m
-/// shell was buried inside.
-const CARRIER: &str = "block_carrier";
+/// What the readings call the big hull: the first round's player ship, and the
+/// one the fixed 56 m shell was buried inside.
+#[cfg(feature = "debug")]
+const CARRIER: &str = "fixture_carrier";
 
 /// The consort hull the world-anchored chips are measured against: a mid-size
 /// ship, so its silhouette is wide enough at the range it is parked at that a
@@ -231,7 +234,11 @@ fn custom_plugin(app: &mut App) {
 }
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
-    commands.trigger(LoadScenario(shell_range(&game_assets, &ships, CARRIER)));
+    commands.trigger(LoadScenario(shell_range(
+        &game_assets,
+        &ships,
+        dev_fixtures::carrier(),
+    )));
 }
 
 /// The range scenario: one player hull parked in flat space with a consort and
@@ -241,7 +248,11 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<
 /// The consort and the beacon are what invariant 6 measures: a ship silhouette
 /// and an authored body radius, the two things a world-anchored chip has to
 /// clear, both close enough to be hundreds of pixels across.
-fn shell_range(game_assets: &GameAssets, ships: &GameShipDesigns, hull: &str) -> ScenarioConfig {
+fn shell_range(
+    game_assets: &GameAssets,
+    ships: &GameShipDesigns,
+    hull: ShipDesign,
+) -> ScenarioConfig {
     let ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: SHIP_ID.to_string(),
@@ -255,7 +266,7 @@ fn shell_range(game_assets: &GameAssets, ships: &GameShipDesigns, hull: &str) ->
                 speed_cap: None,
             }),
             allegiance: None,
-            design: ShipDesignSource::Inline(kit::catalog_ship(ships, hull)),
+            design: ShipDesignSource::Inline(hull),
             ..default()
         }),
     });
@@ -447,7 +458,7 @@ fn reload_as_skiff(world: &mut World) {
     let config = {
         let game_assets = world.resource::<GameAssets>();
         let ships = world.resource::<GameShipDesigns>();
-        shell_range(game_assets, ships, SKIFF)
+        shell_range(game_assets, ships, dev_fixtures::skiff())
     };
     world.resource_mut::<ShellProbe>().before = None;
     info!("shell range: reloading as the skiff");

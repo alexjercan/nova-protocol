@@ -5,10 +5,7 @@
 //! about what is said. Nothing in the graph reads a line's text and no two
 //! beats share a constant, so a rewrite here is a rewrite here.
 //!
-//! The voice is Range Control: a Fleet training range talking a cadet through
-//! a qualification card. No story, no stakes beyond the card. The one thing
-//! the lines carry besides instruction is that the Fleet is a thing worth
-//! joining.
+//! Every line is Range Control instructing the player through the card.
 
 // --- the briefing ------------------------------------------------------------
 
@@ -52,7 +49,7 @@ pub(super) const NAV_LINE: &str =
      takes.";
 pub(super) const OBJ_TEXT_NAV: &str =
     "Weapons down: hold [CTRL] on the planetoid until the white travel lock takes.";
-/// A cadet who swept with weapons raised: the red lock is the gun's, and the
+/// A player who swept with weapons raised: the red lock is the gun's, and the
 /// computer flies only the white one.
 pub(super) const NAV_COMBAT_NUDGE: &str =
     "Red is the gun's lock, cadet. The computer flies only the white one. Weapons down \
@@ -87,7 +84,7 @@ pub(super) const LOCK_LINE: &str =
      Target 1 in front of you and hold [CTRL] until the red lock takes.";
 pub(super) const OBJ_TEXT_LOCK: &str =
     "Weapons up ([Right Mouse]) and lock Target 1 - hold [CTRL] until the lock is red.";
-/// A cadet who swept with weapons lowered: the white travel lock is real but
+/// A player who swept with weapons lowered: the white travel lock is real but
 /// feeds no gun, and the card waits for the red one.
 pub(super) const LOCK_TRAVEL_NUDGE: &str =
     "White is a travel lock, cadet - it flies you places, it shoots nothing. Weapons \
@@ -104,7 +101,7 @@ pub(super) const OBJ_TEXT_FIRE: &str =
 pub(super) const SCRAP_LINE: &str =
     "Target 1 is scrap. Four more on the line - they are marked. Work them in any \
      order.";
-/// The same hand-off for a cadet who shot Target 1 apart before the lock
+/// The same hand-off for a player who shot Target 1 apart before the lock
 /// landed. The lesson is not repeated, and the card moves on.
 pub(super) const SCRAP_EARLY_LINE: &str =
     "Target 1 is scrap - no lock, but scrap. We will call that initiative. Four more \

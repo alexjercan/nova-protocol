@@ -24,6 +24,8 @@
     reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
 )]
 
+#[path = "../../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "kit.rs"]
 mod kit;
 
@@ -76,9 +78,8 @@ pub const LANCE_POSITION: Meters3 = Meters3::new(-380.0, 300.0, -560.0);
 /// standard assault bay is authored at 300 m. The ordnance camera is framed off
 /// this, not off the raider - 150 m is a third of the frame at a close camera.
 pub const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
-/// How many bays the cleanup leader carries, and so how many torpedoes one
-/// salvo is. One flank Serpent tube: it is the only ordnance in the base
-/// game's small-craft fleet.
+/// How many bays the cleanup leader fixture carries, and so how many torpedoes
+/// one salvo is. One flank Serpent tube.
 pub const EXPECTED_TORPEDO_COUNT: usize = 1;
 
 /// Scenario id of the boat that keeps its shipped bay, for the frame that runs
@@ -88,7 +89,7 @@ pub const WEAVER_ID: &str = "hollow_weaver";
 pub const STRAIGHT_ID: &str = "hollow_straight";
 /// The shipped bay, and the bay it is swapped for: the two catalog sections
 /// that differ in nothing but the torpedo they hold
-/// (`base_content/sections/standard.rs`).
+/// (`base_content/sections/torpedo_bay.rs`).
 pub const SERPENT_BAY_SECTION: &str = "torpedo_section";
 /// The straight-running bay, the other half of that pair.
 pub const LANCE_BAY_SECTION: &str = "lance_torpedo_section";
@@ -187,7 +188,7 @@ pub fn ambush_hollow(
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
 
     // The live background: two friendlies working the near flanks, two hostiles
@@ -233,7 +234,7 @@ pub fn ambush_hollow(
             Meters3::new(-1_900.0, 60.0, -3_000.0),
         ]),
         None,
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
@@ -246,11 +247,11 @@ pub fn ambush_hollow(
             Meters3::new(2_100.0, -40.0, -3_300.0),
         ]),
         None,
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
 
-    // The torpedo boat: the cleanup leader, which is the only small craft in
-    // the catalog with a launch bay. Posed, not AI - the AI's envelope opens at
+    // The torpedo boat: the cleanup leader fixture, the only small craft in
+    // the set with a launch bay. Posed, not AI - the AI's envelope opens at
     // 3x the blast radius and its cadence is a 10-second playtest knob, so a
     // capture that waited for it would be waiting on a coin flip. The script
     // pulls the trigger instead ([`loose_torpedoes`]) and the bay, the
@@ -264,7 +265,7 @@ pub fn ambush_hollow(
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_cleanup_leader"),
+        dev_fixtures::cleanup_leader(),
     );
 
     ScenarioConfig {
@@ -322,7 +323,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
     let lance = ship(
         LANCE_ID,
@@ -333,7 +334,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_cleanup_leader"),
+        dev_fixtures::cleanup_leader(),
     );
     let shell = kit::NearField {
         id_prefix: "ordnance_rock_",
@@ -370,24 +371,24 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
 /// carrying the other torpedo.
 ///
 /// The two types are one authored difference - a weave angle and a cruise cap
-/// (`base_content/sections/ordnance.rs`) - so a frame that shows them one at a
+/// (`base_content/sections/torpedo_bay.rs`) - so a frame that shows them one at a
 /// time shows nothing: a reader cannot tell a corkscrew from a straight line
 /// without the straight line beside it. Two hulls, side by side, firing on the
 /// same bearing in the same second, is the only staging where the difference
 /// is the ONLY thing that differs.
 ///
-/// Same hull twice, not two classes. The boats are both
-/// `block_cleanup_leader`, and one of them has its bay prototype swapped -
-/// which is the lesson's own sentence ("Two normal bays ship, and only the
-/// run-in differs") built rather than asserted.
+/// Same hull twice, not two classes. The boats are both the cleanup leader
+/// fixture, and one of them has its bay prototype swapped - which is the
+/// lesson's own sentence ("Two normal bays ship, and only the run-in differs")
+/// built rather than asserted.
 pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let run = (TYPES_TARGET - TYPES_POSITION).get().normalize_or_zero();
     let across = run.cross(Vec3::Y).normalize_or_zero();
     let apart = Meters3(Vec3::Y * (TYPES_SEPARATION.get() * 0.5));
     // BROADSIDE to the target, so the bay fires ALONG the run.
     //
-    // A bay ejects across its own hull (`base_content/ships/block.rs` mounts
-    // the cleanup leader's tube on the port flank, turned a quarter turn), and
+    // A bay ejects across its own hull (`examples/shared/dev_fixtures/block.rs`
+    // mounts the leader's tube on the port flank, turned a quarter turn), and
     // a boat pointed at its target therefore drops the round out sideways and
     // leaves the guidance to haul it round. That turn takes longer than a whole
     // sheet: measured on this set, a round nosed at the target was still 90
@@ -409,7 +410,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         heading(weaver_at),
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_cleanup_leader"),
+        dev_fixtures::cleanup_leader(),
     );
     let straight_at = TYPES_POSITION - apart;
     let straight = ship(
@@ -419,7 +420,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         heading(straight_at),
         SpaceshipController::None,
         Some(Allegiance::Player),
-        lance_loaded(kit::catalog_ship(ships, "block_cleanup_leader")),
+        lance_loaded(dev_fixtures::cleanup_leader()),
     );
     let raider = ship(
         RAIDER_ID,
@@ -428,7 +429,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
     // The player's hull is in the set but not in the frame: the camera rides
     // the salvo a kilometre out. It is here because the game is a game about a
@@ -513,7 +514,7 @@ fn lance_loaded(mut design: ShipDesign) -> ShipDesign {
     }
     assert_eq!(
         swapped, EXPECTED_TORPEDO_COUNT,
-        "the cleanup leader carries exactly the bays this swap was written for"
+        "the cleanup leader fixture carries exactly the bays this swap was written for"
     );
     design
 }
@@ -610,7 +611,7 @@ pub fn duel_hollow(
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
 
     ScenarioConfig {
@@ -723,7 +724,7 @@ pub fn hunter_hollow(
             ..default()
         }),
         Some(Allegiance::Enemy),
-        kit::catalog_ship(ships, "block_raider"),
+        dev_fixtures::raider(),
     );
 
     // ITS OWN SHELL, pushed out and scaled up, and this is the one thing in

@@ -71,7 +71,7 @@ impl WalkedBundle {
     }
 }
 
-/// The workspace root (this crate sits at `crates/nova_assets`).
+/// The workspace root (this crate sits at `crates/nova_authoring`).
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -540,10 +540,9 @@ fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSourc
 
 /// The injection actions one scenario's script runs, sorted and deduplicated.
 ///
-/// Empty means the scenario only does bookkeeping - objectives, variables,
-/// story, camera - which is what a scenario IS, and is not a classification.
-/// Non-empty makes it a creative map. Computed here and never authored: a
-/// scenario cannot declare itself clean.
+/// Empty means the scenario only does bookkeeping: objectives, variables,
+/// dialogue and camera. Non-empty makes it a creative map. Computed here and
+/// never authored, so a scenario cannot declare itself clean.
 fn scenario_injections(scenario: &ScenarioConfig) -> Vec<String> {
     let mut names: BTreeSet<&'static str> = BTreeSet::new();
     for event in &scenario.events {
@@ -719,7 +718,7 @@ fn build_report(
     }
 
     // 4. Creative-map classification. Context, not a finding: the report says
-    // which scenarios reach into the world, and nobody is accused of anything.
+    // which scenarios reach into the world, and grades none of them.
     let mut creative_maps = Vec::new();
     for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
         for scenario in &bundle.scenarios {

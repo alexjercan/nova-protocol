@@ -162,10 +162,10 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    ```
 
 8. **Asset prototype.**
-   In `crates/nova_authoring/src/base_content/sections/standard.rs`, add a
-   `SectionConfig` to `standard_section_prototypes()` so the catalog ships a
-   ready-to-place
-   instance. Give it a stable snake_case `id` (this is what
+   Add a family module under
+   `crates/nova_authoring/src/base_content/sections/` (or extend the one this
+   kind belongs to) and return your `SectionConfig` from its `prototypes()`, so
+   the catalog ships a ready-to-place instance. Give it a stable snake_case `id` (this is what
    `sections.get_section("...")` and RON authors reference). The id is a
    runtime STRING that nothing type-checks: keep it a literal beside the
    builder, and promote it to a `const` in
@@ -240,6 +240,7 @@ runnable proof -- so double-check those by hand.
   `insert_preview_section` - `crates/nova_editor/src/preview.rs`;
   `GalleryCategory` - `crates/nova_editor/src/gallery/catalog.rs`.
 - Cross-crate prototype ids: `crates/nova_ship/src/sections/catalog_ids.rs`.
-- Prototypes: `standard_section_prototypes` -
-  `crates/nova_authoring/src/base_content/sections/standard.rs`.
+- Prototypes: `section_catalog` -
+  `crates/nova_authoring/src/base_content/sections/mod.rs`, with one
+  `prototypes()` per family module beside it.
 - API detail: `cargo doc --open -p nova_ship`.

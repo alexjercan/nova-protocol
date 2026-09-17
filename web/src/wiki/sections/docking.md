@@ -21,7 +21,7 @@ A docking port is a **sealed hatch**: one cell of collar with a graphite sleeve 
 
 What a dock is NOT is a merge. The two ships stay two ships: two hulls, two pilots, two sets of controls, and nothing pooled between them. The clamp holds the pose you met in and does no more than that. It is **modal**: while it holds, your drive and your helm are dead, and <kbd>D</kbd> again is the only thing that gives them back.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs docking_port_section: health 90 (DOCKING_BASE_HEALTH), capture_distance 10 m, capture_angle 15 deg, maximum_relative_speed 5 m/s, maximum_relative_angular_speed 5 rad/s, DOCK_TUBE_TRAVEL 0.5 cells over 1.2 s out and 0.8 s back. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/docking_port.rs: health 90 (DOCKING_BASE_HEALTH), capture_distance 10 m, capture_angle 15 deg, maximum_relative_speed 5 m/s, maximum_relative_angular_speed 5 rad/s, DOCK_TUBE_TRAVEL 0.5 cells over 1.2 s out and 0.8 s back. -->
 
 | The docking port at a glance | |
 |---|---|
@@ -77,7 +77,7 @@ The last two endings are damage. Shoot the port off either hull, or kill either 
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs docking_port_section and assets/base/sections/base.content.ron. No base ship mounts one: the part is in the editor palette and the catalog only. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. No base ship mounts one: the part is in the editor palette and the catalog only. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-docking.png</span></span></span><span class="catalog__title">Docking - shipped prototypes</span></div>
 <table>
 <thead>

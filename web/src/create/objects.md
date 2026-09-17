@@ -134,7 +134,7 @@ Author the size you want the fight to take. The shipped tutorial targets are
 `radius: 2.5` and `3.0` for exactly this reason: small size, not hidden health,
 is what keeps a target brief now that there is no `health` field to turn down.
 
-<!-- Numbers verified against crates/nova_gameplay/src/integrity/carve.rs (DAMAGE_PER_UNIT_VOLUME 8.0 per cubic world unit :83, mark_radius :264-277) and crates/nova_authoring/src/base_content/sections/standard.rs (KINETIC_PDC_BULLET_DAMAGE 4.0 :59, GATLING_FIRE_RATE 100.0 :74). Tutorial radii from assets/mods/example/example.content.ron (:409, :424). -->
+<!-- Numbers verified against crates/nova_gameplay/src/integrity/carve.rs (DAMAGE_PER_UNIT_VOLUME 8.0 per cubic world unit :83, mark_radius :264-277) and crates/nova_authoring/src/base_content/sections/turret.rs (KINETIC_PDC_BULLET_DAMAGE 4.0, GATLING_FIRE_RATE 100.0). Tutorial radii from assets/mods/example/example.content.ron (:409, :424). -->
 
 ## Planet
 
@@ -322,7 +322,7 @@ An abbreviated AI ship:
 SpawnScenarioObject((
     base: (
         id: "raider_1",
-        name: "Raider",
+        name: "Picket",
         position: (0.0, 0.0, -3000.0),
         rotation: (0.0, 0.0, 0.0, 1.0),
     ),
@@ -331,7 +331,7 @@ SpawnScenarioObject((
             patrol: [(0.0, 0.0, -3000.0), (800.0, 0.0, -2200.0)],
             engage_delay: Some(8.0),
         )),
-        design: Prototype(id: "block_raider"),
+        design: Prototype(id: "block_picket"),
     )),
 )),
 ```

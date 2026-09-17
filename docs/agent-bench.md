@@ -41,7 +41,7 @@ cargo run --features debug bench play <scenario> --agent 'cmd:python3 my_agent.p
 `<scenario>` is an installed scenario id, or a path ending in `.ron` loaded
 as a loose content file. The bench ships five fixtures under `crates/nova_bench/scenarios/`:
 
-- `hunt.content.ron`: one player gunship, one hostile raider parked 2600 m
+- `hunt.content.ron`: one player gunship, one hostile picket parked 2600 m
   ahead, an objective and both outcomes. The scenario scores itself.
 - `range.content.ron`: an open range with no objective and no victory. A
   600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile
@@ -49,9 +49,10 @@ as a loose content file. The bench ships five fixtures under `crates/nova_bench/
 - `slingshot.content.ron`: an offset gravity well, a distant exit mark, and a
   hostile pursuer that wakes after 45 seconds support gravity-assist, evasion,
   collision, and route-cheese goals.
-- `arsenal.content.ron`: a player warship with PDCs, torpedoes, and railguns,
-  plus a carvable rock, two inert targets, and a late raider, supports mixed
-  weapons, asteroid carving, NOVA OS, cheat, and protocol-abuse goals.
+- `arsenal.content.ron`: a player hull authored inline with a railgun, two
+  torpedo bays and two PDC mounts, plus a carvable rock, two inert targets and
+  a late picket, supports mixed weapons, asteroid carving, NOVA OS, cheat, and
+  protocol-abuse goals.
 - `docking.content.ron`: the `docking_approach` example as a fixture. A
   tender with a port on its bow and an inert spar 120 m ahead, turned out of
   square, support docking and RCS goals; `me.docking` carries the approach.

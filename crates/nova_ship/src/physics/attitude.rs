@@ -205,8 +205,8 @@ mod tests {
     /// keeps saying it after the controller is retuned.
     const SHIPPED_COMPUTER: f32 = DEFAULT_MAX_TORQUE;
 
-    /// `block_carrier` as `system_hull_scaling` measures it: the largest hull
-    /// the game ships, and the one the computer's torque is pinned against.
+    /// The carrier hull as `system_hull_scaling` measures it: the largest hull
+    /// measured, and the one the computer's torque is pinned against.
     const CARRIER_INERTIA: f32 = 2.195e5;
     /// The same hull's structural arm.
     const CARRIER_ARM: Meters = Meters(194.2);

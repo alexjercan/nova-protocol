@@ -2,16 +2,15 @@
 //! raider fight inside a bounded arena, the winner is erased by a siege
 //! torpedo, and after a beat two fresh ships fly in.
 //!
-//! The two hulls are the fleet's LOOK argument: same cube vocabulary, opposite
-//! read. The gunship is squared off, symmetric and armoured, with six mounts;
-//! the raider is the same tonnage worn down to an outrigger, a scrap boom and
-//! two guns bolted where they fitted. A menu visitor should be able to call
-//! the fight before a shot lands.
+//! The two hulls read apart at a glance: the gunship is squared off,
+//! symmetric and armoured, with six mounts; the raider is asymmetric, with an
+//! outrigger, a boom and two mounts.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
@@ -46,6 +45,19 @@ const RIVAL_PATROL: [Meters3; 3] = [
 const VICTOR_PATROL_ORDER: &str = "duel_victor_patrol";
 const RIVAL_PATROL_ORDER: &str = "duel_rival_patrol";
 
+/// The two duelists, by the ids every spawn, order, filter and forfeit names.
+const VICTOR_ID: &str = "duel_victor";
+const RIVAL_ID: &str = "duel_rival";
+/// The off-screen battery, and the scatter prefix its arena dressing takes.
+const FINISHER_ID: &str = "duel_finisher";
+const ROCK_ID_PREFIX: &str = "duel_rock_";
+/// The act's timer keys: the finisher clock, the aftermath drift, the spawn
+/// batch's flush, and the stall watchdog.
+const TIMER_FINISHER_BEAT: &str = "duel_finisher_beat";
+const TIMER_RESET: &str = "duel_reset";
+const TIMER_RESPAWN: &str = "duel_respawn";
+const TIMER_WATCHDOG: &str = "duel_watchdog";
+
 /// The out-of-bounds fail-safe, centered on the ordered fight. The patrol
 /// orders keep ordinary combat inside the shot; this shell still resolves an
 /// act if a collision, blast or crippled drive throws one actor clear.
@@ -57,10 +69,150 @@ const ARENA_RADIUS: Meters = Meters(1_800.0);
 /// in the air, the doubling the 20 s re-arm exists to prevent.
 const VAR_DECIDED: &str = "duel_decided";
 
+/// The finisher battery's only section, named so the scripted launch can reach
+/// it by id.
+const FINISHER_BAY: &str = "siege_bay";
+
+/// The Breaker bay's tube, in build cells: one cell square, two deep.
+const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
+
+/// The act's finisher, authored here because nothing else uses it.
+///
+/// A capital-grade bay with armoured ordnance and a ship-killing blast. It is
+/// deliberately past anything a player can build, so it belongs to the one
+/// scene that fires it rather than to the catalog: an entry in the catalog is
+/// an entry in the editor's drawer, and this is not kit.
+///
+/// The numbers that make the act work: `blast_damage` 2000 over a 450 m radius
+/// kills a duelist outright through the 65% transmission rule, and
+/// `projectile_health` 5000 is past what a gunship's six mounts (~800 DPS) can
+/// chew through inside the ~6 s closing window, so point defense visibly
+/// hammers the round and still loses. Both are the point of the beat.
+fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
+    SectionConfig {
+        base: BaseSectionConfig {
+            id: FINISHER_BAY.to_string(),
+            damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
+            name: "Siege Torpedo Bay Section".to_string(),
+            description: "A capital-grade siege torpedo battery: slow salvo, \
+                          armored ordnance, ship-killing blast."
+                .to_string(),
+            health: 100.0,
+            destroy_sound: Some(assets.section_destroy_sound.clone()),
+            collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
+            link_points: bay_link_points(),
+            // Nothing mounts this but the battery, and the battery is not a
+            // hull anybody edits.
+            hide_in_editor: true,
+            animations: bay_muzzle_door(),
+        },
+        kind: SectionKind::Torpedo(TorpedoSectionConfig {
+            render_mesh: Some(assets.torpedo_bay.clone()),
+            render_mesh_transform: None,
+            projectile_render_mesh: None,
+            // The muzzle point on the door plane, and the birth centred one
+            // cell back inside the tube, so the round slides out through the
+            // open iris.
+            spawn_offset: Vec3::NEG_Z * BAY_CELLS.z * 0.5,
+            // The launch axis is the spawner's +Y; this turns it onto the
+            // section's -Z, the one face `bay_link_points` leaves unlinkable
+            // so it can be a muzzle. Without it the tube ejects through its
+            // own roof.
+            spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            spawn_recess: BAY_CELLS.z * 0.5,
+            fire_rate: 1.0,
+            spawner_speed: MetersPerSecond(80.0),
+            // Long enough to cross the arena, short enough that a round whose
+            // target died mid-flight cleans itself up.
+            projectile_lifetime: 60.0,
+            arm_time: 0.5,
+            arm_distance: Meters(50.0),
+            // Dropped, then lit: the bay ejects on a cold charge and the motor
+            // catches once the round is clear.
+            ignition_delay: 0.6,
+            nav_constant: 4.0,
+            linear_damping: 0.4,
+            blast_radius: Meters(450.0),
+            blast_damage: 2000.0,
+            blast_effect: None,
+            launch_effect: None,
+            launch_sound: Some(assets.torpedo_launch_sound.clone()),
+            door_sound: Some(assets.torpedo_door_sound.clone()),
+            detonation_sound: Some(assets.torpedo_detonation_sound.clone()),
+            projectile_health: 5000.0,
+            torpedo_type: breaker(),
+            ammunition: AmmoCapacity::Limited(6),
+            reload: ReloadConfig::Batch(SectionReloadConfig {
+                delay: 10.0,
+                amount: 1,
+            }),
+        }),
+    }
+}
+
+/// **Breaker** - the capital siege warhead this act ends on.
+///
+/// Half the Serpent's weave amplitude at twice the cruise, so the flight path
+/// swings about as wide (the swing scales with both) and the round reads as a
+/// committed run rather than a dance. It needs the evasion least: its armour
+/// already beats point defense outright.
+fn breaker() -> TorpedoTypeConfig {
+    TorpedoTypeConfig {
+        name: "Breaker".to_string(),
+        // Deep crimson, so it reads apart from the duelists' own ordnance.
+        tint: Color::srgb(0.75, 0.1, 0.12),
+        // The closing window through a point-defense envelope is what makes a
+        // siege round hard to stop.
+        max_speed: MetersPerSecond(700.0),
+        weave_angle: 0.22,
+        weave_rate: 1.4,
+    }
+}
+
+/// The bay's sockets: the breech plate, and one per cell on each flank.
+///
+/// The muzzle face (-Z) carries NONE: a socket there is an invitation to bolt
+/// a plate over the iris the round leaves through.
+fn bay_link_points() -> Vec<LinkPoint> {
+    let mut points = vec![LinkPoint {
+        id: "positive_z".to_string(),
+        position: Vec3::Z * (BAY_CELLS.z * 0.5),
+        normal: Vec3::Z,
+    }];
+    for (face, normal) in [
+        ("positive_x", Vec3::X),
+        ("negative_x", Vec3::NEG_X),
+        ("positive_y", Vec3::Y),
+        ("negative_y", Vec3::NEG_Y),
+    ] {
+        for (cell, z) in [("fore", -0.5), ("aft", 0.5)] {
+            points.push(LinkPoint {
+                id: format!("{face}_{cell}"),
+                position: normal * 0.5 + Vec3::Z * z,
+                normal,
+            });
+        }
+    }
+    points
+}
+
+/// The iris over the tube mouth, opened on the launch cue and shut after it.
+fn bay_muzzle_door() -> Vec<SectionAnimation> {
+    vec![SectionAnimation {
+        cue: SectionAnimationCue::MuzzleDoor,
+        node_prefix: "door_petal_".to_string(),
+        // Past vertical, so the open petals read as a flared crown around the
+        // dark throat rather than six posts.
+        motion: SectionAnimationMotion::RotateX { degrees: 105.0 },
+        open_seconds: 0.25,
+        close_seconds: 0.7,
+    }]
+}
+
 /// What a duelist's bridge is built to take, so the act runs its length.
 const DUELIST_BRIDGE_HEALTH: f32 = 500.0;
 
-/// One duelist: a block warship that flies in from off-screen onto an in-frame
+/// One duelist: a block hull that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace keeps its guns quiet on the entrance;
 /// the scenario patrol order owns its helm before and during combat. The AI
 /// still acquires, aims and fires under an order, but cannot replace the
@@ -141,8 +293,8 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     let asteroid_texture = assets.asteroid_texture.clone();
     let mut stage = Vec::new();
 
-    // An OPEN arena: no planetoid (the first cut proved chase lines pin
-    // against a central rock and its SOI drags the fight onto it), just a
+    // An OPEN arena: no planetoid - chase lines pin against a central rock
+    // and its SOI drags the fight onto it - just a
     // sparse dressing ring well below the fight plane. A crippled loser
     // drifting into the rocks is harmless now - brain-death neutralizes it
     // the moment its computer (or last gun) goes, rocks or no rocks.
@@ -160,7 +312,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     // ordnance must inherit Enemy so the victor's PD engages (and loses).
     stage.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: "duel_finisher".to_string(),
+            id: FINISHER_ID.to_string(),
             name: "Duel Finisher".to_string(),
             position: BATTERY_POS,
             rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
@@ -169,19 +321,19 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
             design: ships::inline_design(vec![SpaceshipSectionConfig {
-                id: "siege_bay".to_string(),
+                id: FINISHER_BAY.to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                source: SectionSource::prototype("heavy_torpedo_section"),
+                source: SectionSource::Inline(siege_bay(assets)),
             }]),
             ..Default::default()
         }),
     });
 
-    // Sparse dressing ring, below the fight plane - depth parallax the
-    // rockless first cut of this arena visibly missed.
+    // Sparse dressing ring, below the fight plane: without it the arena has
+    // no depth parallax.
     let rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-        id_prefix: "duel_rock_".to_string(),
+        id_prefix: ROCK_ID_PREFIX.to_string(),
         count: 12,
         seed: SCATTER_SEED ^ 0x5,
         region: ScatterRegion::Ring {
@@ -193,7 +345,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: "duel_rock_".to_string(),
+                id: ROCK_ID_PREFIX.to_string(),
                 name: "Duel Rock".to_string(),
                 position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
@@ -222,7 +374,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     // ordered route. The order keeps the live fight and the victory lap where
     // the finisher's torpedo will land - mid-shot, not at the frame edge.
     let spawn_victor = EventActionConfig::SpawnScenarioObject(duelist(
-        "duel_victor",
+        VICTOR_ID,
         "Duel Victor",
         VICTOR_SPAWN,
         VICTOR_PATROL,
@@ -236,18 +388,18 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     // fight's whole geometry - approach, merge, chase - happens in the
     // middle of the frame instead of wandering to the edges.
     let spawn_rival = EventActionConfig::SpawnScenarioObject(duelist(
-        "duel_rival",
+        RIVAL_ID,
         "Duel Rival",
         RIVAL_SPAWN,
         RIVAL_PATROL,
-        // One-off copy: the shared raider keeps the fleet's 5% structural
-        // floor, while this doomed set-piece actor comes apart below half of
-        // its built health instead of lingering as a nearly empty hull.
+        // An inline copy, so this actor comes apart below half of its built
+        // health rather than holding together at the engine's 5% floor and
+        // lingering as a nearly empty hull.
         ships::inline_raider(assets, 0.5),
         None,
     ));
-    let victor_patrol = ordered_patrol(VICTOR_PATROL_ORDER, "duel_victor", VICTOR_PATROL);
-    let rival_patrol = ordered_patrol(RIVAL_PATROL_ORDER, "duel_rival", RIVAL_PATROL);
+    let victor_patrol = ordered_patrol(VICTOR_PATROL_ORDER, VICTOR_ID, VICTOR_PATROL);
+    let rival_patrol = ordered_patrol(RIVAL_PATROL_ORDER, RIVAL_ID, RIVAL_PATROL);
 
     let timer = |key: &str, seconds: f64| {
         EventActionConfig::TimerStart(TimerStartActionConfig {
@@ -284,15 +436,15 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                         radius: ARENA_RADIUS,
                     }),
                     set_number(VAR_DECIDED, 0.0),
-                    timer("duel_respawn", 0.5),
+                    timer(TIMER_RESPAWN, 0.5),
                     // Stall watchdog: a duelist can end up crippled without
-                    // ever counting as DEFEATED (observed live: a rival lost
-                    // its flight computer, drifted out of the victor's leash
-                    // reach, and the cycle sat frozen for 11 minutes). Every
+                    // ever counting as DEFEATED: a rival that loses its
+                    // flight computer and drifts out of the victor's leash
+                    // reach freezes the cycle indefinitely. Every
                     // healthy cycle reloads the scenario long before this
                     // fires - and the reload re-arms it - so the watchdog
                     // only ever catches a wedged state.
-                    timer("duel_watchdog", 300.0),
+                    timer(TIMER_WATCHDOG, 300.0),
                 ])
                 .collect(),
         },
@@ -302,7 +454,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "duel_respawn".to_string(),
+                key: TIMER_RESPAWN.to_string(),
             })],
             // Actions flush in order, so each patrol resolves the ship spawned
             // immediately before it in this batch.
@@ -321,7 +473,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             once: false,
             filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
                 order: Some(VICTOR_PATROL_ORDER.to_string()),
-                ship: Some("duel_victor".to_string()),
+                ship: Some(VICTOR_ID.to_string()),
                 kind: Some(ShipOrderKind::Patrol),
             })],
             actions: vec![victor_patrol],
@@ -332,7 +484,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             once: false,
             filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
                 order: Some(RIVAL_PATROL_ORDER.to_string()),
-                ship: Some("duel_rival".to_string()),
+                ship: Some(RIVAL_ID.to_string()),
                 kind: Some(ShipOrderKind::Patrol),
             })],
             actions: vec![rival_patrol],
@@ -344,10 +496,10 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             label: None,
             name: EventConfig::OnDefeated,
             once: false,
-            filters: vec![entity("duel_rival"), number_equals(VAR_DECIDED, 0.0)],
+            filters: vec![entity(RIVAL_ID), number_equals(VAR_DECIDED, 0.0)],
             actions: vec![
                 set_number(VAR_DECIDED, 1.0),
-                timer("duel_finisher_beat", 4.0),
+                timer(TIMER_FINISHER_BEAT, 4.0),
             ],
         },
         // The forfeit rule, both ways: a duelist that crosses the arena wall
@@ -367,15 +519,15 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             name: EventConfig::OnExit,
             once: false,
             filters: vec![
-                entity_pair(ARENA_ID, "duel_rival"),
+                entity_pair(ARENA_ID, RIVAL_ID),
                 number_equals(VAR_DECIDED, 0.0),
             ],
             actions: vec![
                 set_number(VAR_DECIDED, 1.0),
-                forfeit("duel_rival"),
+                forfeit(RIVAL_ID),
                 // The rival is out, so the gunship has won: the same beat its
                 // defeat would have armed, and the finale plays unchanged.
-                timer("duel_finisher_beat", 4.0),
+                timer(TIMER_FINISHER_BEAT, 4.0),
             ],
         },
         // The mirror branch. There is no victor left in frame for the siege
@@ -386,42 +538,42 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             name: EventConfig::OnExit,
             once: false,
             filters: vec![
-                entity_pair(ARENA_ID, "duel_victor"),
+                entity_pair(ARENA_ID, VICTOR_ID),
                 number_equals(VAR_DECIDED, 0.0),
             ],
             actions: vec![
                 set_number(VAR_DECIDED, 1.0),
-                forfeit("duel_victor"),
-                timer("duel_reset", 8.0),
+                forfeit(VICTOR_ID),
+                timer(TIMER_RESET, 8.0),
             ],
         },
         // The finisher clock: launch at the winner and re-arm itself, so a
         // miss (or a launch skipped because the victor just died to a wreck
         // collision) retries instead of stalling the cycle. The re-arm is
         // LONGER than the ~16 s flight from the park, so exactly one siege
-        // torpedo is ever in the air - the first cut re-armed at 12 s and
-        // doubled up. Expired keys are removed before dispatch, so the
+        // torpedo is ever in the air; a 12 s re-arm puts two of them up at
+        // once. Expired keys are removed before dispatch, so the
         // self-restart is legal.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "duel_finisher_beat".to_string(),
+                key: TIMER_FINISHER_BEAT.to_string(),
             })],
             actions: vec![
                 // Hostile only for the kill window (see the battery's spawn
                 // comment); the full reset restores the authored Neutral.
                 EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
-                    id: "duel_finisher".to_string(),
+                    id: FINISHER_ID.to_string(),
                     allegiance: Allegiance::Enemy,
                 }),
                 EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
-                    ship: "duel_finisher".to_string(),
-                    section: "siege_bay".to_string(),
-                    target: "duel_victor".to_string(),
+                    ship: FINISHER_ID.to_string(),
+                    section: FINISHER_BAY.to_string(),
+                    target: VICTOR_ID.to_string(),
                 }),
-                timer("duel_finisher_beat", 20.0),
+                timer(TIMER_FINISHER_BEAT, 20.0),
             ],
         },
         // Act three: stop the finisher clock and let the aftermath drift for
@@ -430,12 +582,12 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             label: None,
             name: EventConfig::OnDefeated,
             once: false,
-            filters: vec![entity("duel_victor")],
+            filters: vec![entity(VICTOR_ID)],
             actions: vec![
                 EventActionConfig::TimerCancel(TimerCancelActionConfig {
-                    key: "duel_finisher_beat".to_string(),
+                    key: TIMER_FINISHER_BEAT.to_string(),
                 }),
-                timer("duel_reset", 8.0),
+                timer(TIMER_RESET, 8.0),
             ],
         },
         // The hand-off: teardown despawns every scoped entity (wrecks,
@@ -448,10 +600,10 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "duel_reset".to_string(),
+                key: TIMER_RESET.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_waystation".to_string(),
+                scenario_id: super::MENU_WAYSTATION_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -462,10 +614,10 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "duel_watchdog".to_string(),
+                key: TIMER_WATCHDOG.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_waystation".to_string(),
+                scenario_id: super::MENU_WAYSTATION_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -477,7 +629,11 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             .to_string(),
         role: ScenarioRole::Backdrop,
         events,
-        ..ScenarioConfig::new("menu_duel".to_string(), "Duel Cycle".to_string(), cubemap)
+        ..ScenarioConfig::new(
+            super::MENU_DUEL_SCENARIO_ID.to_string(),
+            "Duel Cycle".to_string(),
+            cubemap,
+        )
     }
 }
 
@@ -494,9 +650,7 @@ mod tests {
             .iter()
             .flat_map(|event| &event.actions)
             .find_map(|action| match action {
-                EventActionConfig::SpawnScenarioObject(object)
-                    if object.base.id == "duel_rival" =>
-                {
+                EventActionConfig::SpawnScenarioObject(object) if object.base.id == RIVAL_ID => {
                     let ScenarioObjectKind::Spaceship(ship) = &object.kind else {
                         panic!("duel_rival must be a ship");
                     };
@@ -521,8 +675,8 @@ mod tests {
         let scenario = menu_duel(&assets);
 
         for (ship, order, route) in [
-            ("duel_victor", VICTOR_PATROL_ORDER, VICTOR_PATROL),
-            ("duel_rival", RIVAL_PATROL_ORDER, RIVAL_PATROL),
+            (VICTOR_ID, VICTOR_PATROL_ORDER, VICTOR_PATROL),
+            (RIVAL_ID, RIVAL_PATROL_ORDER, RIVAL_PATROL),
         ] {
             let matching: Vec<&PatrolShipActionConfig> = scenario
                 .events

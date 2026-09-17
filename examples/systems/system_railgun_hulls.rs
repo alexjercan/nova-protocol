@@ -8,9 +8,9 @@
 //! nobody has ever checked against a capital.
 //!
 //! So this range fires the SAME shipped `railgun_lance_section`, from the SAME
-//! ship-local station, off two hulls an order of magnitude apart - `block_skiff`
-//! and `block_carrier` - and reads every claim off numbers the run measured
-//! rather than off numbers anybody typed.
+//! ship-local station, off two example fixture hulls an order of magnitude
+//! apart - the salvage skiff and the industrial carrier - and reads every claim
+//! off numbers the run measured rather than off numbers anybody typed.
 //!
 //! The station is a pylon under the keel. There is no cell that is free on both
 //! hulls AND touching both, so each hull grows its own short column of
@@ -29,10 +29,10 @@
 //! | 4 | `outcome: the computer takes the recoil back out of the heading` | the kick really landed on both hulls, and on both the flight computer returns the hull to the heading it was holding |
 //! | 5 | `outcome: the bore sight and the slug agree where the shot went` | the drawn sight leaves the muzzle the shot leaves, runs down the line the slug runs down, and every section it ringed is a section that dies |
 //!
-//! What the shipped pair reads (2026-09-14, `block_skiff` at 21 sections plus a
-//! four-cell pylon, `block_carrier` at 2 081 plus a one-cell one):
+//! What the pair reads (2026-09-14, the skiff at 21 sections plus a four-cell
+//! pylon, the carrier at 2 081 plus a one-cell one):
 //!
-//! | | light (`block_skiff`) | heavy (`block_carrier`) |
+//! | | light (skiff) | heavy (carrier) |
 //! |---|---|---|
 //! | live sections | 26 | 2 083 |
 //! | mass avian weighed | 33 kg | 2 364 kg |
@@ -78,8 +78,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "../screenshots/shared/kit.rs"]
-mod kit;
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 use std::collections::BTreeMap;
 #[cfg(feature = "debug")]
@@ -107,8 +107,10 @@ struct Round {
     /// The key this round's reading is filed under.
     #[cfg(feature = "debug")]
     key: &'static str,
-    /// The shipped hull it flies.
+    /// What the round calls the hull it flies, in the readings it prints.
     hull: &'static str,
+    /// The fixture hull it flies.
+    design: fn() -> ShipDesign,
     /// The scenario id it loads under - DISTINCT per round, so a beat can wait
     /// on the second scene arriving rather than on a frame count.
     scenario: &'static str,
@@ -116,20 +118,22 @@ struct Round {
     name: &'static str,
 }
 
-/// The light hull: the fleet's smallest armed-group hull, 21 sections.
+/// The light hull: the smallest armed fixture hull, 21 sections.
 const LIGHT: Round = Round {
     #[cfg(feature = "debug")]
     key: "light",
-    hull: "block_skiff",
+    hull: "fixture_skiff",
+    design: dev_fixtures::skiff,
     scenario: "railgun_hulls_light",
     name: "Skiff Lance Rig",
 };
 
-/// The heavy hull: the largest hull the base game ships, 2 081 sections.
+/// The heavy hull: the largest fixture hull, 2 081 sections.
 #[cfg(feature = "debug")]
 const HEAVY: Round = Round {
     key: "heavy",
-    hull: "block_carrier",
+    hull: "fixture_carrier",
+    design: dev_fixtures::carrier,
     scenario: "railgun_hulls_heavy",
     name: "Carrier Lance Rig",
 };
@@ -151,8 +155,8 @@ const TARGET_ID: &str = "target";
 /// Where the lance is bolted, in ship-local BUILD CELLS.
 ///
 /// Under the keel on the `x=0, z=0` line, one cell clear of the deepest hull
-/// either ship carries there (`block_carrier` bottoms out at `y=-3`,
-/// `block_skiff` at `y=0`). Two facts make this the station:
+/// either ship carries there (the carrier bottoms out at `y=-3`, the skiff at
+/// `y=0`). Two facts make this the station:
 ///
 /// - It is FREE on both hulls, so neither ship has to have a cell carved out of
 ///   it to carry the gun.
@@ -350,30 +354,21 @@ fn hold_combat_stance(mut mouse: ResMut<ButtonInput<MouseButton>>) {
     mouse.press(MouseButton::Right);
 }
 
-fn setup_range(
-    mut commands: Commands,
-    game_assets: Res<GameAssets>,
-    ships: Res<GameShipDesigns>,
-    sections: Res<GameSections>,
-) {
-    commands.trigger(LoadScenario(hull_range(
-        LIGHT,
-        &game_assets,
-        &ships,
-        &sections,
-    )));
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
+    commands.trigger(LoadScenario(hull_range(LIGHT, &game_assets, &sections)));
 }
 
-/// The shipped hull, plus the pylon that carries the lance to [`MOUNT`].
+/// The round's hull, plus the pylon that carries the lance to [`MOUNT`].
 ///
-/// Taken from the catalog rather than copied: a hand-typed mount a tenth of a
+/// Grown off the hull's own cells rather than hand-typed: a mount a tenth of a
 /// cell off its seat joins no component, `derive_link_point_graph` rejects the
 /// WHOLE ship as `Disconnected`, and section integrity falls back to empty
 /// adjacency. The pylon runs straight down the mount's own column from the
 /// deepest cell the hull already has there, so every new cell mates the one
 /// above it and the lance's `positive_y_mid` socket mates the last of them.
-fn hull_with_lance(ships: &GameShipDesigns, hull: &str) -> ShipDesign {
-    let mut built = kit::catalog_ship(ships, hull);
+fn hull_with_lance(round: &Round) -> ShipDesign {
+    let hull = round.hull;
+    let mut built = (round.design)();
     let footing = built
         .sections
         .iter()
@@ -417,12 +412,7 @@ fn hull_with_lance(ships: &GameShipDesigns, hull: &str) -> ShipDesign {
 
 /// One round's scene: the hull under test, flown by the player, and a column of
 /// hull blocks standing on its bore a kilometre out.
-fn hull_range(
-    round: Round,
-    game_assets: &GameAssets,
-    ships: &GameShipDesigns,
-    sections: &GameSections,
-) -> ScenarioConfig {
+fn hull_range(round: Round, game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     // Player-controlled with an EMPTY input mapping, exactly as
     // `system_railgun_lance`'s rig is: the bore sight is gated on
     // `PlayerSpaceshipMarker`, so the hull under test has to BE the player - and
@@ -435,7 +425,7 @@ fn hull_range(
             // which is the one number claim 2 is reading.
             speed_cap: None,
         }),
-        design: ShipDesignSource::Inline(hull_with_lance(ships, round.hull)),
+        design: ShipDesignSource::Inline(hull_with_lance(&round)),
         ..default()
     };
 
@@ -808,9 +798,8 @@ fn round_beats(script: Script, round: Round, first: bool) -> Script {
 fn load_round(world: &mut World, round: Round) {
     let config = {
         let game_assets = world.resource::<GameAssets>();
-        let ships = world.resource::<GameShipDesigns>();
         let sections = world.resource::<GameSections>();
-        hull_range(round, game_assets, ships, sections)
+        hull_range(round, game_assets, sections)
     };
     world.insert_resource(Live(round));
     *world.resource_mut::<Sight>() = Sight::default();

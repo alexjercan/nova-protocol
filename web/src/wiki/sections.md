@@ -43,7 +43,7 @@ Every page runs the same course: what the part does and the numbers that decide 
 The whole shipped catalog at a glance; every child page carries the full per-kind stats. A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them. What breaks the pattern is the mounts that are not unit cells: a PDC turret is a half-cell cube at an eighth of the mass, a torpedo bay a two-cell tube, a railgun a three-cell spine, and the two large drives are 18 and 75 cells of block.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: reinforced hull health 200 :596; basic thruster 70 at 1.0 :611-622,:642; vector thruster 480 at 9.0 over 3x3x2 :663-667; capital thruster 1250 at 25.0 over 5x5x3 :677-691; basic controller :701 (max_torque 9760 :718); light hull 60 :744-750; cargo hull 200 :769; tank hull 200 :790; pdc_turret_prototype :414 (health 130 :429,:32) with gatling call sites :791-815 at 100/s :67 and twin call sites :816-839 at half per muzzle :75; torpedo bay builder :1144 with call sites :842-861; heavy_torpedo_section :994; both lances from railgun_lance_prototype with their grades at the two call sites in standard_section_prototypes. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/, one module per family: hull.rs (reinforced, cargo and tank 200, light 60), thruster.rs (basic 70 at 1.0, vector 480 at 9.0 over 3x3x2, capital 1250 at 25.0 over 5x5x3), controller.rs (100, max_torque 9760), turret.rs (pdc_turret_prototype, health 130, gatling at 100/s and twin at half per muzzle), torpedo_bay.rs (torpedo_bay_prototype and its two call sites), railgun.rs (railgun_lance_prototype) and docking_port.rs. -->
 <table>
 <thead>
 <tr><th>Kind</th><th>Variant</th><th>Health</th><th>Signature stat</th></tr>
@@ -63,9 +63,7 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Turret</td><td><span class="catalog__name">Twin PDC Turret (Pierce)</span><span class="catalog__id">pdc_twin_pierce_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">2.0 Pierce at 2 x 50/s</td></tr>
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 300 m</td></tr>
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 300 m</td></tr>
-<tr><td>Torpedo bay</td><td><span class="catalog__name">Siege Torpedo Bay Section<span class="catalog__flag">experimental</span></span><span class="catalog__id">heavy_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">2000 blast / 450 m</td></tr>
 <tr><td>Railgun</td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">300 Pierce / 1800 power</td></tr>
-<tr><td>Railgun</td><td><span class="catalog__name">Siege Railgun Lance<span class="catalog__flag">experimental</span></span><span class="catalog__id">siege_railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">500 Pierce / 360,000 power</td></tr>
 <tr><td>Docking</td><td><span class="catalog__name">Docking Port Section</span><span class="catalog__id">docking_port_section</span></td><td class="catalog__num">90</td><td class="catalog__num">10 m gap / 15 deg</td></tr>
 </tbody>
 </table>

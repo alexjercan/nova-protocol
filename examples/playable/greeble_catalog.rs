@@ -6,7 +6,9 @@
 //! The roster is RESOLVED, never listed: the example reads the merged
 //! `GameStyles` after load and lays out every `StyleFixtureConfig` it finds,
 //! so a mod's fifth style - or a vocabulary batch's new pieces - appears with
-//! no code change. Each piece stands on a one-cell pedestal PLATE tinted with
+//! no code change. One row is appended to it: the placeholder scaffolding
+//! style, which the examples own (`examples/shared/dev_fixtures/styles.rs`)
+//! rather than the base catalog. Each piece stands on a one-cell pedestal PLATE tinted with
 //! its style's `Top` surface colour and roughness, because a greeble is only
 //! judgeable against the plate it will stand on. Labels carry the fixture id
 //! plus the authored collider extents and health, and the load log prints one
@@ -33,6 +35,9 @@
 //!   `greeble-catalog-focus.png` of the turntable. The row shots are driven
 //!   off the LOADED style list rather than a scripted name list, so a mod
 //!   style gets its row shot with no code change either.
+
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -144,8 +149,8 @@ struct CatalogRow {
     pieces: Vec<CatalogPiece>,
 }
 
-/// The resolved catalog, in merged-content order (authored looks first,
-/// placeholder last - the order `GameStyles` already holds).
+/// The resolved catalog: the merged looks in `GameStyles` order, then the
+/// example-owned placeholder style last.
 #[derive(Resource)]
 struct Catalog {
     rows: Vec<CatalogRow>,
@@ -213,15 +218,23 @@ fn load_catalog(
 ) {
     commands.trigger(LoadScenario(catalog_stage(&game_assets)));
 
+    // The merged looks, then the scaffolding style the examples own. The
+    // placeholder is not base content (`examples/shared/dev_fixtures/`), so the
+    // wall appends it rather than finding it in `GameStyles` - which is what
+    // keeps the vocabulary row on the wall while it stays out of the drawer.
+    let scaffolding = dev_fixtures::styles::placeholder_style();
+    let walled: Vec<&ShipStyleConfig> =
+        styles.iter().chain(std::iter::once(&scaffolding)).collect();
+
     let pedestal_mesh = meshes.add(Cuboid::new(1.0, PEDESTAL_HEIGHT, 1.0));
-    let rows_total = styles.len();
-    let widest = styles
+    let rows_total = walled.len();
+    let widest = walled
         .iter()
         .map(|style| style.fixtures.len())
         .max()
         .unwrap_or(1);
     let mut rows = Vec::new();
-    for (row, style) in styles.iter().enumerate() {
+    for (row, style) in walled.iter().enumerate() {
         // The plate every piece in this row stands on, dressed in the style's
         // own top finish - the same face the hull shows space.
         let top = &style.palette.top;

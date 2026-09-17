@@ -1,11 +1,11 @@
-//! Everything Basic Training puts on the range: the cadet's ship, the five
+//! Everything Basic Training puts on the range: the player's ship, the five
 //! target hulks, the two drones, the belts, the planetoid the autopilot is
 //! flown out to, and the three marks the pattern and the leg home are flown
 //! against.
 //!
 //! Layout provenance: the editor's stock range (`nova_editor::scenario`), the
 //! free-flight world every builder plays in. This is that world in metres,
-//! with the picket the Fleet trains on in place of the builder's own hull.
+//! with a training picket in place of the builder's own hull.
 //!
 //! The handbook's practice ranges (`super::super::drills`) are built from this
 //! same furniture, on purpose: a lesson sends the player back to the place
@@ -36,7 +36,7 @@ use crate::{
 /// Training and in every practice range.
 pub(crate) const RANGE_CONTROL: &str = "Range Control";
 
-/// The cadet, when the card puts words in their mouth.
+/// The player, when the card puts words in their mouth.
 pub(crate) const PLAYER: &str = "You";
 
 /// The two faces on the channel. Both are the base game's own art.
@@ -68,15 +68,14 @@ pub(crate) fn apply_portraits(events: &mut [ScenarioEventConfig]) {
     }
 }
 
-// --- the cadet ---------------------------------------------------------------
+// --- the player ---------------------------------------------------------------
 
-/// The cadet's ship: a Fleet training picket, and the id every helm event
-/// names.
+/// The player's ship: a training picket, and the id every helm event names.
 pub(crate) const ID_TRAINER: &str = "trainer";
 /// Its callsign, used in objective and banner text.
 pub(crate) const TRAINER_NAME: &str = "Trainer Seven";
 
-/// Soft manual-speed cap for the whole card: a cadet on a first flight stays
+/// Soft manual-speed cap for the whole card: a player on a first flight stays
 /// controllable inside the range, and the pattern is a few hundred metres.
 pub(crate) const TRAINER_SPEED_CAP: MetersPerSecond = MetersPerSecond(150.0);
 
@@ -87,7 +86,7 @@ pub(crate) const TRAINER_GUN: &str = ships::BLOCK_CLEANUP_TURRET_ID;
 
 /// The trainer's gun mount and flight computer, armoured for the card.
 ///
-/// Losing the gun is the one way the range ends in a loss the cadet cannot
+/// Losing the gun is the one way the range ends in a loss the player cannot
 /// shoot their way out of, so the mount is built to outlast everything the
 /// drones can put into it: both drones' whole magazines together
 /// (`DRONE_MAGAZINE` rounds each at the shared PDC's per-hit damage) fall
@@ -101,7 +100,7 @@ pub(crate) const TRAINER_BRIDGE_HEALTH: f32 = 1_300.0;
 /// The helm capabilities are withheld at spawn on the ROOT and handed back one
 /// lesson at a time: they apply from the instant the ship is built and only to
 /// this spawn. The gun is not withheld - there is no capability for it - so
-/// the fire lessons are written to survive a cadet who shoots early.
+/// the fire lessons are written to survive a player who shoots early.
 pub(crate) fn trainer() -> ScenarioObjectConfig {
     trainer_with(WITHHELD_CAPABILITIES)
 }
@@ -156,7 +155,7 @@ pub(crate) fn trainer_at(id: impl Into<String>) -> EventFilterConfig {
 }
 
 /// The helm the card teaches, withheld until its lesson. Every capability the
-/// cadet has not been shown is one they can fly the pattern with by accident,
+/// player has not been shown is one they can fly the pattern with by accident,
 /// so the trainer spawns with all five off. Point defence and docking are left
 /// alone: the trainer carries neither a point-defense mount nor a docking port
 /// to stand down.
@@ -246,7 +245,7 @@ pub(crate) const DRONES: [(&str, &str, Meters3); 2] = [
 ];
 
 /// The distance a woken drone will chase from its station before it gives up
-/// and returns. Long enough to follow a cadet who runs to the line, and short
+/// and returns. Long enough to follow a player who runs to the line, and short
 /// enough that a drone still under control never reaches the range boundary
 /// from its station: only a crippled drone, coasting, ever crosses it.
 pub(crate) const DRONE_LEASH: Meters = Meters(3_500.0);
@@ -258,19 +257,19 @@ pub(crate) const DRONE_LEASH: Meters = Meters(3_500.0);
 pub(crate) const DRONE_SECTION_HEALTH: f32 = 24.0;
 
 /// A drone's gun holds this many rounds and never reloads: a second and a
-/// half of fire, enough to put tracers past the cadet and teach that the
+/// half of fire, enough to put tracers past the player and teach that the
 /// range shoots back, and too little to threaten an armoured trainer even if
 /// every round lands.
 pub(crate) const DRONE_MAGAZINE: u32 = 150;
 
-/// One dormant drone: the same picket the cadet flies, under AI, spawned
+/// One dormant drone: the same picket the player flies, under AI, spawned
 /// NEUTRAL and handicapped for a first fight.
 ///
 /// Neutral is the dormancy. The AI runs its passive routine and never
 /// acquires, because acquisition only looks at hostile contacts. The live
 /// beat flips the allegiance and the same pilot starts fighting - no
 /// controller swap, no second spawn. The handicap is a spawn patch on every
-/// section, so the catalog picket the cadet flies is untouched.
+/// section, so the catalog picket the player flies is untouched.
 pub(crate) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectConfig {
     let section_patches = ships::picket_section_ids().into_iter().map(|section| {
         let kind = (section == TRAINER_GUN).then(|| {
@@ -319,7 +318,7 @@ pub(crate) fn wake_drone(id: &str) -> EventActionConfig {
 
 /// The range boundary: one sphere over the whole card, from the line to the
 /// deep belt. A drone that loses its drive or its flight computer keeps the
-/// speed it had, and a cadet cannot always run it down before it is gone. A
+/// speed it had, and a player cannot always run it down before it is gone. A
 /// drone that crosses the boundary is off the range for good, and the range
 /// counts it rather than asking for a chase into the dark.
 pub(crate) const ID_RANGE_BOUNDARY: &str = "range_boundary";
@@ -354,14 +353,14 @@ pub(crate) fn drone_down_var(id: &str) -> String {
 /// drill flies out to and parks in orbit around, and the range's backdrop.
 /// It is scenery to the gun.
 ///
-/// Its mass sets the pull, the reach and the cadet's clock, and a test pins the
+/// Its mass sets the pull, the reach and the player's clock, and a test pins the
 /// first two with the engine's own rules: ORBIT's ring band must contain the
 /// point GOTO parks at (the surface plus the arrival standoff), or the verb is
 /// asked for somewhere it will not fly.
 ///
 /// The clock is the third, and it is why the mass is what it is rather than the
 /// guardrail maximum it used to be. GOTO hands the trainer back parked one
-/// standoff off the surface with ORBIT still withheld, so the cadet is falling
+/// standoff off the surface with ORBIT still withheld, so the player is falling
 /// while Range Control talks: at the guardrail the rock is under the hull in
 /// under five seconds, which is not a lesson. At this mass the fall runs about
 /// nine, and the ORBIT card lands inside the first two of them.
@@ -481,7 +480,7 @@ pub(crate) fn lights(key: &str) -> Vec<ScenarioObjectConfig> {
 
 // --- the pattern's marks -----------------------------------------------------
 
-/// The burn lesson's mark: dead ahead of the line, far enough that the cadet
+/// The burn lesson's mark: dead ahead of the line, far enough that the player
 /// has to hold the throttle open, close enough that they are not still
 /// braking when the next lesson starts. The wide volume is for a first
 /// flight; the STOP lesson that follows is what makes it a place.
@@ -495,7 +494,7 @@ pub(crate) const MARK_ALPHA: Mark = Mark {
 /// The thruster lesson's mark: a few hundred metres straight across from
 /// ALPHA, so the leg is a real translation at the RCS cap and a nudge rather
 /// than a burn. The tight volume is on purpose - the lesson is placing the
-/// hull, and a wide sphere would pass a cadet who merely drifted past.
+/// hull, and a wide sphere would pass a player who merely drifted past.
 pub(crate) const MARK_BRAVO: Mark = Mark {
     id: "mark_bravo",
     label: "BRAVO",
@@ -505,7 +504,7 @@ pub(crate) const MARK_BRAVO: Mark = Mark {
 
 /// The leg home's mark: on the line, a few hundred metres off Target 1, so
 /// the gun lesson that follows opens inside the PDC's reach. It is a mark
-/// and not Target 1 itself because a cadet who shot Target 1 apart from
+/// and not Target 1 itself because a player who shot Target 1 apart from
 /// BRAVO would have nothing to fly home to. The volume is sized for a leg the
 /// autopilot flies: GOTO parks an arrival standoff short of the beacon, and
 /// the gate must contain that park point.

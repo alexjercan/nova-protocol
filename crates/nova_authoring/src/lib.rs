@@ -1,9 +1,8 @@
 //! `nova_authoring` is the OFFLINE half of the content pipeline: the Rust
 //! builders that define every built-in scenario and section, the serializer
 //! that writes them to the committed `assets/base/**/*.content.ron`, and the
-//! lint/balance walk that validates a content tree. It was carved out of
-//! `nova_assets` because keeping it there hid the runtime asset stack behind
-//! twice its own volume.
+//! lint/balance walk that validates a content tree. Nothing here runs in the
+//! game: the runtime loads the serialized RON instead.
 //!
 //! Touch this crate to change what built-in content IS (a builder under
 //! `base_content`, then `content gen`), or to change what the `content lint`
@@ -34,12 +33,8 @@ pub mod built_in_scenarios {
 /// silhouette or a mount that moves in `base_content` moves in the bench too.
 pub mod built_in_ships {
     pub use crate::base_content::ships::{
-        design, BLOCK_CARRIER_SHIP_ID, BLOCK_CLAW_SHIP_ID, BLOCK_CLEANUP_LEADER_SHIP_ID,
-        BLOCK_CUTTER_SHIP_ID, BLOCK_GUNSHIP_SHIP_ID, BLOCK_HAULER_SHIP_ID, BLOCK_PICKET_SHIP_ID,
-        BLOCK_RAIDER_SHIP_ID, BLOCK_SKIFF_SHIP_ID, BLOCK_TUG_SHIP_ID, BLOCK_WARSHIP_BAY_IDS,
-        BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_SHIP_ID, BLOCK_WARSHIP_TURRET_IDS,
-        BLOCK_WRECK_BRIDGE_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID, BLOCK_WRECK_SHOULDER_SHIP_ID,
-        BLOCK_WRECK_SPINE_SHIP_ID,
+        design, BLOCK_CUTTER_SHIP_ID, BLOCK_GUNSHIP_SHIP_ID, BLOCK_HAULER_SHIP_ID,
+        BLOCK_PICKET_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
     };
 }
 /// Generic constructors for Rust-authored scenario configuration.

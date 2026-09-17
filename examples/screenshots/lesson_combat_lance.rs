@@ -13,8 +13,8 @@
 //! - the LANCE lane at the origin: a player gunboat with a lance on its spine,
 //!   bore down -Z, and a base Patrol Gunship downrange bow-on so the shot rakes
 //!   its long axis;
-//! - the WRECK lane, off to starboard: a siege lance on a bench, and a block
-//!   hull built so that ONE slug takes it under the collapse threshold.
+//! - the WRECK lane, off to starboard: a siege lance fixture on a bench, and
+//!   a block hull built so that ONE slug takes it under the collapse threshold.
 //!
 //! ## `combat_bore_sight` is a LOOP, and the loop is the AIMING
 //!
@@ -111,14 +111,14 @@
 //! standing is the only one that ever satisfies the ratio, and a one-cell peel
 //! is not a collapse anybody can read).
 //!
-//! What does satisfy it is the shipped weapon whose corridor is most of a hull.
-//! A siege lance rakes [`SIEGE_RAKE_CELLS`] cells either side of its bore with
+//! What does satisfy it is the weapon whose corridor is most of a hull. A
+//! siege lance rakes [`SIEGE_RAKE_CELLS`] cells either side of its bore with
 //! a pierce budget nothing in this scene can exhaust, so a block seven cells
 //! across loses everything but its four corner spars in one flush. The spars
 //! are the cheapest plate in the catalog and the core is the dearest, which is
 //! what turns a 45-to-4 count into the 20-to-1 of structure the rule asks for -
 //! [`the_block_goes_under_the_threshold`] does that arithmetic off the mounted
-//! content and fails naming the numbers if the catalog moves.
+//! content and fails naming the numbers if the catalog or the fixture moves.
 //!
 //! Read the block the way `stress_hull_collapse` asks its own to be read: it is
 //! the shape the RULE needs to be visible on, not a design figure. No shipped
@@ -140,6 +140,8 @@
 #[path = "shared/lesson.rs"]
 mod lesson;
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/kit.rs"]
 mod kit;
 
@@ -605,12 +607,12 @@ fn lance_range(
             controller: SpaceshipController::None,
             design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![
-                    at(
-                        sections,
-                        SIEGE_LANCE_ID.to_string(),
-                        SIEGE_RAILGUN_LANCE_SECTION_ID,
-                        Vec3::new(0.0, 0.0, -1.0),
-                    ),
+                    SpaceshipSectionConfig {
+                        id: SIEGE_LANCE_ID.to_string(),
+                        position: Vec3::new(0.0, 0.0, -1.0),
+                        rotation: Quat::IDENTITY,
+                        source: SectionSource::Inline(dev_fixtures::sections::siege_railgun_lance()),
+                    },
                     at(
                         sections,
                         "mount".to_string(),

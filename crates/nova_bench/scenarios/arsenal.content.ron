@@ -3,15 +3,17 @@
 //   cargo run --features debug bench play crates/nova_bench/scenarios/arsenal.content.ron \
 //       --agent pi --seed 7 --ticks 25000 --deadline 1000 --goal "..."
 //
-// The stolen warship carries railguns, torpedoes and point defence. Quarry is
-// directly ahead, between the player and the inert target barge, so a railgun
-// can cut it without a combat lock. The raider wakes after one minute. No goal
-// is built in: audit.jsonl, score.json and recorded footage are the evidence.
+// The player hull is authored inline here, out of base prototypes, so the bench
+// owns its own fixture: a railgun spine, a Serpent bay to port, a Lance bay to
+// starboard and two point-defense mounts. Quarry is directly ahead, between the
+// player and the inert target barge, so a railgun can cut it without a combat
+// lock. The hostile wakes after one minute. No goal is built in: audit.jsonl,
+// score.json and recorded footage are the evidence.
 [
     Scenario((
         id: "bench_arsenal",
         name: "Bench: Arsenal",
-        description: "A mixed-weapon demolition yard with a carvable rock, inert hulks, a late raider and full NOVA OS access.",
+        description: "A mixed-weapon demolition yard with a carvable rock, inert hulks, a late hostile and full NOVA OS access.",
         cubemap: "base/textures/cubemap.png",
         events: [
             (
@@ -38,27 +40,112 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            design: Prototype(id: "block_warship"),
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "hull_bow",
+                                        position: (0.0, 0.0, -1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_mid",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_aft",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_port",
+                                        position: (-1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_starboard",
+                                        position: (1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_port_aft",
+                                        position: (-1.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_starboard_aft",
+                                        position: (1.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "bridge",
+                                        position: (0.0, 1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "drive_port",
+                                        position: (-1.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "drive_starboard",
+                                        position: (1.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "railgun",
+                                        position: (0.0, 0.0, -3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "railgun_lance_section"),
+                                    ),
+                                    (
+                                        id: "bay_port",
+                                        position: (-1.0, 0.0, -1.5),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "torpedo_section"),
+                                    ),
+                                    (
+                                        id: "bay_starboard",
+                                        position: (1.0, 0.0, -1.5),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "lance_torpedo_section"),
+                                    ),
+                                    (
+                                        id: "pdc_dorsal",
+                                        position: (-1.0, 0.75, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
+                                    ),
+                                    (
+                                        id: "pdc_ventral",
+                                        position: (1.0, -0.75, 0.0),
+                                        rotation: (0.0, 0.0, 1.0, 0.0),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (
+                                    skin: true,
+                                    style: Some("armoured"),
+                                ),
+                            )),
                             controller: Player((
                                 input_mapping: {
-                                    "railgun_port": [Keyboard(KeyQ)],
-                                    "railgun_starboard": [Keyboard(KeyW)],
-                                    "bay_port_forward": [Keyboard(KeyE)],
-                                    "bay_port_midships": [Keyboard(KeyR)],
-                                    "bay_port_aft": [Keyboard(KeyT)],
-                                    "bay_starboard_forward": [Keyboard(KeyY)],
-                                    "bay_starboard_midships": [Keyboard(KeyU)],
-                                    "bay_starboard_aft": [Keyboard(KeyI)],
-                                    "pdc_forward_port": [Keyboard(KeyA)],
-                                    "pdc_forward_starboard": [Keyboard(KeyS)],
-                                    "pdc_dorsal_port": [Keyboard(KeyD)],
-                                    "pdc_dorsal_starboard": [Keyboard(KeyF)],
-                                    "pdc_aft_port": [Keyboard(KeyG)],
-                                    "pdc_aft_starboard": [Keyboard(KeyH)],
-                                    "pdc_ventral_forward_port": [Keyboard(KeyJ)],
-                                    "pdc_ventral_forward_starboard": [Keyboard(KeyK)],
-                                    "pdc_ventral_aft_port": [Keyboard(KeyL)],
-                                    "pdc_ventral_aft_starboard": [Keyboard(KeyZ)],
+                                    "railgun": [Keyboard(KeyQ)],
+                                    "bay_port": [Keyboard(KeyE)],
+                                    "bay_starboard": [Keyboard(KeyR)],
+                                    "pdc_dorsal": [Keyboard(KeyA)],
+                                    "pdc_ventral": [Keyboard(KeyS)],
                                 },
                                 speed_cap: None,
                             )),
@@ -101,7 +188,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            design: Prototype(id: "block_carrier"),
+                            design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                         )),
@@ -114,7 +201,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            design: Prototype(id: "block_raider"),
+                            design: Prototype(id: "block_picket"),
                             controller: AI((
                                 engage_delay: Some(60.0),
                                 leash: Some(9000.0),

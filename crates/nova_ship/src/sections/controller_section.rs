@@ -122,10 +122,10 @@ pub struct ControllerSectionTuning {
 /// The torque one shipped flight computer carries.
 ///
 /// Pinned against a MEASURED hull rather than an extrapolated curve: with all
-/// ten of its computers alive, `block_carrier` (2 081 sections, a 194 m
+/// ten of its computers alive, the carrier hull (2 081 sections, a 194 m
 /// structural arm, 2.20e5 of inertia) reaches about 10 percent over its own
-/// structural ceiling, so the largest hull the game ships is structure-bound
-/// while intact and turns at the rate its metal allows.
+/// structural ceiling, so the largest hull measured is structure-bound while
+/// intact and turns at the rate its metal allows.
 ///
 /// Ten percent and not more, because the margin is what makes the number
 /// VISIBLE: a carrier that loses one computer falls back under its structural

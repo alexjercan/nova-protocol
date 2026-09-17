@@ -50,8 +50,8 @@ pub fn build_scenarios() -> Vec<ScenarioConfig> {
     base_content::build().scenarios
 }
 
-/// The base game's campaigns, in a stable order - the story runs the Scenarios
-/// board groups its chapters under.
+/// The base game's campaigns, in a stable order - the groups the Scenarios
+/// board lists its chapters under.
 pub fn build_campaigns() -> Vec<CampaignConfig> {
     base_content::build().campaigns
 }

@@ -296,8 +296,8 @@ mod tests {
                 false,
             ),
             section(
-                "heavy_torpedo_section",
-                "Siege Torpedo Bay Section",
+                "hidden_torpedo_section",
+                "Hidden Torpedo Bay Section",
                 SectionKind::Torpedo(TorpedoSectionConfig::default()),
                 true,
             ),

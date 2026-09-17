@@ -4,17 +4,16 @@
 //! Task `20260909-213708` asserts that every flight, AI, weapon and destruction
 //! figure which is fixed in world units, seconds or counts really depends on
 //! the hull, the target or the round. Each of its items is a BALANCE change as
-//! well as a fix, so each one is measured on `block_skiff` (the fleet's
-//! smallest armed-group hull) and on `block_carrier` (the largest hull the base
-//! game ships) before and after. This range is where those measurements are
-//! taken, so a "before" figure in the ledger is a reading rather than a
-//! recollection.
+//! well as a fix, so each one is measured on the salvage skiff fixture (the
+//! smallest reference hull) and on the industrial carrier fixture (the largest)
+//! before and after. This range is where those measurements are taken, so a
+//! "before" figure in the ledger is a reading rather than a recollection.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: the reference hulls span the size the sweep assumes` | the carrier's structural arm and live section count are each an order of magnitude over the skiff's, so a constant that works on one is not evidence about the other |
 //! | 2 | `outcome: both hulls publish a live attitude envelope` | each hull publishes both ceilings off its own live geometry, which is the input every derived figure in the sweep reads |
-//! | 3 | `outcome: the computer is pinned to the largest shipped hull` | the intact carrier clears its structural ceiling by a small margin and the skiff clears its own by a wide one, so the controller's torque is visible on the fleet's big hull and invisible on its small one |
+//! | 3 | `outcome: the computer is pinned to the largest shipped hull` | the intact carrier clears its structural ceiling by a small margin and the skiff clears its own by a wide one, so the controller's torque is visible on the big hull and invisible on the small one |
 //! | 4 | `outcome: a bigger hull is seen from further away` | each hull publishes a radar signature derived from its own structure, and the carrier is lockable from several times the distance the skiff is |
 //! | 5 | `outcome: the hull inputs are recorded` | RECORD: arm, envelope, cells, mass, inertia, summed computer torque, both ceilings, the live section census and the lock range, per hull |
 //! | 6 | `outcome: a hull burns at the size of the hull` | each hull is killed where it is parked, and the fireball its death lights is scaled by its own containment radius against the gunship the look was cut on |
@@ -34,14 +33,14 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_hull_scaling --features debug
-//! # look for: `hull scaling: block_skiff: ...`,
-//! #           `hull scaling: block_carrier: ...`,
-//! #           `hull scaling: block_skiff burns at ...`,
+//! # look for: `hull scaling: fixture_skiff: ...`,
+//! #           `hull scaling: fixture_carrier: ...`,
+//! #           `hull scaling: fixture_skiff burns at ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "../screenshots/shared/kit.rs"]
-mod kit;
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 #[cfg(feature = "debug")]
 use std::sync::Arc;
@@ -59,12 +58,11 @@ use nova_protocol::prelude::*;
 )]
 struct Cli;
 
-/// The small reference hull: the cleanup group's unarmed needle.
-const SKIFF: &str = "block_skiff";
+/// What the readings call the small reference hull: the unarmed needle.
+const SKIFF: &str = "fixture_skiff";
 
-/// The large reference hull: the campaign's home, and the largest hull the base
-/// game ships.
-const CARRIER: &str = "block_carrier";
+/// What the readings call the large reference hull, the largest one built here.
+const CARRIER: &str = "fixture_carrier";
 
 /// The skiff's scenario id.
 const SKIFF_ID: &str = "hull_scaling_skiff";
@@ -184,14 +182,14 @@ fn range_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShipDesigns>) {
-    commands.trigger(LoadScenario(scaling_range(&game_assets, &ships)));
+fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>) {
+    commands.trigger(LoadScenario(scaling_range(&game_assets)));
 }
 
 /// The range: the two reference hulls parked far apart in flat space, neither
 /// flown, neither steered.
-fn scaling_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
-    let hull = |id: &str, name: &str, catalog: &str, x: Meters| {
+fn scaling_range(game_assets: &GameAssets) -> ScenarioConfig {
+    let hull = |id: &str, name: &str, design: ShipDesign, x: Meters| {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
@@ -202,7 +200,7 @@ fn scaling_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                 controller: SpaceshipController::None,
                 allegiance: None,
-                design: ShipDesignSource::Inline(kit::catalog_ship(ships, catalog)),
+                design: ShipDesignSource::Inline(design),
                 ..default()
             }),
         })
@@ -218,8 +216,13 @@ fn scaling_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
             filters: vec![],
             actions: [
                 vec![
-                    hull(SKIFF_ID, "Skiff", SKIFF, -SEPARATION / 2.0),
-                    hull(CARRIER_ID, "Carrier", CARRIER, SEPARATION / 2.0),
+                    hull(SKIFF_ID, "Skiff", dev_fixtures::skiff(), -SEPARATION / 2.0),
+                    hull(
+                        CARRIER_ID,
+                        "Carrier",
+                        dev_fixtures::carrier(),
+                        SEPARATION / 2.0,
+                    ),
                 ],
                 ThreePointRig::around("hull scaling", Meters3::ZERO, 40.0).actions(),
             ]

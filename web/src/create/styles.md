@@ -364,23 +364,21 @@ looks and every scenario spawning them gets the right one. A style id nothing au
 clad and BARE rather than falling back to another look - a missing mod is
 visible, not silently substituted.
 
-The base game ships four authored looks and one piece of scaffolding:
+The base game ships four looks:
 
 | id | what it is |
 |---|---|
 | `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
 | `armoured` | flat plate, a belt down every straight edge, sensor blisters |
 | `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings |
-| `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
-| `placeholder` | scaffolding for the authored kits rather than a look to build on |
+| `salvage` | mismatched patches, weld beads, a lashed drum, a whip antenna |
 
 A ship that names no style flies undressed: built-in plate colours, no
 decoration. The EDITOR's build view instead previews the first style the merged
-content offers while none is picked, so the authored looks are listed before
-the scaffolding. The editor lists every merged
-style under its cladding toggle - a mod's look appears there beside the base
-ones with nothing to register - and the `wfc_ships` example cycles the same list
-with `L`, or takes `--style <id>`.
+content offers while none is picked. The editor lists every merged style under
+its cladding toggle - a mod's look appears there beside the base ones with
+nothing to register - and the `wfc_ships` example cycles the same list with `L`,
+or takes `--style <id>`.
 
 ### Drawing a CONTINUOUS line
 

@@ -1,32 +1,81 @@
 //! Built-in section-prototype content.
 //!
 //! Every built-in prototype is a generic mountable module: the base fleet is
-//! block-built, so no prototype here is a body part cut off one named craft.
-//! A mod that brings modelled craft brings their prototypes with them, as
-//! The Ledger does.
+//! block-built, so no prototype here is a part cut off one named craft. A mod
+//! that brings modelled craft brings their prototypes with it.
 //!
 //! CLADDING is not here and is not a prototype at all. A ship's skin is DERIVED
 //! from the structure it wraps - see `nova_ship`'s `shell_skin` - so no id names
 //! a plate and nothing places one by hand.
 //!
-//! `ordnance` is the odd one out: a torpedo TYPE is not a section, it is what a
-//! torpedo bay loads, so it lives beside the bays that author it.
+//! One module per section family. Each owns its durability baseline, its art
+//! and link-point helpers, its prototypes and its tests. This module only
+//! concatenates them, and holds the checks that compare one family against
+//! another.
 
 use nova_ship::prelude::SectionConfig;
 
 use super::assets::BaseContentAssets;
 
-pub(crate) mod ordnance;
-mod standard;
+mod controller;
+mod docking_port;
+mod hull;
+mod railgun;
+mod thruster;
+mod torpedo_bay;
+mod turret;
 
-/// Generic hull, controller, thruster, turret, and torpedo prototypes.
-pub(crate) fn standard_section_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    standard::standard_section_prototypes(assets)
-}
+/// The one authoring-owned prototype id a block hull mounts by name.
+pub(crate) use thruster::VECTOR_THRUSTER_SECTION_ID;
 
 /// Complete built-in prototype catalog in stable generated-content order.
 pub(crate) fn section_catalog(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    standard_section_prototypes(assets)
+    [
+        hull::prototypes(assets),
+        thruster::prototypes(assets),
+        controller::prototypes(assets),
+        turret::prototypes(assets),
+        torpedo_bay::prototypes(assets),
+        railgun::prototypes(assets),
+        docking_port::prototypes(assets),
+    ]
+    .concat()
+}
+
+#[cfg(test)]
+mod durability_tests {
+    use super::{
+        controller::CONTROLLER_BASE_HEALTH, thruster::THRUSTER_BASE_HEALTH,
+        torpedo_bay::TORPEDO_BASE_HEALTH, turret::TURRET_BASE_HEALTH,
+    };
+
+    /// "Variable damage by section type" as a checked invariant: section TYPE
+    /// must drive durability, not sit at a uniform value. If someone flattens
+    /// the baselines back to one number this fails, catching a silent
+    /// regression of the feature.
+    #[test]
+    fn section_type_durability_ordering_holds() {
+        // Thrusters take MORE damage than the baseline (fragile); turrets take
+        // LESS (armored). The strict inequalities are the feature. Const
+        // blocks so a flattening regression fails at COMPILE time; a const
+        // panic cannot format values, so the messages name the constants.
+        const {
+            assert!(
+                THRUSTER_BASE_HEALTH < CONTROLLER_BASE_HEALTH,
+                "a thruster must be more fragile than the mid baseline \
+                 (THRUSTER_BASE_HEALTH vs CONTROLLER_BASE_HEALTH)"
+            );
+        }
+        const {
+            assert!(
+                CONTROLLER_BASE_HEALTH < TURRET_BASE_HEALTH,
+                "a turret must be tougher than the mid baseline \
+                 (CONTROLLER_BASE_HEALTH vs TURRET_BASE_HEALTH)"
+            );
+        }
+        // The controller core and the torpedo bay share the mid baseline.
+        assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
+    }
 }
 
 #[cfg(test)]
@@ -42,8 +91,8 @@ mod range_tests {
     /// `muzzle_speed * projectile_lifetime` (a turret has no range field),
     /// and the AI fires inside `AI_FIRE_RANGE_FACTOR` of it, so this is the
     /// standing constraint on any lifetime edit - including the shorter
-    /// lifetime the 1,000 m/s guns carry and the longer one the 600 m/s
-    /// scavenger guns need to compensate.
+    /// lifetime the 1,000 m/s guns carry and the longer one the 600 m/s guns
+    /// need to compensate.
     #[test]
     fn every_authored_turret_reaches_past_the_standoff_band() {
         let assets = BaseContentAssets::from_paths();
@@ -77,7 +126,9 @@ mod range_tests {
 mod ordnance_tests {
     use bevy::platform::collections::HashMap;
     use nova_events::prelude::*;
-    use nova_ship::prelude::{SectionKind, TorpedoSectionConfig, TorpedoTypeConfig};
+    use nova_ship::prelude::{
+        SectionKind, TorpedoSectionConfig, TorpedoTypeConfig, TORPEDO_SECTION_ID,
+    };
 
     use super::*;
 
@@ -105,7 +156,7 @@ mod ordnance_tests {
 
         let (id, bay) = bays
             .iter()
-            .find(|(id, _)| id == "torpedo_section")
+            .find(|(id, _)| id == TORPEDO_SECTION_ID)
             .expect("the standard assault bay ships in the catalog");
         assert_eq!(
             bay.blast_radius,
@@ -119,16 +170,16 @@ mod ordnance_tests {
         );
     }
 
-    /// The owner's rule, made structural: the two assault types "both deal the
-    /// same blast damage but one is more evasive than the other". A type
-    /// decides how the ordnance FLIES and nothing else, so any second
+    /// The two assault types deal the same blast damage and differ only in
+    /// evasion. A type decides how the ordnance FLIES and nothing else, so any
+    /// second
     /// difference between the two bays is a balance change nobody asked for -
     /// and a difference in blast, reach or magazine would quietly turn the
     /// choice into a straight upgrade.
     ///
     /// `max_speed` is deliberately NOT in the list below: it lives on the type
-    /// now and is the evasive type's price (see `sections::ordnance`). It is
-    /// how the ordnance flies, which is exactly what a type is allowed to
+    /// now and is the evasive type's price (see `sections::torpedo_bay`). It
+    /// is how the ordnance flies, which is exactly what a type is allowed to
     /// change.
     ///
     /// Checked over every pair of bays sharing a `blast_damage`, so the

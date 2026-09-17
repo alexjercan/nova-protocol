@@ -36,7 +36,7 @@ use nova_protocol::prelude::*;
 
 /// The shipped assembly, read straight from the ship catalog.
 ///
-/// `hull` is the catalog ship id (`block_gunship`, `block_raider`, ...).
+/// `hull` is the catalog ship id (`block_gunship`, `block_picket`, ...).
 ///
 /// Read from the catalog rather than copied, because a copy drifts: a turret
 /// mount hand-typed a tenth of a unit off its authored seat is a hundred times
@@ -124,19 +124,27 @@ pub fn dry_magazines(design: &mut ShipDesign, sections: &GameSections) {
 
 /// The empty-magazine patch for one weapon kind, or `None` for a section that
 /// carries no gun at all.
+///
+/// The reload goes with the magazine. A weapon that batch-reloads out of an
+/// empty rack would refill itself, and `Limited(0)` under a `Batch` is a
+/// content error the lint refuses to start a scenario on.
 fn empty_magazine(kind: &SectionKind) -> Option<SectionKindPatch> {
     let dry = Some(AmmoCapacity::Limited(0));
+    let no_reload = Some(ReloadConfig::Disabled);
     match kind {
         SectionKind::Turret(_) => Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
             ammunition: dry,
+            reload: no_reload,
             ..default()
         })),
         SectionKind::Torpedo(_) => Some(SectionKindPatch::Torpedo(TorpedoSectionConfigPatch {
             ammunition: dry,
+            reload: no_reload,
             ..default()
         })),
         SectionKind::Railgun(_) => Some(SectionKindPatch::Railgun(RailgunSectionConfigPatch {
             ammunition: dry,
+            reload: no_reload,
             ..default()
         })),
         SectionKind::Hull(_)

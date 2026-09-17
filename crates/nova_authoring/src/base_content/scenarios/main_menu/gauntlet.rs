@@ -1,8 +1,8 @@
 //! The torpedo-gauntlet main-menu backdrop: a station-keeping gunship's point
-//! defense against scripted torpedo batteries on both flanks - a doomed
-//! stand. The gunship's PDC magazines are HARD (no reload): it swats torpedoes
-//! until the guns run dry, the stream overruns it, and the blast ends the
-//! act; after a beat the carousel turns to the next backdrop.
+//! defense against scripted torpedo batteries on both flanks. The gunship's
+//! PDC magazines are HARD (no reload), so it swats torpedoes until the guns
+//! run dry, the stream overruns it, and the blast ends the act; after a beat
+//! the carousel turns to the next backdrop.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -15,17 +15,26 @@ use crate::{
     scenario_helpers::{entity, number},
 };
 
+/// The defending hull, and the scatter prefix its depth dressing takes.
+const GUNSHIP_ID: &str = "gauntlet_ship";
+const ROCK_ID_PREFIX: &str = "gauntlet_rock_";
+/// The bay section on the off-screen tube, named again by the order that
+/// fires it.
+const BAY_SECTION_ID: &str = "bay";
+/// The act's timer keys: the aftermath drift, and the stall watchdog.
+const TIMER_RESET: &str = "gauntlet_reset";
+const TIMER_WATCHDOG: &str = "gauntlet_watchdog";
+
 /// The gunship's HARD magazine per PDC turret (SetAmmo strips the auto-reload).
 /// Sized so the stand SHOWS about four intercepts before the guns run dry and
 /// the next torpedo ends it - six mounts at 100 rounds/s spend this in roughly
 /// six seconds of battery fire, and an intercept costs about a second and a
 /// half of it.
 ///
-/// PER TURRET, not per ship, so recasting the stand from a two-turret corvette
-/// onto the six-mount block gunship does NOT divide the old number six ways.
-/// That was tried at 135: every bearing mount ran dry three seconds before
-/// impact, the first torpedo through killed the ship, and the scene was over
-/// in half a minute with nothing shot down. What a mount needs is enough
+/// PER TURRET, not per ship: a six-mount hull must not divide a two-turret
+/// figure six ways. At 135 rounds a mount every bearing turret ran dry three
+/// seconds before impact, the first torpedo through killed the ship, and the
+/// act ended in half a minute with nothing shot down. A mount needs enough
 /// rounds to FINISH the intercept it opened.
 const GUNSHIP_ROUNDS_PER_TURRET: u32 = 600;
 
@@ -108,7 +117,7 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
             allegiance: Some(Allegiance::Enemy),
             controller: SpaceshipController::None,
             design: ships::inline_design(vec![SpaceshipSectionConfig {
-                id: "bay".to_string(),
+                id: BAY_SECTION_ID.to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 source: SectionSource::prototype("torpedo_section"),
@@ -118,8 +127,8 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
     }
 }
 
-/// A doomed stand behind the menu: the block gunship (six PDC turrets) holds
-/// a station circuit while four dumb batteries, parked far off BOTH flanks,
+/// The act: the block gunship (six PDC turrets) holds a station circuit while
+/// four scripted batteries, parked far off BOTH flanks,
 /// launch standard torpedoes at it on staggered scenario timers. Torpedoes
 /// stream in from both sides of the frame and the gunship swats them
 /// mid-shot - but its magazines are hard (SetAmmo, no reload), so the
@@ -159,7 +168,7 @@ pub(crate) fn menu_gauntlet(
     // run at y ~ +-300 m from the flanks to the circuit - the rocks cannot
     // block launches or eat torpedoes).
     let rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-        id_prefix: "gauntlet_rock_".to_string(),
+        id_prefix: ROCK_ID_PREFIX.to_string(),
         count: 26,
         seed: SCATTER_SEED ^ 0x3,
         region: ScatterRegion::Ring {
@@ -171,7 +180,7 @@ pub(crate) fn menu_gauntlet(
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: "gauntlet_rock_".to_string(),
+                id: ROCK_ID_PREFIX.to_string(),
                 name: "Gauntlet Rock".to_string(),
                 position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
@@ -202,7 +211,7 @@ pub(crate) fn menu_gauntlet(
 
     let spawn_ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: "gauntlet_ship".to_string(),
+            id: GUNSHIP_ID.to_string(),
             name: "Gauntlet Gunship".to_string(),
             position: HOLD_LOOP[0],
             rotation: Quat::IDENTITY,
@@ -284,7 +293,7 @@ pub(crate) fn menu_gauntlet(
                     // Stall watchdog (the duel's idiom): a gunship crippled
                     // without counting as DEFEATED would freeze the cycle;
                     // healthy stands reload long before this fires.
-                    timer("gauntlet_watchdog", 360.0),
+                    timer(TIMER_WATCHDOG, 360.0),
                 ])
                 .chain(
                     BATTERY_PARKS
@@ -300,8 +309,8 @@ pub(crate) fn menu_gauntlet(
             label: None,
             name: EventConfig::OnDefeated,
             once: false,
-            filters: vec![entity("gauntlet_ship")],
-            actions: vec![timer("gauntlet_reset", 8.0)],
+            filters: vec![entity(GUNSHIP_ID)],
+            actions: vec![timer(TIMER_RESET, 8.0)],
         },
         // The fall of the stand ends the act: teardown clears the wreck,
         // debris and in-flight ordnance, and the carousel turns to the next
@@ -312,10 +321,10 @@ pub(crate) fn menu_gauntlet(
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "gauntlet_reset".to_string(),
+                key: TIMER_RESET.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_weave".to_string(),
+                scenario_id: super::MENU_WEAVE_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -326,10 +335,10 @@ pub(crate) fn menu_gauntlet(
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
-                key: "gauntlet_watchdog".to_string(),
+                key: TIMER_WATCHDOG.to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_weave".to_string(),
+                scenario_id: super::MENU_WEAVE_SCENARIO_ID.to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -351,8 +360,8 @@ pub(crate) fn menu_gauntlet(
             actions: vec![
                 EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
                     ship: id.to_string(),
-                    section: "bay".to_string(),
-                    target: "gauntlet_ship".to_string(),
+                    section: BAY_SECTION_ID.to_string(),
+                    target: GUNSHIP_ID.to_string(),
                 }),
                 timer(&format!("{id}_fire"), period),
             ],
@@ -365,7 +374,7 @@ pub(crate) fn menu_gauntlet(
         role: ScenarioRole::Backdrop,
         events,
         ..ScenarioConfig::new(
-            "menu_gauntlet".to_string(),
+            super::MENU_GAUNTLET_SCENARIO_ID.to_string(),
             "Torpedo Gauntlet".to_string(),
             cubemap,
         )

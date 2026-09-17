@@ -55,8 +55,6 @@ part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
 | `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg over a radius of 300 m, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - cruise 320 m/s, ~390 PDC rounds an intercept, killed ~400 m out |
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, cruise 350 m/s, ~116 PDC rounds an intercept, killed ~1.14 km out |
 | `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s |
-| `siege_railgun_lance_section` | Railgun | Siege Railgun Lance | 180 | the same lance at capital grade, mounted only by the campaign's stolen warship: Pierce 500 to every layer it rakes until 360,000 slug power runs out, rake radius 30 m. Same 1.5 s charge, same 15,000 m/s slug for 1.2 s, same recoil 45 and one round over 12 s. Deliberately overpowered siege ordnance, not a balanced duel |
-| `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | experimental and deliberately overpowered balancing kit, not intended for normal play; blast 2000 dmg over a radius of 450 m, armored ordnance (5000 hp), ammo 6 restoring +1 after 10 s idle; loads the crimson siege Breaker (cruise 700 m/s, with a shallow weave) |
 | `docking_port_section` | Docking | Docking Port Section | 90 | the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. No base ship carries one; build a hull with one in the editor |
 
 Every shipped prototype authors its [damage
@@ -89,8 +87,7 @@ have an id.
 | `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
 | `armoured` | flat plate, a belt down every straight edge, sensor blisters |
 | `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows |
-| `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
-| `placeholder` | scaffolding, in deliberately garish magenta: four placeholder greebles wired to four rules that exercise the whole plate vocabulary. It makes no art decision |
+| `salvage` | mismatched patches, weld beads, a lashed drum, a whip antenna |
 
 A ship names one with `style: Some("<id>")` beside `skin: true` on its
 [hull](../ships/#the-hull). A mod declaring
@@ -219,8 +216,7 @@ structure and built at run time - see [Cladding](#cladding-not-a-prototype).
 The decoration models the base [styles](../styles/) scatter, under
 `dep://base/gltf/greebles/`, named `<kit>_<piece>.glb`: the four authored
 kits - `armoured_*` (10), `civilian_*` (12), `industrial_*` (14),
-`salvage_*` (14) - plus the four garish magenta `placeholder_*` pieces that
-prove the pipeline.
+`salvage_*` (14) - plus four magenta `placeholder_*` pieces no base style uses.
 All are generated from committed JSON recipes (`scripts/gen-greebles.py`,
 `scripts/greeble-recipes/`), and a mod can ship its own `.glb` the same way.
 
@@ -296,8 +292,9 @@ How a mod item interacts with this catalog (implemented in
 ## See the source
 
 The builders behind this page live under
-`crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
-section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
+`crates/nova_authoring/src/base_content/`: `sections/` owns the section
+prototypes, one module per family (`hull`, `controller`, `thruster`, `turret`,
+`torpedo_bay`, `railgun`, `docking_port`), `styles.rs` the
 skin styles, `ships/` owns the block hulls,
 `scenarios/` groups the training range and the main-menu backdrops, and
 `lessons.rs` owns the handbook screens. If this page and the generated RON

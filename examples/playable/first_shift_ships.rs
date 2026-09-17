@@ -1,17 +1,17 @@
-//! first_shift_ships: eight shipped hulls posed side by side for a free-fly
-//! visual review.
+//! first_shift_ships: eight hulls posed side by side for a free-fly visual
+//! review.
 //!
 //! The front row holds the maintenance cutter, the industrial carrier, and the
 //! military warship. The rear row holds five cleanup searchers: two unarmed
 //! salvage hulls, two PDC-armed escorts, and a PDC escort carrying one Serpent
-//! torpedo bay. All eight are shipped base content, so this row is where a
-//! silhouette change is reviewed against the ships it has to read apart from -
-//! not a place to iterate before promotion.
+//! torpedo bay. This row is where a silhouette change is reviewed against the
+//! ships it has to read apart from.
 //!
-//! Every hull is spawned by its CATALOG id, so the row poses the shipped ships
-//! themselves: a silhouette that moves in `base_content` moves here. Cladding
-//! is still derived by the game from the structure - industrial on the cutter
-//! and carrier, armoured on the warship. Nothing here flies or fights.
+//! The cutter and the picket are base content, spawned by their CATALOG ids, so
+//! a silhouette that moves in `base_content` moves here. The other six are the
+//! shared example fixtures (`examples/shared/dev_fixtures/`), spawned inline.
+//! Cladding is still derived by the game from the structure - industrial on the
+//! cutter and carrier, armoured on the warship. Nothing here flies or fights.
 //!
 //! Hand-run with the free WASD camera:
 //! ```text
@@ -23,6 +23,9 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the row from the parking
 //!   pose as `first-shift-ships.png` (staged under `NOVA_CAPTURE_DIR`); the
 //!   v0.13.0 post cuts its fleet figure from it.
+
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 
 use std::collections::HashSet;
 
@@ -80,54 +83,54 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
             "maintenance_cutter",
             "Maintenance Cutter",
             CUTTER_POSITION,
-            BLOCK_CUTTER_SHIP_ID,
+            design(BLOCK_CUTTER_SHIP_ID),
         ),
         ship_object(
             "industrial_carrier",
             "Industrial Carrier",
             CARRIER_POSITION,
-            BLOCK_CARRIER_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::carrier()),
         ),
         ship_object(
             "stolen_warship",
             "Stolen Military Warship",
             WARSHIP_POSITION,
-            BLOCK_WARSHIP_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::warship()),
         ),
         ship_object(
             "searcher_skiff",
             "Searcher 1 - Unarmed Skiff",
             SEARCHER_SKIFF_POSITION,
-            BLOCK_SKIFF_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::skiff()),
         ),
         ship_object(
             "searcher_tug",
             "Searcher 2 - Unarmed Tug",
             SEARCHER_TUG_POSITION,
-            BLOCK_TUG_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::tug()),
         ),
         ship_object(
             "searcher_picket",
             "Searcher 3 - PDC Picket",
             SEARCHER_PICKET_POSITION,
-            BLOCK_PICKET_SHIP_ID,
+            design(BLOCK_PICKET_SHIP_ID),
         ),
         ship_object(
             "searcher_claw",
             "Searcher 4 - PDC Claw",
             SEARCHER_CLAW_POSITION,
-            BLOCK_CLAW_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::claw()),
         ),
         ship_object(
             "searcher_leader",
             "Searcher 5 - PDC and Torpedo Leader",
             SEARCHER_LEADER_POSITION,
-            BLOCK_CLEANUP_LEADER_SHIP_ID,
+            dev_fixtures::design(dev_fixtures::cleanup_leader()),
         ),
     ];
 
     ScenarioConfig {
-        description: "Eight shipped hulls, posed side by side".to_string(),
+        description: "Eight hulls, posed side by side".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -150,9 +153,13 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
     }
 }
 
-/// One posed catalog ship. `ship` is the CATALOG id, so the row shows the
-/// shipped hull rather than a copy of it.
-fn ship_object(id: &str, name: &str, position: Meters3, ship: &str) -> ScenarioObjectConfig {
+/// One posed ship.
+fn ship_object(
+    id: &str,
+    name: &str,
+    position: Meters3,
+    design: ShipDesignSource,
+) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -162,7 +169,7 @@ fn ship_object(id: &str, name: &str, position: Meters3, ship: &str) -> ScenarioO
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
-            design: design(ship),
+            design,
             ..default()
         }),
     }

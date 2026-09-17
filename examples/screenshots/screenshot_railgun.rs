@@ -29,9 +29,9 @@
 //! own name - see [`LIVE_ENV`]. The stills and the slowed loop are unaffected;
 //! they come off runs that leave it unset.
 //!
-//! The siege lance is a separate bench off the line, unfired. Nothing in the
-//! base fleet but the stolen warship carries one, and its card is a product
-//! photo rather than an event.
+//! The siege lance is a separate bench off the line, unfired. It is a fixture
+//! rather than base content (`examples/shared/dev_fixtures/sections.rs`), and its
+//! card is a product photo rather than an event.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole walk, exit
@@ -60,6 +60,8 @@ use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
 
+#[path = "../shared/dev_fixtures/mod.rs"]
+mod dev_fixtures;
 #[path = "shared/kit.rs"]
 mod kit;
 
@@ -377,17 +379,17 @@ fn boat_hull(sections: &GameSections) -> Vec<SpaceshipSectionConfig> {
 /// +2. Unpowered, uncontrolled and off the line: this rig exists to be
 /// photographed.
 fn siege_bench(sections: &GameSections) -> ScenarioObjectConfig {
-    let section = |id: &str| {
+    let at = |id: &str, config: SectionConfig, position: Vec3| SpaceshipSectionConfig {
+        id: id.to_string(),
+        position,
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Inline(config),
+    };
+    let catalog = |id: &str| {
         sections
             .get_section(id)
             .unwrap_or_else(|| panic!("section '{id}' not found"))
             .clone()
-    };
-    let at = |id: &str, kind: &str, position: Vec3| SpaceshipSectionConfig {
-        id: id.to_string(),
-        position,
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Inline(section(kind)),
     };
 
     ScenarioObjectConfig {
@@ -406,12 +408,12 @@ fn siege_bench(sections: &GameSections) -> ScenarioObjectConfig {
                 sections: vec![
                     at(
                         "siege_lance",
-                        SIEGE_RAILGUN_LANCE_SECTION_ID,
+                        dev_fixtures::sections::siege_railgun_lance(),
                         Vec3::new(0.0, 0.0, 0.0),
                     ),
                     at(
                         "mount",
-                        REINFORCED_HULL_SECTION_ID,
+                        catalog(REINFORCED_HULL_SECTION_ID),
                         Vec3::new(0.0, 0.0, 2.0),
                     ),
                 ],
@@ -648,7 +650,7 @@ const CORRIDOR: RangeShot = RangeShot {
     path: "wiki-section-railgun-corridor.png",
 };
 
-/// The siege lance's catalog card, off the line and unfired.
+/// The siege lance's card, off the line and unfired.
 #[cfg(feature = "debug")]
 const BENCH: RangeShot = RangeShot {
     eye: Meters3::new(242.0, -52.0, 122.0),
