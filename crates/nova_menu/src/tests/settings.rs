@@ -1255,7 +1255,7 @@ fn dragging_a_sensitivity_slider_sets_only_its_own_path() {
     open_group(&mut app, MOUSE_GROUP);
 
     let drag = |app: &mut App, path: MousePath, percent: f32| {
-        let name = format!("{} Slider Track", path.label());
+        let name = format!("{} Sensitivity Slider Track", path.label());
         let slider = entity_by_name(app, &name).unwrap_or_else(|| panic!("{name} exists"));
         app.world_mut().trigger(ValueChange::<f32> {
             source: slider,

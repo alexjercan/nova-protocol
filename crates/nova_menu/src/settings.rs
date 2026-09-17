@@ -1026,7 +1026,7 @@ fn build_sensitivity_row(
     build_slider_row(
         list,
         SliderRow {
-            name: path.label().to_string(),
+            name: format!("{} Sensitivity", path.label()),
             label: path.label().to_string(),
             value: percent,
             range: (MouseSensitivityRange::MIN_PERCENT, range.max_percent),

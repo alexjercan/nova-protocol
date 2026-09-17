@@ -49,12 +49,20 @@ impl MousePath {
     /// The paths in settings-row order.
     pub const ALL: [Self; 3] = [Self::Look, Self::Rcs, Self::FreeCamera];
 
-    /// What the settings row reads.
+    /// What the settings row reads down its left edge.
+    ///
+    /// The PATH, not the word "sensitivity": every row in the MOUSE group is a
+    /// sensitivity, so repeating it three times bought nothing and cost the
+    /// only thing the column is short of. The label column is 70 px, which
+    /// `Free Camera Sensitivity` wrapped to three lines - and a row sized to
+    /// one line drew those three straight through its neighbours. The entity
+    /// name keeps the long form (`build_sensitivity_row`), because scripted
+    /// walks address these sliders by it.
     pub fn label(self) -> &'static str {
         match self {
-            Self::Look => "Look Sensitivity",
-            Self::Rcs => "RCS Sensitivity",
-            Self::FreeCamera => "Free Camera Sensitivity",
+            Self::Look => "Look",
+            Self::Rcs => "RCS",
+            Self::FreeCamera => "Free Camera",
         }
     }
 
