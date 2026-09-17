@@ -67,11 +67,34 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
 
 ## Subtasks
 
-- [ ] **01 - Delete retired nova-probe CLI verb shims.**
+- [x] **01 - Delete retired nova-probe CLI verb shims.**
   Owner: `crates/nova_probe_cli/src/native/cli.rs:302-416,796-820`.
   Delete the hidden `Trace`, `Sweep`, `Web`, and `Profile` variants,
   `retired_alias`, and tests for their custom retirement errors. Clap then owns
   the unknown-command failure. Verify focused CLI parser behavior and help.
+
+  Done. `crates/nova_probe_cli/src/native/cli.rs` only, 91 deletions and no
+  additions. Deleted the four hidden `Verb` variants, `retired_alias`, the
+  hand-written `InvalidSubcommand` arm, the `usage()` test helper and its
+  `CommandFactory` import, and the tests `retired_verbs_error_with_pointers`
+  and `the_retired_verbs_stay_out_of_the_help`. Editing `enum Verb` first made
+  the compiler name all four consumers (E0599 at cli.rs:372,378,379,380) and
+  nothing else in the workspace.
+
+  Proof: `cargo test -p nova_probe_cli --lib native::cli` is 12 passed, 0
+  failed, down from 14 test fns, re-run after `sprout sync`. `cargo check -p
+  nova_probe_cli --lib` reports no dead-code or unused-import warning, which is
+  what shows the deleted helpers had no surviving consumer. `cargo fmt -p
+  nova_probe_cli -- --check` is clean. Refusals were printed, not inferred: a
+  retired verb and an unknown verb now both return `error: unrecognized
+  subcommand '<x>'` plus the usage line, and `parse_rejects_bad_input` pins
+  that refusal. Rendered top-level help is unchanged, as the deleted verbs were
+  already `hide = true`.
+
+  Retained: the `MissingSubcommand` arm still returns `a subcommand is
+  required`, because a bare `probe` must exit non-zero instead of rendering
+  help and exiting 0. Clap offers no did-you-mean tip for these names; the
+  refusal is the usage line only. No changelog entry, no new permanent test.
 
 - [ ] **02 - Delete the legacy probe baseline-root fallback.**
   Owner: `crates/nova_probe_cli/src/native/paths.rs:78-91,191-210`.

@@ -298,31 +298,6 @@ positional IS the scenario, and there is nothing to expand.")]
         #[arg(long, value_name = "RUN-DIR")]
         baseline: Option<PathBuf>,
     },
-
-    /// Retired at the v0.8.0 cut.
-    #[command(hide = true)]
-    Trace {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
-    /// Retired: `run <example> --release --scenario ... --preset ...`.
-    #[command(hide = true)]
-    Sweep {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
-    /// Retired: `run <scenario> --platform web`.
-    #[command(hide = true)]
-    Web {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
-    /// Retired: profiling is part of `run <example>`.
-    #[command(hide = true)]
-    Profile {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
 }
 
 /// Parse the CLI. `Err` is a message the caller prints before exiting non-zero;
@@ -348,13 +323,6 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
                 | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => {
                     Err("a subcommand is required".into())
                 }
-                // Clap says "unrecognized subcommand"; this crate has always
-                // said "unknown subcommand", and the retired verbs below need
-                // to be distinguishable from a typo.
-                clap::error::ErrorKind::InvalidSubcommand => Err(format!(
-                    "unknown subcommand {}",
-                    args.first().map_or("", |a| a.as_str())
-                )),
                 _ => Err(error.render().to_string()),
             };
         }
@@ -392,27 +360,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
             Ok(Cmd::Scenario { base })
         }
         Verb::Report { dirs, baseline } => Ok(Cmd::Report { dirs, baseline }),
-        // Retired verbs get a pointed error, not a generic one: the
-        // muscle-memory commands should say where they went.
-        Verb::Trace { .. } => Err(
-            "`trace` retired (task 20260719-211500): native runs render the \
-                                   top-N table into the run report, and `probe report <run-dir>` \
-                                   re-renders it from the dir's trace.json"
-                .into(),
-        ),
-        Verb::Sweep { .. } => Err(retired_alias("sweep")),
-        Verb::Web { .. } => Err(retired_alias("web")),
-        Verb::Profile { .. } => Err(retired_alias("profile")),
     }
-}
-
-fn retired_alias(alias: &str) -> String {
-    format!(
-        "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
-         use `probe run` - the sweep is `run <example> --release \
-         --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
-         profiling is part of `run <example>`; add `--samply` for a flamegraph"
-    )
 }
 
 /// Combination gates common to both verbs.
@@ -468,18 +416,11 @@ fn gate_scenario(base: &RunOptions) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use clap::CommandFactory;
-
     use super::*;
     use crate::native::fixtures::s;
 
     fn help(args: &[String]) -> bool {
         matches!(parse(args), Ok(Cmd::Help(_)))
-    }
-
-    /// The top-level help as a reader sees it.
-    fn usage() -> String {
-        Cli::command().render_long_help().to_string()
     }
 
     #[test]
@@ -789,37 +730,5 @@ mod tests {
             "3"
         ]))
         .is_err());
-    }
-
-    #[test]
-    fn retired_verbs_error_with_pointers() {
-        // The v0.8.0 cut removed the deprecated aliases and the trace verb:
-        // muscle-memory commands must say where they went, not just
-        // "unknown subcommand".
-        for alias in ["sweep", "web", "profile"] {
-            let err = parse(&s(&[alias])).unwrap_err();
-            assert!(err.contains("retired"), "{alias}: {err}");
-            assert!(err.contains("probe run"), "{alias}: {err}");
-        }
-        let err = parse(&s(&["trace", "t.json"])).unwrap_err();
-        assert!(err.contains("retired"), "{err}");
-        assert!(err.contains("native runs"), "{err}");
-        // Genuinely unknown verbs keep the generic error.
-        assert!(parse(&s(&["frobnicate"]))
-            .unwrap_err()
-            .contains("unknown subcommand"));
-    }
-
-    /// The retired verbs are hidden, so they must not advertise themselves in
-    /// the help a reader discovers the harness through.
-    #[test]
-    fn the_retired_verbs_stay_out_of_the_help() {
-        let text = usage();
-        for alias in ["sweep", "trace", "profile"] {
-            assert!(!text.contains(&format!("  {alias}")), "{alias}: {text}");
-        }
-        for verb in ["run", "scenario", "report"] {
-            assert!(text.contains(verb), "{verb}: {text}");
-        }
     }
 }
