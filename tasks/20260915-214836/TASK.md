@@ -152,8 +152,8 @@ Start only after the Phase 1 owner review is recorded on this task.
       `every_demonstration_decodes_and_a_loop_divides_by_its_grid`, which
       decodes every committed file with the crate `bevy_image` wraps - the same
       pure-Rust decoder on both targets. A browser re-run since the codec change
-      is NOT done. All 24 lessons now ship captured footage, from
-      thirteen producers: `scripts/gen-lesson-media.py --check` reports 24
+      is NOT done. All 47 lessons now ship captured footage, from
+      twenty-six producers: `scripts/gen-lesson-media.py --check` reports 47
       captured and 0 placeholders, so the generator is the fallback for a
       lesson authored without a producer rather than the source of the art.
 - [x] Wire `Start Training` and applicable Practice actions through the existing
@@ -241,23 +241,39 @@ are in `LESSON-COVERAGE.md`: fifteen lessons carrying a wrong or hollow claim,
 six wiki areas with no lesson at all, and forty specced candidates with bodies
 inside the word cap, verified action ids and verified anchors.
 
-- [ ] Fix the sixteen corrections (`LESSON-COVERAGE.md` section 1). Eight tell
+- [x] Fix the sixteen corrections (`LESSON-COVERAGE.md` section 1). Eight tell
       the player the game does something it does not do; the worst is
       `novaos_open` and `novaos_view` claiming the ship keeps flying while the
       computer is open, when `PauseStates::NovaOs` stops the clocks. Four wiki
       pages repeat the autopilot-disengage error and are fixed with them.
-- [ ] Close the six areas with no lesson: the railgun (231 wiki lines), the
+- [~] Close the six areas with no lesson: the railgun (231 wiki lines), the
       docking port, the controller section, gravity wells, the NOVA OS terminal
       and its command set, and the editor's gesture set.
-- [ ] Author the tier A candidates (section 4). Tier B is a second pass.
+- [~] Author the tier A candidates (section 4). Tier B is a second pass.
 - [ ] Decide the two blockers (section 5): whether the editor gains registered
       actions so an editor lesson can draw chips, and whether new `role: Lesson`
       drills are worth it - the one trainer mounts a single kinetic PDC, so no
       torpedo, railgun, Pierce, point-defense or docking lesson can be
       practised or proven today.
-- [ ] Write the three missing wiki headings first: Generate, the editor build
+- [~] Write the three missing wiki headings first: Generate, the editor build
       readout, and a docking-capable hull. The anchor test resolves every
       `wiki_path`, so those lessons cannot ship before their headings do.
+      Generate is DOCUMENTED (`web/src/wiki/keybinds.md`, under `## Editor`)
+      and its lesson ships. The build readout is tier B and still has no
+      heading. No base hull carries a docking port, so the two docking
+      lessons photograph one placed in the editor.
+
+Landed 2026-09-16/17: the sixteen corrections as `ab7c267b0`, 23 of the 24
+tier A lessons as `e27e49ef2`, and real captured footage for all 47 lessons
+from twenty-six producers. `build_faces` is the one tier A lesson NOT
+authored - see the blocker above. Tier B (about sixteen more candidates in
+`LESSON-COVERAGE.md` section 4) is untouched.
+
+Fixed on the way through: the Settings MOUSE rows labelled themselves
+`Look Sensitivity` / `RCS Sensitivity` / `Free Camera Sensitivity` into a
+70 px column, which wrapped to three lines and drew them through each other.
+The label is now the path alone and the long form moved to the entity name,
+which is what scripted walks address.
 
 ## Verification
 
