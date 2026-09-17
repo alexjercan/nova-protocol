@@ -81,7 +81,7 @@ const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
 /// inline instead of appearing in the editor catalog.
 ///
 /// `blast_damage` 2000 over a 450 m radius destroys either target through the
-/// 65% transmission rule. `projectile_health` 5000 exceeds the damage six PDC
+/// 65% transmission rule. `projectile_health` 50000 exceeds the damage six PDC
 /// mounts can deal during the approximately 6 s closing window, so the round
 /// remains visible under fire and still reaches the target.
 fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
@@ -135,7 +135,7 @@ fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
             launch_sound: Some(assets.torpedo_launch_sound.clone()),
             door_sound: Some(assets.torpedo_door_sound.clone()),
             detonation_sound: Some(assets.torpedo_detonation_sound.clone()),
-            projectile_health: 5000.0,
+            projectile_health: 50000.0,
             torpedo_type: breaker(),
             ammunition: AmmoCapacity::Limited(6),
             reload: ReloadConfig::Batch(SectionReloadConfig {
