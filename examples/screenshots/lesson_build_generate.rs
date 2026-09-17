@@ -1,8 +1,13 @@
-//! lesson_build_generate: the SHIPBUILDING lesson about the Generate block -
-//! a hull rolled out of the catalog into the ship you are inside, replacing
-//! what that ship held.
+//! lesson_build_generate: two SHIPBUILDING loops off one build - the Generate
+//! block rolling a hull out of the catalog into the ship you are inside, and
+//! Ship Skin closing plating over the hull it rolled.
 //!
-//! One producer, one sheet, because the whole claim is a REPLACEMENT: the
+//! The second sheet rides the first because of what it needs: the skin lesson
+//! is about a WHOLE hull's structure disappearing under cladding, and the only
+//! whole hull this walk stands up is the one Generate produces. A three-part
+//! stub clads into a brick.
+//!
+//! `build_generate` is a sheet because the whole claim is a REPLACEMENT: the
 //! stage carries a hand-built stub for the first third of the loop, the
 //! Generate button is pressed inside the recording, and a whole hull stands
 //! there for the rest of it. A still of the result would be a picture of a
@@ -66,11 +71,11 @@ mod lesson;
 #[path = "shared/ui_walk.rs"]
 mod ui_walk;
 #[cfg(feature = "debug")]
-use lesson::{lesson_profile, LESSON_GRID};
+use lesson::{lesson_profile, LESSON_GRID, LESSON_STILL};
 #[cfg(feature = "debug")]
 use ui_walk::{
     count_sections, pose_editor_camera, the_build_camera_is_posed, the_editor_is_inside_a_ship,
-    Gestures, EDITOR_EYE, EDITOR_LOOK,
+    the_skin_is_on, Gestures, EDITOR_EYE, EDITOR_LOOK,
 };
 
 #[derive(Parser)]
@@ -82,6 +87,19 @@ struct Cli;
 /// The sheet this tiles: "Generate a hull".
 #[cfg(feature = "debug")]
 const GENERATE_LESSON: &str = "build_generate";
+
+/// The second sheet: "Ship skin".
+#[cfg(feature = "debug")]
+const SKIN_LESSON: &str = "build_skin";
+
+/// Cells the skin sheet holds the hull BARE before the toggle goes on.
+///
+/// A quarter of the loop. The claim is that the plating is DERIVED from the
+/// structure rather than placed on it, and a reader who never sees the
+/// structure has been shown a clad ship and told to take the derivation on
+/// trust.
+#[cfg(feature = "debug")]
+const SKIN_BARE_CELLS: u32 = 5;
 
 /// The seed the walk types, and the hull the handbook therefore ships.
 ///
@@ -193,6 +211,84 @@ fn the_seed_field_reads_the_seed() -> std::sync::Arc<nova_protocol::nova_debug::
 #[cfg(feature = "debug")]
 fn the_hull_was_rolled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| count_sections(world) >= ROLLED_SECTIONS)
+}
+
+/// Where in the window the walk parks the skin toggle before pressing it.
+///
+/// Low, but clear of the key legend along the bottom edge: the row has to be
+/// under the pointer AND in the recorded frame, and the rail scrolls to put it
+/// there rather than the camera moving to find it.
+#[cfg(feature = "debug")]
+const SKIN_TOGGLE_Y: f32 = 800.0;
+
+/// The skin toggle's centre in the window, and its half height.
+#[cfg(feature = "debug")]
+fn toggle_at(world: &mut World) -> Option<(f32, f32)> {
+    let mut rows = world.query::<(&Name, &ComputedNode, &UiGlobalTransform)>();
+    rows.iter(world)
+        .find(|(name, _, _)| name.as_str() == "Ship Skin Toggle")
+        .map(|(_, node, at)| (at.translation.y, node.size().y * 0.5))
+}
+
+/// Scroll the rail by however far the toggle still is from where it is wanted.
+///
+/// Re-measured every frame rather than spent in one notch: the wheel is
+/// clamped against the content (`nova_ui::screen::scroll`), and a rolled hull's
+/// scene list is long enough that the first notch can be the clamp rather than
+/// the gap.
+#[cfg(feature = "debug")]
+fn scroll_the_toggle_into_view(world: &mut World) {
+    let Some((y, _)) = toggle_at(world) else {
+        return;
+    };
+    // Negative is down: the handler subtracts the notch from the stored offset,
+    // so a row BELOW the fold is reached with a negative wheel.
+    scroll_pixels(-(y - SKIN_TOGGLE_Y))(world);
+}
+
+/// Advance once the whole toggle row is inside the window.
+#[cfg(feature = "debug")]
+fn the_toggle_is_in_view() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let Some(mut rows) = world.try_query::<(&Name, &ComputedNode, &UiGlobalTransform)>() else {
+            return false;
+        };
+        rows.iter(world)
+            .find(|(name, _, _)| name.as_str() == "Ship Skin Toggle")
+            .is_some_and(|(_, node, at)| {
+                let half = node.size().y * 0.5;
+                at.translation.y - half > 0.0 && at.translation.y + half < LESSON_STILL.1 as f32
+            })
+    })
+}
+
+/// Where the skin toggle actually is, for the abort path.
+///
+/// The rail is a scrolling column and a rolled hull is longer than the stub
+/// that preceded it, so the row this walk aims at can be under the fold rather
+/// than merely unhit - two failures that look identical from a stalled beat.
+#[cfg(feature = "debug")]
+fn the_toggle_diagnosis(world: &World) -> String {
+    let Some(mut rows) = world.try_query::<(&Name, &ComputedNode, &UiGlobalTransform)>() else {
+        return "the world has no UI to look at".to_string();
+    };
+    rows.iter(world)
+        .find(|(name, _, _)| name.as_str() == "Ship Skin Toggle")
+        .map_or_else(
+            || "there is no node named `Ship Skin Toggle` on screen".to_string(),
+            |(_, node, at)| {
+                let size = node.size();
+                format!(
+                    "the skin toggle is {}x{} at ({:.0}, {:.0}) on a {}x{} window",
+                    size.x,
+                    size.y,
+                    at.translation.x,
+                    at.translation.y,
+                    LESSON_STILL.0,
+                    LESSON_STILL.1,
+                )
+            },
+        )
 }
 
 fn main() -> bevy::app::AppExit {
@@ -326,6 +422,63 @@ fn build_generate_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
                 "Generate must replace the stub with a hull: {sections} section(s) on the ship"
             );
             info!("lesson build: {sections} sections on the rolled hull");
+        })
+        .add()
+        // SHIP SKIN, on the hull Generate just rolled. The subject of the skin
+        // lesson is a WHOLE hull's structure disappearing under plating, and
+        // the rolled hull is the only whole hull this walk ever stands up - a
+        // three-part stub clads into a brick and shows nothing.
+        //
+        // The camera is not re-posed: the generate sheet's stand-off was sized
+        // for the hull that had not been rolled yet, and nothing has released
+        // that pose.
+        // Parked on FRAMES rather than on `pointer_over_node`, which is what
+        // the Generate button next to it is gated on. The toggle is a ROW with
+        // a box in it (`skin_toggle_row`), so the hit under the pointer is the
+        // child and the predicate on the row never reads true - the gesture
+        // that does work on it clicks the row and lets the press bubble to the
+        // row's own observer (`screenshot_editor.rs`). The real gate is two
+        // beats down: the plating either appears or the run says so.
+        // The rail is a scrolling column, and the hull Generate rolled makes a
+        // scene list long enough to push Ship Settings thousands of pixels
+        // under the fold - the first run of this beat found the toggle at
+        // y 5441 on a 1080 window. So the rail is scrolled the way a builder
+        // scrolls it, with the wheel over the pane.
+        .step("put the pointer over the rail")
+        .on_enter(hover_named("Scene List"))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("scroll the rail down to the skin toggle")
+        .on_enter(scroll_the_toggle_into_view)
+        .each(|world: &mut World, _, _| scroll_the_toggle_into_view(world))
+        .until(the_toggle_is_in_view())
+        .diagnose(the_toggle_diagnosis)
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("rest the pointer on the skin toggle")
+        .on_enter(hover_named("Ship Skin Toggle"))
+        .each(|world: &mut World, _, _| hover_named("Ship Skin Toggle")(world))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("open the sheet on the bare hull")
+        .on_enter(|world: &mut World| sheet_start(world, SKIN_LESSON, LESSON_GRID))
+        .until(frames(SKIN_BARE_CELLS))
+        .add()
+        .step("press the skin toggle")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(pointer_pressed())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("release, and let the plating close over it")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(and(the_skin_is_on(), sheet_written(SKIN_LESSON)))
+        .diagnose(the_toggle_diagnosis)
+        .deadline(60.0)
+        .add()
+        .step("the hull is clad in plating nothing placed")
+        .on_enter(|world: &mut World| {
+            let sections = count_sections(world);
+            info!("lesson build: skin derived over {sections} sections");
         })
         .add()
 }

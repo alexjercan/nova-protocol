@@ -1015,9 +1015,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Ship skin",
             looping(
                 "build_skin",
-                "a bare section hull in the editor with Ship Skin switched on: the plating closes \
-                 over the structure, and closes again around the next part as it is dragged into \
-                 place",
+                "a hull standing bare on the editor stage, and Ship Skin switched on: plating \
+                 closes over the structure it was derived from, cell by cell",
             ),
             "Ship Skin dresses the build in the cladding it would fly with. Nothing places a \
              plate: the skin is derived from the structure, and re-derived as you build, including \
