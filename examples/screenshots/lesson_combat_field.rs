@@ -1,7 +1,14 @@
-//! lesson_combat_field: the two COMBAT demonstrations about the space BETWEEN
-//! ships - `combat_allegiance` (who is on whose side, in three colours) and
+//! lesson_combat_field: three demonstrations about the space BETWEEN ships -
+//! `combat_allegiance` (who is on whose side, in three colours), `start_markers`
+//! (the same three colours, and the player's own hull wearing none) and
 //! `combat_cover` (a burst breaking up on a rock instead of on the hostile
 //! behind it).
+//!
+//! `start_markers` is a STILL for the same reason `combat_allegiance` is one,
+//! set out below: the triangle is a fixed 14 by 9 pixels and a loop cell would
+//! halve it. It is a SEPARATE still because it argues a different thing - not
+//! which colour means what, but that your own ship shows no marker at all - and
+//! that needs the player's hull in the foreground rather than at an edge.
 //!
 //! One producer, two frames, one set built for them: the player parked square
 //! with the world, a rock sitting on its firing line, a hostile behind that
@@ -92,6 +99,9 @@ struct Cli;
 /// The still for "Who shoots whom".
 #[cfg(feature = "debug")]
 const ALLEGIANCE_SHOT: &str = "combat_allegiance.png";
+/// The still for "Who is who".
+#[cfg(feature = "debug")]
+const MARKERS_SHOT: &str = "start_markers.png";
 /// The sheet for "Cover and the firing line".
 #[cfg(feature = "debug")]
 const COVER_LESSON: &str = "combat_cover";
@@ -158,6 +168,55 @@ const ALLEGIANCE_EYE: Meters3 = Meters3::new(430.0, 70.0, -240.0);
 /// and the covered hostile sit at opposite edges of the same frame.
 const ALLEGIANCE_AIM: Meters3 = Meters3::new(0.0, -5.0, -245.0);
 
+/// Where the cast stands for the markers still, and where it is watched from.
+///
+/// A STAGED tableau rather than another bearing on the tactical one, and shot
+/// LAST for that reason. The cover lesson needs a stone on the firing line at
+/// 170 m, and that stone sits in the middle of every shot taken from behind
+/// the player - which is the only place the player's own hull can be the
+/// nearest thing in frame. Two cuts were tried from over the field and both
+/// photographed the rock with triangles around it.
+///
+/// So this frame is set up after the cover sheet is tiled and the guns are
+/// down: the stone is taken away, the three marked hulls are parked in a clean
+/// row against black, and the player is left where it has been all along. What
+/// the reader gets is the claim itself - four hulls, three triangles, and the
+/// one nearest the camera wearing nothing.
+/// ## Why the row is abeam of the player rather than beyond it
+///
+/// A marker is a small triangle over a hull, so the reader has to be able to
+/// tell WHICH hull each one sits over. That needs two things at once: the four
+/// hulls separated across the frame, and all four drawn at about the same size,
+/// because a triangle over a distant hull is the same triangle and reads as
+/// floating free. Both fall out of parking the cast ABEAM - one row, one range,
+/// the player at the near end of it - and neither survives a shot down the
+/// field's own axis, where the far hulls shrink and their marks pile up.
+///
+/// 120 m apart, which is about twice a hull, so every triangle has a hull under
+/// it and empty black either side.
+#[cfg(feature = "debug")]
+const MARKERS_WING: Meters3 = Meters3::new(120.0, 8.0, -10.0);
+/// Where the hostile is parked for it - the middle of the row, because red is
+/// the mark the reader looks for first.
+#[cfg(feature = "debug")]
+const MARKERS_HOSTILE: Meters3 = Meters3::new(240.0, -6.0, 10.0);
+/// Where the unaligned hull is parked for it, at the far end of the row.
+#[cfg(feature = "debug")]
+const MARKERS_DRIFTER: Meters3 = Meters3::new(360.0, 6.0, -5.0);
+/// The markers still's eye: square on the middle of the row, far enough back
+/// that all four hulls are in the lens.
+///
+/// 389 m is what the row's half-span asks for. The lens is about 73 degrees
+/// across at 16:9, the outermost hull sits 180 m off the row's centre plus
+/// about a hull's half length, and 215 m has to land inside three quarters of
+/// that width - so the range is 215 / tan(29 degrees).
+#[cfg(feature = "debug")]
+const MARKERS_EYE: Meters3 = Meters3::new(180.0, 55.0, 389.0);
+/// What the markers still aims at: the middle of the row, a little under the
+/// hulls, so the row sits just below centre and the triangles keep their black.
+#[cfg(feature = "debug")]
+const MARKERS_AIM: Meters3 = Meters3::new(180.0, 20.0, 0.0);
+
 /// Where the cover loop's eye stands, as a `shared/lesson.rs` sweep.
 ///
 /// ABEAM, at 90 degrees, because this is the one bearing with all three
@@ -196,6 +255,18 @@ const COVER_BEARING_DEGREES: f32 = 90.0;
 /// the left edge at the end of the stroke.
 #[cfg(feature = "debug")]
 const COVER_ARC_DEGREES: f32 = 6.0;
+
+/// How long the mounts are given to fold back into the deck before the markers
+/// still is taken. Lowering the stance is animated, and the shutter does not
+/// wait on an animation it cannot ask about.
+#[cfg(feature = "debug")]
+const MOUNTS_FOLD_SECS: f32 = 2.5;
+
+/// How far a parked hull may be from its mark when the shutter opens, in engine
+/// units. A body still settling against its own station keeping is a frame that
+/// was composed for somewhere else.
+#[cfg(feature = "debug")]
+const MARKERS_PARK_EPSILON: f32 = 2.0;
 
 /// How long the trigger is held before the cover sheet opens.
 ///
@@ -502,4 +573,95 @@ fn combat_field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
             release_action("combat_stance")(world);
         })
         .add()
+        // WHO IS WHO, off the same cast re-staged. Last, because it takes the
+        // cover rock away and parks the hulls somewhere the other two frames
+        // would not recognise.
+        .step("clear the stone and park the cast in a row")
+        .on_enter(stage_the_markers)
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        // The stance was up for the cover loop and comes down over several
+        // frames, so the mounts are given time to fold before the shutter: the
+        // triangles are instrument tier and a raised battery would put gun
+        // housings across a picture whose subject is three coloured marks.
+        .step("let the mounts fold away")
+        .on_enter(|world: &mut World| pose_camera(world, MARKERS_EYE, MARKERS_AIM))
+        .until(elapsed(MOUNTS_FOLD_SECS))
+        .add()
+        .step("the cast is where the frame was composed for")
+        .on_enter(|world: &mut World| {
+            for (id, at) in [
+                (WING_ID, MARKERS_WING),
+                (COVERED_ID, MARKERS_HOSTILE),
+                (DRIFTER_ID, MARKERS_DRIFTER),
+            ] {
+                let ship = hollow::ship_by_id(world, id)
+                    .unwrap_or_else(|| panic!("{id} is still in the field for the markers still"));
+                let here = world
+                    .get::<Transform>(ship)
+                    .expect("a ship root carries a transform")
+                    .translation;
+                assert!(
+                    here.abs_diff_eq(at.to_engine(), MARKERS_PARK_EPSILON),
+                    "{id} drifted off its mark before the markers still: it is at {here:?} and \
+                     the frame was composed for {at:?}"
+                );
+            }
+        })
+        .add()
+        .step("capture the markers still")
+        .on_enter(|world: &mut World| shoot(world, MARKERS_SHOT))
+        .until(shot_written(MARKERS_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+}
+
+/// Take the cover rock away and park the three marked hulls in a clean row.
+///
+/// Transform and velocities together, the way `hollow::pin_player` does it: a
+/// body moved by its transform alone keeps whatever the burst and its own
+/// station keeping left in it, and arrives somewhere else by the shutter.
+#[cfg(feature = "debug")]
+fn stage_the_markers(world: &mut World) {
+    // The cover loop's sweep is still in the world, and `sweep_lesson_camera`
+    // re-solves the eye from it every frame. A `pose_camera` left standing
+    // against it is overwritten before the shutter, so the still comes back
+    // composed from the cover loop's bearing instead of this one.
+    world.remove_resource::<LessonSweep>();
+    // The WHOLE field, not just the cover stone. A marker is a small coloured
+    // triangle floating clear of the hull it points at, and a rock behind one
+    // takes the mark for its own: the first cut of this frame put an asteroid
+    // directly over the green triangle, and the picture then claimed the
+    // handbook's wingman was a boulder. Black is the only ground a triangle
+    // cannot be read against something else on.
+    let rocks: Vec<Entity> = world
+        .query_filtered::<Entity, With<AsteroidMarker>>()
+        .iter(world)
+        .collect();
+    if rocks.is_empty() {
+        warn!("lesson markers: the field is already clear of rock");
+    }
+    for rock in rocks {
+        world.entity_mut(rock).despawn();
+    }
+    for (id, at) in [
+        (WING_ID, MARKERS_WING),
+        (COVERED_ID, MARKERS_HOSTILE),
+        (DRIFTER_ID, MARKERS_DRIFTER),
+    ] {
+        let Some(ship) = hollow::ship_by_id(world, id) else {
+            warn!("lesson markers: {id} is not in the field");
+            continue;
+        };
+        let mut entity = world.entity_mut(ship);
+        if let Some(mut transform) = entity.get_mut::<Transform>() {
+            transform.translation = at.to_engine();
+        }
+        if let Some(mut linear) = entity.get_mut::<avian3d::prelude::LinearVelocity>() {
+            linear.0 = Vec3::ZERO;
+        }
+        if let Some(mut angular) = entity.get_mut::<avian3d::prelude::AngularVelocity>() {
+            angular.0 = Vec3::ZERO;
+        }
+    }
 }

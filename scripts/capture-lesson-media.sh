@@ -81,7 +81,7 @@ PRODUCERS=(
     "lesson_combat_radar|combat_radar:loop"
     "lesson_readouts|start_units:still,combat_lock_ranges:still"
     "lesson_combat_moves|combat_stance:loop,combat_components:loop,combat_turrets:still"
-    "lesson_combat_field|combat_allegiance:still,combat_cover:loop"
+    "lesson_combat_field|combat_allegiance:still,start_markers:still,combat_cover:loop"
     "lesson_combat_rounds|combat_damage_types:loop"
     "lesson_combat_battery|combat_magazines:loop,combat_point_defense:still"
     "lesson_combat_lance|combat_railgun:loop,combat_collapse:loop"

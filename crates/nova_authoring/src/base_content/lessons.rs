@@ -226,8 +226,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Who is who",
             still(
                 "start_markers",
-                "three ships across one view with their markers up: a green triangle over a \
-                 wingman, a red one over a raider and a grey one over an unaligned hauler",
+                "four hulls in one row at the same range against black, three of them with \
+                 their markers up: a green triangle over a wingman, a red one over a raider, a \
+                 grey one over an unaligned hauler, and the nearest hull - the reader's own - \
+                 wearing nothing",
             ),
             "A small triangle floats over every ship in view, pointing down at it: green ally, red \
              hostile, grey neutral. Your own ship shows none. It hides when a ship leaves the \

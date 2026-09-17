@@ -88,7 +88,7 @@
         title: "Who is who",
         media: Image(
             image: "self://training/start_markers.webp",
-            alt: "three ships across one view with their markers up: a green triangle over a wingman, a red one over a raider and a grey one over an unaligned hauler",
+            alt: "four hulls in one row at the same range against black, three of them with their markers up: a green triangle over a wingman, a red one over a raider, a grey one over an unaligned hauler, and the nearest hull - the reader\'s own - wearing nothing",
         ),
         body: "A small triangle floats over every ship in view, pointing down at it: green ally, red hostile, grey neutral. Your own ship shows none. It hides when a ship leaves the screen, and a neutral provoked into a threat flips red on the spot.",
         wiki_path: "wiki/hud#allegiance-markers",
