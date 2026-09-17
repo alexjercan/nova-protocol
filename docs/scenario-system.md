@@ -190,11 +190,12 @@ Events carry identity, not payload-by-position: entities wear
 `EntityId(String)` and `EntityTypeName(String)`, and every PAIR event has the
 same filter shape - a subject `id` plus an `other_id` / `other_type_name`.
 Which entity is the subject is per-event (area against body, well against ship,
-target against locker), which is why the filter is one struct rather than one
-per event. Lock, orbit, and player STOP/GOTO completion events are one-shot
-EDGES with no hidden timer behind them: a target switch queues end-old then
-start-new, a successful GOTO reports only after physical settle, and a scenario
-that needs a continuous hold composes the edges with a keyed timer.
+target against locker, the hull docked with against the hull that asked), which
+is why the filter is one struct rather than one
+per event. Lock, orbit, docking and player STOP/GOTO completion events are
+one-shot EDGES with no hidden timer behind them: a target switch queues end-old
+then start-new, a successful GOTO reports only after physical settle, and a
+scenario that needs a continuous hold composes the edges with a keyed timer.
 
 Filters read and never mutate; they take `&NovaEventWorld` and the fired
 `GameEventInfo` and return a bool, and every filter on a handler must pass.
@@ -840,12 +841,26 @@ is written off only by an absence from `Hold` longer than
 `ORBIT_LAP_GRACE_SECS`. So authored lap objectives need no guessed timer, and
 one nudge does not silently cost the player three quarters of a revolution.
 
+The docking tracker reads its two edges off the CONNECTION entity rather than
+off either hull. `DOCK` builds exactly one connection per pair and every way
+out of a dock - either pilot's verb, a maneuver engaged on either hull, a
+shot-off port, a dead ship - despawns that one entity, so comparing a live
+connection against the `DockEcho` BOTH hulls carry reports one `OnDocked` and
+one `OnUndocked` on every path, with no branch per ending and nothing in
+`nova_ship` knowing what a scenario event is. The echo retains the payload, not
+the two entities, because the release edge has to name a partner that may
+already be gone - which is also why both hulls carry it: a pair whose asking
+hull is destroyed still reports through the survivor, and the two echoes are
+deduplicated into one release. Only a pair that dies whole falls silent, the
+way orbit end and area exit do for a despawned body.
+
 ## Adding new pieces
 
 - Event: event + info structs in `nova_events/src/lib.rs`, an `EventConfig`
   variant in `events.rs`, and something that fires it (engine-driven events
   live in `loader/` - `OnStart` in `lifecycle.rs`, `OnUpdate` in `clock.rs`,
-  the orbit/lock trackers in `trackers.rs`; area events in `objects/area.rs`;
+  the orbit/lock/docking trackers in `trackers.rs`; area events in
+  `objects/area.rs`;
   `OnNeutralized` fires from `nova_gameplay`'s integrity stack, and a rock's
   `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted).
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right

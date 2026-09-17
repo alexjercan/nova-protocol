@@ -125,6 +125,14 @@ scenario_events! {
     OnCombatLockStart => OnCombatLockStartEvent { label: "On Combat Lock" },
     /// The player's COMBAT lock left a scenario object.
     OnCombatLockEnd => OnCombatLockEndEvent { label: "On Combat Unlock" },
+    /// Two hulls were clamped together by `DOCK` (`id` = the ship docked
+    /// with, other = the ship that asked).
+    OnDocked => OnDockedEvent { label: "On Docked" },
+    /// A dock was let go, by either pilot's `DOCK`, a maneuver engaged on
+    /// either hull, or a lost port or ship. One event for every ending, and
+    /// the pair keeps the roles it docked in. A ship despawned while docked
+    /// reports only `OnDestroyed`.
+    OnUndocked => OnUndockedEvent { label: "On Undocked" },
     /// A ship reached a keyed HELM order's condition - it arrived, settled on
     /// a bearing, came to rest, closed its patrol loop, or established its
     /// orbit. Cancellation, interruption and failure each have their own

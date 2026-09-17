@@ -1,8 +1,8 @@
 //! `nova_events` is the event vocabulary shared between gameplay and the
 //! scenario engine. It defines the game-event kinds a scenario reacts to -
 //! `OnStartEvent`, `OnUpdateEvent`, `OnDefeatedEvent`, `OnDestroyedEvent`,
-//! `OnNeutralizedEvent`, area, orbit-lifecycle, lock, ship-order-completion,
-//! and timer events - and identity components that
+//! `OnNeutralizedEvent`, area, orbit-lifecycle, lock, docking-lifecycle,
+//! ship-order-completion, and timer events - and identity components that
 //! tag scenario objects so filters can find them (`EntityId`, `EntityTypeName`). It is
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
 //! filters and dispatches on them. It also owns the [`engine`] that queues and
@@ -40,18 +40,19 @@ pub mod prelude {
         },
         scale::LOAD_LIMIT,
         units::prelude::*,
-        CinematicEventInfo, EntityId, EntityTypeName, LockEventInfo, OnCinematicFinishedEvent,
-        OnCinematicSkippedEvent, OnCombatLockEndEvent, OnCombatLockStartEvent, OnDefeatedEvent,
-        OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
-        OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
-        OnGotoCompleteEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent,
-        OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent,
-        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
-        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
-        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
-        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
-        OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
-        OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind,
+        CinematicEventInfo, DockingEventInfo, EntityId, EntityTypeName, LockEventInfo,
+        OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
+        OnCombatLockStartEvent, OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent,
+        OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo, OnExitEvent,
+        OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo, OnNeutralizedEvent,
+        OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent,
+        OnOrbitStartEvent, OnOrbitUnstableEvent, OnShipOrderCanceledEvent,
+        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
+        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
+        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
+        OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
+        OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind,
         ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CINEMATIC_KEY_FIELD_NAME,
         ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
         ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME,
@@ -407,6 +408,56 @@ pub struct LockEventInfo {
     #[serde(rename = "other_id")]
     pub other_id: String,
     /// Type name of the locking ship.
+    #[serde(rename = "other_type_name")]
+    pub other_type_name: String,
+}
+
+/// Two hulls were clamped together by `DOCK` (`ondocked`).
+///
+/// The capture edge, not the sleeve art: the joint that holds the pair exists
+/// when this fires, and the tubes are still reaching across the gap.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ondocked")]
+#[event_info(DockingEventInfo)]
+pub struct OnDockedEvent;
+
+/// A docking connection was let go (`onundocked`), for ANY reason: either
+/// pilot pressed `DOCK` again, either hull engaged a maneuver, or the pair
+/// lost a port or a ship.
+///
+/// One event for every ending, the way [`OnCinematicFinishedEvent`] is one
+/// event for every way out of a scene: what a beat owes the pair back - the
+/// objective, the next order, the clearance - is the same whichever way the
+/// clamp came off. The pair is named in the roles it DOCKED in, so the two
+/// events filter identically.
+///
+/// A pair that dies WHOLE - both hulls gone in the same breath - reports only
+/// [`OnDestroyedEvent`], the same silence area exit and orbit end keep for a
+/// despawned body. One hull dying is a release like any other: the survivor is
+/// free, and it is told so.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onundocked")]
+#[event_info(DockingEventInfo)]
+pub struct OnUndockedEvent;
+
+/// Shared payload for the docking lifecycle: the ship that was docked WITH
+/// (`id`) and the ship that asked for the dock (`other_id` /
+/// `other_type_name`).
+///
+/// The same passive-then-active shape as the area, orbit and lock payloads,
+/// so one `Entity` filter addresses all of them. `DOCK` is a player verb, so
+/// the asking ship is the player's and the other side is whatever it flew up
+/// to; both sides are hulls, which is why there is no `type_name` for the
+/// first - it would read `spaceship` on every dock in the game.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct DockingEventInfo {
+    /// Scenario id of the ship that was docked with.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Scenario id of the ship that asked for the dock.
+    #[serde(rename = "other_id")]
+    pub other_id: String,
+    /// Type name of the ship that asked for the dock.
     #[serde(rename = "other_type_name")]
     pub other_type_name: String,
 }

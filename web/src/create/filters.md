@@ -53,6 +53,7 @@ truth. The quick map:
 | `OnEnter` / `OnExit` | the AREA (zone, beacon, crate) | the body that entered / left |
 | Orbit lifecycle events | the well being orbited | the orbiting ship |
 | travel/combat lock start/end | the locked target | the locking player ship |
+| `OnDocked` / `OnUndocked` | the hull that was docked with | the hull that asked for the dock |
 | `OnStart` / `OnUpdate` | (no payload - an Entity filter never matches) | (none) |
 
 Two rules that bite:

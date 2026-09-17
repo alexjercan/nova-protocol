@@ -21,7 +21,7 @@ created by an action rather than spawned as objects.
 
 Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary [Basic Training](../getting-started/) is built from - each beat is an event handler that grants the next capability, posts the next objective, and moves a beat counter forward.
 
-What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.
+What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; clamp onto the hull you were sent to and the next leg is waiting when you let go; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.
 
 The full construct catalog - every event, filter and action by name, with its fields - is the authoring contract and lives in the [Create docs](../../create/scenarios/).
 

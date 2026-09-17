@@ -125,6 +125,9 @@ does NOT get an entry - and it is the only place they are written down.
   out once the dock holds and never grows a collider.
 
 ### Scenarios & Objectives
+- A scenario reacts to docking: `OnDocked` / `OnUndocked` carry the hull docked
+  with as `id` and the asking hull as `other_id`. Undock covers every ending,
+  a lost port or ship among them.
 - **(breaking)** Six `SetShipCapability*` actions replace `SetControllerVerb`,
   one per capability (stop, goto, orbit, lock, rcs, point defence), each
   flipping it on the ship root.

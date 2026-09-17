@@ -58,6 +58,11 @@ An event is fired somewhere in the engine, and scenarios react to it through a
 handler. Adding one is two files: the event type (`nova_events`) and its config
 variant (`nova_scenario`), plus the firing site.
 
+The example below is a kind that does NOT ship, so it stays a recipe. The
+closest shipped pair to read beside it is the docking lifecycle: `OnDocked` /
+`OnUndocked` in `nova_events/src/lib.rs`, their table rows in `events.rs`, and
+`track_docking_transitions` in `loader/trackers.rs`.
+
 1. In `crates/nova_events/src/lib.rs` define the marker event and its info
    struct with the `EventKind` derive. The info is what a handler's filters
    read; give it the pair shape (`id`, `other_id`, `other_type_name`) if it
@@ -65,12 +70,12 @@ variant (`nova_scenario`), plus the firing site.
 
    ```rust
    #[derive(Debug, Clone, EventKind, Reflect)]
-   #[event_name("ondocked")]
-   #[event_info(OnDockedEventInfo)]
-   pub struct OnDockedEvent;
+   #[event_name("onscancomplete")]
+   #[event_info(OnScanCompleteEventInfo)]
+   pub struct OnScanCompleteEvent;
 
    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-   pub struct OnDockedEventInfo {
+   pub struct OnScanCompleteEventInfo {
        #[serde(rename = "id")]
        pub id: String,
        #[serde(rename = "other_id")]
@@ -92,8 +97,9 @@ variant (`nova_scenario`), plus the firing site.
    ```rust
    scenario_events! {
        // ...
-       /// Fires once when a ship docks (`id` = the dock, other = the ship).
-       OnDocked => OnDockedEvent { label: "On Docked" },
+       /// Fires once a ship finishes scanning an object (`id` = the object,
+       /// other = the scanning ship).
+       OnScanComplete => OnScanCompleteEvent { label: "On Scan Complete" },
    }
    ```
 
@@ -101,9 +107,10 @@ variant (`nova_scenario`), plus the firing site.
    the editor's trigger menu lists it under.
 
 3. Fire it. Engine-driven events fire from `crates/nova_scenario/src/loader/`
-   with `commands.fire::<OnDockedEvent>(OnDockedEventInfo { .. })` (see the
+   with `commands.fire::<OnScanCompleteEvent>(OnScanCompleteEventInfo { .. })`
+   (see the
    `OnStart` site in `loader/lifecycle.rs`, `OnUpdate` in `loader/clock.rs`, and
-   orbit-lifecycle/the lock events in `loader/trackers.rs`); object-local events (an
+   orbit-lifecycle/lock/docking events in `loader/trackers.rs`); object-local events (an
    area entering/leaving) fire from the object's own observer, the way
    `objects/area.rs` fires `OnEnterEvent` from its own trigger. A kind may also
    fire from a system it owns: `objects/asteroid_carve.rs` fires

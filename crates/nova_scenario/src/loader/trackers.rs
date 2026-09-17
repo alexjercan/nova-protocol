@@ -1,7 +1,7 @@
-//! Orbit-lifecycle, weapon-lock and ship-helm-order events derived from
-//! live ship state.
+//! Orbit-lifecycle, weapon-lock, docking and ship-helm-order events derived
+//! from live ship state.
 
-use bevy::prelude::*;
+use bevy::{platform::collections::HashSet, prelude::*};
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
@@ -355,6 +355,90 @@ pub(super) fn track_player_locks(
         }
         if let Some(target_id) = combat_start {
             commands.fire::<OnCombatLockStartEvent>(lock_info(target_id, ship_id, ship_type_name));
+        }
+    }
+}
+
+/// The docking connection one ship is holding, kept on BOTH hulls of a pair.
+///
+/// Both sides carry it, and the same payload, so a release still reports when
+/// one hull is destroyed: the surviving echo names the pair in the roles it
+/// docked in. It retains the payload rather than the two entities for exactly
+/// that reason - the release edge has to name a partner that may already be
+/// gone, the same reason [`OrbitEcho`] keeps its well's id.
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub(super) struct DockEcho {
+    /// Connection entity this echo reports.
+    pub connection: Entity,
+    /// The pair, in the roles it docked in.
+    pub info: DockingEventInfo,
+}
+
+/// Emit the docking lifecycle from the live connections.
+///
+/// The edge source is the CONNECTION entity: `DOCK` builds exactly one per
+/// pair and every way out of a dock - either pilot's verb, a maneuver engaged
+/// on either hull, a shot-off port, a dead ship - despawns that one entity.
+/// Comparing the echoes against the live connections therefore reports each
+/// capture and each release once, on every path, and `nova_ship` still knows
+/// nothing about scenario events.
+///
+/// Both hulls echo one connection, so the release reports as long as ONE of
+/// them is still there; a pair that dies whole reports only `OnDestroyed`,
+/// the same silence area exit and orbit end keep for a despawned body. Two
+/// surviving echoes are one release, not two, which is what `reported` holds.
+///
+/// A hull with no `EntityId` is not a scenario object and stays quiet, the
+/// same silence the lock tracker keeps for an unnamed target.
+pub(super) fn track_docking_transitions(
+    mut commands: Commands,
+    q_connections: Query<(Entity, &DockingConnection)>,
+    q_echoes: Query<(Entity, &DockEcho)>,
+    q_ships: Query<(&EntityId, &EntityTypeName)>,
+) {
+    let mut reported = HashSet::new();
+    for (ship, echo) in &q_echoes {
+        if q_connections.contains(echo.connection) {
+            continue;
+        }
+        if reported.insert(echo.connection) {
+            debug!("track_docking_transitions: {:?} let go", echo.connection);
+            commands.fire::<OnUndockedEvent>(echo.info.clone());
+        }
+        commands.entity(ship).try_remove::<DockEcho>();
+    }
+
+    for (entity, connection) in &q_connections {
+        let hulls = [connection.first_ship, connection.second_ship];
+        if hulls.iter().any(|hull| {
+            q_echoes
+                .get(*hull)
+                .is_ok_and(|(_, echo)| echo.connection == entity)
+        }) {
+            continue;
+        }
+        // `first_ship` is the hull that issued `DOCK`, so it is the ACTING
+        // party and the one it flew up to is the subject - the same
+        // passive-then-active shape the area, orbit and lock payloads use.
+        let (Ok((asking_id, asking_type_name)), Ok((partner_id, _))) = (
+            q_ships.get(connection.first_ship),
+            q_ships.get(connection.second_ship),
+        ) else {
+            continue;
+        };
+        let info = DockingEventInfo {
+            id: partner_id.0.clone(),
+            other_id: asking_id.0.clone(),
+            other_type_name: asking_type_name.0.clone(),
+        };
+        debug!("track_docking_transitions: {entity:?} captured {info:?}");
+        commands.fire::<OnDockedEvent>(info.clone());
+        for hull in hulls {
+            commands.entity(hull).try_insert(DockEcho {
+                connection: entity,
+                info: info.clone(),
+            });
         }
     }
 }
@@ -1320,5 +1404,224 @@ mod tests {
             "id-less targets stay quiet"
         );
         assert_eq!(count(&app, "combat_start"), 1.0, "AI locks never fire");
+    }
+
+    /// One counting handler per docking edge, each behind the `Entity` filter
+    /// a waiting beat would use: the pair is named in the roles it DOCKED in,
+    /// so both edges match the same two ids.
+    fn docking_counters(app: &mut App) {
+        use nova_events::prelude::EventHandler;
+
+        for (event, key) in [
+            (EventConfig::OnDocked, "docked"),
+            (EventConfig::OnUndocked, "undocked"),
+        ] {
+            let mut handler = EventHandler::<NovaEventWorld>::from(event);
+            handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some("derelict".to_string()),
+                other_id: Some("tender".to_string()),
+                ..default()
+            }));
+            handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: key.to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(key)),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                ),
+            }));
+            app.world_mut().spawn(handler);
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable(key.to_string(), VariableLiteral::Number(0.0));
+        }
+    }
+
+    fn docking_count(app: &App, key: &str) -> f64 {
+        match app.world().resource::<NovaEventWorld>().get_variable(key) {
+            Some(VariableLiteral::Number(value)) => *value,
+            other => panic!("{key} count missing: {other:?}"),
+        }
+    }
+
+    /// The lifecycle reads off the connection entity alone: one capture, one
+    /// release, a held dock that stays quiet, and silence for hulls no
+    /// scenario named.
+    #[test]
+    fn a_docking_connection_reports_one_capture_and_one_release() {
+        use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::prelude::GameObjectives;
+        use nova_ship::prelude::DockingConnection;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_systems(Update, track_docking_transitions);
+        docking_counters(&mut app);
+
+        let settle = |app: &mut App| {
+            app.update();
+            app.update();
+        };
+        let hull = |app: &mut App, id: &str| {
+            app.world_mut()
+                .spawn((EntityId::new(id), EntityTypeName::new(SPACESHIP_TYPE_NAME)))
+                .id()
+        };
+        let tender = hull(&mut app, "tender");
+        let derelict = hull(&mut app, "derelict");
+        let pair = |first_ship, second_ship| DockingConnection {
+            first_ship,
+            first_section: Entity::PLACEHOLDER,
+            second_ship,
+            second_section: Entity::PLACEHOLDER,
+        };
+
+        let connection = app.world_mut().spawn(pair(tender, derelict)).id();
+        settle(&mut app);
+        assert_eq!(docking_count(&app, "docked"), 1.0);
+        assert_eq!(docking_count(&app, "undocked"), 0.0);
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(
+            docking_count(&app, "docked"),
+            1.0,
+            "a held dock stays quiet"
+        );
+
+        app.world_mut().entity_mut(connection).despawn();
+        settle(&mut app);
+        assert_eq!(docking_count(&app, "undocked"), 1.0);
+        assert_eq!(docking_count(&app, "docked"), 1.0);
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(
+            docking_count(&app, "undocked"),
+            1.0,
+            "a released dock reports once"
+        );
+
+        // A hull destroyed while docked takes its own echo with it; the
+        // survivor still names the pair, once, in the roles it docked in.
+        let connection = app.world_mut().spawn(pair(tender, derelict)).id();
+        settle(&mut app);
+        assert_eq!(docking_count(&app, "docked"), 2.0);
+        app.world_mut().entity_mut(tender).despawn();
+        app.world_mut().entity_mut(connection).despawn();
+        settle(&mut app);
+        assert_eq!(
+            docking_count(&app, "undocked"),
+            2.0,
+            "the surviving hull reports the release exactly once"
+        );
+
+        let (first, second) = (
+            app.world_mut().spawn_empty().id(),
+            app.world_mut().spawn_empty().id(),
+        );
+        app.world_mut().spawn(pair(first, second));
+        settle(&mut app);
+        assert_eq!(
+            docking_count(&app, "docked"),
+            2.0,
+            "hulls no scenario named stay quiet"
+        );
+    }
+
+    /// The whole chain on two real hulls: `DOCK` builds the joint, the tracker
+    /// names the pair in the authored vocabulary, and a release asked for by
+    /// the OTHER hull still reports the pair in the roles it docked in.
+    ///
+    /// Real avian, for the reason the port's own tests use it: the thing a
+    /// dock produces is a joint between two rigid bodies, and the release
+    /// paths this event has to cover are physics-driven.
+    #[test]
+    fn a_flown_dock_and_release_reach_the_scenario_handlers() {
+        use avian3d::prelude::{Collider, ColliderDensity, RigidBody};
+        use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::{
+            prelude::{GameObjectives, SpaceshipRootMarker},
+            test_support::{settle, unfinished_integrity_physics_app},
+        };
+        use nova_ship::prelude::{
+            docking_section, DockingConnectionRequest, DockingReleaseRequest, DockingSectionConfig,
+            DockingSectionPlugin, DockingSystems,
+        };
+
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(DockingSectionPlugin { render: false });
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<GameObjectives>();
+        // The production ordering: after the release pass, so a connection
+        // taken away this tick is already gone when the echo is compared.
+        app.add_systems(
+            FixedUpdate,
+            track_docking_transitions.after(DockingSystems::Release),
+        );
+        app.finish();
+        docking_counters(&mut app);
+
+        // Two one-cell hulls nose to nose down Z with a port each on the
+        // facing end, half a cell apart - well inside the shipped 10 m
+        // capture distance.
+        let hull = |app: &mut App, id: &str, at: Vec3, rotation: Quat| {
+            let ship = app
+                .world_mut()
+                .spawn((
+                    SpaceshipRootMarker,
+                    EntityId::new(id),
+                    EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                    RigidBody::Dynamic,
+                    Transform::from_translation(at).with_rotation(rotation),
+                ))
+                .id();
+            app.world_mut().spawn((
+                ChildOf(ship),
+                Transform::default(),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ));
+            app.world_mut().spawn((
+                ChildOf(ship),
+                Transform::default(),
+                docking_section(DockingSectionConfig::default()),
+            ));
+            ship
+        };
+        let tender = hull(&mut app, "tender", Vec3::ZERO, Quat::IDENTITY);
+        let derelict = hull(
+            &mut app,
+            "derelict",
+            Vec3::NEG_Z * 1.5,
+            Quat::from_rotation_y(std::f32::consts::PI),
+        );
+        settle(&mut app);
+
+        app.world_mut().trigger(DockingConnectionRequest {
+            entity: tender,
+            target: derelict,
+        });
+        settle(&mut app);
+        assert_eq!(
+            docking_count(&app, "docked"),
+            1.0,
+            "the capture names the asking hull as the other party"
+        );
+        assert_eq!(docking_count(&app, "undocked"), 0.0);
+
+        app.world_mut()
+            .trigger(DockingReleaseRequest { entity: derelict });
+        settle(&mut app);
+        assert_eq!(
+            docking_count(&app, "undocked"),
+            1.0,
+            "either hull may let go, and the pair keeps its docked roles"
+        );
+        assert_eq!(docking_count(&app, "docked"), 1.0);
     }
 }

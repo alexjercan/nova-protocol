@@ -49,8 +49,8 @@ use lifecycle::{
 use preload::register_scenario_preload;
 pub use trackers::ORBIT_LAP_GRACE_SECS;
 use trackers::{
-    track_orbit_transitions, track_player_autopilot_completions, track_player_locks,
-    track_ship_order_reports, LockEcho, OrbitEcho,
+    track_docking_transitions, track_orbit_transitions, track_player_autopilot_completions,
+    track_player_locks, track_ship_order_reports, DockEcho, LockEcho, OrbitEcho,
 };
 pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 
@@ -695,6 +695,18 @@ impl Plugin for ScenarioLoaderPlugin {
             FixedUpdate,
             track_ship_order_reports
                 .after(NovaFlightSystems)
+                .run_if(scenario_is_live),
+        );
+
+        // Docking lifecycle edges. After the release pass, so a connection
+        // taken away by a maneuver or a lost port is already gone when the
+        // echo is compared against it and the pair reports one release rather
+        // than a release a tick late.
+        app.register_type::<DockEcho>();
+        app.add_systems(
+            FixedUpdate,
+            track_docking_transitions
+                .after(DockingSystems::Release)
                 .run_if(scenario_is_live),
         );
 

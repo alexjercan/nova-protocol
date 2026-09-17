@@ -89,4 +89,4 @@ The last two endings are damage. Shoot the port off either hull, or kill either 
 </table>
 </div>
 
-One port ships, and no hull in the base fleet carries it: bolt one onto a hull in the ship editor to fly a ship that can dock, or fly the `docking_approach` example, which hands you a tender built for the job. It takes neighbours on every face except the one it docks through - that face is the hatch. See [Ship sections for mods](../../../create/sections/#docking) for the numbers a mod can change, the capture envelope among them.
+One port ships, and no hull in the base fleet carries it: bolt one onto a hull in the ship editor to fly a ship that can dock, or fly the `docking_approach` example, which hands you a tender built for the job. It takes neighbours on every face except the one it docks through - that face is the hatch. See [Ship sections for mods](../../../create/sections/#docking) for the numbers a mod can change, the capture envelope among them, and [Events](../../../create/events/#docking-lifecycle) for the two edges a scenario scripts a dock with.

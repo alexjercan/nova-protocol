@@ -21,6 +21,7 @@
 //! | 8 | `outcome: the throttle bites the moment the dock lets go` | the SAME burn, still held, accelerates the same hull once it is free - so claim 6 is the dock and not a dead engine |
 //! | 9 | `outcome: a destroyed port frees its partner` | destroying one port cleans the connection up and leaves the surviving port free and stowing |
 //! | 10 | `outcome: the dock geometry is recorded` | RECORD: the face gap at capture, the tow distance, and the pose error the joint carried |
+//! | 11 | `outcome: the scenario hears every dock and every release` | both captures and both releases - the verb's and the destroyed port's - reach authored `OnDocked` / `OnUndocked` handlers, through an `Entity` filter on the acting hull the payload has to fill |
 //!
 //! Claim 10 asserts nothing. It is the geometry the other claims are read
 //! against, kept so a later change to the envelope can be compared rather than
@@ -97,6 +98,21 @@ const FREED_SPEED_FLOOR: f32 = 1.0;
 /// Frames given to each stage of the range before it calls the world stuck.
 const STAGE_BUDGET: u32 = 600;
 
+/// Scenario ids the two hand-built hulls wear, so authored handlers can name
+/// them the way they name a spawned ship.
+const FIRST_HULL_ID: &str = "first_hull";
+/// The hull `DOCK` is issued AGAINST: the subject of both docking events.
+const SECOND_HULL_ID: &str = "second_hull";
+
+/// Scenario variables the two docking handlers count into.
+const DOCKED_TALLY: &str = "docked_seen";
+/// The release counterpart of [`DOCKED_TALLY`].
+const UNDOCKED_TALLY: &str = "undocked_seen";
+
+/// Docks the range makes, and therefore releases it makes: the verb's, and
+/// the one a destroyed port forces.
+const EXPECTED_DOCKS: f64 = 2.0;
+
 /// What the range is doing right now.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Stage {
@@ -111,6 +127,9 @@ enum Stage {
     Releasing,
     /// Docked a third time; waiting for a destroyed port to break it.
     Destroying,
+    /// Both docks and both releases made; waiting for the scenario's own
+    /// handlers to report them.
+    Hearing,
     /// Every claim made.
     Done,
 }
@@ -156,7 +175,8 @@ fn range_plugin(app: &mut App) {
     app.add_systems(Update, drive_range.run_if(in_state(GameStates::Playing)));
 }
 
-/// Load an empty scenario, purely to open the gate the section systems ride.
+/// Load the range's scenario: it opens the gate the section systems ride, and
+/// it carries the two docking handlers claim 11 reads.
 ///
 /// `configure_scenario_gating` holds `SpaceshipSectionSystems` on
 /// `scenario_is_live`, and the drive's impulse is in that set. The two hulls
@@ -164,12 +184,64 @@ fn range_plugin(app: &mut App) {
 /// docked hull's throttle would be inert because NOTHING RAN - which is the
 /// one reading that would make claim 6 worthless. The scenario carries no
 /// objects: this range spawns its own camera, light and hulls.
+///
+/// The handlers are authored the way a mod authors them - a trigger, an
+/// `Entity` filter naming the pair, an action - so claim 11 grades the whole
+/// path from the joint to a scenario variable, the registration in
+/// `NovaScenarioPlugin` included.
 fn open_the_section_gate(mut commands: Commands, game_assets: Res<GameAssets>) {
-    commands.trigger(LoadScenario(ScenarioConfig::new(
+    let mut scenario = ScenarioConfig::new(
         "docking_range",
         "Docking Range",
         game_assets.cubemap.clone().into(),
-    )));
+    );
+    scenario.events.push(ScenarioEventConfig {
+        label: Some("seed the docking tallies".to_string()),
+        name: EventConfig::OnStart,
+        once: false,
+        filters: vec![],
+        actions: vec![set_tally(DOCKED_TALLY, 0.0), set_tally(UNDOCKED_TALLY, 0.0)],
+    });
+    for (event, tally) in [
+        (EventConfig::OnDocked, DOCKED_TALLY),
+        (EventConfig::OnUndocked, UNDOCKED_TALLY),
+    ] {
+        scenario.events.push(ScenarioEventConfig {
+            label: Some(format!("count {tally}")),
+            name: event,
+            once: false,
+            // Matched on the ACTING hull's type name rather than the two
+            // ids: an `Entity` filter's ids are lint-checked against what the
+            // scenario SPAWNS, and these hulls are hand-built. The field is
+            // still only filled by the tracker, so a payload that named
+            // nobody would fail the filter and leave the tally at zero.
+            // Which hull is which is graded in the tracker's own tests.
+            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                other_type_name: Some(SPACESHIP_TYPE_NAME.to_string()),
+                ..default()
+            })],
+            actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: tally.to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(tally)),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                ),
+            })],
+        });
+    }
+    commands.trigger(LoadScenario(scenario));
+}
+
+/// A `VariableSet` that parks one tally on a literal.
+fn set_tally(key: &str, value: f64) -> EventActionConfig {
+    EventActionConfig::VariableSet(VariableSetActionConfig {
+        key: key.to_string(),
+        expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_literal(VariableLiteral::Number(value)),
+        )),
+    })
 }
 
 /// One hull: a dynamic body carrying a block section and a docking port on
@@ -179,6 +251,7 @@ fn spawn_hull(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     name: &str,
+    id: &str,
     at: Vec3,
     facing: Quat,
     tint: Srgba,
@@ -186,6 +259,11 @@ fn spawn_hull(
     let root = commands
         .spawn((
             Name::new(name.to_string()),
+            // A hand-built hull is still a scenario object as far as an
+            // authored handler is concerned: the docking events name a pair by
+            // these two components, exactly as they would a spawned ship.
+            EntityId::new(id),
+            EntityTypeName::new(SPACESHIP_TYPE_NAME),
             SpaceshipRootMarker,
             RigidBody::Dynamic,
             Transform::from_translation(at).with_rotation(facing),
@@ -296,6 +374,7 @@ fn setup_range(
         &mut meshes,
         &mut materials,
         "First",
+        FIRST_HULL_ID,
         Vec3::ZERO,
         Quat::IDENTITY,
         tailwind::BLUE_500,
@@ -305,6 +384,7 @@ fn setup_range(
         &mut meshes,
         &mut materials,
         "Second",
+        SECOND_HULL_ID,
         Vec3::NEG_Z * separation,
         Quat::from_rotation_y(std::f32::consts::PI),
         tailwind::ORANGE_500,
@@ -387,6 +467,7 @@ fn drive_range(world: &mut World) {
             release_on_request(world, first, first_port, second, second_port, stage_frames)
         }
         Stage::Destroying => release_on_destruction(world, first_port, second_port),
+        Stage::Hearing => hear_the_scenario(world),
         Stage::Done => finish(world),
     }
 }
@@ -782,6 +863,48 @@ fn release_on_destruction(world: &mut World, first_port: Entity, second_port: En
             "face_gap_m": Meters::from_engine(gap).get(),
             "tow_distance_m": Meters::from_engine(towed).get(),
             "pose_error_m": Meters::from_engine(pose_error).get(),
+        }),
+    );
+
+    let mut probe = world.resource_mut::<DockProbe>();
+    probe.stage = Stage::Hearing;
+    probe.stage_frames = 0;
+}
+
+/// Stage 6: read what the SCENARIO heard.
+///
+/// The physical claims above are made against the connection entity; this one
+/// is made against the authored vocabulary on the other side of the tracker.
+/// It polls rather than asserting straight away because the release edge is
+/// two hops behind the despawn - the tracker reads the connections on the
+/// fixed clock, and the handler it wakes runs at the end of the frame - and
+/// the stage budget is what calls a chain that never arrives stuck.
+fn hear_the_scenario(world: &mut World) {
+    let tally = |world: &World, key: &str| {
+        match world.resource::<NovaEventWorld>().get_variable(key) {
+            Some(VariableLiteral::Number(value)) => *value,
+            // The seeding handler runs on `OnStart`, so a missing key means
+            // the scenario has not started yet, not that the count is zero.
+            _ => f64::NAN,
+        }
+    };
+    let (docked, undocked) = (tally(world, DOCKED_TALLY), tally(world, UNDOCKED_TALLY));
+    if docked < EXPECTED_DOCKS || undocked < EXPECTED_DOCKS {
+        return;
+    }
+    assert_eq!(
+        (docked, undocked),
+        (EXPECTED_DOCKS, EXPECTED_DOCKS),
+        "docking_ports: each capture and each release must wake its handler \
+         exactly once"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the scenario hears every dock and every release",
+        serde_json::json!({
+            "docked": docked,
+            "undocked": undocked,
+            "endings": ["the verb, asked for by the hull that did not dock", "a destroyed port"],
         }),
     );
 

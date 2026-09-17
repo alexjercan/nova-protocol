@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the TWENTY-SIX event kinds below, written bare (they are unit variants):
+the TWENTY-EIGHT event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -39,6 +39,8 @@ The whole vocabulary at a glance:
 | [`OnTravelLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock leaves |
 | [`OnCombatLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock lands |
 | [`OnCombatLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock leaves |
+| [`OnDocked`](#docking-lifecycle) | `id`, `other_id`, `other_type_name` | two hulls clamp together |
+| [`OnUndocked`](#docking-lifecycle) | `id`, `other_id`, `other_type_name` | a dock comes off, by any ending |
 | [`OnShipOrderComplete`](#onshipordercomplete) | `order`, `kind`, `id`, `type_name` | a helm order reaches what it was told to reach |
 | [`OnShipOrderInterrupted`](#onshiporderinterrupted) | `order`, `kind`, `id`, `type_name` | an AI ship breaks off its order to fight |
 | [`OnShipOrderResumed`](#onshiporderresumed) | `order`, `kind`, `id`, `type_name` | that ship picks the same order back up |
@@ -673,6 +675,66 @@ target switch queues end for the old target, then start for the new target.
 
 Use the combat pair for the red lock. To react to any locked target, omit
 `id`; keep `other_id` when the locking ship must be `player_spaceship`.
+
+</details>
+
+## Docking lifecycle
+
+Two edges describe a dock: `OnDocked` when the clamp is made and `OnUndocked`
+when it comes off. Both carry the ship that was docked WITH as `id` and the
+ship that ASKED for the dock as `other_id` / `other_type_name`, and the release
+keeps the roles the capture set - so one pair of ids filters both edges.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+`DOCK` is a player verb, so `other_id` is the player's ship and `id` is
+whatever it flew up to.
+
+`OnDocked` fires when the clamp exists, which is before the sleeves finish
+reaching across the gap - the joint is what holds the pair, and the tubes are
+art that follows it.
+
+`OnUndocked` fires for EVERY ending, and carries no reason code: either pilot
+pressing DOCK again, either hull engaging ORBIT, GOTO or STOP, a
+shot-off docking port, or one of the two ships dying. What a beat owes the pair
+back - the objective, the next order, the clearance to leave - is the same
+whichever way the clamp came off, and a scenario that must tell the endings
+apart has `OnDestroyed` and the maneuver events to do it with.
+
+Only a pair that dies WHOLE stays quiet, the way `OnExit` and `OnOrbitEnd` do
+for a despawned body. One hull dying is a release like any other: the survivor
+is free, and it is told so.
+
+A delivery beat that opens when the player clamps on and closes when it lets
+go:
+
+```ron
+(
+    name: OnDocked,
+    once: true,
+    filters: [Entity((
+        id: Some("supply_tender"),
+        other_id: Some("player_spaceship"),
+    ))],
+    actions: [
+        ObjectiveComplete((id: "make_contact")),
+        Objective((id: "carry_cargo", message: "Objective: Run the cargo home")),
+    ],
+),
+(
+    name: OnUndocked,
+    filters: [Entity((
+        id: Some("supply_tender"),
+        other_id: Some("player_spaceship"),
+    ))],
+    actions: [
+        VariableSet((key: "cargo_aboard", expression: Term(Factor(Literal(Number(1.0)))))),
+    ],
+),
+```
+
+To react to a dock with anything, omit `id` and keep `other_id`.
 
 </details>
 
