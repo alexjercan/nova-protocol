@@ -576,6 +576,20 @@ the ladder that places it: `combat_reaches` (2 km / 18 km / 29-31 km,
 `wiki/combat-weapons#three-reaches`) and `combat_barrel_discipline` (the
 angular-size fire gate, `wiki/sections/turret#barrel-discipline`).
 
+TAKEN. The owner approved both, and both ship:
+
+| Tier | id / order / title | Body | actions | wiki_path | practice |
+|---|---|---|---|---|---|
+| - | `combat_reaches` 32 *How far each weapon reaches* | "Reach is never authored. It is muzzle speed times how long the round lives. A PDC round reaches 2 km, a railgun slug 18 km and arrives in about a second, a torpedo 29 to 31 km over a minute and a half." | none | `wiki/combat-weapons#three-reaches` | none |
+| - | `combat_barrel_discipline` 42 *Barrel discipline* | "A gun fires only while its barrel is on what it is aimed at, and the tolerance is how big that thing looks from here: a carrier at 1 km is 11 degrees wide, a torpedo under one. Mounts hold while they slew." | none | `wiki/sections/turret#barrel-discipline` | none |
+
+One producer shoots both, `examples/screenshots/lesson_combat_reach.rs`: the
+reach still is a broadside of a gunship's full battery with the tracer streams
+stopping 700 m short of the hostile hull they are laid on and that hull's
+torpedoes already past the point the rounds stop, and the discipline loop steps
+the commanded bearing 90 degrees twice a cycle and lets the sheet show the
+battery go quiet while the barrels chase it.
+
 ### Shipbuilding
 
 | Tier | id / order / title | Body `[draft]` | actions | wiki_path | practice |

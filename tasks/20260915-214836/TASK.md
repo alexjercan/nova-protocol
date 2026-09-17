@@ -129,7 +129,7 @@ Start only after the Phase 1 owner review is recorded on this task.
       player wiki. Update wiki anchors when needed and keep the wiki complete.
 - [~] Add representative visuals: at least one flight loop, one targeting or
       combat loop, and one editor-style visual. Validate all media on native and
-      wasm. Every lesson ships a demonstration and 14 of the 24 loop, so all
+      wasm. Every lesson ships a demonstration and 38 of the 63 loop, so all
       three FORMS are covered, and all three ASKED-FOR visuals are now real
       footage of the game: the flight loop (`lesson_flight_aim`), the targeting
       loop (`lesson_combat_radar`) and the editor still
@@ -152,10 +152,13 @@ Start only after the Phase 1 owner review is recorded on this task.
       `every_demonstration_decodes_and_a_loop_divides_by_its_grid`, which
       decodes every committed file with the crate `bevy_image` wraps - the same
       pure-Rust decoder on both targets. A browser re-run since the codec change
-      is NOT done. All 47 lessons now ship captured footage, from
-      twenty-six producers: `scripts/gen-lesson-media.py --check` reports 47
-      captured and 0 placeholders, so the generator is the fallback for a
-      lesson authored without a producer rather than the source of the art.
+      is NOT done, and the handbook is 63 sheets now rather than the 24 that run
+      proved. 62 of the 63 lessons ship captured footage, from thirty-three
+      producers: `scripts/gen-lesson-media.py --check` reports 62 captured and 1
+      placeholder, so the generator is the fallback for a lesson authored
+      without a producer rather than the source of the art. The one placeholder
+      is `flight_dock`, held on purpose while the docking rewrite is in flight -
+      a sheet shot against a dock that is being rebuilt is a sheet to reshoot.
 - [x] Wire `Start Training` and applicable Practice actions through the existing
       New Game/scenario handoff. Basic Training is the base bundle's declared
       `tutorial`; do not add a competing launch path. Practice launches four
@@ -248,8 +251,21 @@ inside the word cap, verified action ids and verified anchors.
       pages repeat the autopilot-disengage error and are fixed with them.
 - [~] Close the six areas with no lesson: the railgun (231 wiki lines), the
       docking port, the controller section, gravity wells, the NOVA OS terminal
-      and its command set, and the editor's gesture set.
-- [~] Author the tier A candidates (section 4). Tier B is a second pass.
+      and its command set, and the editor's gesture set. Five are closed:
+      `combat_railgun`, `combat_bore_sight` and `combat_collapse` take the
+      railgun; `build_docking_port` and `build_dock_envelope` the port;
+      `build_turning` and `build_stacking` the controller; `flight_gravity` and
+      `flight_arrival` the well; `novaos_terminal`, `novaos_commands` and
+      `novaos_shell` the terminal. The editor's gesture set is the one left, and
+      it is the blocker below.
+- [x] Author the tier A candidates (section 4), then tier B. 23 of the 24 tier
+      A as `e27e49ef2` and all fourteen tier B as `0d4aa5c5e`. `build_faces` is
+      the one candidate not authored, and it is blocked rather than skipped.
+      The owner then took the two topics section 4 offered but never specced:
+      `combat_reaches` teaches that reach is muzzle speed times lifetime, and
+      `combat_barrel_discipline` the angular-size fire gate that makes a mount
+      hold while it slews. Both are real footage from one producer,
+      `lesson_combat_reach`.
 - [ ] Decide the two blockers (section 5): whether the editor gains registered
       actions so an editor lesson can draw chips, and whether new `role: Lesson`
       drills are worth it - the one trainer mounts a single kinetic PDC, so no
@@ -259,15 +275,28 @@ inside the word cap, verified action ids and verified anchors.
       readout, and a docking-capable hull. The anchor test resolves every
       `wiki_path`, so those lessons cannot ship before their headings do.
       Generate is DOCUMENTED (`web/src/wiki/keybinds.md`, under `## Editor`)
-      and its lesson ships. The build readout is tier B and still has no
-      heading. No base hull carries a docking port, so the two docking
-      lessons photograph one placed in the editor.
+      and its lesson ships. So is the build readout, at
+      `wiki/keybinds#the-build-readout`, and `build_readout` ships with it. No
+      base hull carries a docking port, so the two docking lessons photograph
+      one placed in the editor.
 
 Landed 2026-09-16/17: the sixteen corrections as `ab7c267b0`, 23 of the 24
-tier A lessons as `e27e49ef2`, and real captured footage for all 47 lessons
-from twenty-six producers. `build_faces` is the one tier A lesson NOT
-authored - see the blocker above. Tier B (about sixteen more candidates in
-`LESSON-COVERAGE.md` section 4) is untouched.
+tier A lessons as `e27e49ef2`, and the fourteen tier B lessons as `0d4aa5c5e`.
+`build_faces` is the one tier A lesson NOT authored - see the blocker above.
+
+Every tier B lesson but one now carries real captured footage too, shot over
+`233e2f500`, `a054823db`, `1755b3ecb`, `afc0db070`, `1f2dc2644`, `553b27855`,
+`dc2248d75` and `7e338de63`: the settings tabs and HUD readouts, the command
+shell and pause overlay, an enemy flying its own flight computer, the editor
+rail, the skin closing over an unplated hull, the allegiance markers on real
+hulls, a Serpent and a Lance on one run, and a lance sight walking across a
+gunship. The exception is `flight_dock`, which waits on the docking rewrite.
+
+Found on the way through and worth keeping: a still shot AFTER a loop in the
+same producer has to drop that loop's `LessonSweep` first. `sweep_lesson_camera`
+re-solves the eye every `Update` frame while the resource exists and silently
+wins over a one-shot `pose_camera`, so the still comes back composed from the
+loop's bearing - `553b27855` has the case and the fix.
 
 Fixed on the way through: the Settings MOUSE rows labelled themselves
 `Look Sensitivity` / `RCS Sensitivity` / `Free Camera Sensitivity` into a

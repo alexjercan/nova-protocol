@@ -618,6 +618,28 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             ],
         ),
         lesson(
+            "combat_reaches",
+            Combat,
+            32,
+            "How far each weapon reaches",
+            still(
+                "combat_reaches",
+                "a gunship firing its full battery down a long lane, the tracer streams ending in \
+                 open space well short of the hostile hull they are laid on, and one of that \
+                 hull's torpedoes already past the point the rounds stop",
+            ),
+            "Reach is never authored. It is muzzle speed times how long the round lives. A PDC \
+             round reaches 2 km, a railgun slug 18 km and arrives in about a second, a torpedo 29 \
+             to 31 km over a minute and a half.",
+            &[],
+            "wiki/combat-weapons#three-reaches",
+            None,
+            &[],
+            &[
+                "Reach is muzzle speed times how long the round lives: 2 km, 18 km, about 30 km.",
+            ],
+        ),
+        lesson(
             "combat_damage_types",
             Combat,
             35,
@@ -657,6 +679,28 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[TUTORIAL_SCENARIO_ID, DRILL_GUNNERY_ID],
             &[
                 "A turret's barrel stops 10 degrees below level, so each mount is blind under its own keel.",
+            ],
+        ),
+        lesson(
+            "combat_barrel_discipline",
+            Combat,
+            42,
+            "Barrel discipline",
+            looping(
+                "combat_barrel_discipline",
+                "a gunship's dorsal mounts pouring rounds at one bearing, the streams cutting out \
+                 the instant the aim swings across and the barrels chase it, and coming back the \
+                 moment they settle",
+            ),
+            "A gun fires only while its barrel is on what it is aimed at, and the tolerance is \
+             how big that thing looks from here: a carrier at 1 km is 11 degrees wide, a torpedo \
+             under one. Mounts hold while they slew.",
+            &[],
+            "wiki/sections/turret#barrel-discipline",
+            None,
+            &[],
+            &[
+                "A mount shoots while it tracks and holds while it slews. The rounds it saves would have missed.",
             ],
         ),
         lesson(

@@ -537,6 +537,21 @@
         ],
     )),
     Lesson((
+        id: "combat_reaches",
+        category: Combat,
+        order: 32,
+        title: "How far each weapon reaches",
+        media: Image(
+            image: "self://training/combat_reaches.webp",
+            alt: "a gunship firing its full battery down a long lane, the tracer streams ending in open space well short of the hostile hull they are laid on, and one of that hull\'s torpedoes already past the point the rounds stop",
+        ),
+        body: "Reach is never authored. It is muzzle speed times how long the round lives. A PDC round reaches 2 km, a railgun slug 18 km and arrives in about a second, a torpedo 29 to 31 km over a minute and a half.",
+        wiki_path: "wiki/combat-weapons#three-reaches",
+        field_notes: [
+            "Reach is muzzle speed times how long the round lives: 2 km, 18 km, about 30 km.",
+        ],
+    )),
+    Lesson((
         id: "combat_damage_types",
         category: Combat,
         order: 35,
@@ -572,6 +587,25 @@
         ],
         field_notes: [
             "A turret\'s barrel stops 10 degrees below level, so each mount is blind under its own keel.",
+        ],
+    )),
+    Lesson((
+        id: "combat_barrel_discipline",
+        category: Combat,
+        order: 42,
+        title: "Barrel discipline",
+        media: Loop(
+            sheet: "self://training/combat_barrel_discipline.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a gunship\'s dorsal mounts pouring rounds at one bearing, the streams cutting out the instant the aim swings across and the barrels chase it, and coming back the moment they settle",
+        ),
+        body: "A gun fires only while its barrel is on what it is aimed at, and the tolerance is how big that thing looks from here: a carrier at 1 km is 11 degrees wide, a torpedo under one. Mounts hold while they slew.",
+        wiki_path: "wiki/sections/turret#barrel-discipline",
+        field_notes: [
+            "A mount shoots while it tracks and holds while it slews. The rounds it saves would have missed.",
         ],
     )),
     Lesson((

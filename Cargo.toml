@@ -830,6 +830,10 @@ name = "lesson_combat_battery"
 path = "examples/screenshots/lesson_combat_battery.rs"
 
 [[example]]
+name = "lesson_combat_reach"
+path = "examples/screenshots/lesson_combat_reach.rs"
+
+[[example]]
 name = "lesson_combat_lance"
 path = "examples/screenshots/lesson_combat_lance.rs"
 
