@@ -11,8 +11,8 @@
 //! # The SEAT, and which pieces are free of it
 //!
 //! Every region but the high ground asks for a plate whose top is ONE SURFACE.
-//! That is what a relief list used to try to say and got wrong: measured over
-//! 526 generated plates, the flat panel and the straight edge are surfaces
+//! Measurements over 526 generated plates show that flat panels and straight
+//! edges are surfaces
 //! every time, the corner-cut panel, the crest, the stud and the outer corner
 //! are cones every time, and the shoulder splits about in half. So a region
 //! names a ZONE of the hull, and the seat gate decides per plate whether a
@@ -152,20 +152,11 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: greeble("industrial_crane"),
                 health: 12.0,
                 collider: Vec3::new(0.16, 0.45, 0.32),
-                // THE HOIST, and deliberately ABOVE the band, which was
-                // MEASURED the hard way: drafted below it the crane took
-                // NOTHING on any of the three bench seeds. The band is `Every`,
-                // so it claims the whole edge, and the stubs the crane was
-                // drafted for - the one-cell edge at a deck corner - are not
-                // there on a generated hull. A rule under an `Every` rule in
-                // its own region is starved by design.
-                //
-                // Above it, and at the thinnest rung there is, the cost is the
-                // one thing the old order was protecting: two or three cells of
-                // painted line lost to a hoist. That reads as a thing the paint
-                // was worked around, where a crane that is never on any ship
-                // reads as a crane nobody modelled. `Outward` leans the jib
-                // overboard, off the side it loads from.
+                // Above the band because its `Every` density claims the whole
+                // edge and would otherwise starve this rule on all bench seeds.
+                // At the thinnest rung, the hoist replaces only two or three
+                // cells of painted line. `Outward` leans the jib away from the
+                // hull.
                 placement: FixturePlacement {
                     region: FixtureRegion::Edge,
                     density: FixtureDensity::Rare,
@@ -223,11 +214,8 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: greeble("industrial_plate_rack"),
                 health: 20.0,
                 collider: Vec3::new(0.34, 0.1, 0.43),
-                // THE LAYDOWN YARD: spare plate stock lashed to the decks.
-                // ABOVE the
-                // radiator and the duct, and that ordering was MEASURED, not
-                // reasoned: drafted below them, the radiator's half share
-                // plus the conduit's full-share lines left this rule ZERO
+                // Above the radiator and duct. Below them, the radiator's half
+                // share plus the conduit's full-share lines leave this rule ZERO
                 // pieces on six of the eight bench blocks - the starved-
                 // signature defect. A sparse
                 // chunky accent samples before the broad claimants, the same
@@ -236,11 +224,9 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // at most the odd cell, and a stack of plate parked mid-run
                 // reads as a thing the pipe was routed around, where a hole
                 // in a painted line reads as a mistake. `Deck` already asks
-                // for two cells of ship under the plate, so the stock never
-                // lies on skin over a spar; the rung keeps the yard from
-                // tipping into scrapyard (the salvage drum's measured
-                // lesson), and its patch floor still guarantees a big deck
-                // its stock pile.
+                // for two cells of ship under the plate, so the fixture never
+                // lies on skin over a spar. The rung limits visual clutter,
+                // while its patch floor guarantees placement on a big deck.
                 placement: FixturePlacement {
                     region: FixtureRegion::Deck,
                     density: FixtureDensity::Regular,
@@ -252,10 +238,8 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: greeble("industrial_cells"),
                 health: 16.0,
                 collider: Vec3::new(0.3, 0.21, 0.46),
-                // THE POWER CELLS, racked in the open: the shared matrix's
-                // power-cell class in its industrial voice. Above the radiator
-                // and the duct for the
-                // plate rack's measured reason, and behind the rack because
+                // Above the radiator and duct for the plate rack's measured
+                // reason, and behind the rack because
                 // of the two the rack is the bigger silhouette. `Sparse` is
                 // the thinnest rung any deck piece in the kit takes, and its
                 // patch floor is what turns that into "one rack per block of
@@ -344,16 +328,11 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: greeble("industrial_floodlight"),
                 health: 8.0,
                 collider: Vec3::new(0.17, 0.25, 0.12),
-                // WORK LIGHTING OVER THE WORK: the second of the three pocket
-                // rules, and on a punctuation rung rather than a heavy one
-                // because three pieces crowding every fitting is confetti with
-                // a theme. The scatter cannot aim a piece AT its
-                // fitting, so the recipe tilts the lamp heads down and
-                // `Outward` turns the pair off the hull - rigged yard lighting
-                // over the work face rather than lamps combed with the panel
-                // grain. The region asks nothing about the ship under the
-                // plate, which is right for a lamp: it bolts to anything,
-                // including the thin structure a boom-mounted gun rides on.
+                // The second of three pocket rules, on a punctuation rung to
+                // prevent three fixtures crowding every fitting. Scatter cannot
+                // aim a piece at its fitting, so the model tilts the lamp heads
+                // down and `Outward` turns the pair off the hull. The region has
+                // no support-depth requirement, so it also fits thin structures.
                 // Above the louvre for the winch's measured reason, and behind
                 // the winch because of the two the winch is the bigger
                 // silhouette.
@@ -570,12 +549,9 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // rung to land at all - which is the engine rule this kit is
                 // the worked example of.
                 //
-                // `Rare` rather than a hand-written filter is also what carries
-                // the piece onto a small hull. Measured, the filter this rule
-                // used to spell out by hand described a generated hull's broad
-                // fields and reached ZERO plates on the entire hand-built
-                // bench. The region plus the seat gate now do the gating - the
-                // piece stays on coplanar panel.
+                // `Rare` carries the piece onto a small hull. A separate broad-
+                // field filter reaches zero plates on the hand-built bench, so
+                // the region and seat gate alone keep it on coplanar panels.
                 placement: FixturePlacement {
                     region: FixtureRegion::Panel,
                     density: FixtureDensity::Rare,
@@ -593,7 +569,7 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // industrial stack's and the piece itself is the shortest tall
                 // piece of the four styles. The rung's patch floor keeps the
                 // ration honest rather than absent: one spike per block of high
-                // ground, so a hull reads manned without reading bristling.
+                // ground, avoiding either an empty or bristling silhouette.
                 //
                 // BEFORE the cap, and it has to be: the cap sweeps the same
                 // high ground at full cover, and a sparse accent sampled out of
@@ -610,15 +586,11 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_armoured_cap.clone(),
                 health: 26.0,
                 collider: Vec3::new(0.3, 0.1, 0.3),
-                // The high ground is a third of a hull, and `Every` is the
-                // point: every outer corner takes a boss, all the way round.
-                // Reinforcing only the corners on top was the first cut and it
-                // is a worse sentence - a corner is a corner from whatever side
-                // it is shot at - and it left the flanks bare.
+                // The high ground is a third of a hull, and `Every` puts one
+                // boss on every outer corner, including the flanks.
                 //
-                // Everything this rule used to spell out came off after the
-                // reach was logged. A depth floor and a height floor together
-                // with a facing took it to `x0 of 0` and `x2 of 2`: a spur is
+                // A depth floor, height floor, and facing reduce this rule to
+                // `x0 of 0` or `x2 of 2`: a spur is
                 // the TIP of something, so there is rarely two cells of ship
                 // under it and it fills almost none of its own cell. Three
                 // filters that each read as mild, multiplied, made an
@@ -665,8 +637,8 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_armoured_intake.clone(),
                 health: 16.0,
                 collider: Vec3::new(0.2, 0.06, 0.44),
-                // The VENT class in this style's voice: shuttered, flush, laid
-                // down the panel runs. `Panel` and not `Edge`, because the belt
+                // A shuttered, flush vent aligned with panel runs. `Panel` and
+                // not `Edge`, because the belt
                 // owns every straight edge at full cover and a slit punched into
                 // the belt would hole the one continuous line the look is built
                 // on. Six hundredths of a cell proud, so it is TRIM and the thin
@@ -828,10 +800,9 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 ///     `NearFitting` is the measured carpeting trap, and high in a list it
 ///     starves everything under it;
 /// 12. the REGISTRY mark is the kit's TRIM carrier and mostly a per-block
-///     floor - every hull that left a yard is registered SOMEWHERE, and
-///     exactly once per neighbourhood reads as paperwork rather than as
-///     pattern. LAST, because paint lies on anything and would otherwise take
-///     plate a named rule wanted.
+///     floor. One placement per neighbourhood avoids a repeated pattern. It is
+///     last because paint lies on anything and would otherwise take a plate a
+///     named rule wanted.
 fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: CIVILIAN_STYLE_ID.to_string(),
@@ -900,11 +871,11 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 8.0,
                 collider: Vec3::new(0.26, 0.06, 0.44),
                 // The access class: a flush leaf with a painted outline and a
-                // courtesy light, on the FLANKS a docking approach reaches. Under the window row
-                // so cabins outrank doors on a short flank, but ABOVE every
-                // panel rule and that was measured: drafted down among the
-                // fillers it took nothing on any bench seed, because the window
-                // row is `Dense` and a flank is a small bucket. The rung's
+                // courtesy light, on the FLANKS a docking approach reaches.
+                // It sits below the window row but above every panel rule.
+                // Among the fillers it reaches no plate on any bench seed
+                // because the window row is `Dense` and a flank is a small
+                // bucket. The rung's
                 // patch floor is the rest of it - a hull with no way in reads
                 // as a drone: every ship gets a door, few get two.
                 placement: FixturePlacement {
@@ -918,9 +889,7 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_civilian_tank.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.24, 0.15, 0.4),
-                // The power-cell class in the civilian voice: tankage exists,
-                // but only its FAIRING shows. Chunky, so it takes the drum's
-                // measured lesson whole: `Deck` keeps it on the thick body, and
+                // A chunky fairing. `Deck` keeps it on the thick body, and
                 // the rung is thin because a third of a share put 13-14 drums on
                 // one bench hull, which reads as clutter rather than as a
                 // sponson line. Aligned to
@@ -968,15 +937,11 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 //   its whole cell along that axis, so neighbours butt together
                 //   into one unbroken rail.
                 //
-                // It was authored the other way first, as a rounded terminal
-                // plus a body rule keyed on how far in from the end of a run a
-                // plate sits, and the diagnostic killed it in one run:
-                // `civilian_stripe x0 of 0`. A hull edge always has open space
-                // on one side and unlike plate on the other, so it reads as the
-                // end of its own run ALWAYS. The terminal rule therefore took
-                // the whole edge and the band never landed - a row of pills with
-                // a gap between each, which photographs as a dashed line and is
-                // why the piece it used to need is not in this kit.
+                // A terminal rule cannot key off distance from the end of an
+                // edge run. An edge has open space on one side and unlike plate
+                // on the other, so every cell reads as a run end. Such a rule
+                // claims the whole edge and leaves `civilian_stripe x0 of 0`,
+                // producing a dashed row instead of a continuous band.
                 //
                 // The collider is deliberately SHORTER than the model. Every
                 // other piece here is smaller than its cell, but this one fills
@@ -993,12 +958,10 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_civilian_livery.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.3, 0.03, 0.46),
-                // COMMERCE, the voice no other kit has: a sold hull sells its
-                // own panelling. Three hundredths of a cell proud, so it is
-                // TRIM and lies on panel that creases - and it takes the PANEL
-                // rather than the edge on purpose, so an advert never lands on
-                // a cell of the band. Aligned to the run like every long piece
-                // here: adverts read down the hull, not across it.
+                // Three hundredths of a cell proud, so this is TRIM on a
+                // creased panel. It takes PANEL rather than Edge so it cannot
+                // interrupt the stripe. `Along` aligns its long axis with the
+                // hull run.
                 //
                 // FIRST of the four panel rules, and measured: below them it
                 // took nothing on any bench seed, because a `Dense` fairing and
@@ -1148,9 +1111,9 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 ///    straps are not symmetric about its own axis, and the cleat's two posts
 ///    are different heights. A run of the same piece therefore does not read as
 ///    a repeated tile.
-/// 4. **The weld bead is hand-run.** `salvage_weld_seam` is four lumps of
-///    different size wandering either side of a line, not the `ribs` primitive:
-///    even ribbing reads as a machined surface, which is the opposite claim.
+/// 4. **The weld bead is irregular.** `salvage_weld_seam` is four unequal
+///    lumps offset from a line, not the `ribs` primitive. Even ribbing reads as
+///    a machined surface.
 /// 5. **Two pieces are nearly a cell across, and stop being dashes.** The two
 ///    patches and the bead raise their own footprint budget to 0.86-0.94, so
 ///    consecutive plates of one run JOIN. The default half cell guards against
@@ -1213,7 +1176,7 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
         // look and it costs nothing: oxidised brown plate is what the scrap
         // steel, the rust and the faded livery green of the patches all have to
         // read AGAINST, and against the stock blue-grey the bare-metal pieces
-        // read as clean rather than as scavenged. Nearly no metallic and
+        // read as uniform rather than mixed. Nearly no metallic and
         // nearly all roughness, so no facet of the hull takes a highlight.
         //
         // The TOP-TO-WALL RATIO is 6:1. That is a SILHOUETTE device and not
@@ -1342,9 +1305,9 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_salvage_chain.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.11, 0.13, 0.88),
-                // THE RIGGING on the edges. Sampled BEFORE the seam, and that
-                // was measured: the seam is `Every`, so under it this rule took
-                // nothing on any of the three bench seeds. Two rules on one
+                // Edge rigging sampled before the seam. The seam is `Every`,
+                // so placing this rule below it yields no fixture on any bench
+                // seed. Two rules on one
                 // region cannot split it by priority alone - the thin one has to
                 // pick first or it never picks at all.
                 //
@@ -1413,11 +1376,9 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_salvage_hose.clone(),
                 health: 8.0,
                 collider: Vec3::new(0.13, 0.09, 0.87),
-                // The services run, in this kit's voice: where the industrial
-                // duct takes every panel cell it can reach, the hose is rigged
-                // where somebody NEEDED a line - a middling rung against the
-                // duct's full cover, and sampled after the fitting rules so the
-                // cleats and green plating keep the ring the pocket rules own.
+                // Unlike the industrial duct's full panel cover, this hose uses
+                // a middling rung. It is sampled after fitting rules so cleats
+                // and green plating retain the ring owned by pocket rules.
                 // The piece affords the thinning: a sag between two clamps is
                 // complete on one cell, so a broken run of hose reads as a
                 // bundle picked up and dropped again, where a dashed duct would
@@ -1489,18 +1450,15 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_salvage_kills.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.4, 0.03, 0.3),
-                // The kill tally, and the kit's second TRIM carrier (the scab
-                // is the first): three hundredths of a cell of paint lies on
-                // anything, so the seat gate is off, and `Anywhere` asks nothing
-                // about depth - the two filters that blank a one-cell-thick
-                // build.
+                // The second TRIM carrier after the scab. Three hundredths of
+                // a cell of paint lies on anything, so the seat gate is off,
+                // and `Anywhere` asks nothing about depth. Those two filters
+                // would otherwise blank a one-cell-thick build.
                 //
-                // After the plate, before the scab: the tally is painted ON the
-                // hull the patches left showing, so it takes what the plate
-                // declined, and the scab's own patch floor still guarantees the
-                // true filler lands last. The rung keeps its lattice because two
-                // tallies in adjacent cells read as one mark repeated rather
-                // than as two marks.
+                // After the plate and before the scab, it takes cells the plate
+                // declined while the scab's patch floor still guarantees the
+                // filler lands last. The lattice prevents identical marks in
+                // adjacent cells.
                 placement: FixturePlacement {
                     region: FixtureRegion::Anywhere,
                     density: FixtureDensity::Regular,
@@ -1942,8 +1900,8 @@ mod tests {
     /// its whole cell so neighbours in a run butt together, and any rule that
     /// skips a cell turns it back into a dashed row.
     ///
-    /// Every clause below is one way the band was broken while it was authored,
-    /// so this is a regression test and not a restatement of the code.
+    /// The assertions cover independent failure modes: skipped cells, wrong
+    /// orientation, wrong region, and one-cell specks.
     #[test]
     fn the_civilian_band_is_continuous() {
         let style = civilian_style(&BaseContentAssets::from_paths());

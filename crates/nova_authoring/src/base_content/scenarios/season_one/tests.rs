@@ -1,7 +1,7 @@
 //! Structural pins for chapter one.
 //!
 //! These enforce the SHAPE the chapter is built to - the lane arms one mark at
-//! a time, every card posted is completed, the evacuation cannot narrate
+//! a time, every card posted is completed, the timed transfer cannot advance
 //! itself while the clamp is off, the moons never touch the lane, and nothing
 //! aboard either hull is a weapon - rather than a transcript of the script. A
 //! dialogue or pacing pass should be able to move every line and every delay
@@ -130,7 +130,7 @@ fn the_opening_scene_hands_back_everything_it_takes() {
 ///
 /// By KEY, never by position: the chapter has two scenes now, and a pin that
 /// took the first `OnCinematicFinished` it found would grade the opening twice
-/// and the distress call never.
+/// and the call scene does not.
 fn finish_hands_back(config: &ScenarioConfig, key: &str) -> Vec<EventActionConfig> {
     let finish = config
         .events
@@ -156,7 +156,7 @@ fn finish_hands_back(config: &ScenarioConfig, key: &str) -> Vec<EventActionConfi
     finish.actions.clone()
 }
 
-/// The distress call is a SCENE, and the ship is parked for it.
+/// The call uses a SCENE, which parks the player ship.
 ///
 /// The pin is the pairing rather than the shot: a scene that takes the helm
 /// and cuts the camera away has to take the ship's speed off as well, or a
@@ -229,7 +229,7 @@ fn the_lane_arms_one_mark_at_a_time() {
                 _ => None,
             })
             .collect();
-        // The last mark has no next mark: it starts the distress call, and the
+        // The last mark has no next mark: it starts the call scene, and the
         // volume Gantry sits in is raised on the way OUT of that scene - see
         // `the_call_stops_the_ship_before_it_looks_away` - so that a player
         // who walks out of the call still gets the gate.
@@ -562,7 +562,7 @@ fn every_beat_a_clamp_can_land_in_is_heard() {
         );
     }
 
-    // The early one starts the evacuation without posting or completing a card:
+    // The early path starts the timed transfer without posting or completing a card:
     // none was ever up, and the pending docking timer lands in a beat that has
     // moved and says nothing.
     let early = clamps
@@ -632,7 +632,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
             _ => None,
         })
         .collect();
-    // The two crewed hulls, and then Gantry's own plating: the debris is a
+    // The two active hulls, followed by the target hull's plating. Debris is a
     // hull in the engine's eyes, so it is listed here, but nothing flies it
     // and it is the only thing that may join them.
     let (crewed, debris) = ships_spawned.split_at(2);
@@ -691,7 +691,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
 /// intact one, which is two claims about the same cell plan: the drive and the
 /// stern are gone, and the port collar sits exactly where the whole ship's
 /// does. A future pass that moves the collar to dress the wreck up would make
-/// the rescue harder without saying so.
+/// the docking objective harder without changing its instructions.
 #[test]
 fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
     let assets = crate::base_content::assets::BaseContentAssets::from_paths();

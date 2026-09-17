@@ -10,12 +10,13 @@ the task's stated rule did not settle it on its own.
   wrecks (`block_wreck_bridge`, `block_wreck_shoulder`, `block_wreck_spine`)
   had none and are deleted.
 - `block_picket` stays in base. It is the hull the console lookup tests and the
-  NOVA OS terminal tests address by name, and the bench hostiles now fly it.
+  NOVA OS terminal tests address by name. The arsenal bench also uses it.
 
 ## Consumer substitutions
 
-- Bench hostiles were `block_raider`; they now fly `block_picket`. The raider
-  left the catalog and the picket is the nearest armed hull of the same class.
+- The hunt and slingshot benches retain their raider geometry as bench-owned
+  inline designs. They no longer depend on a base ship prototype and preserve
+  the original health, weapons, shape, and AI behavior.
 - The arsenal bench's ram target was `block_carrier`; it is now `block_hauler`,
   the largest hull still in base.
 
@@ -107,9 +108,7 @@ ownership. It is left alone rather than folded in here.
 ## Bench prose moved with the bench fixtures
 
 `docs/agent-bench.md` and `crates/nova_bench/scenarios/README.md` each describe
-the five loose fixtures in a sentence. Two of those sentences named content
-this task moved: the arsenal's "player warship with point defence, torpedoes,
-and two railguns" is now a hull authored inline in the fixture, its
-"carrier-sized ram target" is a hauler, and the late hostile in both arsenal
-and hunt is a picket. Updated in place; the scenario object ids inside the RON
-(`raider`, `pursuer`) are authored names and stay.
+the five loose fixtures in a sentence. Those sentences now identify the
+arsenal player as an inline hull, its ram target as a hauler, its late hostile
+as a picket, and the hunt hostile as an inline raider. The scenario object ids
+inside the RON (`raider`, `pursuer`) are authored names and stay.

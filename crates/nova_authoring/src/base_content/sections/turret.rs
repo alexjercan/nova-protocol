@@ -401,11 +401,8 @@ fn pdc_turret_prototype(
             // has to turn - so it fails by sparking and never by losing a
             // piece of itself.
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
-            // The mount the shipped craft carry: a small box that sits ON a
-            // hull face instead of standing in for one, which is what lets ONE
-            // turret serve every craft. The ten per-craft copies that used to
-            // sit beside it were the same gun on the same joint tree, and are
-            // gone.
+            // A small box that sits ON a hull face instead of replacing one.
+            // One prototype can therefore serve every mounting orientation.
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::splat(PDC_TURRET_SIZE),
             }),
@@ -451,8 +448,8 @@ fn pdc_turret_prototype(
             projectile_render_mesh: None,
             fire_sound: Some(fire_sound.clone()),
             dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
-            // The housing this prototype already authors `pdc_stow_tracks` for
-            // - so every mount that can fold has a voice for folding.
+            // The housing uses `pdc_stow_tracks`, so every folding mount also
+            // carries open and close audio.
             stow_open_sound: Some(meshes.turret_stow_open_sound.clone()),
             stow_close_sound: Some(meshes.turret_stow_close_sound.clone()),
             ammunition: AmmoCapacity::Limited(500),

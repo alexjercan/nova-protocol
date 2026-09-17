@@ -18,9 +18,9 @@
 
 // One source, many example targets: what one example leaves unused another
 // needs, so no single build can use all of it.
-#![allow(
+#![expect(
     dead_code,
-    reason = "one source, many example targets: what one example leaves unused another needs, so no single build can fulfil an expectation"
+    reason = "one source, many example targets: what one example leaves unused another needs"
 )]
 
 pub mod block;

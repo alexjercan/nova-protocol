@@ -1,15 +1,9 @@
-//! Every line chapter one says, and every objective it posts, as named
-//! constants.
+//! Dialogue and objective strings for chapter one.
 //!
-//! The event graph next door is about WHEN things happen; this module is about
-//! what is said. Nothing in the graph reads a line's text, so a dialogue pass
-//! is an edit to this file alone.
+//! Event conditions and text stay separate. Nothing in the event graph reads
+//! line text, so text edits do not change event sequencing.
 //!
-//! Provenance: the season outline (`web/src/lore/seasons/season-1.md`) and the
-//! opening episode (`web/src/comics/season-1/episode-1/`). Lines the comic
-//! also carries are quoted from it word for word; the rest is bridging.
-//!
-//! Two rules, both about reading while flying:
+//! Two readability constraints apply while the player is flying:
 //!
 //! - A LINE is one thought. The comms card holds for eight seconds and three
 //!   of them can be on screen at once, so a line that needs longer than that
@@ -22,26 +16,25 @@
 //!   chip even for a verb that is not available yet, so the card never has to
 //!   spell a key the HUD is already showing.
 
-// --- the voices --------------------------------------------------------------
+// --- speaker labels ----------------------------------------------------------
 
-/// Kaveri's captain. The player flies the ship; these are the lines the
-/// captain puts on the channel.
+/// Speaker label used by Jonah's dialogue events.
 pub(super) const JONAH: &str = "Jonah";
-/// Kaveri's chief engineer.
+/// Speaker label used by Leila's dialogue events.
 pub(super) const LEILA: &str = "Leila";
-/// Kaveri's pilot and navigator.
+/// Speaker label used by Tomas's dialogue events.
 pub(super) const TOMAS: &str = "Tomas";
-/// Kaveri's work operations.
+/// Speaker label used by Rina's dialogue events.
 pub(super) const RINA: &str = "Rina";
-/// Kaveri's systems and first aid.
+/// Speaker label used by Samir's dialogue events.
 pub(super) const SAMIR: &str = "Samir";
 
-/// Gantry's captain, on the radio for the whole chapter.
+/// Speaker label used by Nadia's dialogue events.
 pub(super) const NADIA: &str = "Nadia - Gantry";
-/// Clearwell's manager at Baikal, on the radio.
+/// Speaker label used by Elena's dialogue events.
 pub(super) const ELENA: &str = "Elena - Baikal";
 
-/// The face each voice wears on the comms panel.
+/// Portrait selected for each speaker label.
 ///
 /// `scripts/generate-campaign-portraits.py` draws every tile below from the
 /// same palette as the encyclopedia portrait studies, so a speaker's face is
@@ -92,7 +85,7 @@ pub(super) const LANE_TWO: &str =
 pub(super) const LANE_THREE: &str = "Tight through there. Nothing touched.";
 pub(super) const LANE_FOUR: &str = "LANE-4, and clear of the worst of it. Baikal in four hours.";
 
-// --- the distress call -------------------------------------------------------
+// --- call scene --------------------------------------------------------------
 
 pub(super) const CALL_TRAFFIC: &str = "Traffic. Distress, broad channel, and it is close.";
 pub(super) const CALL_MAYDAY: &str = "Gantry, requesting assistance. Main propulsion disabled.";

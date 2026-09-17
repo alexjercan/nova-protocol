@@ -16,7 +16,7 @@ pub struct BaseContentAssets {
     pub cubemap: AssetRef<Image>,
     /// Default procedural-asteroid surface texture.
     pub asteroid_texture: AssetRef<Image>,
-    /// Standard hull mesh: the crew cell, a hatch on every face.
+    /// Standard hull mesh: one cell with a hatch on every face.
     pub hull: AssetRef<WorldAsset>,
     /// Cargo hull variant: caged freight bags, every face alike.
     pub hull_cargo: AssetRef<WorldAsset>,
@@ -72,9 +72,8 @@ pub struct BaseContentAssets {
     /// The bay's muzzle iris: one servo and six petals, played on both edges
     /// of the door's travel.
     pub torpedo_door_sound: AssetRef<AudioSource>,
-    /// The warhead. A hard front and a spray of fragments - deliberately not
-    /// [`Self::section_destroy_sound`], which it used to borrow: a section
-    /// failing is structural and a warhead is not.
+    /// The warhead. A hard front and a spray of fragments, distinct from
+    /// [`Self::section_destroy_sound`] because a section failure is structural.
     pub torpedo_detonation_sound: AssetRef<AudioSource>,
     /// The lance's discharge: the capacitor bank dumping, the slug leaving,
     /// and the hull taking the recoil, in the order the shot does them.
@@ -140,8 +139,8 @@ pub struct BaseContentAssets {
     /// The CIVILIAN kit, which the `civilian` style scatters: a livery rail, a
     /// cabin window row and skylight strip, a raked fin, a fairing, a faired
     /// intake, door, tank blister and comms dish, an advert panel, a registry
-    /// mark and a nav beacon. Everything faired or painted - machinery never
-    /// shows on a hull built to be sold.
+    /// mark and a nav beacon. Every fixture is faired or painted, with no
+    /// exposed machinery.
     pub greeble_civilian_beacon: AssetRef<WorldAsset>,
     pub greeble_civilian_dish: AssetRef<WorldAsset>,
     pub greeble_civilian_door: AssetRef<WorldAsset>,
@@ -163,11 +162,10 @@ pub struct BaseContentAssets {
     pub greeble_industrial_radiator: AssetRef<WorldAsset>,
     pub greeble_industrial_ribbing: AssetRef<WorldAsset>,
     pub greeble_industrial_stack: AssetRef<WorldAsset>,
-    /// The SALVAGE kit: mismatched patches, a hand-run weld bead, lashed
-    /// tankage and rigging, scavenged fittings off other ships, a kinked whip
-    /// and a tow cleat. Fourteen pieces, and the doctrine holds - a hull reads
-    /// as repaired because of where the pieces land and what they are made of,
-    /// never because there are more of them.
+    /// The SALVAGE kit: mismatched patches, an irregular weld bead, exposed
+    /// tankage and rigging, mixed fittings, a kinked whip, and a tow cleat.
+    /// Fourteen pieces use material and placement, not higher density, to keep
+    /// the style distinct.
     pub greeble_salvage_chain: AssetRef<WorldAsset>,
     pub greeble_salvage_cog_patch: AssetRef<WorldAsset>,
     pub greeble_salvage_dish: AssetRef<WorldAsset>,

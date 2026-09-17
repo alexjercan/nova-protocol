@@ -271,8 +271,8 @@ Ships go from eighteen to eight: `block_cutter`, `block_hauler`,
 ## The loose bench fixtures
 
 Three of the five fixtures changed: `arsenal` authors its player hull inline,
-and `hunt` and `slingshot` fly a picket where they flew a raider. Each played
-under the scripted agent, which needs no model:
+and `hunt` and `slingshot` author their former raider geometry inline. Each
+played under the scripted agent, which needs no model:
 
     cargo run --features debug bench play \
       crates/nova_bench/scenarios/<name>.content.ron --agent baseline \
@@ -281,13 +281,44 @@ under the scripted agent, which needs no model:
 | fixture | outcome | ticks | ammo spent | bad lines | exit |
 |---|---|---|---|---|---|
 | arsenal | none (sandbox, 0/0) | 1800 | 2379 | 0 | 0 |
-| hunt | victory, 1/1 | 331 | 2309 | 0 | 0 |
+| hunt | victory, 1/1 | 1651 | 7306 | 0 | 0 |
 | slingshot | none (sandbox, 0/0) | 1800 | 8094 | 0 | 0 |
 
 `arsenal` is the one that had to be watched: its player hull is now authored
 inline rather than taken from the catalog, and the run spends 2379 rounds with
 `sections_lost 0` and `cheated false`, so the inline railgun, bays and mounts
-all arrived and all fired. `hunt` still scores ITSELF - the baseline killed the
-picket and the scenario closed on its own outcome rather than on the tick
-budget, which is the substitution's real test. `slingshot`'s pursuer is alive
-at 2500 m at the end, which is the fixture behaving as written.
+all arrived and all fired. `hunt` still scores itself: the baseline destroyed
+the 6240-health inline raider and the scenario ended on Victory rather than on
+the tick budget. `slingshot`'s 6240-health inline pursuer remains alive at
+2500 m when the sandbox reaches its tick budget.
+
+## Review corrections
+
+The reviewing pass found stale carrier documentation, lost fixture assertions,
+bench substitutions, and remaining narrative comments. The corrections:
+
+- removed the carrier cell model from `web/src/widgets.ts`; the arrival widget
+  now spans the retained cutter and patrol gunship;
+- labeled development-only hull measurements in current player documentation;
+- added `tests/dev_fixtures.rs`, which checks unique section ids, cell overlap,
+  connected link graphs, addressed warship weapons, and inline siege ownership;
+- restored bench-owned inline raiders in hunt and slingshot;
+- replaced the shared fixture module's `allow(dead_code)` with `expect`;
+- reduced base-content comments to mechanical, rendering, and authoring facts;
+- corrected the Breaker bay evidence from 13 sockets to 9.
+
+Verification after those corrections:
+
+| command | result |
+|---|---|
+| `cargo test -p nova-protocol --test dev_fixtures` | 4 passed |
+| `cargo test -p nova_assets --test agent_bench_scenarios` | 1 passed |
+| `cargo test -p nova_authoring --lib` | 115 passed |
+| `cargo test -p nova_authoring --test content_ron_parity --test content_report_gate` | 4 passed |
+| `cargo run content gen` | 15 files regenerated; no new generated diff |
+| `cargo run content lint` | 0 errors, 0 warnings, 0 findings |
+| targeted fixture example checks | passed; 3 existing dead-code warnings in `system_ai_combat` |
+| `mdbook build` | HTML book written |
+| `cd web && npm run ci` | format, lint, tests, and webpack build passed |
+| hunt baseline play | Victory, 1/1, 1651 ticks, 0 bad lines |
+| slingshot baseline play | tick budget, 1800 ticks, 0 bad lines |

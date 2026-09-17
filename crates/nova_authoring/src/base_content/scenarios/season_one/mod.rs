@@ -1,28 +1,21 @@
-//! Season 1, chapter one: "A Useful Job".
+//! Season 1, chapter one scenario configuration.
 //!
-//! An unarmed flight: a lane of rock flown slowly, a course change, a clamp
-//! onto another hull, and a timed transfer. The chapter carries no weapon and
-//! nothing to shoot, so the two skills it asks for are placing the hull - the
-//! lane teaches that by its LAYOUT rather than by a lesson - and bringing it
-//! gently onto another ship's collar. No station is in the sky; the chapter
-//! starts and ends in open space.
+//! The event flow combines a low-speed obstacle lane, a course change, a
+//! docking action, and a timed transfer. The player ship has no weapons. The
+//! layout tests lateral hull placement and a controlled docking approach.
 //!
 //! Script shape follows the mainline convention: one `beat` counter gates
 //! every handler, and an objective posts a beat LATER than the line that
 //! introduces it (see `pacing`). The lines live in `script` and the map in
 //! `stage`, so a dialogue pass and a layout pass are two separate edits.
 //!
-//! The evacuation is the one chain written on TIMERS rather than as a
-//! sequence, and deliberately: a sequence runs to its end, so a player who
-//! releases the clamp halfway through would be told the transfer finished.
-//! Every transfer beat is gated on the clamp still being on, so releasing
-//! early stops the chain where it stands and re-docking starts it again.
+//! The transfer is written as gated timers rather than a sequence. A sequence
+//! runs to its end after the clamp is released. Each timer checks the docking
+//! state, so an early release pauses progress and re-docking resumes it.
 //!
-//! Portraits are attached in one pass over the finished events rather than
-//! line by line, because the speaker already names its face (see
-//! `script::portrait`). The accent is independent of the portrait: a line
-//! authored with `crew` is drawn in instrument green, one authored with
-//! `comms` in the radio blue.
+//! Portraits are attached in one pass over finished events because the speaker
+//! key selects the image through `script::portrait`. Accent selection remains
+//! independent: `crew` uses instrument green and `comms` uses radio blue.
 
 use bevy::prelude::Image;
 use nova_events::prelude::Meters3;
@@ -61,7 +54,7 @@ const BEAT_OPEN: f64 = 1.0;
 /// One beat per mark of the lane. A mark's gate is raised by the beat before
 /// it, so a player who flies through a volume early finds nothing there.
 const LANE_BEATS: [f64; 4] = [2.0, 3.0, 4.0, 5.0];
-/// The lane is flown; the distress call and the decision run.
+/// The lane is complete; the call scene and its branch run.
 const BEAT_CALL: f64 = 6.0;
 /// The intercept: come about and close on Gantry.
 const BEAT_REACH: f64 = 7.0;
@@ -79,7 +72,7 @@ const BEAT_DOCK: f64 = 8.0;
 /// complete a card that was never posted and then be handed one that nothing
 /// can take down.
 const BEAT_REGRIP: f64 = 8.5;
-/// Clamped, before the evacuation's first beat lands.
+/// Clamped, before the timed transfer's first beat.
 const BEAT_HOLD: f64 = 9.0;
 /// Clamped, with people crossing and the hold objective posted.
 const BEAT_TRANSFER: f64 = 10.0;
@@ -110,23 +103,21 @@ const OPEN_CARD_SECONDS: f32 = 9.0;
 const OPEN_OFFSET: Meters3 = Meters3::new(120.0, 45.0, 150.0);
 /// First line of the scene, after the card has been on screen a beat.
 const OPEN_FIRST_AT: f64 = 2.5;
-/// Between two crew lines.
+/// Between two lines with the same visual accent.
 const OPEN_GAP: f64 = 6.5;
-/// Around an answer, or a second card from the same voice: shorter, because it
-/// is the same thought continuing.
+/// Around an answer or a second card from the same speaker. This gap is shorter
+/// because the card sequence continues.
 const OPEN_REPLY_GAP: f64 = 5.0;
 
 /// A mark's arrival line -> the next mark. Short: the ship is still moving,
 /// and the lane is one continuous run rather than seven separate lessons.
 const LANE_GAP: f64 = 3.0;
 
-/// The distress chain, and the gaps inside it. Longer than the lane's, because
-/// this is the only stretch of the chapter the player is asked to listen to.
+/// The call scene and its line gaps. It is longer than the lane sequence to
+/// keep successive cards readable.
 ///
-/// A SCENE rather than a sequence: the player is not flying during it, so the
-/// chapter takes the helm, brings Kaveri to rest behind the cut and holds the
-/// picture on Gantry for the whole call. It is the only framed look at that
-/// hull before the dock, so its damage has to read from this shot.
+/// A SCENE takes control, stops the player ship, and holds one camera framing.
+/// The target hull's damage must remain legible from this shot.
 const SCENE_CALL: &str = "call";
 /// The shot: off Gantry's starboard BOW and above, looking aft down the length
 /// of the hull.
@@ -142,7 +133,7 @@ const CALL_OFFSET: Meters3 = Meters3::new(150.0, 45.0, -120.0);
 const CALL_OPEN_AT: f64 = 6.0;
 /// Between two lines of the call.
 const CALL_GAP: f64 = 6.5;
-/// Around a short answer, or the second half of a line somebody split in two.
+/// Around a short answer or the second half of a split line.
 const CALL_REPLY_GAP: f64 = 5.0;
 /// The order line -> the course change on the HUD. Long enough that the line
 /// is still on screen, and read, when the objective chip pops under it.
@@ -163,11 +154,11 @@ const NEAR_DOCK_GAP: f64 = 5.0;
 /// The card has to be able to NOT arrive. A player already on the collar when
 /// this lands has moved the beat past `BEAT_REACH`, and a pending
 /// timer whose beat has moved fires into a handler that no longer matches - the
-/// same device the evacuation is written on. A sequence step would have run
+/// same timer mechanism as the transfer. A sequence step would have run
 /// regardless and posted a card for a dock that had already happened.
 const TIMER_DOCK: &str = "dock_card";
 
-/// The evacuation's beats, in order, as timer keys. Each one is armed by the
+/// The timed transfer beats, in order, as timer keys. Each one is armed by the
 /// beat before it and gated on the clamp still being on.
 const TRANSFER_KEYS: [&str; 5] = [
     "transfer_start",
@@ -237,7 +228,7 @@ fn apply_portraits(events: &mut [ScenarioEventConfig]) {
 }
 
 /// A handler that may fire again: the dock, the release, and every beat of the
-/// evacuation. The player may let go and come back, so the chapter has to be
+/// transfer. The player may let go and come back, so the chapter has to be
 /// able to run the same beats a second time.
 fn repeatable(
     name: EventConfig,
@@ -266,7 +257,7 @@ fn radio_line(after: f64, speaker: &str, line: &str) -> SequenceStepConfig {
     step(after, vec![comms(speaker, line)])
 }
 
-/// One beat of the evacuation: what it says, and the beat it arms behind it.
+/// One timed-transfer beat: its line and the next timer key.
 ///
 /// Gated on `beat` as well as on its own timer, which is the whole point of
 /// writing this chain on timers: the release handler moves the beat back, and
@@ -592,7 +583,7 @@ pub(crate) fn chapter_one(
             ],
         ),
         // The clamp. Repeatable on purpose: a player who lets go and comes
-        // back runs the evacuation again from its first beat.
+        // back restarts the transfer at its first beat.
         repeatable(
             EventConfig::OnDocked,
             vec![clamp(), in_beat(BEAT_DOCK)],
@@ -609,7 +600,7 @@ pub(crate) fn chapter_one(
         ),
     ]);
 
-    // The evacuation. One handler per beat, each gated on the clamp still
+    // The timed transfer. One handler per beat, each gated on the clamp still
     // being on, and the card itself is the first of them - so the release
     // handler below always knows whether there is an objective to take down.
     events.extend([
@@ -668,7 +659,7 @@ pub(crate) fn chapter_one(
             ],
         ),
         // Back on the collar before the ask arrived: no card was posted, so
-        // none is taken down, and the evacuation simply starts again.
+        // none is taken down, and the timed transfer starts again.
         repeatable(
             EventConfig::OnDocked,
             vec![clamp(), in_beat(BEAT_REGRIP)],

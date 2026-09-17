@@ -1,10 +1,9 @@
-//! The duel-cycle main-menu backdrop: an armoured gunship and a salvage
-//! raider fight inside a bounded arena, the winner is erased by a siege
-//! torpedo, and after a beat two fresh ships fly in.
+//! The duel-cycle main-menu backdrop. Two AI ships fight inside a bounded
+//! arena. The surviving ship becomes the target of a scripted torpedo, then
+//! the scenario resets.
 //!
-//! The two hulls read apart at a glance: the gunship is squared off,
-//! symmetric and armoured, with six mounts; the raider is asymmetric, with an
-//! outrigger, a boom and two mounts.
+//! The silhouettes stay distinct at menu scale: one is symmetric with six
+//! mounts; the other has an outrigger, a boom, and two mounts.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -76,18 +75,15 @@ const FINISHER_BAY: &str = "siege_bay";
 /// The Breaker bay's tube, in build cells: one cell square, two deep.
 const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
 
-/// The act's finisher, authored here because nothing else uses it.
+/// Scenario-local bay used only by the scripted menu cycle.
 ///
-/// A capital-grade bay with armoured ordnance and a ship-killing blast. It is
-/// deliberately past anything a player can build, so it belongs to the one
-/// scene that fires it rather than to the catalog: an entry in the catalog is
-/// an entry in the editor's drawer, and this is not kit.
+/// Its values exceed supported player-buildable content, so the section stays
+/// inline instead of appearing in the editor catalog.
 ///
-/// The numbers that make the act work: `blast_damage` 2000 over a 450 m radius
-/// kills a duelist outright through the 65% transmission rule, and
-/// `projectile_health` 5000 is past what a gunship's six mounts (~800 DPS) can
-/// chew through inside the ~6 s closing window, so point defense visibly
-/// hammers the round and still loses. Both are the point of the beat.
+/// `blast_damage` 2000 over a 450 m radius destroys either target through the
+/// 65% transmission rule. `projectile_health` 5000 exceeds the damage six PDC
+/// mounts can deal during the approximately 6 s closing window, so the round
+/// remains visible under fire and still reaches the target.
 fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
     SectionConfig {
         base: BaseSectionConfig {
@@ -275,19 +271,11 @@ fn ordered_patrol(order: &str, ship: &str, waypoints: [Meters3; 3]) -> EventActi
     })
 }
 
-/// A repeating three-act battle behind the menu. Act one: an armoured patrol
-/// gunship (Player allegiance) and a salvage raider fly in from opposite sides
-/// and dogfight through the open center of the frame; the gun gap - six mounts
-/// against two - makes the outcome all but certain. A duelist that leaves the
-/// arena shell FORFEITS and the act resolves without it, so the survivor holds
-/// the middle of the frame instead of chasing a runner off the edge of the
-/// shot. Act two: the rival's defeat (or forfeit) starts a short beat, then the
-/// off-screen siege battery is SCRIPTED to launch an
-/// armored ship-killing torpedo at the winner - point defense hammers the
-/// ordnance and loses - re-firing on a slow clock until one connects. Act
-/// three: the aftermath drifts for a beat, then the carousel turns to the
-/// next backdrop - the scenario switch is a genuine full reset that clears
-/// wrecks, debris and in-flight ordnance.
+/// A repeating menu combat cycle. Two ships enter from opposite sides. A ship
+/// outside the arena is removed so the remaining AI does not chase it beyond
+/// the camera frame. After one ship remains, a scripted bay fires at intervals
+/// until the target is destroyed. The scenario switch then clears all spawned
+/// ships, debris, and ordnance before the next backdrop.
 pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     let cubemap = assets.cubemap.clone();
     let asteroid_texture = assets.asteroid_texture.clone();
@@ -301,8 +289,8 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     stage.extend(backdrop_rig("duel").objects());
     stage.push(planetoid_glow("duel_lamp"));
 
-    // The finisher: one siege bay, nothing else. No controller - the launch
-    // is scripted, so the battery needs no AI and no detection range. It
+    // One scripted siege bay with no controller. The launch action does not
+    // need AI or detection range. It
     // sits NEUTRAL until the beat flips it Enemy: an Enemy battery would be
     // a live acquisition target, and the freshly-victorious ship - still in
     // its combat hold, which keeps ANY acquired hostile - would break off

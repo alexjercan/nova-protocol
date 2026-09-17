@@ -1,14 +1,8 @@
-//! Everything chapter one puts in the sky: the two ships, the working lane
-//! and its marks, the rock the lane runs through, and the moons it runs
-//! between.
+//! Chapter-one object and layout configuration.
 //!
-//! The sky is drawn with three things and no station: a lane of small rock,
-//! two icy bodies standing off it, and a hazy one further out.
-//!
-//! The lane is the chapter's teaching ground. Four marks, each one offset
-//! from the last across two axes, with rock thick enough between them that
-//! swinging the whole hull around costs more than sliding it: the RCS lesson
-//! is the LAYOUT, not a line of dialogue about thrusters.
+//! Four lane marks are offset across two axes. The intervening rocks make a
+//! full hull rotation cost more distance than lateral translation, so the
+//! layout exercises RCS placement without a scripted control restriction.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -23,7 +17,7 @@ use crate::base_content::ships;
 
 /// The player's hull, and the id every helm, area and docking event names.
 pub(crate) const ID_KAVERI: &str = "kaveri";
-/// The stranded hull the chapter is flown out to.
+/// The target hull referenced by approach and docking events.
 pub(crate) const ID_GANTRY: &str = "gantry";
 
 /// What the two hulls are called on the HUD and in the objective text.
@@ -36,31 +30,25 @@ pub(crate) const GANTRY_NAME: &str = "Gantry";
 /// it a matter of placing the hull rather than of reflexes.
 pub(crate) const KAVERI_SPEED_CAP: MetersPerSecond = MetersPerSecond(120.0);
 
-/// Kaveri's flight computer and docking collar, armoured for the chapter.
+/// Health for the player ship's required controller and docking collar.
 ///
-/// Neither is armour for a fight - nothing here shoots. They are armour
-/// against the ROCK: a hull that clips a boulder hard enough to lose its
-/// collar could still fly the rest of the chapter and never be able to finish
-/// it, and a rescue that cannot be finished is worse than one that is lost
-/// outright. Losing the ship is still a defeat, and still ends the chapter.
+/// Both survive incidental rock collisions so the scenario cannot remain
+/// active after its required docking section is destroyed. Ship destruction
+/// still triggers defeat.
 const KAVERI_BRIDGE_HEALTH: f32 = 1_800.0;
 const KAVERI_COLLAR_HEALTH: f32 = 1_800.0;
 
-/// Gantry's surviving collar, armoured for the same reason and one more: it
-/// is the chapter's only dock point, so losing it would strand the rescue.
+/// Health for the scenario's only target docking collar.
 const GANTRY_COLLAR_HEALTH: f32 = 1_800.0;
 
-/// Where Gantry drifts, and the pose it drifts in.
+/// Target position and orientation.
 ///
-/// Off the far end of the lane and well to starboard, so reaching it is a
-/// course change out of the rock rather than more of the same lane. Its
-/// heading is the lane's, which puts its PORT collar on the side the rescue
-/// arrives from: Kaveri comes about, stands off that flank, and the two hulls
-/// end up facing opposite ways with their two hatches looking at each other,
-/// which is the arrangement the dock needs.
+/// The lateral offset requires a course change after the lane. Matching its
+/// heading places the port collar on the player's approach side and aligns the
+/// two docking faces.
 const GANTRY_POSITION: Meters3 = Meters3::new(2_400.0, 0.0, -6_000.0);
 
-/// Kaveri on the lane, loaded and running home.
+/// Player ship at the lane entrance.
 pub(crate) fn kaveri() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -210,12 +198,10 @@ pub(crate) const LANE: [Mark; 4] = [
     },
 ];
 
-/// The volume Gantry sits in the middle of: the chapter's last arrival gate.
+/// The final arrival gate, centered on the target hull.
 ///
-/// A gate and nothing else - no beacon, because a stranded ship a kilometre
-/// across the sky IS the landmark, and a lit buoy hung next to it would say
-/// the scenario put it there. The radius is wide enough that a player who
-/// stands off to look at the hull has already arrived.
+/// Its 700 m radius registers a player who stops outside docking range to
+/// inspect the target. No separate beacon is required.
 pub(crate) const APPROACH: Mark = Mark {
     id: "gantry_approach",
     label: GANTRY_NAME,
@@ -226,8 +212,7 @@ pub(crate) const APPROACH: Mark = Mark {
 /// A second ring inside the first, on the same place: the gate the collar
 /// dialogue runs on.
 ///
-/// Two rings rather than one, because the two things that used to happen at
-/// 700 m need different distances. ARRIVING is a milestone and belongs where
+/// Two rings separate arrival from the final approach. ARRIVING belongs where
 /// the hull fills the canopy: the card comes down and the marker comes off.
 /// The collar dialogue is four cards' worth of reading, and at 700 m the player
 /// is still braking out of a course change while they land. Inside this ring
@@ -246,12 +231,10 @@ pub(crate) const STANDOFF: Mark = Mark {
 /// run, seeded, so the field is the same field every time the chapter is
 /// flown and a route that worked once works again.
 ///
-/// Small and many rather than few and large, which is what a working lane in
-/// a ring system is: nothing here is a landmark, and nothing here is worth
-/// steering wide of by a kilometre. `min_separation` is what keeps the gaps
-/// flyable - the widest bodies reach about six times their nominal radius, so
-/// two neighbours at their worst still leave better than a hull's width
-/// between them.
+/// Small, numerous rocks avoid creating a single dominant landmark.
+/// `min_separation` keeps the gaps flyable: the widest bodies reach about six
+/// times their nominal radius, so worst-case neighbours still leave more than
+/// one hull width between them.
 const LANE_ROCK_COUNT: u32 = 96;
 const LANE_ROCK_RADIUS: (Meters, Meters) = (Meters(6.0), Meters(16.0));
 const LANE_ROCK_SEPARATION: Meters = Meters(300.0);

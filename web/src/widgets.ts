@@ -3333,10 +3333,9 @@ function initControllerArm(host: HTMLElement): void {
                 `${engineMeters(state.arm, 1)} of arm. The metal gives up at ` +
                 `${structural.toFixed(2)} rad/s^2, and the two flight ` +
                 `computers together could push ${torque.toFixed(1)} - ` +
-                `${(torque / structural).toFixed(0)} times as hard. Every base ` +
-                "hull sits clear of its computers while it is whole - the " +
-                "carrier only just - which is why bolting more of them on " +
-                "buys no turn rate at all.";
+                `${(torque / structural).toFixed(0)} times as hard. This hull ` +
+                "is structure-limited while whole, so adding more computers " +
+                "would buy no turn rate.";
         } else if (gain <= -0.5) {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
@@ -10859,51 +10858,6 @@ export const CUTTER_CELLS: ShipPart[] = unionCells([
     ],
 ]);
 
-// The industrial carrier (block.rs:262-337): the spine, two shoulders with
-// their berths cut out, decks, keel, transom, the berthed cutter laid on its
-// side with two lugs, and two capital drives (5x5x3, thruster.rs) hung
-// off the transom.
-export const CARRIER_CELLS: ShipPart[] = (() => {
-    const cells = unionCells([
-        blockCells("spine", -2, -1, -16, 5, 3, 33),
-        blockCells("shoulder_port", -5, -3, -11, 3, 7, 23),
-        blockCells("shoulder_starboard", 3, -3, -11, 3, 7, 23),
-        blockCells("deck", -3, 2, -7, 7, 1, 15),
-        blockCells("house", -2, 3, -9, 5, 2, 19),
-        blockCells("bridge", -1, 5, -5, 3, 2, 11),
-        blockCells("keel", -1, -3, -9, 3, 2, 19),
-        blockCells("transom", -5, -2, 13, 11, 5, 5),
-    ]).filter(
-        (part) =>
-            !(
-                Math.abs(part.center[0]) === 5 &&
-                part.center[1] >= -2 &&
-                part.center[1] <= 2 &&
-                part.center[2] >= -4 &&
-                part.center[2] <= 2
-            )
-    );
-    const berthed = CUTTER_CELLS.map((part) =>
-        cell(
-            `berth_${part.id}`,
-            6 + part.center[1],
-            -part.center[0],
-            part.center[2],
-            HULL_CELL,
-            "berth"
-        )
-    );
-    const lugs = [
-        cell("lug_low", 5, -1, 0, HULL_CELL, "berth"),
-        cell("lug_high", 5, 1, 0, HULL_CELL, "berth"),
-    ];
-    const drives = [
-        cell("capital_drive_port", -3, 0, 19, CAPITAL_DRIVE, "drives"),
-        cell("capital_drive_starboard", 3, 0, 19, CAPITAL_DRIVE, "drives"),
-    ];
-    return unionCells([cells, berthed, lugs, drives]);
-})();
-
 /** A hull's radius as GOTO measures it: the structural arm, in meters. */
 export function hullRadiusMeters(parts: ShipPart[]): number {
     return hullState(parts).arm * METERS_PER_UNIT;
@@ -10937,7 +10891,6 @@ export function arrivalPark(
 function initArrivalStandoff(host: HTMLElement): void {
     const cutterRadius = hullRadiusMeters(CUTTER_CELLS);
     const gunshipRadius = hullRadiusMeters(GUNSHIP_CELLS);
-    const carrierRadius = hullRadiusMeters(CARRIER_CELLS);
     header(
         host,
         "Arrival scope: the park point",
@@ -10956,15 +10909,13 @@ function initArrivalStandoff(host: HTMLElement): void {
         update()
     );
     const lo = Math.round(cutterRadius);
-    const hi = Math.round(carrierRadius);
+    const hi = Math.round(gunshipRadius);
     const hullName = (r: number): string =>
         r <= lo
             ? `${meters(r)} (utility cutter)`
             : r >= hi
-              ? `${meters(r)} (industrial carrier)`
-              : Math.abs(r - Math.round(gunshipRadius)) < 1
-                ? `${meters(r)} (patrol gunship)`
-                : meters(r);
+              ? `${meters(r)} (patrol gunship)`
+              : meters(r);
     const hull = control("your hull radius", lo, hi, 1, hi, hullName, () =>
         update()
     );
@@ -11130,8 +11081,7 @@ function initArrivalStandoff(host: HTMLElement): void {
             "widget__note",
             "Hull radii are the structural arm of each block hull's cell plan " +
                 `(cutter ${meters(Math.round(cutterRadius))}, gunship ` +
-                `${meters(Math.round(gunshipRadius))}, carrier ` +
-                `${meters(Math.round(carrierRadius))}), the furthest section ` +
+                `${meters(Math.round(gunshipRadius))}), the furthest section ` +
                 "face from the centre of mass - the same figure the flight " +
                 "envelope reads. A GOTO that ends at a planetoid also lifts " +
                 "the park point to the ORBIT band's floor; that lift is not " +

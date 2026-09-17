@@ -149,9 +149,8 @@ pub(super) fn bulk_hauler() -> BlockShip {
     }
 }
 
-/// The civilian workship: a low hull with an open work cradle amidships,
-/// a crew module forward, a service deck aft over two bell drives, and a
-/// docking collar standing off the port flank.
+/// A low hull with an open cradle amidships, a raised forward module, an aft
+/// deck over two drives, and a docking collar on the port flank.
 ///
 /// The cradle is authored as absence: the cells the two bulwarks stand on,
 /// and nothing between them. The collar stands off the flank rather than the
@@ -326,9 +325,9 @@ pub(super) fn patrol_gunship() -> BlockShip {
     }
 }
 
-/// The menu duel's attacker: a short hull with an outrigger down one flank, a
-/// boom up the other, four bell drives and two turrets. Asymmetric on purpose,
-/// so a backdrop silhouette tells it apart from the gunship.
+/// A short hull with an outrigger down one flank, a boom up the other, four
+/// drives, and two turrets. Its asymmetric backdrop silhouette stays distinct
+/// from the gunship.
 pub(super) fn salvage_raider() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -565,7 +564,7 @@ mod tests {
     use super::*;
 
     /// Every hand-authored block hull, so a fleet-wide test cannot miss one.
-    /// The wreck plate is in here too; `crewed` filters it out where a test
+    /// The wreck plate is included; `crewed` filters it out where a test
     /// needs a bridge.
     fn fleet() -> Vec<(&'static str, BlockShip)> {
         vec![

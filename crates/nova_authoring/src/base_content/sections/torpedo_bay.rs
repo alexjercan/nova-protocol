@@ -26,10 +26,9 @@
 //! speed cap it closes at 163 m/s where a Serpent manages 141 - ~16% faster.
 //! And a defender meeting Lances is a defender whose point defense WORKS.
 //!
-//! **The cruise cap is AUTHORED as that price, because the weave does not pay
-//! for itself.** A corkscrew is a longer path, so an evasive torpedo was
-//! expected to arrive later for free. Measured on the real body it does not:
-//! the path stretch is ~1.7% rather than the ideal 11%, and thrust is capped on
+//! **The cruise cap is AUTHORED as that price, because path length alone does
+//! not make the weave slower.** Measured on the real body, the path stretch is
+//! ~1.7% rather than the ideal 11%, and thrust is capped on
 //! the ALONG-NOSE speed, so a weaving torpedo never reaches the taper band,
 //! keeps its engine lit and settles FASTER. Give the Serpent the Lance's cap
 //! and it arrives 1.5% SOONER, longer path and all - which is the control arm

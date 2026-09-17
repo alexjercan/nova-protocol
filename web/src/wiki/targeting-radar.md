@@ -81,7 +81,7 @@ A **trip you have already engaged** is the exception, because it is not a lock. 
 
 How far you can lock depends on what the target IS. Every body answers the sweep with a radar _signature_ derived from its own size and machinery, and the range you can take it at is thirty times that signature - under your own scanner's ceiling of **200 km**. There are no classes: nothing is "a ship, therefore lockable across the map".
 
-- **Ships** answer with their live hull and everything running on it: the structure itself, the drives, the flight computers and the weapons that are still alive. A bare one-cell hull is a contact at about **9 km**, a light skiff at about **22 km**, and the largest carrier in the game at about **60 km**. Shoot a ship apart and it gets quieter - which is also how you tell, from the reticle alone, that you are winning.
+- **Ships** answer with their live hull and everything running on it: the structure itself, the drives, the flight computers and the weapons that are still alive. A bare one-cell hull is a contact at about **9 km**, the development skiff fixture at about **22 km**, and the development carrier stress fixture at about **60 km**. Shoot a ship apart and it gets quieter - which is also how you tell, from the reticle alone, that you are winning.
 - **Asteroids** answer with 100 m plus half their true radius: a field pebble is a close-range contact, a belt body a landmark.
 - **Planets** are the loudest thing out there - ten times their own surface radius, so a world is lockable from anywhere your scanner reaches.
 - **Torpedoes** answer with 500 m plus their top speed, so the fast types the fleet shoots are visible (and shootable) from about **25 km**. A torpedo that has not yet chosen a target is not a contact at all.

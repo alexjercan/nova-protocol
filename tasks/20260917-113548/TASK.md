@@ -1,8 +1,8 @@
 # Clean base content ownership and nova_authoring structure
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
-- TAGS: v0.14.0,refactor,content,examples,docs
+- TAGS: v0.14.0, refactor, content, examples, docs
 
 ## Claim
 

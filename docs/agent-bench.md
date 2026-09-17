@@ -41,7 +41,7 @@ cargo run --features debug bench play <scenario> --agent 'cmd:python3 my_agent.p
 `<scenario>` is an installed scenario id, or a path ending in `.ron` loaded
 as a loose content file. The bench ships five fixtures under `crates/nova_bench/scenarios/`:
 
-- `hunt.content.ron`: one player gunship, one hostile picket parked 2600 m
+- `hunt.content.ron`: one player gunship, one hostile inline raider parked 2600 m
   ahead, an objective and both outcomes. The scenario scores itself.
 - `range.content.ron`: an open range with no objective and no victory. A
   600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile

@@ -12,13 +12,10 @@ use nova_scenario::prelude::CampaignConfig;
 
 use super::scenarios::season_one;
 
-/// The mainline campaign's id. One season per campaign: chapter two joins this
-/// list rather than starting a second one.
+/// The campaign id referenced by its chapter scenarios.
 pub(crate) const SEASON_ONE_CAMPAIGN_ID: &str = "season_one";
 
-/// What the Scenarios board draws above the season's chapters. The season's
-/// own title has not been chosen (see `web/src/lore/seasons/season-1.md`), so
-/// the header says what is certain: which season this is.
+/// The Scenarios board heading for this campaign.
 const SEASON_ONE_NAME: &str = "Season 1";
 
 /// Every built-in campaign, in stable generated-content order.

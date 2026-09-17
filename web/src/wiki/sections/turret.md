@@ -29,9 +29,10 @@ The mount aims at your combat lock with **true intercept lead** - the solution i
 A gun fires only while its barrel is actually **on** the thing it is aiming at.
 The tolerance is **how big that thing looks from here** - so it opens as the
 target grows and tightens as the range does, exactly as a gunner would judge
-it. A carrier at a kilometer is eleven degrees wide and its guns can hardly
-help hitting; the same carrier's own hull is only three degrees of a skiff at
-that range, and a torpedo coming in at 800 m is under a degree. Point your
+it. The development carrier fixture at a kilometer is eleven degrees wide and
+its guns can hardly help hitting; the same hull is only three degrees wide to
+the development skiff fixture at that range, and a torpedo coming in at 800 m
+is under a degree. Point your
 mounts at empty space instead - the crosshair with nothing locked under it -
 and they fall back to a fixed degree of precision, because a mark you invented
 has no size to measure.
@@ -48,7 +49,7 @@ that were going to miss.
 
 ## What it can bear on
 
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/turret.rs (turret_joint_tree: traverse limits None/None, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 where that constant is PI/18, hinge speed PI rad/s; pdc_turret_prototype: muzzle_speed 1,000 m/s x projectile_lifetime 2.0 = 2 km of reach, and crates/nova_ship/src/sections/turret_section/config.rs:133-137 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate on_target_cone = atan(hit radius / distance) :68, floored at MUZZLE_SPREAD_RAD and falling back to POINT_AIM_ON_TARGET_RAD = POINT_AIM_RADIUS / CLOSE_ENGAGEMENT_RANGE = 0.92 deg for a commanded point with no body under it :51; the per-muzzle gate muzzle_on_target :100; the hull figures are HullRadius 194.2 m carrier and 47.8 m skiff and the Serpent's 12.2 m envelope, measured by system_hull_scaling and system_borrowed_battery, giving 11.0 / 2.7 / 0.7 deg at 1 km; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/turret.rs (turret_joint_tree: traverse limits None/None, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 where that constant is PI/18, hinge speed PI rad/s; pdc_turret_prototype: muzzle_speed 1,000 m/s x projectile_lifetime 2.0 = 2 km of reach, and crates/nova_ship/src/sections/turret_section/config.rs:133-137 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate on_target_cone = atan(hit radius / distance) :68, floored at MUZZLE_SPREAD_RAD and falling back to POINT_AIM_ON_TARGET_RAD = POINT_AIM_RADIUS / CLOSE_ENGAGEMENT_RANGE = 0.92 deg for a commanded point with no body under it :51; the per-muzzle gate muzzle_on_target :100; the fixture hull figures are HullRadius 194.2 m carrier and 47.8 m skiff and the Serpent's 12.2 m envelope, measured by system_hull_scaling and system_borrowed_battery, giving 11.0 / 2.7 / 0.7 deg at 1 km; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
 
 The mount turns all the way round, so nothing is out of reach sideways. What bounds it is the barrel's floor: it stops ten degrees below level, because below that it would be pointing back through the ship it is bolted to.
 

@@ -3,15 +3,14 @@
 //! flown out to, and the three marks the pattern and the leg home are flown
 //! against.
 //!
-//! Layout provenance: the editor's stock range (`nova_editor::scenario`), the
-//! free-flight world every builder plays in. This is that world in metres,
-//! with a training picket in place of the builder's own hull.
+//! The layout matches the editor's stock range (`nova_editor::scenario`) in
+//! meter units, with a training picket as the player hull.
 //!
 //! The handbook's practice ranges (`super::super::drills`) are built from this
 //! same furniture, on purpose: a lesson sends the player back to the place
 //! they first flew, with everything the lesson is not about taken away. What
-//! they share beyond the objects is here too: the range's voice, the pairing
-//! every helm event is filtered by, and the keybind chips a lesson pulses.
+//! Shared configuration also includes speaker labels, the entity pair used by
+//! helm-event filters, and the keybind chips a lesson pulses.
 
 use std::collections::BTreeMap;
 
@@ -30,16 +29,15 @@ use crate::{
     scenario_helpers::prelude::*,
 };
 
-// --- the voices --------------------------------------------------------------
+// --- speaker labels ----------------------------------------------------------
 
-/// The range's own voice: the instructor on the comms channel, in Basic
-/// Training and in every practice range.
+/// Speaker label used by Basic Training and each practice range.
 pub(crate) const RANGE_CONTROL: &str = "Range Control";
 
-/// The player, when the card puts words in their mouth.
+/// Speaker label for player dialogue cards.
 pub(crate) const PLAYER: &str = "You";
 
-/// The two faces on the channel. Both are the base game's own art.
+/// Portrait lookup for the two speaker labels.
 pub(crate) fn portrait(speaker: &str) -> Option<AssetRef<Image>> {
     let name = match speaker {
         RANGE_CONTROL => "range-control",
@@ -358,12 +356,10 @@ pub(crate) fn drone_down_var(id: &str) -> String {
 /// point GOTO parks at (the surface plus the arrival standoff), or the verb is
 /// asked for somewhere it will not fly.
 ///
-/// The clock is the third, and it is why the mass is what it is rather than the
-/// guardrail maximum it used to be. GOTO hands the trainer back parked one
-/// standoff off the surface with ORBIT still withheld, so the player is falling
-/// while Range Control talks: at the guardrail the rock is under the hull in
-/// under five seconds, which is not a lesson. At this mass the fall runs about
-/// nine, and the ORBIT card lands inside the first two of them.
+/// The clock is the third constraint. GOTO returns control one standoff off
+/// the surface while ORBIT is still withheld. At the guardrail mass, impact
+/// follows in under five seconds. This mass gives about nine seconds, and the
+/// ORBIT card appears within the first two.
 pub(crate) const ID_PLANETOID: &str = "range_planetoid";
 /// What the planetoid's HUD chip reads.
 pub(crate) const PLANETOID_LABEL: &str = "PLANETOID";

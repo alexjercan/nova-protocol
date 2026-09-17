@@ -1,7 +1,7 @@
 //! The base game's authored content inventory.
 //!
 //! The base game is a built-in mod. This domain owns its scenarios, the
-//! campaign that groups the story chapters among them, section prototypes,
+//! campaign that groups chapter scenarios, section prototypes,
 //! semantic craft assemblies, and path-based asset refs. Generic authoring
 //! helpers, lint, and serialization tooling stay outside it.
 

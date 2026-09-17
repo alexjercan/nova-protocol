@@ -52,7 +52,7 @@ One change. The Breaker bay's
 
 became `source: Inline(...)`: the whole section, authored in the duel. It
 carries its own name and description, health 100, the explosion destroy sound,
-the 1x1x2 cuboid collider, all 13 link points, `hide_in_editor: true`, the
+the 1x1x2 cuboid collider, all 9 link points, `hide_in_editor: true`, the
 Cracks and Sparks damage effects, the `door_petal_` MuzzleDoor track, the
 `bay_tube.glb` mesh with its spawn pose and recess, the siege ballistics
 (fire_rate 1.0, blast 450 m / 2000, projectile_health 5000), its three sounds,

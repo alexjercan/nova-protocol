@@ -38,7 +38,6 @@ import {
     ASTEROID_KINDS,
     asteroidKindFromMix,
     budgetedRcsDeltaV,
-    CARRIER_CELLS,
     collapseBudget,
     COMMAND_CLASSES,
     COMMAND_ROWS,
@@ -818,16 +817,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         `the gunship's radius is its pinned structural arm: ${gunship}`
     );
     const cutter = hullRadiusMeters(CUTTER_CELLS);
-    const carrier = hullRadiusMeters(CARRIER_CELLS);
-    assert.ok(
-        cutter < gunship && gunship < carrier,
-        `cutter ${cutter} < gunship ${gunship} < carrier ${carrier}`
-    );
+    assert.ok(cutter < gunship, `cutter ${cutter} < gunship ${gunship}`);
     assert.equal(CUTTER_CELLS.length, 26, "the cutter's plan is 26 cells");
-    assert.ok(
-        CARRIER_CELLS.length > 800,
-        `the carrier's plan is hundreds of cells: ${CARRIER_CELLS.length}`
-    );
     const park = arrivalPark(950, 100, 500);
     assert.equal(park.centreDistance, 1550);
     assert.equal(park.gap, 500, "the margin is the gap");

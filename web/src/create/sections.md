@@ -449,9 +449,9 @@ ceiling = min( sum(max_torque) / I , 78.48 / r )   rad/s2
 So `max_torque` is the only handling number you author, and it binds only on a
 hull heavy enough that its computers give up before its metal does. Small hulls
 are all on the second term: the metal would tear first, so fitting more
-computers buys them no turn rate at all. Capital hulls sit near the crossover -
-the base game's carrier is on the structural term with its whole bridge alive
-and on the torque term once it has lost a computer. Size and shape set the rest.
+computers buys them no turn rate at all. Capital hulls can sit near the crossover. The development carrier fixture is
+on the structural term with all computers alive and on the torque term after it
+loses one. Size and shape set the rest.
 A long hull has a long arm and a low ceiling; a short one is sharp. Author a
 bigger `max_torque` for a capital-scale hull that reads sluggish, not for a small
 one - a small one is already at its limit.
@@ -736,8 +736,8 @@ kind: Torpedo((
   ALSO be clear of the hull that launched it plus the full `blast_radius`, a
   distance snapshotted at launch and not authorable from here. That second
   condition is what actually sets the bay's minimum range - about 324 m off a
-  small boat with a 300 m warhead, 494 m off a 194 m carrier - so authoring a
-  shorter `arm_distance` buys nothing below it.
+  small boat with a 300 m warhead, or 494 m off the 194 m development carrier
+  fixture - so authoring a shorter `arm_distance` buys nothing below it.
 - `ignition_delay` - seconds the torpedo coasts INERT before its drive lights.
   For that whole window it has no thrust, no guidance, no fuze and no colliders:
   it can neither be shot down nor touch the ship it is leaving. Size it against

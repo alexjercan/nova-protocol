@@ -35,7 +35,7 @@ The computer does not decide it on its own. A ship turns as hard as the lower of
 <p>The base Patrol Gunship carries its mass over a 55.2 m arm - balance point to the outer face of its furthest section, which is the tip of its bow spur. Hull metal takes 8 G, so that arm allows 1.42 rad/s^2 and no more, while its two flight computers together could push 8.74 - six times as hard. Shoot the bow off and the balance point slides aft: the arm drops to 41.6 m, the ceiling climbs to 1.89 rad/s^2, and the wreck flips 180 degrees in 2.58 s where the whole ship took 2.97 s. Cut the spine instead and only the dorsal ridge and the two computers on it are still one ship: twenty sections sever away as wreckage.</p>
 </div>
 
-Every ship in the base fleet but one is held by the second, with a wide margin on the first. The exception is the carrier: 2,081 sections and enough inertia that its ten computers run out first, so it turns at 0.07 rad/s^2 where its metal would have allowed 0.40. Nothing authors either result - both fall out of the shape you built. A short craft swings on a short arm and whips around. A long hauler swings on a long arm and handles like the freighter it is.
+The patrol gunship is held by the structural limit, with a wide margin on the computer limit. Neither result is authored directly: both follow from the shape, section mass, and installed computer torque. A short craft swings on a short arm and turns harder. A long hauler swings on a long arm and turns more gently.
 
 Two things follow that you feel in the cockpit:
 
@@ -50,7 +50,7 @@ Two things follow that you feel in the cockpit:
 
 A big hull can mount more than one. They do not each steer it: they share one steering loop, and their torque adds into it.
 
-On a ship that is already at its structural limit - which is every base hull but the carrier - that extra torque buys no turn rate at all. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too. The carrier is the one shipped hull on that side of the line, which is why it carries ten.
+On a ship that is already at its structural limit, extra torque buys no turn rate. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too. The test rigs below show both cases.
 
 <!-- Flown 170 degree flips, printed by crates/nova_ship/src/flight/tests/stacking.rs::size_decides_the_turn_and_stacking_only_helps_a_torque_bound_hull (:314). Light hull = the "fighter" rig, 3 unit cells (:284-290); heavy barge = the "barge" rig, 15 cells at 20x density (:298-304); 5 degree traverse gate :232; stack sizes :306; 170 degree turn :309. -->
 

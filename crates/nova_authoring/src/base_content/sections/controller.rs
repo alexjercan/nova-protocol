@@ -39,10 +39,9 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             // its metal allows and a capital that has lost a computer does
             // not. Small hulls are structure-bound either way.
             max_torque: 9760.0,
-            // Attitude hardware and nothing else. What the ship is
-            // PERMITTED to do is `capabilities` on the spawn, and the
-            // voice it speaks with is the design's presentation config -
-            // neither is a property of the box that turns the hull.
+            // Attitude hardware only. Spawn capabilities control permitted
+            // actions, and presentation config controls labels and effects;
+            // neither belongs to this section prototype.
             //
             // The cable-wrapped computer cell: the first controller with a
             // body of its own instead of an invisible cube. Every face

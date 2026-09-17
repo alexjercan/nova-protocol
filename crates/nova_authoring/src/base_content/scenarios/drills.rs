@@ -18,9 +18,8 @@
 //!   keybind dock, which is the HUD already saying "not on this range".
 //! - THE BOARD IS ONE SHORT LINE. The objective says what to do in a handful
 //!   of words. The reason goes on the comms channel, where a line is read once
-//!   and leaves - rather than sitting on the HUD for the whole drill, being
-//!   scrolled past. The voice there is a plain `Training` label with no
-//!   portrait: a practice flight teaches, it does not act.
+//!   and leaves instead of remaining on the HUD for the whole drill. These
+//!   lines use the `Training` speaker label with no portrait.
 //! - THE VERB IS LIT. The keybind chip for whatever the live beat is about
 //!   pulses until that beat is done, so "what do I press" is answered on the
 //!   HUD, in the player's own bindings, and never spelled in authored text.

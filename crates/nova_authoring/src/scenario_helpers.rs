@@ -1,7 +1,7 @@
 //! Generic constructors for Rust-authored scenario configuration.
 //!
 //! Use this catalog for small RON-facing expression, filter, action, and watch
-//! nodes. Keep story policy, scenario ids, pacing, and object design in the
+//! nodes. Keep content policy, scenario ids, pacing, and object design in the
 //! owning scenario module.
 
 use bevy::prelude::{AudioSource, Color};

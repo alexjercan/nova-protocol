@@ -309,7 +309,7 @@ mod tests {
     /// Every shipped ship, ASSEMBLED, derives one connected structural graph.
     ///
     /// Checked on the assembly rather than on the block designs, because the
-    /// designs are not the whole story: a turret stands on a face, so its pose
+    /// design sections alone are insufficient: a turret stands on a face, so its pose
     /// is derived from the cell it bolts to. Only the assembled ship exercises
     /// that, and only the assembled ship is what the game spawns.
     ///
