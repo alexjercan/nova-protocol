@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nova Bench"
+  short_description: "Run and judge agent-driven Nova player flows"
+  default_prompt: >-
+    Use $nova-bench to plan, run, and inspect one bounded Nova player flow.
+policy:
+  allow_implicit_invocation: true

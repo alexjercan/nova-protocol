@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nova Docs"
+  short_description: "Update Nova docs, wiki, website, and releases"
+  default_prompt: >-
+    Use $nova-docs to update and inspect the affected Nova documentation.
+policy:
+  allow_implicit_invocation: true

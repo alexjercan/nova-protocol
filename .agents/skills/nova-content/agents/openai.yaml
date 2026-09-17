@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nova Content"
+  short_description: "Change strict Nova content and runtime IDs"
+  default_prompt: >-
+    Use $nova-content to change, regenerate, lint, and run Nova content.
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nova Implement"
+  short_description: "Deliver approved Nova changes and delete replaced paths"
+  default_prompt: >-
+    Use $nova-implement to map, propose, and deliver this Nova change.
+policy:
+  allow_implicit_invocation: true

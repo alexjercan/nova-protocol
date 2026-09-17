@@ -1,8 +1,0 @@
-interface:
-  display_name: "Pair"
-  short_description: "Default code-backed pairing workflow"
-  default_prompt: >-
-    Use $pair to show code-backed proposals, continue approved work,
-    and stop at user decisions.
-policy:
-  allow_implicit_invocation: true

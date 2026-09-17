@@ -1,80 +1,69 @@
 # AGENTS.md
-
 `~/AGENTS.md` applies. Root: `crates/nova_core/src/lib.rs` -> `AppBuilder`.
 Plugin order: Bevy -> input -> assets -> gameplay -> scenario -> UI -> debug.
 
-## Workflow
-
-- Use Pair by default unless another mode is requested. Read code first.
-  Continue approved plans and mechanical work; stop only at real decisions.
-  Do not edit while answering a question. Use local sources before the network.
-- Interfaces, names, defaults, and precedence are decisions. Show options,
-  one consequence each, and a recommendation. Prefer code over abstract prose.
-- At stops: `Delta`, `Verified`, `Next`. Put the question on its own final line.
-- Work on `master`; use Sprout only for a requested isolated worktree.
-- Use Tatr only for requested tracked work: one task per request and follow-up.
-  Give it one scheduling tag: `backlog` at priority 0 or the current release.
-  Keep proof, decisions, reviews, retrospectives, and research with the task.
+## Work
+- Start with `nova-implement` unless the user requests another mode.
+- Read code and real content before proposing changes. Use local sources first.
+- State the end state, what dies, what may break, and what must fail loudly.
+- Map one feature slice: owner, entry point, inputs, state, outputs, ordering,
+  IDs, content, UI, docs, callers, and closest proof. Expand only on evidence.
+- Stop for interfaces, names, defaults, precedence, ownership, and error policy.
+  Show options, one consequence each, and a recommendation.
+- Continue approved mechanical work. Do not ask only whether to continue.
+- Do not edit while answering a question. At stops use `Delta`, `Verified`,
+  `Next`; put one decision question on its own final line.
+- Work on `master`. Use Sprout only when the user requests an isolated worktree.
 - Stage explicit paths. Never leave the index staged across tool calls.
 
-## Skills
+## Implementation gate
+Before code edits, show exact paths and lines, existing types and functions,
+proposed types, fields, functions, and signatures, a compact before/after call
+graph, and the behavior or failure the proof will observe. Wait for approval
+before adding a type, function, or test. Continue an approved design directly.
 
-Read `.agents/skills/<name>/SKILL.md`; do not wait for automatic discovery.
-- `pair`: start unless opted out. `verify`: before change proposals/work/review.
-- `probe`: examples, scenario probes, performance. `content`: content/IDs/RON.
-- `docs`: docs, web, releases, or invalidated docs. `nova-review`: asked panel.
-- `CLAUDE.md` imports this file; `.claude/skills/` links to `.agents/skills/`.
-- Limits: AGENTS.md 80 lines; each SKILL.md 40, including metadata. All lines
-  at most 80 characters. Cut repetition; do not split text to evade limits.
+## Change policy
+- Treat Nova as the sole consumer of internal crates and unshipped formats.
+- Replace obsolete interfaces. Delete old paths, adapters, aliases, and tests.
+- Do not add compatibility for unshipped behavior. Migrate shipped formats only.
+- Require explicit content fields and known IDs; fail at lint, then load.
+- Use `Option` only when absence has defined behavior. Keep a fallback only for
+  a valid runtime condition; never use one to hide invalid authoring.
+- Change the owning interface first. Use compiler errors to update every caller.
+- Delete comments that repeat code or history. Explain a concrete reason,
+  constraint, owner, failure, or debt. Avoid vague terms such as load-bearing.
+- Use `TODO`, `FIXME`, `WTF`, or `XXX` only with the problem and removal rule.
 
 ## Evidence
+- Report Claim, Evidence (`path:line`), Change, Blast radius, and Verification.
+  Show proposed code and short graphs. Label unverified claims.
+- Reproduce bugs before fixing them. Preserve before/after artifacts.
+- Add permanent proof only for named, important, stable behavior or a reproduced
+  failure. Do not add tests for coverage, prose, paths, inventories, or tests.
+- Use unit tests for pure logic and validation; asserted examples for ECS;
+  `nova-probe` for deterministic flows; `nova-bench` for player flows.
+- Judge assertions, state, audits, logs, reports, and frames, not exit zero or
+  pilot prose. Inspect rendered output for visual claims.
+- Run affected checks only. Do not run workspace tests or Clippy unless asked.
+- Never assert timing. Compare matched repeat sets to a named reference.
 
-- Reports/proposals: Claim; Evidence (`path:line`, code); Change (proposed
-  types, fields, signatures or none); Blast radius; Verification (steps/limits).
-- Label unverified claims. Trace callers, crates, ordering, IDs, formats, UI,
-  platforms, and docs. Use short code excerpts, not abstract prose.
-- Reproduce before fixing; add an assertion that fails without the fix.
-  Rerun afterward. Preserve before/after artifacts and state any blocked proof.
-- Use a unit test if sufficient; otherwise propose examples/scenarios and an
-  agent play of the flow. Run applicable flows; explain tests-only choices.
-- Before play: fixture, revision, seed, budgets, pilot, output, actions,
-  predicted results, pass/stop conditions. Easy scenes must keep the trigger.
-- Judge assertions, state, audits, logs, and frames, not pilot prose or exit 0.
-  Separate game, pilot, fixture, and harness errors. Unreached means untested.
-- Run affected checks only; no full workspace tests or Clippy unless requested.
-  Inspect rendered/generated output. Headless runs do not prove appearance.
-- Register systems examples in `Cargo.toml`. Put `outcome: <slug>` markers by
-  assertions; register each in `crates/nova_probe_cli/tests/catalog_drift.rs`.
-- Never assert timing. Compare repeat sets against a named, matched reference.
-
-## Conventions
-
-- Prefer simple, correct, maintainable changes, not compatibility machinery.
-- Require explicit content fields and known IDs; errors at lint, then load.
-  Reserve `Option` for documented overrides that define what absence means.
-- Rust/Cargo: `nix develop --command ...`, pinned nightly, `rustfmt.toml`.
+## Code and content
+- Use `nix develop --command ...`, pinned nightly, and `rustfmt.toml`.
 - Use `#[expect(<lint>, reason = "...")]`, not bare `#[allow]`. Document public
-  items. Comments explain ownership/constraints or reasons, not code or history.
-- No workspace pedantic, nursery, wildcard-import, redundant-pub-crate,
-  needless-pass-by-value, or private-missing-doc lints.
-- Export module preludes from crate roots; import through them, even internally.
+  APIs. Do not add workspace pedantic, nursery, wildcard-import,
+  redundant-pub-crate, needless-pass-by-value, or private-missing-doc lints.
+- Export module preludes from crate roots and import through them.
 - Use `<Subsystem>Plugin` and `<Subsystem>Systems`; state cross-plugin ordering.
-- Unit tests: inline or sibling `src/**/tests/`; integration: `crates/*/tests/`.
-  Name tests as behavior statements.
-- Build apps/examples with `AppBuilder`; seed gameplay through `bevy_rand`.
+- Put unit tests inline or in `src/**/tests/`; use `crates/*/tests/` for
+  integration tests. Name tests as behavior statements.
+- Build apps with `AppBuilder`; seed gameplay through `bevy_rand`.
 - Do not share `CARGO_TARGET_DIR` across worktrees or exceed the job cap.
-- Author `nova_events` quantities in meters; convert at named engine/grid edges
-  via `to_engine`/`from_engine`. 1 unit = 10 m = 1 cell. Display meters.
-- Edit Rust builders, regenerate, lint, and run content. Never hand-edit
-  generated `assets/base/**/*.content.ron`. Search runtime-ID renames/consumers.
-- Shared IDs: lowest shared crate; no edge for a constant. Fixture IDs: local.
-- Ship invalidated docs with code; read `docs/keeping-docs-in-sync.md`.
-  No task citations in durable docs except active `TODO(<task-id>)`.
-
-## Changelog
-
-- Use the last RELEASE baseline. One entry per released change, <=200 joined
-  characters, grouped by subsystem. Mark format breaks `**(breaking)**`.
-- Collapse pre-release revisions; omit bugs introduced and fixed in that cycle.
-  Reread all `[Unreleased]` after multiple edits. Migrate shipped formats only;
-  remove docs for removed unshipped behavior.
+- Author `nova_events` quantities in meters. Convert at named engine/grid edges.
+  One engine unit is 10 m and one cell. Display meters.
+- Edit Rust builders; regenerate, lint, and run content. Never hand-edit
+  generated base RON. Search every runtime-ID consumer.
+- Put shared IDs in the lowest shared crate. Keep fixture IDs local.
+- Ship invalidated docs with code. Do not cite tasks in durable docs except an
+  active `TODO(<task-id>)`.
+- Base changelog entries on the last release. Mark format breaks as
+  `**(breaking)**`. Remove docs for removed unshipped behavior.

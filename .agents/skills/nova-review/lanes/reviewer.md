@@ -1,6 +1,7 @@
 # Reviewer contract
 
-Read AGENTS.md, [Verify](../../verify/SKILL.md), and your lane brief.
+Read AGENTS.md and your lane brief. Use `nova-probe` for deterministic checks
+and `nova-bench` only when the review grants a play slot.
 
 ## Rules
 
@@ -13,7 +14,7 @@ Read AGENTS.md, [Verify](../../verify/SKILL.md), and your lane brief.
 - Run games or probes only with the measurement slot granted by your brief.
   Use existing fixtures. Artifact output is allowed; repository edits are not.
 - Stop helpers by recorded PID, never by process-name matching.
-- A skipped check is not a pass. Never implement Verify's fix step in review.
+- A skipped check is not a pass. Never implement a fix during review.
 
 ## Severity
 

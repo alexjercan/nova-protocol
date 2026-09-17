@@ -22,12 +22,14 @@ Read `examples/systems/README.md` before you judge a range.
   read where only one drains it, a system pair with no explicit order.
 - A test that asserts the implementation instead of the behavior. A test whose
   name does not read as a behavior statement.
-- Behavior the change adds with no sufficient check. A unit test can prove
-  local logic; cross-system and player-flow claims need the affected app path.
-  Use Verify to select the check, not the size of the diff.
+- Important stable behavior with no sufficient proof. A unit test can prove
+  pure logic; cross-system claims need the affected app path; player flows need
+  `nova-bench`. Select the check from the claim, not the size of the diff.
+- A new test with no named behavior, failure, or invariant. Do not demand tests
+  for coverage, prose, paths, inventories, implementation details, or tests.
 - An `outcome: <slug>` marker missing beside a range assertion, or missing from
   `crates/nova_probe_cli/tests/catalog_drift.rs`.
-- A bug fixed with no test that fails without the fix.
+- A reproduced defect whose important stable behavior has no regression proof.
 
 ## Running
 

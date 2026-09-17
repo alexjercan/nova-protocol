@@ -21,17 +21,17 @@ and say the judgement is unrendered.
 
 ## Running
 
-Probe brings up its own throwaway X server:
+Nova Probe brings up its own throwaway X server:
 
 ```bash
 nix develop --command cargo run --features dev probe run <name>
 ```
 
 Inspect captured frames when the range produces them. Otherwise use an
-existing screenshot example, or a recorded bench play following
-[Verify](../../verify/SKILL.md). State the player steps and expected visible
-feedback before the run. A headless score cannot prove appearance, and a
-rendered run with no inspected frames is not visual evidence.
+existing screenshot example, or a recorded play planned with `nova-bench`.
+State the player steps and expected visible feedback before the run. A headless
+score cannot prove appearance, and a rendered run without inspected frames is
+not visual evidence.
 
 Use only existing fixtures during review. When you start an X server by hand,
 record its PID and stop it by that PID.

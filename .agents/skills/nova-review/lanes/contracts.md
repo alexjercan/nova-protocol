@@ -13,9 +13,11 @@ Read `docs/keeping-docs-in-sync.md` for the documentation map.
   `docs/`, and `crates/`.
 - A hand-edited generated file. `assets/base/**/*.content.ron` comes from the
   Rust builders through `content gen`, and `content_ron_parity` goes red.
-- A shipped format that changed shape - scenario, mod, save, bundle. It needs
-  `**(breaking)**` and a migration note. A format that never shipped needs
-  neither: remove its documentation instead of writing a migration for it.
+- A shipped format with known consumers that changed shape. It needs
+  `**(breaking)**` and a migration note. An unshipped format needs neither:
+  delete compatibility code and remove its obsolete documentation.
+- A required value hidden by a default, optional field, alias, or permissive
+  parser. Invalid authoring must fail at lint or load.
 - Portability, which CI catches slowly and you catch for free:
   - `std::time`, `std::thread`, and blocking IO compile for wasm32 and then
     panic in the browser. `ci/wasm-clippy/clippy.toml` holds the ban list.

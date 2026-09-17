@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nova Probe"
+  short_description: "Run deterministic Nova behavior and performance checks"
+  default_prompt: >-
+    Use $nova-probe to add or run a Nova probe and inspect its evidence.
+policy:
+  allow_implicit_invocation: true

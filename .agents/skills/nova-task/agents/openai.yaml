@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nova Task"
+  short_description: "Track Nova work as a delivery specification"
+  default_prompt: >-
+    Use $nova-task to create or update the requested Nova task specification.
+policy:
+  allow_implicit_invocation: true

@@ -3,8 +3,8 @@
 Do not review the change. Try to break the game with it.
 
 Take the measurement slot only after the performance lane releases it. Follow
-[Verify](../../verify/SKILL.md) for a bounded play on an existing fixture.
-State the steps and predicted observations first. Mark an open-ended attempt
+`nova-bench` for a bounded play on an existing fixture. State the steps and
+predicted observations first. Mark an open-ended attempt
 as exploration; reduce a discovery to a short reproduction before calling it a
 confirmed defect. Propose any missing fixture to the owning session.
 
