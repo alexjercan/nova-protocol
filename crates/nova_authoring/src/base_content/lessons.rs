@@ -483,8 +483,9 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "DOCK",
             looping(
                 "flight_dock",
-                "a tender on the last stretch of an approach: the two port crosses square up and \
-                 the ticked line between them shortens tick by tick until the DOCK chip lights",
+                "a tender creeping the last meters onto a moored spar, the last tick going off \
+                 the ticked line between the two port crosses, then the dock taken - the sight \
+                 goes out and the two hulls hold as one",
             ),
             "DOCK clamps your hull to the ship you hold a travel lock on, port face to port face, \
              and both hulls need a docking port. Inside 80 m the docking sight draws a cross on \

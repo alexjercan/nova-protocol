@@ -190,6 +190,96 @@ const SHEET_EYE: Meters3 = Meters3::new(82.0, 30.0, 30.0);
 #[cfg(feature = "debug")]
 const SHEET_LOOK: Meters3 = Meters3::new(0.0, 0.0, -24.0);
 
+/// The second sheet this tiles: "DOCK", the FLIGHT lesson about the key.
+///
+/// A second lesson on this producer rather than a producer of its own,
+/// because the expensive part of a docking demonstration is REACHING the
+/// envelope - a ported tender, a ported mooring, a travel lock and a flown
+/// approach - and this walk is standing in it by the time the first sheet
+/// closes. The rule the row follows is the one
+/// `scripts/capture-lesson-media.sh` states: photograph the next lesson from
+/// the screen already open.
+///
+/// The two sheets are not the same footage. The envelope sheet is about the
+/// sight's COLOURS - four gates coming good - and it stops on the frame a
+/// pilot presses the key in, on purpose, because taking the dock inside it
+/// would remove the instrument it is about. This one starts there and is about
+/// what the key DOES: the last capture tick going, the offer landing, and the
+/// two hulls held.
+#[cfg(feature = "debug")]
+const DOCK_LESSON: &str = "flight_dock";
+
+/// The face gap the tender backs out to before the second sheet opens, in
+/// meters.
+///
+/// Just OVER one capture distance, and that is the whole reason the tender
+/// backs off at all. The sight rules a tick every capture distance out from
+/// the target face (`nova_hud::docking_sight`), so at the six meters the first
+/// sheet ends on there is no tick left to lose - the lesson's own sentence
+/// about a line that shortens has nothing to show. From here the last tick is
+/// still on the line and goes DURING the sheet, which is the frame the gap
+/// gate closes and the offer appears.
+#[cfg(feature = "debug")]
+const DOCK_OPEN_GAP: f32 = 11.5;
+
+/// How fast it backs out, in meters a second. Brisk - this is between two
+/// sheets and nothing is recording it.
+#[cfg(feature = "debug")]
+const BACK_SPEED: MetersPerSecond = MetersPerSecond(4.0);
+
+/// How fast it creeps back in while the second sheet records, in meters a
+/// second.
+///
+/// Inside the envelope's 5 m/s ceiling, because this sheet ends in a DOCK and
+/// a run-in that was illegal would be refused - but near it, because the cells
+/// are the budget. The first cut crept at 2 m/s and spent seventeen of the
+/// twenty getting to the key, which left three for the thing the lesson is
+/// about. At this rate the last capture tick goes around the fourth cell and
+/// the joint takes around the eighth, so most of the sheet is the held pair.
+#[cfg(feature = "debug")]
+const DOCK_CREEP: MetersPerSecond = MetersPerSecond(4.0);
+
+/// Cells the second sheet spends closing before the key is taken.
+///
+/// A floor, not a schedule: the beat waits on this AND on every gate holding,
+/// so the key is pressed on the frame the dock would actually be accepted
+/// rather than on a cell number that happens to agree with it.
+#[cfg(feature = "debug")]
+const DOCK_LEAD_CELLS: u32 = 6;
+
+/// Where the second sheet's eye stands, in meters.
+///
+/// [`SHEET_EYE`] mirrored to the other side of the line and pulled in: two
+/// sheets of one maneuver shot from one place would read as the same footage
+/// printed twice, and the pair is a smaller object by the time this one
+/// records.
+///
+/// The ELEVATION is kept, and two cuts paid for that. An eye under the line
+/// looks at the pair through the tender's belly and its drive, and an eye
+/// swung round toward the approach line stacks the two hulls into one
+/// silhouette with the sight buried inside it. Over the line and well across
+/// it, the two hulls stay separate and the sight stays between them, which is
+/// the only arrangement in which the joint is VISIBLE as a joint.
+///
+/// The standoff is set by the INSTRUMENTS, not by the hulls. A plate's arms
+/// span two and a half cells, so the sight is 50 m across whatever the gap has
+/// come down to; the travel lock's bracket is wider still, and it belongs in
+/// the cell because the lock is half of what the lesson says - DOCK clamps you
+/// to the ship you HOLD A LOCK ON. A cut ten meters nearer had the hulls at a
+/// good size with the bracket's corners running off every edge, which reads as
+/// a framing mistake rather than as a reticle.
+#[cfg(feature = "debug")]
+const DOCK_EYE: Meters3 = Meters3::new(-79.0, 33.0, 24.0);
+
+/// What it looks at: the middle of the PAIR, not the gap.
+///
+/// The first sheet aims at the gap, because the gap is its subject. This one
+/// ends with two hulls held as one, so it is framed as one object from the
+/// start - and the joint then happens in the middle of the cell instead of at
+/// the edge of it.
+#[cfg(feature = "debug")]
+const DOCK_LOOK: Meters3 = Meters3::new(0.0, 0.0, -23.0);
+
 /// What the sight sees, and the two orders that answer it.
 ///
 /// Written by [`measure_the_pair`] from the same `DockingPair` the instrument
@@ -256,6 +346,7 @@ fn main() -> bevy::app::AppExit {
                 (
                     measure_the_pair,
                     fly_the_approach.run_if(resource_exists::<Approaching>),
+                    fly_the_dock.run_if(resource_exists::<DockRun>),
                 )
                     .chain(),
             );
@@ -585,6 +676,102 @@ fn the_envelope_holds(world: &mut World) {
     );
 }
 
+/// Which way the tender is flying between and during the second sheet.
+///
+/// Absent, nothing writes the hull's velocity, which is what the framing beats
+/// between the two sheets need.
+#[cfg(feature = "debug")]
+#[derive(Resource, Clone, Copy, PartialEq, Eq)]
+enum DockRun {
+    /// Out to [`DOCK_OPEN_GAP`], so the last capture tick is back on the line.
+    BackOff,
+    /// Stopped, while the eye is moved and the scene settles.
+    Hold,
+    /// In at [`DOCK_CREEP`], the run the second sheet records.
+    Creep,
+}
+
+/// Fly the second sheet's run-in.
+///
+/// A velocity, for the reason [`fly_the_approach`] gives: the closing-rate
+/// gate grades how the two bodies are MOVING, and this sheet ends in a dock
+/// that gate has to accept.
+///
+/// A DOCKED hull is excluded by the query rather than by a branch. Once the
+/// joint is made the two hulls are held by it, and a walk still writing a
+/// velocity onto one of them would be dragging against the very connection the
+/// sheet was recorded to show.
+#[cfg(feature = "debug")]
+fn fly_the_dock(
+    run: Res<DockRun>,
+    approach: Res<Approach>,
+    mut player: Query<
+        &mut avian3d::prelude::LinearVelocity,
+        (
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            Without<DockedShip>,
+        ),
+    >,
+) {
+    let speed = match *run {
+        DockRun::BackOff => -BACK_SPEED.to_engine(),
+        DockRun::Hold => 0.0,
+        DockRun::Creep => DOCK_CREEP.to_engine(),
+    };
+    let closing = approach.closing_axis * speed;
+    for mut linear in &mut player {
+        linear.0 = closing;
+    }
+}
+
+/// Advance once the tender has backed out past the first capture tick.
+#[cfg(feature = "debug")]
+fn the_tick_is_back_on_the_line() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<Approach>(|approach| approach.gap >= DOCK_OPEN_GAP)
+}
+
+/// Advance once the joint exists - the state the second half of the sheet
+/// holds.
+#[cfg(feature = "debug")]
+fn the_hulls_are_held() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<(), (With<PlayerSpaceshipMarker>, With<DockedShip>)>()
+            .is_some_and(|mut held| held.iter(world).next().is_some())
+    })
+}
+
+/// Check the second sheet closed on a hull that is actually held, and that the
+/// instrument went out with it.
+///
+/// Both halves, because either one alone would pass on footage the lesson does
+/// not claim: a sight still being drawn means the dock was refused and the
+/// walk recorded a pilot pressing a key that did nothing, and a dock with no
+/// instrument before it means the sheet never showed what was being lined up.
+#[cfg(feature = "debug")]
+fn the_dock_took(world: &mut World) {
+    let held = world
+        .try_query_filtered::<(), (With<PlayerSpaceshipMarker>, With<DockedShip>)>()
+        .is_some_and(|mut held| held.iter(world).next().is_some());
+    let sight = world
+        .try_query::<&DockingSightPart>()
+        .is_some_and(|mut parts| parts.iter(world).next().is_some());
+    let approach = *world.resource::<Approach>();
+    info!(
+        "lesson dock: docked {held}, sight drawn {sight}, gap {:.1} m at the clamp",
+        approach.gap
+    );
+    assert!(
+        held,
+        "the second sheet must end on a hull the dock is holding"
+    );
+    assert!(
+        !sight,
+        "a held hull has nothing left to line up, so the sight must be down"
+    );
+}
+
 /// Load, lock the spar, frame the pair, and record the approach coming good.
 #[cfg(feature = "debug")]
 fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -627,5 +814,52 @@ fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .add()
         .step("every gate holds")
         .on_enter(the_envelope_holds)
+        .add()
+        // FLIGHT: "DOCK". The first sheet is closed, so the walk is standing
+        // in the envelope with the offer on screen - which is where this
+        // lesson starts. `Approaching` goes first: it and `DockRun` both write
+        // the hull's velocity, and left running it would drive the tender back
+        // in at the run-in speed against every meter the back-off buys.
+        .step("back the tender out past the first capture tick")
+        .on_enter(|world: &mut World| {
+            world.remove_resource::<Approaching>();
+            world.insert_resource(DockRun::BackOff);
+        })
+        .until(the_tick_is_back_on_the_line())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("stop, and stand the eye on the gap")
+        .on_enter(|world: &mut World| {
+            world.insert_resource(DockRun::Hold);
+            pose_camera(world, DOCK_EYE, DOCK_LOOK);
+        })
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("open the sheet and creep the last tick down")
+        .on_enter(|world: &mut World| {
+            sheet_start(world, DOCK_LESSON, LESSON_GRID);
+            world.insert_resource(DockRun::Creep);
+        })
+        .until(and(frames(DOCK_LEAD_CELLS), every_gate_holds()))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("take the dock")
+        .on_enter(press_action("dock"))
+        .until(frames(1))
+        .add()
+        .step("release the key and let the joint take")
+        .on_enter(release_action("dock"))
+        .until(the_hulls_are_held())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        // The rest of the sheet on the held pair. The camera has not moved
+        // since the sheet opened, which is what makes an action loop wrap as a
+        // repeat rather than as a jump (`shared/lesson.rs`).
+        .step("hold the joined pair to the end of the sheet")
+        .until(sheet_written(DOCK_LESSON))
+        .deadline(30.0)
+        .add()
+        .step("the dock took")
+        .on_enter(the_dock_took)
         .add()
 }

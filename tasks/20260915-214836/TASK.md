@@ -153,12 +153,13 @@ Start only after the Phase 1 owner review is recorded on this task.
       decodes every committed file with the crate `bevy_image` wraps - the same
       pure-Rust decoder on both targets. A browser re-run since the codec change
       is NOT done, and the handbook is 63 sheets now rather than the 24 that run
-      proved. 62 of the 63 lessons ship captured footage, from thirty-three
-      producers: `scripts/gen-lesson-media.py --check` reports 62 captured and 1
-      placeholder, so the generator is the fallback for a lesson authored
-      without a producer rather than the source of the art. The one placeholder
-      is `flight_dock`, held on purpose while the docking rewrite is in flight -
-      a sheet shot against a dock that is being rebuilt is a sheet to reshoot.
+      proved. ALL 63 lessons ship captured footage, from thirty-three
+      producers: `scripts/gen-lesson-media.py --check` reports 63 captured and 0
+      placeholders, so the generator is the fallback for a lesson authored
+      without a producer rather than the source of the art. `flight_dock` was
+      the last one held, waiting on the docking rewrite; that has landed, so it
+      is a second sheet on `lesson_dock_envelope` - the walk is already standing
+      in the capture envelope when the first sheet closes.
 - [x] Wire `Start Training` and applicable Practice actions through the existing
       New Game/scenario handoff. Basic Training is the base bundle's declared
       `tutorial`; do not add a competing launch path. Practice launches four
