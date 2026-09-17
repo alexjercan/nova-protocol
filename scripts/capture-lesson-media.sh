@@ -86,6 +86,7 @@ PRODUCERS=(
     "lesson_combat_battery|combat_magazines:loop,combat_point_defense:still"
     "lesson_combat_lance|combat_railgun:loop,combat_collapse:loop"
     "lesson_combat_torpedoes|combat_torpedoes:loop"
+    "lesson_build_rail|build_readout:still,build_stacking:still"
     "lesson_build_sections|build_sections:still,build_mass:still,build_balance:still"
     "lesson_build_geometry|build_turning:still,build_weapon_mounts:still,build_docking_port:still"
     "lesson_build_generate|build_generate:loop"

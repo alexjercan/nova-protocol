@@ -934,8 +934,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "A second flight computer",
             still(
                 "build_stacking",
-                "two flight computers mounted on one spine in the editor, the rail's turn ceiling \
-                 unmoved beside the structure-limited note",
+                "two flight computers on one spine in the editor, both of them listed in the \
+                 scene tree, and the rail naming the structure as what holds the turn rate down",
             ),
             "A second flight computer adds no turn rate to a hull already held by its structure, \
              which is every base hull but the carrier. It buys precision - the turn stops on the \

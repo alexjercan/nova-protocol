@@ -785,6 +785,10 @@ name = "lesson_start_pause"
 path = "examples/screenshots/lesson_start_pause.rs"
 
 [[example]]
+name = "lesson_build_rail"
+path = "examples/screenshots/lesson_build_rail.rs"
+
+[[example]]
 name = "lesson_menu_quality"
 path = "examples/screenshots/lesson_menu_quality.rs"
 
