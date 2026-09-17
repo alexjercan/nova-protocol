@@ -329,6 +329,20 @@ pub fn the_shell_answered() -> std::sync::Arc<nova_protocol::nova_debug::harness
     })
 }
 
+/// Advance once the CRT has finished sliding OFF the screen.
+///
+/// The complement of `nova_os_raster_open`, and it has to be the openness
+/// rather than the pause state: the close is animated
+/// (`NovaOsCloseTransition`), so the state is back to what it was several
+/// frames before the raster has stopped covering what is underneath it.
+#[cfg(feature = "debug")]
+pub fn the_shell_is_closed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        nova_protocol::nova_os_ui::prelude::nova_os_openness(world)
+            .is_none_or(|open| open <= f32::EPSILON)
+    })
+}
+
 /// Type a command and submit it, marking the scrollback first so
 /// [`the_shell_answered`] answers for THIS command.
 #[cfg(feature = "debug")]

@@ -71,6 +71,7 @@ done
 PRODUCERS=(
     "lesson_start_welcome|start_welcome:still"
     "lesson_start_scene|start_hud:still,start_camera:loop"
+    "lesson_start_pause|start_pause:still"
     "lesson_start_dock|start_cinematic:loop,start_verbs:loop"
     "lesson_flight_aim|flight_aim:loop"
     "lesson_flight_basics|flight_momentum:loop,flight_stop:loop,flight_rcs:loop"
@@ -96,7 +97,7 @@ PRODUCERS=(
     "lesson_novaos_ship|novaos_service:loop,novaos_rebind_section:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
     "lesson_menu_mouse|advanced_mouse:loop"
-    "lesson_menu_quality|advanced_audio:still,advanced_graphics:still"
+    "lesson_menu_quality|novaos_shell:still,advanced_audio:still,advanced_graphics:still"
 )
 
 # What the authored lessons cut a sheet on
