@@ -84,7 +84,7 @@ PRODUCERS=(
     "lesson_combat_field|combat_allegiance:still,start_markers:still,combat_cover:loop"
     "lesson_combat_rounds|combat_damage_types:loop"
     "lesson_combat_battery|combat_magazines:loop,combat_point_defense:still"
-    "lesson_combat_lance|combat_railgun:loop,combat_collapse:loop"
+    "lesson_combat_lance|combat_bore_sight:loop,combat_railgun:loop,combat_collapse:loop"
     "lesson_combat_torpedoes|combat_torpedoes:loop"
     "lesson_combat_torpedo_types|combat_torpedo_types:loop"
     "lesson_build_rail|build_readout:still,build_stacking:still"

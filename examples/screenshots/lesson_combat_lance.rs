@@ -1,19 +1,59 @@
-//! lesson_combat_lance: the handbook's two demonstrations about a hull being
-//! killed - `combat_railgun`, a spinal lance committing to a shot, and
+//! lesson_combat_lance: the handbook's three demonstrations about a hull being
+//! killed - `combat_bore_sight`, the instrument that prices a shot before it is
+//! taken, `combat_railgun`, a spinal lance committing to one, and
 //! `combat_collapse`, the hull that shot guts letting go of the rest of itself.
 //!
-//! ## One scene, two rigs, two sheets
+//! ## One scene, two rigs, three sheets
 //!
-//! Both lessons are about the same act - a lance slug going through structure -
-//! read at the two ends of it, so they are photographed on one walk. The scene
-//! carries two ranges on parallel lanes, far enough apart that neither shot can
-//! reach the other's subject (see [`WRECK_LANE_X`]):
+//! All three lessons are about the same act - a lance slug going through
+//! structure - read at three points along it, so they are photographed on one
+//! walk. The scene carries two ranges on parallel lanes, far enough apart that
+//! neither shot can reach the other's subject (see [`WRECK_LANE_X`]):
 //!
 //! - the LANCE lane at the origin: a player gunboat with a lance on its spine,
 //!   bore down -Z, and a base Patrol Gunship downrange bow-on so the shot rakes
 //!   its long axis;
 //! - the WRECK lane, off to starboard: a siege lance on a bench, and a block
 //!   hull built so that ONE slug takes it under the collapse threshold.
+//!
+//! ## `combat_bore_sight` is a LOOP, and the loop is the AIMING
+//!
+//! "Aiming down a ship's long axis reads differently from catching its
+//! shoulder." That claim is a COMPARISON, and a still can only ever be one half
+//! of one. So this sheet holds the lens and the target still and AIMS: the
+//! gunboat yaws [`BORE_YAW_SWING`] off the bow-on hull's centreline and back,
+//! and the sight is re-priced under it every frame. Down the spine the trace
+//! runs the hull's whole length and rings nine or ten sections; out on the
+//! shoulder it clips a corner and rings two. Same gun, same range, same hull.
+//!
+//! It is the GUNBOAT that moves rather than the target, and the first cut of
+//! this frame had it the other way round. Turning the hull through its own beam
+//! looks like the lesson's sentence and is not it: the corridor stayed seven to
+//! ten sections deep at every aspect, because what the rake takes off a hull
+//! this cheap barely depends on which way it is standing. What the sentence is
+//! actually about is where on a hull the bore is laid, and that is an aiming
+//! gesture.
+//!
+//! The swing is EASED rather than steady - one cosine over the whole sheet, so
+//! it RESTS at each end of itself - which buys held cells of each half of the
+//! comparison with the crossing between them, and wraps: the recorder may
+//! double the cell it opens on, and that cell is one of a bore that is not
+//! moving.
+//!
+//! It is photographed FIRST, before either gun is committed, and it has to be:
+//! `combat_railgun` opens this same hull, and a sight drawn over a wreck prices
+//! what is left rather than what the lesson is about.
+//!
+//! What it cannot be is the railgun frame with a swing on it. That one stands
+//! abeam of the whole lane so both hulls fit, which leaves a kill ring 11 m
+//! across about thirty pixels of the cell and puts the gunship's far side to
+//! the lens. This one gives the gunboat up and stands on the target's port bow
+//! instead ([`BORE_EYE`]), because a ring is drawn on the section it marks and
+//! every ring but the entry one is inside an opaque hull.
+//!
+//! [`the_swing_changed_the_rings`] is this frame's delivery guard, and it is
+//! the one it needs: a sheet of a thread crossing a hull that priced the same
+//! sections throughout would tile perfectly and say nothing.
 //!
 //! ## `combat_railgun` is a LOOP, and the loop is the COMMIT
 //!
@@ -115,6 +155,9 @@ use nova_protocol::prelude::*;
 #[command(about = "Record the handbook's railgun commit and hull collapse", long_about = None)]
 struct Cli;
 
+/// The sheet for "The bore sight".
+#[cfg(feature = "debug")]
+const BORE_LESSON: &str = "combat_bore_sight";
 /// The sheet for "The hull is the aim".
 #[cfg(feature = "debug")]
 const RAILGUN_LESSON: &str = "combat_railgun";
@@ -248,6 +291,47 @@ const COLLAPSE_OPEN_CHARGE: f32 = 0.96;
 #[cfg(feature = "debug")]
 const COLLAPSE_SLOWDOWN: f32 = 0.11;
 
+/// How far the gunboat yaws off the target's spine at the far end of the
+/// bore-sight swing, in degrees.
+///
+/// MEASURED, and the measurement is not the hull's half-width. The gunship is
+/// 70 m across the bow, but what the rake finds out at the wings is one cell of
+/// plate: the trace still prices three sections at 10.3 degrees off the
+/// centreline and none at all at 11.8, so the shoulder this sheet is about is a
+/// 27 m band and the edge of the hull is a metre and a half past it.
+///
+/// Ten degrees, which lands inside that band: the far end of the swing is a
+/// shot catching a corner, not a shot missing. A sheet that swung wider spent
+/// seven of its twenty cells on a clean pass, which is a different lesson.
+#[cfg(feature = "debug")]
+const BORE_YAW_SWING: f32 = 10.0;
+
+/// Where the lens stands for the bore-sight sheet, and what it looks at.
+///
+/// On the target's PORT BOW quarter - 40 degrees off the lane, 16 above it and
+/// 97 m out - and both halves of that bearing are forced.
+///
+/// The BOW, because a kill ring is drawn on the section it marks and every ring
+/// but the first is inside a hull that is opaque: what a reader can see is the
+/// ring at the face the bore ENTERS. A first cut of this frame stood astern and
+/// showed a thread crossing a hull with nothing marked on it.
+///
+/// PORT, because of the light. The range's key light stands at (-60, 50, 60)
+/// off its aim point (`ThreePointRig`), so a lens on the starboard bow takes
+/// the shadow side and the same cut came back as a navy silhouette with a bright
+/// deck. This is within five degrees of the key's own bearing.
+///
+/// The stand-off is set by the ring. At 97 m the frame is 143 m across, the
+/// hull takes six tenths of it, and an 11 m ring is some seventy pixels of the
+/// cell - which is the smallest a ring can be drawn and still be read as a ring
+/// rather than as a smudge on a plate. The gunboat is 60 degrees off the axis
+/// and therefore out of shot; its thread arrives over the frame edge instead,
+/// which is the trade this frame makes for a mark a reader can see.
+#[cfg(feature = "debug")]
+const BORE_EYE: Meters3 = Meters3::new(-60.0, 27.0, -79.0);
+#[cfg(feature = "debug")]
+const BORE_AIM: Meters3 = Meters3::new(0.0, 0.0, -150.0);
+
 /// Where the lens stands for the railgun sheet, and what it looks at.
 ///
 /// Across the gap rather than down it, and close enough in that the cell's own
@@ -295,6 +379,7 @@ fn main() -> bevy::app::AppExit {
             lesson_profile(),
         ));
         app.init_resource::<LanceProbe>();
+        app.init_resource::<BoreAim>();
         app.add_observer(count_shots);
         app.add_observer(note_collapse);
         app.add_systems(
@@ -618,6 +703,13 @@ struct LanceProbe {
     target_sections: usize,
     /// Sections the block had before the siege shell reached it.
     block_sections: usize,
+    /// Kill rings the bore sight drew, one sample per frame of the turn.
+    ///
+    /// The whole series rather than a running minimum and maximum, because it
+    /// is what [`report_the_sight`] prints when the beat stalls: a count that
+    /// never moved and a count that collapsed to nothing fail the same
+    /// assertion and want different fixes.
+    sight_rings: Vec<usize>,
     /// Set the frame the block crossed the collapse threshold.
     ///
     /// Latched rather than read off the world, because the root does not
@@ -646,25 +738,43 @@ fn note_collapse(
     }
 }
 
-/// Hold the gunboat on its mark.
+/// Where the gunboat is pointing, in radians of yaw off the lane.
+///
+/// Zero for every frame but the bore-sight sheet's, which is the one beat that
+/// AIMS: see [`sweep_the_bore`]. Held as a resource rather than driven into the
+/// hull directly because [`hold_the_boat`] would put it straight back.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default, Clone, Copy)]
+struct BoreAim(f32);
+
+/// Hold the gunboat on its mark, pointing where [`BoreAim`] says.
 ///
 /// The recoil is a real impulse on a free hull and the framing is measured from
 /// a boat at the origin, square with the world. Zeroing its velocities each
 /// frame is the posed-capture equivalent of `hollow::pin_player`.
+///
+/// Avian's [`Rotation`](avian3d::prelude::Rotation) is written beside the
+/// transform, because a posed heading is not a held one: the transform alone
+/// says where the hull is drawn and the rotation is what the bore is traced
+/// from, and the bore-sight sheet is a picture of the trace.
 #[cfg(feature = "debug")]
 fn hold_the_boat(
+    aim: Res<BoreAim>,
     mut boat: Query<
         (
             &mut Transform,
+            &mut avian3d::prelude::Rotation,
             &mut avian3d::prelude::LinearVelocity,
             &mut avian3d::prelude::AngularVelocity,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    for (mut transform, mut linear, mut angular) in &mut boat {
+    let heading = Quat::from_rotation_y(aim.0);
+    for (mut transform, mut rotation, mut linear, mut angular) in &mut boat {
         transform.translation = Vec3::ZERO;
-        transform.rotation = Quat::IDENTITY;
+        transform.rotation = heading;
+        rotation.0 = heading;
         linear.0 = Vec3::ZERO;
         angular.0 = Vec3::ZERO;
     }
@@ -730,6 +840,46 @@ fn sections_of(world: &mut World, id: &str) -> usize {
         .into_iter()
         .filter(|child| world.get::<SectionMarker>(*child).is_some())
         .count()
+}
+
+/// Swing the bore off the target's spine and back, `frame` frames into the
+/// sheet.
+///
+/// Frame-indexed rather than clocked, for the reason `frames` gives: an armed
+/// run pins the clock to [`LESSON_FPS`] and the smoke run does not, so a swing
+/// driven by seconds would complete on the sheet and barely start on the walk
+/// that has to prove the same thing without one.
+///
+/// Eased by a cosine over one whole period, so the sheet RESTS at each end of
+/// itself - held cells of the shot down the spine, held cells of the shot on
+/// the shoulder, and the crossing in between. That is the lesson's own
+/// comparison, and it is also what makes the loop wrap: the recorder may double
+/// the cell it opens on, and that cell is one of a bore that is not moving.
+///
+/// Yawed toward the lens - a positive rotation about Y walks the bore toward
+/// -X, and [`BORE_EYE`] stands on the port bow - so the shoulder the swing ends
+/// on is the one facing the camera, where its kill ring is drawn on a face in
+/// shot rather than on the far side of the hull.
+#[cfg(feature = "debug")]
+fn sweep_the_bore(world: &mut World, frame: u32) {
+    let phase = std::f32::consts::TAU * frame as f32 / LESSON_GRID.frames() as f32;
+    let yaw = BORE_YAW_SWING.to_radians() * 0.5 * (1.0 - phase.cos());
+    world.insert_resource(BoreAim(yaw));
+}
+
+/// How many sections the bore sight is promising to destroy right now.
+#[cfg(feature = "debug")]
+fn kill_rings(world: &mut World) -> usize {
+    world
+        .try_query_filtered::<Entity, With<BoreSightMark>>()
+        .map_or(0, |mut rings| rings.iter(world).count())
+}
+
+/// Sample the sight for this frame of the swing.
+#[cfg(feature = "debug")]
+fn note_the_rings(world: &mut World) {
+    let rings = kill_rings(world);
+    world.resource_mut::<LanceProbe>().sight_rings.push(rings);
 }
 
 /// Whether both lances have arrived.
@@ -844,6 +994,52 @@ fn lower_weapons(world: &mut World) {
 #[cfg(feature = "debug")]
 fn commit(world: &mut World, lance: Entity) {
     world.entity_mut(lance).insert(ScriptedRailgunOrder);
+}
+
+/// What the sight priced at each frame of the swing, for a stalled beat.
+#[cfg(feature = "debug")]
+fn report_the_sight(world: &World) -> String {
+    let rings = &world.resource::<LanceProbe>().sight_rings;
+    format!("kill rings per frame of the swing: {rings:?}")
+}
+
+/// The fewest sections the two ends of the swing have to differ by.
+///
+/// The lesson's claim is a COMPARISON, and a comparison needs a gap a reader
+/// can see. A shot down this hull's spine prices some nine or ten sections and
+/// one on its shoulder a couple, so four is a wide margin on the delivered
+/// scene and still fails the moment the two ends of the swing stop saying
+/// different things.
+#[cfg(feature = "debug")]
+const MIN_RING_SPREAD: usize = 4;
+
+/// The DELIVERY GUARD for the bore-sight sheet: the sight has to have drawn,
+/// and the swing has to have changed what it drew.
+///
+/// A sheet of a bore crossing a hull under a line that priced the same sections
+/// throughout tiles just as cleanly as the demonstration and says nothing, and
+/// it is the failure this frame cannot survive. Read off the rings the walk
+/// counted rather than off the hull, because what is being checked is the
+/// INSTRUMENT.
+#[cfg(feature = "debug")]
+fn the_swing_changed_the_rings(world: &mut World) {
+    let rings = world.resource::<LanceProbe>().sight_rings.clone();
+    let most = rings.iter().copied().max().unwrap_or(0);
+    let fewest = rings.iter().copied().min().unwrap_or(0);
+    info!(
+        "bore sight: {fewest} to {most} sections priced across the swing, frame by frame {rings:?}"
+    );
+    assert!(
+        fewest > 0,
+        "the bore sight came off the hull somewhere in the swing and marked nothing, so the sheet \
+         spends cells on a clean miss instead of on the shoulder the lesson names"
+    );
+    assert!(
+        most >= fewest + MIN_RING_SPREAD,
+        "the sight priced {fewest} to {most} sections across the whole swing, which is under the \
+         {MIN_RING_SPREAD} a reader can see, so the sheet cannot show that a shot down the long \
+         axis reads differently from one catching a shoulder"
+    );
 }
 
 /// The DELIVERY GUARD for the railgun sheet: the authored charge has to leave
@@ -971,6 +1167,43 @@ fn lance_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .on_enter(|world: &mut World| {
             hide_status_bar(world);
             raise_weapons(world);
+            pose_camera(world, BORE_EYE, BORE_AIM);
+        })
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        // The bore sight FIRST, on a whole hull: the railgun frame opens this
+        // same gunship, and a sight drawn over a wreck prices what is left of
+        // it. The swing and the wait are both counted in FRAMES so the sheet
+        // lands on the armed run and on the smoke walk alike.
+        .step("swing the bore across the target and record it")
+        .on_enter(|world: &mut World| {
+            world.resource_mut::<LanceProbe>().sight_rings.clear();
+            sweep_the_bore(world, 0);
+            sheet_start(world, BORE_LESSON, LESSON_GRID);
+        })
+        .each(|world: &mut World, _, frame| {
+            sweep_the_bore(world, frame);
+            note_the_rings(world);
+        })
+        // BOTH, and the swing is the half that matters: `sheet_written` holds
+        // the instant it is asked on the smoke path, so a wait on it alone
+        // would drive the unarmed run past the aiming it exists to prove.
+        .until(and(
+            sheet_written(BORE_LESSON),
+            frames(LESSON_GRID.frames()),
+        ))
+        .deadline(240.0)
+        .diagnose(report_the_sight)
+        .add()
+        .step("the sight drew, and the swing changed what it drew")
+        .on_enter(the_swing_changed_the_rings)
+        .until(frames(1))
+        .add()
+        // Square on the lane again, and back to its own framing: the railgun
+        // frame is measured from a boat bore-on to the hull it opens.
+        .step("square the gunboat back on the lane")
+        .on_enter(|world: &mut World| {
+            sweep_the_bore(world, 0);
             pose_camera(world, SIGHT_EYE, SIGHT_AIM);
         })
         .until(frames(SETTLE_FRAMES))

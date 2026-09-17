@@ -772,9 +772,9 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "The bore sight",
             looping(
                 "combat_bore_sight",
-                "the sight line out of a spinal railgun and across the gap onto a gunship's long \
-                 axis, a ring on each section the shot would destroy, and the line fattening as \
-                 the charge runs",
+                "a railgun's sight line arriving over the frame edge and crossing a patrol \
+                 gunship, with a blue ring on a section the shot would destroy, and the ring \
+                 walking the length of the hull as the gun is aimed off the spine and back",
             ),
             "A blue line runs from the muzzle to where the slug would stop, with a ring on every \
              section that shot would destroy. Aiming down a ship's long axis reads differently \
