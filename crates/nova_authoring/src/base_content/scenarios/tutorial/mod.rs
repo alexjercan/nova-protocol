@@ -30,7 +30,7 @@ mod tests;
 
 use range::*;
 
-use super::pacing;
+use super::{pacing, HINT_GOTO, HINT_ORBIT, HINT_RADAR, HINT_RCS, HINT_STOP};
 use crate::scenario_helpers::prelude::*;
 
 /// The scenario id New Game starts, and the id the retry hands back to.
@@ -384,7 +384,7 @@ pub(crate) fn tutorial(
         // ALPHA: the burn is done, and STOP is the next thing on the card.
         once(
             EventConfig::OnEnter,
-            vec![MARK_ALPHA.gate_entered(), in_beat(BEAT_BRIEF)],
+            vec![MARK_ALPHA.entered_by(ID_TRAINER), in_beat(BEAT_BRIEF)],
             [complete_objective(OBJ_BURN)]
                 .into_iter()
                 .chain(MARK_ALPHA.clear())
@@ -430,7 +430,7 @@ pub(crate) fn tutorial(
         // its designation: the white travel lock, on the planetoid.
         once(
             EventConfig::OnEnter,
-            vec![MARK_BRAVO.gate_entered(), in_beat(BEAT_RCS)],
+            vec![MARK_BRAVO.entered_by(ID_TRAINER), in_beat(BEAT_RCS)],
             [clear_hint_emphasis(HINT_RCS), complete_objective(OBJ_RCS)]
                 .into_iter()
                 .chain(MARK_BRAVO.clear())
@@ -534,7 +534,7 @@ pub(crate) fn tutorial(
         // CHARLIE: back on the line, and the gun's lock is next.
         once(
             EventConfig::OnEnter,
-            vec![MARK_CHARLIE.gate_entered(), in_beat(BEAT_RETURN)],
+            vec![MARK_CHARLIE.entered_by(ID_TRAINER), in_beat(BEAT_RETURN)],
             [
                 clear_hint_emphasis(HINT_GOTO),
                 complete_objective(OBJ_RETURN),

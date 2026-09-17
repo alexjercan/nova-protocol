@@ -41,14 +41,14 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::ShipCapabilities;
 
 use super::{
+    marks::Mark,
     pacing::beat_later,
     tutorial::range::{
         belts, lights, planetoid, raise_range_boundary, target_hulk, target_id, target_label,
-        trainer_at, trainer_with, Mark, HINT_GOTO, HINT_ORBIT, HINT_RADAR, HINT_RCS, HINT_STOP,
-        ID_PLANETOID, ID_TRAINER, MARK_ALPHA, MARK_BRAVO, MARK_CHARLIE, PLANETOID_LABEL,
-        TARGET_COUNT,
+        trainer_at, trainer_with, ID_PLANETOID, ID_TRAINER, MARK_ALPHA, MARK_BRAVO, MARK_CHARLIE,
+        PLANETOID_LABEL, TARGET_COUNT,
     },
-    BaseContentAssets,
+    BaseContentAssets, HINT_GOTO, HINT_ORBIT, HINT_RADAR, HINT_RCS, HINT_STOP,
 };
 use crate::scenario_helpers::prelude::*;
 
@@ -124,7 +124,7 @@ fn on_start(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
 fn on_arrival(mark: &Mark, beat: f64, actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
     once(
         EventConfig::OnEnter,
-        vec![mark.gate_entered(), in_beat(beat)],
+        vec![mark.entered_by(ID_TRAINER), in_beat(beat)],
         actions,
     )
 }

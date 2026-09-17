@@ -227,7 +227,7 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
     .into_iter()
     .any(|action| matches!(action, EventActionConfig::SpawnScenarioObject(object) if object.base.id == MARK_CHARLIE.id));
     assert!(raises_charlie, "a stable orbit raises the mark home");
-    let home = handler("OnEnter", MARK_CHARLIE.gate_entered());
+    let home = handler("OnEnter", MARK_CHARLIE.entered_by(ID_TRAINER));
     let opens_the_gun = all_actions(&ScenarioConfig {
         events: vec![home],
         ..config.clone()

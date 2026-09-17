@@ -27,8 +27,8 @@ mod block;
 
 pub(crate) use block::BLOCK_CLEANUP_TURRET_ID;
 pub use block::{
-    BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_WARSHIP_BAY_IDS,
-    BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_TURRET_IDS,
+    BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_PORT_COLLAR_SECTION_ID,
+    BLOCK_WARSHIP_BAY_IDS, BLOCK_WARSHIP_RAILGUN_IDS, BLOCK_WARSHIP_TURRET_IDS,
 };
 
 /// The id the block-built utility cutter is spawned by: the small unarmed
@@ -37,6 +37,14 @@ pub const BLOCK_CUTTER_SHIP_ID: &str = "block_cutter";
 /// The id the block-built bulk hauler is spawned by: unarmed freight on one
 /// vectoring drive.
 pub const BLOCK_HAULER_SHIP_ID: &str = "block_hauler";
+/// The id the block-built civilian workship is spawned by: an open work
+/// cradle, a port-flank docking collar, and no gun anywhere. The campaign's
+/// player hull.
+pub const BLOCK_WORKSHIP_SHIP_ID: &str = "block_workship";
+/// The id the block-built frame tender is spawned by: a cargo body under two
+/// open gantry arches, carrying the same collar the workship docks on.
+pub const BLOCK_FRAME_TENDER_SHIP_ID: &str = "block_frame_tender";
+
 /// The id the block-built patrol gunship is spawned by: armoured, six point
 /// defense mounts, the fleet's warship.
 pub const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
@@ -85,6 +93,18 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototyp
             BLOCK_HAULER_SHIP_ID,
             "Bulk Hauler",
             block::bulk_hauler(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_WORKSHIP_SHIP_ID,
+            "Utility Workship",
+            block::utility_workship(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_FRAME_TENDER_SHIP_ID,
+            "Frame Tender",
+            block::frame_tender(),
         ),
         block_ship(
             assets,

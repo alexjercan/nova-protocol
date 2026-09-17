@@ -23,7 +23,10 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
-    base_content::{scenarios::SCATTER_SEED, ships},
+    base_content::{
+        scenarios::{marks::Mark, SCATTER_SEED},
+        ships,
+    },
     scenario_helpers::prelude::*,
 };
 
@@ -64,13 +67,6 @@ pub(crate) fn apply_portraits(events: &mut [ScenarioEventConfig]) {
         }
     }
 }
-
-/// The keybind-dock chips a lesson pulses, by the verb each one draws.
-pub(crate) const HINT_STOP: &str = "STOP";
-pub(crate) const HINT_RCS: &str = "RCS";
-pub(crate) const HINT_RADAR: &str = "RADAR";
-pub(crate) const HINT_GOTO: &str = "GOTO";
-pub(crate) const HINT_ORBIT: &str = "ORBIT";
 
 // --- the cadet ---------------------------------------------------------------
 
@@ -485,24 +481,6 @@ pub(crate) fn lights(key: &str) -> Vec<ScenarioObjectConfig> {
 
 // --- the pattern's marks -----------------------------------------------------
 
-/// The beacon ink the range is navigated by.
-const MARK_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
-
-/// One temporary navigation mark: a lit beacon the script puts up for one
-/// lesson and takes down again.
-///
-/// Taking it down means DESPAWN, not just dropping the HUD chip: a finished
-/// mark left burning on the range is a mark the cadet keeps flying to.
-pub(crate) struct Mark {
-    /// Scenario id, and the id the marker and despawn are addressed to.
-    pub(crate) id: &'static str,
-    /// What the beacon and its HUD chip read.
-    pub(crate) label: &'static str,
-    pub(crate) position: Meters3,
-    /// Trigger volume. A hand-flown mark wants a tight one.
-    pub(crate) area: Meters,
-}
-
 /// The burn lesson's mark: dead ahead of the line, far enough that the cadet
 /// has to hold the throttle open, close enough that they are not still
 /// braking when the next lesson starts. The wide volume is for a first
@@ -537,60 +515,3 @@ pub(crate) const MARK_CHARLIE: Mark = Mark {
     position: Meters3::new(0.0, 0.0, -1_500.0),
     area: Meters(700.0),
 };
-
-impl Mark {
-    /// Put the mark up and point the HUD at it.
-    pub(crate) fn raise(&self) -> Vec<EventActionConfig> {
-        vec![
-            spawn_object(ScenarioObjectConfig {
-                base: BaseScenarioObjectConfig {
-                    id: self.id.to_string(),
-                    name: self.label.to_string(),
-                    position: self.position,
-                    rotation: Quat::IDENTITY,
-                },
-                kind: ScenarioObjectKind::Beacon(BeaconConfig {
-                    label: self.label.to_string(),
-                    radius: Meters(20.0),
-                    color: MARK_COLOR,
-                    area_radius: Some(self.area),
-                    lock_signature: None,
-                }),
-            }),
-            attach_objective_marker(self.id, self.label),
-        ]
-    }
-
-    /// The id of this mark's separate ARRIVAL GATE.
-    pub(crate) fn gate_id(&self) -> String {
-        format!("{}_gate", self.id)
-    }
-
-    /// Raise the arrival gate: a trigger volume on the mark's own place, put
-    /// up in the same step as the card that names the lesson. The gate, not
-    /// the beacon, decides the beat, so a handler armed for it can never be
-    /// spent before its card exists.
-    pub(crate) fn raise_gate(&self) -> EventActionConfig {
-        EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
-            id: self.gate_id(),
-            name: format!("{} Gate", self.label),
-            position: self.position,
-            rotation: Quat::IDENTITY,
-            radius: self.area,
-        })
-    }
-
-    /// OnEnter of this mark's arrival gate by the trainer.
-    pub(crate) fn gate_entered(&self) -> EventFilterConfig {
-        entity_pair(self.gate_id(), ID_TRAINER)
-    }
-
-    /// Take the mark and its gate down: the chip first, then both bodies.
-    pub(crate) fn clear(&self) -> Vec<EventActionConfig> {
-        vec![
-            detach_objective_marker(self.id),
-            despawn_object(self.id),
-            despawn_object(self.gate_id()),
-        ]
-    }
-}

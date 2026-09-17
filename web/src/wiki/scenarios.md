@@ -44,23 +44,24 @@ The public [Story](../../story/) archive presents campaigns as digital comics wi
             >assets/wiki-scenarios-picker.png</span
         >
         <span class="figure__placeholder-note"
-            >The Scenarios tab on a base install: Basic
-            Training listed on its own, its card selected and
-            its briefing in the detail pane.</span
+            >The Scenarios tab on a base install: Season 1
+            expanded over its first chapter, Basic Training
+            listed on its own, one card selected and its
+            briefing in the detail pane.</span
         >
     </div>
-    <figcaption class="figure__caption">The Scenarios tab lists every installed scenario that is not menu scenery. On a base install that is Basic Training.</figcaption>
+    <figcaption class="figure__caption">The Scenarios tab lists every installed scenario that is not menu scenery. On a base install that is Season 1's first chapter and Basic Training.</figcaption>
 </figure>
 
 The **Scenarios** tab lists every scenario the installed content offers, and
 launches any of them directly - so a chapter you have already flown is one
-click away for a replay. A fresh install lists Basic Training and nothing else:
-the scenes that drift behind the main menu are scenery rather than levels, and
-the base game ships no campaign.
+click away for a replay. The scenes that drift behind the main menu are scenery
+rather than levels and are never listed.
 
-Install a mod that does and the list grows a second shape. A campaign folds its
-chapters under a collapsible header - click the `[-]`/`[+]` to expand or fold
-it - and lists them in play order, mid-story chapters included. Scenarios that
-belong to no campaign list on their own below the campaigns.
+A campaign folds its chapters under a collapsible header - click the
+`[-]`/`[+]` to expand or fold it - and lists them in play order, mid-story
+chapters included. Scenarios that belong to no campaign list on their own below
+the campaigns. A fresh install shows one of each: **Season 1** with its first
+chapter under it, and Basic Training on its own.
 
 You can author your own scenarios and mods in RON - see the [Create docs](../../create/).

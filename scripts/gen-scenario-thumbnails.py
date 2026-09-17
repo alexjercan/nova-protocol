@@ -63,6 +63,9 @@ HEIGHT = 180
 SCENARIOS = [
     # --- base (the built-in scenarios; builders in nova_authoring) ---
     ("tutorial", "Basic Training", "assets/base/thumbnails/tutorial.png"),
+    # --- base: Season 1 ---
+    ("season_one_chapter_one", "A Useful Job",
+     "assets/base/thumbnails/season_one_chapter_one.png"),
     # --- webmods/gauntlet ---
     ("gauntlet_run", "Gauntlet Run", "webmods/gauntlet/thumbnails/gauntlet_run.png"),
     # --- webmods/the-ledger: Field Trials ---

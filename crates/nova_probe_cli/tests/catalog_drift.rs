@@ -864,10 +864,22 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the clicked blip engages GOTO on its contact",
         ],
     ),
+    (
+        "system_chapter_one",
+        &[
+            "the opening scene hands the helm back and posts the lane",
+            "each mark comes down as the next one goes up",
+            "the collar is staged inside the capture envelope",
+            "the clamp completes the docking card and starts the transfer",
+            "letting go and clamping again leaves no card behind",
+            "every card posts and completes in the authored order",
+            "the chapter ends in victory with the board clear and both hulls alive",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 412;
+const SYSTEMS_INVARIANTS: usize = 419;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

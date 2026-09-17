@@ -19,7 +19,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_scenario::prelude::{SectionSource, SpaceshipSectionConfig};
-use nova_ship::prelude::SIEGE_RAILGUN_LANCE_SECTION_ID;
+use nova_ship::prelude::{DOCKING_PORT_SECTION_ID, SIEGE_RAILGUN_LANCE_SECTION_ID};
 
 use crate::base_content::styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID};
 
@@ -35,6 +35,9 @@ const CAPITAL_THRUSTER: &str = "capital_thruster_section";
 const PDC: &str = "pdc_kinetic_turret_section";
 const TORPEDO: &str = "torpedo_section";
 const SIEGE_TORPEDO: &str = "heavy_torpedo_section";
+/// The sealed hatch the two civilian hulls meet on. Nothing else in the fleet
+/// carries one: a ship that can dock is a ship somebody built for it.
+const DOCKING_PORT: &str = DOCKING_PORT_SECTION_ID;
 /// The capital-grade lance, mounted by exactly one hull in the fleet: the
 /// stolen warship's two spinal guns. A separate PROTOTYPE rather than a
 /// per-spawn override, so the standard lance every other ship carries is
@@ -96,6 +99,11 @@ pub const BLOCK_WARSHIP_BAY_IDS: [&str; 6] = [
 /// cleanup leader's one torpedo bay. One id apiece, so content that arms or
 /// disarms the search group names a section rather than a hull.
 pub(crate) const BLOCK_CLEANUP_TURRET_ID: &str = "pdc";
+/// The port-flank docking collar both civilian hulls carry, by the one id
+/// content addresses it with. A scenario that hardens, reads or shoots the
+/// hatch names this rather than the hull it is bolted to.
+pub const BLOCK_PORT_COLLAR_SECTION_ID: &str = "port_collar";
+
 /// The cleanup leader's flank bay.
 pub(crate) const BLOCK_CLEANUP_BAY_ID: &str = "torpedo_bay";
 
@@ -171,6 +179,70 @@ pub(super) fn bulk_hauler() -> BlockShip {
                 position: Vec3::new(0.0, 0.0, 4.5),
                 rotation: Quat::IDENTITY,
             },
+        ],
+        plate: HULL,
+        style: INDUSTRIAL_STYLE_ID,
+    }
+}
+
+/// The civilian workship: a low hull with an open work cradle amidships,
+/// a crew module forward, a service deck aft over two bell drives, and a
+/// docking collar standing off the port flank.
+///
+/// The cradle is what the hull is FOR - a flat deck between two bulwarks
+/// that an outsized load is strapped onto - so it is authored as absence:
+/// the cells the bulwarks stand on and nothing between them. The collar is
+/// the one part that is not structure, and it is on the flank rather than
+/// the bow because a working ship docks alongside what it is helping.
+pub(super) fn utility_workship() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 8)),
+            block(IVec3::new(-1, 1, -4), IVec3::new(3, 1, 3)),
+            block(IVec3::new(-1, 1, 2), IVec3::new(3, 1, 2)),
+            block(IVec3::new(-2, 0, -1), IVec3::new(1, 1, 4)),
+            block(IVec3::new(2, 0, -1), IVec3::new(1, 1, 4)),
+        ]),
+        specials: vec![
+            cell_part(BLOCK_BRIDGE_SECTION_ID, CONTROLLER, IVec3::new(0, 1, -3)),
+            cell_part("drive_port", THRUSTER, IVec3::new(-1, 0, 3)),
+            cell_part("drive_starboard", THRUSTER, IVec3::new(1, 0, 3)),
+            flank_collar(BLOCK_PORT_COLLAR_SECTION_ID, IVec3::new(-2, 0, -2)),
+        ],
+        plate: HULL,
+        style: INDUSTRIAL_STYLE_ID,
+    }
+}
+
+/// The frame tender: a long keel under a cargo body, two open frame arches
+/// standing over it on rails, a cab forward and a service stack aft, with the
+/// same port-flank collar the workship carries.
+///
+/// The arches are the ship's name and its whole silhouette - a mobile gantry
+/// that lifts what it carries rather than swallowing it - so they are
+/// structure, not dressing, and the load rides in the open between them.
+pub(super) fn frame_tender() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 9)),
+            block(IVec3::new(-1, 1, -4), IVec3::new(3, 1, 2)),
+            block(IVec3::new(-1, 1, -1), IVec3::new(3, 1, 4)),
+            block(IVec3::new(-1, 1, 3), IVec3::new(3, 2, 2)),
+            // The two arches, and the rails that make them one frame rather
+            // than two hoops.
+            block(IVec3::new(-2, 1, -1), IVec3::new(1, 2, 1)),
+            block(IVec3::new(2, 1, -1), IVec3::new(1, 2, 1)),
+            block(IVec3::new(-2, 1, 2), IVec3::new(1, 2, 1)),
+            block(IVec3::new(2, 1, 2), IVec3::new(1, 2, 1)),
+            block(IVec3::new(-1, 2, -1), IVec3::new(3, 1, 1)),
+            block(IVec3::new(-1, 2, 2), IVec3::new(3, 1, 1)),
+            block(IVec3::new(-2, 2, 0), IVec3::new(1, 1, 2)),
+            block(IVec3::new(2, 2, 0), IVec3::new(1, 1, 2)),
+        ]),
+        specials: vec![
+            cell_part(BLOCK_BRIDGE_SECTION_ID, CONTROLLER, IVec3::new(0, 1, -4)),
+            cell_part("main_drive", THRUSTER, IVec3::new(0, 0, 4)),
+            flank_collar(BLOCK_PORT_COLLAR_SECTION_ID, IVec3::new(-2, 0, -3)),
         ],
         plate: HULL,
         style: INDUSTRIAL_STYLE_ID,
@@ -637,6 +709,22 @@ fn under_turret(id: &'static str, cell: IVec3) -> Special {
     }
 }
 
+/// A docking collar standing off a hull's PORT flank, hatch outboard.
+///
+/// The port's one blind face is its own `-Z`, so a quarter turn about Y puts
+/// the hatch on world `-X` and leaves the `+Z` socket facing the plate
+/// inboard of it. `cell` is the collar's own cell, one step outboard of the
+/// hull cell it mates to: a collar sunk into the skin would be a hatch that
+/// opens into structure.
+fn flank_collar(id: &'static str, cell: IVec3) -> Special {
+    Special {
+        id,
+        prototype: DOCKING_PORT,
+        position: cell.as_vec3(),
+        rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+    }
+}
+
 /// A special that occupies one whole cell, replacing the plate that would
 /// otherwise be there.
 fn cell_part(id: &'static str, prototype: &'static str, cell: IVec3) -> Special {
@@ -720,6 +808,8 @@ mod tests {
         vec![
             ("cutter", utility_cutter()),
             ("hauler", bulk_hauler()),
+            ("workship", utility_workship()),
+            ("frame tender", frame_tender()),
             ("gunship", patrol_gunship()),
             ("raider", salvage_raider()),
             ("carrier", industrial_carrier()),

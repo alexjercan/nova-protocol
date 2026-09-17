@@ -124,6 +124,7 @@ still launchable by id.
 | id | display name | in the picker | what it is |
 |---|---|---|---|
 | `tutorial` | Basic Training | yes | the New Game opening: the Fleet gunnery range, a qualification card read over the radio |
+| `season_one_chapter_one` | A Useful Job | yes | Season 1, chapter one: thread a working lane on RCS, come about on a stranded ship, and dock to take three people off |
 | `menu_waystation` | Waystation Traffic | no | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
 | `menu_gauntlet` | Torpedo Gauntlet | no | menu backdrop: a doomed point-defense stand (hands off to the weave) |
 | `menu_weave` | Asteroid Weave | no | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
@@ -137,13 +138,24 @@ The four `drill_*` ranges belong to the handbook: each is reached from the
 Practice button of the [lessons](../lessons/) that name it, and from nowhere
 else.
 
-The base bundle ships no campaign, and no shipped mod carries one today - a
-`Campaign` is a mod's to declare. There are no other content kinds - a content
-file holds `Section`, `Scenario`, `Campaign`, `Ship`, `Style` and `Lesson` items
-only; factions are not content, and neither is impact audio, a comms channel or
-the table a generated hull is drawn from - all three are engine-owned. The base
-ship ids are tabled in [Ships](../ships/#base-ships), the style ids
-[above](#skin-styles).
+The base bundle ships ONE campaign, in
+`assets/base/campaigns/base.content.ron`:
+
+| id | header | chapters |
+|---|---|---|
+| `season_one` | Season 1 | `season_one_chapter_one` |
+
+A campaign is a list, not a container: every chapter it names is also an
+ordinary picker row that can be launched on its own, and what the campaign adds
+is the order they are meant to be flown in and the header the Scenarios board
+draws them under. A mod may add its own campaigns, or replace `season_one` by
+reusing its id - see [Campaigns](../campaigns/).
+
+There are no other content kinds - a content file holds `Section`, `Scenario`,
+`Campaign`, `Ship`, `Style` and `Lesson` items only; factions are not content,
+and neither is impact audio, a comms channel or the table a generated hull is
+drawn from - all three are engine-owned. The base ship ids are tabled in
+[Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
 New Game is base-owned: `new_game_scenario: Some("tutorial")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod

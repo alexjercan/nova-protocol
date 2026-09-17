@@ -96,6 +96,9 @@ does NOT get an entry - and it is the only place they are written down.
   behind them.
 
 ### Ships & Sections
+- Two civilian industrial hulls join the base catalog: `block_workship`, an
+  open work cradle over two bell drives, and `block_frame_tender`, a keel under
+  two gantry arches. Both carry a flank collar.
 - **(breaking)** A ship is a DESIGN: `Ship`'s `hull` field is now `design`,
   its `collapse_threshold` moves under `integrity`, and its skin, style and
   sounds under `presentation`.
@@ -125,6 +128,11 @@ does NOT get an entry - and it is the only place they are written down.
   out once the dock holds and never grows a collider.
 
 ### Scenarios & Objectives
+- The base game ships a story campaign. Season 1, chapter one - A Useful Job:
+  thread a working lane on RCS, come about on a stranded ship, and dock to take
+  three people off. Nothing is armed.
+- The Scenarios list groups a campaign under its own header, so Season 1 folds
+  over its chapters and Basic Training stays a row of its own.
 - A scenario reacts to docking: `OnDocked` / `OnUndocked` carry the hull docked
   with as `id` and the asking hull as `other_id`. Undock covers every ending,
   a lost port or ship among them.
@@ -324,6 +332,9 @@ does NOT get an entry - and it is the only place they are written down.
 - `system_docking_ports` grades what the solver does with a dock: one joint per
   command, the pose it holds under tow, the throttle it swallows while docked,
   and the ways it ends.
+- `system_chapter_one` walks the shipped chapter end to end on the autopilot:
+  every card it posts and completes, in order, the banner it ends on, and the
+  clamp-and-let-go cases the panel has to survive.
 - One resolver builds every ship: the spawn, the content lint, the preload
   walk, the editor preview and the balance audit read the same finished
   sections, so an audit quotes the numbers the ship flies with.

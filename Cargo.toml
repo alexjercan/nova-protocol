@@ -436,6 +436,15 @@ path = "examples/systems/system_headless_drag.rs"
 name = "system_headless_crt"
 path = "examples/systems/system_headless_crt.rs"
 
+# Then the one range that grades SHIPPED content rather than a fixture built
+# beside it: the campaign's first chapter, booted by scenario id and walked
+# from the opening scene to the banner. Every other range above owns its world,
+# which is what keeps them stable; a chapter is authored content, and the only
+# honest way to grade the file a player loads is to load it.
+[[example]]
+name = "system_chapter_one"
+path = "examples/systems/system_chapter_one.rs"
+
 # And the STRESS ranges: the same correctness shape - exact counts, a
 # clear-and-drain assertion, a teardown that leaves nothing - staged at a scale
 # no content will ever reach, with a frame-time capture riding along. One file

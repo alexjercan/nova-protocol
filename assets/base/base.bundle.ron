@@ -24,6 +24,9 @@
         "scenarios/menu_weave.content.ron",
         "scenarios/menu_duel.content.ron",
         "scenarios/tutorial.content.ron",
+        // Season 1, chapter one. A picker row of its own, and the campaign
+        // file below lists it as the season's first chapter.
+        "scenarios/season_one_chapter_one.content.ron",
         // The handbook's practice ranges. Not chapters: each is `role: Lesson`,
         // so the picker renders no row and the only way in is the Practice
         // button on the lesson that names it.
@@ -33,6 +36,9 @@
         "scenarios/drill_gunnery.content.ron",
         // The training handbook itself: one item per lesson.
         "training/base.content.ron",
+        // The campaigns, last: a campaign is a list of scenario ids, so it
+        // reads after the scenarios it names.
+        "campaigns/base.content.ron",
     ],
     // The base game's own art, now shipped UNDER assets/base/ and referenced from
     // base content with `self://` (and by mods with `dep://base/<path>`). Every
@@ -140,6 +146,7 @@
         // `scripts/gen-scenario-thumbnails.py` until real art lands at the same
         // paths (task 20260715-220011).
         "thumbnails/tutorial.png",
+        "thumbnails/season_one_chapter_one.png",
         // Green CRT portraits for the base game's comms voices: the player's
         // own face (shared with the story mod as `dep://base/portraits/
         // player.png`) and the training range's Range Control.

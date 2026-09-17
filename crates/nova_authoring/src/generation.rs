@@ -13,7 +13,8 @@
 
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig, SpaceshipSectionConfig,
+    CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
+    SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -25,9 +26,10 @@ use crate::base_content;
 /// parity test asserts.
 pub mod prelude {
     pub use super::{
-        build_lesson_content, build_lessons, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        build_campaign_content, build_campaigns, build_lesson_content, build_lessons,
+        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
+        build_ship_content, build_ships, build_style_content, build_styles, content_files,
+        serialize_content, spawned_ship_sections,
     };
 }
 
@@ -46,6 +48,25 @@ pub fn build_section_catalog() -> Vec<SectionConfig> {
 /// generators no longer need the resolved `GameSections`.
 pub fn build_scenarios() -> Vec<ScenarioConfig> {
     base_content::build().scenarios
+}
+
+/// The base game's campaigns, in a stable order - the story runs the Scenarios
+/// board groups its chapters under.
+pub fn build_campaigns() -> Vec<CampaignConfig> {
+    base_content::build().campaigns
+}
+
+/// The campaign catalog wrapped as one `Vec<Content>` of `Content::Campaign`
+/// items - the shape the committed `assets/base/campaigns/base.content.ron`
+/// file carries.
+///
+/// ONE file for every campaign, like the styles: a campaign is a short list of
+/// scenario ids, and the set is read as a whole.
+pub fn build_campaign_content() -> Vec<Content> {
+    build_campaigns()
+        .into_iter()
+        .map(Content::Campaign)
+        .collect()
 }
 
 /// The base game's skin styles, in a stable order - the look a ship's derived
@@ -171,6 +192,12 @@ pub fn content_files() -> Vec<(String, String)> {
             serialize_content(&content),
         )
     }));
+    // After the scenarios: a campaign is a list of ids that must already exist,
+    // so this is the reading order as well as the writing one.
+    files.push((
+        "base/campaigns/base.content.ron".to_string(),
+        serialize_content(&build_campaign_content()),
+    ));
     files
 }
 
